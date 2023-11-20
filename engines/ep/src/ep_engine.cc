@@ -2300,6 +2300,64 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
             "deinitialize.");
 }
 
+KVStoreIface::CreateItemCB EventuallyPersistentEngine::getCreateItemCallback() {
+    // EPEngine functions are not accessible wihtin KVStore, therefore
+    // createItem is passed via callback, i.e. we don't create a
+    // new item if it will cause memory to exceed the mutation watermark.
+    return [this](const DocKey& key,
+                  const size_t nbytes,
+                  const uint32_t flags,
+                  const rel_time_t exptime,
+                  const value_t& body,
+                  uint8_t datatype,
+                  uint64_t theCas,
+                  int64_t bySeq,
+                  Vbid vbid,
+                  int64_t revSeq) {
+        return createItem(key,
+                          nbytes,
+                          flags,
+                          exptime,
+                          body,
+                          datatype,
+                          theCas,
+                          bySeq,
+                          vbid,
+                          revSeq);
+    };
+}
+
+std::pair<cb::engine_errc, std::unique_ptr<Item>>
+EventuallyPersistentEngine::createItem(const DocKey& key,
+                                       size_t nbytes,
+                                       uint32_t flags,
+                                       rel_time_t exptime,
+                                       const value_t& body,
+                                       uint8_t datatype,
+                                       uint64_t theCas,
+                                       int64_t bySeq,
+                                       Vbid vbid,
+                                       int64_t revSeq) {
+    if (!hasMemoryForItemAllocation(sizeof(Item) + sizeof(Blob) + key.size() +
+                                    nbytes)) {
+        return {memoryCondition(), nullptr};
+    }
+    try {
+        auto item = std::make_unique<Item>(key,
+                                           flags,
+                                           exptime,
+                                           body,
+                                           datatype,
+                                           theCas,
+                                           bySeq,
+                                           vbid,
+                                           revSeq);
+        return {cb::engine_errc::success, std::move(item)};
+    } catch (const std::bad_alloc&) {
+        return {memoryCondition(), nullptr};
+    }
+}
+
 cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
         const DocKey& key,
         const size_t nbytes,

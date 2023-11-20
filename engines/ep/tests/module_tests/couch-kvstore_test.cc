@@ -531,7 +531,21 @@ public:
         kvstore = std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config), ops);
         initialize_kv_store(kvstore.get());
+        defaultCreateItemCallback = [](const DocKey& key,
+                                       size_t nbytes,
+                                       uint32_t flags,
+                                       rel_time_t exptime,
+                                       const value_t& body,
+                                       uint8_t datatype,
+                                       uint64_t theCas,
+                                       int64_t bySeq,
+                                       Vbid vbid,
+                                       int64_t revSeq)
+                -> std::pair<cb::engine_errc, std::unique_ptr<Item>> {
+            return {cb::engine_errc::success, nullptr};
+        };
     }
+
     ~CouchKVStoreErrorInjectionTest() override {
         std::filesystem::remove_all(data_dir);
     }
@@ -610,6 +624,7 @@ protected:
     ::testing::NiceMock<MockBucketLogger> logger;
 
     CouchKVStoreConfig config;
+    KVStoreIface::CreateItemCB defaultCreateItemCallback;
     std::unique_ptr<CouchKVStore> kvstore;
     std::vector<queued_item> items;
     Collections::VB::Manifest manifest{
@@ -881,7 +896,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
-        kvstore->getMulti(Vbid(0), itms);
+        kvstore->getMulti(Vbid(0), itms, defaultCreateItemCallback);
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure,
               itms[DiskDocKey{*items.at(0)}].value.getStatus());
@@ -907,7 +922,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
-        kvstore->getMulti(Vbid(0), itms);
+        kvstore->getMulti(Vbid(0), itms, defaultCreateItemCallback);
 
         EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
     }

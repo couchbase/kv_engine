@@ -87,7 +87,9 @@ size_t BgFetcher::doFetch(Vbid vbId, vb_bgfetch_queue_t& itemsToFetch) {
                     startTime.time_since_epoch())
                     .count());
 
-    store.getROUnderlying(vbId)->getMulti(vbId, itemsToFetch);
+    auto& engine = store.getEPEngine();
+    store.getROUnderlying(vbId)->getMulti(
+            vbId, itemsToFetch, engine.getCreateItemCallback());
 
     std::vector<bgfetched_item_t> fetchedItems;
     for (const auto& fetch : itemsToFetch) {

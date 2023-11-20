@@ -359,7 +359,20 @@ void NexusKVStoreTest::implicitCompactionTestChecks(DiskDocKey key,
 
     bgfetch_itm_ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
             cookie, ValueFilter::VALUES_DECOMPRESSED, 0 /*token*/));
-    kvstore->getMulti(vbid, q);
+    auto testCallback = [](const DocKey& key,
+                           size_t nbytes,
+                           uint32_t flags,
+                           rel_time_t exptime,
+                           const value_t& body,
+                           uint8_t datatype,
+                           uint64_t theCas,
+                           int64_t bySeq,
+                           Vbid vbid,
+                           int64_t revSeq)
+            -> std::pair<cb::engine_errc, std::unique_ptr<Item>> {
+        return {cb::engine_errc::success, nullptr};
+    };
+    kvstore->getMulti(vbid, q, testCallback);
 
     // 4a) Scan, all items at once
     auto cl = std::make_unique<CacheLookupCb>();

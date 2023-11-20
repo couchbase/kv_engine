@@ -11,12 +11,14 @@
 
 #pragma once
 
+#include "blob.h"
 #include "callbacks_fwd.h"
 #include "collections/kvstore.h"
 #include "ep_types.h"
 #include "persistence_callback.h"
 #include "vbucket_state.h"
 
+#include <memcached/engine.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <memcached/thread_pool_config.h>
@@ -257,13 +259,30 @@ public:
      */
     virtual void setMaxDataSize(size_t size) = 0;
 
+    using CreateItemCB =
+            std::function<std::pair<cb::engine_errc, std::unique_ptr<Item>>(
+                    const DocKey& key,
+                    size_t nbytes,
+                    uint32_t flags,
+                    rel_time_t exptime,
+                    const value_t& body,
+                    uint8_t datatype,
+                    uint64_t theCas,
+                    int64_t bySeq,
+                    Vbid vbid,
+                    int64_t revSeq)>;
+
     /**
      * Retrieve multiple documents from the underlying storage system at once.
      *
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved.
+     * @param createItemCb the callback that will determine if there is
+     * sufficient memory before creating an item.
      */
-    virtual void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const = 0;
+    virtual void getMulti(Vbid vb,
+                          vb_bgfetch_queue_t& itms,
+                          CreateItemCB createItemCb) const = 0;
 
     /**
      * Callback for getRange().

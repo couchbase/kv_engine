@@ -235,13 +235,17 @@ CollectionID CouchKVStore::getCollectionIdFromStatsDocId(std::string_view id) {
 }
 
 struct GetMultiCbCtx {
-    GetMultiCbCtx(const CouchKVStore& c, Vbid v, vb_bgfetch_queue_t& f)
-        : cks(c), vbId(v), fetches(f) {
+    GetMultiCbCtx(const CouchKVStore& c,
+                  Vbid v,
+                  vb_bgfetch_queue_t& f,
+                  KVStoreIface::CreateItemCB cb)
+        : cks(c), vbId(v), fetches(f), createItemCallback(std::move(cb)) {
     }
 
     const CouchKVStore& cks;
     Vbid vbId;
     vb_bgfetch_queue_t &fetches;
+    KVStoreIface::CreateItemCB createItemCallback;
 };
 
 struct AllKeysCtx {
@@ -654,7 +658,9 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
     return rv;
 }
 
-void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
+void CouchKVStore::getMulti(Vbid vb,
+                            vb_bgfetch_queue_t& itms,
+                            CreateItemCB createItemCb) const {
     if (itms.empty()) {
         return;
     }
@@ -685,7 +691,7 @@ void CouchKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
         ++idx;
     }
 
-    GetMultiCbCtx ctx(*this, vb, itms);
+    GetMultiCbCtx ctx(*this, vb, itms, std::move(createItemCb));
 
     errCode = couchstore_docinfos_by_id(
             db, ids.data(), itms.size(), 0, getMultiCallback, &ctx);

@@ -818,7 +818,9 @@ static bool batchWarmupCallback(Vbid vbId,
                     0));
         }
 
-        c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
+        auto& engine = c->epstore->getEPEngine();
+        c->epstore->getROUnderlying(vbId)->getMulti(
+                vbId, items2fetch, engine.getCreateItemCallback());
 
         // applyItem controls the  mode this loop operates in.
         // true we will attempt the callback (attempt a HashTable insert)

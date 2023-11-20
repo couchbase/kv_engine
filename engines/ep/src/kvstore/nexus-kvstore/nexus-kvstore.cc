@@ -766,7 +766,9 @@ private:
     ValueFilter filter;
 };
 
-void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& primaryQueue) const {
+void NexusKVStore::getMulti(Vbid vb,
+                            vb_bgfetch_queue_t& primaryQueue,
+                            CreateItemCB createItemCb) const {
     auto lh = getLock(vb);
     vb_bgfetch_queue_t secondaryQueue;
     for (const auto& [key, primaryCtx] : primaryQueue) {
@@ -780,8 +782,8 @@ void NexusKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& primaryQueue) const {
         }
     }
 
-    primary->getMulti(vb, primaryQueue);
-    secondary->getMulti(vb, secondaryQueue);
+    primary->getMulti(vb, primaryQueue, createItemCb);
+    secondary->getMulti(vb, secondaryQueue, std::move(createItemCb));
 
     if (primaryQueue.size() != secondaryQueue.size()) {
         auto msg = fmt::format(

@@ -758,8 +758,12 @@ public:
      *
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved.
+     * @param createItemCb the callback that will determine if there is
+     * sufficient memory before creating an item.
      */
-    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const override {
+    void getMulti(Vbid vb,
+                  vb_bgfetch_queue_t& itms,
+                  CreateItemCB createItemCb) const override {
         throw std::runtime_error("Backend does not support getMulti()");
     }
 

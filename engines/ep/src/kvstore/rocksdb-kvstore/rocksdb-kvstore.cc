@@ -708,7 +708,9 @@ GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
     return makeGetValue(vb, key, value, filter != ValueFilter::KEYS_ONLY);
 }
 
-void RocksDBKVStore::getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const {
+void RocksDBKVStore::getMulti(Vbid vb,
+                              vb_bgfetch_queue_t& itms,
+                              CreateItemCB) const {
     // TODO RDB: RocksDB supports a multi get which we should use here.
     for (auto& it : itms) {
         auto& key = it.first;

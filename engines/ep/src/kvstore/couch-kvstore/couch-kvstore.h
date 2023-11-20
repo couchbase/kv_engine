@@ -214,7 +214,9 @@ public:
                            Vbid vb,
                            ValueFilter filter) const override;
 
-    void getMulti(Vbid vb, vb_bgfetch_queue_t& itms) const override;
+    void getMulti(Vbid vb,
+                  vb_bgfetch_queue_t& itms,
+                  CreateItemCB createItemCb) const override;
 
     void getRange(Vbid vb,
                   const DiskDocKey& startKey,

@@ -59,7 +59,7 @@ using namespace std::chrono_literals;
 
 void EPBucketTest::SetUp() {
     STParameterizedBucketTest::SetUp();
-
+    createItemCallback = this->engine->getCreateItemCallback();
     // Have all the objects, activate vBucket zero so we can store data.
     store->setVBucketState(vbid, vbucket_state_active);
 }
@@ -628,6 +628,46 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
             << "The foo attribute should be gone";
 }
 
+TEST_P(EPBucketFullEvictionTest, GetMultiExceedsBucketQuota) {
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+    const auto& stats = engine->getEpStats();
+    EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize());
+
+    // Load a document of size 1MiB
+    int valueSize = 1 * 1024 * 1024;
+    const std::string value(valueSize, 'x');
+    auto key = makeStoredDocKey("key");
+
+    // store an item
+    store_item(vbid, key, value);
+    flush_vbucket_to_disk(vbid);
+
+    // evict item
+    evict_key(vbid, key);
+
+    // check item has been removed
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto gv = store->get(key, vbid, cookie, options);
+    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
+
+    // set bucket quota to current memory usage
+    std::string msg;
+    auto newSize = stats.getEstimatedTotalMemoryUsed();
+    engine->setMaxDataSize(newSize);
+
+    // run bgFetch
+    runBGFetcherTask();
+
+    // BGFetch should fail to allocate memory above bucekt quota, however
+    // currently we allow BGFetch to exceed bucket quota
+    auto vb = store->getVBucket(vbid);
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+    EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize());
+}
+
 TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
@@ -644,7 +684,8 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
             nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
@@ -677,7 +718,8 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem() {
             nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
@@ -813,7 +855,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
             nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
@@ -877,7 +919,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
             nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
@@ -991,7 +1033,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     vb_bgfetch_item_ctx_t ctx;
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
 
     // 6) Callback from the "compactor" with the item to try and expire it. We
@@ -1044,7 +1086,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
             nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     ASSERT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 
@@ -1125,7 +1167,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
             nullptr, ValueFilter::VALUES_DECOMPRESSED, 0));
     auto diskDocKey = makeDiskDocKey("a");
     q[diskDocKey] = std::move(ctx);
-    store->getRWUnderlying(vbid)->getMulti(vbid, q);
+    store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     ASSERT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
     ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
 

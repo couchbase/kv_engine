@@ -78,7 +78,7 @@ public:
     MOCK_METHOD(void, setMaxDataSize, (size_t size), (override));
     MOCK_METHOD(void,
                 getMulti,
-                (Vbid vb, vb_bgfetch_queue_t& itms),
+                (Vbid vb, vb_bgfetch_queue_t& itms, CreateItemCB createItemCb),
                 (const, override));
     MOCK_METHOD(void,
                 getRange,

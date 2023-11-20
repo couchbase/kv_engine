@@ -304,6 +304,19 @@ void KVStoreBackend::teardown() {
 void KVStoreParamTest::SetUp() {
     KVStoreTest::SetUp();
     KVStoreBackend::setup(data_dir, GetParam());
+    testCallback = [](const DocKey& key,
+                      size_t nbytes,
+                      uint32_t flags,
+                      rel_time_t exptime,
+                      const value_t& body,
+                      uint8_t datatype,
+                      uint64_t theCas,
+                      int64_t bySeq,
+                      Vbid vbid,
+                      int64_t revSeq)
+            -> std::pair<cb::engine_errc, std::unique_ptr<Item>> {
+        return {cb::engine_errc::success, nullptr};
+    };
 }
 
 void KVStoreParamTest::TearDown() {
@@ -379,7 +392,8 @@ TEST_P(KVStoreParamTest, GetMultiMissNumGetFailure) {
     vb_bgfetch_item_ctx_t ctx;
     auto diskDocKey = makeDiskDocKey("key");
     q[diskDocKey] = std::move(ctx);
-    kvstore->getMulti(vbid, q);
+
+    kvstore->getMulti(vbid, q, testCallback);
 
     for (auto& fetched : q) {
         EXPECT_EQ(cb::engine_errc::no_such_key,
@@ -508,7 +522,7 @@ void KVStoreParamTest::testBgFetchDocsReadGetMulti(bool deleted,
     ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(nullptr, filter, 0));
     auto diskDocKey = makeDiskDocKey("key");
     q[diskDocKey] = std::move(ctx);
-    kvstore->getMulti(vbid, q);
+    kvstore->getMulti(vbid, q, testCallback);
 
     for (auto& fetched : q) {
         checkBGFetchResult(filter, *testDoc, fetched.second);
@@ -594,7 +608,7 @@ void KVStoreParamTest::testBgFetchValueFilter(ValueFilter requestMode1,
     // Test: Peform bgfetch, check returned value is of correct type.
     auto diskDocKey = makeDiskDocKey("key");
     q[diskDocKey] = std::move(ctx);
-    kvstore->getMulti(vbid, q);
+    kvstore->getMulti(vbid, q, testCallback);
 
     for (auto& fetched : q) {
         checkBGFetchResult(fetchedMode, *testDoc, fetched.second);

@@ -19,6 +19,8 @@
 
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket_test.h"
+#include "kvstore/kvstore_iface.h"
+
 #include <utilities/test_manifest.h>
 
 /**
@@ -29,6 +31,7 @@ protected:
     void SetUp() override;
 
     EPBucket& getEPBucket();
+    KVStoreIface::CreateItemCB createItemCallback;
 };
 
 // Full eviction only tests

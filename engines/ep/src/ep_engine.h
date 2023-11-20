@@ -11,10 +11,12 @@
 
 #pragma once
 
+#include "blob.h"
 #include "configuration.h"
 #include "ep_engine_public.h"
 #include "ep_engine_storage.h"
 #include "ep_types.h"
+#include "kvstore/kvstore_iface.h"
 #include "memory_tracker.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
@@ -873,6 +875,42 @@ public:
     item_info getItemInfo(const Item& item);
 
     void destroyInner(bool force);
+
+    KVStoreIface::CreateItemCB getCreateItemCallback();
+
+    /**
+     * Create an Item with the following parameters if the mutation watermark
+     * will not be exceeded. If successful, the engine error code is set to
+     * cb::engine_errc::success and a unique pointer to the created item is
+     * returned. If memory allocation fails due to exceeding the mutation
+     * watermark the engine error code is set to
+     * cb::engine_errc::temporary_failure or cb::engine_errc::no_memory if above
+     * memory quota, this is return along with a nullptr as the item.
+     *
+     * @param key The document key.
+     * @param nbytes The size of the item body.
+     * @param flags Flags associated with the item.
+     * @param exptime Expiration time for the item.
+     * @param body The value of the item.
+     * @param datatype The datatype of the item.
+     * @param theCas The CAS value for the item.
+     * @param bySeq The sequence number associated with the item.
+     * @param vbid The vBucket ID.
+     * @param revSeq The revision sequence number.
+     * @return A pair containing an engine error code and a unique pointer to
+     * the created item.
+     */
+    std::pair<cb::engine_errc, std::unique_ptr<Item>> createItem(
+            const DocKey& key,
+            size_t nbytes,
+            uint32_t flags,
+            rel_time_t exptime,
+            const value_t& body,
+            uint8_t datatype,
+            uint64_t theCas,
+            int64_t bySeq,
+            Vbid vbid,
+            int64_t revSeq);
 
     cb::EngineErrorItemPair itemAllocate(const DocKey& key,
                                          const size_t nbytes,

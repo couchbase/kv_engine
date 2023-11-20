@@ -165,6 +165,8 @@ protected:
      * @param useJson whether to use a json or binary document
      */
     void testPerDocumentCompression(bool useJson);
+
+    KVStoreIface::CreateItemCB testCallback;
 };
 
 /**
