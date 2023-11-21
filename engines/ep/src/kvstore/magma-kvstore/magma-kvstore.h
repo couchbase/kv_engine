@@ -466,8 +466,7 @@ public:
             magma::Status,
             Vbid vbid,
             const magma::Slice& keySlice,
-            std::string_view value,
-            bool found) const;
+            std::string_view value) const;
 
     /**
      * Encode the cached vbucket_state into a JSON string
@@ -637,8 +636,7 @@ protected:
                         int status,
                         kvstats_ctx& kvctx);
 
-    static cb::engine_errc magmaErr2EngineErr(magma::Status::Code err,
-                                              bool found = true);
+    static cb::engine_errc magmaErr2EngineErr(magma::Status::Code err);
 
     /// private getWithHeader shared with public get and getWithHeader
     GetValue getWithHeader(const DiskDocKey& key,

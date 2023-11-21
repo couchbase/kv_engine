@@ -220,16 +220,10 @@ magma::Status MagmaMemoryTrackingProxy::Get(const magma::Magma::KVStoreID kvID,
                                             DomainAwareFetchBuffer& idxBuf,
                                             DomainAwareFetchBuffer& seqBuf,
                                             magma::Slice& meta,
-                                            magma::Slice& value,
-                                            bool& found) {
+                                            magma::Slice& value) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->Get(kvID,
-                      key,
-                      idxBuf.getBuffer(),
-                      seqBuf.getBuffer(),
-                      meta,
-                      value,
-                      found);
+    return magma->Get(
+            kvID, key, idxBuf.getBuffer(), seqBuf.getBuffer(), meta, value);
 }
 
 magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
@@ -271,14 +265,13 @@ magma::Status MagmaMemoryTrackingProxy::GetDocs(
         const magma::Magma::KVStoreID kvID,
         magma::Operations<magma::Magma::GetOperation>& getOps,
         magma::Magma::GetDocCallback cb) {
-    auto wrappedCallback = [&cb](bool found,
-                                 magma::Status status,
+    auto wrappedCallback = [&cb](magma::Status status,
                                  const magma::Magma::GetOperation& op,
                                  const magma::Slice& metaSlice,
                                  const magma::Slice& valueSlice) {
         // Run the callers callback in primary domain
         cb::UseArenaMallocPrimaryDomain domainGuard;
-        cb(found, status, op, metaSlice, valueSlice);
+        cb(status, op, metaSlice, valueSlice);
     };
 
     cb::UseArenaMallocSecondaryDomain domainGuard;
@@ -337,21 +330,19 @@ MagmaMemoryTrackingProxy::GetKVStoreUserStats(
 
 std::pair<magma::Status, DomainAwareUniquePtr<std::string>>
 MagmaMemoryTrackingProxy::GetLocal(const magma::Magma::KVStoreID kvID,
-                                   const magma::Slice& key,
-                                   bool& found) {
+                                   const magma::Slice& key) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     DomainAwareUniquePtr<std::string> stringPtr(new std::string{});
-    auto status = magma->GetLocal(kvID, key, *stringPtr, found);
+    auto status = magma->GetLocal(kvID, key, *stringPtr);
     return {status, std::move(stringPtr)};
 }
 
 std::pair<magma::Status, DomainAwareUniquePtr<std::string>>
 MagmaMemoryTrackingProxy::GetLocal(magma::Magma::Snapshot& snapshot,
-                                   const magma::Slice& key,
-                                   bool& found) {
+                                   const magma::Slice& key) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     DomainAwareUniquePtr<std::string> stringPtr(new std::string{});
-    auto status = magma->GetLocal(snapshot, key, *stringPtr, found);
+    auto status = magma->GetLocal(snapshot, key, *stringPtr);
     return {status, std::move(stringPtr)};
 }
 
@@ -408,14 +399,12 @@ std::tuple<magma::Status,
            DomainAwareUniquePtr<std::string>,
            DomainAwareUniquePtr<std::string>>
 MagmaMemoryTrackingProxy::GetBySeqno(magma::Magma::Snapshot& snapshot,
-                                     const magma::Magma::SeqNo seqno,
-                                     bool& found) {
+                                     const magma::Magma::SeqNo seqno) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     DomainAwareUniquePtr<std::string> key(new std::string{});
     DomainAwareUniquePtr<std::string> meta(new std::string{});
     DomainAwareUniquePtr<std::string> value(new std::string{});
-    auto status =
-            magma->GetBySeqno(snapshot, seqno, *key, *meta, *value, found);
+    auto status = magma->GetBySeqno(snapshot, seqno, *key, *meta, *value);
     return {status, std::move(key), std::move(meta), std::move(value)};
 }
 

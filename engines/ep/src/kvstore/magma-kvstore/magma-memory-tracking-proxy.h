@@ -132,8 +132,7 @@ public:
                       DomainAwareFetchBuffer& idxBuf,
                       DomainAwareFetchBuffer& seqBuf,
                       magma::Slice& meta,
-                      magma::Slice& value,
-                      bool& found);
+                      magma::Slice& value);
     magma::Status GetDiskSnapshot(
             const magma::Magma::KVStoreID kvID,
             DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);
@@ -177,14 +176,10 @@ public:
             magma::Magma::Snapshot& snapshot);
 
     std::pair<magma::Status, DomainAwareUniquePtr<std::string>> GetLocal(
-            const magma::Magma::KVStoreID kvID,
-            const magma::Slice& key,
-            bool& found);
+            const magma::Magma::KVStoreID kvID, const magma::Slice& key);
 
     std::pair<magma::Status, DomainAwareUniquePtr<std::string>> GetLocal(
-            magma::Magma::Snapshot& snapshot,
-            const magma::Slice& key,
-            bool& found);
+            magma::Magma::Snapshot& snapshot, const magma::Slice& key);
 
     magma::Status GetMaxSeqno(const magma::Magma::KVStoreID kvID,
                               magma::Magma::SeqNo& seqno);
@@ -200,8 +195,7 @@ public:
                DomainAwareUniquePtr<std::string>,
                DomainAwareUniquePtr<std::string>>
     GetBySeqno(magma::Magma::Snapshot& snapshot,
-               const magma::Magma::SeqNo seqno,
-               bool& found);
+               const magma::Magma::SeqNo seqno);
     DomainAwareUniquePtr<magma::Magma::MagmaStats> GetStats(
             std::chrono::milliseconds cacheDuration = std::chrono::seconds(0));
     void GetFileStats(magma::MagmaFileStats& fileStats);

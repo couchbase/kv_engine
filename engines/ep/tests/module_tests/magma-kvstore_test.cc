@@ -762,7 +762,7 @@ TEST_F(MagmaKVStoreTest, ReadLocalDocErrorCode) {
 
     EXPECT_TRUE(kvstore->deleteLocalDoc(vbid, LocalDocKey::vbstate).IsOK());
     res = kvstore->readLocalDoc(vbid, LocalDocKey::vbstate);
-    EXPECT_EQ(magma::Status::Code::NotFound, res.first.ErrorCode());
+    EXPECT_EQ(magma::Status::Code::OkDocNotFound, res.first.ErrorCode());
 
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
     kvstore->delVBucket(vbid, std::move(kvsRev));

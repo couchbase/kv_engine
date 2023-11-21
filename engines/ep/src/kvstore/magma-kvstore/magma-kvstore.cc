@@ -1023,13 +1023,22 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     Slice valueSlice;
     DomainAwareFetchBuffer idxBuf;
     DomainAwareFetchBuffer seqBuf;
-    bool found;
 
     auto start = std::chrono::steady_clock::now();
 
     Status status = magma->Get(
-            vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice, found);
+            vbid.get(), keySlice, idxBuf, seqBuf, metaSlice, valueSlice);
 
+    if (!status) {
+        logger->warn("MagmaKVStore::getWithHeader {} key:{} status:{}",
+                     vbid,
+                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
+                     status.String());
+        st.numGetFailure++;
+        return GetValue{nullptr, magmaErr2EngineErr(status.ErrorCode())};
+    }
+
+    bool found = status.IsOkDocFound();
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE(
                 "MagmaKVStore::getWithHeader {} key:{} status:{} found:{} "
@@ -1039,15 +1048,6 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                 status.String(),
                 found,
                 found ? magmakv::isDeleted(metaSlice) : false);
-    }
-
-    if (!status) {
-        logger->warn("MagmaKVStore::getWithHeader {} key:{} status:{}",
-                     vbid,
-                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
-                     status.String());
-        st.numGetFailure++;
-        return GetValue{nullptr, magmaErr2EngineErr(status.ErrorCode())};
     }
 
     if (!found) {
@@ -1082,11 +1082,11 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) const {
                 &it.second));
     }
 
-    auto cb = [this, &vbid](bool found,
-                            Status status,
+    auto cb = [this, &vbid](Status status,
                             const Magma::GetOperation& op,
                             const Slice& metaSlice,
                             const Slice& valueSlice) {
+        bool found = status.IsOkDocFound();
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::getMulti {} key:{} status:{} found:{} "
@@ -1097,7 +1097,7 @@ void MagmaKVStore::getMulti(Vbid vbid, vb_bgfetch_queue_t& itms) const {
                     found,
                     found ? magmakv::isDeleted(metaSlice) : false);
         }
-        auto errCode = magmaErr2EngineErr(status.ErrorCode(), found);
+        auto errCode = magmaErr2EngineErr(status.ErrorCode());
         auto* bg_itm_ctx =
                 reinterpret_cast<vb_bgfetch_item_ctx_t*>(op.UserContext);
         bg_itm_ctx->value.setStatus(errCode);
@@ -1888,8 +1888,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     uint64_t nDocsToRead = highSeqno - startSeqno + 1;
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
-    if (!getDroppedStatus &&
-        getDroppedStatus.ErrorCode() != Status::Code::NotFound) {
+    if (!getDroppedStatus) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} failed to get "
                 "dropped collections from disk. Status:{}",
@@ -2010,8 +2009,7 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     }
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
-    if (!getDroppedStatus &&
-        getDroppedStatus.ErrorCode() != Status::Code::NotFound) {
+    if (!getDroppedStatus) {
         logger->warn(
                 "MagmaKVStore::initByIdcanContext {} Failed "
                 "getDroppedCollections Status:{}",
@@ -2443,13 +2441,13 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
     Slice keySlice(LocalDocKey::vbstate);
     auto [magmaStatus, valString] = readLocalDoc(vbid, keySlice);
 
-    if (!magmaStatus.IsOK()) {
+    if (!magmaStatus.IsOkDocFound()) {
         logger->warn(
                 "MagmaKVStore::readVBStateFromDisk: {} readLocalDoc "
                 "returned status {}",
                 vbid,
                 magmaStatus);
-        auto status = magmaStatus.ErrorCode() == Status::NotFound
+        auto status = magmaStatus.ErrorCode() == Status::OkDocNotFound
                               ? ReadVBStateStatus::NotFound
                               : ReadVBStateStatus::Error;
         return {status, {}};
@@ -2485,8 +2483,8 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
     Slice keySlice(LocalDocKey::vbstate);
     auto [magmaStatus, val] = readLocalDoc(vbid, snapshot, keySlice);
 
-    if (!magmaStatus.IsOK()) {
-        auto status = magmaStatus.ErrorCode() == Status::NotFound
+    if (!magmaStatus.IsOkDocFound()) {
+        auto status = magmaStatus.IsOkDocNotFound()
                               ? ReadVBStateStatus::NotFound
                               : ReadVBStateStatus::Error;
         return {status, {}};
@@ -2541,9 +2539,9 @@ KVStoreIface::ReadVBStateStatus MagmaKVStore::loadVBStateCache(
         kvstoreRevList[getCacheSlot(vbid)].reset(kvstoreRev);
     }
 
-    // If the vBucket exists but does not have a vbucket_state (i.e. NotFound
-    // is returned from readVBStateFromDisk) then just use a defaulted
-    // vbucket_state (which defaults to the dead state).
+    // If the vBucket exists but does not have a vbucket_state (i.e.
+    // OkDocNotFound is returned from readVBStateFromDisk) then just use a
+    // defaulted vbucket_state (which defaults to the dead state).
     if (readState.status != ReadVBStateStatus::Success) {
         logger->warn(
                 "MagmaKVStore::loadVBStateCache {} failed. Rev:{} "
@@ -2574,8 +2572,7 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
         Status status,
         Vbid vbid,
         const magma::Slice& keySlice,
-        std::string_view value,
-        bool found) const {
+        std::string_view value) const {
     magma::Status retStatus = Status::OK();
     if (!status) {
         retStatus = magma::Status(
@@ -2583,9 +2580,9 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
                 "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                         " key:" + keySlice.ToString() + " " + status.String());
     } else {
-        if (!found) {
+        if (status.IsOkDocNotFound()) {
             retStatus = magma::Status(
-                    magma::Status::Code::NotFound,
+                    magma::Status::Code::OkDocNotFound,
                     "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                             " key:" + keySlice.ToString() + " not found.");
         } else if (logger->should_log(spdlog::level::TRACE)) {
@@ -2600,18 +2597,16 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         Vbid vbid, const Slice& keySlice) const {
-    bool found{false};
-    auto [status, value] = magma->GetLocal(vbid.get(), keySlice, found);
-    return processReadLocalDocResult(status, vbid, keySlice, *value, found);
+    auto [status, value] = magma->GetLocal(vbid.get(), keySlice);
+    return processReadLocalDocResult(status, vbid, keySlice, *value);
 }
 
 std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
         Vbid vbid,
         magma::Magma::Snapshot& snapshot,
         const Slice& keySlice) const {
-    bool found{false};
-    auto [status, value] = magma->GetLocal(snapshot, keySlice, found);
-    return processReadLocalDocResult(status, vbid, keySlice, *value, found);
+    auto [status, value] = magma->GetLocal(snapshot, keySlice);
+    return processReadLocalDocResult(status, vbid, keySlice, *value);
 }
 
 std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {
@@ -2619,8 +2614,8 @@ std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {
     return j.dump();
 }
 
-cb::engine_errc MagmaKVStore::magmaErr2EngineErr(Status::Code err, bool found) {
-    if (!found) {
+cb::engine_errc MagmaKVStore::magmaErr2EngineErr(Status::Code err) {
+    if (err == Status::Code::OkDocNotFound) {
         return cb::engine_errc::no_such_key;
     }
     // This routine is intended to mimic couchErr2EngineErr.
@@ -2718,7 +2713,7 @@ cb::engine_errc MagmaKVStore::getAllKeys(
     }
 
     if (!status) {
-        return magmaErr2EngineErr(status.ErrorCode(), true);
+        return magmaErr2EngineErr(status.ErrorCode());
     }
 
     st.getAllKeysHisto.add(
@@ -3196,6 +3191,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     case Status::Cancelled:
     case Status::RetryLater:
     case Status::NoAccess:
+    case Status::OkDocNotFound:
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
@@ -3241,8 +3237,8 @@ std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
 
     auto [status, manifest] =
             readLocalDoc(kvfh.vbid, *kvfh.snapshot, LocalDocKey::manifest);
-    if (!status.IsOK()) {
-        if (status.ErrorCode() != Status::Code::NotFound) {
+    if (!status.IsOkDocFound()) {
+        if (status.ErrorCode() != Status::Code::OkDocNotFound) {
             logger->warn("MagmaKVStore::getCollectionsManifestUid(): {}",
                          status.Message());
             return std::nullopt;
@@ -3262,7 +3258,7 @@ std::pair<Status, std::string> MagmaKVStore::getCollectionsManifestUidDoc(
 
     std::string manifest;
     std::tie(status, manifest) = readLocalDoc(vbid, LocalDocKey::manifest);
-    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+    if (!status) {
         return {status, std::string{}};
     }
     return {status, std::move(manifest)};
@@ -3286,7 +3282,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 
     std::string manifest;
     std::tie(status, manifest) = getCollectionsManifestUidDoc(vbid);
-    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+    if (!status) {
         return {false,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
@@ -3295,7 +3291,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     std::string openCollections;
     std::tie(status, openCollections) =
             readLocalDoc(vbid, LocalDocKey::openCollections);
-    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+    if (!status) {
         return {false,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
@@ -3303,7 +3299,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
 
     std::string openScopes;
     std::tie(status, openScopes) = readLocalDoc(vbid, LocalDocKey::openScopes);
-    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+    if (!status) {
         return {false,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
@@ -3312,7 +3308,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     std::string droppedCollections;
     std::tie(status, droppedCollections) =
             readLocalDoc(vbid, LocalDocKey::droppedCollections);
-    if (!(status.IsOK() || status.ErrorCode() == Status::NotFound)) {
+    if (!status) {
         return {false,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
@@ -3338,8 +3334,7 @@ MagmaKVStore::getDroppedCollections(Vbid vbid) const {
     // Currently we need the InvalidKVStore check for the case in which we
     // create the (magma)KVStore (done at first flush).
     // @TODO investigate removal/use of snapshot variant
-    if (!status.IsOK() && status.ErrorCode() != Status::Code::InvalidKVStore &&
-        status.ErrorCode() != Status::Code::NotFound) {
+    if (!status.IsOK() && status.ErrorCode() != Status::Code::InvalidKVStore) {
         return {false, {}};
     }
 
@@ -3426,7 +3421,7 @@ magma::Status MagmaKVStore::updateOpenCollections(
     Slice keySlice(LocalDocKey::openCollections);
     auto [status, collections] = readLocalDoc(vbid, keySlice);
 
-    if (status.IsOK() || status.ErrorCode() == Status::Code::NotFound) {
+    if (status) {
         auto buf = collectionsFlush.encodeOpenCollections(
                 {reinterpret_cast<const uint8_t*>(collections.data()),
                  collections.length()});
@@ -3561,8 +3556,8 @@ MagmaKVStore::getCollectionStats(Vbid vbid,
         std::tie(status, stats) = readLocalDoc(vbid, keySlice);
     }
 
-    if (!status.IsOK()) {
-        if (status.ErrorCode() != Status::Code::NotFound) {
+    if (!status.IsOkDocFound()) {
+        if (status.ErrorCode() != Status::Code::OkDocNotFound) {
             logger->warn("MagmaKVStore::getCollectionStats(): {}",
                          status.Message());
             return {KVStore::GetCollectionStatsStatus::Failed,
@@ -3590,7 +3585,7 @@ magma::Status MagmaKVStore::updateScopes(
     Slice keySlice(LocalDocKey::openScopes);
     auto [status, scopes] = readLocalDoc(vbid, keySlice);
 
-    if (status.IsOK() || status.ErrorCode() == Status::Code::NotFound) {
+    if (status) {
         auto buf = collectionsFlush.encodeOpenScopes(
                 {reinterpret_cast<const uint8_t*>(scopes.data()),
                  scopes.length()});
@@ -4061,8 +4056,7 @@ GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
                                   ValueFilter filter) const {
     auto& snapshot = *dynamic_cast<const MagmaKVFileHandle&>(handle).snapshot;
     GetValue rv(nullptr, cb::engine_errc::no_such_key);
-    bool found;
-    auto [status, key, meta, value] = magma->GetBySeqno(snapshot, seq, found);
+    auto [status, key, meta, value] = magma->GetBySeqno(snapshot, seq);
     if (!status.IsOK()) {
         ++st.numGetFailure;
         logger->warn(
@@ -4074,7 +4068,7 @@ GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
         return rv;
     }
 
-    if (found) {
+    if (status.IsOkDocFound()) {
         rv.item = makeItem(vbid, *key, *meta, *value, filter);
         rv.setStatus(cb::engine_errc::success);
         return rv;
