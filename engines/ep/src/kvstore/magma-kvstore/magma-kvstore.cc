@@ -1888,7 +1888,8 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     uint64_t nDocsToRead = highSeqno - startSeqno + 1;
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
-    if (!getDroppedStatus.OK()) {
+    if (!getDroppedStatus &&
+        getDroppedStatus.ErrorCode() != Status::Code::NotFound) {
         logger->warn(
                 "MagmaKVStore::initBySeqnoScanContext {} failed to get "
                 "dropped collections from disk. Status:{}",
@@ -1903,7 +1904,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         // collections.
         magma::Status status;
         std::tie(status, openCollections) = getOpenCollections(vbid, snapshot);
-        if (!status.OK()) {
+        if (!status && status.ErrorCode() != Status::Code::NotFound) {
             logger->warn(
                     "MagmaKVStore::initBySeqnoScanContext {} failed to get "
                     "open collections from disk. Status:{}",
@@ -2009,7 +2010,8 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     }
 
     auto [getDroppedStatus, dropped] = getDroppedCollections(vbid, snapshot);
-    if (!getDroppedStatus.OK()) {
+    if (!getDroppedStatus &&
+        getDroppedStatus.ErrorCode() != Status::Code::NotFound) {
         logger->warn(
                 "MagmaKVStore::initByIdcanContext {} Failed "
                 "getDroppedCollections Status:{}",
