@@ -41,6 +41,10 @@ public:
 
     void setBufferSize(size_t size);
 
+    /**
+     * Checks whether we shouldsend a BufferAck given the current state of the
+     * FlowControl buffer.
+     */
     bool isBufferSufficientlyDrained();
 
     void addStats(const AddStatFn& add_stat, CookieIface& c) const;
@@ -54,6 +58,11 @@ public:
     }
 
 private:
+    /**
+     * Returns the number of bytes above which we send a buffer acknowledgement.
+     */
+    size_t getBufferAckThreshold() const;
+
     /// Associated consumer connection handler
     DcpConsumer& consumerConn;
 

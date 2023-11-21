@@ -63,7 +63,7 @@ cb::engine_errc FlowControl::handleFlowCtl(
     // secs if there's any unacked byte.
     const auto ackableBytes = freedBytes.load();
     const auto sendBufferAck =
-            isBufferSufficientlyDrained() ||
+            ackableBytes > getBufferAckThreshold() ||
             (ackableBytes > 0 && (ep_current_time() - lastBufferAck) > 5);
     if (sendBufferAck) {
         lastBufferAck = ep_current_time();
@@ -92,9 +92,12 @@ void FlowControl::setBufferSize(size_t newSize) {
     }
 }
 
+size_t FlowControl::getBufferAckThreshold() const {
+    return static_cast<size_t>(buffer.rlock()->getSize() * 0.2);
+}
+
 bool FlowControl::isBufferSufficientlyDrained() {
-    auto lockedBuffer = buffer.rlock();
-    return freedBytes > (lockedBuffer->getSize() * 0.2);
+    return freedBytes > getBufferAckThreshold();
 }
 
 void FlowControl::addStats(const AddStatFn& add_stat, CookieIface& c) const {
