@@ -128,7 +128,7 @@ protected:
 
     /**
      * An enum specifically for passing the type of message that is to be
-     * processed inside processMessage
+     * processed inside processMessageInner
      */
     enum MessageType : uint8_t {
         Mutation,
@@ -138,29 +138,29 @@ protected:
     };
 
     /**
-     * processMessage is a wrapper function containing the common elements for
-     * dealing with incoming mutation messages. This also deals with the
-     * differences between processing a mutation and deletion/expiration.
+     * Wrapper function containing the common elements for dealing with incoming
+     * mutation messages. This also deals with the differences between
+     * processing a mutation and deletion/expiration.
      *
      * @param message The message sent to the DcpConsumer/PassiveStream
      * @param messageType The type of message to process (see MessageType enum)
      */
-    cb::engine_errc processMessage(MutationConsumerMessage* message,
-                                   MessageType messageType);
+    cb::engine_errc processMessageInner(MutationConsumerMessage* message,
+                                        MessageType messageType);
     /**
      * Deal with incoming mutation sent to the DcpConsumer/PassiveStream by
-     * passing to processMessage with MessageType::Mutation
+     * passing to processMessageInner with MessageType::Mutation
      */
     virtual cb::engine_errc processMutation(MutationConsumerMessage* mutation);
     /**
      * Deal with incoming deletion sent to the DcpConsumer/PassiveStream by
-     * passing to processMessage with MessageType::Deletion
+     * passing to processMessageInner with MessageType::Deletion
      */
     cb::engine_errc processDeletion(MutationConsumerMessage* deletion);
 
     /**
      * Deal with incoming expiration sent to the DcpConsumer/PassiveStream by
-     * passing to processMessage with MessageType::Expiration
+     * passing to processMessageInner with MessageType::Expiration
      */
     cb::engine_errc processExpiration(MutationConsumerMessage* expiration);
 
@@ -320,6 +320,15 @@ protected:
 
     const std::string createStreamReqValue() const;
 
+    /**
+     * Wrapper function to forwarding a response type to the proper processing
+     * path.
+     *
+     * @param resp The DcpResponse to be processed
+     * @return success, or an error-code otherwise
+     */
+    cb::engine_errc processMessage(gsl::not_null<DcpResponse*> resp);
+
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.
     std::atomic<StreamState> state_{StreamState::Pending};
@@ -434,7 +443,7 @@ protected:
      */
     TestingHook<> streamDeadHook;
 
-    // Flag indicating if the most recent call to processMessage
+    // Flag indicating if the most recent call to processMessageInner
     // backed off due to ENOMEM. Only used for limiting logging
     std::atomic<bool> isNoMemory{false};
 

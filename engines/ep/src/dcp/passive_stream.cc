@@ -363,61 +363,8 @@ cb::engine_errc PassiveStream::messageReceived(
         return cb::engine_errc::disconnect;
     case ReplicationThrottle::Status::Process:
         if (buffer.empty() && !alwaysBufferOperations) {
-            /* Process the response here itself rather than buffering it */
-            cb::engine_errc ret = cb::engine_errc::success;
-            switch (dcpResponse->getEvent()) {
-            case DcpResponse::Event::Mutation:
-                ret = processMutation(static_cast<MutationConsumerMessage*>(
-                        dcpResponse.get()));
-                break;
-            case DcpResponse::Event::Deletion:
-                ret = processDeletion(static_cast<MutationConsumerMessage*>(
-                        dcpResponse.get()));
-                break;
-            case DcpResponse::Event::Expiration:
-                ret = processExpiration(static_cast<MutationConsumerMessage*>(
-                        dcpResponse.get()));
-                break;
-            case DcpResponse::Event::Prepare:
-                ret = processPrepare(static_cast<MutationConsumerMessage*>(
-                        dcpResponse.get()));
-                break;
-            case DcpResponse::Event::Commit:
-                ret = processCommit(
-                        static_cast<CommitSyncWriteConsumer&>(*dcpResponse));
-                break;
-            case DcpResponse::Event::Abort:
-                ret = processAbort(
-                        dynamic_cast<AbortSyncWriteConsumer&>(*dcpResponse));
-                break;
-            case DcpResponse::Event::SnapshotMarker:
-                processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
-                break;
-            case DcpResponse::Event::SetVbucket:
-                processSetVBucketState(
-                        static_cast<SetVBucketState*>(dcpResponse.get()));
-                break;
-            case DcpResponse::Event::StreamEnd: {
-                streamDeadHook();
-                std::lock_guard<std::mutex> lh(streamMutex);
-                transitionState(StreamState::Dead);
-            } break;
-            case DcpResponse::Event::SystemEvent: {
-                ret = processSystemEvent(
-                        *static_cast<SystemEventMessage*>(dcpResponse.get()));
-                break;
-            }
-            case DcpResponse::Event::StreamReq:
-            case DcpResponse::Event::AddStream:
-            case DcpResponse::Event::SeqnoAcknowledgement:
-            case DcpResponse::Event::OSOSnapshot:
-            case DcpResponse::Event::SeqnoAdvanced:
-                // These are invalid events for this path, they are handled by
-                // the DcpConsumer class
-                throw std::invalid_argument(
-                        "PassiveStream::messageReceived invalid event type:" +
-                        std::string(dcpResponse->to_string()));
-            }
+            // Memory available and no message buffered -> process the response
+            const auto ret = processMessage(dcpResponse.get());
 
             if (ret == cb::engine_errc::no_memory) {
                 if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
@@ -459,7 +406,6 @@ process_items_error_t PassiveStream::processBufferedMessages(
     bool failed = false, noMem = false;
 
     while (count < batchSize && !buffer.messages.empty()) {
-        cb::engine_errc ret = cb::engine_errc::success;
         /* If the stream is in dead state we should not process any remaining
            items in the buffer, we should rather clear them */
         if (!isActive()) {
@@ -484,61 +430,9 @@ process_items_error_t PassiveStream::processBufferedMessages(
         // MB-31410: Only used for testing
         processBufferedMessages_postFront_Hook();
 
-        auto seqno = response->getBySeqno();
+        const auto seqno = response->getBySeqno();
 
-        switch (response->getEvent()) {
-        case DcpResponse::Event::Mutation:
-            ret = processMutation(
-                    static_cast<MutationConsumerMessage*>(response.get()));
-            break;
-        case DcpResponse::Event::Deletion:
-            ret = processDeletion(
-                    static_cast<MutationConsumerMessage*>(response.get()));
-            break;
-        case DcpResponse::Event::Expiration:
-            ret = processExpiration(
-                    static_cast<MutationConsumerMessage*>(response.get()));
-            break;
-        case DcpResponse::Event::Prepare:
-            ret = processPrepare(
-                    static_cast<MutationConsumerMessage*>(response.get()));
-            break;
-        case DcpResponse::Event::Commit:
-            ret = processCommit(
-                    static_cast<CommitSyncWriteConsumer&>(*response));
-            break;
-        case DcpResponse::Event::Abort:
-            ret = processAbort(
-                    dynamic_cast<AbortSyncWriteConsumer&>(*response));
-            break;
-        case DcpResponse::Event::SnapshotMarker:
-            processMarker(static_cast<SnapshotMarker*>(response.get()));
-            break;
-        case DcpResponse::Event::SetVbucket:
-            processSetVBucketState(
-                    static_cast<SetVBucketState*>(response.get()));
-            break;
-        case DcpResponse::Event::StreamEnd: {
-            std::lock_guard<std::mutex> slh(streamMutex);
-            transitionState(StreamState::Dead);
-        } break;
-        case DcpResponse::Event::SystemEvent: {
-            ret = processSystemEvent(
-                    *static_cast<SystemEventMessage*>(response.get()));
-            break;
-        }
-        case DcpResponse::Event::StreamReq:
-        case DcpResponse::Event::AddStream:
-        case DcpResponse::Event::SeqnoAcknowledgement:
-        case DcpResponse::Event::OSOSnapshot:
-        case DcpResponse::Event::SeqnoAdvanced:
-            // These are invalid events for this path, they are handled by the
-            // DcpConsumer class
-            throw std::invalid_argument(
-                    "PassiveStream::processBufferedMessages invalid event "
-                    "type:" +
-                    std::string(response->to_string()));
-        }
+        const auto ret = processMessage(response.get());
 
         if (ret == cb::engine_errc::temporary_failure ||
             ret == cb::engine_errc::no_memory) {
@@ -599,8 +493,8 @@ process_items_error_t PassiveStream::processBufferedMessages(
     return all_processed;
 }
 
-cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
-                                              MessageType messageType) {
+cb::engine_errc PassiveStream::processMessageInner(
+        MutationConsumerMessage* message, MessageType messageType) {
     std::array<std::string, 4> taskToString{
             {"mutation", "deletion", "expiration", "prepare"}};
     VBucketPtr vb = engine->getVBucket(vb_);
@@ -638,7 +532,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
         // The deleted value has a body, send it through the mutation path so we
         // set the deleted item with a value
         if (message->getItem()->getNBytes()) {
-            return processMessage(message, MessageType::Mutation);
+            return processMessageInner(message, MessageType::Mutation);
         }
         break;
     case MessageType::Prepare:
@@ -721,7 +615,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
     }
     if (!switchComplete) {
         throw std::logic_error(
-                std::string("PassiveStream::processMessage: "
+                std::string("PassiveStream::processMessageInner: "
                             "Message type not supported"));
     }
 
@@ -749,22 +643,22 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
 
 cb::engine_errc PassiveStream::processMutation(
         MutationConsumerMessage* mutation) {
-    return processMessage(mutation, MessageType::Mutation);
+    return processMessageInner(mutation, MessageType::Mutation);
 }
 
 cb::engine_errc PassiveStream::processDeletion(
         MutationConsumerMessage* deletion) {
-    return processMessage(deletion, MessageType::Deletion);
+    return processMessageInner(deletion, MessageType::Deletion);
 }
 
 cb::engine_errc PassiveStream::processExpiration(
         MutationConsumerMessage* expiration) {
-    return processMessage(expiration, MessageType::Expiration);
+    return processMessageInner(expiration, MessageType::Expiration);
 }
 
 cb::engine_errc PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
-    auto result = processMessage(prepare, MessageType::Prepare);
+    auto result = processMessageInner(prepare, MessageType::Prepare);
     if (result == cb::engine_errc::success) {
         Expects(prepare->getItem()->getBySeqno() ==
                 engine->getVBucket(vb_)->getHighSeqno());
@@ -1615,4 +1509,57 @@ std::string PassiveStream::Labeller::getLabel(const char* name) const {
                        stream.getVBucket(),
                        stream.getName(),
                        name);
+}
+
+cb::engine_errc PassiveStream::processMessage(
+        gsl::not_null<DcpResponse*> response) {
+    cb::engine_errc ret = cb::engine_errc::success;
+    auto* resp = response.get();
+    switch (resp->getEvent()) {
+    case DcpResponse::Event::Mutation:
+        ret = processMutation(dynamic_cast<MutationConsumerMessage*>(resp));
+        break;
+    case DcpResponse::Event::Deletion:
+        ret = processDeletion(dynamic_cast<MutationConsumerMessage*>(resp));
+        break;
+    case DcpResponse::Event::Expiration:
+        ret = processExpiration(dynamic_cast<MutationConsumerMessage*>(resp));
+        break;
+    case DcpResponse::Event::Prepare:
+        ret = processPrepare(dynamic_cast<MutationConsumerMessage*>(resp));
+        break;
+    case DcpResponse::Event::Commit:
+        ret = processCommit(dynamic_cast<CommitSyncWriteConsumer&>(*resp));
+        break;
+    case DcpResponse::Event::Abort:
+        ret = processAbort(dynamic_cast<AbortSyncWriteConsumer&>(*resp));
+        break;
+    case DcpResponse::Event::SnapshotMarker:
+        processMarker(dynamic_cast<SnapshotMarker*>(resp));
+        break;
+    case DcpResponse::Event::SetVbucket:
+        processSetVBucketState(dynamic_cast<SetVBucketState*>(resp));
+        break;
+    case DcpResponse::Event::StreamEnd: {
+        streamDeadHook();
+        std::lock_guard<std::mutex> lh(streamMutex);
+        transitionState(StreamState::Dead);
+    } break;
+    case DcpResponse::Event::SystemEvent: {
+        ret = processSystemEvent(*dynamic_cast<SystemEventMessage*>(resp));
+        break;
+    }
+    case DcpResponse::Event::StreamReq:
+    case DcpResponse::Event::AddStream:
+    case DcpResponse::Event::SeqnoAcknowledgement:
+    case DcpResponse::Event::OSOSnapshot:
+    case DcpResponse::Event::SeqnoAdvanced:
+        // These are invalid events for this path, they are handled by
+        // the DcpConsumer class
+        throw std::invalid_argument(
+                "PassiveStream::processMessage: invalid event " +
+                std::string(resp->to_string()));
+    }
+
+    return ret;
 }
