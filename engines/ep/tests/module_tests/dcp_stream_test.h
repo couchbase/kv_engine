@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "dcp/response.h"
 #include "dcp_test.h"
 #include "hash_table.h"
 #include "vbucket_queue_item_ctx.h"
@@ -186,6 +187,9 @@ protected:
             bool sysXattrs,
             const std::optional<cb::durability::Requirements>& durReqs,
             bool compressed = false);
+
+    // coverage for MB-59518
+    void replicaToActiveBufferedRejected(DcpResponse::Event event);
 
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in

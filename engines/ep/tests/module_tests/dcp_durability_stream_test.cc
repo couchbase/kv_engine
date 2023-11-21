@@ -4625,9 +4625,16 @@ void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
 
     auto vb = engine->getVBucket(vbid);
 
-    // Buffer the commit/abort of the prepare
+    // Buffer a snapshot with commit/abort of the prepare.
+    // Note to detect a bug when processing a buffered snapshot marker, if we
+    // set the type as DISK it would hit an exception when calling
+    // setDuplicatePrepareWindow.
     EXPECT_EQ(cb::engine_errc::success,
-              snapshot(*consumer, stream->getOpaque(), 3, 3));
+              snapshot(*consumer,
+                       stream->getOpaque(),
+                       3,
+                       3,
+                       MARKER_FLAG_DISK | MARKER_FLAG_CHK));
     if (resolutionIsCommit) {
         EXPECT_EQ(cb::engine_errc::success,
                   commit(*consumer, stream->getOpaque(), durableKey, 2, 3));
@@ -4690,6 +4697,63 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
 
 TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedAbort) {
     replicaToActiveBufferedResolution(false);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedPrepare) {
+    // Begin by pushing a mutation. Only to get away from seqno:0
+    auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              snapshot(*consumer, stream->getOpaque(), 1, 1));
+    EXPECT_EQ(cb::engine_errc::success,
+              mutation(*consumer, stream->getOpaque(), key, 1));
+    flushVBucketToDiskIfPersistent(vbid);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              snapshot(*consumer, stream->getOpaque(), 2, 2));
+
+    // Now begin buffering.
+    auto& stats = engine->getEpStats();
+    const size_t size = stats.getMaxDataSize();
+    stats.setMaxDataSize(1);
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0);
+    ASSERT_EQ(ReplicationThrottle::Status::Pause,
+              engine->getReplicationThrottle().getStatus());
+
+    auto vb = engine->getVBucket(vbid);
+
+    // Buffer the prepare.
+    // Note to detect a bug when processing a buffered snapshot marker, if we
+    // set the type as DISK it would hit an exception when calling
+    // setDuplicatePrepareWindow.
+    // Now push a prepare onto the replica.
+    auto durableKey = makeStoredDocKey("durable");
+
+    EXPECT_EQ(cb::engine_errc::success,
+              prepare(*consumer, stream->getOpaque(), durableKey, 2));
+    EXPECT_EQ(1, vb->getHighSeqno());
+
+    std::function<void()> hook = [this]() {
+        // Change the vbucket state using the hook. This will happen whilst the
+        // consumer buffering "thread" has a stream pointer.
+        setVBucketState(vbid,
+                        vbucket_state_active,
+                        nlohmann::json::parse(R"({"topology":[["active"]]})"),
+                        TransferVB::No);
+    };
+    stream->setProcessBufferedMessages_postFront_Hook(hook);
+
+    // And process the buffered resolution. This operation should be rejected.
+    // Prior to the fix it would be processed against the active.
+    config.setMutationMemRatio(0.99);
+    stats.setMaxDataSize(size);
+    ASSERT_EQ(ReplicationThrottle::Status::Process,
+              engine->getReplicationThrottle().getStatus());
+    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+
+    // Prepare must be rejected, no change to high-seq
+    EXPECT_EQ(1, vb->getHighSeqno());
 }
 
 void DurabilityPromotionStreamTest::SetUp() {

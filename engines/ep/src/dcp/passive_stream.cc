@@ -671,9 +671,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
                                                  0,
                                                  nullptr,
                                                  consumer->getCookie(),
-                                                 {vbucket_state_active,
-                                                  vbucket_state_replica,
-                                                  vbucket_state_pending},
+                                                 permittedVBStates,
                                                  CheckConflicts::No,
                                                  true,
                                                  GenerateBySeqno::No,
@@ -707,9 +705,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
                 nullptr,
                 message->getVBucket(),
                 consumer->getCookie(),
-                {vbucket_state_active,
-                 vbucket_state_replica,
-                 vbucket_state_pending},
+                permittedVBStates,
                 CheckConflicts::No,
                 meta,
                 GenerateBySeqno::No,
@@ -892,6 +888,10 @@ cb::engine_errc PassiveStream::processSystemEvent(
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 
@@ -1180,6 +1180,15 @@ static bool mustAssignEndSeqno(SnapshotMarker* marker, uint64_t endSeqno) {
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
+    if (!vb) {
+        return;
+    }
+    // Vbucket must be in a permitted state to apply the snapshot
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
+        return;
+    }
+
     // cur_snapshot_start is initialised to 0 so only set it for numbers > 0,
     // as the first snapshot maybe have a snap_start_seqno of 0.
     if (marker->getStartSeqno() > 0) {
@@ -1194,89 +1203,97 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                     ? Snapshot::Disk
                                     : Snapshot::Memory);
 
-    if (vb) {
-        auto checkpointType = marker->getFlags() & MARKER_FLAG_DISK
-                                      ? CheckpointType::Disk
-                                      : CheckpointType::Memory;
+    auto checkpointType = marker->getFlags() & MARKER_FLAG_DISK
+                                  ? CheckpointType::Disk
+                                  : CheckpointType::Memory;
 
-        const auto historical = marker->getFlags() & MARKER_FLAG_HISTORY
-                                        ? CheckpointHistorical::Yes
-                                        : CheckpointHistorical::No;
+    const auto historical = marker->getFlags() & MARKER_FLAG_HISTORY
+                                    ? CheckpointHistorical::Yes
+                                    : CheckpointHistorical::No;
 
-        // Check whether the snapshot can be considered as an initial disk
-        // checkpoint for the replica.
-        if (checkpointType == CheckpointType::Disk && vb->getHighSeqno() == 0) {
-            checkpointType = CheckpointType::InitialDisk;
-        }
+    // Check whether the snapshot can be considered as an initial disk
+    // checkpoint for the replica.
+    if (checkpointType == CheckpointType::Disk && vb->getHighSeqno() == 0) {
+        checkpointType = CheckpointType::InitialDisk;
+    }
 
-        auto& ckptMgr = *vb->checkpointManager;
+    auto& ckptMgr = *vb->checkpointManager;
 
-        // If this stream doesn't support SyncReplication (i.e. the producer
-        // is a pre-MadHatter version) then we should consider the HCS to be
-        // present but zero for disk snapshot (not possible for any
-        // SyncWrites to have completed yet). If SyncReplication is
-        // supported then use the value from the marker.
-        const std::optional<uint64_t> hcs =
-                (marker->getFlags() & MARKER_FLAG_DISK) &&
-                                !supportsSyncReplication
-                        ? 0
-                        : marker->getHighCompletedSeqno();
+    // If this stream doesn't support SyncReplication (i.e. the producer
+    // is a pre-MadHatter version) then we should consider the HCS to be
+    // present but zero for disk snapshot (not possible for any
+    // SyncWrites to have completed yet). If SyncReplication is
+    // supported then use the value from the marker.
+    const std::optional<uint64_t> hcs =
+            (marker->getFlags() & MARKER_FLAG_DISK) && !supportsSyncReplication
+                    ? 0
+                    : marker->getHighCompletedSeqno();
 
-        if (marker->getFlags() & MARKER_FLAG_DISK && !hcs) {
-            const auto msg = fmt::format(
-                    "PassiveStream::processMarker: stream:{} {}, flags:{}, "
-                    "flagsDecoded:{}, snapStart:{}, snapEnd:{}, HCS:{} - "
-                    "missing HCS",
-                    name_,
-                    vb_,
-                    marker->getFlags(),
-                    dcpMarkerFlagsToString(marker->getFlags()),
-                    marker->getStartSeqno(),
-                    marker->getEndSeqno(),
-                    to_string_or_none(hcs));
-            throw std::logic_error(msg);
-        }
+    if (marker->getFlags() & MARKER_FLAG_DISK && !hcs) {
+        const auto msg = fmt::format(
+                "PassiveStream::processMarker: stream:{} {}, flags:{}, "
+                "flagsDecoded:{}, snapStart:{}, snapEnd:{}, HCS:{} - "
+                "missing HCS",
+                name_,
+                vb_,
+                marker->getFlags(),
+                dcpMarkerFlagsToString(marker->getFlags()),
+                marker->getStartSeqno(),
+                marker->getEndSeqno(),
+                to_string_or_none(hcs));
+        throw std::logic_error(msg);
+    }
 
-        if (marker->getFlags() & MARKER_FLAG_DISK) {
-            // A replica could receive a duplicate DCP prepare during a disk
-            // snapshot if it had previously received an uncompleted prepare.
-            // We can receive a disk snapshot when we either:
-            //     a) First connect
-            //     b) Get cursor dropped by the active
-            //
-            // We selectively allow these prepares to overwrite the old one by
-            // setting a duplicate prepare window in the vBucket. This will
-            // allow any currently outstanding prepares to be overwritten, but
-            // not any new ones.
-            vb->setDuplicatePrepareWindow();
-        }
+    if (marker->getFlags() & MARKER_FLAG_DISK) {
+        // A replica could receive a duplicate DCP prepare during a disk
+        // snapshot if it had previously received an uncompleted prepare.
+        // We can receive a disk snapshot when we either:
+        //     a) First connect
+        //     b) Get cursor dropped by the active
+        //
+        // We selectively allow these prepares to overwrite the old one by
+        // setting a duplicate prepare window in the vBucket. This will
+        // allow any currently outstanding prepares to be overwritten, but
+        // not any new ones.
+        vb->setDuplicatePrepareWindow();
+    }
 
-        // We could be connected to a non sync-repl, so if the max-visible is
-        // not transmitted (optional is false), set visible to snap-end
-        const auto visibleSeq =
-                marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
+    // We could be connected to a non sync-repl, so if the max-visible is
+    // not transmitted (optional is false), set visible to snap-end
+    const auto visibleSeq =
+            marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
 
-        if (cur_snapshot_end < visibleSeq) {
-            const auto msg = fmt::format(
-                    "PassiveStream::processMarker: snapEnd:{} < "
-                    "visibleSnapEnd:{}, snapStart:{}, hcs:{}, "
-                    "checkpointType:{}, historical:{}",
-                    cur_snapshot_end,
-                    visibleSeq,
-                    cur_snapshot_start,
-                    hcs ? std::to_string(*hcs) : "nullopt",
-                    ::to_string(checkpointType),
-                    ::to_string(historical));
-            throw std::logic_error(msg);
-        }
+    if (cur_snapshot_end < visibleSeq) {
+        const auto msg = fmt::format(
+                "PassiveStream::processMarker: snapEnd:{} < "
+                "visibleSnapEnd:{}, snapStart:{}, hcs:{}, "
+                "checkpointType:{}, historical:{}",
+                cur_snapshot_end,
+                visibleSeq,
+                cur_snapshot_start,
+                hcs ? std::to_string(*hcs) : "nullopt",
+                ::to_string(checkpointType),
+                ::to_string(historical));
+        throw std::logic_error(msg);
+    }
 
-        if (checkpointType == CheckpointType::InitialDisk) {
-            // Case: receiving the first snapshot in a Disk snapshot.
-            // Note that replica may never execute here as the active may switch
-            // directly to in-memory and send the first snapshot in a Memory
-            // snapshot.
+    if (checkpointType == CheckpointType::InitialDisk) {
+        // Case: receiving the first snapshot in a Disk snapshot.
+        // Note that replica may never execute here as the active may switch
+        // directly to in-memory and send the first snapshot in a Memory
+        // snapshot.
 
-            vb->setReceivingInitialDiskSnapshot(true);
+        vb->setReceivingInitialDiskSnapshot(true);
+        ckptMgr.createSnapshot(cur_snapshot_start.load(),
+                               cur_snapshot_end.load(),
+                               hcs,
+                               checkpointType,
+                               visibleSeq,
+                               historical);
+    } else {
+        // Case: receiving any type of snapshot (Disk/Memory).
+
+        if (marker->getFlags() & MARKER_FLAG_CHK) {
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
                                    hcs,
@@ -1284,41 +1301,30 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                    visibleSeq,
                                    historical);
         } else {
-            // Case: receiving any type of snapshot (Disk/Memory).
-
-            if (marker->getFlags() & MARKER_FLAG_CHK) {
+            // MB-42780: In general we cannot merge multiple snapshots into
+            // the same checkpoint. The only exception is for when replica
+            // receives multiple Memory checkpoints in a row.
+            // Since 6.5.0 the Active behaves correctly with regard to that
+            // (ie, the Active always sets the MARKER_FLAG_CHK in a snapshot
+            // transition tha involves Disk snapshots), but older Producers
+            // may still miss the MARKER_FLAG_CHK.
+            if (prevSnapType == Snapshot::Memory &&
+                cur_snapshot_type == Snapshot::Memory) {
+                ckptMgr.extendOpenCheckpoint(cur_snapshot_end.load(),
+                                             visibleSeq);
+            } else {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
                                        hcs,
                                        checkpointType,
                                        visibleSeq,
                                        historical);
-            } else {
-                // MB-42780: In general we cannot merge multiple snapshots into
-                // the same checkpoint. The only exception is for when replica
-                // receives multiple Memory checkpoints in a row.
-                // Since 6.5.0 the Active behaves correctly with regard to that
-                // (ie, the Active always sets the MARKER_FLAG_CHK in a snapshot
-                // transition tha involves Disk snapshots), but older Producers
-                // may still miss the MARKER_FLAG_CHK.
-                if (prevSnapType == Snapshot::Memory &&
-                    cur_snapshot_type == Snapshot::Memory) {
-                    ckptMgr.extendOpenCheckpoint(cur_snapshot_end.load(),
-                                                 visibleSeq);
-                } else {
-                    ckptMgr.createSnapshot(cur_snapshot_start.load(),
-                                           cur_snapshot_end.load(),
-                                           hcs,
-                                           checkpointType,
-                                           visibleSeq,
-                                           historical);
-                }
             }
         }
+    }
 
-        if (marker->getFlags() & MARKER_FLAG_ACK) {
-            cur_snapshot_ack = true;
-        }
+    if (marker->getFlags() & MARKER_FLAG_ACK) {
+        cur_snapshot_ack = true;
     }
 }
 

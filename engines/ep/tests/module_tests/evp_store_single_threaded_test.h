@@ -740,8 +740,14 @@ public:
     cb::engine_errc snapshot(DcpConsumer& consumer,
                              uint32_t opaque,
                              uint64_t start,
-                             uint64_t end);
+                             uint64_t end,
+                             uint32_t flags = MARKER_FLAG_MEMORY |
+                                              MARKER_FLAG_CHK);
     cb::engine_errc mutation(DcpConsumer& consumer,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             uint64_t seqno);
+    cb::engine_errc deletion(DcpConsumer& consumer,
                              uint32_t opaque,
                              const DocKey& key,
                              uint64_t seqno);
@@ -759,6 +765,9 @@ public:
                           const DocKey& key,
                           uint64_t prepareSeqno,
                           uint64_t seqno);
+    cb::engine_errc createCollection(DcpConsumer& consumer,
+                                     uint32_t opaque,
+                                     uint64_t seqno);
 
 protected:
     void SetUp() override;
