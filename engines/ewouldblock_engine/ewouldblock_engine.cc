@@ -36,22 +36,6 @@
  * See the 'Modes' enum below for the possible modes for a connection. The mode
  * can be selected by sending a `request_ewouldblock_ctl` command
  *  (opcode cb::mcbp::ClientOpcode::EwouldblockCtl).
- *
- * DCP:
- *    There is a special DCP stream named "ewb_internal" which is an
- *    endless stream of items. You may also add a number at the end
- *    e.g. "ewb_internal:10" and it'll create a stream with 10 entries.
- *    It will always send the same K-V pair.
- *    Note that we don't register for disconnect events so you might
- *    experience weirdness if you first try to use the internal dcp
- *    stream, and then later on want to use the one provided by the
- *    engine. The workaround for that is to delete the bucket
- *    in between ;-) (put them in separate test suites and it'll all
- *    be handled for you.
- *
- *    Any other stream name results in proxying the dcp request to
- *    the underlying engine's DCP implementation.
- *
  */
 
 #include "ewouldblock_engine.h"
@@ -71,7 +55,6 @@
 #include <memcached/server_bucket_iface.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>
-#include <xattr/blob.h>
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -96,62 +79,6 @@ static unique_engine_ptr createBucket(const std::string& module,
         return {};
     }
 }
-
-// Current DCP mutation `item`. We return an instance of this
-// (in the dcp step() function) back to the server, and then in
-// get_item_info we check if the requested item is this one.
-class EwbDcpMutationItem : public ItemIface {
-public:
-    EwbDcpMutationItem() : key("k") {
-        cb::xattr::Blob builder;
-        builder.set("_ewb", "{\"internal\":true}");
-        builder.set("meta", R"({"author":"jack"})");
-        const auto blob = builder.finalize();
-        std::copy(blob.begin(), blob.end(), std::back_inserter(value));
-        // MB24971 - the body is large as it increases the probability of
-        // transit returning TransmitResult::SoftError
-        const std::string body(1000, 'x');
-        std::copy(body.begin(), body.end(), std::back_inserter(value));
-    }
-
-    DocKey getDocKey() const override {
-        return DocKey(key, DocKeyEncodesCollectionId::No);
-    }
-
-    protocol_binary_datatype_t getDataType() const override {
-        return PROTOCOL_BINARY_DATATYPE_XATTR;
-    }
-
-    void setDataType(protocol_binary_datatype_t) override {
-    }
-
-    uint64_t getCas() const override {
-        return 0;
-    }
-
-    void setCas(uint64_t) override {
-        /// these items don't have cas
-    }
-
-    uint32_t getFlags() const override {
-        return 0;
-    }
-
-    time_t getExptime() const override {
-        return 0;
-    }
-
-    std::string_view getValueView() const override {
-        return value;
-    }
-
-    cb::char_buffer getValueBuffer() override {
-        return {value.data(), value.size()};
-    }
-
-    std::string key;
-    std::string value;
-};
 
 /** ewouldblock_engine class */
 class EWB_Engine : public EngineIface,
@@ -844,16 +771,6 @@ private:
             std::mutex>
             connection_map;
 
-    /**
-     * The dcp_stream map is used to map a cookie to the count of objects
-     * it should send on the stream.
-     *
-     * Each entry in here constists of a pair containing a boolean specifying
-     * if the stream is opened or not, and a count of how many times we should
-     * return data
-     */
-    std::map<CookieIface*, std::pair<bool, uint64_t>> dcp_stream;
-
     /// A map from connection id to cookies which are suspended
     folly::Synchronized<std::unordered_map<uint32_t, CookieIface*>, std::mutex>
             suspended_map;
@@ -1054,11 +971,7 @@ cb::engine_errc EWB_Engine::remove(
 
 void EWB_Engine::release(ItemIface& item) {
     LOG_DEBUG_RAW("EWB_Engine: release");
-    if (dynamic_cast<EwbDcpMutationItem*>(&item)) {
-        delete &item;
-    } else {
-        return real_engine->release(item);
-    }
+    return real_engine->release(item);
 }
 
 cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
@@ -1378,26 +1291,7 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
 
 bool EWB_Engine::get_item_info(const ItemIface& item, item_info& item_info) {
     LOG_DEBUG_RAW("EWB_Engine: get_item_info");
-
-    // This function cannot return EWOULDBLOCK - just chain to the real
-    // engine's function, unless it is a request for our special DCP item.
-    const auto* ewbitem = dynamic_cast<const EwbDcpMutationItem*>(&item);
-    if (ewbitem) {
-        item_info.cas = 0;
-        item_info.vbucket_uuid = 0;
-        item_info.seqno = 0;
-        item_info.exptime = 0;
-        item_info.nbytes = gsl::narrow<uint32_t>(ewbitem->value.size());
-        item_info.flags = 0;
-        item_info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-        item_info.key = {ewbitem->key, DocKeyEncodesCollectionId::No};
-        item_info.value[0].iov_base = const_cast<void*>(
-                static_cast<const void*>(ewbitem->value.data()));
-        item_info.value[0].iov_len = item_info.nbytes;
-        return true;
-    } else {
-        return real_engine->get_item_info(item, item_info);
-    }
+    return real_engine->get_item_info(item, item_info);
 }
 
 cb::engine::FeatureSet EWB_Engine::getFeatures() {
@@ -1501,28 +1395,6 @@ cb::engine_errc EWB_Engine::wait_for_seqno_persistence(CookieIface& cookie,
 cb::engine_errc EWB_Engine::step(CookieIface& cookie,
                                  bool throttled,
                                  DcpMessageProducersIface& producers) {
-    auto stream = dcp_stream.find(&cookie);
-    if (stream != dcp_stream.end()) {
-        auto& count = stream->second.second;
-        // If the stream is enabled and we have data to send..
-        if (stream->second.first && count > 0) {
-            // This is using the internal dcp implementation which always
-            // send the same item back
-            auto ret = producers.mutation(
-                    0xdeadbeef /*opqaue*/,
-                    cb::unique_item_ptr(new EwbDcpMutationItem,
-                                        cb::ItemDeleter(this)),
-                    Vbid(0),
-                    0 /*by_seqno*/,
-                    0 /*rev_seqno*/,
-                    0 /*lock_time*/,
-                    0 /*nru*/,
-                    {});
-            --count;
-            return ret;
-        }
-        return cb::engine_errc::would_block;
-    }
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
     }
@@ -1535,30 +1407,10 @@ cb::engine_errc EWB_Engine::open(CookieIface& cookie,
                                  uint32_t flags,
                                  std::string_view name,
                                  std::string_view value) {
-    std::string nm{name};
-    if (nm.find("ewb_internal") == 0) {
-        // Yeah, this is a request for the internal "magic" DCP stream
-        // The user could specify the iteration count by adding a colon
-        // at the end...
-        auto idx = nm.rfind(":");
-
-        if (idx != nm.npos) {
-            dcp_stream[&cookie] =
-                    std::make_pair(false, std::stoull(nm.substr(idx + 1)));
-        } else {
-            dcp_stream[&cookie] =
-                    std::make_pair(false, std::numeric_limits<uint64_t>::max());
-        }
-
-        cookie.getConnectionIface().setDcpConnHandler(this);
-        return cb::engine_errc::success;
-    }
-
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->open(cookie, opaque, seqno, flags, name, value);
     }
+    return real_engine_dcp->open(cookie, opaque, seqno, flags, name, value);
 }
 
 cb::engine_errc EWB_Engine::stream_req(CookieIface& cookie,
@@ -1573,34 +1425,21 @@ cb::engine_errc EWB_Engine::stream_req(CookieIface& cookie,
                                        uint64_t* rollback_seqno,
                                        dcp_add_failover_log callback,
                                        std::optional<std::string_view> json) {
-    auto stream = dcp_stream.find(&cookie);
-    if (stream != dcp_stream.end()) {
-        // This is a client of our internal streams.. just let it pass
-        if (start_seqno == 1) {
-            *rollback_seqno = 0;
-            return cb::engine_errc::rollback;
-        }
-        // Start the stream
-        stream->second.first = true;
-        return cb::engine_errc::success;
-    }
-
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->stream_req(cookie,
-                                           flags,
-                                           opaque,
-                                           vbucket,
-                                           start_seqno,
-                                           end_seqno,
-                                           vbucket_uuid,
-                                           snap_start_seqno,
-                                           snap_end_seqno,
-                                           rollback_seqno,
-                                           callback,
-                                           json);
     }
+    return real_engine_dcp->stream_req(cookie,
+                                       flags,
+                                       opaque,
+                                       vbucket,
+                                       start_seqno,
+                                       end_seqno,
+                                       vbucket_uuid,
+                                       snap_start_seqno,
+                                       snap_end_seqno,
+                                       rollback_seqno,
+                                       callback,
+                                       json);
 }
 
 cb::engine_errc EWB_Engine::add_stream(CookieIface& cookie,

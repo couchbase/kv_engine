@@ -1425,9 +1425,9 @@ void BinprotDcpOpenCommand::setConsumerName(std::string name) {
     payload["consumer_name"] = name;
 }
 
-BinprotDcpOpenCommand::BinprotDcpOpenCommand(const std::string& name,
-                                             uint32_t flags_)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::DcpOpen, name, {}),
+BinprotDcpOpenCommand::BinprotDcpOpenCommand(std::string name, uint32_t flags_)
+    : BinprotGenericCommand(
+              cb::mcbp::ClientOpcode::DcpOpen, std::move(name), {}),
       flags(flags_) {
 }
 BinprotDcpOpenCommand& BinprotDcpOpenCommand::makeProducer() {

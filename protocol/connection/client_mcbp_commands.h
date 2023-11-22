@@ -791,8 +791,7 @@ public:
      * @param name the name of the DCP stream to create
      * @param flags_ the open flags
      */
-    explicit BinprotDcpOpenCommand(const std::string& name,
-                                   uint32_t flags_ = 0);
+    explicit BinprotDcpOpenCommand(std::string name, uint32_t flags_ = 0);
 
     void setConsumerName(std::string name);
 
