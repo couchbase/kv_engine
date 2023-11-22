@@ -1335,12 +1335,6 @@ void Connection::close() {
     // disconnected
     propagateDisconnect();
 
-    if (isDCP()) {
-        // DCP channels work a bit different.. they use the refcount
-        // to track if it has a reference in the engine
-        ewb = false;
-    }
-
     if (rc > 1 || ewb || havePendingData()) {
         state = State::pending_close;
     } else {
