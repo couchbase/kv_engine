@@ -1769,9 +1769,9 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
 
     setVBucketState(replicaVbid, vbucket_state_replica);
 
-    auto setReplica = [this](Vbid replicaVbid, int count) {
+    auto setReplica = [this](Vbid id, int count) {
         auto key = makeStoredDocKey("replica_" + std::to_string(count));
-        auto item = make_item(replicaVbid, key, "value");
+        auto item = make_item(id, key, "value");
         item.setCas(1 + count);
         uint64_t seqno;
         ASSERT_EQ(cb::engine_errc::success,
@@ -1786,9 +1786,9 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
                                      GenerateCas::Yes));
     };
 
-    auto setActive = [this](Vbid activeVbid, int count) {
+    auto setActive = [this](Vbid id, int count) {
         auto key = makeStoredDocKey("active_" + std::to_string(count));
-        auto item = make_item(activeVbid, key, "value");
+        auto item = make_item(id, key, "value");
         storeItem(item);
     };
 
