@@ -388,9 +388,9 @@ TYPED_TEST(ValueTest, freqCounterNotReset) {
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {
 #ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-    const long expected_size = 72;
-#else
     const long expected_size = 64;
+#else
+    const long expected_size = 56;
 #endif
     EXPECT_EQ(expected_size, sizeof(StoredValue))
             << "Unexpected change in StoredValue fixed size";
@@ -464,6 +464,31 @@ TYPED_TEST(ValueTest, LockedCasExpired) {
             << "main CAS should be unchanged after locked expires";
 }
 
+// Validate behavior when destroying a (O)SV while locked - ensure the
+// SeparateDouble CAS encoding is correctly deleted.
+TYPED_TEST(ValueTest, DtorWhileLocked) {
+    rel_time_t lock_expiry{10};
+    this->sv->lock(lock_expiry, 456);
+    // Want to run under ASan or similar memory checking tool to confirm
+    // no leak.
+    this->sv.reset();
+}
+
+// Validate behavior when setting a (O)SV while locked - ensure the
+// SeparateDouble CAS encoding is not leaked.
+TYPED_TEST(ValueTest, DeleteWhileLocked) {
+    rel_time_t lock_expiry{10};
+    this->sv->setCas(123);
+    this->sv->lock(lock_expiry, 456);
+
+    this->sv->del(DeleteSource::Explicit);
+    EXPECT_EQ(123, this->sv->getCas())
+            << "After del(), CAS should be unchanged";
+
+    // Want to run under ASan or similar memory checking tool to confirm
+    // no leak.
+}
+
 /**
  * Test fixture for OrderedStoredValue-only tests.
  */
@@ -471,9 +496,9 @@ class OrderedStoredValueTest : public ValueTest<OrderedStoredValueFactory> {};
 
 TEST_F(OrderedStoredValueTest, expectedSize) {
 #ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-    const long expected_size = 88;
+    const long expected_size = 80;
 #else
-    const long expected_size = 88;
+    const long expected_size = 80;
 #endif
 
     EXPECT_EQ(expected_size, sizeof(OrderedStoredValue))
