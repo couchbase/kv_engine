@@ -905,7 +905,9 @@ static Frame to_frame(const BinprotCommand& command) {
 }
 
 std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
-        bool connect) const {
+        bool connect,
+        const std::vector<cb::mcbp::Feature>& features,
+        std::string agent_name) const {
     auto ret = std::make_unique<MemcachedConnection>(host, port, family, ssl);
     ret->auto_retry_tmpfail = auto_retry_tmpfail;
     ret->ssl_cert_file = ssl_cert_file;
@@ -916,10 +918,27 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     ret->tls13_ciphers = tls13_ciphers;
     ret->packet_dump_callback = packet_dump_callback;
     ret->userValidateReceivedFrameCallback = userValidateReceivedFrameCallback;
+    if (!agent_name.empty()) {
+        ret->setAgentName(std::move(agent_name));
+    }
+
     if (connect) {
         ret->connect();
-        ret->applyFeatures(effective_features);
+        if (features.empty()) {
+            ret->applyFeatures(effective_features);
+        } else {
+            Featureset featureset = effective_features;
+            for (const auto& f : features) {
+                featureset.insert(static_cast<uint16_t>(f));
+            }
+            ret->applyFeatures(featureset);
+        }
     } else {
+        if (!features.empty()) {
+            throw std::logic_error(
+                    "MemcachedConnection::clone: features can only be "
+                    "specified if connect is set to true");
+        }
         ret->effective_features.clear();
     }
     return ret;

@@ -12,11 +12,7 @@
  * In this file you'll find unit tests related to the DCP subsystem
  */
 
-#include "testapp.h"
 #include "testapp_client_test.h"
-
-#include <xattr/blob.h>
-#include <xattr/utils.h>
 
 class DcpTest : public TestappClientTest {
 protected:
@@ -25,21 +21,28 @@ protected:
         TestappClientTest::SetUp();
     }
 
-    auto createProducerConnection(std::string stream_name) {
-        auto connection = getAdminConnection().clone(true);
+    static auto getTestName() {
+        return ::testing::UnitTest::GetInstance()->current_test_info()->name();
+    }
+
+    auto createProducerConnection() {
+        using cb::mcbp::Feature;
+        auto connection = getAdminConnection().clone(
+                true,
+                {Feature::JSON, Feature::SNAPPY, Feature::SnappyEverywhere},
+                getTestName());
         connection->authenticate("@admin", mcd_env->getPassword("@admin"));
         connection->selectBucket(bucketName);
 
         const auto rsp = connection->execute(BinprotDcpOpenCommand{
-                std::move(stream_name),
-                cb::mcbp::request::DcpOpenPayload::Producer});
+                getTestName(), cb::mcbp::request::DcpOpenPayload::Producer});
         EXPECT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                      << rsp.getDataView();
         return connection;
     }
 
-    auto setupProducerWithStream(std::string name) {
-        auto producerConn = createProducerConnection(std::move(name));
+    auto setupProducerWithStream() {
+        auto producerConn = createProducerConnection();
 
         BinprotDcpStreamRequestCommand streamReq;
         streamReq.setDcpReserved(0);
@@ -79,15 +82,15 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
  * stripped / replaced with an error object
  */
 TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
-    auto conn = createProducerConnection("MB24145_RollbackShouldContainSeqno");
+    const auto conn = createProducerConnection();
     BinprotDcpStreamRequestCommand streamReq;
     streamReq.setDcpStartSeqno(0xdeadbeef);
-    auto rsp = conn->execute(streamReq);
+    const auto rsp = conn->execute(streamReq);
     ASSERT_EQ(cb::mcbp::Status::Rollback, rsp.getStatus());
 
-    auto data = rsp.getData();
+    const auto data = rsp.getData();
     ASSERT_EQ(sizeof(uint64_t), data.size());
-    auto* value = reinterpret_cast<const uint64_t*>(data.data());
+    const auto* value = reinterpret_cast<const uint64_t*>(data.data());
     EXPECT_EQ(0, *value);
 }
 
@@ -117,16 +120,8 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
 
 /// DCP connections should not be able to select bucket
 TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
-    auto conn = adminConnection->clone();
-    conn->authenticate("@admin", mcd_env->getPassword("@admin"));
-    conn->setDatatypeJson(true);
-    conn->selectBucket(bucketName);
-    auto rsp = conn->execute(
-            BinprotDcpOpenCommand{"MB35904_DcpCantSelectBucket",
-                                  cb::mcbp::request::DcpOpenPayload::Producer});
-    ASSERT_TRUE(rsp.isSuccess());
-
-    rsp = conn->execute(
+    const auto conn = createProducerConnection();
+    const auto rsp = conn->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::SelectBucket, name});
     ASSERT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
@@ -134,21 +129,13 @@ TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
 
 /// DCP connections should not be able to perform SASL AUTH
 TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
-    auto& conn = getAdminConnection();
-    conn.selectBucket(bucketName);
-    auto rsp = conn.execute(
-            BinprotDcpOpenCommand{"MB35928_DcpCantReauthenticate",
-                                  cb::mcbp::request::DcpOpenPayload::Producer});
-    ASSERT_TRUE(rsp.isSuccess());
-
-    rsp = conn.execute(
+    const auto conn = createProducerConnection();
+    const auto rsp = conn->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
-    ASSERT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
             << "SASL LIST MECH should fail";
-
     try {
-        conn.authenticate("@admin", "password", "plain");
+        conn->authenticate("@admin", "password");
         FAIL() << "DCP connections should not be able to reauthenticate";
     } catch (const ConnectionError& error) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, error.getReason())
@@ -157,18 +144,11 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
 }
 
 TEST_P(DcpTest, CantDcpOpenTwice) {
-    auto conn = adminConnection->clone();
-    conn->authenticate("@admin", mcd_env->getPassword("@admin"));
-    conn->setDatatypeJson(true);
-    conn->selectBucket(bucketName);
-    auto rsp = conn->execute(BinprotDcpOpenCommand{
-            "CantDcpOpenTwice", cb::mcbp::request::DcpOpenPayload::Producer});
-    ASSERT_TRUE(rsp.isSuccess());
-
-    rsp = conn->execute(BinprotDcpOpenCommand{
+    const auto conn = createProducerConnection();
+    const auto rsp = conn->execute(BinprotDcpOpenCommand{
             "CantDcpOpenTwice", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_FALSE(rsp.isSuccess());
-    auto json = nlohmann::json::parse(rsp.getDataString());
+    const auto json = nlohmann::json::parse(rsp.getDataString());
     EXPECT_EQ("The connection is already opened as a DCP connection",
               json["error"]["context"]);
 }
@@ -176,39 +156,21 @@ TEST_P(DcpTest, CantDcpOpenTwice) {
 // Basic smoke test for "dcp" and "dcpagg" stat group - check they can be
 // retrieved (regression tests for MB-48816).
 TEST_P(DcpTest, DcpStats) {
-    auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
-    conn.selectBucket(bucketName);
-    conn.sendCommand(BinprotDcpOpenCommand{
-            "testapp_dcp", cb::mcbp::request::DcpOpenPayload::Producer});
-
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-    ASSERT_TRUE(rsp.isSuccess());
-
-    auto stats = userConnection->stats("dcp");
+    const auto conn = createProducerConnection();
+    const auto stats = userConnection->stats("dcp");
     EXPECT_TRUE(stats.contains("ep_dcp_dead_conn_count"))
             << "dcp stats: " << stats.dump(2);
 }
 
 TEST_P(DcpTest, DcpAggStats) {
-    auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
-    conn.selectBucket(bucketName);
-    conn.sendCommand(BinprotDcpOpenCommand{
-            "testapp_dcp", cb::mcbp::request::DcpOpenPayload::Producer});
-
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-    ASSERT_TRUE(rsp.isSuccess());
-
+    const auto conn = createProducerConnection();
     userConnection->stats("dcpagg _");
 }
 
 TEST_P(DcpTest, DcpStreamStats) {
-    auto producerConn = setupProducerWithStream("testapp_dcp");
-
-    auto stats = userConnection->stats("dcp");
-    EXPECT_TRUE(stats.contains("eq_dcpq:testapp_dcp:stream_0_flags"))
+    const auto conn = setupProducerWithStream();
+    const auto stats = userConnection->stats("dcp");
+    EXPECT_TRUE(stats.contains(
+            fmt::format("eq_dcpq:{}:stream_0_flags", getTestName())))
             << "dcp stats: " << stats.dump(2);
 }

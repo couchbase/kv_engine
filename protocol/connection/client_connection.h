@@ -333,9 +333,20 @@ public:
      */
     intptr_t getServerConnectionId();
 
-    // Creates clone (copy) of the given connection - i.e. a second independent
-    // channel to memcached. Used for multi-connection testing.
-    std::unique_ptr<MemcachedConnection> clone(bool connect = true) const;
+    /**
+     * Creates clone (copy) of the given connection - i.e. a second independent
+     * channel to memcached. Used for multi-connection testing.
+     *
+     * @param connect Set to true if the newly created clone should be connected
+     * @param features A set of additional features to enable (only set if
+     *                 connect is set to true)
+     * @param agent_name The agent name to specify for the cloned connection
+     *                   (used in hello)
+     */
+    std::unique_ptr<MemcachedConnection> clone(
+            bool connect = true,
+            const std::vector<cb::mcbp::Feature>& features = {},
+            std::string agent_name = {}) const;
 
     std::string getName() const {
         return name;
