@@ -372,7 +372,15 @@ public:
             std::string_view collectionName,
             const ManifestEntry& entry,
             SystemEventType type,
-            OptionalSeqno seq);
+            OptionalSeqno seq,
+            uint64_t defaultCollectionMaxLegacyDCPSeqno = 0);
+
+    /**
+     * Store "seqno" into the item using an xattr. This function only exists for
+     * use by tests checking that KV can warm-up when a 7.2 modify default
+     * collection system event is on-disk. See MB-59452
+     */
+    static void attachMaxLegacyDCPSeqno(Item& item, uint64_t seqno);
 
     bool operator==(const Manifest& rhs) const;
 
@@ -1216,13 +1224,6 @@ protected:
     cb::ExpiryLimit getMaxTtl(CollectionID cid) const;
 
     /**
-     * Store the value of defaultCollectionMaxLegacyDCPSeqno inside the Item
-     * This function utilises xattrs so that only a modify of the default
-     * collection carries this extra data. No other event needs this data.
-     */
-    void attachMaxLegacyDCPSeqno(Item& item) const;
-
-    /**
      * Function returns the correct value for defaultCollectionMaxLegacyDCPSeqno
      * by reading any modify of the default collection from KVStore and then
      * comparing the value added in attachMaxLegacyDCPSeqno with the current
@@ -1235,6 +1236,22 @@ protected:
     uint64_t computeDefaultCollectionMaxLegacyDCPSeqno(uint64_t highSeqno,
                                                        Vbid vb,
                                                        KVStoreIface& kvs);
+
+    /**
+     * Retrieve from the Item the stored max visible default collection seqno
+     * that is assumed to be stored within the Item. Caller is expected to have
+     * checked that the Item is a modify of the default collection and the
+     * datatype is xattr.
+     */
+    static uint64_t getSeqnoFromXattr(const Item& item);
+
+    /**
+     * Retrieve from the Item the stored max visible default collection seqno
+     * that is assumed to be stored within the Item. Caller is expected to have
+     * checked that the Item is a modify of the default collection and the
+     * datatype is not xattr (value is thus inside the flatbuffer value.
+     */
+    static uint64_t getSeqnoFromFlatBuffer(const Item& item);
 
     /**
      * Return a string for use in throwException, returns:
