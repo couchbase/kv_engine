@@ -120,6 +120,44 @@ TEST_P(WithMetaTest, basicSet) {
     }
 }
 
+// Verify that SetWithMeta respects the fact a document is locked.
+TEST_P(WithMetaTest, SetWhileLocked) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
+
+    // Store an initial document so we can lock it.
+    userConnection->mutateWithMeta(document,
+                                   Vbid(0),
+                                   mcbp::cas::Wildcard,
+                                   /*seqno*/ 1,
+                                   /*options*/ 0,
+                                   {});
+    const auto locked = userConnection->get_and_lock(name, Vbid(0), 0);
+    auto doSetWithMeta = [&](uint64_t operationCas) {
+        userConnection->mutateWithMeta(document,
+                                       Vbid(0),
+                                       operationCas,
+                                       /*seqno*/ 2,
+                                       /*options*/ 0,
+                                       {});
+    };
+    // While locked, SetWithMeta should fail when lockedCAS not specified.
+    try {
+        doSetWithMeta(mcbp::cas::Wildcard);
+        FAIL() << "setWithmeta against a locked document should not be "
+                  "possible";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isLocked());
+    }
+    // Retry with locked CAS, should succeed.
+    doSetWithMeta(locked.info.cas);
+
+    // Should no longer be locked
+    auto getInfo = userConnection->get(name, Vbid(0));
+    EXPECT_NE(getInfo.info.cas, mcbp::cas::Locked);
+
+    userConnection->remove(name, Vbid(0));
+}
+
 TEST_P(WithMetaTest, basicSetXattr) {
     TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     makeDocumentXattrValue();

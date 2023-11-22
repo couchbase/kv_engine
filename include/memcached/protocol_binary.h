@@ -2192,6 +2192,9 @@ namespace mcbp::cas {
  * The special value used as a wildcard and match all CAS values
  */
 const uint64_t Wildcard = 0x0;
+
+/// The special value returned from Get and similar when document is locked.
+const uint64_t Locked = 0xffff'ffff'ffff'ffff;
 } // namespace mcbp::cas
 
 namespace cb::mcbp::request {

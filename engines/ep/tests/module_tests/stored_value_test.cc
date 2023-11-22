@@ -388,9 +388,9 @@ TYPED_TEST(ValueTest, freqCounterNotReset) {
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {
 #ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-    const long expected_size = 64;
+    const long expected_size = 72;
 #else
-    const long expected_size = 56;
+    const long expected_size = 64;
 #endif
     EXPECT_EQ(expected_size, sizeof(StoredValue))
             << "Unexpected change in StoredValue fixed size";
@@ -419,6 +419,51 @@ TYPED_TEST(ValueTest, MB_32568) {
     EXPECT_EQ(DeleteSource::TTL, this->sv->getDeletionSource());
 }
 
+// Validate the CAS for writing changes when locked, and is restored afterwards
+// when unlocked.
+TYPED_TEST(ValueTest, LockedCas) {
+    this->sv->setCas(123);
+    ASSERT_EQ(123, this->sv->getCasForWrite(0))
+            << "CAS used for writing should be main CAS if not locked";
+
+    rel_time_t lock_expiry{10};
+    this->sv->lock(lock_expiry, 456);
+    EXPECT_EQ(456, this->sv->getCasForWrite(lock_expiry - 1))
+            << "CAS used for writing should have changed to locked CAS while "
+               "lock still valid";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged when locked";
+
+    this->sv->unlock();
+    EXPECT_EQ(123, this->sv->getCasForWrite(lock_expiry - 1))
+            << "CAS used for writing should have reverted to previous VAS "
+               "after explicit unlock";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged after explicit unlock";
+}
+
+// Validate the CAS for writing changes when locked, and is restored when lock
+// expires.
+TYPED_TEST(ValueTest, LockedCasExpired) {
+    this->sv->setCas(123);
+    ASSERT_EQ(123, this->sv->getCasForWrite(0))
+            << "CAS used for writing should be main CAS if not locked";
+
+    rel_time_t lock_expiry{10};
+    this->sv->lock(lock_expiry, 456);
+    EXPECT_EQ(456, this->sv->getCasForWrite(lock_expiry - 1))
+            << "CAS used for writing should have changed to locked CAS while "
+               "lock still valid";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged when locked";
+
+    EXPECT_EQ(123, this->sv->getCasForWrite(lock_expiry + 1))
+            << "CAS used for writing should have reverted to previous VAS "
+               "after lock expires";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged after locked expires";
+}
+
 /**
  * Test fixture for OrderedStoredValue-only tests.
  */
@@ -426,9 +471,9 @@ class OrderedStoredValueTest : public ValueTest<OrderedStoredValueFactory> {};
 
 TEST_F(OrderedStoredValueTest, expectedSize) {
 #ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-    const long expected_size = 80;
+    const long expected_size = 88;
 #else
-    const long expected_size = 80;
+    const long expected_size = 88;
 #endif
 
     EXPECT_EQ(expected_size, sizeof(OrderedStoredValue))

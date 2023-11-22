@@ -3173,6 +3173,75 @@ static enum test_result test_expiration_options(EngineIface* h) {
     return SUCCESS;
 }
 
+// Regression test for MB-59744 - a SetWithMeta against a document which was
+// previously locked but has been unlocked without modification should perform
+// conflict resolution using the original CAS before the document was locked.
+static enum test_result test_mb_59744_set_meta_lww_after_locked(EngineIface* h) {
+
+    // 1. Store an initial document so we can lock it. Create with a known CAS
+    //    value so we can later perform a second SetWithMeta which _should_
+    //    win conflict resolution.
+    ItemMetaData itemMeta;
+    itemMeta.revSeqno = 1;
+    itemMeta.cas = 1000;
+
+    std::string key{"key"};
+    Vbid vb{0};
+    checkeq(cb::engine_errc::success,
+            set_with_meta(h,
+                          key.data(),
+                          key.size(),
+                          {},
+                          0,
+                          vb,
+                          &itemMeta,
+                          0,
+                          FORCE_ACCEPT_WITH_META_OPS),
+            "Expected item to be stored");
+
+    // 2. Lock the document. This will set the locked_CAS to the current HLC
+    //    time, which is nanoseconds since unix epoch, so much larger than
+    //    the CAS we just set (1000).
+    auto* cookie = testHarness->create_cookie(h);
+    auto locked = getl(h, cookie, key.data(), vb, 0);
+    checkeq(cb::engine_errc::success, locked.first, "Expected GetLocked to succeed");
+    checkgt(locked.second->getCas(), itemMeta.cas, "Expected locked CAs to be greater than current CAS");
+
+    // 3. Unlock the document. Before the fix for MB-59744, this would leave
+    //    the document having the same increased locked_CAS.
+    checkeq(cb::engine_errc::success,
+            unl(h, cookie, key.c_str(), vb, locked.second->getCas()),
+            "Unlock should have succeedd");
+
+    // 4. Test - attempt to set with meta, using confict resolution, to a
+    //    CAS value one greater than previous mutation, but crucially less than
+    //    the temporary locked CAS.
+    itemMeta.revSeqno++;
+    itemMeta.cas++;
+    checkeq(cb::engine_errc::success,
+            set_with_meta(h,
+                          key.data(),
+                          key.size(),
+                          {},
+                          0,
+                          vb,
+                          &itemMeta,
+                          0,
+                          FORCE_ACCEPT_WITH_META_OPS),
+            "Expected SetWithMeta with CAS+1 to succeed");
+
+    // 5. Check document has indeed been updated with new CAS / seqno.
+    cb::EngineErrorMetadataPair meta;
+    check(get_meta(h, key.c_str(), meta, cookie), "Expected GetMeta to succeed");
+    checkeq(itemMeta.cas, meta.second.cas, "Expected CAS to be updated");
+    checkeq(uint64_t(itemMeta.revSeqno), meta.second.seqno,
+            "Expected revid to be updated");
+
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char* default_dbname = "./ep_testsuite_xdcr.db";
@@ -3519,4 +3588,12 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
 
-        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};
+        TestCase("MB-59744 SetMeta LWW after locked",
+                 test_mb_59744_set_meta_lww_after_locked,
+                 test_setup,
+                 teardown,
+                 "conflict_resolution_type=lww",
+                 prepare,
+                 cleanup),
+
+    TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};
