@@ -409,7 +409,9 @@ void TestDcpConsumer::run(bool openConn) {
 
     if (collectionFilter) {
         // Enable noop ops needed for collections
-        dcp->control(*cookie, opaque, "enable_noop", "true");
+        checkeq(cb::engine_errc::success,
+                dcp->control(*cookie, opaque, "enable_noop", "true"),
+                "Failed to enable noop");
     }
     /* Open streams in the above open connection */
     openStreams();
@@ -444,7 +446,10 @@ void TestDcpConsumer::run(bool openConn) {
                 history.emplace_back(
                         cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
                         bytes_read);
-                dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read);
+                checkeq(cb::engine_errc::success,
+                        dcp->buffer_acknowledgement(
+                                *cookie, ++opaque, bytes_read),
+                        "Failed to ack bytes");
             } catch (const std::exception& e) {
                 std::cerr << "buffer_acknowledgement exception caught"
                           << std::endl;
@@ -1066,7 +1071,9 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read);
+    checkeq(cb::engine_errc::success,
+            dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
+            "buffer ack failed");
     checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
     if (expSnapStart) {
         checkge(last_snap_start_seqno,
@@ -1212,32 +1219,36 @@ extern "C" {
             ss << "kamakeey-" << i;
 
             // send mutations in single mutation snapshots to race more with compaction
-            ctx->dcp->snapshot_marker(*cookie,
-                                      stream_opaque,
-                                      Vbid(0),
-                                      ctx->items + i,
-                                      ctx->items + i,
-                                      2,
-                                      0 /*HCS*/,
-                                      {} /*maxVisibleSeqno*/);
+            checkeq(cb::engine_errc::success,
+                    ctx->dcp->snapshot_marker(*cookie,
+                                              stream_opaque,
+                                              Vbid(0),
+                                              ctx->items + i,
+                                              ctx->items + i,
+                                              2,
+                                              0 /*HCS*/,
+                                              {} /*maxVisibleSeqno*/),
+                    "snapshot marker failed");
 
             const std::string key = ss.str();
             const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-            ctx->dcp->mutation(*cookie,
-                               stream_opaque,
-                               docKey,
-                               {(const uint8_t*)"value", 5},
-                               0, // priv bytes
-                               PROTOCOL_BINARY_RAW_BYTES,
-                               i * 3, // cas
-                               Vbid(0),
-                               0, // flags
-                               i + ctx->items, // by_seqno
-                               i + ctx->items, // rev_seqno
-                               0, // exptime
-                               0, // locktime
-                               {}, // meta
-                               INITIAL_NRU_VALUE);
+            checkeq(cb::engine_errc::success,
+                    ctx->dcp->mutation(*cookie,
+                                       stream_opaque,
+                                       docKey,
+                                       {(const uint8_t*)"value", 5},
+                                       0, // priv bytes
+                                       PROTOCOL_BINARY_RAW_BYTES,
+                                       i * 3, // cas
+                                       Vbid(0),
+                                       0, // flags
+                                       i + ctx->items, // by_seqno
+                                       i + ctx->items, // rev_seqno
+                                       0, // exptime
+                                       0, // locktime
+                                       {}, // meta
+                                       INITIAL_NRU_VALUE),
+                    "mutation failed");
         }
 
         testHarness->destroy_cookie(cookie);
@@ -1353,7 +1364,9 @@ static void dcp_waiting_step(EngineIface* h,
     } while (!done);
 
     /* Do buffer ack of the outstanding bytes */
-    dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read);
+    checkeq(cb::engine_errc::success,
+            dcp->buffer_acknowledgement(*cookie, ++opaque, bytes_read),
+            "buffer ack failed");
 }
 
 // Testcases //////////////////////////////////////////////////////////////////
@@ -3422,14 +3435,16 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    dcp->snapshot_marker(*cookie,
-                         stream_opaque,
-                         Vbid(0),
-                         1,
-                         5,
-                         10,
-                         0 /*HCS*/,
-                         {} /*maxVisibleSeqno*/);
+    checkeq(cb::engine_errc::success,
+            dcp->snapshot_marker(*cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 1,
+                                 5,
+                                 10,
+                                 0 /*HCS*/,
+                                 {} /*maxVisibleSeqno*/),
+            "snapshot marker failed");
     for (int i = 1; i <= 5; i++) {
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
@@ -3454,14 +3469,16 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    dcp->snapshot_marker(*cookie,
-                         stream_opaque,
-                         Vbid(0),
-                         6,
-                         10,
-                         10,
-                         0 /*HCS*/,
-                         {} /*maxVisibleSeqno*/);
+    checkeq(cb::engine_errc::success,
+            dcp->snapshot_marker(*cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 6,
+                                 10,
+                                 10,
+                                 0 /*HCS*/,
+                                 {} /*maxVisibleSeqno*/),
+            "snapshot marker failed");
     for (int i = 6; i <= 10; i++) {
         const std::string key{"key" + std::to_string(i)};
         const DocKey docKey(key, DocKeyEncodesCollectionId::No);
@@ -6693,7 +6710,11 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
                                 mock_dcp_add_failover_log,
                                 {}),
                 "Failed to initiate stream request");
-        dcp->step(*cookie, false, producers);
+        auto err = dcp->step(*cookie, false, producers);
+        checkeq(true,
+                (err == cb::engine_errc::success ||
+                 err == cb::engine_errc::would_block),
+                "dcp step failed");
     }
 
     // Destroy the connection
@@ -6918,14 +6939,16 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     uint32_t stream_opaque = get_int_stat(
             h, ("eq_dcpq:" + name + ":stream_0_opaque").c_str(), "dcp");
 
-    dcp->snapshot_marker(*cookie,
-                         stream_opaque,
-                         Vbid(0),
-                         /*start*/ 0,
-                         /*end*/ 2,
-                         /*flags*/ 2,
-                         /*HCS*/ 0,
-                         /*maxVisibleSeqno*/ {});
+    checkeq(cb::engine_errc::success,
+            dcp->snapshot_marker(*cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 /*start*/ 0,
+                                 /*end*/ 2,
+                                 /*flags*/ 2,
+                                 /*HCS*/ 0,
+                                 /*maxVisibleSeqno*/ {}),
+            "snapshot marker failed");
 
     // Create two items via a DCP mutation.
     const std::string prefix{"bad_CAS_DCP"};
@@ -6961,14 +6984,16 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
 
     // Stream the delete in a new snapshot since a snapshot cannot have
     // duplicate items.
-    dcp->snapshot_marker(*cookie,
-                         stream_opaque,
-                         Vbid(0),
-                         /*start*/ 3,
-                         /*end*/ 3,
-                         /*flags*/ 2,
-                         /*HCS*/ 0,
-                         /*maxVisibleSeqno*/ {});
+    checkeq(cb::engine_errc::success,
+            dcp->snapshot_marker(*cookie,
+                                 stream_opaque,
+                                 Vbid(0),
+                                 /*start*/ 3,
+                                 /*end*/ 3,
+                                 /*flags*/ 2,
+                                 /*HCS*/ 0,
+                                 /*maxVisibleSeqno*/ {}),
+            "Snapshot marker failed");
 
     checkeq(cb::engine_errc::success,
             dcp->deletion(*cookie,
