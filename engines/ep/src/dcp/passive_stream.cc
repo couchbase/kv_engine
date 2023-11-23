@@ -494,10 +494,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
 }
 
 cb::engine_errc PassiveStream::processMessageInner(
-        MutationConsumerMessage* message, MessageType messageType) {
-    std::array<std::string, 4> taskToString{
-            {"mutation", "deletion", "expiration", "prepare"}};
-
+        MutationConsumerMessage* message) {
     auto consumer = consumerPtr.lock();
     if (!consumer) {
         return cb::engine_errc::disconnect;
@@ -511,11 +508,11 @@ cb::engine_errc PassiveStream::processMessageInner(
             "{{snapshot_start ({}) <= seq_no ({}) <= "
             "snapshot_end ({})]; Dropping the {}!",
             vb_,
-            taskToString[messageType],
+            message->to_string(),
             cur_snapshot_start.load(),
             *message->getBySeqno(),
             cur_snapshot_end.load(),
-            taskToString[messageType]);
+            message->to_string());
         return cb::engine_errc::out_of_range;
     }
 
@@ -528,7 +525,7 @@ cb::engine_errc PassiveStream::processMessageInner(
             "Invalid CAS ({:#x}) received for {} {{{}, seqno:{}}}. "
             "Regenerating new CAS",
             message->getItem()->getCas(),
-            taskToString[messageType],
+            message->to_string(),
             vb_,
             message->getItem()->getBySeqno());
         message->getItem()->setCas();
@@ -536,10 +533,9 @@ cb::engine_errc PassiveStream::processMessageInner(
 
     auto ret = cb::engine_errc::failed;
     DeleteSource deleteSource = DeleteSource::Explicit;
-    bool switchComplete = false;
-    switch (messageType) {
-    case MessageType::Mutation:
 
+    switch (message->getEvent()) {
+    case DcpResponse::Event::Mutation:
         ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
                                                  0,
                                                  nullptr,
@@ -550,26 +546,11 @@ cb::engine_errc PassiveStream::processMessageInner(
                                                  GenerateBySeqno::No,
                                                  GenerateCas::No,
                                                  message->getExtMetaData());
-
-        switchComplete = true;
         break;
-    case MessageType::Prepare:
-        ret = engine->getKVBucket()->prepare(*message->getItem(),
-                                             consumer->getCookie());
-        // If the the stream has received and successfully processed a pending
-        // SyncWrite, then we have to flag that the Replica must notify the
-        // DurabilityMonitor at snapshot-end received for the DM to move the
-        // HighPreparedSeqno.
-        if (ret == cb::engine_errc::success) {
-            cur_snapshot_prepare.store(true);
-        }
-
-        switchComplete = true;
-        break;
-    case MessageType::Expiration:
+    case DcpResponse::Event::Expiration:
         deleteSource = DeleteSource::TTL;
-    // fallthrough with deleteSource updated
-    case MessageType::Deletion:
+        // fallthrough with deleteSource updated
+    case DcpResponse::Event::Deletion:
         if (message->getItem()->getNBytes() == 0) {
             uint64_t delCas = 0;
             ItemMetaData meta = message->getItem()->getMetaData();
@@ -604,14 +585,32 @@ cb::engine_errc PassiveStream::processMessageInner(
                                                      GenerateCas::No,
                                                      message->getExtMetaData());
         }
-
-        switchComplete = true;
         break;
-    }
-    if (!switchComplete) {
-        throw std::logic_error(
-                std::string("PassiveStream::processMessageInner: "
-                            "Message type not supported"));
+    case DcpResponse::Event::Prepare:
+        ret = engine->getKVBucket()->prepare(*message->getItem(),
+                                             consumer->getCookie());
+        // If the stream has received and successfully processed a pending
+        // SyncWrite, then we have to flag that the Replica must notify the
+        // DurabilityMonitor at snapshot-end received for the DM to move the
+        // HighPreparedSeqno.
+        if (ret == cb::engine_errc::success) {
+            cur_snapshot_prepare.store(true);
+        }
+        break;
+    case DcpResponse::Event::Commit:
+    case DcpResponse::Event::Abort:
+    case DcpResponse::Event::SetVbucket:
+    case DcpResponse::Event::StreamReq:
+    case DcpResponse::Event::StreamEnd:
+    case DcpResponse::Event::SnapshotMarker:
+    case DcpResponse::Event::AddStream:
+    case DcpResponse::Event::SystemEvent:
+    case DcpResponse::Event::SeqnoAcknowledgement:
+    case DcpResponse::Event::OSOSnapshot:
+    case DcpResponse::Event::SeqnoAdvanced:
+        throw std::invalid_argument(
+                "PassiveStream::processMessageInner: invalid event " +
+                std::string(message->to_string()));
     }
 
     return ret;
@@ -619,22 +618,22 @@ cb::engine_errc PassiveStream::processMessageInner(
 
 cb::engine_errc PassiveStream::processMutation(
         MutationConsumerMessage* mutation) {
-    return processMessageInner(mutation, MessageType::Mutation);
+    return processMessageInner(mutation);
 }
 
 cb::engine_errc PassiveStream::processDeletion(
         MutationConsumerMessage* deletion) {
-    return processMessageInner(deletion, MessageType::Deletion);
+    return processMessageInner(deletion);
 }
 
 cb::engine_errc PassiveStream::processExpiration(
         MutationConsumerMessage* expiration) {
-    return processMessageInner(expiration, MessageType::Expiration);
+    return processMessageInner(expiration);
 }
 
 cb::engine_errc PassiveStream::processPrepare(
         MutationConsumerMessage* prepare) {
-    auto result = processMessageInner(prepare, MessageType::Prepare);
+    auto result = processMessageInner(prepare);
     if (result == cb::engine_errc::success) {
         Expects(prepare->getItem()->getBySeqno() ==
                 engine->getVBucket(vb_)->getHighSeqno());

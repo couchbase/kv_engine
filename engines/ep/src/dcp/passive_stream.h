@@ -127,26 +127,13 @@ protected:
     bool transitionState(StreamState newState);
 
     /**
-     * An enum specifically for passing the type of message that is to be
-     * processed inside processMessageInner
-     */
-    enum MessageType : uint8_t {
-        Mutation,
-        Deletion,
-        Expiration,
-        Prepare,
-    };
-
-    /**
      * Wrapper function containing the common elements for dealing with incoming
      * mutation messages. This also deals with the differences between
      * processing a mutation and deletion/expiration.
      *
      * @param message The message sent to the DcpConsumer/PassiveStream
-     * @param messageType The type of message to process (see MessageType enum)
      */
-    cb::engine_errc processMessageInner(MutationConsumerMessage* message,
-                                        MessageType messageType);
+    cb::engine_errc processMessageInner(MutationConsumerMessage* message);
     /**
      * Deal with incoming mutation sent to the DcpConsumer/PassiveStream by
      * passing to processMessageInner with MessageType::Mutation
