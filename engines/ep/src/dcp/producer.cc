@@ -278,10 +278,13 @@ DcpProducer::~DcpProducer() {
                 now - noopCtx.sendTime,
                 now - noopCtx.recvTime);
     }
-    logger->info("Destroying connection. Created {} s ago. {} {}",
-                 (now - created),
-                 noopDescr,
-                 getPausedDetails());
+    logger->info(
+            "Destroying connection. Created {} s ago. "
+            "Sent {} bytes. {} {}",
+            std::chrono::duration<double>(now - created).count(),
+            totalBytesSent,
+            noopDescr,
+            getPausedDetails());
 
     backfillMgr.reset();
 }
