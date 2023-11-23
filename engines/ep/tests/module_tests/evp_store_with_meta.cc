@@ -977,7 +977,7 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
             status = getAddResponseStatus();
         } else {
             auto error = callEngine(op, wm);
-            status = cb::mcbp::to_status(cb::engine_errc(error));
+            status = cb::mcbp::to_status(error);
         }
 
         if (isDelete) {

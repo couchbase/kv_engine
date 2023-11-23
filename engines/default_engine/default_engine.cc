@@ -456,8 +456,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
     auto ret = item_get_and_touch(
             this, &cookie, &it, key, server.core->realtime(expiry_time));
 
-    return cb::makeEngineErrorItemPair(
-            cb::engine_errc(ret), new ItemHolder(this, it), this);
+    return cb::makeEngineErrorItemPair(ret, new ItemHolder(this, it), this);
 }
 
 cb::EngineErrorItemPair default_engine::get_locked(CookieIface& cookie,
@@ -487,8 +486,7 @@ cb::EngineErrorItemPair default_engine::get_locked(CookieIface& cookie,
 
     hash_item* it = nullptr;
     auto ret = item_get_locked(this, &cookie, &it, key, lock_timeout);
-    return cb::makeEngineErrorItemPair(
-            cb::engine_errc(ret), new ItemHolder(this, it), this);
+    return cb::makeEngineErrorItemPair(ret, new ItemHolder(this, it), this);
 }
 
 cb::EngineErrorMetadataPair default_engine::get_meta(CookieIface& cookie,
@@ -681,7 +679,7 @@ cb::EngineErrorCasPair default_engine::store_if(
                              &cookie,
                              document_state,
                              preserveTtl);
-    return {cb::engine_errc(status), cas};
+    return {status, cas};
 }
 
 cb::engine_errc default_engine::flush(CookieIface& cookie) {

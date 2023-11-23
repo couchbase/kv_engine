@@ -2545,8 +2545,7 @@ TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory_replica) {
@@ -2572,8 +2571,7 @@ TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory_replica) {
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest,
@@ -3029,8 +3027,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(producers->last_key, "dairy::three");
 
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
@@ -3109,8 +3106,7 @@ TEST_P(CollectionsDcpParameterizedTest, seqno_advanced_from_disk_to_memory) {
     }
 
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {

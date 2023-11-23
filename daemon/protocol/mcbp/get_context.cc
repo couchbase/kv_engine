@@ -50,7 +50,7 @@ cb::engine_errc GetCommandContext::getItem() {
         ret.first = cb::engine_errc::success;
     }
 
-    return cb::engine_errc(ret.first);
+    return ret.first;
 }
 
 cb::engine_errc GetCommandContext::sendResponse() {

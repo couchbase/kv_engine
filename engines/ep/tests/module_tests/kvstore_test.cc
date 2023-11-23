@@ -1387,8 +1387,7 @@ TEST_P(KVStoreParamTestSkipRocks, IdScanResumesFromNextItemAfterPause) {
                                          DocumentFilter::ALL_ITEMS,
                                          ValueFilter::VALUES_COMPRESSED);
     ASSERT_TRUE(scanCtx);
-    ASSERT_EQ(cb::engine_errc::invalid_arguments,
-              cb::engine_errc(callback->getStatus()));
+    ASSERT_EQ(cb::engine_errc::invalid_arguments, callback->getStatus());
     ASSERT_EQ(0, callback->lastBackfilledKey.size());
     ASSERT_EQ(0, callback->numBackfilled);
     // key1 backfilled -> key2 backfilled -> no mem -> paused -> resume point is
@@ -1396,8 +1395,7 @@ TEST_P(KVStoreParamTestSkipRocks, IdScanResumesFromNextItemAfterPause) {
     kvstore->scan(*scanCtx);
     // Note: In Trinity we signal OOM by temporary_failure, while on Neo we use
     // no_memory
-    EXPECT_EQ(cb::engine_errc::temporary_failure,
-              cb::engine_errc(callback->getStatus()));
+    EXPECT_EQ(cb::engine_errc::temporary_failure, callback->getStatus());
     EXPECT_EQ(key1, callback->lastBackfilledKey);
     EXPECT_EQ(2, callback->numBackfilled);
     // Before the fix for MB-57106 the resume point is wrongly set to key1, so
@@ -1407,7 +1405,7 @@ TEST_P(KVStoreParamTestSkipRocks, IdScanResumesFromNextItemAfterPause) {
     EXPECT_EQ(expectedResumePoint, scanCtx->resumeFromKey);
     // Resumed to completion
     kvstore->scan(*scanCtx);
-    EXPECT_EQ(cb::engine_errc::success, cb::engine_errc(callback->getStatus()));
+    EXPECT_EQ(cb::engine_errc::success, callback->getStatus());
     EXPECT_EQ(key3, callback->lastBackfilledKey);
     EXPECT_EQ(3, callback->numBackfilled);
 }

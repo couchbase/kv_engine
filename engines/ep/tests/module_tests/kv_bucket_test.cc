@@ -208,8 +208,8 @@ Item KVBucketTest::store_item(Vbid vbid,
     }
     auto returnCode = store->set(item, cookie);
     // Doing the EXPECT this way as it is a less noisy when many operations fail
-    auto expectedCount = std::count(
-            expected.begin(), expected.end(), cb::engine_errc(returnCode));
+    auto expectedCount =
+            std::count(expected.begin(), expected.end(), returnCode);
     EXPECT_NE(0, expectedCount)
             << "unexpected error:" << cb::to_string(returnCode)
             << " for key:" << key.to_string();

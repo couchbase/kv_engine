@@ -128,8 +128,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookieP));
 
     // poke the producer as if the frontend executor has awoken
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // MB-56148 reproducible with any collection, stick to default collection.
     StoredDocKey key{"key", CollectionID::Default};
@@ -157,8 +156,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
 
     // Now that cookie was notified it can step, expect nothing as the task gets
     // scheduled.
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // The abort will have scheduled a task to process the checkpoint.
     auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
@@ -173,8 +171,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
 
     EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
@@ -227,8 +224,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
 
     // The DCP client started the stream at the collection high-seqno, they have
     // all the data, there's nothing to send, not even a seqno advance.
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
@@ -300,8 +296,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     EXPECT_EQ("Apple2", producers->last_key);
 
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest,
@@ -356,8 +351,7 @@ TEST_F(CollectionsDcpStreamsTest,
 
     // Client has all data for the collection, so nothing is produced yet and
     // is not instructed to rollback
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
@@ -433,8 +427,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     EXPECT_EQ("Apple", producers->last_key);
 
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
@@ -551,8 +544,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     EXPECT_EQ("Lamb", producers->last_key);
 
     // should be no more ops
-    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
-              producer->step(false, *producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {

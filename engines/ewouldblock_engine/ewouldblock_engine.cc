@@ -611,7 +611,7 @@ private:
             : FaultInjectMode(injected_error_) {
             for (int ii = 0; ii < 32; ii++) {
                 if ((sequence_ & (1 << ii)) != 0) {
-                    sequence.push_back(cb::engine_errc(injected_error_));
+                    sequence.push_back(injected_error_);
                 } else {
                     sequence.push_back(cb::engine_errc(-1));
                 }
@@ -639,7 +639,7 @@ private:
             bool inject = false;
             if (*pos != cb::engine_errc(-1)) {
                 inject = true;
-                err = cb::engine_errc(*pos);
+                err = *pos;
             }
             pos++;
             return inject;
@@ -655,7 +655,7 @@ private:
                         "sequence");
             }
 
-            return cb::engine_errc(*pos++);
+            return *pos++;
         }
 
         std::string to_string() const override {
@@ -940,7 +940,7 @@ cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,
                                              Vbid vbucket) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::ALLOCATE, &cookie, err)) {
-        throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
+        throw cb::engine_error(err, "ewb: injecting error");
     } else {
         return real_engine->allocateItem(cookie,
                                          key,
@@ -981,8 +981,7 @@ cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET, &cookie, err)) {
         return std::make_pair(
-                cb::engine_errc(err),
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
+                err, cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
     } else {
         return real_engine->get(cookie, key, vbucket, documentStateFilter);
     }
@@ -993,8 +992,7 @@ cb::EngineErrorItemPair EWB_Engine::get_random_document(CookieIface& cookie,
     cb::engine_errc err;
     if (should_inject_error(Cmd::GET, &cookie, err)) {
         return std::make_pair(
-                cb::engine_errc(err),
-                cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
+                err, cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
     }
     return real_engine->get_random_document(cookie, cid);
 }
@@ -1033,7 +1031,7 @@ cb::EngineErrorItemPair EWB_Engine::get_locked(CookieIface& cookie,
                                                uint32_t lock_timeout) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::LOCK, &cookie, err)) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc(err));
+        return cb::makeEngineErrorItemPair(err);
     } else {
         return real_engine->get_locked(cookie, key, vbucket, lock_timeout);
     }
@@ -1056,7 +1054,7 @@ cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
                                                  Vbid vbucket) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET_META, &cookie, err)) {
-        return std::make_pair(cb::engine_errc(err), item_info());
+        return std::make_pair(err, item_info());
     } else {
         return real_engine->get_meta(cookie, key, vbucket);
     }
@@ -1113,7 +1111,7 @@ cb::EngineErrorCasPair EWB_Engine::store_if(
     cb::engine_errc err = cb::engine_errc::success;
     Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
     if (should_inject_error(opcode, &cookie, err)) {
-        return {cb::engine_errc(err), 0};
+        return {err, 0};
     } else {
         return real_engine->store_if(cookie,
                                      item,
@@ -1970,7 +1968,7 @@ cb::engine_errc EWB_Engine::setItemCas(CookieIface* cookie,
                                Vbid(0),
                                DocStateFilter::Alive);
     if (rv.first != cb::engine_errc::success) {
-        return cb::engine_errc(rv.first);
+        return rv.first;
     }
 
     rv.second->setCas(cas64);

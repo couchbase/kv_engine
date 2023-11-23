@@ -55,7 +55,7 @@ unique_engine_ptr new_engine_instance(BucketType type,
     }
 
     throw cb::engine_error(
-            cb::engine_errc(status),
+            status,
             "new_engine_instance(): Failed to create bucket of type: " +
                     to_string(type));
 }

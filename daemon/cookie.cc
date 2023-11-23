@@ -65,7 +65,7 @@ nlohmann::json Cookie::to_json() const {
     }
 
     ret["ewouldblock"] = ewouldblock;
-    ret["aiostat"] = to_string(cb::engine_errc(aiostat));
+    ret["aiostat"] = to_string(aiostat);
     ret["throttled"] = throttled.load();
     ret["refcount"] = uint32_t(refcount);
     ret["started"] = fmt::format(

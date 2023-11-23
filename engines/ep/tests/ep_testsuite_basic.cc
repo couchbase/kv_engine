@@ -1060,14 +1060,12 @@ static enum test_result test_touch_mb10277(EngineIface* h) {
 static enum test_result test_gat(EngineIface* h) {
     // Try to gat an unknown item...
     auto ret = gat(h, "mykey", Vbid(0), 10);
-    checkeq(cb::engine_errc::no_such_key,
-            cb::engine_errc(ret.first),
-            "Testing unknown key");
+    checkeq(cb::engine_errc::no_such_key, ret.first, "Testing unknown key");
 
     // illegal vbucket
     ret = gat(h, "mykey", Vbid(5), 10);
     checkeq(cb::engine_errc::not_my_vbucket,
-            cb::engine_errc(ret.first),
+            ret.first,
             "Testing illegal vbucket");
 
     // Store the item!
@@ -1088,7 +1086,7 @@ static enum test_result test_gat(EngineIface* h) {
             h, "mykey", R"({"some":"value"})", strlen(R"({"some":"value"})"));
 
     ret = gat(h, "mykey", Vbid(0), 10);
-    checkeq(cb::engine_errc::success, cb::engine_errc(ret.first), "gat mykey");
+    checkeq(cb::engine_errc::success, ret.first, "gat mykey");
 
     item_info info;
     check(h->get_item_info(*ret.second.get(), info),
@@ -1130,15 +1128,11 @@ static enum test_result test_gat_locked(EngineIface* h) {
             "Expected getl to succeed on key");
 
     auto ret = gat(h, "key", Vbid(0), 10);
-    checkeq(cb::engine_errc::locked,
-            cb::engine_errc(ret.first),
-            "Expected LOCKED");
+    checkeq(cb::engine_errc::locked, ret.first, "Expected LOCKED");
 
     testHarness->time_travel(16);
     ret = gat(h, "key", Vbid(0), 10);
-    checkeq(cb::engine_errc::success,
-            cb::engine_errc(ret.first),
-            "Expected success");
+    checkeq(cb::engine_errc::success, ret.first, "Expected success");
 
     testHarness->time_travel(11);
     checkeq(cb::engine_errc::no_such_key,

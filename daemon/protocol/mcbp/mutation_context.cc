@@ -155,7 +155,7 @@ cb::engine_errc MutationCommandContext::getExistingItemToPreserveXattr() {
             });
     if (pair.first != cb::engine_errc::no_such_key &&
         pair.first != cb::engine_errc::success) {
-        return cb::engine_errc(pair.first);
+        return pair.first;
     }
 
     existing = std::move(pair.second);

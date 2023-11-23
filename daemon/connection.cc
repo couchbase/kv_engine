@@ -406,7 +406,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     // Seems like the rest of the components in our system isn't
     // prepared to receive access denied or authentincation stale.
     // For now we should just disconnect them
-    auto errc = cb::make_error_condition(cb::engine_errc(code));
+    auto errc = cb::make_error_condition(code);
     LOG_WARNING(
             "{} - Client {} not aware of extended error code ({}). "
             "Disconnecting",

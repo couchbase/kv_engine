@@ -46,7 +46,7 @@ bool PersistManifestTask::run() {
     engine->getKVBucket()
             ->getCollectionsManager()
             .updatePersistManifestTaskDone(*engine, cookie, status);
-    engine->notifyIOComplete(cookie, cb::engine_errc(status));
+    engine->notifyIOComplete(cookie, status);
     return false;
 }
 

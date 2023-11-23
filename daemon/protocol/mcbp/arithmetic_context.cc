@@ -56,7 +56,7 @@ cb::engine_errc ArithmeticCommandContext::getItem() {
         }
     }
 
-    return cb::engine_errc(ret.first);
+    return ret.first;
 }
 
 cb::engine_errc ArithmeticCommandContext::createNewItem() {

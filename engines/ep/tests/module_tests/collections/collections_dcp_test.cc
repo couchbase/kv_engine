@@ -239,8 +239,7 @@ void CollectionsDcpTest::notifyAndStepToCheckpoint(
 
 void CollectionsDcpTest::stepAndExpect(cb::mcbp::ClientOpcode opcode,
                                        cb::engine_errc err) {
-    EXPECT_EQ(cb::engine_errc(err),
-              producer->stepAndExpect(*producers, opcode));
+    EXPECT_EQ(err, producer->stepAndExpect(*producers, opcode));
 }
 
 void CollectionsDcpTest::testDcpCreateDelete(

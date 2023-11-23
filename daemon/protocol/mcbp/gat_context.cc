@@ -51,7 +51,7 @@ cb::engine_errc GatCommandContext::getAndTouchItem() {
         ret.first = cb::engine_errc::success;
     }
 
-    return cb::engine_errc(ret.first);
+    return ret.first;
 }
 
 cb::engine_errc GatCommandContext::sendResponse() {

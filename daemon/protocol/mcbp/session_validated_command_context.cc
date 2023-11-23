@@ -37,7 +37,7 @@ cb::engine_errc SessionValidatedCommandContext::step() {
         cookie.setCas(cookie.getRequest().getCas());
         cookie.sendResponse(cb::engine_errc::success);
     }
-    return cb::engine_errc(ret);
+    return ret;
 }
 
 static EngineParamCategory getParamCategory(Cookie& cookie) {
@@ -94,7 +94,7 @@ cb::engine_errc GetVbucketCommandContext::step() {
                             cb::mcbp::Datatype::Raw,
                             cb::mcbp::cas::Wildcard);
     }
-    return cb::engine_errc(status);
+    return status;
 }
 
 SetVbucketCommandContext::SetVbucketCommandContext(Cookie& cookie)

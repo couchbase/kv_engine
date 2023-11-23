@@ -339,7 +339,7 @@ cb::engine_errc delete_with_value(EngineIface* h,
                             DocumentState::Deleted);
     wait_for_flusher_to_settle(h);
 
-    return cb::engine_errc(ret.first);
+    return ret.first;
 }
 
 cb::engine_errc del_with_meta(EngineIface* h,
@@ -633,7 +633,7 @@ bool get_all_vb_seqnos(EngineIface* h,
         pkt = createPacket(cb::mcbp::ClientOpcode::GetAllVbSeqnos);
     }
 
-    checkeq(cb::engine_errc(expectedStatus),
+    checkeq(expectedStatus,
             h->unknown_command(*cookie, *pkt, add_response),
             "Error in getting all vb info");
 
@@ -942,7 +942,7 @@ cb::engine_errc store(
     if (outitem) {
         *outitem = ret.second.release();
     }
-    return cb::engine_errc(ret.first);
+    return ret.first;
 }
 
 cb::engine_errc storeCasOut(EngineIface* h,
@@ -1023,7 +1023,7 @@ cb::EngineErrorItemPair storeCasVb11(
         testHarness->destroy_cookie(cookie);
     }
 
-    return {cb::engine_errc(storeRet), std::move(rv.second)};
+    return {storeRet, std::move(rv.second)};
 }
 
 cb::engine_errc replace(EngineIface* h,
@@ -1081,7 +1081,7 @@ cb::engine_errc touch(EngineIface* h,
         last_cas.store(info.cas);
     }
 
-    return cb::engine_errc(result.first);
+    return result.first;
 }
 
 cb::engine_errc unl(EngineIface* h,
@@ -1141,7 +1141,7 @@ cb::engine_errc vbucketDelete(EngineIface* h, Vbid vb, const char* args) {
 
 cb::engine_errc verify_key(EngineIface* h, std::string_view key, Vbid vbucket) {
     auto rv = get(h, nullptr, key, vbucket);
-    return cb::engine_errc(rv.first);
+    return rv.first;
 }
 
 std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
@@ -1151,7 +1151,7 @@ std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
                                                   DocStateFilter state) {
     auto rv = get(h, cookie, key, vbucket, state);
     if (rv.first != cb::engine_errc::success) {
-        return {cb::engine_errc(rv.first), ""};
+        return {rv.first, ""};
     }
     item_info info;
     if (!h->get_item_info(*rv.second.get(), info)) {
@@ -1159,7 +1159,7 @@ std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),
                              info.value[0].iov_len);
-    return make_pair(cb::engine_errc(rv.first), value);
+    return make_pair(rv.first, value);
 }
 
 cb::engine_errc get_stats_wrapper(EngineIface* h,

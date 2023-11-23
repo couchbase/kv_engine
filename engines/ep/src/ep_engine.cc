@@ -427,7 +427,7 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupHigh(
     if (status = Collections::Manager::doPrometheusCollectionStats(
                 *getKVBucket(), collector);
         status != cb::engine_errc::success) {
-        return cb::engine_errc(status);
+        return status;
     }
 
     // aggregate DCP producer metrics
@@ -2304,7 +2304,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
 
     if (!hasMemoryForItemAllocation(sizeof(Item) + sizeof(Blob) + key.size() +
                                     nbytes)) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc(memoryCondition()));
+        return cb::makeEngineErrorItemPair(memoryCondition());
     }
 
     time_t expiretime = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
@@ -2323,7 +2323,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
         return cb::makeEngineErrorItemPair(
                 cb::engine_errc::success, item, this);
     } catch (const std::bad_alloc&) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc(memoryCondition()));
+        return cb::makeEngineErrorItemPair(memoryCondition());
     }
 }
 
@@ -2423,7 +2423,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
         }
     }
 
-    return cb::makeEngineErrorItemPair(cb::engine_errc(ret));
+    return cb::makeEngineErrorItemPair(ret);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
@@ -2460,7 +2460,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         rv = cb::engine_errc::locked;
     }
 
-    return cb::makeEngineErrorItemPair(cb::engine_errc(rv));
+    return cb::makeEngineErrorItemPair(rv);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
@@ -2509,7 +2509,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
             }
             // FALLTHROUGH
         default:
-            return cb::makeEngineErrorItemPair(cb::engine_errc(status));
+            return cb::makeEngineErrorItemPair(status);
         }
 
         const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
@@ -2573,7 +2573,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
                 cb::engine_errc::success, result.item.release(), this);
     }
 
-    return cb::makeEngineErrorItemPair(cb::engine_errc(result.getStatus()));
+    return cb::makeEngineErrorItemPair(result.getStatus());
 }
 
 cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface& cookie,
@@ -4859,7 +4859,7 @@ cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
         res.result == cb::engine_errc::unknown_scope) {
         setUnknownCollectionErrorContext(cookie, res.getManifestId());
     }
-    return cb::engine_errc(res.result);
+    return res.result;
 }
 
 cb::engine_errc EventuallyPersistentEngine::doScopeStats(
@@ -4873,7 +4873,7 @@ cb::engine_errc EventuallyPersistentEngine::doScopeStats(
     if (res.result == cb::engine_errc::unknown_scope) {
         setUnknownCollectionErrorContext(cookie, res.getManifestId());
     }
-    return cb::engine_errc(res.result);
+    return res.result;
 }
 
 cb::EngineErrorGetCollectionIDResult
@@ -4967,10 +4967,7 @@ EventuallyPersistentEngine::parseStatKeyArg(CookieIface& cookie,
                 setUnknownCollectionErrorContext(cookie,
                                                  cidResult.getManifestId());
             }
-            return {cb::engine_errc(cidResult.result),
-                    std::nullopt,
-                    std::nullopt,
-                    std::nullopt};
+            return {cidResult.result, std::nullopt, std::nullopt, std::nullopt};
         }
         cid = cidResult.getCollectionId();
     }
@@ -5618,7 +5615,7 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
         }
     }
 
-    return std::make_pair(cb::engine_errc(ret), metadata);
+    return std::make_pair(ret, metadata);
 }
 
 bool EventuallyPersistentEngine::decodeSetWithMetaOptions(
@@ -6655,9 +6652,9 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
             EP_LOG_DEBUG("Completed sync deletion of {}", vbid);
             return cb::engine_errc::success;
         }
-        status = cb::engine_errc(kvBucket->deleteVBucket(vbid, &cookie));
+        status = kvBucket->deleteVBucket(vbid, &cookie);
     } else {
-        status = cb::engine_errc(kvBucket->deleteVBucket(vbid));
+        status = kvBucket->deleteVBucket(vbid);
     }
 
     switch (status) {
@@ -6973,7 +6970,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketState(
         setErrorContext(cookie, "VBucket number too big");
     }
 
-    return cb::engine_errc(status);
+    return status;
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {

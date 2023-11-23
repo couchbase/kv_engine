@@ -52,7 +52,7 @@ cb::engine_errc GetLockedCommandContext::getAndLockItem() {
         return cb::engine_errc::locked_tmpfail;
     }
 
-    return cb::engine_errc(ret.first);
+    return ret.first;
 }
 
 cb::engine_errc GetLockedCommandContext::sendResponse() {

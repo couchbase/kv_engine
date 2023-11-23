@@ -43,7 +43,7 @@ cb::engine_errc GetMetaCommandContext::getItemMeta() {
         errorMetaPair.first = cb::engine_errc::success;
     }
 
-    return cb::engine_errc(errorMetaPair.first);
+    return errorMetaPair.first;
 }
 
 cb::engine_errc GetMetaCommandContext::sendResponse() {

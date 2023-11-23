@@ -1928,7 +1928,7 @@ public:
         setStatus(originalCb->getStatus());
 
         // Store this invocation for later comparison with the secondary
-        callbacks.emplace_back(key, cb::engine_errc(getStatus()));
+        callbacks.emplace_back(key, getStatus());
     }
 
     NexusGetAllKeysCallbackCallbacks callbacks;
@@ -2088,7 +2088,7 @@ public:
         setStatus(originalCb->getStatus());
 
         // Now that we've set our status we can store this "invocation"
-        callbacks.emplace_back(std::move(item), cb::engine_errc(getStatus()));
+        callbacks.emplace_back(std::move(item), getStatus());
     }
 
     NexusScanCallbacks callbacks;
@@ -2213,7 +2213,7 @@ public:
         originalCb->callback(val);
         setStatus(originalCb->getStatus());
 
-        callbacks.emplace_back(val, cb::engine_errc(getStatus()));
+        callbacks.emplace_back(val, getStatus());
     }
 
     NexusCacheLookups callbacks;
