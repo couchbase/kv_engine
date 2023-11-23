@@ -1056,7 +1056,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         std::string_view collectionName,
         const ManifestEntry& entry,
         SystemEventType type,
-        OptionalSeqno seq) {
+        OptionalSeqno seq,
+        uint64_t defaultCollectionMaxLegacyDCPSeqno) {
     flatbuffers::FlatBufferBuilder builder;
 
     switch (type) {
@@ -1074,6 +1075,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 builder.CreateString(collectionName.data(),
                                      collectionName.size()),
                 getHistoryFromCanDeduplicate(entry.getCanDeduplicate()),
+                cid.isDefaultCollection() ? defaultCollectionMaxLegacyDCPSeqno
+                                          : 0,
                 getMeteredFromEnum(entry.isMetered()));
         builder.Finish(collection);
         break;
@@ -1123,12 +1126,13 @@ uint64_t Manifest::queueCollectionSystemEvent(
         vb.checkpointManager->createNewCheckpoint();
     }
 
-    auto item = makeCollectionSystemEvent(
-            getManifestUid(), cid, collectionName, entry, type, seq);
-
-    if (type == SystemEventType::Modify && cid.isDefaultCollection()) {
-        attachMaxLegacyDCPSeqno(*item);
-    }
+    auto item = makeCollectionSystemEvent(getManifestUid(),
+                                          cid,
+                                          collectionName,
+                                          entry,
+                                          type,
+                                          seq,
+                                          defaultCollectionMaxLegacyDCPSeqno);
 
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.addSystemEventItem(
@@ -1159,12 +1163,10 @@ void Manifest::setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
 }
 
 // Build an XATTR pair which records the defaultCollectionMaxLegacyDCPSeqno
-void Manifest::attachMaxLegacyDCPSeqno(Item& item) const {
+void Manifest::attachMaxLegacyDCPSeqno(Item& item, uint64_t seqno) {
     Expects(!cb::mcbp::datatype::is_xattr(item.getDataType()));
     cb::xattr::Blob xattrs;
-    xattrs.set(
-            LegacyXattrKey,
-            fmt::format(LegacyJSONFormat, defaultCollectionMaxLegacyDCPSeqno));
+    xattrs.set(LegacyXattrKey, fmt::format(LegacyJSONFormat, seqno));
 
     std::string xattrValue;
     xattrValue.reserve(xattrs.size() + item.getNBytes());
@@ -1200,16 +1202,29 @@ uint64_t Manifest::computeDefaultCollectionMaxLegacyDCPSeqno(
         // The default collections current high-seqno is the maxLegacyDCP value
         return highSeqno;
     }
+    // It cannot be greater
+    Expects(uint64_t(item.getBySeqno()) == highSeqno);
 
-    // else the modify is the highSeqno and it stores the correct legacy seqno
-    // see attachMaxLegacyDCPSeqno which is the encoder of this data.
+    // else the modify is the highSeqno and it stores the correct legacy seqno.
+    // Retrieve the data which is either in xattr or the value
 
+    uint64_t storedSeqno{0};
+    // Get the seqno from the correct part of the value.
+    if (cb::mcbp::datatype::is_xattr(item.getDataType())) {
+        // 7.2 began by stashing in xattrs.
+        storedSeqno = getSeqnoFromXattr(item);
+    } else {
+        storedSeqno = getSeqnoFromFlatBuffer(item);
+    }
+    Expects(storedSeqno < highSeqno);
+    return storedSeqno;
+}
+
+uint64_t Manifest::getSeqnoFromXattr(const Item& item) {
     // Found it. All modify events have xattr
     Expects(cb::mcbp::datatype::is_xattr(item.getDataType()));
     // This should be decompressed
     Expects(!cb::mcbp::datatype::is_snappy(item.getDataType()));
-    // It cannot be greater
-    Expects(uint64_t(item.getBySeqno()) == highSeqno);
 
     // pull out the stashed seqno which the VB:Manifest needs
     cb::xattr::Blob xattr({const_cast<char*>(item.getData()), item.getNBytes()},
@@ -1225,10 +1240,16 @@ uint64_t Manifest::computeDefaultCollectionMaxLegacyDCPSeqno(
     auto stashedSeqno = std::stoull(max->get<std::string>());
 
     Expects(stashedSeqno < uint64_t(item.getBySeqno()));
-    Expects(stashedSeqno < highSeqno);
 
     // return this value to use as the max-legacy seqno
     return stashedSeqno;
+}
+
+uint64_t Manifest::getSeqnoFromFlatBuffer(const Item& item) {
+    Expects(!cb::mcbp::datatype::is_xattr(item.getDataType()));
+    const auto& collection =
+            Collections::VB::Manifest::getCollectionFlatbuffer(item);
+    return collection.defaultCollectionMVS();
 }
 
 size_t Manifest::getSystemEventItemCount() const {
