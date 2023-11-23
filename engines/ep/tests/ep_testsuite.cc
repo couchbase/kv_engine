@@ -8157,9 +8157,6 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
  * the SyncWrite has exceeded timeout.
  */
 static enum test_result test_sync_write_timeout(EngineIface* h) {
-    auto* cookie1 = testHarness->create_cookie(h);
-    testHarness->set_ewouldblock_handling(cookie1, false);
-
     const auto vbid = Vbid(0);
 
     // Add a replica in topology. By doing that, no SW will ever be Committed
@@ -8180,6 +8177,9 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
     using namespace cb::durability;
     const uint16_t timeous_ms = 10;
     for (int i = 0; i < 3; i++) {
+        auto* cookie1 = testHarness->create_cookie(h);
+        testHarness->set_ewouldblock_handling(cookie1, false);
+
         auto key = std::string("key_") + std::to_string(i);
         const auto start = std::chrono::steady_clock::now();
 
@@ -8212,9 +8212,9 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
                         .count(),
                 std::chrono::milliseconds{timeous_ms}.count(),
                 "SyncWrite was aborted before its durability timeout");
-    }
 
-    testHarness->destroy_cookie(cookie1);
+        testHarness->destroy_cookie(cookie1);
+    }
     return SUCCESS;
 }
 
