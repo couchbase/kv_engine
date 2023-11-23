@@ -519,23 +519,6 @@ cb::engine_errc PassiveStream::processMessageInner(
         return cb::engine_errc::out_of_range;
     }
 
-    switch (messageType) {
-    case MessageType::Mutation:
-        // Skip
-        break;
-    case MessageType::Deletion:
-    case MessageType::Expiration:
-        // The deleted value has a body, send it through the mutation path so we
-        // set the deleted item with a value
-        if (message->getItem()->getNBytes()) {
-            return processMessageInner(message, MessageType::Mutation);
-        }
-        break;
-    case MessageType::Prepare:
-        // No extra processing.
-        break;
-    }
-
     // MB-17517: Check for the incoming item's CAS validity. We /shouldn't/
     // receive anything without a valid CAS, however given that versions without
     // this check may send us "bad" CAS values, we should regenerate them (which
@@ -587,25 +570,41 @@ cb::engine_errc PassiveStream::processMessageInner(
         deleteSource = DeleteSource::TTL;
     // fallthrough with deleteSource updated
     case MessageType::Deletion:
-        uint64_t delCas = 0;
-        ItemMetaData meta = message->getItem()->getMetaData();
-        ret = engine->getKVBucket()->deleteWithMeta(
-                message->getItem()->getKey(),
-                delCas,
-                nullptr,
-                message->getVBucket(),
-                consumer->getCookie(),
-                permittedVBStates,
-                CheckConflicts::No,
-                meta,
-                GenerateBySeqno::No,
-                GenerateCas::No,
-                *message->getBySeqno(),
-                message->getExtMetaData(),
-                deleteSource);
-        if (ret == cb::engine_errc::no_such_key) {
-            ret = cb::engine_errc::success;
+        if (message->getItem()->getNBytes() == 0) {
+            uint64_t delCas = 0;
+            ItemMetaData meta = message->getItem()->getMetaData();
+            ret = engine->getKVBucket()->deleteWithMeta(
+                    message->getItem()->getKey(),
+                    delCas,
+                    nullptr,
+                    message->getVBucket(),
+                    consumer->getCookie(),
+                    permittedVBStates,
+                    CheckConflicts::No,
+                    meta,
+                    GenerateBySeqno::No,
+                    GenerateCas::No,
+                    *message->getBySeqno(),
+                    message->getExtMetaData(),
+                    deleteSource);
+            if (ret == cb::engine_errc::no_such_key) {
+                ret = cb::engine_errc::success;
+            }
+        } else {
+            // The deletion has a value, send it through the setWithMeta path to
+            // process it correctly
+            ret = engine->getKVBucket()->setWithMeta(*message->getItem(),
+                                                     0,
+                                                     nullptr,
+                                                     consumer->getCookie(),
+                                                     permittedVBStates,
+                                                     CheckConflicts::No,
+                                                     true,
+                                                     GenerateBySeqno::No,
+                                                     GenerateCas::No,
+                                                     message->getExtMetaData());
         }
+
         switchComplete = true;
         break;
     }
