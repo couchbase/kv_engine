@@ -3235,7 +3235,9 @@ static enum test_result test_datatype(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h->get_item_info(*ret.second.get(), info);
+    checkeq(true,
+            h->get_item_info(*ret.second.get(), info),
+            "Failed to get item info");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON, info.datatype, "Invalid datatype");
 
     const char* key1 = "foo";
@@ -3260,7 +3262,9 @@ static enum test_result test_datatype(EngineIface* h) {
     ret = get(h, cookie, key1, Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
-    h->get_item_info(*ret.second.get(), info);
+    checkeq(true,
+            h->get_item_info(*ret.second.get(), info),
+            "Failed to get item info");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
             info.datatype,
             "Invalid datatype, when setWithMeta");
@@ -3292,7 +3296,9 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     item_info info;
-    h->get_item_info(*ret.second.get(), info);
+    checkeq(true,
+            h->get_item_info(*ret.second.get(), info),
+            "Failed to get item info");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
             info.datatype,
             "Invalid datatype, when setWithMeta");

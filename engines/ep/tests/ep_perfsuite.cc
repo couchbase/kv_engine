@@ -1609,7 +1609,9 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
         testHarness->reload_engine(&h, "", false, false);
         // initialise, and time how long it takes to complete warmup.
         const auto start = std::chrono::steady_clock::now();
-        h->initialize(testHarness->get_current_testcase()->cfg.c_str());
+        checkeq(cb::engine_errc::success,
+                h->initialize(testHarness->get_current_testcase()->cfg),
+                "Failed to initialize engine");
         wait_for_warmup_complete(h);
         const auto end = std::chrono::steady_clock::now();
         // Store the duration for the warmup

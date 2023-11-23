@@ -631,10 +631,18 @@ static cb::engine_errc stat_tasks_all_executor(const std::string&,
     BucketManager::instance().forEach([&cookie](Bucket& bucket) {
         if (bucket.type == BucketType::Couchbase ||
             bucket.type == BucketType::EWouldBlock) {
-            bucket.getEngine().get_stats(cookie,
-                                         "tasks",
-                                         cookie.getRequest().getValueString(),
-                                         appendStatsFn);
+            const auto err = bucket.getEngine().get_stats(
+                    cookie,
+                    "tasks",
+                    cookie.getRequest().getValueString(),
+                    appendStatsFn);
+            if (err != cb::engine_errc::success) {
+                LOG_WARNING(
+                        "stat_tasks_all_executor(): Failed to get stats from "
+                        "bucket [{}]: {}",
+                        bucket.name,
+                        err);
+            }
         }
         return true;
     });

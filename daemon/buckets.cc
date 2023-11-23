@@ -112,8 +112,15 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     using namespace cb::stats;
     if (hasEngine()) {
         // engine-related metering (e.g., disk usage)
-        getEngine().get_prometheus_stats(collector,
-                                         cb::prometheus::MetricGroup::Metering);
+        auto err = getEngine().get_prometheus_stats(
+                collector, cb::prometheus::MetricGroup::Metering);
+        if (err != cb::engine_errc::success) {
+            LOG_WARNING(
+                    "Bucket::addMeteringMetrics(): Failed to get metering "
+                    "stats for bucket [{}]: {}",
+                    name,
+                    err);
+        }
     }
 
     collector.addStat(Key::op_count_total, num_commands);

@@ -2134,7 +2134,7 @@ static enum test_result test_del_meta_lww_conflict_resolution(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Set, "key", "somevalue", &i),
             "Failed set.");
 
-    h->get_item_info(*i, info);
+    checkeq(true, h->get_item_info(*i, info), "Failed to get item info");
     wait_for_flusher_to_settle(h);
     h->release(*i);
 

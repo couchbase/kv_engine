@@ -314,7 +314,15 @@ cb::engine_errc server_prometheus_stats(
             }
 
             // do engine stats
-            bucket.getEngine().get_prometheus_stats(bucketC, metricGroup);
+            const auto err = bucket.getEngine().get_prometheus_stats(
+                    bucketC, metricGroup);
+            if (err != cb::engine_errc::success) {
+                LOG_WARNING(
+                        "server_prometheus_stats(): Failed to get prometheus "
+                        "stats for bucket [{}]: {}",
+                        bucket.name,
+                        err);
+            }
 
             if (metricGroup == MetricGroup::Low) {
                 // do memcached per-bucket stats
