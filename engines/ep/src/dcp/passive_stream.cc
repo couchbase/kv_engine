@@ -497,10 +497,6 @@ cb::engine_errc PassiveStream::processMessageInner(
         MutationConsumerMessage* message, MessageType messageType) {
     std::array<std::string, 4> taskToString{
             {"mutation", "deletion", "expiration", "prepare"}};
-    VBucketPtr vb = engine->getVBucket(vb_);
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
 
     auto consumer = consumerPtr.lock();
     if (!consumer) {
@@ -619,25 +615,6 @@ cb::engine_errc PassiveStream::processMessageInner(
                             "Message type not supported"));
     }
 
-    if (ret != cb::engine_errc::success) {
-        // ENOMEM logging is handled by maybeLogMemoryState
-        if (ret != cb::engine_errc::no_memory) {
-            log(spdlog::level::level_enum::warn,
-                "{} Got error '{}' while trying to process "
-                "{} with seqno:{} cid:{}",
-                vb_,
-                cb::to_string(ret),
-                taskToString[messageType],
-                message->getItem()->getBySeqno(),
-                message->getItem()->getKey().getCollectionID());
-        }
-    } else {
-        handleSnapshotEnd(vb, *message->getBySeqno());
-    }
-
-    maybeLogMemoryState(
-            ret, taskToString[messageType], message->getItem()->getBySeqno());
-
     return ret;
 }
 
@@ -722,22 +699,11 @@ cb::engine_errc PassiveStream::processCommit(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    auto rv = vb->commit(rlh,
-                         commit.getKey(),
-                         commit.getPreparedSeqno(),
-                         *commit.getBySeqno(),
-                         vb->lockCollections(commit.getKey()));
-    if (rv != cb::engine_errc::success) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processCommit: {} Got error '{}' while trying to "
-            "process commit",
-            vb_,
-            cb::to_string(rv));
-    } else {
-        handleSnapshotEnd(vb, *commit.getBySeqno());
-    }
-
-    return rv;
+    return vb->commit(rlh,
+                      commit.getKey(),
+                      commit.getPreparedSeqno(),
+                      *commit.getBySeqno(),
+                      vb->lockCollections(commit.getKey()));
 }
 
 cb::engine_errc PassiveStream::processAbort(
@@ -758,23 +724,11 @@ cb::engine_errc PassiveStream::processAbort(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    auto rv = vb->abort(rlh,
-                        abort.getKey(),
-                        abort.getPreparedSeqno(),
-                        abort.getAbortSeqno(),
-                        vb->lockCollections(abort.getKey()));
-
-    if (rv != cb::engine_errc::success) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processAbort: {} Got error '{}' while trying to "
-            "process abort",
-            vb_,
-            cb::to_string(rv));
-    } else {
-        handleSnapshotEnd(vb, *abort.getBySeqno());
-    }
-
-    return rv;
+    return vb->abort(rlh,
+                     abort.getKey(),
+                     abort.getPreparedSeqno(),
+                     abort.getAbortSeqno(),
+                     vb->lockCollections(abort.getKey()));
 }
 
 cb::engine_errc PassiveStream::processSystemEvent(
@@ -796,16 +750,6 @@ cb::engine_errc PassiveStream::processSystemEvent(
                 *vb, static_cast<const SystemEventConsumerMessage&>(event));
     } else {
         rv = processSystemEvent(*vb, event);
-    }
-
-    if (rv != cb::engine_errc::success) {
-        log(spdlog::level::level_enum::warn,
-            "{} Got error '{}' while trying to process "
-            "system event",
-            vb_,
-            cb::to_string(rv));
-    } else {
-        handleSnapshotEnd(vb, *event.getBySeqno());
     }
 
     return rv;
@@ -1477,6 +1421,11 @@ std::string PassiveStream::Labeller::getLabel(const char* name) const {
 
 cb::engine_errc PassiveStream::processMessage(
         gsl::not_null<DcpResponse*> response) {
+    VBucketPtr vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
     cb::engine_errc ret = cb::engine_errc::success;
     auto* resp = response.get();
     switch (resp->getEvent()) {
@@ -1523,6 +1472,41 @@ cb::engine_errc PassiveStream::processMessage(
         throw std::invalid_argument(
                 "PassiveStream::processMessage: invalid event " +
                 std::string(resp->to_string()));
+    }
+
+    const auto seqno = resp->getBySeqno();
+
+    const auto* mutation = dynamic_cast<MutationConsumerMessage*>(resp);
+    if (mutation) {
+        Expects(seqno);
+        if (ret != cb::engine_errc::success) {
+            // ENOMEM logging is handled by maybeLogMemoryState
+            if (ret != cb::engine_errc::no_memory) {
+                log(spdlog::level::level_enum::warn,
+                    "PassiveStream::processMessage: {} Got error '{}' while "
+                    "trying to process {} with seqno:{} cid:{}",
+                    vb_,
+                    cb::to_string(ret),
+                    resp->to_string(),
+                    *seqno,
+                    mutation->getItem()->getKey().getCollectionID());
+            }
+        }
+        maybeLogMemoryState(ret, resp->to_string(), *seqno);
+    } else {
+        if (ret != cb::engine_errc::success) {
+            log(spdlog::level::level_enum::warn,
+                "PassiveStream::processMessage: {} Got error '{}' while trying "
+                "to process {} with seqno:{}",
+                vb_,
+                cb::to_string(ret),
+                resp->to_string(),
+                seqno ? std::to_string(*seqno) : "N/A");
+        }
+    }
+
+    if (ret == cb::engine_errc::success && seqno) {
+        handleSnapshotEnd(vb, *seqno);
     }
 
     return ret;
