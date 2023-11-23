@@ -134,25 +134,6 @@ protected:
      * @param message The message sent to the DcpConsumer/PassiveStream
      */
     cb::engine_errc processMessageInner(MutationConsumerMessage* message);
-    /**
-     * Deal with incoming mutation sent to the DcpConsumer/PassiveStream by
-     * passing to processMessageInner with MessageType::Mutation
-     */
-    virtual cb::engine_errc processMutation(MutationConsumerMessage* mutation);
-    /**
-     * Deal with incoming deletion sent to the DcpConsumer/PassiveStream by
-     * passing to processMessageInner with MessageType::Deletion
-     */
-    cb::engine_errc processDeletion(MutationConsumerMessage* deletion);
-
-    /**
-     * Deal with incoming expiration sent to the DcpConsumer/PassiveStream by
-     * passing to processMessageInner with MessageType::Expiration
-     */
-    cb::engine_errc processExpiration(MutationConsumerMessage* expiration);
-
-    /// Process an incoming prepare.
-    cb::engine_errc processPrepare(MutationConsumerMessage* expiration);
 
     /// Process an incoming commit of a SyncWrite.
     cb::engine_errc processCommit(const CommitSyncWriteConsumer& commit);

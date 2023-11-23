@@ -616,31 +616,6 @@ cb::engine_errc PassiveStream::processMessageInner(
     return ret;
 }
 
-cb::engine_errc PassiveStream::processMutation(
-        MutationConsumerMessage* mutation) {
-    return processMessageInner(mutation);
-}
-
-cb::engine_errc PassiveStream::processDeletion(
-        MutationConsumerMessage* deletion) {
-    return processMessageInner(deletion);
-}
-
-cb::engine_errc PassiveStream::processExpiration(
-        MutationConsumerMessage* expiration) {
-    return processMessageInner(expiration);
-}
-
-cb::engine_errc PassiveStream::processPrepare(
-        MutationConsumerMessage* prepare) {
-    auto result = processMessageInner(prepare);
-    if (result == cb::engine_errc::success) {
-        Expects(prepare->getItem()->getBySeqno() ==
-                engine->getVBucket(vb_)->getHighSeqno());
-    }
-    return result;
-}
-
 void PassiveStream::seqnoAck(int64_t seqno) {
     // Only send a seqnoAck if we have an active stream that the producer has
     // responded with Success to the stream request
@@ -1428,17 +1403,22 @@ cb::engine_errc PassiveStream::processMessage(
     auto* resp = response.get();
     switch (resp->getEvent()) {
     case DcpResponse::Event::Mutation:
-        ret = processMutation(dynamic_cast<MutationConsumerMessage*>(resp));
+        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp));
         break;
     case DcpResponse::Event::Deletion:
-        ret = processDeletion(dynamic_cast<MutationConsumerMessage*>(resp));
+        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp));
         break;
     case DcpResponse::Event::Expiration:
-        ret = processExpiration(dynamic_cast<MutationConsumerMessage*>(resp));
+        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp));
         break;
-    case DcpResponse::Event::Prepare:
-        ret = processPrepare(dynamic_cast<MutationConsumerMessage*>(resp));
-        break;
+    case DcpResponse::Event::Prepare: {
+        auto* prepare = dynamic_cast<MutationConsumerMessage*>(resp);
+        ret = processMessageInner(prepare);
+        if (ret == cb::engine_errc::success) {
+            Expects(prepare->getItem()->getBySeqno() ==
+                    engine->getVBucket(vb_)->getHighSeqno());
+        }
+    } break;
     case DcpResponse::Event::Commit:
         ret = processCommit(dynamic_cast<CommitSyncWriteConsumer&>(*resp));
         break;

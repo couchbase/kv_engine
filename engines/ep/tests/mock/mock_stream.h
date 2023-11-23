@@ -305,9 +305,8 @@ public:
         PassiveStream::processMarker(marker);
     }
 
-    cb::engine_errc processMutation(
-            MutationConsumerMessage* mutation) override {
-        return PassiveStream::processMutation(mutation);
+    cb::engine_errc processMutation(MutationConsumerMessage* mutation) {
+        return PassiveStream::processMessageInner(mutation);
     }
 
     auto& getBufferMessages() const {
