@@ -1151,8 +1151,13 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     notifyStreamReady();
 }
 
-void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
-    if (byseqno != cur_snapshot_end.load()) {
+void PassiveStream::handleSnapshotEnd(uint64_t seqno) {
+    auto vb = engine->getVBucket(vb_);
+    if (!vb) {
+        return;
+    }
+
+    if (seqno != cur_snapshot_end.load()) {
         return;
     }
 
@@ -1180,7 +1185,7 @@ void PassiveStream::handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno) {
     // aborts. We must notify the PDM even if we have not seen a prepare, to
     // account for possible unseen prepares.
     if (cur_snapshot_prepare || cur_snapshot_type.load() == Snapshot::Disk) {
-        vb->notifyPassiveDMOfSnapEndReceived(byseqno);
+        vb->notifyPassiveDMOfSnapEndReceived(seqno);
         cur_snapshot_prepare.store(false);
     }
 }
@@ -1396,9 +1401,9 @@ std::string PassiveStream::Labeller::getLabel(const char* name) const {
 
 PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         gsl::not_null<DcpResponse*> response) {
-    VBucketPtr vb = engine->getVBucket(vb_);
+    auto vb = engine->getVBucket(vb_);
     if (!vb) {
-        return {cb::engine_errc::not_my_vbucket};
+        return {*this, cb::engine_errc::not_my_vbucket, {}};
     }
 
     cb::engine_errc ret = cb::engine_errc::success;
@@ -1485,9 +1490,11 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         }
     }
 
-    if (ret == cb::engine_errc::success && seqno) {
-        handleSnapshotEnd(vb, *seqno);
-    }
+    return {*this, ret, seqno};
+}
 
-    return {ret};
+PassiveStream::ProcessMessageResult::~ProcessMessageResult() {
+    if (err == cb::engine_errc::success && seqno) {
+        stream->handleSnapshotEnd(*seqno);
+    }
 }

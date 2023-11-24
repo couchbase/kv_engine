@@ -123,6 +123,16 @@ public:
         return buffer.messages.size();
     }
 
+    /**
+     * Inform the stream on the latest seqno successfully processed. The
+     * function updates the stream's state in the case where that latest seqno
+     * is also the snap-end seqno of the snapshot that PassiveStream is
+     * currently receiving.
+     *
+     * @param seqno
+     */
+    void handleSnapshotEnd(uint64_t seqno);
+
 protected:
     bool transitionState(StreamState newState);
 
@@ -240,8 +250,6 @@ protected:
     cb::engine_errc processDropScope(VBucket& vb,
                                      const SystemEventConsumerMessage& event);
 
-    void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
-
     virtual void processMarker(SnapshotMarker* marker);
 
     void processSetVBucketState(SetVBucketState* state);
@@ -288,15 +296,32 @@ protected:
 
     const std::string createStreamReqValue() const;
 
+    /**
+     * RAII class. At dtor the logic triggers post-processMessage steps.
+     */
     class ProcessMessageResult {
     public:
-        ProcessMessageResult(cb::engine_errc err) : err(err){};
+        ProcessMessageResult(PassiveStream& stream,
+                             cb::engine_errc err,
+                             std::optional<int64_t> seqno)
+            : stream(&stream), err(err), seqno(seqno){};
+
+        ~ProcessMessageResult();
+
+        ProcessMessageResult(const ProcessMessageResult&) = delete;
+        ProcessMessageResult& operator=(const ProcessMessageResult&) = delete;
+
+        ProcessMessageResult(ProcessMessageResult&& other) = default;
+        ProcessMessageResult& operator=(ProcessMessageResult&& other) = default;
+
         cb::engine_errc getError() const {
             return err;
         }
 
     private:
-        const cb::engine_errc err;
+        PassiveStream* stream;
+        cb::engine_errc err;
+        std::optional<int64_t> seqno;
     };
 
     /**
