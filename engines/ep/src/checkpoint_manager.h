@@ -77,7 +77,8 @@ public:
 
     CursorRegResult(CheckpointManager& manager,
                     bool tryBackfill,
-                    uint64_t seqno,
+                    uint64_t nextSeqno,
+                    queued_item position,
                     Cursor cursor);
 
     // Class is movable, but not copyable as it wants to remove the cursor
@@ -93,6 +94,9 @@ public:
 
     // The first seqno found in CM that the new cursor will pick at move
     uint64_t nextSeqno{0};
+
+    // The item the cursor was registered on.
+    queued_item position;
 
     // Take ownership of the cursor - caller is responsible for removing it
     // from CheckpointManager when no longer needed.
