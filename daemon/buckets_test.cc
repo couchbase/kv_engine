@@ -8,8 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "bucket_destroyer.h"
 #include "buckets.h"
 #include "enginemap.h"
+#include "engines/nobucket/nobucket_public.h"
 #include "front_end_thread.h"
 #include "memcached.h"
 #include "stats.h"
@@ -588,4 +590,50 @@ TEST_F(BucketManagerTest, PauseResumeFight) {
 
     destroy("1", "mybucket", false, {});
     shutdown_all_engines();
+}
+
+class BucketDestroyerIntrospector {
+public:
+    static void setNextLogConnections(
+            BucketDestroyer& destroyer,
+            std::chrono::steady_clock::time_point tp) {
+        destroyer.nextLogConnections = tp;
+    }
+};
+
+// Destroy bucket with no clients.
+TEST_F(BucketManagerTest, DestroyBucketTest) {
+    auto& bucket = all_buckets.back();
+    bucket.setEngine(create_no_bucket_instance());
+    BucketDestroyer destroyer(bucket, "", false);
+    EXPECT_EQ(cb::engine_errc::success, destroyer.drive());
+}
+
+// We shouldn't destroy a bucket with clients.
+TEST_F(BucketManagerTest, DestroyBucketWaitsForClients) {
+    auto& bucket = all_buckets.back();
+    bucket.setEngine(create_no_bucket_instance());
+    // Add a client and verify that we wait for it.
+    bucket.clients++;
+
+    using std::chrono::steady_clock;
+    using namespace std::chrono_literals;
+    BucketDestroyer destroyer(bucket, "", false);
+    // Cannot complete the bucket delete as we've got a client. Run twice to
+    // make sure the result is the same.
+    EXPECT_EQ(cb::engine_errc::would_block, destroyer.drive());
+    EXPECT_EQ(cb::engine_errc::would_block, destroyer.drive());
+
+    // "Move" the connection log time, such that on the next run it has elapsed.
+    BucketDestroyerIntrospector::setNextLogConnections(
+            destroyer, steady_clock::now() - 1s);
+
+    // We should still be unable to delete the bucket. Run twice to make sure
+    // the result is the same.
+    EXPECT_EQ(cb::engine_errc::would_block, destroyer.drive());
+    EXPECT_EQ(cb::engine_errc::would_block, destroyer.drive());
+
+    // We should succeed in deleting now that clients == 0.
+    bucket.clients--;
+    EXPECT_EQ(cb::engine_errc::success, destroyer.drive());
 }
