@@ -365,8 +365,8 @@ cb::engine_errc PassiveStream::messageReceived(
         if (buffer.empty() && !alwaysBufferOperations) {
             // Memory available and no message buffered -> process the response
             const auto ret = processMessage(dcpResponse.get());
-
-            if (ret == cb::engine_errc::no_memory) {
+            const auto err = ret.getError();
+            if (err == cb::engine_errc::no_memory) {
                 if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
                     log(spdlog::level::level_enum::warn,
                         "{} Disconnecting the connection as there is no "
@@ -376,12 +376,12 @@ cb::engine_errc PassiveStream::messageReceived(
                     return cb::engine_errc::disconnect;
                 }
             }
-            if (ret == cb::engine_errc::success && seqno) {
+            if (err == cb::engine_errc::success && seqno) {
                 last_seqno.store(*seqno);
             }
-            if (ret != cb::engine_errc::temporary_failure &&
-                ret != cb::engine_errc::no_memory) {
-                return ret;
+            if (err != cb::engine_errc::temporary_failure &&
+                err != cb::engine_errc::no_memory) {
+                return err;
             }
         }
         break;
@@ -434,10 +434,11 @@ process_items_error_t PassiveStream::processBufferedMessages(
 
         const auto ret = processMessage(response.get());
 
-        if (ret == cb::engine_errc::temporary_failure ||
-            ret == cb::engine_errc::no_memory) {
+        const auto err = ret.getError();
+        if (err == cb::engine_errc::temporary_failure ||
+            err == cb::engine_errc::no_memory) {
             failed = true;
-            if (ret == cb::engine_errc::no_memory) {
+            if (err == cb::engine_errc::no_memory) {
                 noMem = true;
             }
         }
@@ -468,10 +469,10 @@ process_items_error_t PassiveStream::processBufferedMessages(
         buffer.pop_front(lh);
 
         count++;
-        if (ret != cb::engine_errc::out_of_range) {
+        if (err != cb::engine_errc::out_of_range) {
             total_bytes_processed += message_bytes;
         }
-        if (ret == cb::engine_errc::success && seqno) {
+        if (err == cb::engine_errc::success && seqno) {
             last_seqno.store(*seqno);
         }
     }
@@ -1393,11 +1394,11 @@ std::string PassiveStream::Labeller::getLabel(const char* name) const {
                        name);
 }
 
-cb::engine_errc PassiveStream::processMessage(
+PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         gsl::not_null<DcpResponse*> response) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
+        return {cb::engine_errc::not_my_vbucket};
     }
 
     cb::engine_errc ret = cb::engine_errc::success;
@@ -1488,5 +1489,5 @@ cb::engine_errc PassiveStream::processMessage(
         handleSnapshotEnd(vb, *seqno);
     }
 
-    return ret;
+    return {ret};
 }

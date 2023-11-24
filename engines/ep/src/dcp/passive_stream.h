@@ -288,14 +288,25 @@ protected:
 
     const std::string createStreamReqValue() const;
 
+    class ProcessMessageResult {
+    public:
+        ProcessMessageResult(cb::engine_errc err) : err(err){};
+        cb::engine_errc getError() const {
+            return err;
+        }
+
+    private:
+        const cb::engine_errc err;
+    };
+
     /**
      * Wrapper function to forwarding a response type to the proper processing
      * path.
      *
      * @param resp The DcpResponse to be processed
-     * @return success, or an error-code otherwise
+     * @return ProcessMessageResult, see struct for details
      */
-    cb::engine_errc processMessage(gsl::not_null<DcpResponse*> resp);
+    ProcessMessageResult processMessage(gsl::not_null<DcpResponse*> resp);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.
