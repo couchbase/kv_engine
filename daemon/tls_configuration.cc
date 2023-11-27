@@ -174,6 +174,8 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     SSL_CTX_set_mode(server_ctx,
                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
                              SSL_MODE_ENABLE_PARTIAL_WRITE);
+    // MB-59835: Session cache has been linked to a crash..
+    SSL_CTX_set_session_cache_mode(server_ctx, SSL_SESS_CACHE_OFF);
 
     if (!SSL_CTX_load_verify_locations(server_ctx, ca_file.c_str(), nullptr)) {
         throw CreateSslContextException("Failed to use: " + ca_file,
