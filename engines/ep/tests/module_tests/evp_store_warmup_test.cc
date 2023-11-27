@@ -777,6 +777,29 @@ TEST_F(WarmupOrderTest, pauseResumeVisit) {
     EXPECT_EQ(visitor.visited, toVisit);
 }
 
+/// Test that all the active vbuckets in a shard are loaded first
+TEST_F(WarmupOrderTest, populateShardVbStates) {
+    resetEngineAndEnableWarmup();
+    runReadersUntilWarmedUp();
+    const auto* warmup = store->getWarmup();
+    ASSERT_TRUE(warmup);
+    for (const auto& shard : warmup->getShardVbIds()) {
+        EXPECT_EQ(16, shard.size());
+        bool seenNotActive = false;
+        for (const auto& vbid : shard) {
+            const auto vb = store->getVBucket(vbid);
+            ASSERT_TRUE(vb);
+            const auto state = vb->getState();
+            if (seenNotActive) {
+                EXPECT_NE(vbucket_state_active, state);
+            }
+            if (state != vbucket_state_active) {
+                seenNotActive = true;
+            }
+        }
+    }
+}
+
 // Test fixture for Durability-related Warmup tests.
 class DurabilityWarmupTest : public DurabilityKVBucketTest {
 protected:

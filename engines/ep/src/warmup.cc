@@ -34,11 +34,9 @@
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
-#include <array>
 #include <limits>
 #include <memory>
 #include <optional>
-#include <random>
 #include <string>
 #include <utility>
 
@@ -2047,70 +2045,30 @@ uint16_t Warmup::getNumKVStores() {
 }
 
 void Warmup::populateShardVbStates() {
-    uint16_t numKvs = getNumKVStores();
+    const uint16_t numShards = getNumKVStores();
+    for (uint16_t shardIdx = 0; shardIdx < numShards; ++shardIdx) {
+        const std::vector<vbucket_state*> curShardStates =
+                store.getRWUnderlyingByShard(shardIdx)->listPersistedVbuckets();
+        auto& statesMap = shardVbStates[shardIdx];
+        auto& statesVec = shardVbIds[shardIdx];
 
-    for (size_t i = 0; i < numKvs; i++) {
-        std::vector<vbucket_state*> kvStoreVbStates =
-                store.getRWUnderlyingByShard(i)->listPersistedVbuckets();
-        for (uint16_t j = 0; j < kvStoreVbStates.size(); j++) {
-            if (!kvStoreVbStates[j]) {
+        for (uint16_t vbIdx = 0; vbIdx < curShardStates.size(); ++vbIdx) {
+            if (!curShardStates[vbIdx]) {
                 continue;
             }
-            auto vb = (j * numKvs) + i;
-            std::map<Vbid, vbucket_state>& shardVB =
-                    shardVbStates[vb % store.vbMap.getNumShards()];
-            shardVB.insert(std::pair<Vbid, vbucket_state>(
-                    Vbid(vb), *(kvStoreVbStates[j])));
+            const Vbid vbid(vbIdx * numShards + shardIdx);
+            statesMap.insert({vbid, *curShardStates[vbIdx]});
         }
-    }
 
-    for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-        std::vector<Vbid> activeVBs, otherVBs;
-        std::map<Vbid, vbucket_state>::const_iterator it;
-        for (auto shardIt : shardVbStates[i]) {
-            Vbid vbid = shardIt.first;
-            vbucket_state vbs = shardIt.second;
-            if (vbs.transition.state == vbucket_state_active) {
-                activeVBs.push_back(vbid);
-            } else {
-                otherVBs.push_back(vbid);
+        // First push all active vbuckets and then the rest
+        for (const auto& item : statesMap) {
+            if (item.second.transition.state == vbucket_state_active) {
+                statesVec.push_back(item.first);
             }
         }
-
-        // Push one active VB to the front.
-        // When the ratio of RAM to VBucket is poor (big vbuckets) this will
-        // ensure we at least bring active data in before replicas eat RAM.
-        if (!activeVBs.empty()) {
-            shardVbIds[i].push_back(activeVBs.back());
-            activeVBs.pop_back();
-        }
-
-        // Now the VB lottery can begin.
-        // Generate a psudeo random, weighted list of active/replica vbuckets.
-        // The random seed is the shard ID so that re-running warmup
-        // for the same shard and vbucket set always gives the same output and keeps
-        // nodes of the cluster more equal after a warmup.
-
-        std::mt19937 twister(i);
-        // Give 'true' (aka active) 60% of the time
-        // Give 'false' (aka other) 40% of the time.
-        std::bernoulli_distribution distribute(0.6);
-        std::array<std::vector<Vbid>*, 2> activeReplicaSource = {
-                {&activeVBs, &otherVBs}};
-
-        while (!activeVBs.empty() || !otherVBs.empty()) {
-            const bool active = distribute(twister);
-            int num = active ? 0 : 1;
-            if (!activeReplicaSource[num]->empty()) {
-                shardVbIds[i].push_back(activeReplicaSource[num]->back());
-                activeReplicaSource[num]->pop_back();
-            } else {
-                // Once active or replica set is empty, just drain the other one.
-                num = num ^ 1;
-                while (!activeReplicaSource[num]->empty()) {
-                    shardVbIds[i].push_back(activeReplicaSource[num]->back());
-                    activeReplicaSource[num]->pop_back();
-                }
+        for (const auto& item : statesMap) {
+            if (item.second.transition.state != vbucket_state_active) {
+                statesVec.push_back(item.first);
             }
         }
     }

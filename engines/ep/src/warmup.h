@@ -323,6 +323,10 @@ public:
         return "running";
     }
 
+    const std::vector<std::vector<Vbid>>& getShardVbIds() const {
+        return shardVbIds;
+    }
+
     /**
      * Testing hook which if set is called every time warmup transitions to
      * a new state.
