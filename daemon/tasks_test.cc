@@ -59,8 +59,8 @@ static void testTaskCalledAgain(ExTask task, MockTaskFunc& mockTaskFunc) {
 
     auto& executor =
             dynamic_cast<SingleThreadedExecutorPool&>(*ExecutorPool::get());
-    executor.runNextTask(NONIO_TASK_IDX, "foobar");
-    executor.runNextTask(NONIO_TASK_IDX, "foobar");
+    executor.runNextTask(AUXIO_TASK_IDX, "foobar");
+    executor.runNextTask(AUXIO_TASK_IDX, "foobar");
     // doesn't need to run again
     EXPECT_THROW(executor.runNextTask(NONIO_TASK_IDX, "foobar"),
                  std::logic_error);
@@ -104,9 +104,9 @@ static void testTaskSnoozes(ExTask task, MockTaskFunc& mockTaskFunc) {
     const auto beforeTime = std::chrono::steady_clock::now();
     auto& executor =
             dynamic_cast<SingleThreadedExecutorPool&>(*ExecutorPool::get());
-    executor.runNextTask(NONIO_TASK_IDX, "foobar");
+    executor.runNextTask(AUXIO_TASK_IDX, "foobar");
     // doesn't need to run again yet, should be snoozed for 10 mins
-    EXPECT_THROW(executor.runNextTask(NONIO_TASK_IDX, "foobar"),
+    EXPECT_THROW(executor.runNextTask(AUXIO_TASK_IDX, "foobar"),
                  std::logic_error);
 
     EXPECT_EQ(TASK_SNOOZED, task->getState());

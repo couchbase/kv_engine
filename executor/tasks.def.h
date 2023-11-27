@@ -55,11 +55,13 @@ TASK(Core_SaslRefreshTask, READER_TASK_IDX, 0)
 TASK(Core_RbacReloadTask, READER_TASK_IDX, 0)
 
 // Aux IO tasks
+TASK(Core_CreateBucketTask, AUXIO_TASK_IDX, 0)
+TASK(Core_DeleteBucketTask, AUXIO_TASK_IDX, 0)
+TASK(Core_SettingsReloadTask, AUXIO_TASK_IDX, 0)
 TASK(VBucketMemoryAndDiskDeletionTask, AUXIO_TASK_IDX, 0)
 TASK(AccessScanner, AUXIO_TASK_IDX, 2)
 TASK(AccessScannerVisitor, AUXIO_TASK_IDX, 2)
 TASK(BackfillManagerTask, AUXIO_TASK_IDX, 4)
-TASK(Core_SettingsReloadTask, AUXIO_TASK_IDX, 0)
 TASK(CompactVBucketTask, AUXIO_TASK_IDX, 5)
 TASK(RangeScanCreateTask, AUXIO_TASK_IDX, 6)
 TASK(RangeScanContinueTask, AUXIO_TASK_IDX, 6)
@@ -70,8 +72,6 @@ TASK(PersistCollectionsManifest, WRITER_TASK_IDX, 1)
 TASK(FlusherTask, WRITER_TASK_IDX, 5)
 
 // Non-IO tasks
-TASK(Core_CreateBucketTask, NONIO_TASK_IDX, 0)
-TASK(Core_DeleteBucketTask, NONIO_TASK_IDX, 0)
 TASK(Core_PauseBucketTask, NONIO_TASK_IDX, 0)
 TASK(Core_SetClusterConfig, NONIO_TASK_IDX, 0)
 TASK(PendingOpsNotification, NONIO_TASK_IDX, 0)
