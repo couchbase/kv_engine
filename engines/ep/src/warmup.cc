@@ -429,9 +429,8 @@ public:
                               120) /
                              100),
           currentNumBackfillTasks(threadTaskCount),
-          filter(warmup.shardVbIds[shardId]),
           visitor(bucket, *this),
-          epStorePosition(bucket.startPosition()) {
+          vbsToVisit(warmup.shardVbIds[shardId]) {
         warmup.addToTaskSet(uid);
     }
 
@@ -446,7 +445,7 @@ public:
     bool run() override {
         TRACE_EVENT1(
                 "ep-engine/task", "WarmupBackfillTask", "shard", getShardId());
-        if (filter.empty() || engine->getEpStats().isShutdown) {
+        if (vbsToVisit.empty() || engine->getEpStats().isShutdown) {
             // Technically "isShutdown" being true doesn't equate to a
             // successful task finish, however if we are shutting down we want
             // warmup to advance and be considered "done".
@@ -457,8 +456,7 @@ public:
         visitor.begin();
         auto& kvBucket = *engine->getKVBucket();
         try {
-            epStorePosition = kvBucket.pauseResumeVisit(
-                    visitor, epStorePosition, &filter);
+            visitPos = kvBucket.pauseResumeVisit(visitor, visitPos, vbsToVisit);
         } catch (std::exception& e) {
             EP_LOG_CRITICAL(
                     "WarmupBackfillTask::run(): caught exception while running "
@@ -467,7 +465,7 @@ public:
             finishTask(false);
             return false;
         }
-        if (epStorePosition == kvBucket.endPosition()) {
+        if (visitPos >= vbsToVisit.size()) {
             finishTask(true);
             return false;
         }
@@ -517,9 +515,9 @@ private:
     /// After how long should this task yield, allowing other tasks to run?
     const std::chrono::milliseconds maxExpectedRuntime;
     std::atomic<size_t>& currentNumBackfillTasks;
-    VBucketFilter filter;
     WarmupVbucketVisitor visitor;
-    KVBucketIface::Position epStorePosition;
+    size_t visitPos = 0;
+    std::vector<Vbid> vbsToVisit;
 };
 
 bool WarmupVbucketVisitor::visit(VBucket& vb) {

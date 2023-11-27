@@ -382,6 +382,24 @@ public:
                               Position& start_pos,
                               VBucketFilter* filter = nullptr) override;
 
+    /**
+     * Visit vbuckets in the order specified,
+     * allowing the visitor to indicate a pause.
+     *
+     * @param visitor object with a <code>virtual bool visit(VBucket& vb)</code>
+     *                method which returns true if the vb has been processed
+     *                and false if iteration should be paused
+     * @param currentPosition the vbsToVisit index at which iteration should
+     *                        proceed
+     * @param vbsToVisit span of vbids to visit in order
+     * @return the next position to visit
+     *         (the vbsToVisit index at which the visitor indicated a pause)
+     *         or <code>vbsToVisit.size()</code> at completion
+     */
+    [[nodiscard]] size_t pauseResumeVisit(PauseResumeVBVisitor& visitor,
+                                          size_t currentPosition,
+                                          gsl::span<Vbid> vbsToVisit);
+
     Position startPosition() const override;
 
     Position endPosition() const override;

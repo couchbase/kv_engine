@@ -2448,6 +2448,21 @@ KVBucket::Position KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
     return KVBucket::Position(vbid);
 }
 
+size_t KVBucket::pauseResumeVisit(PauseResumeVBVisitor& visitor,
+                                  size_t currentPosition,
+                                  gsl::span<Vbid> vbsToVisit) {
+    for (; currentPosition < vbsToVisit.size(); ++currentPosition) {
+        VBucketPtr vb = getVBucket(vbsToVisit[currentPosition]);
+        if (vb) {
+            bool visitorPaused = !visitor.visit(*vb);
+            if (visitorPaused) {
+                break;
+            }
+        }
+    }
+    return currentPosition;
+}
+
 KVBucket::Position KVBucket::startPosition() const
 {
     return KVBucket::Position(Vbid(0));
