@@ -202,6 +202,12 @@ void Bucket::consumedUnits(std::size_t units, ResourceAllocationDomain domain) {
 void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
                                         std::size_t nread,
                                         ResourceAllocationDomain domain) {
+    // Metering stats are only applicable for serverless - avoid the cost
+    // of tracking them if not.
+    if (!cb::serverless::isEnabled()) {
+        return;
+    }
+
     // The node supervisor runs for free
     if (conn.isNodeSupervisor()) {
         return;
@@ -217,6 +223,11 @@ void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
 }
 
 void Bucket::documentExpired(size_t nbytes) {
+    /// Metrics related to metering only applicable to serverless - avoid
+    /// the cost of maintaining them if not serverless.
+    if (!cb::serverless::isEnabled()) {
+        return;
+    }
     if (nbytes) {
         auto& inst = cb::serverless::Config::instance();
         const auto wu = inst.to_wu(nbytes);
@@ -229,6 +240,11 @@ void Bucket::documentExpired(size_t nbytes) {
 }
 
 void Bucket::commandExecuted(const Cookie& cookie) {
+    // These statistics have a non-negligable cost to maintain - only do
+    // so if needed for serverless profile.
+    if (!cb::serverless::isEnabled()) {
+        return;
+    }
     ++num_commands;
     auto& connection = cookie.getConnection();
 

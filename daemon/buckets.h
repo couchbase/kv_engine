@@ -337,12 +337,15 @@ protected:
     DcpIface* bucketDcp{nullptr};
 
     /// The number of RUs being used in this bucket
+    /// Only maintained for serverless profile.
     std::atomic<std::size_t> read_units_used{0};
 
     /// The number of WUs being used in this bucket
+    /// Only maintained for serverless profile.
     std::atomic<std::size_t> write_units_used{0};
 
     /// The gauge to use for throttling of commands.
+    /// Only maintained for serverless profile.
     SloppyGauge throttle_gauge;
 
     /// The reserved number of units/s (RU+WU) consumed before we're subject
@@ -356,15 +359,19 @@ protected:
     std::atomic<std::size_t> num_throttled{0};
 
     /// The total time (in usec) spent in a throttled state
+    /// Only maintained for serverless profile.
     std::atomic<uint64_t> throttle_wait_time{0};
 
-    /// The total number of commands executed within the bucket
+    /// The total number of commands executed within the bucket.
+    /// Only maintained for serverless profile.
     std::atomic<uint64_t> num_commands{0};
 
     /// The total number of commands using metered units within the bucket
+    /// Only maintained for serverless profile.
     std::atomic<uint64_t> num_commands_with_metered_units{0};
 
     /// The total number of metered DCP messages
+    /// Only maintained for serverless profile.
     std::atomic<uint64_t> num_metered_dcp_messages{0};
 
     /// The number of commands we rejected to start executing
