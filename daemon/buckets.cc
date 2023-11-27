@@ -443,7 +443,7 @@ BucketManager& BucketManager::instance() {
 std::mutex buckets_lock;
 std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
-cb::engine_errc BucketManager::setClusterConfig(
+std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
         std::string_view name,
         std::shared_ptr<ClusterConfiguration::Configuration> configuration) {
     // Make sure we don't race with anyone else touching the bucket array
@@ -459,12 +459,12 @@ cb::engine_errc BucketManager::setClusterConfig(
             if (bucket.state == Bucket::State::Ready) {
                 bucket.clusterConfiguration.setConfiguration(
                         std::move(configuration));
-                return cb::engine_errc::success;
+                return {cb::engine_errc::success, Bucket::State::Ready};
             }
             // We can't set the cluster configuration at this time as
             // the bucket is currently being initialized/paused/deleted,
             // but tell the client to try again :)
-            return cb::engine_errc::temporary_failure;
+            return {cb::engine_errc::temporary_failure, bucket.state};
         }
 
         if (bucket.state == Bucket::State::None &&
@@ -475,7 +475,7 @@ cb::engine_errc BucketManager::setClusterConfig(
     }
 
     if (first_free == all_buckets.size()) {
-        return cb::engine_errc::too_big;
+        return {cb::engine_errc::too_big, Bucket::State::None};
     }
 
     std::lock_guard<std::mutex> bucketguard(all_buckets[first_free].mutex);
@@ -487,7 +487,7 @@ cb::engine_errc BucketManager::setClusterConfig(
     bucketStateChangeListener(bucket, Bucket::State::Ready);
     bucket.state = Bucket::State::Ready;
     LOG_INFO("Created cluster config bucket [{}]", name);
-    return cb::engine_errc::success;
+    return {cb::engine_errc::success, Bucket::State::Ready};
 }
 
 void BucketManager::iterateBuckets(const std::function<bool(Bucket&)>& fn) {

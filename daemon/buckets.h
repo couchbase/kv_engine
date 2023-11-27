@@ -434,7 +434,7 @@ public:
                            BucketType type);
 
     /// Set the cluster configuration for the named bucket
-    cb::engine_errc setClusterConfig(
+    std::pair<cb::engine_errc, Bucket::State> setClusterConfig(
             std::string_view name,
             std::shared_ptr<ClusterConfiguration::Configuration> configuration);
 

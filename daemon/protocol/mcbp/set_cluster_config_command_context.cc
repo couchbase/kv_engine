@@ -93,24 +93,38 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     // Try to insert the new cluster configuration by using the provided
     // session token.
     cb::engine_errc status;
-    if (!session_cas.execute(sessiontoken, [&status, &configuration, this]() {
-            status = BucketManager::instance().setClusterConfig(bucketname,
-                                                                configuration);
-        })) {
+    auto state = Bucket::State::None;
+    if (!session_cas.execute(
+                sessiontoken, [&status, &state, &configuration, this]() {
+                    auto [rv, st] = BucketManager::instance().setClusterConfig(
+                            bucketname, configuration);
+                    status = rv;
+                    state = st;
+                })) {
         status = cb::engine_errc::key_already_exists;
     }
 
-    if (status != cb::engine_errc::success) {
-        LOG_WARNING("{}: Failed to update {} config {} failed: {}",
-                    cookie.getConnectionId(),
-                    bucketname.empty() ? "global"
-                                       : fmt::format("bucket '{}'", bucketname),
-                    version,
-                    status);
+    if (status == cb::engine_errc::success) {
         return status;
     }
 
-    return cb::engine_errc::success;
+    if (status == cb::engine_errc::temporary_failure) {
+        LOG_WARNING("{}: Can't set {} config when bucket state is: {}",
+                    cookie.getConnectionId(),
+                    bucketname.empty() ? "global"
+                                       : fmt::format("bucket '{}'", bucketname),
+                    status,
+                    to_string(state));
+        return status;
+    }
+
+    LOG_WARNING("{}: Failed to update {} config {}: {}",
+                cookie.getConnectionId(),
+                bucketname.empty() ? "global"
+                                   : fmt::format("bucket '{}'", bucketname),
+                version,
+                status);
+    return status;
 }
 
 /// Push the configuration for the provided bucket to all clients
