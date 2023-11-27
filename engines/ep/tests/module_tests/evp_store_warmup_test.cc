@@ -32,6 +32,7 @@
 #include "programs/engine_testapp/mock_cookie.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
+#include "vb_visitors.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 #include "warmup.h"
@@ -727,6 +728,64 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
 
     auto* warmup = engine->getKVBucket()->getWarmup();
     EXPECT_EQ(WarmupState::State::Done, warmup->getWarmupState());
+}
+
+class WarmupOrderTest : public SingleThreadedKVBucketTest {
+    void SetUp() override {
+        config_string = "max_vbuckets=32";
+        SingleThreadedKVBucketTest::SetUp();
+        for (size_t ii = 0; ii < store->getVBMapSize(); ++ii) {
+            setVBucketStateAndRunPersistTask(
+                    Vbid(ii),
+                    (ii & 4) ? vbucket_state_active : vbucket_state_replica);
+        }
+    }
+};
+
+/// Test that KVBucket::pauseResumeVisit visits vbuckets in the order specified
+TEST_F(WarmupOrderTest, pauseResumeVisit) {
+    class Visitor final : public PauseResumeVBVisitor {
+    public:
+        bool visit(VBucket& vb) override {
+            auto vbid = vb.getId();
+            if (pause && *pause == vbid) {
+                return false;
+            }
+            visited.push_back(vbid);
+            return true;
+        }
+
+        std::optional<Vbid> pause;
+        std::vector<Vbid> visited;
+    } visitor;
+
+    std::vector<Vbid> toVisit;
+    for (int ii = store->getVBMapSize() - 1; ii >= 0; ii -= 3) {
+        toVisit.emplace_back(ii);
+    }
+    EXPECT_EQ(11, toVisit.size());
+
+    // Visit all
+    size_t position = 0;
+    position = store->pauseResumeVisit(visitor, position, toVisit);
+    EXPECT_EQ(toVisit.size(), position);
+    EXPECT_EQ(toVisit, visitor.visited);
+
+    // Visit until the middle and pause
+    const auto pausePosition = toVisit.size() / 2;
+    visitor.pause = toVisit.at(pausePosition);
+    visitor.visited.clear();
+    position = 0;
+    position = store->pauseResumeVisit(visitor, position, toVisit);
+    EXPECT_EQ(pausePosition, position);
+    EXPECT_EQ(gsl::span(toVisit).subspan(0, pausePosition),
+              gsl::span(visitor.visited));
+
+    // Continue from middle
+    visitor.pause.reset();
+    position = store->pauseResumeVisit(visitor, position, toVisit);
+    EXPECT_EQ(position, toVisit.size());
+    EXPECT_EQ(visitor.visited, toVisit);
 }
 
 // Test fixture for Durability-related Warmup tests.
