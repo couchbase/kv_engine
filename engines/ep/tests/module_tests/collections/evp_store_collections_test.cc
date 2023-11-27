@@ -2473,9 +2473,9 @@ TEST_P(CollectionsParameterizedTest,
                             cb::mcbp::Status status,
                             uint64_t cas,
                             CookieIface& cookie) -> bool {
-        // This callback should run in the memcached-context - there should be
-        // no associated engine.
-        EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
+        // The callback runs in the daemon (no-bucket) context so no arena
+        // should be assigned to the current thread.
+        EXPECT_EQ(cb::NoClientIndex, cb::ArenaMalloc::getCurrentClientIndex());
         return true;
     };
     engine->get_collection_manifest(*cookie, addResponseFn);

@@ -354,19 +354,30 @@ cb::engine_errc EventuallyPersistentEngine::unlock(CookieIface& cookie,
 
 /**
  * generic lambda function which creates an "ExitBorderGuard" thunk - a wrapper
- * around the passed-in function which uses NonBucketAllocationGuard to switch
- * away from the current engine before invoking 'wrapped', then switches back to
- * the original engine after wrapped returns.
+ * around the passed-in function which uses NoArenaGuard guard; to switch
+ * away from the current engine's arena before invoking 'wrapped', then
+ * switches back to the original arena after wrapped returns.
  *
  * The intended use-case of this is to invoke methods / callbacks outside
  * of ep-engine without mis-accounting memory - we need to ensure that any
  * memory allocated from inside the callback is *not* accounted to ep-engine,
  * but when the callback returns we /do/ account any subsequent allocations
  * to the given engine.
+ *
+ * Note this uses cb::NoArenaGuard, and not NonBucketAllocationGuard as
+ * the callback can be called in contexts where the cb_malloc-level client
+ * has been switched away from, but the ep-engine thread local
+ * (ObjectRegistry::getCurrentEngine) has not - e.g.
+ * FollyExecutorPool::doTaskQStat. This means that we need this thunk to
+ * respect the currently selected malloc client (global, "no" arena, even if
+ * ObjectRegistry::getCurrentEngine() is currently non-null. Otherwise we could
+ * incorrectly switch back to arena associated with the current ep-engine
+ * when this callback returns, overriding what the underlying caller (e.g.
+ * FollyExecutorPool::doTaskQStat) actually set the arena to.
  */
 auto makeExitBorderGuard = [](auto&& wrapped) {
     return [wrapped](auto&&... args) {
-        NonBucketAllocationGuard exitGuard;
+        cb::NoArenaGuard guard;
         return wrapped(std::forward<decltype(args)>(args)...);
     };
 };

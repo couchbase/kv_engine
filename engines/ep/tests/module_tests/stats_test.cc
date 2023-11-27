@@ -227,10 +227,9 @@ TEST_F(StatTest, HashStatsMemUsed) {
     auto callback = [&addStats_calls](
                             std::string_view, std::string_view, const auto&) {
         addStats_calls++;
-
-        // This callback should run in the memcached-context so no engine should
-        // be assigned to the current thread.
-        EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
+        // The callback runs in the daemon (no-bucket) context so no arena
+        // should be assigned to the current thread.
+        EXPECT_EQ(cb::NoClientIndex, cb::ArenaMalloc::getCurrentClientIndex());
     };
     MockCookie cookie;
     ASSERT_EQ(cb::engine_errc::success,
