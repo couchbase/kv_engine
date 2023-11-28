@@ -717,19 +717,21 @@ void Connection::logExecutionException(const std::string_view where,
                 callstack.emplace_back(frame);
             });
             LOG_ERROR(
-                    "{}: Exception occurred during {}. Closing connection: "
+                    "{}: Exception occurred during {}. Closing connection {}: "
                     "{}. Cookies: {} Exception thrown from: {}",
                     getId(),
                     where,
+                    getDescription(),
                     e.what(),
                     array.dump(),
                     callstack.dump());
         } else {
             LOG_ERROR(
-                    "{}: Exception occurred during {}. Closing connection: "
+                    "{}: Exception occurred during {}. Closing connection {}: "
                     "{}. Cookies: {}",
                     getId(),
                     where,
+                    getDescription(),
                     e.what(),
                     array.dump());
         }
@@ -737,9 +739,10 @@ void Connection::logExecutionException(const std::string_view where,
         try {
             LOG_ERROR(
                     "{}: Second exception occurred during {}. Closing "
-                    "connection: e:{} exception2:{}",
+                    "connection {}: e:{} exception2:{}",
                     getId(),
                     where,
+                    getDescription(),
                     e.what(),
                     exception2.what());
             if (const auto* backtrace = cb::getBacktrace(e)) {
