@@ -83,8 +83,8 @@ nlohmann::json Bucket::to_json() const {
             json["clients"] = clients.load();
             json["name"] = name;
             json["type"] = to_string(type);
-            json["num_commands"] = num_commands.load();
             json["data_ingress_status"] = to_string(data_ingress_status.load());
+            json["num_rejected"] = num_rejected.load();
             if (serverless) {
                 json["ru"] = read_units_used.load();
                 json["wu"] = write_units_used.load();
@@ -98,7 +98,7 @@ nlohmann::json Bucket::to_json() const {
                         num_commands_with_metered_units.load();
                 json["num_metered_dcp_messages"] =
                         num_metered_dcp_messages.load();
-                json["num_rejected"] = num_rejected.load();
+                json["num_commands"] = num_commands.load();
             }
             return json;
         } catch (const std::exception& e) {

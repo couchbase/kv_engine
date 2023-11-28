@@ -503,7 +503,7 @@ TEST_P(StatsTest, TestBucketDetails) {
         EXPECT_NE(bucket.end(), bucket.find("clients"));
         EXPECT_NE(bucket.end(), bucket.find("name"));
         EXPECT_NE(bucket.end(), bucket.find("type"));
-        EXPECT_NE(bucket.end(), bucket.find("num_commands"));
+        EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
         EXPECT_EQ("Success", bucket["data_ingress_status"]);
     }
 }
