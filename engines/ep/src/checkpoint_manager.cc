@@ -35,9 +35,11 @@ CursorRegResult::CursorRegResult() = default;
 CursorRegResult::CursorRegResult(CheckpointManager& manager,
                                  bool tryBackfill,
                                  uint64_t nextSeqno,
+                                 queued_item position,
                                  Cursor cursor)
     : tryBackfill{tryBackfill},
       nextSeqno{nextSeqno},
+      position{std::move(position)},
       manager{&manager},
       cursor{std::move(cursor)} {
 }
@@ -375,7 +377,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         }
         // Finally save the newCursor
         cursors[name] = newCursor;
-        return {*this, tryBackfill, seqno, Cursor{newCursor}};
+        return {*this, tryBackfill, seqno, *pos, Cursor{newCursor}};
     };
 
     // If:

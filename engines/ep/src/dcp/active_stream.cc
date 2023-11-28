@@ -259,8 +259,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         curChkSeqno = result.nextSeqno;
         cursor = result.takeCursor();
 
-        const auto lockedCursor = cursor.lock();
-        Expects(lockedCursor);
+        Expects(result.position);
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::registerCursor name \"{}\", "
             "lastProcessedSeqno:{}, pendingBackfill:{}, "
@@ -270,8 +269,8 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
             lastProcessedSeqno,
             pendingBackfill,
             result.tryBackfill,
-            ::to_string((*lockedCursor->getPos())->getOperation()),
-            (*lockedCursor->getPos())->getBySeqno(),
+            ::to_string(result.position->getOperation()),
+            result.position->getBySeqno(),
             result.nextSeqno);
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
@@ -1977,8 +1976,6 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         tryBackfill = registerResult.tryBackfill;
         cursor = registerResult.takeCursor();
 
-        const auto lockedCursor = cursor.lock();
-        Expects(lockedCursor);
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
             "name \"{}\" lastProcessedSeqno:{}, result{{tryBackfill:{}, op:{}, "
@@ -1987,8 +1984,8 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             name_,
             lastReadSeqno.load(),
             registerResult.tryBackfill,
-            ::to_string((*lockedCursor->getPos())->getOperation()),
-            (*lockedCursor->getPos())->getBySeqno(),
+            ::to_string(registerResult.position->getOperation()),
+            registerResult.position->getBySeqno(),
             registerResult.nextSeqno);
 
         if (lastReadSeqno.load() > curChkSeqno) {
