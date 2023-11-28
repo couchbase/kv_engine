@@ -6106,11 +6106,11 @@ TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
 TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
     const auto& vb = *store->getVBucket(vbid);
     auto& config = engine->getConfiguration();
-    const auto initRatio = config.getMutationMemRatio();
-    for (const float newRatio : {1e-6f, 0.9123f, initRatio}) {
-        config.setMutationMemRatio(newRatio);
-        ASSERT_FLOAT_EQ(newRatio, config.getMutationMemRatio());
-        ASSERT_FLOAT_EQ(newRatio, store->getMutationMemRatio());
+    const auto initVal = config.getBackfillMemThreshold();
+    for (const size_t newVal : {size_t{0}, size_t{91}, initVal}) {
+        config.setBackfillMemThreshold(newVal);
+        ASSERT_EQ(newVal, config.getBackfillMemThreshold());
+        ASSERT_FLOAT_EQ(newVal / 100.0f, store->getBackfillMemoryThreshold());
         uint64_t rollbackSeqno = -1;
         auto ret = producer->streamRequest(0,
                                            2,
@@ -6123,7 +6123,7 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
                                            &rollbackSeqno,
                                            mock_dcp_add_failover_log,
                                            std::nullopt);
-        if (newRatio < 0.5f) {
+        if (newVal == 0) {
             EXPECT_EQ(cb::engine_errc::no_memory, ret);
         } else {
             EXPECT_EQ(cb::engine_errc::success, ret);

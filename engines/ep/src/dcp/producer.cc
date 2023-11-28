@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -544,8 +543,8 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::out_of_range;
     }
 
-    if (!engine_.getMemoryTracker().isBelowMutationMemoryQuota(
-                sizeof(ActiveStream))) {
+    if (!engine_.getMemoryTracker().isBelowBackfillThreshold() &&
+        getAuthenticatedUser() != "@ns_server") {
         logger->warn(
                 "({}) Stream request failed because "
                 "memory usage is above quota",
