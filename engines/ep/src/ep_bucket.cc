@@ -2223,11 +2223,11 @@ ValueFilter EPBucket::getValueFilterForCompressionMode(CookieIface* cookie) {
 }
 
 void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {
-    if (notifyCtx.notifyFlusher) {
+    if (notifyCtx.isNotifyFlusher()) {
         notifyFlusher(vbid);
     }
-    if (notifyCtx.notifyReplication) {
-        notifyReplication(vbid, notifyCtx.syncWrite);
+    if (notifyCtx.isNotifyReplication()) {
+        notifyReplication(vbid, notifyCtx.getSyncWriteOperation());
     }
 }
 

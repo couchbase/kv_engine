@@ -1304,7 +1304,7 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     if (getVbType() == VBType::Ephemeral) {
         auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
         VBNotifyCtx notifyCtx;
-        notifyCtx.itemCountDifference = 1;
+        notifyCtx.setItemCountDifference(1);
         mockEphVb->public_doCollectionsStats(vbucket->lockCollections(key),
                                              notifyCtx);
     }
@@ -1481,7 +1481,7 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
     // internal function
     auto key = makeStoredDocKey("key");
     VBNotifyCtx notifyCtx;
-    notifyCtx.itemCountDifference = 1;
+    notifyCtx.setItemCountDifference(1);
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     mockEphVb->public_doCollectionsStats(vbucket->lockCollections(key),
                                          notifyCtx);
@@ -3210,10 +3210,10 @@ TEST_P(VBucketDurabilityTest, DoNotExpireCommittedIfPending) {
             findUpdateResult, cHandle, ExpireBy::Access);
     EXPECT_EQ(MutationStatus::IsPendingSyncWrite, status);
     EXPECT_EQ(findUpdateResult.committed, sv);
-    EXPECT_EQ(0, notifyCtx.bySeqno);
-    EXPECT_FALSE(notifyCtx.notifyReplication);
-    EXPECT_FALSE(notifyCtx.notifyFlusher);
-    EXPECT_EQ(0, notifyCtx.itemCountDifference);
+    EXPECT_EQ(0, notifyCtx.getSeqno());
+    EXPECT_FALSE(notifyCtx.isNotifyReplication());
+    EXPECT_FALSE(notifyCtx.isNotifyFlusher());
+    EXPECT_EQ(0, notifyCtx.getItemCountDifference());
 
     EXPECT_EQ(0, vbucket->numExpiredItems);
 }

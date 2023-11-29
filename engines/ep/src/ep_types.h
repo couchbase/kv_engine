@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "queue_op.h"
 #include "utilities/lock_utilities.h"
 
 #include <folly/container/F14Map-fwd.h>
@@ -90,6 +91,8 @@ enum class SyncWriteOperation : char {
     Prepare, // The first phase of a sync-write, the operation is pending
     Abort // The sync-write has been aborted
 };
+
+SyncWriteOperation queueOpToSyncWriteOperation(queue_op op);
 
 enum class CheckpointType : uint8_t {
     /**

@@ -1341,19 +1341,14 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
         durLock.lock();
     }
 
-    VBNotifyCtx notifyCtx;
-    notifyCtx.notifyFlusher = checkpointManager->queueDirty(
+    const auto notifyFlusher = checkpointManager->queueDirty(
             item, ctx.genBySeqno, ctx.genCas, ctx.preLinkDocumentContext);
-    notifyCtx.notifyReplication = true;
-    notifyCtx.bySeqno = item->getBySeqno();
 
-    if (item->isPending()) {
-        notifyCtx.syncWrite = SyncWriteOperation::Prepare;
-    } else if (item->isAbort()) {
-        notifyCtx.syncWrite = SyncWriteOperation::Abort;
-    } else {
-        notifyCtx.syncWrite = SyncWriteOperation::None;
-    }
+    const VBNotifyCtx notifyCtx(
+            item->getBySeqno(),
+            true,
+            notifyFlusher,
+            queueOpToSyncWriteOperation(item->getOperation()));
 
     // Process Durability items (notify the DurabilityMonitor of
     // Prepare/Commit/Abort)
@@ -4066,14 +4061,14 @@ void VBucket::notifyNewSeqno(
 void VBucket::doCollectionsStats(
         const Collections::VB::CachingReadHandle& cHandle,
         const VBNotifyCtx& notifyCtx) {
-    cHandle.setHighSeqno(notifyCtx.bySeqno,
+    cHandle.setHighSeqno(notifyCtx.getSeqno(),
                          notifyCtx.isSyncWrite()
                                  ? Collections::VB::HighSeqnoType::PrepareAbort
                                  : Collections::VB::HighSeqnoType::Committed);
 
-    if (notifyCtx.itemCountDifference == 1) {
+    if (notifyCtx.getItemCountDifference() == 1) {
         cHandle.incrementItemCount();
-    } else if (notifyCtx.itemCountDifference == -1) {
+    } else if (notifyCtx.getItemCountDifference() == -1) {
         cHandle.decrementItemCount();
     }
 }

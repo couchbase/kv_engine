@@ -14,14 +14,55 @@
 #include "callbacks.h"
 #include "ep_types.h"
 
-/* Structure that holds info needed for notification for an item being updated
-   in the vbucket */
-struct VBNotifyCtx {
-    bool isSyncWrite() const {
-        return syncWrite != SyncWriteOperation::None;
+#include <gsl/gsl-lite.hpp>
+
+/**
+ * Structure that holds info needed for notification for an item being updated
+ * in the vbucket
+ */
+class VBNotifyCtx {
+public:
+    VBNotifyCtx() = default;
+    VBNotifyCtx(int64_t seqno,
+                bool notifyReplication,
+                bool notifyFlusher,
+                SyncWriteOperation syncWriteOp)
+        : seqno(seqno),
+          notifyReplication(notifyReplication),
+          notifyFlusher(notifyFlusher),
+          syncWriteOp(syncWriteOp){};
+
+    auto getSeqno() const {
+        return seqno;
     }
 
-    int64_t bySeqno = 0;
+    auto isNotifyReplication() const {
+        return notifyReplication;
+    }
+
+    auto isNotifyFlusher() const {
+        return this->notifyFlusher;
+    }
+
+    auto getSyncWriteOperation() const {
+        return syncWriteOp;
+    }
+
+    auto isSyncWrite() const {
+        return syncWriteOp != SyncWriteOperation::None;
+    }
+
+    int8_t getItemCountDifference() const {
+        return itemCountDifference;
+    }
+
+    void setItemCountDifference(int8_t diff) {
+        Expects(std::abs(diff) <= 1);
+        itemCountDifference = diff;
+    }
+
+private:
+    int64_t seqno = 0;
     bool notifyReplication = false;
     bool notifyFlusher = false;
 
@@ -53,9 +94,9 @@ struct VBNotifyCtx {
      * We'll use this to determine if we can skip notifying a Producer of the
      * given seqno.
      */
-    SyncWriteOperation syncWrite = SyncWriteOperation::None;
+    SyncWriteOperation syncWriteOp = SyncWriteOperation::None;
 
     // The number that should be added to the item count due to the performed
     // operation (+1 for new, -1 for delete, 0 for update of existing doc)
-    int itemCountDifference = 0;
+    int8_t itemCountDifference = 0;
 };

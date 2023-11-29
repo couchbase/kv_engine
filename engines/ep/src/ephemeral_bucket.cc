@@ -364,11 +364,11 @@ void EphemeralBucket::reconfigureForEphemeral(Configuration& config) {
 
 void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
                                      const VBNotifyCtx& notifyCtx) {
-    if (notifyCtx.notifyFlusher) {
+    if (notifyCtx.isNotifyFlusher()) {
         notifyFlusher(vbid);
     }
-    if (notifyCtx.notifyReplication) {
-        notifyReplication(vbid, notifyCtx.syncWrite);
+    if (notifyCtx.isNotifyReplication()) {
+        notifyReplication(vbid, notifyCtx.getSyncWriteOperation());
     }
 
     /* In ephemeral buckets we must notify high priority requests as well.
@@ -376,8 +376,10 @@ void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
     VBucketPtr vb = getVBucket(vbid);
     if (vb) {
         // If at least one request is met, wake the task who will notify
-        if (vb->doesSeqnoSatisfyAnySeqnoPersistenceRequest(notifyCtx.bySeqno)) {
-            Expects(uint64_t(notifyCtx.bySeqno) <= vb->getPersistenceSeqno());
+        if (vb->doesSeqnoSatisfyAnySeqnoPersistenceRequest(
+                    notifyCtx.getSeqno())) {
+            Expects(uint64_t(notifyCtx.getSeqno()) <=
+                    vb->getPersistenceSeqno());
             ExecutorPool::get()->wake(seqnoPersistenceNotifyTask->getId());
         }
     }

@@ -155,3 +155,21 @@ std::string to_string(CanDeduplicate value) {
 std::ostream& operator<<(std::ostream& os, const CanDeduplicate& value) {
     return os << to_string(value);
 }
+
+SyncWriteOperation queueOpToSyncWriteOperation(queue_op op) {
+    switch (op) {
+    case queue_op::pending_sync_write:
+        return SyncWriteOperation::Prepare;
+    case queue_op::abort_sync_write:
+        return SyncWriteOperation::Abort;
+    case queue_op::mutation:
+    case queue_op::commit_sync_write:
+    case queue_op::empty:
+    case queue_op::checkpoint_start:
+    case queue_op::checkpoint_end:
+    case queue_op::set_vbucket_state:
+    case queue_op::system_event:
+        return SyncWriteOperation::None;
+    }
+    folly::assume_unreachable();
+}

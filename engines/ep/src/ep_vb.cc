@@ -1092,11 +1092,11 @@ uint64_t EPVBucket::addSystemEventItem(
             nullptr /* No pre link step as this is for system events */,
             assignedSeqnoCallback);
 
-    VBNotifyCtx notifyCtx;
-    // If the seqno is initialized, skip replication notification
-    notifyCtx.notifyReplication = !seqno.has_value();
-    notifyCtx.notifyFlusher = true;
-    notifyCtx.bySeqno = qi->getBySeqno();
+    // Note: If the seqno is already initialized, skip replication notification
+    VBNotifyCtx notifyCtx(qi->getBySeqno(),
+                          !seqno.has_value(),
+                          true,
+                          queueOpToSyncWriteOperation(qi->getOperation()));
     notifyNewSeqno(notifyCtx);
 
     // We don't record anything interesting for scopes
@@ -1113,7 +1113,8 @@ uint64_t EPVBucket::addSystemEventItem(
             auto state = getState();
             if (state == vbucket_state_replica ||
                 state == vbucket_state_pending) {
-                getPassiveDM().notifyDroppedCollection(*cid, notifyCtx.bySeqno);
+                getPassiveDM().notifyDroppedCollection(*cid,
+                                                       notifyCtx.getSeqno());
             }
         } else {
             stats.trackCollectionStats(*cid);

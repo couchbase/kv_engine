@@ -476,10 +476,10 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
     if (itm.isCommitted()) {
         if (recreatingDeletedItem) {
             ++opsCreate;
-            notifyCtx.itemCountDifference = 1;
+            notifyCtx.setItemCountDifference(1);
         } else if (!oldValueDeleted && itm.isDeleted()) {
             ++opsDelete;
-            notifyCtx.itemCountDifference = -1;
+            notifyCtx.setItemCountDifference(-1);
         } else {
             ++opsUpdate;
         }
@@ -537,7 +537,7 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
     if (itm.isCommitted()) {
         if (!itm.isDeleted()) {
             ++opsCreate;
-            notifyCtx.itemCountDifference = 1;
+            notifyCtx.setItemCountDifference(1);
         }
     }
 
@@ -625,7 +625,7 @@ EphemeralVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
         notifyCtx = queueDirty(hbl, *newSv, queueItmCtx);
         if (wasCommittedNonTemp && !oldValueDeleted) {
             ++opsDelete;
-            notifyCtx.itemCountDifference = -1;
+            notifyCtx.setItemCountDifference(-1);
         }
 
         /* Update the high seqno in the sequential storage */
@@ -776,7 +776,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         // abort item because queueDirty does this for you. As we are using
         // queueAbort, update the bySeqno manually.
         if (!abortSeqno) {
-            newSv->setBySeqno(notifyCtx.bySeqno);
+            newSv->setBySeqno(notifyCtx.getSeqno());
         }
 
         // 2) We need to modify the SV to mark it as an abort (not a delete)
@@ -1035,11 +1035,11 @@ uint64_t EphemeralVBucket::addSystemEventItem(
         }
     }
 
-    VBNotifyCtx notifyCtx;
-
-    // If the seqno is initialized, skip replication notification
-    notifyCtx.notifyReplication = !seqno.has_value();
-    notifyCtx.bySeqno = v->getBySeqno();
+    // Note: If the seqno is already initialized, skip replication notification
+    VBNotifyCtx notifyCtx(v->getBySeqno(),
+                          !seqno.has_value(),
+                          false,
+                          SyncWriteOperation::None);
     notifyNewSeqno(notifyCtx);
 
     // We don't record anything interesting for scopes
@@ -1056,7 +1056,8 @@ uint64_t EphemeralVBucket::addSystemEventItem(
             auto state = getState();
             if (state == vbucket_state_replica ||
                 state == vbucket_state_pending) {
-                getPassiveDM().notifyDroppedCollection(*cid, notifyCtx.bySeqno);
+                getPassiveDM().notifyDroppedCollection(*cid,
+                                                       notifyCtx.getSeqno());
             }
         } else {
             stats.trackCollectionStats(*cid);
@@ -1111,14 +1112,14 @@ void EphemeralVBucket::doCollectionsStats(
         const VBNotifyCtx& notifyCtx) {
     readHandle.setHighSeqno(
             collection,
-            notifyCtx.bySeqno,
+            notifyCtx.getSeqno(),
             notifyCtx.isSyncWrite()
                     ? Collections::VB::HighSeqnoType::PrepareAbort
                     : Collections::VB::HighSeqnoType::Committed);
 
-    if (notifyCtx.itemCountDifference == 1) {
+    if (notifyCtx.getItemCountDifference() == 1) {
         readHandle.incrementItemCount(collection);
-    } else if (notifyCtx.itemCountDifference == -1) {
+    } else if (notifyCtx.getItemCountDifference() == -1) {
         readHandle.decrementItemCount(collection);
     }
 }
