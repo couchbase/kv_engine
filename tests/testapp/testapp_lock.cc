@@ -97,14 +97,17 @@ TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
 }
 
 TEST_P(LockTest, MutateLockedDocument) {
-    userConnection->mutate(document, Vbid(0), MutationType::Add);
-
+    auto mutInfo = userConnection->mutate(document, Vbid(0), MutationType::Add);
+    auto lastModifiedCAS = mutInfo.cas;
     for (const auto op : {MutationType::Set,
                           MutationType::Replace,
                           MutationType::Append,
                           MutationType::Prepend}) {
         const auto locked = userConnection->get_and_lock(name, Vbid(0), 0);
         EXPECT_NE(uint64_t(-1), locked.info.cas);
+        EXPECT_NE(lastModifiedCAS, locked.info.cas)
+                << "Locking a document should return a different CAS to last "
+                   "modified CAS";
         try {
             userConnection->mutate(document, Vbid(0), op);
             FAIL() << "It should not be possible to mutate a locked document";
@@ -114,7 +117,8 @@ TEST_P(LockTest, MutateLockedDocument) {
 
         // But using the locked cas should work!
         document.info.cas = locked.info.cas;
-        userConnection->mutate(document, Vbid(0), op);
+        mutInfo = userConnection->mutate(document, Vbid(0), op);
+        lastModifiedCAS = mutInfo.cas;
     }
 }
 
@@ -222,9 +226,18 @@ TEST_P(LockTest, UnlockThereIsNoCasWildcard) {
 }
 
 TEST_P(LockTest, UnlockSuccess) {
-    userConnection->mutate(document, Vbid(0), MutationType::Add);
+    auto mutInfo = userConnection->mutate(document, Vbid(0), MutationType::Add);
     const auto locked = userConnection->get_and_lock(name, Vbid(0), 0);
+    ASSERT_NE(mutInfo.cas, locked.info.cas)
+            << "Locking document should return a different CAS";
     userConnection->unlock(name, Vbid(0), locked.info.cas);
+
+    if (mcd_env->getTestBucket().getName() == "ep_engine") {
+        // CAS should be restored to value prior to lock (i.e. last modification
+        // time of document).
+        auto getInfo = userConnection->get(name, Vbid(0));
+        EXPECT_EQ(getInfo.info.cas, mutInfo.cas);
+    }
 
     // The document should no longer be locked
     userConnection->mutate(document, Vbid(0), MutationType::Set);

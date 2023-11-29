@@ -401,7 +401,7 @@ TEST(StoredValueTest, StoredValuesAllocatedInExpectedBin) {
 TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
 #endif
     for (auto keySize : {23, 24, 25, 26}) {
-        const int expectedBin = 80;
+        const int expectedBin = 96;
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
@@ -413,8 +413,8 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
         EXPECT_EQ(expectedBin, usableSize) << "keySize=" << keySize;
     }
 
-    for (auto keySize : {27, 28, 29, 30}) {
-        const int expectedBin = 96;
+    for (auto keySize : {35, 36, 37, 38}) {
+        const int expectedBin = 112;
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
@@ -445,6 +445,51 @@ TYPED_TEST(ValueTest, MB_32568) {
     itm.setDeleted(DeleteSource::TTL);
     this->sv->setValue(itm);
     EXPECT_EQ(DeleteSource::TTL, this->sv->getDeletionSource());
+}
+
+// Validate the CAS for writing changes when locked, and is restored afterwards
+// when unlocked.
+TYPED_TEST(ValueTest, LockedCas) {
+    this->sv->setCas(123);
+    ASSERT_EQ(123, this->sv->getCasForWrite(0))
+            << "CAS used for writing should be main CAS if not locked";
+
+    rel_time_t lock_expiry{10};
+    this->sv->lock(lock_expiry, 456);
+    EXPECT_EQ(456, this->sv->getCasForWrite(lock_expiry - 1))
+            << "CAS used for writing should have changed to locked CAS while "
+               "lock still valid";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged when locked";
+
+    this->sv->unlock();
+    EXPECT_EQ(123, this->sv->getCasForWrite(lock_expiry - 1))
+            << "CAS used for writing should have reverted to previous VAS "
+               "after explicit unlock";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged after explicit unlock";
+}
+
+// Validate the CAS for writing changes when locked, and is restored when lock
+// expires.
+TYPED_TEST(ValueTest, LockedCasExpired) {
+    this->sv->setCas(123);
+    ASSERT_EQ(123, this->sv->getCasForWrite(0))
+            << "CAS used for writing should be main CAS if not locked";
+
+    rel_time_t lock_expiry{10};
+    this->sv->lock(lock_expiry, 456);
+    EXPECT_EQ(456, this->sv->getCasForWrite(lock_expiry - 1))
+            << "CAS used for writing should have changed to locked CAS while "
+               "lock still valid";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged when locked";
+
+    EXPECT_EQ(123, this->sv->getCasForWrite(lock_expiry + 1))
+            << "CAS used for writing should have reverted to previous VAS "
+               "after lock expires";
+    EXPECT_EQ(123, this->sv->getCas())
+            << "main CAS should be unchanged after locked expires";
 }
 
 /**

@@ -3218,11 +3218,10 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         }
 
         // acquire lock and increment cas value
-        v->lock(currentTime + lockTimeout);
+        v->lock(currentTime + lockTimeout, nextHLCCas());
 
         auto it = v->toItem(getId());
-        it->setCas(nextHLCCas());
-        v->setCas(it->getCas());
+        it->setCas(v->getCasForWrite(currentTime));
 
         return GetValue(std::move(it));
     }
@@ -3572,17 +3571,18 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
             !committed->isDeleted()) {
             return {MutationStatus::InvalidCas, {}};
         }
-        if (committed->isLocked(ep_current_time())) {
+        const auto now = ep_current_time();
+        if (committed->isLocked(now)) {
             /*
              * item is locked, deny if there is cas value mismatch
              * or no cas value is provided by the user
              */
-            if (cas != committed->getCas()) {
+            if (cas != committed->getCasForWrite(now)) {
                 return {MutationStatus::IsLocked, {}};
             }
             /* allow operation*/
             committed->unlock();
-        } else if (cas && cas != committed->getCas()) {
+        } else if (cas && cas != committed->getCasForWrite(now)) {
             if (committed->isTempNonExistentItem()) {
                 // This is a temporary item which marks a key as non-existent;
                 // therefore specifying a non-matching CAS should be exposed
@@ -3852,15 +3852,19 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }
 
-    if (v.isLocked(ep_current_time())) {
-        if (cas != v.getCas()) {
+    // Perform CAS check. If document is locked then the request cas must
+    // match the locked CAS (i.e. the same CAS returned from the getLocked()
+    // operation), if not locked then check against the normal cas (last
+    // modified time) if CAS specified otherwise no CAS permitted.
+    const auto now = ep_current_time();
+    if (v.isLocked(now)) {
+        if (cas != v.getCasForWrite(now)) {
             return std::make_tuple(MutationStatus::IsLocked, &v, empty);
         }
-        v.unlock();
-    }
-
-    if (cas != 0 && cas != v.getCas()) {
-        return std::make_tuple(MutationStatus::InvalidCas, &v, empty);
+    } else {
+        if (cas != 0 && cas != v.getCas()) {
+            return std::make_tuple(MutationStatus::InvalidCas, &v, empty);
+        }
     }
 
     /* allow operation */

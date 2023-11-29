@@ -616,7 +616,7 @@ TEST_P(HashTableStatsTest, EjectLockedItem) {
         EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
 
         // Lock item
-        sv->lock(ep_current_time() + 20);
+        sv->lock(ep_current_time() + 20, {});
         EXPECT_TRUE(sv->isResident());
         EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
 
