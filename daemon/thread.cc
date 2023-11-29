@@ -154,13 +154,7 @@ void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
 }
 
 void FrontEndThread::onConnectionCreate(Connection& connection) {
-    if (!connection.isConnectedToSystemPort()) {
-        // Don't insert connections to the system port to the LRU
-        // as they're accounted to the system connection count and limit
-        // Some unit tests use the mock connection which don't provide an
-        // instance of the listening port, so we need to check that its there...
-        connectionLruList.push_back(connection);
-    }
+    unauthenticatedConnections.emplace_back(connection);
 
     const std::string ip = connection.getPeername()["ip"];
     // The common case is updating an existing entry.
@@ -175,15 +169,49 @@ void FrontEndThread::onConnectionCreate(Connection& connection) {
     }
 }
 
+static bool eraseConnection(std::deque<std::reference_wrapper<Connection>>&
+                                    unauthenticatedConnections,
+                            const Connection& connection) {
+    for (auto iter = unauthenticatedConnections.begin();
+         iter != unauthenticatedConnections.end();
+         ++iter) {
+        if (&iter->get() == &connection) {
+            unauthenticatedConnections.erase(iter);
+            return true;
+        }
+    }
+    return false;
+}
+
 void FrontEndThread::onConnectionDestroy(const Connection& connection) {
-    auto iter = clientConnectionMap.find(connection.getPeername()["ip"]);
-    if (iter != clientConnectionMap.end()) {
-        iter->second.onDisconnect();
+    {
+        auto iter = clientConnectionMap.find(connection.getPeername()["ip"]);
+        if (iter != clientConnectionMap.end()) {
+            iter->second.onDisconnect();
+        }
     }
 
-    if (connection.is_linked()) {
-        connectionLruList.erase(connectionLruList.s_iterator_to(connection));
+    // unauthenticatedConnections should only contain the connection if
+    // it hasn't been authenticated, so we don't need to search the list
+    // for authenticated connections.
+    if (connection.isAuthenticated()) {
+#ifdef CB_DEVELOPMENT_ASSERTS
+        // Just to verify that the logic is correct lets search the entire
+        // list for the connection and assert that the connection isn't
+        // located in the unauthenticatedConnections
+        Expects(!eraseConnection(unauthenticatedConnections, connection));
+#endif
+        return;
     }
+
+    // A connection may currently "restart authentication" if it
+    // authenticated via SASL (first authenticate as user1, then
+    // authenticate as user2 etc), and as part of receiving the
+    // first SASL AUTH package we set the connection to unauthenticated.
+    // I'm not sure if any clients actually does this (and I'd like
+    // to remove the support for it), so we cannot assert that the connection
+    // is present in the list.
+    eraseConnection(unauthenticatedConnections, connection);
 }
 
 void FrontEndThread::onConnectionForcedDisconnect(
@@ -194,16 +222,8 @@ void FrontEndThread::onConnectionForcedDisconnect(
     }
 }
 
-void FrontEndThread::onConnectionUse(Connection& connection) {
-    // Not all connections are tracked in LRU (e.g. system connections) -
-    // skip if not already linked.
-    if (!connection.is_linked()) {
-        return;
-    }
-
-    // Move this Connection to the tail (most recently used) of the list.
-    auto& lru = connectionLruList;
-    lru.splice(lru.end(), lru, lru.s_iterator_to(connection));
+void FrontEndThread::onConnectionAuthenticated(Connection& connection) {
+    eraseConnection(unauthenticatedConnections, connection);
 }
 
 bool FrontEndThread::maybeTrimClientConnectionMap() {
@@ -274,6 +294,8 @@ static void worker_libevent(void *arg) {
 }
 
 void FrontEndThread::dispatch_new_connections() {
+    tryDisconnectUnauthenticatedConnections();
+
     std::vector<ConnectionQueue::Entry> accept_connections;
     new_conn_queue.swap(accept_connections);
 
@@ -309,6 +331,22 @@ void FrontEndThread::destroy_connection(Connection& connection) {
     auto node = connections.extract(&connection);
     if (node.key() != &connection) {
         throw std::logic_error("destroy_connection: Connection not found");
+    }
+}
+
+void FrontEndThread::tryDisconnectUnauthenticatedConnections() {
+    static const std::chrono::minutes limit{5};
+    static const std::string message = fmt::format(
+            "Client did not authenticate within {} minutes", limit.count());
+
+    const auto now = std::chrono::steady_clock::now();
+    for (auto& conn : unauthenticatedConnections) {
+        if (conn.get().getCreationTimestamp() + limit > now) {
+            // No need of inspecting the rest of the list (we add at the tail
+            // of the list
+            return;
+        }
+        conn.get().maybeInitiateShutdown(message);
     }
 }
 

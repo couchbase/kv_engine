@@ -13,11 +13,8 @@
 #include "datatype_filter.h"
 #include "resource_allocation_domain.h"
 #include "sendbuffer.h"
-#include "ssl_utils.h"
 #include "stats.h"
 
-#include <boost/intrusive/list.hpp>
-#include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <mcbp/protocol/unsigned_leb128.h>
@@ -63,9 +60,7 @@ enum class ClustermapChangeNotification : uint8_t { None, Brief, Full };
 /**
  * The structure representing a connection in memcached.
  */
-class Connection : public ConnectionIface,
-                   public DcpMessageProducersIface,
-                   public boost::intrusive::list_base_hook<> {
+class Connection : public ConnectionIface, public DcpMessageProducersIface {
 public:
     /// A class representing the states the connection may be in
     enum class State : int8_t {
@@ -840,16 +835,12 @@ public:
     }
 
     /**
-     * Initiate disconnect of this connection if all of the following
-     * is true:
-     *    <ol>
-     *    <li> It is not an internal client (@ns_server etc)</li>
-     *    <li> It does not have any cookies in ewb state</li>
-     *    </ol>
+     * Try to initiate shutdown of the connection if it is idle
      *
+     * @param reason the reason for disconnecting (used in logging)
      * @return true if shutdown was initiated
      */
-    bool maybeInitiateShutdown();
+    bool maybeInitiateShutdown(std::string_view reason);
 
     /// Do the client deal with cluster map deduplication in NMVB
     bool dedupeNmvbMaps() const {

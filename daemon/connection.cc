@@ -851,7 +851,6 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
     try {
         Expects(cookie.isEwouldblock());
-        thread.onConnectionUse(*this);
         cookie.setAiostat(status);
         cookie.setEwouldblock(false);
         if (cookie.execute()) {
@@ -992,7 +991,6 @@ bool Connection::executeCommandsCallback() {
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
 
-    thread.onConnectionUse(*this);
     shutdownIfSendQueueStuck(start);
     if (state == State::running) {
         try {
@@ -1107,6 +1105,7 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
     privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
             cb::rbac::createContext(getUser(), ""));
     updatePrivilegeContext();
+    thread.onConnectionAuthenticated(*this);
 }
 
 const cb::rbac::UserIdent& Connection::getUser() const {
@@ -1231,8 +1230,8 @@ Connection::Connection(SOCKET sfd,
     thread.onConnectionCreate(*this);
 }
 
-bool Connection::maybeInitiateShutdown() {
-    if (isInternal() || state != State::running) {
+bool Connection::maybeInitiateShutdown(const std::string_view reason) {
+    if (state != State::running) {
         return false;
     }
 
@@ -1243,12 +1242,11 @@ bool Connection::maybeInitiateShutdown() {
     }
 
     thread.onConnectionForcedDisconnect(*this);
-    LOG_INFO(
-            "Initiate shutdown of connection: {} to avoid running out of "
-            "connections",
-            getDescription());
-    setTerminationReason(
-            "Server initiated disconnect to avoid running out of connections");
+    auto message = fmt::format("Initiate shutdown of connection from '{}': {}",
+                               peername.dump(),
+                               reason);
+    LOG_INFO("{}: {}", getId(), message);
+    setTerminationReason(std::move(message));
     shutdown();
     triggerCallback();
     return true;

@@ -19,9 +19,9 @@
 #include <subdoc/operations.h>
 #include <array>
 #include <atomic>
+#include <deque>
 #include <memory>
 #include <mutex>
-#include <queue>
 #include <unordered_map>
 #include <vector>
 
@@ -127,8 +127,8 @@ struct FrontEndThread {
     void onConnectionDestroy(const Connection& connection);
     /// Notify the thread that a connection will be disconnected
     void onConnectionForcedDisconnect(const Connection& connection);
-    /// Notify the thread that the connection was used
-    void onConnectionUse(Connection& connection);
+    /// Notify the thread that the connection authenticated
+    void onConnectionAuthenticated(Connection& connection);
 
     /// Get the (aggregated from all threads) map of client connection details
     static std::unordered_map<std::string, ClientConnectionDetails>
@@ -239,7 +239,7 @@ protected:
     /// The audit event filter used by this thread
     std::unique_ptr<AuditEventFilter> auditEventFilter;
 
-    /// All connections bound to this connection
+    /// All connections bound to this thread
     std::unordered_map<Connection*, std::unique_ptr<Connection>> connections;
 
     /// A per-thread map containing the connection details for connections bound
@@ -267,18 +267,16 @@ protected:
     bool maybeTrimClientConnectionMap();
 
     /**
-     * All of the connections pinned to a thread is stored within a LRU list
-     * which gets updated (by the connection) in the command processing
-     * code. This makes it easy to pick out an old connection when we need
-     * to shut down connections without having to traverse "all" connections
-     * to find a victim. Given that we spread out the connections to the threads
-     * we can might as well just use a thread-specific LRU and pick a victim
-     * there instead of using a shared structure and locks.
-     *
-     * List is ordered from least to most recently used (head = least,
-     * tail = most).
+     * All of the unauthenticated connections bound to this list
+     * (will be victims to disconnect if not authentication within
+     * a reasonable time). Connections are added to the tail of the
+     * lists which means that the first entry is the first to expire
      */
-    boost::intrusive::list<Connection> connectionLruList;
+    std::deque<std::reference_wrapper<Connection>> unauthenticatedConnections;
+
+    /// Try to disconnect connections which hasn't successfully authenticated
+    /// within a certain amount of time
+    void tryDisconnectUnauthenticatedConnections();
 };
 
 class Hdr1sfMicroSecHistogram;

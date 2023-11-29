@@ -12,6 +12,7 @@
 
 #include <nlohmann/json.hpp>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <string_view>
 
@@ -121,8 +122,15 @@ public:
     virtual void setDcpFlowControlBufferSize(std::size_t size) {
     }
 
+    /// Get the timestamp for when the connection was created
+    const auto& getCreationTimestamp() const {
+        return created;
+    }
+
 protected:
     const nlohmann::json peername;
     const nlohmann::json sockname;
+    const std::chrono::steady_clock::time_point created =
+            std::chrono::steady_clock::now();
     std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
 };

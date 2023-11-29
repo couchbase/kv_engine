@@ -10,7 +10,7 @@
 #pragma once
 
 #include "connection.h"
-
+#include "ssl_utils.h"
 #include <libevent/utilities.h>
 
 struct bufferevent;
