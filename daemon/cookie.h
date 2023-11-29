@@ -683,7 +683,7 @@ protected:
 
     /// The high resolution timer value for when we started throttling
     std::chrono::steady_clock::time_point throttle_start;
-    std::chrono::duration<int32_t, std::micro> total_throttle_time;
+    std::chrono::duration<int32_t, std::micro> total_throttle_time{};
 
     /// The location where we checked for available resources so that we
     /// update the correct throttling gauge
@@ -691,11 +691,11 @@ protected:
 
     /// The per command read throttling factor (we might want to differentiate
     /// commands which have to do disk IO vs in-memory commands)
-    float read_thottling_factor;
+    float read_thottling_factor{};
 
     /// The per command write throttling factor (we might want to differentiate
     /// commands which have to do disk IO vs in-memory commands)
-    float write_thottling_factor;
+    float write_thottling_factor{};
 
     /**
      * The status for the async io operation

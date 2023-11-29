@@ -440,7 +440,9 @@ void Cookie::maybeLogSlowCommand(
     }
 }
 
-Cookie::Cookie(Connection& conn) : connection(conn) {
+Cookie::Cookie(Connection& conn)
+    : connection(conn),
+      resource_allocation_domain(ResourceAllocationDomain::None) {
 }
 
 void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
