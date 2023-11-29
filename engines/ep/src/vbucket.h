@@ -177,7 +177,6 @@ public:
             std::unique_ptr<FailoverTable> table,
             std::shared_ptr<Callback<Vbid>> flusherCb,
             std::unique_ptr<AbstractStoredValueFactory> valFact,
-            NewSeqnoCallback newSeqnoCb,
             SyncWriteResolvedCallback syncWriteResolvedCb,
             SyncWriteCompleteCallback syncWriteCb,
             SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
@@ -2690,10 +2689,6 @@ private:
 
     // Ptr to the item conflict resolution module
     std::unique_ptr<ConflictResolution> conflictResolver;
-
-    // A callback to be called when a new seqno is generated in the vbucket as
-    // a result of a front end call
-    NewSeqnoCallback newSeqnoCb;
 
     /**
      * Callback invoked when one or more SyncWrites are ready to be resolved for

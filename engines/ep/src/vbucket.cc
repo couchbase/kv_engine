@@ -189,7 +189,6 @@ VBucket::VBucket(Vbid i,
                  std::unique_ptr<FailoverTable> table,
                  std::shared_ptr<Callback<Vbid>> flusherCb,
                  std::unique_ptr<AbstractStoredValueFactory> valFact,
-                 NewSeqnoCallback newSeqnoCb,
                  SyncWriteResolvedCallback syncWriteResolvedCb,
                  SyncWriteCompleteCallback syncWriteCb,
                  SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,
@@ -268,7 +267,6 @@ VBucket::VBucket(Vbid i,
       bucketCreation(false),
       deferredDeletion(false),
       deferredDeletionCookie(nullptr),
-      newSeqnoCb(std::move(newSeqnoCb)),
       syncWriteResolvedCb(std::move(syncWriteResolvedCb)),
       syncWriteCompleteCb(std::move(syncWriteCb)),
       seqnoAckCb(std::move(seqnoAckCb)),
@@ -4062,8 +4060,8 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
 
 void VBucket::notifyNewSeqno(
         const VBNotifyCtx& notifyCtx) {
-    if (newSeqnoCb) {
-        newSeqnoCb->callback(getId(), notifyCtx);
+    if (bucket) {
+        bucket->notifyNewSeqno(getId(), notifyCtx);
     }
 }
 

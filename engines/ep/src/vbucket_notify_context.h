@@ -59,6 +59,3 @@ struct VBNotifyCtx {
     // operation (+1 for new, -1 for delete, 0 for update of existing doc)
     int itemCountDifference = 0;
 };
-
-using NewSeqnoCallback =
-        std::unique_ptr<Callback<const Vbid, const VBNotifyCtx&>>;

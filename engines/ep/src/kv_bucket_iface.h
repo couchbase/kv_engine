@@ -823,7 +823,6 @@ public:
             vbucket_state_t state,
             KVShard* shard,
             std::unique_ptr<FailoverTable> table,
-            NewSeqnoCallback newSeqnoCb,
             std::unique_ptr<Collections::VB::Manifest> manifest,
             vbucket_state_t initState = vbucket_state_dead,
             int64_t lastSeqno = 0,

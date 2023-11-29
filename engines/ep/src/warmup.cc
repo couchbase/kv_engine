@@ -1400,7 +1400,6 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.transition.state,
                                    shard,
                                    std::move(table),
-                                   std::make_unique<NotifyNewSeqnoCB>(store),
                                    std::move(manifest),
                                    vbs.transition.state,
                                    vbs.highSeqno,

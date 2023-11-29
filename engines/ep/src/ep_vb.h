@@ -39,7 +39,6 @@ public:
               uint64_t lastSnapEnd,
               std::unique_ptr<FailoverTable> table,
               std::shared_ptr<Callback<Vbid>> flusherCb,
-              NewSeqnoCallback newSeqnoCb,
               SyncWriteResolvedCallback syncWriteResolvedCb,
               SyncWriteCompleteCallback syncWriteCb,
               SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory,

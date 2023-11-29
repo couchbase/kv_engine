@@ -641,7 +641,6 @@ public:
                            vbucket_state_t state,
                            KVShard* shard,
                            std::unique_ptr<FailoverTable> table,
-                           NewSeqnoCallback newSeqnoCb,
                            std::unique_ptr<Collections::VB::Manifest> manifest,
                            vbucket_state_t initState = vbucket_state_dead,
                            int64_t lastSeqno = 0,
@@ -1422,20 +1421,4 @@ protected:
     std::atomic<bool> compactionExpiryFetchInline;
 
     friend class KVBucketTest;
-
-};
-
-/**
- * Callback for notifying clients of the Bucket (KVBucket) about a new item in
- * the partition (Vbucket).
- */
-class NotifyNewSeqnoCB : public Callback<const Vbid, const VBNotifyCtx&> {
-public:
-    explicit NotifyNewSeqnoCB(KVBucket& kvb) : kvBucket(kvb) {
-    }
-
-    void callback(const Vbid& vbid, const VBNotifyCtx& notifyCtx) override;
-
-private:
-    KVBucket& kvBucket;
 };

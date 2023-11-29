@@ -52,7 +52,6 @@ protected:
                 /*lastSnapStart*/ 0,
                 /*lastSnapEnd*/ 0,
                 /*table*/ nullptr,
-                /*newSeqnoCb*/ nullptr,
                 SyncWriteResolvedCallback{},
                 NoopSyncWriteCompleteCb,
                 NoopSyncWriteTimeoutFactory,

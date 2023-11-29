@@ -1106,7 +1106,6 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
             to,
             shard,
             std::move(ft),
-            std::make_unique<NotifyNewSeqnoCB>(*this),
             std::make_unique<Collections::VB::Manifest>(collectionsManager));
 
     newvb->setFreqSaturatedCallback(
@@ -3176,11 +3175,6 @@ size_t KVBucket::getNumCheckpointsPendingDestruction() const {
         count += task->getNumCheckpoints();
     }
     return count;
-}
-
-void NotifyNewSeqnoCB::callback(const Vbid& vbid,
-                                const VBNotifyCtx& notifyCtx) {
-    kvBucket.notifyNewSeqno(vbid, notifyCtx);
 }
 
 void KVBucket::setSeqnoPersistenceTimeout(std::chrono::seconds timeout) {
