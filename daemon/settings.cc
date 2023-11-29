@@ -25,21 +25,6 @@
 #include <cstring>
 #include <system_error>
 
-std::string to_string(ConnectionLimitMode mode) {
-    switch (mode) {
-    case ConnectionLimitMode::Disconnect:
-        return "disconnect";
-    case ConnectionLimitMode::Recycle:
-        return "recycle";
-    }
-    throw std::invalid_argument("Invalid ConnectionLimitMode: " +
-                                std::to_string(int(mode)));
-}
-
-std::ostream& operator<<(std::ostream& os, const ConnectionLimitMode& mode) {
-    return os << to_string(mode);
-}
-
 Settings::Settings() = default;
 Settings::~Settings() = default;
 
@@ -376,18 +361,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setParentIdentifier(value.get<int>());
         } else if (key == "allow_localhost_interface"sv) {
             setAllowLocalhostInterface(value.get<bool>());
-        } else if (key == "free_connection_pool_size"sv) {
-            setFreeConnectionPoolSize(value.get<size_t>());
-        } else if (key == "connection_limit_mode"sv) {
-            const auto str = value.get<std::string>();
-            if (str == "disconnect") {
-                setConnectionLimitMode(ConnectionLimitMode::Disconnect);
-            } else if (str == "recycle") {
-                setConnectionLimitMode(ConnectionLimitMode::Recycle);
-            } else {
-                throw std::invalid_argument(
-                        R"(connection_limit_mode must be "disconnect" or "recycle")");
-            }
+        } else if (key == "free_connection_pool_size"sv ||
+                   key == "connection_limit_mode"sv) {
+            // Ignore
         } else if (key == "max_client_connection_details"sv) {
             setMaxClientConnectionDetails(value.get<size_t>());
         } else if (key == "max_concurrent_authentications"sv) {
@@ -715,29 +691,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other.system_connections);
             setSystemConnections(other.system_connections);
         }
-    }
-
-    if (other.getConnectionLimitMode() != getConnectionLimitMode()) {
-        if (other.getConnectionLimitMode() == ConnectionLimitMode::Recycle) {
-            setConnectionLimitMode(ConnectionLimitMode::Recycle);
-            setFreeConnectionPoolSize(other.getFreeConnectionPoolSize());
-            LOG_INFO(
-                    "Change connection limit mode from disconnect to recycle "
-                    "with a pool size of {}",
-                    getFreeConnectionPoolSize());
-        } else {
-            setConnectionLimitMode(ConnectionLimitMode::Disconnect);
-            setFreeConnectionPoolSize(0);
-            LOG_INFO_RAW(
-                    "Change connection limit mode from recycle to disconnect");
-        }
-    } else if (getConnectionLimitMode() == ConnectionLimitMode::Recycle &&
-               other.getFreeConnectionPoolSize() !=
-                       getFreeConnectionPoolSize()) {
-        LOG_INFO("Change free connections pool size from {} to {}",
-                 getFreeConnectionPoolSize(),
-                 other.getFreeConnectionPoolSize());
-        setFreeConnectionPoolSize(other.getFreeConnectionPoolSize());
     }
 
     if (other.has.max_client_connection_details) {

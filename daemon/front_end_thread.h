@@ -278,9 +278,6 @@ protected:
      * tail = most).
      */
     boost::intrusive::list<Connection> connectionLruList;
-
-    /// Try to shut down a given number of connections
-    void tryInitiateConnectionShutdown(size_t num);
 };
 
 class Hdr1sfMicroSecHistogram;

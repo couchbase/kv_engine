@@ -277,25 +277,6 @@ static void worker_libevent(void *arg) {
 void FrontEndThread::dispatch_new_connections() {
     std::vector<ConnectionQueue::Entry> accept_connections;
     new_conn_queue.swap(accept_connections);
-    const auto& settings = Settings::instance();
-    const auto free_pool_size = settings.getFreeConnectionPoolSize();
-    if (free_pool_size) {
-        const auto current = stats.getUserConnections();
-        if (current >= (settings.getMaxUserConnections() - free_pool_size)) {
-            LOG_INFO(
-                    "t:{}: Initiate shutdown of {} clients to avoid running "
-                    "out of connections. current: {}, max: {}, free_pool_size: "
-                    "{}",
-                    index,
-                    connections.size(),
-                    current,
-                    settings.getMaxUserConnections(),
-                    free_pool_size);
-            // We're above the limit. Initiate shutdown of as many connections
-            // as I am going to initialize
-            tryInitiateConnectionShutdown(accept_connections.size());
-        }
-    }
 
     for (auto& entry : accept_connections) {
         const bool system = entry.descr->system;
@@ -329,17 +310,6 @@ void FrontEndThread::destroy_connection(Connection& connection) {
     auto node = connections.extract(&connection);
     if (node.key() != &connection) {
         throw std::logic_error("destroy_connection: Connection not found");
-    }
-}
-
-void FrontEndThread::tryInitiateConnectionShutdown(size_t num) {
-    // Attempt to close 'num' items, trying from least to most recently used.
-    for (auto& conn : connectionLruList) {
-        if (conn.maybeInitiateShutdown()) {
-            if (--num == 0) {
-                return;
-            }
-        }
     }
 }
 

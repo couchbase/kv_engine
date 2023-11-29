@@ -46,17 +46,6 @@ enum class DeploymentModel {
     Serverless
 };
 
-/// The different modes of operation when we hit the max number of connections
-enum class ConnectionLimitMode {
-    /// Disconnect new connections when we hit the max connections (default)
-    Disconnect,
-    /// Recycle one of the least recently used connections when we hit the
-    /// max connections
-    Recycle
-};
-std::string to_string(ConnectionLimitMode mode);
-std::ostream& operator<<(std::ostream& os, const ConnectionLimitMode& mode);
-
 /**
  * Globally accessible settings as derived from the commandline / JSON config
  * file.
@@ -338,35 +327,6 @@ public:
 
     size_t getMaxUserConnections() const {
         return getMaxConnections() - getSystemConnections();
-    }
-
-    size_t getFreeConnectionPoolSize() const {
-        if (connection_limit_mode == ConnectionLimitMode::Recycle) {
-            const auto ret =
-                    free_connection_pool_size.load(std::memory_order_acquire);
-            if (!ret) {
-                return getMaxUserConnections() / 100;
-            }
-
-            return ret;
-        }
-        return 0;
-    }
-
-    void setFreeConnectionPoolSize(size_t num) {
-        free_connection_pool_size.store(num, std::memory_order_release);
-        has.free_connection_pool_size = true;
-        notify_changed("free_connection_pool_size");
-    }
-
-    ConnectionLimitMode getConnectionLimitMode() const {
-        return connection_limit_mode.load(std::memory_order_acquire);
-    }
-
-    void setConnectionLimitMode(ConnectionLimitMode mode) {
-        connection_limit_mode.store(mode, std::memory_order_release);
-        has.connection_limit_mode = true;
-        notify_changed("connection_limit_mode");
     }
 
     size_t getMaxConcurrentCommandsPerConnection() const;
@@ -1043,16 +1003,6 @@ protected:
     /// The pool of connections reserved for system usage
     std::atomic<size_t> system_connections{5000};
 
-    /// A sloppy number of how many free connections we want to have.
-    /// Once we accept a client and the use count is higher than the
-    /// free connection pool number we'll try to disconnect clients.
-    /// Note that this is a _sloppy_ number. We might end up disconnecting
-    /// _MORE_ clients as we don't try to synchronize between threads
-    std::atomic<size_t> free_connection_pool_size{0};
-
-    std::atomic<ConnectionLimitMode> connection_limit_mode{
-            ConnectionLimitMode::Disconnect};
-
     /// The maximum number of client ip addresses we should keep track of
     std::atomic<size_t> max_client_connection_details{0};
 
@@ -1247,8 +1197,6 @@ public:
         bool active_external_users_push_interval = false;
         bool max_connections = false;
         bool system_connections = false;
-        bool free_connection_pool_size = false;
-        bool connection_limit_mode = false;
         bool max_client_connection_details = false;
         bool max_concurrent_commands_per_connection = false;
         bool max_concurrent_authentications = false;

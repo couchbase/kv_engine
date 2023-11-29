@@ -2296,12 +2296,6 @@
         "unit": "count",
         "added": "7.0.0"
     },
-    {
-        "key": "connection_recycle_high_watermark",
-        "unit": "none",
-        "description": "Number (or percentage of total available) connections allowed before KV will begin to close older connections to avoid reaching the limit",
-        "added": "7.2.0"
-    },
 /* Amount of memory allocated by the daemon. */
     {
         "key": "daemon_memory_allocated",
