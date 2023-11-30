@@ -175,7 +175,7 @@ struct FrontEndThread {
      * @param callback The callback to call for each connection
      */
     void iterateThrottleableDcpConnections(
-            std::function<void(Connection&)> callback);
+            const std::function<void(Connection&)>& callback) const;
 
     /// Get the thread local audit event filter to use by this thread
     /// (or nullptr if there was an error creating an event filter)
@@ -199,7 +199,8 @@ struct FrontEndThread {
      * @param callback the callback function to be called for each of the
      *                 connections
      */
-    void iterate_connections(std::function<void(Connection&)> callback);
+    void iterate_connections(
+            const std::function<void(Connection&)>& callback) const;
 
 protected:
     void dispatch_new_connections();

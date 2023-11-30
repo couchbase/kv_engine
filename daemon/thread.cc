@@ -27,7 +27,6 @@
 #include <platform/histogram.h>
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
-#include <platform/strerror.h>
 #include <platform/thread.h>
 #include <platform/timeutils.h>
 #include <xattr/utils.h>
@@ -76,7 +75,7 @@ FrontEndThread::ConnectionQueue::~ConnectionQueue() {
 
 void FrontEndThread::ConnectionQueue::push(
         SOCKET sock, std::shared_ptr<ListeningPort> descr) {
-    connections.lock()->emplace_back(Entry{sock, std::move(descr)});
+    connections.lock()->emplace_back(sock, std::move(descr));
 }
 
 void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
@@ -125,7 +124,7 @@ void FrontEndThread::removeThrottleableDcpConnection(Connection& connection) {
 }
 
 void FrontEndThread::iterateThrottleableDcpConnections(
-        std::function<void(Connection&)> callback) {
+        const std::function<void(Connection&)>& callback) const {
     for (auto& c : dcp_connections) {
         callback(c);
     }
@@ -314,7 +313,7 @@ void FrontEndThread::destroy_connection(Connection& connection) {
 }
 
 void FrontEndThread::iterate_connections(
-        std::function<void(Connection&)> callback) {
+        const std::function<void(Connection&)>& callback) const {
     for (const auto& [c, conn] : connections) {
         callback(*c);
     }
@@ -364,7 +363,8 @@ void FrontEndThread::dispatch(SOCKET sfd,
     }
 }
 
-FrontEndThread::FrontEndThread() : validator(cb::json::SyntaxValidator::New()) {
+FrontEndThread::FrontEndThread()
+    : scratch_buffer(), validator(cb::json::SyntaxValidator::New()) {
 }
 
 FrontEndThread::~FrontEndThread() = default;
