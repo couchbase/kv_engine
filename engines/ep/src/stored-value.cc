@@ -31,7 +31,6 @@ const int64_t StoredValue::state_temp_init = -5;
 StoredValue::StoredValue(const Item& itm, UniquePtr n, bool isOrdered)
     : value(itm.getValue()),
       chain_next_or_replacement(std::move(n)),
-      cas(itm.getCas()),
       bySeqno(itm.getBySeqno()),
       exptime(itm.getExptime()),
       flags(itm.getFlags()),
@@ -39,7 +38,8 @@ StoredValue::StoredValue(const Item& itm, UniquePtr n, bool isOrdered)
       datatype(itm.getDataType()),
       ordered(isOrdered),
       deletionSource(0),
-      committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)) {
+      committed(static_cast<uint8_t>(CommittedState::CommittedViaMutation)),
+      casIsSeparate(0) {
     // Initialise bit fields
     setDeletedPriv(itm.isDeleted());
     setResident(!isTempItem());
@@ -49,6 +49,8 @@ StoredValue::StoredValue(const Item& itm, UniquePtr n, bool isOrdered)
     setFreqCounterValue(
             itm.getFreqCounterValue().value_or(Item::initialFreqCount));
     // dirty initialised below
+
+    setCas(itm.getCas());
 
     // Placement-new the key which lives in memory directly after this
     // object.
@@ -73,12 +75,14 @@ StoredValue::StoredValue(const Item& itm, UniquePtr n, bool isOrdered)
 
 StoredValue::~StoredValue() {
     ObjectRegistry::onDeleteStoredValue(this);
+    // If still has a locked CAS, must clear this to delete the CasPair before
+    // destroying StoredValue.
+    clearLockedCas();
 }
 
 StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
     : value(other.value), // Implicitly also copies the frequency counter
       chain_next_or_replacement(std::move(n)),
-      cas(other.cas),
       bySeqno(other.bySeqno),
       lock_expiry_or_delete_or_complete_time(
               other.lock_expiry_or_delete_or_complete_time),
@@ -86,13 +90,15 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
       flags(other.flags),
       revSeqno(other.revSeqno),
       datatype(other.datatype),
-      ordered(other.ordered) {
+      ordered(other.ordered),
+      casIsSeparate(0) {
     setDirty(other.isDirty());
     setDeletedPriv(other.isDeleted());
     setResident(other.isResident());
     setStale(false);
     setCommitted(other.getCommitted());
     setAge(0);
+    setCas(other.getCas());
     // Placement-new the key which lives in memory directly after this
     // object.
     StoredDocKey sKey(other.getKey());
@@ -144,7 +150,7 @@ void StoredValue::ejectValue() {
 
 void StoredValue::restoreValue(const Item& itm) {
     if (isTempInitialItem() || isTempDeletedItem()) {
-        cas = itm.getCas();
+        setCas(itm.getCas());
         flags = itm.getFlags();
         exptime = itm.getExptime();
         revSeqno = itm.getRevSeqno();
@@ -166,7 +172,7 @@ void StoredValue::restoreValue(const Item& itm) {
 }
 
 void StoredValue::restoreMeta(const Item& itm) {
-    cas = itm.getCas();
+    setCas(itm.getCas());
     flags = itm.getFlags();
     datatype = itm.getDataType();
     exptime = itm.getExptime();
@@ -179,6 +185,24 @@ void StoredValue::restoreMeta(const Item& itm) {
     setFreqCounterValue(
             itm.getFreqCounterValue().value_or(Item::initialFreqCount));
     setCommitted(itm.getCommitted());
+}
+
+void StoredValue::lock(rel_time_t expiry, uint64_t lockedCas) {
+    if (isDeleted()) {
+        // Cannot lock Deleted items.
+        throw std::logic_error("StoredValue::lock: Called on Deleted item");
+    }
+    setLockedCas(lockedCas);
+    lock_expiry_or_delete_or_complete_time.lock_expiry = expiry;
+}
+
+void StoredValue::unlock() {
+    if (isDeleted()) {
+        // Deleted items are not locked - just skip.
+        return;
+    }
+    clearLockedCas();
+    lock_expiry_or_delete_or_complete_time.lock_expiry = 0;
 }
 
 size_t StoredValue::uncompressedValuelen() const {
@@ -288,7 +312,7 @@ bool StoredValue::operator==(const StoredValue& other) const {
         auto& otherOsv = static_cast<const OrderedStoredValue&>(other);
         orderedEqual = osv.prepareSeqno == otherOsv.prepareSeqno;
     }
-    return (cas == other.cas && revSeqno == other.revSeqno &&
+    return (getCas() == other.getCas() && revSeqno == other.revSeqno &&
             bySeqno == other.bySeqno &&
             lock_expiry_or_delete_or_complete_time.lock_expiry ==
                     other.lock_expiry_or_delete_or_complete_time.lock_expiry &&
@@ -357,7 +381,7 @@ void StoredValue::setValueImpl(const Item& itm) {
     flags = itm.getFlags();
     datatype = itm.getDataType();
     bySeqno = itm.getBySeqno();
-    cas = itm.getCas();
+    setCas(itm.getCas());
     lock_expiry_or_delete_or_complete_time.lock_expiry = 0;
     exptime = itm.getExptime();
     revSeqno = itm.getRevSeqno();
@@ -375,6 +399,57 @@ void StoredValue::setValueImpl(const Item& itm) {
         replaceValue(itm.getValue());
     }
     setCommitted(itm.getCommitted());
+}
+
+StoredValue::CasPair StoredValue::getCasPair() const {
+    switch (getCasEncoding()) {
+    case CasEncoding::InlineSingle:
+        // `cas' encodes the original CAS value, locked CAS is empty.
+        CasPair pair;
+        pair.originalCAS = cas.single;
+        return pair;
+    case CasEncoding::SeparateDouble:
+        // 'cas' points to a CasPair holding two CAS values:
+        return *cas.pair;
+    }
+    folly::assume_unreachable();
+}
+
+void StoredValue::setLockedCas(uint64_t lockedCas) {
+    // Switch to SeparateDouble encoding (if not already)
+    switch (getCasEncoding()) {
+    case CasEncoding::InlineSingle: {
+        // Create separate CasPair.
+        const auto originalCas = cas.single;
+        cas.pair = new CasPair{originalCas, lockedCas};
+        casIsSeparate = 1;
+        return;
+    }
+    case CasEncoding::SeparateDouble:
+        // Format already correct, just update lockedCas.
+        cas.pair->lockedCAS = lockedCas;
+        return;
+    }
+    folly::assume_unreachable();
+}
+
+void StoredValue::clearLockedCas() {
+    // Switch to InlineSingle encoding (if not already)
+    switch (getCasEncoding()) {
+    case CasEncoding::InlineSingle:
+        // Format already correct (double unlock?) -
+        // for robustness allow this.
+        return;
+    case CasEncoding::SeparateDouble: {
+        // Free separate pair, put originalCas back.
+        const auto originalCas = cas.pair->originalCAS;
+        delete cas.pair;
+        cas.single = originalCas;
+        casIsSeparate = 0;
+        return;
+    }
+    }
+    folly::assume_unreachable();
 }
 
 bool StoredValue::compressValue() {
@@ -416,7 +491,7 @@ std::optional<item_info> StoredValue::getItemInfo(uint64_t vbuuid) const {
     }
 
     item_info info;
-    info.cas = cas;
+    info.cas = getCas();
     info.vbucket_uuid = vbuuid;
     info.seqno = bySeqno;
     info.exptime = exptime;
@@ -467,7 +542,7 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
         json["prepareSeqno"] = static_cast<uint64_t>(osv.prepareSeqno);
     }
 
-    json["cas"] = sv.cas;
+    json["cas"] = sv.getCas();
     json["rev"] = static_cast<uint64_t>(sv.revSeqno);
     json["seqno"] = sv.bySeqno.load();
     json["l/e/d/c time"] =
@@ -595,8 +670,8 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << std::dec << "seq:" << uint64_t(sv.getBySeqno())
        << " rev:" << sv.getRevSeqno();
     os << " cas:" << sv.getCas();
-    if (sv.isLocked(now)) {
-        os << " locked_cas:" << sv.locked_cas;
+    if (sv.getCasEncoding() == StoredValue::CasEncoding::SeparateDouble) {
+        os << " locked_cas:" << sv.getCasPair().lockedCAS;
     }
     os << " key:\"" << sv.getKey() << "\"";
     if (sv.isOrdered() && sv.isDeleted()) {

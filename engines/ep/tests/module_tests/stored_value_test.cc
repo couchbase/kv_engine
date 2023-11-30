@@ -400,8 +400,8 @@ TEST(StoredValueTest, StoredValuesAllocatedInExpectedBin) {
 #else
 TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
 #endif
-    for (auto keySize : {23, 24, 25, 26}) {
-        const int expectedBin = 96;
+    for (auto keySize : {22, 23, 24, 25}) {
+        const int expectedBin = 80;
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
@@ -413,8 +413,8 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
         EXPECT_EQ(expectedBin, usableSize) << "keySize=" << keySize;
     }
 
-    for (auto keySize : {35, 36, 37, 38}) {
-        const int expectedBin = 112;
+    for (auto keySize : {26, 27, 28, 29, 30}) {
+        const int expectedBin = 96;
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
@@ -490,6 +490,31 @@ TYPED_TEST(ValueTest, LockedCasExpired) {
                "after lock expires";
     EXPECT_EQ(123, this->sv->getCas())
             << "main CAS should be unchanged after locked expires";
+}
+
+// Validate behavior when destroying a (O)SV while locked - ensure the
+// SeparateDouble CAS encoding is correctly deleted.
+TYPED_TEST(ValueTest, DtorWhileLocked) {
+    rel_time_t lock_expiry{10};
+    this->sv->lock(lock_expiry, 456);
+    // Want to run under ASan or similar memory checking tool to confirm
+    // no leak.
+    this->sv.reset();
+}
+
+// Validate behavior when setting a (O)SV while locked - ensure the
+// SeparateDouble CAS encoding is not leaked.
+TYPED_TEST(ValueTest, DeleteWhileLocked) {
+    rel_time_t lock_expiry{10};
+    this->sv->setCas(123);
+    this->sv->lock(lock_expiry, 456);
+
+    this->sv->del(DeleteSource::Explicit);
+    EXPECT_EQ(123, this->sv->getCas())
+            << "After del(), CAS should be unchanged";
+
+    // Want to run under ASan or similar memory checking tool to confirm
+    // no leak.
 }
 
 /**
