@@ -255,26 +255,27 @@ void Connection::restartAuthentication() {
     }
     user.reset();
     updateDescription();
-    privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
+    privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+            cb::rbac::PrivilegeContext{getUser().domain});
     updatePrivilegeContext();
 }
 
 void Connection::updatePrivilegeContext() {
     for (std::size_t ii = 0; ii < droppedPrivileges.size(); ++ii) {
         if (droppedPrivileges.test(ii)) {
-            privilegeContext.dropPrivilege(cb::rbac::Privilege(ii));
+            privilegeContext->dropPrivilege(cb::rbac::Privilege(ii));
         }
     }
     subject_to_metering.store(
-            privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
+            privilegeContext->check(cb::rbac::Privilege::Unmetered, {}, {})
                     .failed(),
             std::memory_order_release);
     subject_to_throttling.store(
-            privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
+            privilegeContext->check(cb::rbac::Privilege::Unthrottled, {}, {})
                     .failed(),
             std::memory_order_release);
     node_supervisor.store(
-            privilegeContext.check(cb::rbac::Privilege::NodeSupervisor, {}, {})
+            privilegeContext->check(cb::rbac::Privilege::NodeSupervisor, {}, {})
                     .success(),
             std::memory_order_release);
 }
@@ -290,24 +291,26 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     return cb::engine_errc::success;
 }
 
-cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
-    if (privilegeContext.isStale()) {
+std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
+    if (!privilegeContext || privilegeContext->isStale()) {
         try {
-            privilegeContext =
-                    cb::rbac::createContext(getUser(), getBucket().name);
+            privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                    cb::rbac::createContext(getUser(), getBucket().name));
         } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
-            privilegeContext = cb::rbac::createContext(getUser(), "");
+            privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                    cb::rbac::createContext(getUser(), ""));
             LOG_INFO(
                     "{}: RBAC: {} No access to bucket [{}]. "
                     "New privilege set: {}",
                     getId(),
                     getDescription(),
                     getBucket().name,
-                    privilegeContext.to_string());
+                    privilegeContext->to_string());
         } catch (const cb::rbac::NoSuchUserException&) {
             // Remove all access to the bucket
-            privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
+            privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                    cb::rbac::PrivilegeContext{getUser().domain});
             if (isAuthenticated()) {
                 LOG_INFO("{}: RBAC: {} No RBAC definition for the user.",
                          getId(),
@@ -450,22 +453,25 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
         if (isAuthenticated()) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
-            privilegeContext =
-                    cb::rbac::createContext(getUser(), all_buckets[index].name);
+            privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                    cb::rbac::createContext(getUser(),
+                                            all_buckets[index].name));
         } else {
             // The user has not authenticated. Assign an empty profile which
             // won't give you any privileges.
-            privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
+            privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                    cb::rbac::PrivilegeContext{getUser().domain});
         }
     } catch (const cb::rbac::Exception&) {
-        privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
+        privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                cb::rbac::PrivilegeContext{getUser().domain});
     }
 
     if (index == 0) {
         // If we're connected to the no bucket we should return
         // no bucket instead of EACCESS. Lets give the connection all
         // possible bucket privileges
-        privilegeContext.setBucketPrivileges();
+        privilegeContext->setBucketPrivileges();
     }
     updatePrivilegeContext();
 }
@@ -744,7 +750,7 @@ void Connection::tryToProgressDcpStream() {
 
     // Verify that we still have access to DCP
     if (privilegeContext
-                .checkForPrivilegeAtLeastInOneCollection(
+                ->checkForPrivilegeAtLeastInOneCollection(
                         type == Type::Consumer
                                 ? cb::rbac::Privilege::DcpConsumer
                                 : cb::rbac::Privilege::DcpProducer)
@@ -1098,7 +1104,8 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
 
     updateDescription();
     droppedPrivileges.reset();
-    privilegeContext = cb::rbac::createContext(getUser(), "");
+    privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+            cb::rbac::createContext(getUser(), ""));
     updatePrivilegeContext();
 }
 

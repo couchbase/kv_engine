@@ -499,7 +499,7 @@ public:
 
     /// Get the underlying privilege context
     const cb::rbac::PrivilegeContext& getPrivilegeContext() const {
-        return privilegeContext;
+        return *privilegeContext;
     }
 
     /**
@@ -736,7 +736,7 @@ protected:
     } currentCollectionInfo;
 
     /// The privilege context the command should use for evaluating commands
-    cb::rbac::PrivilegeContext privilegeContext;
+    std::shared_ptr<cb::rbac::PrivilegeContext> privilegeContext;
 
     /// If the request came in with the impersonate frame info set, this
     /// is the user requested

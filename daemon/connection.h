@@ -187,7 +187,7 @@ public:
      * @return The privilege context object to use, or {} if no access
      *         exists for the user at all.
      */
-    cb::rbac::PrivilegeContext getPrivilegeContext();
+    std::shared_ptr<cb::rbac::PrivilegeContext> getPrivilegeContext();
 
     /**
      * Try to drop the specified privilege from the current context
@@ -1003,7 +1003,7 @@ protected:
     std::deque<std::unique_ptr<Cookie>> cookies;
 
     /// The current privilege context
-    cb::rbac::PrivilegeContext privilegeContext{cb::sasl::Domain::Local};
+    std::shared_ptr<cb::rbac::PrivilegeContext> privilegeContext;
 
     /// The current dropped privilege set
     cb::rbac::PrivilegeMask droppedPrivileges;

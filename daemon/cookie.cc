@@ -440,8 +440,7 @@ void Cookie::maybeLogSlowCommand(
     }
 }
 
-Cookie::Cookie(Connection& conn)
-    : connection(conn), privilegeContext(conn.getUser().domain) {
+Cookie::Cookie(Connection& conn) : connection(conn) {
 }
 
 void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
@@ -900,7 +899,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) {
     using cb::rbac::PrivilegeAccess;
-    auto ret = checkPrivilege(privilegeContext, privilege, sid, cid);
+    auto ret = checkPrivilege(*privilegeContext, privilege, sid, cid);
 
     if (ret.success() && euidPrivilegeContext) {
         const auto idx = size_t(privilege);
@@ -928,7 +927,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
 
         nlohmann::json json;
         json["bucket"] = connection.getBucket().name;
-        if (&ctx != &privilegeContext) {
+        if (&ctx != privilegeContext.get()) {
             auto nm = nlohmann::json(*euid);
             json["euid"] = nm;
             json["euid"]["user"] = cb::tagUserData(nm["user"]);
@@ -978,7 +977,7 @@ cb::rbac::PrivilegeAccess Cookie::testPrivilege(
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     using cb::rbac::PrivilegeAccess;
-    auto ret = testPrivilege(privilegeContext, privilege, sid, cid);
+    auto ret = testPrivilege(*privilegeContext, privilege, sid, cid);
 
     if (ret.success() && euidPrivilegeContext) {
         const auto idx = size_t(privilege);
@@ -1002,8 +1001,8 @@ cb::rbac::PrivilegeAccess Cookie::testPrivilege(
 
 cb::rbac::PrivilegeAccess Cookie::checkForPrivilegeAtLeastInOneCollection(
         cb::rbac::Privilege privilege) const {
-    auto ret =
-            privilegeContext.checkForPrivilegeAtLeastInOneCollection(privilege);
+    auto ret = privilegeContext->checkForPrivilegeAtLeastInOneCollection(
+            privilege);
 
     if (ret.success() && euidPrivilegeContext) {
         const auto idx = size_t(privilege);
@@ -1031,7 +1030,7 @@ cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
 
 bool Cookie::fetchEuidPrivilegeSet() {
     if (checkPrivilege(
-                privilegeContext, cb::rbac::Privilege::Impersonate, {}, {})
+                *privilegeContext, cb::rbac::Privilege::Impersonate, {}, {})
                 .failed()) {
         sendResponse(cb::mcbp::Status::Eaccess);
         return false;
@@ -1170,7 +1169,8 @@ bool Cookie::sendResponse(cb::engine_errc status,
 }
 
 uint32_t Cookie::getPrivilegeContextRevision() {
-    return privilegeContext.getGeneration();
+    Expects(privilegeContext);
+    return privilegeContext->getGeneration();
 }
 
 bool Cookie::isValidJson(std::string_view view) {
