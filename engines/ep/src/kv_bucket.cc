@@ -1968,7 +1968,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
             return cb::engine_errc::no_such_key;
         }
         if (v->isLocked(currentTime)) {
-            if (v->getCas() == cas) {
+            if (v->getCasForWrite(currentTime) == cas) {
                 v->unlock();
                 return cb::engine_errc::success;
             }

@@ -537,6 +537,7 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
 }
 
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
+    const auto now = ep_current_time();
     // type, address
     os << (sv.isOrdered() ? "OSV @" : " SV @") << &sv << " ";
 
@@ -550,7 +551,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << (sv.isDirty() ? 'W' : '.');
     os << (sv.isDeleted() ? 'D' : '.');
     os << (sv.isResident() ? 'R' : '.');
-    os << (sv.isLocked(ep_current_time()) ? 'L' : '.');
+    os << (sv.isLocked(now) ? 'L' : '.');
     switch (sv.getCommitted()) {
     case CommittedState::CommittedViaMutation:
         os << "Cm";
@@ -594,6 +595,9 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
     os << std::dec << "seq:" << uint64_t(sv.getBySeqno())
        << " rev:" << sv.getRevSeqno();
     os << " cas:" << sv.getCas();
+    if (sv.isLocked(now)) {
+        os << " locked_cas:" << sv.locked_cas;
+    }
     os << " key:\"" << sv.getKey() << "\"";
     if (sv.isOrdered() && sv.isDeleted()) {
         os << " del_time:"

@@ -2253,6 +2253,9 @@ inline bool impliesMkdir_p(cb::mcbp::subdoc::doc_flag a) {
 namespace cb::mcbp::cas {
 /// The special value used as a wildcard and match all CAS values
 constexpr uint64_t Wildcard = 0x0;
+
+/// The special value returned from Get and similar when document is locked.
+constexpr uint64_t Locked = 0xffff'ffff'ffff'ffff;
 } // namespace cb::mcbp::cas
 
 namespace cb::mcbp::request {
