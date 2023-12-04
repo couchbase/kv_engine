@@ -33,9 +33,9 @@ Options:
   --tls                    Try to use TLS
   --ipv4                   Connect over IPv4
   --ipv6                   Connect over IPv6
-    )"
+)"
 #ifndef WIN32
-              << "  --no-color                     Disable colors\n"
+              << "  --no-color               Disable colors\n"
 #endif
               << "  --help                   This help text" << std::endl;
 
