@@ -9,10 +9,10 @@
 /*
  * Thread management for memcached.
  */
+#include "front_end_thread.h"
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
-#include "front_end_thread.h"
 #include "listening_port.h"
 #include "log_macros.h"
 #include "mcaudit.h"
@@ -277,7 +277,7 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
 }
 
 /// Worker thread: main event loop
-static void worker_libevent(void *arg) {
+static void worker_libevent(void* arg) {
     auto& me = *reinterpret_cast<FrontEndThread*>(arg);
 
     // Any per-thread setup can happen here; thread_init() will block until

@@ -36,6 +36,7 @@ add_library(memcached_daemon STATIC
             error_map_manager.h
             external_auth_manager_thread.cc
             external_auth_manager_thread.h
+            front_end_thread.cc
             front_end_thread.h
             get_authorization_task.cc
             get_authorization_task.h
@@ -100,7 +101,6 @@ add_library(memcached_daemon STATIC
             subdocument_traits.h
             subdocument_validators.cc
             subdocument_validators.h
-            thread.cc
             timing_histogram.cc
             timing_histogram.h
             timing_interval.cc
