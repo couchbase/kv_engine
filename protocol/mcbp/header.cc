@@ -40,15 +40,19 @@ nlohmann::json Header::to_json(bool validated) const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Header& header) {
+    const auto m = header.getMagic();
     os << "mcbp::header:"
-       << " magic:0x" << std::hex << int(header.getMagic()) << ", opcode:0x"
-       << std::hex << int(header.getOpcode()) << ", keylen:" << std::dec
-       << header.getKeylen() << ", extlen:" << std::dec
-       << int(header.getExtlen()) << ", datatype:0x" << std::hex
-       << int(header.getDatatype()) << ", specific:" << std::dec
+       << " magic:0x" << std::hex << int(m) << ", opcode:0x" << std::hex
+       << int(header.getOpcode());
+    if (is_legal(Magic(m)) && is_alternative_encoding(Magic(m))) {
+        os << ", frameExtras:" << std::dec << int(header.getFramingExtraslen());
+    }
+    os << ", keylen:" << std::dec << header.getKeylen()
+       << ", extlen:" << std::dec << int(header.getExtlen()) << ", datatype:0x"
+       << std::hex << int(header.getDatatype()) << ", specific:" << std::dec
        << header.getSpecific() << ", bodylen:" << std::dec
-       << header.getBodylen() << ", opaque:0x" << std::hex
-       << header.getOpaque();
+       << header.getBodylen() << ", opaque:0x" << std::hex << header.getOpaque()
+       << ", cas:0x" << std::hex << header.getCas();
 
     return os;
 }
