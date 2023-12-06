@@ -143,8 +143,11 @@ public:
         adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
         smith_holder = getConnection().clone();
+        prepare_auth_connection(*smith_holder, "smith", "smithpassword");
         jones_holder = getConnection().clone();
+        prepare_auth_connection(*jones_holder, "jones", "jonespassword");
         larry_holder = getConnection().clone();
+        prepare_auth_connection(*larry_holder, "larry", "larrypassword");
     }
 
     void TearDown() override {
@@ -156,21 +159,15 @@ public:
     }
 
     MemcachedConnection& getROConnection() {
-        auto& smith = *smith_holder.get();
-        smith.authenticate("smith", "smithpassword", "PLAIN");
-        return prepare_auth_connection(smith);
+        return *smith_holder;
     }
 
     MemcachedConnection& getWOConnection() {
-        auto& jones = *jones_holder.get();
-        jones.authenticate("jones", "jonespassword", "PLAIN");
-        return prepare_auth_connection(jones);
+        return *jones_holder;
     }
 
     MemcachedConnection& getRWConnection() {
-        auto& larry = *larry_holder.get();
-        larry.authenticate("larry", "larrypassword", "PLAIN");
-        return prepare_auth_connection(larry);
+        return *larry_holder;
     }
 
 protected:
@@ -215,7 +212,10 @@ protected:
         return resp;
     }
 
-    MemcachedConnection& prepare_auth_connection(MemcachedConnection& c) {
+    static void prepare_auth_connection(MemcachedConnection& c,
+                                        const std::string& username,
+                                        const std::string& password) {
+        c.authenticate(username, password);
         c.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                        cb::mcbp::Feature::XATTR,
                        cb::mcbp::Feature::XERROR,
@@ -223,7 +223,6 @@ protected:
                        cb::mcbp::Feature::SNAPPY,
                        cb::mcbp::Feature::JSON});
         c.selectBucket("rbac_test");
-        return c;
     }
 
     std::unique_ptr<MemcachedConnection> smith_holder;
@@ -275,8 +274,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
 
     // reset the connection to get back the privilege
     rw.reconnect();
-    rw.authenticate("larry", "larrypassword", "PLAIN");
-    prepare_auth_connection(rw);
+    prepare_auth_connection(rw,"larry", "larrypassword");
     // With upsert it should be allowed to create the key
     rw.arithmetic(name, 0, 0);
 
@@ -360,8 +358,7 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
 
     // Reset privilege set
     wo.reconnect();
-    wo.authenticate("jones", "jonespassword", "PLAIN");
-    prepare_auth_connection(wo);
+    prepare_auth_connection(wo, "jones", "jonespassword");
 
     // If we drop the Upsert privilege we should only be allowed to do add
     wo.dropPrivilege(cb::rbac::Privilege::Upsert);
