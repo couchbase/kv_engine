@@ -25,7 +25,7 @@
 
 class SslCertTest : public TestappTest {
 protected:
-    std::unique_ptr<MemcachedConnection> createConnection() {
+    static auto createConnection() {
         std::unique_ptr<MemcachedConnection> conn;
         connectionMap.iterate([&conn](const MemcachedConnection& c) {
             if (!conn && c.isSsl()) {
@@ -67,7 +67,7 @@ protected:
 TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
     reconfigure_client_cert_auth("disabled", "", "", "");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     connection->connect();
     connection->authenticate("@admin", "password", "PLAIN");
@@ -81,7 +81,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
 TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
     reconfigure_client_cert_auth("disabled", "", "", "");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "john");
     connection->connect();
@@ -95,7 +95,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
 TEST_F(SslCertTest, LoginEnabledWithoutCert) {
     reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     connection->connect();
     connection->authenticate("@admin", "password", "PLAIN");
@@ -108,7 +108,7 @@ TEST_F(SslCertTest, LoginEnabledWithoutCert) {
 TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
     reconfigure_client_cert_auth("enabled", "", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "trond");
     connection->connect();
@@ -123,7 +123,7 @@ TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
 TEST_F(SslCertTest, LoginEnabledWithCert) {
     reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "trond");
     connection->connect();
@@ -164,7 +164,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
 TEST_F(SslCertTest, LoginEnabledWithCertWithUndefinedUser) {
     reconfigure_client_cert_auth("enabled", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "john");
 
@@ -185,7 +185,7 @@ TEST_F(SslCertTest, LoginEnabledWithCertWithUndefinedUser) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     try {
         connection->connect();
@@ -204,7 +204,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithoutCert) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "trond");
     connection->connect();
@@ -234,7 +234,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
  */
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "john");
 
@@ -258,7 +258,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertIncorrectMapping) {
 TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "trond");
     connection->connect();
@@ -279,8 +279,8 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
 TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    auto connection = createConnection();
-    std::vector<std::string> argv = {
+    const auto connection = createConnection();
+    const std::vector<std::string> argv = {
             {OBJECT_ROOT "/tests/gocode/tls_test/tls_test"},
             {"-kv"},
             {"localhost:" + std::to_string(connection->getPort())},
@@ -295,7 +295,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
 
     nlohmann::json json;
     std::string status;
-    auto child = ProcessMonitor::create(argv, [&status, &json](auto& ec) {
+    const auto child = ProcessMonitor::create(argv, [&status, &json](auto& ec) {
         json = ec.to_json();
         status =  ec.to_string();
     });
@@ -312,7 +312,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryGoClient) {
 TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "jane");
     connection->connect();
@@ -329,7 +329,7 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store) {
 TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store_using_chain) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     const auto certfile = std::filesystem::path(OBJECT_ROOT) / "tests" /
                           "cert" / "clients" / "jane_chain.pem";
@@ -342,7 +342,7 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store_using_chain) 
 /// the intermediate certificate in the trusted store.
 TEST_F(SslCertTest, MB50564_intermediate_cert_in_trusted_store) {
     reconfigure_client_cert_auth("mandatory", "subject.cn", "", " ");
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
 
     // Put the intermediate certificate and the root certificate in the
@@ -357,7 +357,7 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_in_trusted_store) {
 TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
     reconfigure_client_cert_auth("mandatory", "san.uri", "couchbase://", "@");
 
-    auto connection = createConnection();
+    const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "internal");
     connection->connect();
