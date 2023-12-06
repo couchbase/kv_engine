@@ -46,10 +46,18 @@ NoBucketTaskable& NoBucketTaskable::instance() {
 void NoBucketTaskable::logQTime(const GlobalTask& task,
                                 std::string_view threadName,
                                 std::chrono::steady_clock::duration enqTime) {
-    if (enqTime > std::chrono::seconds{1}) {
-        LOG_WARNING("Slow scheduling for '{}' on thread {}. ",
-                    threadName,
-                    cb::time2text(enqTime));
+    const auto taskType = GlobalTask::getTaskType(task.getTaskId());
+    if ((taskType == task_type_t::NONIO_TASK_IDX &&
+         enqTime > std::chrono::seconds(1)) ||
+        (taskType == task_type_t::AUXIO_TASK_IDX &&
+         enqTime > std::chrono::seconds(10))) {
+        LOG_WARNING(
+                "Slow scheduling for {} task '{}' on thread {}. Schedule "
+                "overhead: {}",
+                to_string(taskType),
+                task.getDescription(),
+                threadName,
+                cb::time2text(enqTime));
     }
 
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
@@ -59,13 +67,13 @@ void NoBucketTaskable::logQTime(const GlobalTask& task,
 void NoBucketTaskable::logRunTime(const GlobalTask& task,
                                   std::string_view threadName,
                                   std::chrono::steady_clock::duration runtime) {
+    // Check if exceeded expected duration; and if so log.
     if (runtime > task.maxExpectedDuration()) {
         LOG_WARNING("Slow runtime for '{}' on thread {}: {}",
                     task.getDescription(),
                     threadName,
                     cb::time2text(runtime));
     }
-
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(runtime);
     stats.taskRuntimeHistogram[static_cast<int>(task.getTaskId())].add(us);
 }
