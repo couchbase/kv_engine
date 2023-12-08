@@ -66,9 +66,10 @@ def cmd(f = None, needs_bucket=True):
         f(*args, **kwargs)
     return g
 
-def stats_perform(mc, cmd=''):
+
+def stats_perform(mc, cmd='', val=''):
     try:
-        return mc.stats(cmd)
+        return mc.stats(cmd, val)
     except Exception as e:
         print("Stats '%s' are not available from the requested engine. (%s)"
                 % (cmd, e))
@@ -685,7 +686,7 @@ def stats_frequency_counters(mc):
 
 @cmd
 def stats_dcp(mc):
-    stats_formatter(stats_perform(mc, 'dcp'))
+    stats_formatter(stats_perform(mc, 'dcp', '{"stream_format":"json"}'))
 
 @cmd
 def stats_collections(mc, *args):

@@ -4052,15 +4052,33 @@ cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorStats(
     return cb::engine_errc::success;
 }
 
-class DcpStatsFilter {
+class DcpStatsOptions {
 public:
-    explicit DcpStatsFilter(std::string_view value) {
+    explicit DcpStatsOptions(std::string_view value) {
         if (!value.empty()) {
             try {
                 auto attributes = nlohmann::json::parse(value);
+
+                // Parse the optional stream_format parameter.
+                auto iter = attributes.find("stream_format");
+                if (iter != attributes.end()) {
+                    auto format = iter->get<std::string>();
+                    if (format == "skip") {
+                        streamStatsFormat = {};
+                    } else if (format == "legacy") {
+                        streamStatsFormat =
+                                ConnHandler::StreamStatsFormat::Legacy;
+                    } else if (format == "json") {
+                        streamStatsFormat =
+                                ConnHandler::StreamStatsFormat::Json;
+                    } else {
+                        throw std::invalid_argument(iter.key());
+                    }
+                }
+
                 auto filter = attributes.find("filter");
                 if (filter != attributes.end()) {
-                    auto iter = filter->find("user");
+                    iter = filter->find("user");
                     if (iter != filter->end()) {
                         user = iter->get<std::string>();
                     }
@@ -4078,6 +4096,14 @@ public:
         }
     }
 
+    /**
+     * The requested stream stats format. Stream stats should not be generated
+     * if nullopt.
+     */
+    std::optional<ConnHandler::StreamStatsFormat> getStreamStatsFormat() const {
+        return streamStatsFormat;
+    }
+
     bool include(const ConnHandler& tc) {
         if ((user && *user != tc.getAuthenticatedUser()) ||
             (port && *port != tc.getConnectedPort())) {
@@ -4091,6 +4117,8 @@ public:
 protected:
     std::optional<std::string> user;
     std::optional<in_port_t> port;
+    std::optional<ConnHandler::StreamStatsFormat> streamStatsFormat{
+            ConnHandler::StreamStatsFormat::Legacy};
 };
 
 /**
@@ -4098,13 +4126,13 @@ protected:
  * Note this does not do per-stream stats.
  */
 struct ConnStatBuilder {
-    ConnStatBuilder(CookieIface& c, AddStatFn as, DcpStatsFilter filter)
-        : cookie(c), add_stat(std::move(as)), filter(std::move(filter)) {
+    ConnStatBuilder(CookieIface& c, AddStatFn as, DcpStatsOptions options)
+        : cookie(c), add_stat(std::move(as)), options(std::move(options)) {
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         ++aggregator.totalConns;
-        if (filter.include(*tc)) {
+        if (options.include(*tc)) {
             tc->addStats(add_stat, cookie);
             auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
             if (tp) {
@@ -4119,7 +4147,7 @@ struct ConnStatBuilder {
 
     CookieIface& cookie;
     AddStatFn add_stat;
-    DcpStatsFilter filter;
+    DcpStatsOptions options;
     ConnCounter aggregator;
 };
 
@@ -4127,8 +4155,10 @@ struct ConnStatBuilder {
  * Function object to send per-stream stats for a single dcp connection.
  */
 struct ConnPerStreamStatBuilder {
-    ConnPerStreamStatBuilder(DcpStatsFilter filter)
-        : filter(std::move(filter)) {
+    ConnPerStreamStatBuilder(DcpStatsOptions options)
+        : options(std::move(options)) {
+        // The stream stats format is required to emit stream stats.
+        Expects(options.getStreamStatsFormat().has_value());
     }
 
     /**
@@ -4139,7 +4169,7 @@ struct ConnPerStreamStatBuilder {
                         const CheckYieldFn& check_yield) {
         while (!connQueue.empty()) {
             auto conn = connQueue.front();
-            const auto shouldInclude = filter.include(*conn);
+            const auto shouldInclude = options.include(*conn);
             if (shouldInclude && check_yield()) {
                 // More work to do, but we've been requested to yield.
                 return false;
@@ -4147,7 +4177,7 @@ struct ConnPerStreamStatBuilder {
             connQueue.pop();
 
             if (shouldInclude) {
-                conn->addStreamStats(as, cookie);
+                conn->addStreamStats(as, cookie, *options.getStreamStatsFormat());
             }
         }
         return true;
@@ -4158,7 +4188,7 @@ struct ConnPerStreamStatBuilder {
     }
 
     std::queue<std::shared_ptr<ConnHandler>> connQueue;
-    DcpStatsFilter filter;
+    DcpStatsOptions options;
 };
 
 struct ConnAggStatBuilder {
@@ -4333,7 +4363,8 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         return cb::engine_errc::success;
     }
 
-    ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
+    DcpStatsOptions options{value};
+    ConnStatBuilder dcpVisitor(cookie, add_stat, options);
     dcpConnMap_->each(dcpVisitor);
 
     const auto& aggregator = dcpVisitor.getCounter();
@@ -4343,10 +4374,14 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
 
     dcpConnMap_->addStats(add_stat, cookie);
 
+    // Check if we need to generate any stream stats.
+    if (!options.getStreamStatsFormat().has_value()) {
+        return cb::engine_errc::success;
+    }
+
     // Store the per-stream visitor in the cookie and yield back to caller. We
     // will process the per-stream stats next time we're called.
-    auto dcpStreamVisitor =
-            std::make_unique<ConnPerStreamStatBuilder>(DcpStatsFilter{value});
+    auto dcpStreamVisitor = std::make_unique<ConnPerStreamStatBuilder>(options);
     // Dump the contents on the ConnMap into the visitor. This will not actually
     // generate any stats yet.
     dcpConnMap_->each(*dcpStreamVisitor);

@@ -84,6 +84,7 @@ def cmd_decorator(f):
         # HELO
         mc.enable_xerror()
         mc.enable_collections()
+        mc.enable_json()
         mc.hello("{0} {1}".format(os.path.split(sys.argv[0])[1],
                                 os.getenv("EP_ENGINE_VERSION",
                                           "unknown version")))

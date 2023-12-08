@@ -1722,6 +1722,27 @@ look like the following example:
     Key                 : The textual string "pid"
     Value               : The textual string "3078"
 
+#### Stat(dcp)
+
+The DCP stats group accepts the following parameters, specified as a JSON value.
+
+```json
+{
+  // Optional format for the Producer/Consumer stream statistics.
+  // The legacy format is used if not specified.
+  // - "legacy" - every stream statistic becomes an output statistic
+  // - "json" - all stream statistics become a single output statistic
+  // formatted as JSON
+  // - "skip" - no  stream statistics are generated
+  "stream_format": "legacy|json|skip",
+  "filter": {
+    // Include statistics for DCP connections with specified username only.
+    "user": "string",
+    // Include statistics for DCP connections with specified port only.
+    "port": "int"
+  }
+}
+```
 
 ### 0x1b Verbosity
 

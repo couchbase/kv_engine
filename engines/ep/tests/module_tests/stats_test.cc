@@ -209,6 +209,62 @@ TEST_F(StatTest, FilteredDcpStatTest) {
     destroy_mock_cookie(indexCookie);
 }
 
+TEST_F(StatTest, DcpStreamStatFormatTest) {
+    setVBucketState(vbid, vbucket_state_active);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb = store->getVBucket(vbid));
+
+    auto producer = createDcpProducer(
+            cookie, IncludeDeleteTime::No, true, "eq_dcpq:test_producer");
+
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookie, producer);
+
+    auto stream = producer->mockActiveStreamRequest(0, // flags
+                                                    1, // opaque
+                                                    *vb,
+                                                    0, // start_seqno
+                                                    ~0ull, // end_seqno
+                                                    0, // vbucket_uuid,
+                                                    0, // snap_start_seqno,
+                                                    0); // snap_end_seqno
+
+    {
+        // "legacy" contains multiple stat keys per stream
+        nlohmann::json options = {{"stream_format", "legacy"}};
+        auto stats = nlohmann::json(get_stat("dcp", options.dump()));
+        EXPECT_FALSE(stats.contains("eq_dcpq:test_producer:stream_0"));
+        EXPECT_TRUE(stats.contains("eq_dcpq:test_producer:stream_0_vb_uuid"));
+        if (HasFailure()) {
+            FAIL() << options.dump() << "\nOutput:\n" << stats.dump();
+        }
+    }
+    {
+        // "json" contains 1 JSON value per stream
+        nlohmann::json options = {{"stream_format", "json"}};
+        auto stats = nlohmann::json(get_stat("dcp", options.dump()));
+        // Expect to parse the JSON successfully.
+        auto streamJson =
+                stats["eq_dcpq:test_producer:stream_0"].get<std::string>();
+        EXPECT_NO_THROW(nlohmann::json::parse(streamJson).at("flags"));
+        EXPECT_FALSE(stats.contains("eq_dcpq:test_producer:stream_0_vb_uuid"));
+        if (HasFailure()) {
+            FAIL() << options.dump() << "\nOutput:\n" << stats.dump();
+        }
+    }
+    {
+        // "skip" has no stream stats
+        nlohmann::json options = {{"stream_format", "skip"}};
+        auto stats = nlohmann::json(get_stat("dcp", options.dump()));
+        EXPECT_FALSE(stats.contains("eq_dcpq:test_producer:stream_0"));
+        EXPECT_FALSE(stats.contains("eq_dcpq:test_producer:stream_0_vb_uuid"));
+        if (HasFailure()) {
+            FAIL() << options.dump() << "\nOutput:\n" << stats.dump();
+        }
+    }
+}
+
 // MB-32589: Check that _hash-dump stats correctly accounts temporary memory.
 TEST_F(StatTest, HashStatsMemUsed) {
     // Add some items to VBucket 0 so the stats call has some data to

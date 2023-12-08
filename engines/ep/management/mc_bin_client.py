@@ -26,6 +26,7 @@ from memcacheConstants import REQ_PKT_FMT, RES_PKT_FMT, ALT_REQ_PKT_FMT, ALT_RES
 from memcacheConstants import SET_PKT_FMT, DEL_PKT_FMT, INCRDECR_RES_FMT
 from memcacheConstants import TOUCH_PKT_FMT, GAT_PKT_FMT, GETL_PKT_FMT
 from memcacheConstants import COMPACT_DB_PKT_FMT
+from memcacheConstants import DTYPE_RAW, DTYPE_JSON
 import memcacheConstants
 
 def parse_address(addr):
@@ -650,10 +651,13 @@ class MemcachedClient(object):
 
         return failed
 
-    def stats(self, sub=''):
+    def stats(self, sub='', val=''):
         """Get stats."""
         opaque=self.r.randint(0, 2**32)
-        self._sendCmd(memcacheConstants.CMD_STAT, sub, '', opaque)
+        dtype = DTYPE_RAW
+        if len(val) > 0:
+            dtype = DTYPE_JSON
+        self._sendMsg(memcacheConstants.CMD_STAT, sub, val, opaque, dtype=dtype)
         done = False
         rv = {}
         while not done:
@@ -761,6 +765,9 @@ class MemcachedClient(object):
 
     def enable_xerror(self):
         self.req_features.add(memcacheConstants.FEATURE_XERROR)
+
+    def enable_json(self):
+        self.req_features.add(memcacheConstants.FEATURE_JSON)
 
     def enable_collections(self):
         self.req_features.add(memcacheConstants.FEATURE_COLLECTIONS)
