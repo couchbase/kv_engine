@@ -95,18 +95,16 @@ void StatsTask::addStatCallback(TaskData& writable_data,
 
     cb::mcbp::response::StatsResponse rsp(k.size(), v.size());
     rsp.setOpaque(cookie.getHeader().getOpaque());
+    auto header = rsp.getBuffer();
 
     // Write the mcbp response into the task's buffer (header, key, value).
     auto& iob = *writable_data.stats_buf;
-    iob.reserve(0, sizeof(rsp) + k.size() + v.size());
-    rsp.getHeaderString().copy(reinterpret_cast<char*>(iob.writableTail()),
-                               std::string_view::npos);
+    iob.reserve(0, header.size() + k.size() + v.size());
+    std::copy(header.begin(), header.end(), iob.writableTail());
     iob.append(sizeof(rsp));
-
-    k.copy(reinterpret_cast<char*>(iob.writableTail()), std::string_view::npos);
+    std::copy(k.begin(), k.end(), iob.writableTail());
     iob.append(k.size());
-
-    v.copy(reinterpret_cast<char*>(iob.writableTail()), std::string_view::npos);
+    std::copy(v.begin(), v.end(), iob.writableTail());
     iob.append(v.size());
 }
 

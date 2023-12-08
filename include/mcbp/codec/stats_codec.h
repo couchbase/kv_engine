@@ -26,6 +26,13 @@ public:
         setKeylen(keyLen);
         setBodylen(keyLen + valueLen);
     }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
 };
+
+static_assert(sizeof(StatsResponse) == sizeof(cb::mcbp::Header),
+              "Unexpected struct size");
 
 } // namespace cb::mcbp::response

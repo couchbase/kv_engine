@@ -136,13 +136,6 @@ public:
     }
 
     /**
-     * Get the string view of this packet header.
-     */
-    std::string_view getString() const {
-        return {reinterpret_cast<const char*>(this), sizeof(*this)};
-    }
-
-    /**
      * Get the byte buffer containing the framing extras for this
      * packet.
      *
