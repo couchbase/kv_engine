@@ -66,6 +66,9 @@ float acknowledge_ratio = 0.5;
 /// When set to true we'll print out each message we see
 bool verbose = false;
 
+/// When true, we will not ack anything
+bool hang = false;
+
 static void usage() {
     std::cerr << R"(Usage: dcpdrain [options]
 
@@ -135,6 +138,7 @@ Options:
                                  vbucket as a comma-separated list of integers.
   --enable-flatbuffer-sysevents  Turn on system events with flatbuffer values
   --enable-change-streams        Turn on change-stream support
+  --hang                         Create streams, but do not drain them.
   --help                         This help text
 )";
 
@@ -346,7 +350,8 @@ protected:
         if (dcpmsg && buffersize > 0) {
             current_buffer_window +=
                     req.getBodylen() + sizeof(cb::mcbp::Header);
-            if (current_buffer_window > (buffersize * acknowledge_ratio)) {
+            if (current_buffer_window > (buffersize * acknowledge_ratio) &&
+                !hang) {
                 sendBufferAck();
             }
         }
@@ -600,7 +605,7 @@ int main(int argc, char** argv) {
     sa_family_t family = AF_UNSPEC;
     bool csv = false;
     std::vector<std::pair<std::string, std::string>> controls;
-    std::string name = "dcpdrain";
+    std::string name = "dcpdrain-" + std::to_string(::getpid());
     EnableOSO enableOso{EnableOSO::False};
     bool enableCollections{true};
     std::string streamRequestFileName;
@@ -624,6 +629,7 @@ int main(int argc, char** argv) {
         EnableFlatbufferSysEvents,
         EnableChangeStreams,
         VBuckets,
+        Hang,
     };
 
     std::vector<option> long_options = {
@@ -666,6 +672,7 @@ int main(int argc, char** argv) {
              no_argument,
              nullptr,
              Options::EnableChangeStreams},
+            {"hang", no_argument, nullptr, Options::Hang},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -767,6 +774,9 @@ int main(int argc, char** argv) {
             break;
         case Options::VBuckets:
             vbuckets = parseVBuckets(optarg);
+            break;
+        case Options::Hang:
+            hang = true;
             break;
         default:
             usage();
@@ -893,6 +903,15 @@ int main(int argc, char** argv) {
                               << to_string(rsp.getStatus()) << std::endl
                               << "\t" << rsp.getDataString() << std::endl;
                     return EXIT_FAILURE;
+                }
+
+                if (hang) {
+                    if (verbose) {
+                        std::cout << "Hang specified, setting DCP flow control "
+                                     "to 24, and not sending any BufferAcks"
+                                  << std::endl;
+                    }
+                    buffersize = 24;
                 }
 
                 if (buffersize == 0) {
