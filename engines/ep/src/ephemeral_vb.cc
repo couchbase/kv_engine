@@ -1036,10 +1036,8 @@ uint64_t EphemeralVBucket::addSystemEventItem(
     }
 
     // Note: If the seqno is already initialized, skip replication notification
-    VBNotifyCtx notifyCtx(v->getBySeqno(),
-                          !seqno.has_value(),
-                          false,
-                          SyncWriteOperation::None);
+    VBNotifyCtx notifyCtx(
+            v->getBySeqno(), !seqno.has_value(), false, queue_op::empty);
     notifyNewSeqno(notifyCtx);
 
     // We don't record anything interesting for scopes
@@ -1113,7 +1111,7 @@ void EphemeralVBucket::doCollectionsStats(
     readHandle.setHighSeqno(
             collection,
             notifyCtx.getSeqno(),
-            notifyCtx.isSyncWrite()
+            isPrepareOrAbort(notifyCtx.getOp())
                     ? Collections::VB::HighSeqnoType::PrepareAbort
                     : Collections::VB::HighSeqnoType::Committed);
 

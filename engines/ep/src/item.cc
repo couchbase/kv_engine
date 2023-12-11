@@ -187,6 +187,11 @@ bool isMetaQueueOp(queue_op op) {
     return false;
 }
 
+bool isPrepareOrAbort(queue_op op) {
+    return op == queue_op::pending_sync_write ||
+           op == queue_op::abort_sync_write;
+}
+
 std::ostream& operator<<(std::ostream& os, const queue_op& op) {
     return os << to_string(op);
 }

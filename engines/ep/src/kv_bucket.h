@@ -1021,10 +1021,9 @@ public:
      * given vbucket.
      *
      * @param vbid vbucket id
-     * @param syncWrite Whether the new item is a SyncWrite operation (we don't
-     *  notify producers that do not care about SyncWrite).
+     * @param op The operation that triggers this notification
      */
-    void notifyReplication(const Vbid vbid, SyncWriteOperation syncWrite);
+    void notifyReplication(const Vbid vbid, queue_op op);
 
     KVStoreScanTracker& getKVStoreScanTracker() {
         return kvstoreScanTracker;

@@ -90,5 +90,7 @@ std::string to_string(queue_op op);
 
 bool isMetaQueueOp(queue_op op);
 
+bool isPrepareOrAbort(queue_op op);
+
 /// Print a queue_op to an ostream (for GoogleTest).
 std::ostream& operator<<(std::ostream& os, const queue_op& op);

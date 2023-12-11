@@ -60,10 +60,9 @@ public:
      * Notify all DCP Producers that own stream for the given vbucket.
      *
      * @param vbucket
-     * @param syncWrite Whether connections must be notified only if ther
-     *  support SyncRepl.
+     * @param queue_op The operation that triggers this notification
      */
-    void notifyVBConnections(Vbid vbid, SyncWriteOperation syncWrite);
+    void notifyVBConnections(Vbid vbid, queue_op op);
 
     /**
      * Send a SeqnoAck message over the PassiveStream for the given VBucket.

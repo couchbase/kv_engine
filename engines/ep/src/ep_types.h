@@ -85,15 +85,6 @@ enum class WriteOperation : char {
     Insert
 };
 
-/// Types of operation for progressing a SyncWrite
-enum class SyncWriteOperation : char {
-    None, // Note that this covers a "vanilla" mutation and a commit
-    Prepare, // The first phase of a sync-write, the operation is pending
-    Abort // The sync-write has been aborted
-};
-
-SyncWriteOperation queueOpToSyncWriteOperation(queue_op op);
-
 enum class CheckpointType : uint8_t {
     /**
      * Disk checkpoints are received from disk snapshots from active nodes but

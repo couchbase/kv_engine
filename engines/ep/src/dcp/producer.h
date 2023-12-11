@@ -142,10 +142,9 @@ public:
      * Notify this producer that the streams for the given vbucket are ready.
      *
      * @param vbucket
-     * @param syncWrite Whether this connection must be notified only if it
-     *  supports SyncRepl.
+     * @param op The operaton that triggers this notification.
      */
-    void notifySeqnoAvailable(Vbid vbucket, SyncWriteOperation syncWrite);
+    void notifySeqnoAvailable(Vbid vbucket, queue_op op);
 
     /**
      * @param vbucket

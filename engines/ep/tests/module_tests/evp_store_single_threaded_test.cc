@@ -342,7 +342,7 @@ void SingleThreadedKVBucketTest::notifyAndRunToCheckpoint(
     ASSERT_NE(nullptr, vb.get());
 
     if (fromMemory) {
-        producer.notifySeqnoAvailable(vbid, SyncWriteOperation::None);
+        producer.notifySeqnoAvailable(vbid, queue_op::empty);
         runCheckpointProcessor(producer, producers);
     } else {
         runBackfill();

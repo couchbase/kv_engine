@@ -2732,9 +2732,8 @@ void KVBucket::notifyFlusher(const Vbid vbid) {
     }
 }
 
-void KVBucket::notifyReplication(const Vbid vbid,
-                                 SyncWriteOperation syncWrite) {
-    engine.getDcpConnMap().notifyVBConnections(vbid, syncWrite);
+void KVBucket::notifyReplication(const Vbid vbid, queue_op op) {
+    engine.getDcpConnMap().notifyVBConnections(vbid, op);
 }
 
 void KVBucket::setInitialMFU(uint8_t mfu) {

@@ -387,11 +387,11 @@ void DcpConnMap::removeVBConnections(DcpProducer& prod) {
     }
 }
 
-void DcpConnMap::notifyVBConnections(Vbid vbid, SyncWriteOperation syncWrite) {
+void DcpConnMap::notifyVBConnections(Vbid vbid, queue_op op) {
     for (auto& vbConn : connStore->getConnsForVBHandle(vbid)) {
         auto* producer = dynamic_cast<DcpProducer*>(&vbConn.connHandler);
         if (producer) {
-            producer->notifySeqnoAvailable(vbid, syncWrite);
+            producer->notifySeqnoAvailable(vbid, op);
         }
     }
 }

@@ -1706,12 +1706,10 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_backfillMemory += streamAggStats.backfillItemsMemory;
 }
 
-void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
-                                       SyncWriteOperation syncWrite) {
+void DcpProducer::notifySeqnoAvailable(Vbid vbucket, queue_op op) {
     if (!isSyncWritesEnabled() &&
-        ((!isSeqnoAdvancedEnabled() && syncWrite != SyncWriteOperation::None) ||
-         (isSeqnoAdvancedEnabled() &&
-          syncWrite == SyncWriteOperation::Prepare))) {
+        ((!isSeqnoAdvancedEnabled() && isPrepareOrAbort(op)) ||
+         (isSeqnoAdvancedEnabled() && op == queue_op::pending_sync_write))) {
         // Skip notifying this producer when sync-writes are not enabled and...
         //
         // 1) When the stream does not support seqno-advance, then skip both

@@ -1093,10 +1093,8 @@ uint64_t EPVBucket::addSystemEventItem(
             assignedSeqnoCallback);
 
     // Note: If the seqno is already initialized, skip replication notification
-    VBNotifyCtx notifyCtx(qi->getBySeqno(),
-                          !seqno.has_value(),
-                          true,
-                          queueOpToSyncWriteOperation(qi->getOperation()));
+    VBNotifyCtx notifyCtx(
+            qi->getBySeqno(), !seqno.has_value(), true, qi->getOperation());
     notifyNewSeqno(notifyCtx);
 
     // We don't record anything interesting for scopes

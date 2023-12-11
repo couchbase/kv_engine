@@ -126,7 +126,7 @@ CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
         //   doesn't prevent unnecessary notification. That's because checkpoint
         //   creation doesn't imply that some cursor has jumped into the new
         //   open checkpoint.
-        bucket.notifyReplication(vbid, SyncWriteOperation::None);
+        bucket.notifyReplication(vbid, queue_op::empty);
 
         if (bucket.getRequiredCMMemoryReduction() == 0) {
             // All done

@@ -1345,10 +1345,7 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
             item, ctx.genBySeqno, ctx.genCas, ctx.preLinkDocumentContext);
 
     const VBNotifyCtx notifyCtx(
-            item->getBySeqno(),
-            true,
-            notifyFlusher,
-            queueOpToSyncWriteOperation(item->getOperation()));
+            item->getBySeqno(), true, notifyFlusher, item->getOperation());
 
     // Process Durability items (notify the DurabilityMonitor of
     // Prepare/Commit/Abort)
@@ -4062,7 +4059,7 @@ void VBucket::doCollectionsStats(
         const Collections::VB::CachingReadHandle& cHandle,
         const VBNotifyCtx& notifyCtx) {
     cHandle.setHighSeqno(notifyCtx.getSeqno(),
-                         notifyCtx.isSyncWrite()
+                         isPrepareOrAbort(notifyCtx.getOp())
                                  ? Collections::VB::HighSeqnoType::PrepareAbort
                                  : Collections::VB::HighSeqnoType::Committed);
 
@@ -4376,7 +4373,7 @@ void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
 
 void VBucket::notifyReplication() {
     if (bucket) {
-        bucket->notifyReplication(getId(), SyncWriteOperation::None);
+        bucket->notifyReplication(getId(), queue_op::empty);
     }
 }
 

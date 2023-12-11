@@ -2227,7 +2227,7 @@ void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {
         notifyFlusher(vbid);
     }
     if (notifyCtx.isNotifyReplication()) {
-        notifyReplication(vbid, notifyCtx.getSyncWriteOperation());
+        notifyReplication(vbid, notifyCtx.getOp());
     }
 }
 

@@ -26,11 +26,11 @@ public:
     VBNotifyCtx(int64_t seqno,
                 bool notifyReplication,
                 bool notifyFlusher,
-                SyncWriteOperation syncWriteOp)
+                queue_op op)
         : seqno(seqno),
           notifyReplication(notifyReplication),
           notifyFlusher(notifyFlusher),
-          syncWriteOp(syncWriteOp){};
+          op(op){};
 
     auto getSeqno() const {
         return seqno;
@@ -44,12 +44,8 @@ public:
         return this->notifyFlusher;
     }
 
-    auto getSyncWriteOperation() const {
-        return syncWriteOp;
-    }
-
-    auto isSyncWrite() const {
-        return syncWriteOp != SyncWriteOperation::None;
+    auto getOp() const {
+        return op;
     }
 
     int8_t getItemCountDifference() const {
@@ -94,7 +90,7 @@ private:
      * We'll use this to determine if we can skip notifying a Producer of the
      * given seqno.
      */
-    SyncWriteOperation syncWriteOp = SyncWriteOperation::None;
+    queue_op op = queue_op::empty;
 
     // The number that should be added to the item count due to the performed
     // operation (+1 for new, -1 for delete, 0 for update of existing doc)
