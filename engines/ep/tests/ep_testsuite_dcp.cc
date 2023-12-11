@@ -8060,7 +8060,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                  "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark="
                  "0;chk_expel_enabled=false",
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase(
                 "test dcp replica stream all with collections enabled stream",
@@ -8069,7 +8069,7 @@ BaseTestCase testsuite_testcases[] = {
                 teardown,
                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare_skip_broken_under_rocks,
+                prepare,
                 cleanup),
         TestCase(
                 "test dcp replica stream one collection with mutations just "
@@ -8079,7 +8079,7 @@ BaseTestCase testsuite_testcases[] = {
                 teardown,
                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare_skip_broken_under_rocks,
+                prepare,
                 cleanup),
         TestCase(
                 "test dcp replica stream one collection",
@@ -8088,7 +8088,7 @@ BaseTestCase testsuite_testcases[] = {
                 teardown,
                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                prepare_skip_broken_under_rocks,
+                prepare,
                 cleanup),
         TestCase("test dcp replica stream expiries - ExpiryOutput Enabled",
                  test_dcp_replica_stream_expiry_enabled,
@@ -8131,9 +8131,7 @@ BaseTestCase testsuite_testcases[] = {
                  "10240;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
-                 // Under rocks that new configuration makes the test break at
-                 // 'write_items_upto_mem_perc'
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request (full merged snapshots)",
                  test_dcp_producer_stream_req_full_merged_snapshots,
@@ -8169,7 +8167,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer disk backfill buffer limits",
                  test_dcp_producer_disk_backfill_buffer_limits,
@@ -8187,7 +8185,7 @@ BaseTestCase testsuite_testcases[] = {
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;"
                  "chk_expel_enabled=false",
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem,
@@ -8209,15 +8207,14 @@ BaseTestCase testsuite_testcases[] = {
                  "checkpoint_max_size=1;"
                  "chk_remover_stime=1;max_size=6291456",
                  /* not needed in ephemeral as it is DGM case */
-                 /* TODO RDB: Relies on resident ratio - not valid yet */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test producer stream request coldness",
                  test_dcp_producer_stream_req_coldness,
                  test_setup,
                  teardown,
                  "chk_remover_stime=1;checkpoint_max_size=1",
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test dcp consumer hotness data",
                  test_dcp_consumer_hotness_data,
@@ -8256,7 +8253,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;checkpoint_max_size=1;checkpoint_memory_"
                  "recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test producer stream request nmvb",
                  test_dcp_producer_stream_req_nmvb,
@@ -8373,10 +8370,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase(
                 "test chk manager rollback",
@@ -8389,19 +8383,14 @@ BaseTestCase testsuite_testcases[] = {
                 "dcp_consumer_flow_control_enabled=false;dcp_enable_noop=false;"
                 "magma_checkpoint_interval=0;"
                 "magma_min_checkpoint_interval=0;",
-                // TODO RDB: implement getItemCount.
-                // Needs the 'curr_items_tot' stat.
-                prepare_skip_broken_under_rocks,
+                prepare,
                 cleanup),
         TestCase("test full rollback on consumer",
                  test_fullrollback_for_consumer,
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 // TODO RDB: Intermittently failing with SegFault.
-                 // Probably we have to implement getItemCount. Needs the
-                 // 'vb_replica_curr_items' stat.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase(
                 "test partial rollback on consumer",
@@ -8417,9 +8406,7 @@ BaseTestCase testsuite_testcases[] = {
                 "dcp_enable_noop=false;"
                 "magma_checkpoint_interval=0;magma_min_checkpoint_interval=0;"
                 "magma_max_checkpoints=10;magma_sync_every_batch=true",
-                // TODO RDB: implement getItemCount.
-                // Needs the 'vb_replica_curr_items' stat.
-                prepare_skip_broken_under_rocks,
+                prepare,
                 cleanup),
         TestCase("test change dcp buffer log size",
                  test_dcp_buffer_log_size,
@@ -8517,9 +8504,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: implement getItemCount. Needs the 'curr_items'
-                 // stat.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("dcp persistence seqno",
                  test_dcp_persistence_seqno,
@@ -8543,13 +8528,7 @@ BaseTestCase testsuite_testcases[] = {
                  "recovery_lower_mark=0",
                  /* In ephemeral buckets the test is run from module tests:
                     EphTombstoneTest.ImmediateDeletedPurge() */
-                 /* TODO RDB: Need to purge in a compaction filter,
-                  * and store purged seqno.
-                  * Relies upon triggering compaction directly, which
-                  * is not currently done (avoids the compaction task
-                  * triggering unneeded rocksdb compactions using the
-                  * same api) */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("dcp rollback after purge",
                  test_dcp_rollback_after_purge,
@@ -8559,10 +8538,7 @@ BaseTestCase testsuite_testcases[] = {
                  "recovery_lower_mark=0",
                  /* In ephemeral buckets the test is run from module tests:
                     StreamTest.RollbackDueToPurge() */
-                 /* TODO RDB: Need to purge in a compaction filter,
-                  * and store purged seqno.
-                  * Relies on triggering compaction directly */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("dcp erroneous mutations scenario",
                  test_dcp_erroneous_mutations,
@@ -8612,8 +8588,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under RocksDB */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test dcp multiple streams",
                  test_dcp_multiple_streams,
@@ -8676,21 +8651,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Disabled",
                  test_dcp_producer_expired_item_backfill_delete,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test MB-26907 backfill expired value - ExpiryOutput Enabled",
                  test_dcp_producer_expired_item_backfill_expire,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test MB-32443 delete with meta with expiration stream "
                  "- ExpiryOutput Disabled",
@@ -8698,8 +8673,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under RocksDB */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test MB-32443 delete with meta with expiration stream "
                  "- ExpiryOutput Enabled",
@@ -8707,8 +8681,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under RocksDB */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test noop mandatory",
                  test_dcp_noop_mandatory,
@@ -8741,8 +8714,7 @@ BaseTestCase testsuite_testcases[] = {
                  // Disable OSO <-> seqno auto mode and set to enabled; so
                  // we perform OSO regardless of the colleciton size.
                  "dcp_oso_backfill=enabled",
-                 // No OSO for RocksDB
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase(

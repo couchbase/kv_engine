@@ -633,10 +633,6 @@ bool STParameterizedBucketTest::ephemeralFailNewData() const {
                                   "fail_new_data";
 }
 
-bool STParameterizedBucketTest::isRocksDB() const {
-    return engine->getConfiguration().getBackend() == "rocksdb";
-}
-
 bool STParameterizedBucketTest::isMagma() const {
     return engine->getConfiguration().getBackend() == "magma" ||
            isNexusMagmaPrimary();

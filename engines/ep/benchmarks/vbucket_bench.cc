@@ -33,14 +33,12 @@
 #include <random>
 #include <thread>
 
-enum class Store { Couchstore = 0, RocksDB = 1, Magma = 2 };
+enum class Store { Couchstore, Magma };
 
 static std::string to_string(Store store) {
     switch (store) {
     case Store::Couchstore:
         return "couchdb";
-    case Store::RocksDB:
-        return "rocksdb";
     case Store::Magma:
         return "magma";
     }
@@ -572,7 +570,7 @@ BENCHMARK_REGISTER_F(MemTrackingVBucketBench, QueueDirty)
         ->Args({0, 1000000});
 
 static void FlushArguments(benchmark::internal::Benchmark* b) {
-    // Add couchstore (0), rocksdb (1), and magma (2) variants for a range of
+    // Add couchstore (0) and magma (2) variants for a range of
     // sizes.
     for (auto items = 1; items <= 1000000; items *= 100) {
         // Insert mode
@@ -583,10 +581,6 @@ static void FlushArguments(benchmark::internal::Benchmark* b) {
         b->Args({std::underlying_type<Store>::type(Store::Couchstore),
                  items,
                  1});
-#ifdef EP_USE_ROCKSDB
-        b->Args({std::underlying_type<Store>::type(Store::RocksDB), items, 0});
-        b->Args({std::underlying_type<Store>::type(Store::RocksDB), items, 1});
-#endif
 #ifdef EP_USE_MAGMA
         b->Args({std::underlying_type<Store>::type(Store::Magma), items, 0});
         b->Args({std::underlying_type<Store>::type(Store::Magma), items, 1});

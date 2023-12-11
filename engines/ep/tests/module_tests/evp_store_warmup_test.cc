@@ -1117,10 +1117,6 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         vbucket_state_t vbState,
         const std::vector<std::string>& keys,
         DocumentState docState) {
-    if (isRocksDB()) {
-        return; // Skipping for MB-36546
-    }
-
     // Prepare
     testPendingSyncWrite(vbState, keys, docState);
 
@@ -1239,11 +1235,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // Check the original committed value is inaccessible due to the pending
     // needing to be re-committed.
     auto vb = engine->getVBucket(vbid);
-    // @TODO: RocksDB currently only has an estimated item count in
-    // full-eviction, so it fails this check. Skip if RocksDB && full_eviction.
-    if (!isRocksDB() || !fullEviction()) {
-        EXPECT_EQ(1, vb->getNumItems());
-    }
+    EXPECT_EQ(1, vb->getNumItems());
     EXPECT_EQ(1, vb->ht.getNumPreparedSyncWrites());
 
     auto gv = store->get(key, vbid, cookie, {});
@@ -1327,11 +1319,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
 
     // Should load one item into memory - committed value.
     auto vb = engine->getVBucket(vbid);
-    // @TODO: RocksDB currently only has an estimated item count in
-    // full-eviction, so it fails this check. Skip if RocksDB && full_eviction.
-    if (!isRocksDB() || !fullEviction()) {
-        EXPECT_EQ(1, vb->getNumItems());
-    }
+    EXPECT_EQ(1, vb->getNumItems());
     EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
     auto gv = store->get(key, vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
@@ -1874,9 +1862,8 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     vbstate = *kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
 
-    // @TODO: RocksDB currently does not track the prepare count
     // Magma does not track the prepare count
-    if (!isRocksDB() && !isMagma()) {
+    if (!isMagma()) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
         // Hard to predict the size of the prepare on-disk, given it will
         // be compressed by couchstore. For simplicity just check it's non-zero.
@@ -1891,9 +1878,8 @@ TEST_P(DurabilityWarmupTest, testHPSPersistedAndLoadedIntoVBState) {
     vbstate = *kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(preparedSeqno, vbstate.persistedPreparedSeqno);
 
-    // @TODO: RocksDB currently does not track the prepare count
     // Magma does not track the prepare count
-    if (!isRocksDB() && !isMagma()) {
+    if (!isMagma()) {
         EXPECT_EQ(1, vbstate.onDiskPrepares);
         EXPECT_GT(vbstate.getOnDiskPrepareBytes(), 0);
     }
@@ -2371,13 +2357,6 @@ INSTANTIATE_TEST_SUITE_P(
         DurabilityWarmupTest,
         STParameterizedBucketTest::nexusCouchstoreMagmaConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
-#endif
-
-#ifdef EP_USE_ROCKSDB
-INSTANTIATE_TEST_SUITE_P(RocksFullOrValue,
-                         DurabilityWarmupTest,
-                         STParameterizedBucketTest::rocksDbConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
 #endif
 
 class MB_34718_WarmupTest : public STParameterizedBucketTest {};

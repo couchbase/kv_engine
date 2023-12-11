@@ -760,15 +760,9 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
     // We should have expired the item
     EXPECT_EQ(1, vb->numExpiredItems);
 
-    if (isRocksDB()) {
-        // RocksDB doesn't know if we insert or update so item counts are
-        // not correct.
-        EXPECT_EQ(1, vb->getNumItems());
-    } else {
-        EXPECT_EQ(1, vb->getNumItems());
-        flushVBucketToDiskIfPersistent(vbid, 1);
-        EXPECT_EQ(0, vb->getNumItems());
-    }
+    EXPECT_EQ(1, vb->getNumItems());
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_EQ(0, vb->getNumItems());
     EXPECT_EQ(highSeqno + 2, vb->getHighSeqno());
 }
 
@@ -894,13 +888,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     // Nothing to flush
     flushVBucketToDiskIfPersistent(vbid, 0);
 
-    auto expectedItems = 1;
-    if (isRocksDB()) {
-        // RocksDB doesn't know if we insert or update so item counts are not
-        // correct
-        expectedItems = 2;
-    }
-    EXPECT_EQ(expectedItems, vb->getNumItems());
+    EXPECT_EQ(1, vb->getNumItems());
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
@@ -974,13 +962,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     EXPECT_EQ(1, vb->getNumItems());
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    auto expectedItems = 0;
-    if (isRocksDB()) {
-        // RocksDB doesn't know if we insert or update so item counts are not
-        // correct
-        expectedItems = 1;
-    }
-    EXPECT_EQ(expectedItems, vb->getNumItems());
+    EXPECT_EQ(0, vb->getNumItems());
 
     EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
 }
@@ -1121,13 +1103,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
         flushVBucketToDiskIfPersistent(vbid, 0);
 
         // We should have queued a BGFetch for the item
-        if (isRocksDB()) {
-            // rocksdb doesn't handle item counts on update, so the second
-            // version of the doc increases num items
-            EXPECT_EQ(2, vb->getNumItems());
-        } else {
-            EXPECT_EQ(1, vb->getNumItems());
-        }
+        EXPECT_EQ(1, vb->getNumItems());
         ASSERT_TRUE(vb->hasPendingBGFetchItems());
 
         runBGFetcherTask();
@@ -1213,13 +1189,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
         flushVBucketToDiskIfPersistent(vbid, 0);
 
         // We should have queued a BGFetch for the item
-        if (isRocksDB()) {
-            // rocksdb doesn't handle item counts on update, so the second
-            // version of the doc increases num items
-            ASSERT_EQ(2, vb->getNumItems());
-        } else {
-            ASSERT_EQ(1, vb->getNumItems());
-        }
+        ASSERT_EQ(1, vb->getNumItems());
         ASSERT_TRUE(vb->hasPendingBGFetchItems());
 
         // 5a) Start a fetch and read Av1 from disk, but don't check the HT
@@ -1281,12 +1251,8 @@ TEST_P(EPBucketFullEvictionTest, UnDelWithPrepare) {
         EXPECT_TRUE(htRes.pending);
     }
 
-    // @TODO RDB: Rocks item counting is broken and overcounts assuming
-    // everything is a new item
-    if (!isRocksDB()) {
-        flushVBucketToDiskIfPersistent(vbid, 2);
-        EXPECT_EQ(0, vb->getNumItems());
-    }
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    EXPECT_EQ(0, vb->getNumItems());
 }
 
 TEST_P(EPBucketFullEvictionTest, RaceyFetchingMetaBgFetch) {
@@ -1618,7 +1584,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
     // disabled; magma still supports _fetching_ as Snappy, but will not
     // have compressed the value. Check if compression is enabled here,
     // and update the test once compression issues are resolved.
-    if (supportsFetchingAsSnappy() && !isMagma()) {
+    if (!isMagma()) {
         EXPECT_EQ(JsonSnappy, item->getDataType());
     } else {
         EXPECT_EQ(Json, item->getDataType());
@@ -1683,13 +1649,7 @@ TEST_P(EPBucketTest, expiredItemCount) {
 
     flush_vbucket_to_disk(vbid);
 
-    // @TODO RDB: Fix when correcting item count. Counts correct for value
-    // eviction as they are done in memory
-    if (!fullEviction() || !isRocksDB()) {
-        EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
-    } else {
-        EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
-    }
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumItems());
     EXPECT_EQ(1, store->getVBucket(vbid)->numExpiredItems);
 }
 
@@ -2161,9 +2121,6 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
     // No value will exist, and the bgfetch will not alter the in memory
     // temp item, so the delWithMeta would repeatedly find the item and trigger
     // a bgfetch, over and over.
-    if (isRocksDB()) {
-        GTEST_SKIP();
-    }
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto key = makeStoredDocKey("key");
 
@@ -2438,18 +2395,8 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067_cas_mismatch) {
     MB_52067(true);
 }
 
-class EPBucketTestNoRocksDb : public EPBucketTest {
-public:
-    void SetUp() override {
-        EPBucketTest::SetUp();
-    }
-    void TearDown() override {
-        EPBucketTest::TearDown();
-    }
-};
-
 // Test that scheduling compaction means the current task gets the new config
-TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
+TEST_P(EPBucketTest, ScheduleCompactionWithNewConfig) {
     // Store something so the compaction will be success when ran
     store_item(vbid, makeStoredDocKey("key"), "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2491,7 +2438,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionWithNewConfig) {
 
 // Test that scheduling compaction means the task which runs, runs with a merged
 // configuration that meets all requests.
-TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionAndMergeNewConfig) {
+TEST_P(EPBucketTest, ScheduleCompactionAndMergeNewConfig) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     // Array of configs to use for each call to schedule, it should result
     // in a config for the run which is the 'merge of all'.
@@ -2525,7 +2472,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionAndMergeNewConfig) {
 
 // Test that scheduling compaction when a task is already running the task
 // will reschedule *and* the reschedule picks up the new config.
-TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
+TEST_P(EPBucketTest, ScheduleCompactionReschedules) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     auto task = mockEPBucket->getCompactionTask(vbid);
     EXPECT_FALSE(task);
@@ -2593,8 +2540,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
  * scheduled, that the limit is not exceeded if one of the Compaction tasks
  * needs to be re-scheduled as the VBucket is locked.
  */
-TEST_P(EPBucketTestNoRocksDb,
-       MB50555_ScheduleCompactionEnforceConcurrencyLimit) {
+TEST_P(EPBucketTest, MB50555_ScheduleCompactionEnforceConcurrencyLimit) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
 
     // Change compaction concurrency ratio to a very low value so we only allow
@@ -2731,8 +2677,7 @@ public:
     std::thread thread;
 };
 
-TEST_P(EPBucketTestNoRocksDb,
-       ScheduleCompactionEnforceConcurrencyLimitReusingTasks) {
+TEST_P(EPBucketTest, ScheduleCompactionEnforceConcurrencyLimitReusingTasks) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
 
     // Change compaction concurrency ratio to a very low value so we only allow
@@ -2798,8 +2743,7 @@ TEST_P(EPBucketTestNoRocksDb,
  * already compacting, that we don't sleep the compaction task forever and
  * never re-awaken it.
  */
-TEST_P(EPBucketTestNoRocksDb,
-       MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
+TEST_P(EPBucketTest, MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
 
     // Change compaction concurrency ratio to a very low value so we only allow
@@ -2842,7 +2786,7 @@ TEST_P(EPBucketTestNoRocksDb,
  * Verify that when compaction is scheduled for a vbucket which is already
  * scheduled, that the delay of the original task is updated.
  */
-TEST_P(EPBucketTestNoRocksDb, RescheduleWithSmallerDelay) {
+TEST_P(EPBucketTest, RescheduleWithSmallerDelay) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
 
     // Schedule a compaction with a 60s delay - similar to what compaction
@@ -2948,8 +2892,8 @@ INSTANTIATE_TEST_SUITE_P(
         EPBucketBloomFilterParameterizedTest::bloomFilterDisabledConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(EPBucketTestNoRocksDb,
-                         EPBucketTestNoRocksDb,
+INSTANTIATE_TEST_SUITE_P(EPBucketTest,
+                         EPBucketTest,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 

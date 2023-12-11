@@ -584,19 +584,6 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     EXPECT_EQ(1, vb.opsCreate) << "pending op increased opsCreate?";
     EXPECT_EQ(0, vb.opsUpdate) << "pending op increased opsUpdate?";
 
-    // @TODO RocksDB
-    // @TODO Durability
-    // TSan sporadically reports a data race when calling store->get below when
-    // running this test under RocksDB. Manifests for both full and value
-    // eviction but only seen after adding full eviction variants for this test.
-    // Might be the case that running the couchstore full eviction variant
-    // beforehand is breaking something.
-#ifdef THREAD_SANITIZER
-    if (isRocksDB()) {
-        return;
-    }
-#endif
-
     // Check the committed item on disk.
     auto* store = vb.getShard()->getROUnderlying();
     auto gv = store->get(DiskDocKey(key), Vbid(0));
@@ -975,11 +962,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
 
     EXPECT_EQ(1, vb.opsCreate);
     EXPECT_EQ(0, vb.opsUpdate);
-    if (!isRocksDB()) {
-        // TODO: opsDelete not updated correctly under RocksDB as persistence
-        // callback doesn't know if the document previously existed or not.
-        EXPECT_EQ(1, vb.opsDelete);
-    }
+    EXPECT_EQ(1, vb.opsDelete);
 }
 
 /// Test SyncDelete on top of SyncWrite
@@ -1476,25 +1459,14 @@ TEST_P(DurabilityEphemeralBucketTest, SyncWriteChecksCorrectExpiry) {
 
 void DurabilityEPBucketTest::verifyOnDiskItemCount(VBucket& vb,
                                                    uint64_t expectedValue) {
-    // skip for rocksdb as it treats every mutation as an insertion
-    // and so we would expect a different item count compared with couchstore
-    if (isRocksDB()) {
-        return;
-    }
     EXPECT_EQ(expectedValue, vb.getNumTotalItems());
 }
 
 void DurabilityEPBucketTest::verifyCollectionItemCount(VBucket& vb,
                                                        CollectionID cID,
                                                        uint64_t expectedValue) {
-    // skip for rocksdb as it dose not perform item counting for collections
-    if (isRocksDB()) {
-        return;
-    }
-    {
-        auto rh = vb.lockCollections();
-        EXPECT_EQ(expectedValue, rh.getItemCount(cID));
-    }
+    auto rh = vb.lockCollections();
+    EXPECT_EQ(expectedValue, rh.getItemCount(cID));
 }
 
 void DurabilityEPBucketTest::verifyDocumentIsStored(VBucket& vb,
@@ -2973,13 +2945,7 @@ TEST_P(DurabilityBucketTest, DoNotExpireCommittedIfPending) {
     EXPECT_EQ(0, vb->numExpiredItems);
 }
 
-// @TODO Rocksdb when we have manual compaction/compaction filtering this test
-// should be made to pass.
-TEST_P(DurabilityEPBucketTest,
-       DontRemoveUnCommittedPreparesAtCompaction) {
-    if (isRocksDB()) {
-        return;
-    }
+TEST_P(DurabilityEPBucketTest, DontRemoveUnCommittedPreparesAtCompaction) {
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -3051,13 +3017,7 @@ TEST_P(DurabilityEPBucketTest,
     }
 }
 
-// @TODO Rocksdb when we have manual compaction/compaction filtering this test
-// should be made to pass.
 TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
-    if (isRocksDB()) {
-        return;
-    }
-
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -3161,10 +3121,6 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
 }
 
 TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
-    if (isRocksDB()) {
-        return;
-    }
-
     setVBucketToActiveWithValidTopology();
     using namespace cb::durability;
 
@@ -4499,8 +4455,6 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
     EXPECT_EQ("value", gv.item->getValue()->to_s());
 }
 
-// @TODO Rocksdb when we have manual compaction/compaction filtering this test
-// should be made to pass.
 TEST_P(DurabilityCouchstoreBucketTest,
        CompactionOfPrepareDoesNotAddToBloomFilter) {
     using namespace cb::durability;

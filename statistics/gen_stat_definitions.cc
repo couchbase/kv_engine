@@ -87,11 +87,9 @@ constexpr const char* metricFamilyRegexStr = "[a-zA-Z_][a-zA-Z0-9_]*";
  * metadata for anything that matches here will be emitted as
  * stability=internal.
  */
-constexpr std::array<std::string_view, 2> excludedConfigKeys{
+constexpr std::array<std::string_view, 1> excludedConfigKeys{
         // Nexus is strictly for testing
-        "nexus_",
-        // RocksDB is not supported
-        "rocksdb_"};
+        "nexus_"};
 
 constexpr std::string_view configVersionAdded = "7.0.0";
 

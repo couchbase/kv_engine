@@ -17,9 +17,6 @@
 #include "item.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_config.h"
-#ifdef EP_USE_ROCKSDB
-#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
-#endif
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
@@ -158,17 +155,7 @@ void KVStoreTest::TearDown() {
     std::filesystem::remove_all(data_dir);
 }
 
-class KVStoreParamTestSkipRocks : public KVStoreParamTest {
-public:
-    KVStoreParamTestSkipRocks() : KVStoreParamTest() {
-    }
-
-    /// corrupt couchstore data file by making it empty
-    void corruptCouchKVStoreDataFile();
-};
-
-// Rocks doesn't support returning compressed values.
-TEST_P(KVStoreParamTestSkipRocks, CompressedTest) {
+TEST_P(KVStoreParamTest, CompressedTest) {
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     for (int i = 1; i <= 5; i++) {
@@ -213,7 +200,7 @@ MATCHER(IsValueValid,
 
 // Check that when deleted docs with no value are fetched from disk, they
 // do not have snappy bit set (zero length should not be compressed).
-TEST_P(KVStoreParamTestSkipRocks, ZeroSizeValueNotCompressed) {
+TEST_P(KVStoreParamTest, ZeroSizeValueNotCompressed) {
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
 
     auto qi = makeDeletedItem(makeStoredDocKey("key"));
@@ -295,9 +282,6 @@ void KVStoreBackend::setup(const std::string& dataDir,
 }
 
 void KVStoreBackend::teardown() {
-    // Under RocksDB, removing the database folder (which is equivalent to
-    // calling rocksdb::DestroyDB()) for a live DB is an undefined
-    // behaviour. So, close the DB before destroying it.
     kvstore.reset();
 }
 
@@ -441,12 +425,7 @@ TEST_P(KVStoreParamTest, SaveDocsHisto) {
 
     auto& stats = kvstore->getKVStoreStat();
 
-    auto expectedCount = 1;
-    if (GetParam() == "rocksdb") {
-        expectedCount = 2;
-    }
-
-    EXPECT_EQ(expectedCount, stats.saveDocsHisto.getValueCount());
+    EXPECT_EQ(1, stats.saveDocsHisto.getValueCount());
     EXPECT_EQ(1, stats.commitHisto.getValueCount());
 }
 
@@ -697,9 +676,7 @@ TEST_P(KVStoreParamTest, TestPersistenceCallbacksForSet) {
     EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
 }
 
-// This test does not work under RocksDB because we assume that every
-// deletion is to an item that does not exist
-TEST_P(KVStoreParamTestSkipRocks, TestPersistenceCallbacksForDel) {
+TEST_P(KVStoreParamTest, TestPersistenceCallbacksForDel) {
     // Nexus not supported as we do some funky stuff with the
     // PersistenceCallbacks
     if (isNexus()) {
@@ -774,7 +751,7 @@ TEST_P(KVStoreParamTest, TestDataStoredInTheRightVBucket) {
 // restart.
 // Regression test for MB-51328; where only the first vBucket was
 // reported correctly, due to incorrect mapping from vbucket id to cacheSlot.
-TEST_P(KVStoreParamTestSkipRocks, ListPersistedVBucketsPurgeSeqnoAfterRestart) {
+TEST_P(KVStoreParamTest, ListPersistedVBucketsPurgeSeqnoAfterRestart) {
     ASSERT_GT(kvstore->getConfig().getMaxShards(), 1)
             << "Require at least 2 shards to verify multi-shard "
                "listPersistentVBuckets behaviour.";
@@ -939,8 +916,7 @@ TEST_P(KVStoreParamTest, InvalidSnapshotDetectedAtScan) {
 
 // Verify thread-safeness for 'delVBucket' concurrent operations.
 // Expect ThreadSanitizer to pick this.
-// Rocks has race condition issues
-TEST_P(KVStoreParamTestSkipRocks, DelVBucketConcurrentOperationsTest) {
+TEST_P(KVStoreParamTest, DelVBucketConcurrentOperationsTest) {
     if (isNexus()) {
         // Test doesn't poke the typical deletion path w.r.t revisions so does
         // not work for Nexus which returns a custom revision type
@@ -1341,7 +1317,7 @@ TEST_P(KVStoreParamTest, DeletedItemsForNoDeletesScanMovesLastReadSeqno) {
     EXPECT_EQ(1, scanCtx->lastReadSeqno);
 }
 
-TEST_P(KVStoreParamTestSkipRocks, IdScanResumesFromNextItemAfterPause) {
+TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     for (size_t i = 1; i <= 3; ++i) {
         auto qi = makeCommittedItem(makeStoredDocKey("key" + std::to_string(i)),
@@ -1423,7 +1399,7 @@ TEST_P(KVStoreParamTestSkipRocks, IdScanResumesFromNextItemAfterPause) {
     EXPECT_EQ(3, callback->numBackfilled);
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
+TEST_P(KVStoreParamTest, GetAllKeysSanity) {
     using namespace std::string_view_literals;
     using namespace testing;
 
@@ -1458,7 +1434,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
+TEST_P(KVStoreParamTest, GetCollectionStatsNoStats) {
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
     auto [status, stats] = kvstore->getCollectionStats(vbid, CollectionID(99));
@@ -1468,7 +1444,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {
     EXPECT_EQ(0, stats.diskSize);
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetCollectionManifest) {
+TEST_P(KVStoreParamTest, GetCollectionManifest) {
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
     auto uid = kvstore->getCollectionsManifestUid(*kvHandle);
@@ -1476,7 +1452,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionManifest) {
     EXPECT_EQ(0, uid.value());
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
+TEST_P(KVStoreParamTest, GetCollectionStats) {
     CollectionID cid;
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int64_t seqno = 1;
@@ -1494,13 +1470,13 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStats) {
     EXPECT_LT(0, stats.diskSize);
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetPersistedVBucketState) {
+TEST_P(KVStoreParamTest, GetPersistedVBucketState) {
     auto kvHandle = kvstore->makeFileHandle(vbid);
     EXPECT_TRUE(kvHandle);
     EXPECT_NO_THROW(kvstore->getPersistedVBucketState(*kvHandle, vbid));
 }
 
-void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
+void KVStoreParamTest::corruptCouchKVStoreDataFile() {
     ASSERT_EQ("couchdb", GetParam())
             << "This method should only be used for couchdb";
     namespace fs = std::filesystem;
@@ -1526,7 +1502,7 @@ void KVStoreParamTestSkipRocks::corruptCouchKVStoreDataFile() {
     ASSERT_TRUE(fs::is_regular_file(dataFile));
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
+TEST_P(KVStoreParamTest, GetCollectionStatsFailed) {
     /* Magma gets its collection stats from in memory so any corruption of
      data files between KVStore::makeFileHandle() and
      KVStore::getCollectionStats() won't cause the call to fail */
@@ -1556,7 +1532,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsFailed) {
     EXPECT_EQ(0, stats.diskSize);
 }
 
-TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareOverwriteCorrectFlushState) {
+TEST_P(KVStoreParamTest, SyncDeletePrepareOverwriteCorrectFlushState) {
     if (isNexus()) {
         // Nexus doesn't support the MockPersistenceCallback
         GTEST_SKIP();
@@ -1595,7 +1571,7 @@ TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareOverwriteCorrectFlushState) {
     EXPECT_TRUE(kvstore->commit(std::move(tc), flush));
 }
 
-TEST_P(KVStoreParamTestSkipRocks, SyncDeletePrepareNotPurgedByTimestamp) {
+TEST_P(KVStoreParamTest, SyncDeletePrepareNotPurgedByTimestamp) {
     auto key = makeStoredDocKey("key");
     auto tc = kvstore->begin(Vbid(0), std::make_unique<PersistenceCallback>());
 
@@ -1889,7 +1865,7 @@ TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Disabled) {
     EXPECT_EQ(value, gv.item->getValue()->to_s());
 }
 
-TEST_P(KVStoreParamTestSkipRocks, GetBySeqno) {
+TEST_P(KVStoreParamTest, GetBySeqno) {
     const int nItems = 5;
     for (int ii = 1; ii < nItems; ++ii) {
         auto ctx = kvstore->begin(vbid);
@@ -1960,9 +1936,8 @@ TEST_P(KVStoreParamTestSkipRocks, GetBySeqno) {
 }
 
 // Test to ensure that the CompactionContext::max_purged_seq is correctly set
-// after calling KVStore::compactDB(). Our KVStoreRocksDB implementation
-// currently doesn't set the purge seqno correctly and is hence skipped.
-TEST_P(KVStoreParamTestSkipRocks, purgeSeqnoAfterCompaction) {
+// after calling KVStore::compactDB().
+TEST_P(KVStoreParamTest, purgeSeqnoAfterCompaction) {
     uint64_t seqno = 1;
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     auto key = makeStoredDocKey("key");
@@ -1994,9 +1969,6 @@ static std::string kvstoreTestParams[] = {
         "magma",
         "nexus_couchdb_magma",
 #endif
-#ifdef EP_USE_ROCKSDB
-        "rocksdb",
-#endif
         "couchdb"};
 
 INSTANTIATE_TEST_SUITE_P(
@@ -2006,138 +1978,6 @@ INSTANTIATE_TEST_SUITE_P(
         [](const ::testing::TestParamInfo<std::string>& testInfo) {
             return testInfo.param;
         });
-
-static std::string kvstoreTestParamsSkipRocks[] = {
-#ifdef EP_USE_MAGMA
-        "magma",
-        "nexus_couchdb_magma",
-#endif
-        "couchdb"};
-
-INSTANTIATE_TEST_SUITE_P(
-        KVStoreParam,
-        KVStoreParamTestSkipRocks,
-        ::testing::ValuesIn(kvstoreTestParamsSkipRocks),
-        [](const ::testing::TestParamInfo<std::string>& testInfo) {
-            return testInfo.param;
-        });
-
-#ifdef EP_USE_ROCKSDB
-// Test fixture for tests which run only on RocksDB.
-class RocksDBKVStoreTest : public KVStoreTest {
-protected:
-    void SetUp() override {
-        KVStoreTest::SetUp();
-        Configuration config;
-        config.parseConfiguration("dbname="s + data_dir + ";backend=rocksdb");
-        WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                                config.getMaxNumShards());
-
-        kvstoreConfig =
-                std::make_unique<RocksDBKVStoreConfig>(config,
-                                                       config.getBackend(),
-                                                       workload.getNumShards(),
-                                                       0 /*shardId*/);
-        kvstore = setup_kv_store(*kvstoreConfig);
-    }
-
-    void TearDown() override {
-        // Under RocksDB, removing the database folder (which is equivalent to
-        // calling rocksdb::DestroyDB()) for a live DB is an undefined
-        // behaviour. So, close the DB before destroying it.
-        kvstore.reset();
-        KVStoreTest::TearDown();
-    }
-
-    std::unique_ptr<KVStoreConfig> kvstoreConfig;
-    std::unique_ptr<KVStoreIface> kvstore;
-};
-
-// Verify that RocksDB internal stats are returned
-TEST_F(RocksDBKVStoreTest, StatsTest) {
-    size_t value;
-
-    // Memory Usage
-    EXPECT_TRUE(kvstore->getStat("kMemTableTotal", value));
-    EXPECT_TRUE(kvstore->getStat("kMemTableUnFlushed", value));
-    EXPECT_TRUE(kvstore->getStat("kTableReadersTotal", value));
-    EXPECT_TRUE(kvstore->getStat("kCacheTotal", value));
-
-    // MemTable Size per CF
-    EXPECT_TRUE(kvstore->getStat("default_kSizeAllMemTables", value));
-    EXPECT_TRUE(kvstore->getStat("seqno_kSizeAllMemTables", value));
-
-    // Block Cache
-    Configuration config;
-
-    // Note: we need to switch-on DB Statistics
-    auto configStr = ("dbname="s + data_dir +
-                      ";backend=rocksdb;rocksdb_stats_level=kAll");
-    config.parseConfiguration(configStr);
-    WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                            config.getMaxNumShards());
-
-    kvstoreConfig =
-            std::make_unique<RocksDBKVStoreConfig>(config,
-                                                   config.getBackend(),
-                                                   workload.getNumShards(),
-                                                   0 /*shardId*/);
-    // Close the opened DB instance
-    kvstore.reset();
-    // Re-open with the new configuration
-    kvstore = setup_kv_store(*kvstoreConfig);
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.hit", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.miss", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.data.hit", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.data.miss", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.index.hit", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.index.miss", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.filter.hit", value));
-    EXPECT_TRUE(kvstore->getStat("rocksdb.block.cache.filter.miss", value));
-
-    // Disk Usage per-CF
-    EXPECT_TRUE(kvstore->getStat("default_kTotalSstFilesSize", value));
-    EXPECT_TRUE(kvstore->getStat("seqno_kTotalSstFilesSize", value));
-
-    // Scan stats
-    EXPECT_TRUE(kvstore->getStat("scan_totalSeqnoHits", value));
-    EXPECT_TRUE(kvstore->getStat("scan_oldSeqnoHits", value));
-}
-
-// Verify that a wrong value of 'rocksdb_statistics_option' is caught
-TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
-    Configuration config;
-    const auto baseConfig = "dbname="s + data_dir + ";backend=rocksdb";
-
-    // Test wrong value
-    config.parseConfiguration(baseConfig + ";rocksdb_stats_level=wrong_value");
-    WorkLoadPolicy workload(config.getMaxNumWorkers(),
-                            config.getMaxNumShards());
-    kvstoreConfig =
-            std::make_unique<RocksDBKVStoreConfig>(config,
-                                                   config.getBackend(),
-                                                   workload.getNumShards(),
-                                                   0 /*shardId*/);
-
-    // Close the opened DB instance
-    kvstore.reset();
-    // Re-open with the new configuration
-    EXPECT_THROW(kvstore = setup_kv_store(*kvstoreConfig),
-                 std::invalid_argument);
-
-    // Test one right value
-    config.parseConfiguration(baseConfig + ";rocksdb_stats_level=kAll");
-    kvstoreConfig =
-            std::make_unique<RocksDBKVStoreConfig>(config,
-                                                   config.getBackend(),
-                                                   workload.getNumShards(),
-                                                   0 /*shardId*/);
-    // Close the opened DB instance
-    kvstore.reset();
-    // Re-open with the new configuration
-    kvstore = setup_kv_store(*kvstoreConfig);
-}
-#endif
 
 // While these look trivial, GoogleMock classes do a lot in the ctor / dtor
 // so outline to speedup build times.

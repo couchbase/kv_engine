@@ -28,10 +28,6 @@
 #include "magma-kvstore/magma-kvstore.h"
 #include "magma-kvstore/magma-kvstore_config.h"
 #endif /* EP_USE_MAGMA */
-#ifdef EP_USE_ROCKSDB
-#include "rocksdb-kvstore/rocksdb-kvstore.h"
-#include "rocksdb-kvstore/rocksdb-kvstore_config.h"
-#endif
 #include "bucket_logger.h"
 #include "kvstore.h"
 #include "kvstore_config.h"
@@ -224,13 +220,6 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
     else if (backend == "magma") {
         auto rw = std::make_unique<MagmaKVStore>(
                 dynamic_cast<MagmaKVStoreConfig&>(config));
-        return std::move(rw);
-    }
-#endif
-#ifdef EP_USE_ROCKSDB
-    else if (backend == "rocksdb") {
-        auto rw = std::make_unique<RocksDBKVStore>(
-                dynamic_cast<RocksDBKVStoreConfig&>(config));
         return std::move(rw);
     }
 #endif

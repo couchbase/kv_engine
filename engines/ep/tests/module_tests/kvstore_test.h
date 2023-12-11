@@ -73,7 +73,7 @@ public:
 
 // Test fixture for tests which run on different KVStore implementations.
 // The string parameter represents the KVStore implementation that each test
-// of this class will use (e.g., "couchdb", "magma" or "rocksdb").
+// of this class will use (e.g., "couchdb" or "magma").
 class KVStoreParamTest : public KVStoreTest,
                          public KVStoreBackend,
                          public ::testing::WithParamInterface<std::string> {
@@ -165,6 +165,9 @@ protected:
      * @param useJson whether to use a json or binary document
      */
     void testPerDocumentCompression(bool useJson);
+
+    /// corrupt couchstore data file by making it empty
+    void corruptCouchKVStoreDataFile();
 
     KVStoreIface::CreateItemCB testCallback;
 };

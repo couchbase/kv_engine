@@ -2291,7 +2291,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("set", test_set, test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("set",
+                 test_set,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
         TestCase("concurrent set",
                  test_conc_set,
                  test_setup,
@@ -2341,7 +2347,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("unl", test_unl, test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("unl",
+                 test_unl,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
         TestCase("unl not my vbucket",
                  test_unl_nmvb,
                  test_setup,
@@ -2370,7 +2382,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("add", test_add, test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("add",
+                 test_add,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
         TestCase("add+add(same cas)",
                  test_add_add_with_cas,
                  test_setup,
@@ -2378,7 +2396,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("cas", test_cas, test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("cas",
+                 test_cas,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare,
+                 cleanup),
         TestCase("replace",
                  test_replace,
                  test_setup,
@@ -2433,9 +2457,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: implement getItemCount. Needs the
-                 // 'ep_num_non_resident' stat.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("delete",
                  test_delete,
@@ -2449,9 +2471,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: vBucket num_items not correct under Rocks when
-                  * full eviction */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("delete with value CAS",
                  test_delete_with_value_cas,
@@ -2465,7 +2485,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("set/delete (invalid cas)",
                  test_set_delete_invalid_cas,
@@ -2486,12 +2506,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: This test fails because under RocksDB we can
-                 // still find a key after deleting the DB file and evicting
-                 // the key in the internal MemTable (which is also used as
-                 // read-cache).
                  // TODO magma: uses couchstore specific functions
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         TestCase("vbucket deletion doesn't affect new data",
                  test_bug7023,
@@ -2500,16 +2516,14 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  // TODO RDB: implement getItemCount. Needs the
                  // 'ep_warmup_value_count' stat.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("non-resident decrementers",
                  test_mb3169,
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: implement getItemCount. Needs the 'curr_items'
-                 // stat.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("resident ratio after warmup",
                  test_mb5172,
@@ -2585,8 +2599,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_skip_broken_under_ephemeral_and_rocks,
+                 prepare_ep_bucket,
                  cleanup),
 
         // sentinel
-        TestCase(nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};
+        TestCase(
+                nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};

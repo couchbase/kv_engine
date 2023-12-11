@@ -10,9 +10,6 @@ INCLUDE(CTest)
 CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
     "MAGMA_INCLUDE_DIR" OFF)
 
-CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
-        "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
-
 INCLUDE_DIRECTORIES(BEFORE SYSTEM
                            ${SNAPPY_INCLUDE_DIR}
                            ${Platform_SOURCE_DIR}/include
@@ -30,15 +27,6 @@ INCLUDE_DIRECTORIES(BEFORE
         ${FLATBUFFERS_INCLUDE_DIR})
 
 SET(EP_STORAGE_LIBS couchstore_static ep-engine_storage_common)
-
-IF (EP_USE_ROCKSDB)
-    INCLUDE_DIRECTORIES(AFTER SYSTEM ${ROCKSDB_INCLUDE_DIR})
-    SET(ROCKSDB_KVSTORE_SOURCE src/kvstore/rocksdb-kvstore/rocksdb-kvstore.cc
-            src/kvstore/rocksdb-kvstore/rocksdb-kvstore_config.cc)
-    LIST(APPEND EP_STORAGE_LIBS ${ROCKSDB_LIBRARIES})
-    ADD_DEFINITIONS(-DEP_USE_ROCKSDB=1)
-    MESSAGE(STATUS "ep-engine: Using RocksDB")
-ENDIF (EP_USE_ROCKSDB)
 
 IF (EP_USE_MAGMA)
     INCLUDE_DIRECTORIES(AFTER ${MAGMA_INCLUDE_DIR})
@@ -420,7 +408,6 @@ ADD_LIBRARY(ep_objs OBJECT
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             ${CONFIG_SOURCE}
             ${COUCH_KVSTORE_SOURCE}
-            ${ROCKSDB_KVSTORE_SOURCE}
             ${MAGMA_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
 SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)

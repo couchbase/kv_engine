@@ -18,11 +18,8 @@
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_iface.h"
 #include "kvstore/kvstore_transaction_context.h"
-#include "vb_commit.h"
-#ifdef EP_USE_ROCKSDB
-#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
-#endif
 #include "tests/module_tests/test_helpers.h"
+#include "vb_commit.h"
 #include "vbucket_state.h"
 #include <benchmark/benchmark.h>
 #include <executor/workload.h>
@@ -37,10 +34,6 @@ enum Storage {
 #ifdef EP_USE_MAGMA
     ,
     MAGMA
-#endif
-#ifdef EP_USE_ROCKSDB
-    ,
-    ROCKSDB
 #endif
 };
 
@@ -103,13 +96,6 @@ protected:
         case MAGMA: {
             state.SetLabel("Magma");
             config.parseConfiguration(configStr + ";backend=magma");
-            break;
-        }
-#endif
-#ifdef EP_USE_ROCKSDB
-        case ROCKSDB: {
-            state.SetLabel("CouchRocks");
-            config.parseConfiguration(configStr + ";backend=rocksdb");
             break;
         }
 #endif
@@ -218,17 +204,11 @@ BENCHMARK_REGISTER_F(KVStoreBench, Scan)
 #ifdef EP_USE_MAGMA
         ->Args({NUM_ITEMS, MAGMA})
 #endif
-#ifdef EP_USE_ROCKSDB
-        ->Args({NUM_ITEMS, ROCKSDB})
-#endif
         ;
 
 BENCHMARK_REGISTER_F(KVStoreBench, GetAggrDbFileInfo)
         ->Args({NUM_ITEMS, COUCHSTORE})
 #ifdef EP_USE_MAGMA
         ->Args({NUM_ITEMS, MAGMA})
-#endif
-#ifdef EP_USE_ROCKSDB
-        ->Args({NUM_ITEMS, ROCKSDB})
 #endif
         ;

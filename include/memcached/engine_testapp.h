@@ -28,7 +28,6 @@ enum test_result {
     DIED = 14,
     PENDING = 19,
     SUCCESS_AFTER_RETRY = 24,
-    SKIPPED_UNDER_ROCKSDB = 25,
     SKIPPED_UNDER_MAGMA = 26
 };
 

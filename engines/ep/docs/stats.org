@@ -339,28 +339,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_pitr_granularity                   | The granularity (in seconds) for the    |
 |                                       | point in time recovery.                 |
 
-CouchRocks specific
-| Stat                                    | Description                       |
-|-----------------------------------------+-----------------------------------|
-| ep_rocksdb_kMemTableTotal               | Total size of all Memtables       |
-| ep_rocksdb_kMemTableUnFlushed           | Total size of immutable Memtables |
-| ep_rocksdb_kTableReadersTotal           | Memory used by Index/Filter blocks|
-| ep_rocksdb_kCacheTotal                  | Size of the Block Cache           |
-| ep_rocksdb_default_kSizeAllMemTables    | Total MT size for default CFs     |
-| ep_rocksdb_seqno_kSizeAllMemTables      | Total MT size for seqno CFs       |
-| ep_rocksdb_default_kTotalSstFilesSize   | Total SST size for default CFs    |
-| ep_rocksdb_seqno_kTotalSstFilesSize     | Total SST size for seqno CFs      |
-The following ratios are encoded as 4-digit integers, e.g.:
-  0.1234 (12.34%) is encoded as 1234
-  0.0123 (1.23%) is encoded as 123
-  0.0012 (0.12%) is encoded as 12
-  0.0001 (0.01%) is encoded as 1
-| Stat                                    | Description                       |
-|-----------------------------------------+-----------------------------------|
-| ep_rocksdb_block_cache_index_hit_ratio  | Cache hit ratio for Index blocks  |
-| ep_rocksdb_block_cache_filter_hit_ratio | Cache hit ratio for Filter blocks |
-| ep_rocksdb_block_cache_data_hit_ratio   | Cache hit ratio for Data blocks   |
-
 ** Aggregated KVStore stats.  Note the following stats are reported per-shard in 'kvstore' stats.
 
 | Stat                        | Description                                    |
@@ -372,28 +350,6 @@ The following ratios are encoded as 4-digit integers, e.g.:
 | ep_io_compaction_write_bytes| Total number of bytes written during compaction|
 | io_flusher_write_amplification | Number of bytes written to disk during front-end flushing, divided by the document bytes for each document saved (key + metadata + value). |
 | io_total_write_amplification | Number of bytes written to disk during front-end flushing and compaction, divided by the document bytes for each document saved (key + metadata + value). |
-
-CouchRocks specific
-| Stat                                    | Description                       |
-|-----------------------------------------+-----------------------------------|
-| rocksdb_kMemTableTotal                  | Total size of all Memtables       |
-| rocksdb_kMemTableUnFlushed              | Total size of immutable Memtables |
-| rocksdb_kTableReadersTotal              | Memory used by Index/Filter blocks|
-| rocksdb_kCacheTotal                     | Size of the Block Cache           |
-| rocksdb_default_kSizeAllMemTables       | Total MT size for default CFs     |
-| rocksdb_seqno_kSizeAllMemTables         | Total MT size for seqno CFs       |
-| rocksdb_default_kTotalSstFilesSize      | Total SST size for default CFs    |
-| rocksdb_seqno_kTotalSstFilesSize        | Total SST size for seqno CFs      |
-The following ratios are encoded as 4-digit integers, e.g.:
-  0.1234 (12.34%) is encoded as 1234
-  0.0123 (1.23%) is encoded as 123
-  0.0012 (0.12%) is encoded as 12
-  0.0001 (0.01%) is encoded as 1
-| Stat                                    | Description                       |
-|-----------------------------------------+-----------------------------------|
-| rocksdb_block_cache_index_hit_ratio     | Cache hit ratio for Index blocks  |
-| rocksdb_block_cache_filter_hit_ratio    | Cache hit ratio for Filter blocks |
-| rocksdb_block_cache_data_hit_ratio      | Cache hit ratio for Data blocks   |
 
 ** vBucket total stats
 

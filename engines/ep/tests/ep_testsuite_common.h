@@ -183,47 +183,17 @@ enum test_result prepare_ep_bucket(engine_test_t* test);
 
 /**
  * Prepare a test which is currently expected to fail when using
- * Rocks, Magma or both and skip the test.
- * As Rocks and Magma mature, these tests should be revisited.
- *
- * NB: some tests may currently be marked with this but will never pass
- * e.g., compaction tests as RocksDB's compaction model is different.
- * Eventually, they should be marked as not applicable, and an
- * equivalent test constructed exclusively for RocksDB.
+ * Magma and skip the test.
+ * As Magma mature, these tests should be revisited.
  */
-enum test_result prepare_skip_broken_under_rocks(engine_test_t* test);
 enum test_result prepare_skip_broken_under_magma(engine_test_t* test);
-enum test_result prepare_skip_broken_under_rocks_and_magma(engine_test_t* test);
 
 /**
  * Prepare a test which is only applicable to a persistent bucket, but
- * is currently expected to fail when using RocksDBKVStore and so should
+ * is currently expected to fail when using Magma and so should
  * be skipped.
- * As RocksDBKVStore progresses these tests should be rechecked, as
- * all applicable tests should eventually pass.
  */
-enum test_result prepare_ep_bucket_skip_broken_under_rocks(engine_test_t* test);
 enum test_result prepare_ep_bucket_skip_broken_under_magma(engine_test_t* test);
-enum test_result prepare_ep_bucket_skip_broken_under_rocks_and_magma(
-        engine_test_t* test);
-
-/**
- * Prepare a test which is only applicable to a persistent bucket, but is
- * currently expected to fail when using RocksDBKVStore in the full eviction
- * mode and so should be skipped.
- */
-enum test_result prepare_ep_bucket_skip_broken_under_rocks_full_eviction(
-        engine_test_t* test);
-
-/**
- * Prepare a test which is currently expected to fail when either:
- *  - using RocksDBKVStore in a persistend bucket
- *  - using an Ephemeral bucket
- * and so should be skipped.
- * These tests should eventually pass in both cases.
- */
-enum test_result prepare_skip_broken_under_ephemeral_and_rocks(
-        engine_test_t* test);
 
 /**
  * Prepare a test which is only applicable for ephemeral buckets
@@ -236,17 +206,6 @@ enum test_result prepare_ephemeral_bucket(engine_test_t* test);
  * for other eviction types it should be skipped.
  */
 enum test_result prepare_full_eviction(engine_test_t *test);
-
-/**
- * Prepare a test which is only applicable to full eviction mode and not rocksdb
- */
-enum test_result prepare_full_eviction_skip_under_rocks(engine_test_t *test);
-
-/**
- * Prepare a test which is not applicable for full eviction when running rocksdb
- */
-enum test_result prepare_skip_broken_under_rocks_full_eviction(
-        engine_test_t* test);
 
 /**
  * TODO TEMPORARY:

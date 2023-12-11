@@ -3124,8 +3124,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("get meta followed by delete",
                  test_get_meta_with_delete,
@@ -3160,8 +3159,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("delete with meta nonexistent",
                  test_delete_with_meta_nonexistent,
@@ -3196,9 +3194,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks when full
-                  * eviction */
-                 prepare_ep_bucket_skip_broken_under_rocks_full_eviction,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("set with meta by force",
                  test_set_with_meta_by_force,
@@ -3212,9 +3208,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks when full
-                  * eviction */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("set with meta nonexistent",
                  test_set_with_meta_nonexistent,
@@ -3242,28 +3236,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "exp_pager_stime=3",
-                 /* TODO RDB: curr_items not correct under Rocks in full
-                  * eviction */
-                 /* Requires persistence */
-                 prepare_ep_bucket_skip_broken_under_rocks_full_eviction,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test del meta conflict resolution",
                  test_del_meta_conflict_resolution,
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks in full
-                  * eviction */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("test add meta conflict resolution",
                  test_add_meta_conflict_resolution,
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks in full
-                  * eviction */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("test set meta conflict resolution",
                  test_set_meta_conflict_resolution,
@@ -3277,9 +3264,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "conflict_resolution_type=lww",
-                 /* TODO RDB: curr_items not correct under Rocks in full
-                  * eviction */
-                 prepare_skip_broken_under_rocks_full_eviction,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("test set meta lww conflict resolution",
                  test_set_meta_lww_conflict_resolution,
@@ -3321,9 +3306,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "exp_pager_stime=1",
-                 /* TODO RDB: curr_items not correct under Rocks full eviction*/
-                 /* related to temp items in hash table */
-                 prepare_ep_bucket_skip_broken_under_rocks_full_eviction,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test get_meta with item_eviction",
                  test_getMeta_with_item_eviction,

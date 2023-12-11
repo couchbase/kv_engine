@@ -105,10 +105,6 @@ static int report_test(const char* name,
         msg="OK AFTER RETRY";
         color = TerminalColor::Yellow;
         break;
-    case SKIPPED_UNDER_ROCKSDB:
-        msg="SKIPPED_UNDER_ROCKSDB";
-        color = TerminalColor::Blue;
-        break;
     case SKIPPED_UNDER_MAGMA:
         msg = "SKIPPED_UNDER_MAGMA";
         color = TerminalColor::Blue;
@@ -318,31 +314,9 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
         test.cfg = default_cfg;
     }
 
-    // Necessary configuration to run tests under RocksDB.
     if (!test.cfg.empty()) {
         cfg.assign(test.cfg);
-        if (std::string(test.cfg).find("backend=rocksdb") !=
-            std::string::npos) {
-            if (!cfg.empty() && cfg.back() != ';') {
-                cfg.append(";");
-            }
-            // MB-26973: Disable RocksDB pre-allocation of disk space by
-            // default. When 'allow_fallocate=true', RocksDB pre-allocates disk
-            // space for the MANIFEST and WAL files (some tests showed up to
-            // ~75MB per DB, ~7.5GB for 100 empty DBs created).
-            cfg.append("rocksdb_options=allow_fallocate=false;");
-            // BucketQuota is now used to calculate the MemtablesQuota at
-            // runtime. The baseline value for BucketQuota is taken from the
-            // 'max_size' default value in configuration.json. If that default
-            // value is 0, then EPEngine sets the value to 'size_t::max()',
-            // leading to a huge MemtablesQuota. Avoid that 'size_t::max()' is
-            // used in the computation for MemtablesQuota.
-            if (cfg.find("max_size") == std::string::npos) {
-                cfg.append("max_size=1073741824;");
-            }
-            test.cfg = std::move(cfg);
-        } else if (std::string(test.cfg).find("backend=magma") !=
-                   std::string::npos) {
+        if (std::string(test.cfg).find("backend=magma") != std::string::npos) {
             if (!cfg.empty() && cfg.back() != ';') {
                 cfg.append(";");
             }

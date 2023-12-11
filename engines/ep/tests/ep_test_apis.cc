@@ -1114,24 +1114,14 @@ void compact_db(EngineIface* h,
                                   purge_before_ts,
                                   purge_before_seq,
                                   drop_deletes);
-    const auto backend = get_str_stat(h, "ep_backend");
-    if (backend == "couchdb" || backend == "magma") {
-        if (ret == cb::engine_errc::not_supported) {
-            // Ephemeral, couchdb and magma (but not rocksdb) buckets can
-            // return cb::engine_errc::not_supported.  This method is called
-            // from a lot of test cases we run. Lets remap the error code to
-            // success. Note: Ephemeral buckets use couchdb as backend.
-            ret = cb::engine_errc::success;
-        }
-        checkeq(cb::engine_errc::success,
-                ret,
-                "Failed to request compact vbucket");
-    } else {
-        checkeq(cb::engine_errc::failed,
-                ret,
-                "checkForDBExistence returns cb::engine_errc::failed for "
-                "!couchdb");
+    if (ret == cb::engine_errc::not_supported) {
+        // Ephemeral, couchdb and magma buckets can
+        // return cb::engine_errc::not_supported.  This method is called
+        // from a lot of test cases we run. Lets remap the error code to
+        // success. Note: Ephemeral buckets use couchdb as backend.
+        ret = cb::engine_errc::success;
     }
+    checkeq(cb::engine_errc::success, ret, "Failed to request compact vbucket");
 }
 
 cb::engine_errc vbucketDelete(EngineIface* h, Vbid vb, const char* args) {

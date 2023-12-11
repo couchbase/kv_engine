@@ -2519,8 +2519,7 @@ void KVBucket::addKVStoreStats(const AddStatFn& add_stat, CookieIface& cookie) {
         /* Add the different KVStore instances into a set and then
          * retrieve the stats from each instance separately. This
          * is because CouchKVStore has separate read only and read
-         * write instance whereas RocksDBKVStore has only instance
-         * for both read write and read-only.
+         * write instance.
          */
         std::set<const KVStoreIface*> underlyingSet;
         underlyingSet.insert(shard->getRWUnderlying());

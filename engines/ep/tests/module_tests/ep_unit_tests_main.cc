@@ -156,7 +156,7 @@ int main(int argc, char **argv) {
     {
         // Set to 2 x the number of reserved file descriptors (i.e. the minimum
         // number of file descriptors required). This number will then be split
-        // between all the backends compiled in (couchstore/rocks/magma). This
+        // between all the backends compiled in (couchstore/magma). This
         // number won't be particularly high, but should be fine for unit
         // testing.
         auto& env = Environment::get();

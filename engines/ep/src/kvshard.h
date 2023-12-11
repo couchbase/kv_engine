@@ -119,8 +119,7 @@ private:
     // Holds the store configuration for the current shard.
     // We need to use a unique_ptr in place of the concrete class because
     // KVStoreConfig is a polymorphic type, and this unique_ptr can hold a
-    // pointer to either the base class or a child class (e.g.,
-    // RocksDBKVStoreConfig) instance.
+    // pointer to either the base class or a child class instance.
     std::unique_ptr<KVStoreConfig> kvConfig;
 
     /**

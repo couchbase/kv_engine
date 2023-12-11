@@ -1926,13 +1926,6 @@ static enum test_result test_sync_vbucket_destroy(EngineIface* h) {
 }
 
 static enum test_result test_async_vbucket_destroy_restart(EngineIface* h) {
-    std::string backend = get_str_stat(h, "ep_backend");
-    if (backend == "rocksdb") {
-        // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-        // Some of our debug logging accesses the result and we end up
-        // with a nullptr dereference.
-        return SKIPPED_UNDER_ROCKSDB;
-    }
     return vbucket_destroy_restart(h);
 }
 
@@ -2205,11 +2198,7 @@ static enum test_result test_io_stats(EngineIface* h) {
     std::string backend = get_str_stat(h, "ep_backend");
     if (backend == "couchdb") {
         exp_write_bytes = 22; /* TBD: Do not hard code the value */
-    } else if (backend == "rocksdb") {
-        // TODO RDB:
-        return SKIPPED_UNDER_ROCKSDB;
-    }
-    else {
+    } else {
         return SKIPPED;
     }
 
@@ -4053,14 +4042,6 @@ static enum test_result test_curr_items_delete(EngineIface* h) {
 }
 
 static enum test_result test_curr_items_dead(EngineIface* h) {
-    std::string backend = get_str_stat(h, "ep_backend");
-    if (backend == "rocksdb") {
-        // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-        // Some of our debug logging accesses the result and we end up
-        // with a nullptr dereference.
-        return SKIPPED_UNDER_ROCKSDB;
-    }
-
     // Verify initial case.
     verify_curr_items(h, 0, "init");
 
@@ -6013,12 +5994,6 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
         return SKIPPED;
     }
 
-    std::string backend = get_str_stat(h, "ep_backend");
-    if (backend == "rocksdb") {
-        // TODO RDB:
-        return SKIPPED_UNDER_ROCKSDB;
-    }
-
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
         std::stringstream ss;
@@ -6190,12 +6165,6 @@ static void force_vbstate_MB34173_corruption(std::string dbname,
 static enum test_result test_MB34173_warmup(EngineIface* h) {
     if (!isWarmupEnabled(h)) {
         return SKIPPED;
-    }
-
-    std::string backend = get_str_stat(h, "ep_backend");
-    if (backend == "rocksdb") {
-        // TODO RDB:
-        return SKIPPED_UNDER_ROCKSDB;
     }
 
     check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
@@ -6661,19 +6630,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_range_scan_max_lifetime",
               "ep_range_scan_read_buffer_send_size",
               "ep_retain_erroneous_tombstones",
-              "ep_rocksdb_options",
-              "ep_rocksdb_cf_options",
-              "ep_rocksdb_bbt_options",
-              "ep_rocksdb_low_pri_background_threads",
-              "ep_rocksdb_high_pri_background_threads",
-              "ep_rocksdb_stats_level",
-              "ep_rocksdb_block_cache_ratio",
-              "ep_rocksdb_block_cache_high_pri_pool_ratio",
-              "ep_rocksdb_memtables_ratio",
-              "ep_rocksdb_default_cf_optimize_compaction",
-              "ep_rocksdb_seqno_cf_optimize_compaction",
-              "ep_rocksdb_write_rate_limit",
-              "ep_rocksdb_uc_max_size_amplification_percent",
               "ep_seqno_persistence_timeout",
               "ep_sync_writes_max_allowed_replicas",
               "ep_time_synchronization",
@@ -7001,19 +6957,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_replica_hlc_drift",
               "ep_replica_hlc_drift_count",
               "ep_retain_erroneous_tombstones",
-              "ep_rocksdb_options",
-              "ep_rocksdb_cf_options",
-              "ep_rocksdb_bbt_options",
-              "ep_rocksdb_low_pri_background_threads",
-              "ep_rocksdb_high_pri_background_threads",
-              "ep_rocksdb_stats_level",
-              "ep_rocksdb_block_cache_ratio",
-              "ep_rocksdb_block_cache_high_pri_pool_ratio",
-              "ep_rocksdb_memtables_ratio",
-              "ep_rocksdb_default_cf_optimize_compaction",
-              "ep_rocksdb_seqno_cf_optimize_compaction",
-              "ep_rocksdb_write_rate_limit",
-              "ep_rocksdb_uc_max_size_amplification_percent",
               "ep_rollback_count",
               "ep_seqno_persistence_timeout",
               "ep_startup_time",
@@ -8348,7 +8291,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("expiry with xattr",
                  test_expiry_with_xattr,
@@ -8369,24 +8312,21 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "exp_pager_enabled=false",
-                 /* TODO RDB: RocksDB doesn't expire items yet */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("expiration on warmup",
                  test_expiration_on_warmup,
                  test_setup,
                  teardown,
                  "exp_pager_stime=1",
-                 // TODO RDB: Needs the 'ep_expired_pager' stat
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("expiry_duplicate_warmup",
                  test_bug3454,
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: ep_warmup_value_count is wrong */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("expiry_no_items_warmup",
                  test_bug3522,
@@ -8449,8 +8389,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test observe not my vbucket",
                  test_observe_not_my_vbucket,
@@ -8485,12 +8424,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "max_size=2621440",
-                 // TODO RDB: Depending on the configuration, RocksDB
-                 // pre-allocates memory in its internal Arena before a DB is
-                 // opened, in a way we do not fully control yet.
-                 // That makes this test to fail depending on the size of the
-                 // pre-allocation.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("warmup conf",
                  test_warmup_conf,
@@ -8527,9 +8461,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: Fails in full eviction. Rockdb does not report
-                 // the correct 'ep_bg_num_samples' stat
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         // magma turns off bloom filters
         TestCase("test bloomfilters with store apis",
@@ -8581,17 +8513,7 @@ BaseTestCase testsuite_testcases[] = {
                  "max_num_shards=4;"
                  "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
-                 // TODO RDB: This test requires full control and accurate
-                 // tracking on how memory is allocated by the underlying
-                 // store. We do not have that yet for RocksDB. Depending
-                 // on the configuration, RocksDB pre-allocates default-size
-                 // blocks of memory in the internal Arena.
-                 // For this specific test, the problem is that we cannot store
-                 // all the item we need (cb::engine_errc::no_memory), and the
-                 // 'vb_active_perc_mem_resident' stat never goes below the
-                 // threshold we expect. Needs to resize 'max_size' to consider
-                 // RocksDB pre-allocations.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test set_param message",
                  test_set_param_message,
@@ -8615,8 +8537,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: vBucket delete stat not correct */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("stats",
                  test_stats,
@@ -8639,8 +8560,7 @@ BaseTestCase testsuite_testcases[] = {
                  "magma_checkpoint_interval=0;"
                  "magma_min_checkpoint_interval=0;"
                  "magma_sync_every_batch=true",
-                 /* TODO RDB: Needs stat:ep_db_data_size */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("file stats post warmup",
                  test_vb_file_stats_after_warmup,
@@ -8709,9 +8629,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: RocksDB does not report the currect
-                 // 'vb_X:num_items' stat
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("warmup with threshold",
                  test_warmup_with_threshold,
@@ -8734,8 +8652,7 @@ BaseTestCase testsuite_testcases[] = {
                  "magma_checkpoint_interval=0;"
                  "magma_min_checkpoint_interval=0;"
                  "magma_sync_every_batch=true",
-                 /* TODO RDB: DB file size is not reported correctly */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("stats curr_items ADD SET",
                  test_curr_items_add_set,
@@ -8749,8 +8666,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: curr_items not correct under Rocks */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("stats curr_items vbucket_state_dead",
                  test_curr_items_dead,
@@ -8785,8 +8701,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: implement RocksDBKVStore::getAllKeys */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test ALL_KEYS api during bucket creation",
                  test_all_keys_api_during_bucket_creation,
@@ -8817,10 +8732,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 /* TODO RDB: evict_key expects "Evicted" but gets
-                  * "Already evicted" - possibly caused by stats
-                  */
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         // special non-Ascii keys
         TestCase("test special char keys",
@@ -8872,9 +8784,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: implement getItemCount
-                 // (needs the 'curr_items' stat)
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test shutdown snapshot range",
                  test_shutdown_snapshot_range,
@@ -8902,8 +8812,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;checkpoint_memory_recovery_"
                  "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
                  "checkpoint_max_size=1",
-                 /* TODO RDB: ep_total_persisted not correct under Rocks */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM paged-out rm",
                  test_disk_gt_ram_paged_rm,
@@ -8911,8 +8820,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  "chk_remover_stime=1;checkpoint_memory_recovery_"
                  "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
-                 /* TODO RDB: ep_total_persisted not correct under Rocks */
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("disk>RAM update paged-out",
                  test_disk_gt_ram_update_paged_out,
@@ -8927,8 +8835,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  // Assumes there is an ep-engine Bloom filter enabled which is
-                 // not the case with Magma / RocksDB.
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 // not the case with Magma.
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         TestCase("disk>RAM set bgfetch race",
                  test_disk_gt_ram_set_race,
@@ -9102,9 +9010,7 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  /* In ephemeral buckets we don't do compaction. We have
                     module test 'EphTombstoneTest' to test tombstone purging */
-                 // TODO RDB: Needs RocksDBKVStore to implement manual
-                 // compaction and item expiration on compaction.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test multiple vb compactions",
                  test_multiple_vb_compactions,
@@ -9125,40 +9031,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test sync vbucket destroy",
                  test_sync_vbucket_destroy,
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test async vbucket destroy (multitable)",
                  test_async_vbucket_destroy,
                  test_setup,
                  teardown,
                  "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test sync vbucket destroy (multitable)",
                  test_sync_vbucket_destroy,
                  test_setup,
                  teardown,
                  "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase(
                 "test vbucket destroy stats",
@@ -9172,32 +9066,22 @@ BaseTestCase testsuite_testcases[] = {
                  * because the test checks for items being removed by
                  * monitoring the ep_items_rm_from_checkpoints stat.  If the
                  * items have already been expelled the stat will not change.
-                 *
-                 * Also RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 * Some of our debug logging accesses the result and we end up
-                 * with a nullptr dereference.
                  */
-                prepare_ep_bucket_skip_broken_under_rocks,
+                prepare_ep_bucket,
                 cleanup),
         TestCase("test async vbucket destroy restart",
                  test_async_vbucket_destroy_restart,
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart,
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test takeover stats race with vbucket create (DCP)",
                  test_takeover_stats_race_with_vb_create_DCP,
@@ -9211,9 +9095,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: Implement RocksDBKVStore::getNumPersistedDeletes
                  // Magma: no plans to support persisted deletes
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_skip_broken_under_magma,
                  cleanup),
 
         // stats uuid
@@ -9279,10 +9162,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test add ret meta",
                  test_add_ret_meta,
@@ -9296,10 +9176,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test del ret meta",
                  test_del_ret_meta,
@@ -9313,10 +9190,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase("test set with item_eviction",
@@ -9339,7 +9213,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  // Skipping for MB-29182
-                 prepare_full_eviction_skip_under_rocks,
+                 prepare_full_eviction,
                  cleanup),
         TestCase("test add with item_eviction",
                  test_add_with_item_eviction,
@@ -9397,14 +9271,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare_full_eviction,
                  cleanup),
-        TestCase(
-                "test expired item with item_eviction",
-                test_expired_item_with_item_eviction,
-                test_setup,
-                teardown,
-                nullptr,
-                prepare_full_eviction_skip_under_rocks, // Skipping for MB-29182
-                cleanup),
+        TestCase("test expired item with item_eviction",
+                 test_expired_item_with_item_eviction,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare_full_eviction, // Skipping for MB-29182
+                 cleanup),
         TestCase("test get & delete on non existent items",
                  test_non_existent_get_and_delete,
                  test_setup,
@@ -9432,8 +9305,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // no collection item counts on rocks
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase("test failover log behavior",
@@ -9451,14 +9323,12 @@ BaseTestCase testsuite_testcases[] = {
                  prepare,
                  cleanup),
 
-        //@TODO RDB: Broken because rocksDB threads stick around after
-        // bucket is destroyed and have persistent thread locals
         TestCaseV2("multi_bucket set/get ",
                    test_multi_bucket_set_get,
                    nullptr,
                    teardown_v2,
                    nullptr,
-                   prepare_ep_bucket_skip_broken_under_rocks,
+                   prepare_ep_bucket,
                    cleanup),
 
         TestCase("test_mb19635_upgrade_from_25x",
@@ -9476,9 +9346,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // Set a fixed number of shards for stats checking.
                  "max_num_shards=4",
-                 // TODO RDB: Needs to fix some missing/unexpected stats
-                 // Magma has no support for upgrades at this time
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
 
         TestCase("test_MB-19687_variable",
@@ -9495,9 +9363,7 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  /* In ephemeral buckets we don't do compaction. We have
                     module test 'EphTombstoneTest' to test tombstone purging */
-                 // TODO RDB: Needs RocksDBKVStore to implement manual
-                 // compaction and item expiration on compaction.
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
 
         TestCase("test_MB-20697",
@@ -9505,30 +9371,25 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: Needs the 'ep_item_commit_failed' stat
                  // Magma: This test does not apply to magma because magma
                  // does not close/reopen files while an instance is active.
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
                  test_mb20943_complete_pending_ops_on_vbucket_delete,
                  test_setup,
                  teardown,
                  nullptr,
-                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
-                 // Some of our debug logging accesses the result and we end up
-                 // with a nullptr dereference.
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
         TestCase("test_mb20744_check_incr_reject_ops",
                  test_mb20744_check_incr_reject_ops,
                  test_setup,
                  teardown,
                  nullptr,
-                 // TODO RDB: Needs the 'vb_active_ops_reject' stat
                  // Magma: Error injection for magma is done as part of
                  // the magma unit tests.
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
 
         TestCase("test_MB-23640_get_document_of_any_state",
@@ -9553,7 +9414,7 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  // TODO Magma: Magma does not support updating the
                  // data store without going through magma instance.
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
 
         TestCase("test_mb38031_upgrade_from_4x_via_5x_hop",
@@ -9561,8 +9422,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // couchstore only issue - so skip magma and rocks
-                 prepare_ep_bucket_skip_broken_under_rocks,
+                 prepare_ep_bucket,
                  cleanup),
 
         TestCase("test_mb38031_illegal_json_throws",
@@ -9570,8 +9430,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 // couchstore only issue - so skip magma and rocks
-                 prepare_ep_bucket_skip_broken_under_rocks_and_magma,
+                 // couchstore only issue - so skip magma
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
 
         TestCase("test_replace_at_pending_insert",
@@ -9618,8 +9478,7 @@ BaseTestCase testsuite_testcases[] = {
                  // Have the quota change task run constantly to avoid
                  // unnecessary waiting in the test
                  "bucket_quota_change_task_poll_interval=0",
-                 // Skip for RocksDB, it requires too much memory
-                 prepare_skip_broken_under_rocks,
+                 prepare,
                  cleanup),
 
         TestCase(

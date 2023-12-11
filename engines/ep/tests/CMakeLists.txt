@@ -241,15 +241,6 @@ add_ep_testsuite(ep_testsuite_dcp ep_testsuite_dcp.cc)
 add_ep_testsuite(ep_testsuite_checkpoint ep_testsuite_checkpoint.cc)
 add_ep_testsuite(ep_testsuite_xdcr ep_testsuite_xdcr.cc)
 
-# MB-35234: Currently broken due to data race during warmup when enabling
-# durability.
-IF(FALSE)
-    IF (EP_USE_ROCKSDB)
-        ADD_TEST(NAME ep-engine-persistence-unit-tests.rocksdb
-                COMMAND memcached_testapp -E ep -c "backend=rocksdb" --gtest_filter=*PersistToTest*)
-        SET_TESTS_PROPERTIES(ep-engine-persistence-unit-tests.rocksdb PROPERTIES TIMEOUT 300)
-    ENDIF (EP_USE_ROCKSDB)
-ENDIF()
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).
 FUNCTION(ADD_TESTSUITE name timeout)
@@ -310,15 +301,6 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
                 TIMEOUT ${timeout}
                 ENVIRONMENT CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT=1)
     endforeach()
-
-    IF (EP_USE_ROCKSDB)
-        ADD_TEST(NAME ${name}.value_eviction.rocksdb
-                COMMAND ${_cmdline} -v -e "dbname=./${name}.value_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
-        ADD_TEST(NAME ${name}.full_eviction.rocksdb
-                COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${name}.full_eviction.rocksdb$<SEMICOLON>backend=rocksdb")
-        SET_TESTS_PROPERTIES(${name}.value_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
-        SET_TESTS_PROPERTIES(${name}.full_eviction.rocksdb PROPERTIES TIMEOUT ${timeout})
-    ENDIF (EP_USE_ROCKSDB)
 
     IF (EP_USE_MAGMA)
         ADD_TEST(NAME ${name}.value_eviction.magma

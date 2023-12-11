@@ -2833,75 +2833,6 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
     return bTrafficEnabled;
 }
 
-void EventuallyPersistentEngine::doEngineStatsRocksDB(
-        const StatCollector& collector) {
-    using namespace cb::stats;
-    size_t value;
-
-    // Specific to RocksDB. Cumulative ep-engine stats.
-    // Note: These are also reported per-shard in 'kvstore' stats.
-    // Memory Usage
-    if (kvBucket->getKVStoreStat("kMemTableTotal", value)) {
-        collector.addStat(Key::ep_rocksdb_kMemTableTotal, value);
-    }
-    if (kvBucket->getKVStoreStat("kMemTableUnFlushed", value)) {
-        collector.addStat(Key::ep_rocksdb_kMemTableUnFlushed, value);
-    }
-    if (kvBucket->getKVStoreStat("kTableReadersTotal", value)) {
-        collector.addStat(Key::ep_rocksdb_kTableReadersTotal, value);
-    }
-    if (kvBucket->getKVStoreStat("kCacheTotal", value)) {
-        collector.addStat(Key::ep_rocksdb_kCacheTotal, value);
-    }
-    // MemTable Size per-CF
-    if (kvBucket->getKVStoreStat("default_kSizeAllMemTables", value)) {
-        collector.addStat(Key::ep_rocksdb_default_kSizeAllMemTables, value);
-    }
-    if (kvBucket->getKVStoreStat("seqno_kSizeAllMemTables", value)) {
-        collector.addStat(Key::ep_rocksdb_seqno_kSizeAllMemTables, value);
-    }
-    // BlockCache Hit Ratio
-    size_t hit = 0;
-    size_t miss = 0;
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.data.hit", hit) &&
-        kvBucket->getKVStoreStat("rocksdb.block.cache.data.miss", miss) &&
-        (hit + miss) != 0) {
-        const auto tmpRatio =
-                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        collector.addStat(Key::ep_rocksdb_block_cache_data_hit_ratio, tmpRatio);
-    }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.index.hit", hit) &&
-        kvBucket->getKVStoreStat("rocksdb.block.cache.index.miss", miss) &&
-        (hit + miss) != 0) {
-        const auto tmpRatio =
-                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        collector.addStat(Key::ep_rocksdb_block_cache_index_hit_ratio,
-                          tmpRatio);
-    }
-    if (kvBucket->getKVStoreStat("rocksdb.block.cache.filter.hit", hit) &&
-        kvBucket->getKVStoreStat("rocksdb.block.cache.filter.miss", miss) &&
-        (hit + miss) != 0) {
-        const auto tmpRatio =
-                gsl::narrow_cast<int>(float(hit) / (hit + miss) * 10000);
-        collector.addStat(Key::ep_rocksdb_block_cache_filter_hit_ratio,
-                          tmpRatio);
-    }
-    // Disk Usage per-CF
-    if (kvBucket->getKVStoreStat("default_kTotalSstFilesSize", value)) {
-        collector.addStat(Key::ep_rocksdb_default_kTotalSstFilesSize, value);
-    }
-    if (kvBucket->getKVStoreStat("seqno_kTotalSstFilesSize", value)) {
-        collector.addStat(Key::ep_rocksdb_seqno_kTotalSstFilesSize, value);
-    }
-    // Scan stats
-    if (kvBucket->getKVStoreStat("scan_totalSeqnoHits", value)) {
-        collector.addStat(Key::ep_rocksdb_scan_totalSeqnoHits, value);
-    }
-    if (kvBucket->getKVStoreStat("scan_oldSeqnoHits", value)) {
-        collector.addStat(Key::ep_rocksdb_scan_oldSeqnoHits, value);
-    }
-}
-
 void EventuallyPersistentEngine::doEngineStatsCouchDB(
         const StatCollector& collector, const EPStats& epstats) {
     using namespace cb::stats;
@@ -3496,16 +3427,12 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         doEngineStatsCouchDB(collector, epstats);
     } else if (configuration.getBackend() == "magma") {
         doEngineStatsMagma(collector);
-    } else if (configuration.getBackend() == "rocksdb") {
-        doEngineStatsRocksDB(collector);
     } else if (configuration.getBackend() == "nexus") {
         auto primaryCollector = collector.withLabel("backend", "primary");
         if (configuration.getNexusPrimaryBackend() == "couchdb") {
             doEngineStatsCouchDB(primaryCollector, epstats);
         } else if (configuration.getNexusPrimaryBackend() == "magma") {
             doEngineStatsMagma(primaryCollector);
-        } else if (configuration.getNexusPrimaryBackend() == "rocksb") {
-            doEngineStatsRocksDB(primaryCollector);
         }
 
         auto secondaryCollector = collector.withLabel("backend", "secondary");
@@ -3513,8 +3440,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
             doEngineStatsCouchDB(secondaryCollector, epstats);
         } else if (configuration.getNexusSecondaryBackend() == "magma") {
             doEngineStatsMagma(secondaryCollector);
-        } else if (configuration.getNexusSecondaryBackend() == "rocksb") {
-            doEngineStatsRocksDB(secondaryCollector);
         }
     }
 

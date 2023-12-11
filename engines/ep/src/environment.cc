@@ -32,10 +32,6 @@ size_t Environment::getMaxBackendFileDescriptors() const {
     backends++;
 #endif
 
-#ifdef EP_USE_ROCKSDB
-    backends++;
-#endif
-
     auto backendFileDescriptors =
             engineFileDescriptors - reservedFileDescriptors;
 

@@ -20,9 +20,6 @@
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
-#ifdef EP_USE_ROCKSDB
-#include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
-#endif
 
 #include <memory>
 #include <utility>
@@ -138,12 +135,6 @@ std::unique_ptr<KVStoreConfig> KVStoreConfig::createKVStoreConfig(
 #ifdef EP_USE_MAGMA
     else if (backend == "magma") {
         kvConfig = std::make_unique<MagmaKVStoreConfig>(
-                config, backend, numShards, shardId);
-    }
-#endif
-#ifdef EP_USE_ROCKSDB
-    else if (backend == "rocksdb") {
-        kvConfig = std::make_unique<RocksDBKVStoreConfig>(
                 config, backend, numShards, shardId);
     }
 #endif

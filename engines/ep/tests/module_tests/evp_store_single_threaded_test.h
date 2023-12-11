@@ -390,7 +390,7 @@ protected:
  *
  * Currently parameterised on a config string which sets:
  * - bucket type (ephemeral or persistent, and additional persistent variants
- *   (e.g. RocksDB) for additional storage backends.
+ *   (e.g. Magma) for additional storage backends.
  * - eviction type.
  *   - For ephemeral buckets: used for specifying ephemeral auto-delete /
  *     fail_new_data
@@ -586,24 +586,11 @@ public:
 
 #endif
 
-#ifdef EP_USE_ROCKSDB
-    static auto rocksDbBucket() {
-        return persistentBucket() * config::Config{{ "backend", "rocksdb" }};
-    }
-
-    static auto rocksDbConfigValues() {
-        return rocksDbBucket() * itemEvictionPolicy();
-    }
-#endif
-
     static auto persistentAllBackendsConfigValues() {
         auto configs = couchstoreConfigValues();
 #ifdef EP_USE_MAGMA
         configs |= nexusCouchstoreMagmaAllConfigValues();
         configs |= magmaConfigValues();
-#endif
-#ifdef EP_USE_ROCKSDB
-        configs |= rocksDbConfigValues();
 #endif
         return configs;
     }
@@ -613,18 +600,12 @@ public:
 #ifdef EP_USE_MAGMA
         configs |= magmaConfigValues();
 #endif
-#ifdef EP_USE_ROCKSDB
-        configs |= rocksDbConfigValues();
-#endif
         return configs;
     }
 
     static auto fullEvictionAllBackendsConfigValues() {
         using namespace std::string_literals;
         auto configs = couchstoreBucket();
-#ifdef EP_USE_ROCKSDB
-        configs |= rocksDbBucket();
-#endif
 #ifdef EP_USE_MAGMA
         configs |= magmaBucket();
         configs |= nexusCouchstoreMagma();
@@ -644,8 +625,6 @@ public:
 
     bool fullEviction() const;
 
-    bool isRocksDB() const;
-
     /// @returns true if this is a magma bucket
     bool isMagma() const;
 
@@ -663,10 +642,6 @@ public:
     }
 
     bool bloomFilterEnabled() const;
-
-    bool supportsFetchingAsSnappy() const {
-        return !isRocksDB();
-    }
 
     /// @returns a string representing this tests' parameters.
     static std::string PrintToStringParamName(

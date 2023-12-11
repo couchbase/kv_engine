@@ -5238,11 +5238,6 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
 // at replica.
 // @todo MB-59288
 TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
-    if (isRocksDB()) {
-        // Broken on RocksDB
-        GTEST_SKIP();
-    }
-
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);

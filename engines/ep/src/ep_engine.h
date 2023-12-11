@@ -1465,7 +1465,6 @@ private:
     void doEngineStatsCouchDB(const StatCollector& collector,
                               const EPStats& epstats);
     void doEngineStatsMagma(const StatCollector& collector);
-    void doEngineStatsRocksDB(const StatCollector& collector);
 
     cb::EngineErrorGetCollectionIDResult parseKeyStatCollection(
             std::string_view expectedStatPrefix,
