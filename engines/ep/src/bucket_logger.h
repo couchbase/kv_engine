@@ -221,10 +221,10 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 // Various implementation details for the EP_LOG_<level> macros below.
 // End-users shouldn't use these directly, instead use EP_LOG_<level>.
 
-// Visual Studio prior to 2019 doens't correctly handle the constexpr
+// Visual Studio doens't correctly handle the constexpr
 // format string checking - see https://github.com/fmtlib/fmt/issues/2328.
 // As such, only apply the compile-time check for non-MSVC or VS 2019+
-#if FMT_MSC_VER && FMT_MSC_VER < 1920
+#if WIN32
 #define CHECK_FMT_STRING(fmt) fmt
 #else
 #define CHECK_FMT_STRING(fmt) FMT_STRING(fmt)
