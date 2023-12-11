@@ -14,7 +14,7 @@
 #include <folly/io/IOBuf.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
-#include <vector>
+#include <deque>
 
 class Connection;
 class Cookie;
@@ -60,8 +60,7 @@ private:
 
     struct TaskData {
         cb::engine_errc command_error{cb::engine_errc::success};
-        std::unique_ptr<folly::IOBuf> stats_buf{
-                folly::IOBuf::createCombined(BUFFER_CAPACITY)};
+        std::deque<std::unique_ptr<folly::IOBuf>> stats_buf;
     };
 
     /**

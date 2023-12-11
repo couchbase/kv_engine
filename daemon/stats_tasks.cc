@@ -32,20 +32,23 @@ cb::engine_errc StatsTask::getCommandError() const {
 
 cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
     taskData.withLock([this, &notifyCookieOnSend](auto& data) {
-        if (!data.stats_buf || data.stats_buf->empty()) {
+        if (data.stats_buf.empty()) {
             // No data to send, so we won't be notifying the cookie and should
             // return success.
             notifyCookieOnSend = false;
             return;
         }
 
-        // Code doesn't currently use chained IOBufs and if it did, this
-        // statement can be removed. Note the SendBuffer interface excepts a
-        // contiguous view (and so does libevent).
-        Expects(!data.stats_buf->isChained());
+        while (data.stats_buf.size() > 1) {
+            auto& iob = data.stats_buf.front();
+            std::string_view view = {reinterpret_cast<const char*>(iob->data()),
+                                     iob->length()};
+            cookie.getConnection().chainDataToOutputStream(
+                    std::make_unique<IOBufSendBuffer>(std::move(iob), view));
+            data.stats_buf.pop_front();
+        }
 
-        // Move out the current IOBuf, leave nullptr.
-        auto buf = std::move(data.stats_buf);
+        auto& buf = data.stats_buf.front();
         // View over it for the SendBuffer.
         std::string_view view{reinterpret_cast<const char*>(buf->data()),
                               buf->length()};
@@ -58,8 +61,8 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
         } else {
             send_buf = std::make_unique<IOBufSendBuffer>(std::move(buf), view);
         }
-
         cookie.getConnection().chainDataToOutputStream(std::move(send_buf));
+        data.stats_buf.pop_front();
     });
 
     if (notifyCookieOnSend) {
@@ -91,14 +94,18 @@ bool StatsTask::run() {
 void StatsTask::addStatCallback(TaskData& writable_data,
                                 std::string_view k,
                                 std::string_view v) {
-    Expects(writable_data.stats_buf);
-
     cb::mcbp::response::StatsResponse rsp(k.size(), v.size());
     rsp.setOpaque(cookie.getHeader().getOpaque());
     auto header = rsp.getBuffer();
+    const auto total = header.size() + k.size() + v.size();
+    if (writable_data.stats_buf.empty() ||
+        writable_data.stats_buf.back()->tailroom() < total) {
+        writable_data.stats_buf.emplace_back(
+                folly::IOBuf::createCombined(BUFFER_CAPACITY));
+    }
 
     // Write the mcbp response into the task's buffer (header, key, value).
-    auto& iob = *writable_data.stats_buf;
+    auto& iob = *writable_data.stats_buf.back();
     iob.reserve(0, header.size() + k.size() + v.size());
     std::copy(header.begin(), header.end(), iob.writableTail());
     iob.append(sizeof(rsp));
