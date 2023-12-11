@@ -1574,6 +1574,94 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
 }
 
 /**
+ * Test fixture for Ephemeral item pager tests with
+ * ephemeral_full_policy=auto_delete.
+ */
+class STEphemeralAutoDeleteItemPagerTest : public STItemPagerTest {};
+
+// Test covers MB-60046. A pending and committed key must not find itself auto
+// deleted, else the delete of the commit will be rejected by the DCP replica
+// and cause disconnects.
+TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_60046) {
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto setActive = [this](int count) {
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("active_" + std::to_string(count)),
+                          std::string(512, 'V'));
+        item.setFreqCounterValue(0);
+        storeItem(item);
+    };
+
+    int count = 0;
+    do {
+        setActive(++count);
+    } while (store->getPageableMemCurrent() <
+             store->getPageableMemHighWatermark());
+
+    auto key = makeStoredDocKey("active_" + std::to_string(count));
+    // Now make the last key written in the loop also pending.
+    ASSERT_EQ(cb::engine_errc::would_block,
+              storeItem(*makePendingItem(key, "pending-value")));
+
+    std::vector<queued_item> items;
+    auto& vb = *store->getVBucket(vbid);
+    auto cursor = vb.checkpointManager->registerCursorBySeqno(
+            "test", 1, CheckpointCursor::Droppable::No);
+    ASSERT_FALSE(cursor.tryBackfill) << *vb.checkpointManager;
+    vb.checkpointManager->getNextItemsForCursor(cursor.cursor.lock().get(),
+                                                items);
+    EXPECT_NE(0, items.size()) << *vb.checkpointManager;
+    bool pendingFound{false};
+    bool committedFound{false};
+    for (const auto& item : items) {
+        if (item->getKey() == key) {
+            if (item->isPending()) {
+                ASSERT_FALSE(pendingFound);
+                pendingFound = true;
+            } else {
+                ASSERT_FALSE(committedFound);
+                committedFound = true;
+            }
+        }
+    }
+
+    // Both pending and committed must be seen before we trigger auto-delete
+    ASSERT_TRUE(pendingFound);
+    ASSERT_TRUE(committedFound);
+    items.clear();
+
+    // Now trigger the auto-delete paging
+    runHighMemoryPager();
+
+    // Iterate through the checkpoint and check all deletes.
+    vb.checkpointManager->getNextItemsForCursor(cursor.cursor.lock().get(),
+                                                items);
+    // Should be some new mutations (deletes)
+    EXPECT_NE(0, items.size()) << *vb.checkpointManager;
+
+    int deleteCount{0};
+    for (const auto& item : items) {
+        if (item->getKey() == key) {
+            // The key should not be found in the new batch of items. The
+            // original commit+pending were in the first batch and not expected
+            // to see again. Prior to the fix, a delete(key) was seen here.
+            FAIL() << *item;
+        }
+        if (item->isDeleted()) {
+            ++deleteCount;
+        }
+    }
+
+    // We certainly should see deletes.
+    ASSERT_NE(0, deleteCount);
+}
+
+/**
  * Test fixture for expiry pager tests - enables the Expiry Pager (in addition
  * to what the parent class does).
  */
@@ -2685,6 +2773,11 @@ INSTANTIATE_TEST_SUITE_P(PersistentFullValue,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_SUITE_P(EphemeralAutoDelete,
+                         STEphemeralAutoDeleteItemPagerTest,
+                         STParameterizedBucketTest::ephAutoDeleteConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 #else
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STItemPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MultiPagingVisitorTest);
@@ -2694,4 +2787,6 @@ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STValueEvictionExpiryPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MB_32669);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STEphemeralItemPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MB_36087);
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(
+        STEphemeralAutoDeleteItemPagerTest);
 #endif

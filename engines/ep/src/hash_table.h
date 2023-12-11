@@ -1199,6 +1199,26 @@ public:
                                StoredValue& value,
                                CommittedState state);
 
+    struct UnlockedFindResult {
+        /// The Committed StoredValue with this key if in HashTable, else
+        /// nullptr.
+        StoredValue* committedSV{nullptr};
+        /// The Committed StoredValue with this key if in HashTable, else
+        /// nullptr.
+        StoredValue* pendingSV{nullptr};
+    };
+
+    /**
+     * Attempt to find the pending and committed versions of key in the given
+     * hbl.getBucketNum hash bucket.
+     *
+     * @param hbl The structure which holds the lock and the bucket number
+     * @param key The key to find
+     * @return pair of pointers, null when nothing found.
+     */
+    UnlockedFindResult unlocked_find(const HashBucketLock& hbl,
+                                     const DocKey& key) const;
+
     /**
      * Releases an item(StoredValue) in the hash table, but does not delete it.
      * It will pass out the removed item to the caller who can decide whether to
