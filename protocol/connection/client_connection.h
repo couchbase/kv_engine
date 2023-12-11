@@ -1145,3 +1145,9 @@ protected:
             userValidateReceivedFrameCallback;
     std::unique_ptr<cb::json::SyntaxValidator> jsonValidator;
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Frame> : ostream_formatter {};
+#endif

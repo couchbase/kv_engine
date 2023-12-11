@@ -30,6 +30,7 @@
 
 enum class EventFramework : uint8_t { Bufferevent, Folly };
 std::ostream& operator<<(std::ostream& os, const EventFramework& framework);
+std::string format_as(EventFramework);
 
 enum class EventPriority {
     High,

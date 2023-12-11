@@ -1045,7 +1045,7 @@ void Settings::setMaxConcurrentCommandsPerConnection(size_t num) {
     notify_changed("max_concurrent_commands_per_connection");
 }
 
-static std::string to_string(const EventFramework& framework) {
+std::string format_as(EventFramework framework) {
     switch (framework) {
     case EventFramework::Bufferevent:
         return "bufferevent";
@@ -1056,5 +1056,5 @@ static std::string to_string(const EventFramework& framework) {
 }
 
 std::ostream& operator<<(std::ostream& os, const EventFramework& framework) {
-    return os << to_string(framework);
+    return os << format_as(framework);
 }

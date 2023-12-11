@@ -161,6 +161,9 @@ public:
 enum class TrafficControlMode : bool { Enabled, Disabled };
 std::string to_string(const TrafficControlMode mode);
 std::ostream& operator<<(std::ostream& os, const TrafficControlMode& mode);
+inline auto format_as(const TrafficControlMode mode) {
+    return to_string(mode);
+}
 
 /**
  * Definition of the first version of the engine interface

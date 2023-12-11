@@ -99,6 +99,9 @@ enum class Metered : bool { Yes, No };
 
 std::string to_string(Metered);
 std::ostream& operator<<(std::ostream&, Metered);
+inline auto format_as(const Metered metered) {
+    return to_string(metered);
+}
 
 static inline Metered getMetered(bool metered) {
     return metered ? Metered::Yes : Metered::No;
@@ -159,6 +162,9 @@ struct CollectionMetaData {
 
 std::string to_string(const CollectionMetaData&);
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta);
+inline auto format_as(const CollectionMetaData& md) {
+    return to_string(md);
+}
 
 /**
  * The metadata of a single scope. This represents the data we persist
@@ -176,6 +182,7 @@ struct ScopeMetaData {
 };
 
 std::ostream& operator<<(std::ostream& os, const ScopeMetaData& meta);
+std::string format_as(const ScopeMetaData& meta);
 
 /**
  * For creation of collection SystemEvents - The SystemEventFactory

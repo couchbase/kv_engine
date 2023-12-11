@@ -217,6 +217,11 @@ std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status) {
     out << ::to_string(status);
     return out;
 }
+
+std::string format_as(Status status) {
+    return ::to_string(status);
+}
+
 } // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::Status status, bool shortname) {

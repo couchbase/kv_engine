@@ -3001,8 +3001,10 @@ std::optional<Collections::ManifestUid> NexusKVStore::getCollectionsManifestUid(
         auto msg = fmt::format(
                 "NexusKVStore::getCollectionsManifestUid: Difference in "
                 "collection stats primary:{} secondary:{}",
-                primaryResult,
-                secondaryResult);
+                primaryResult.has_value() ? std::to_string(*primaryResult)
+                                          : "nullopt",
+                secondaryResult.has_value() ? std::to_string(*secondaryResult)
+                                            : "nullopt");
         handleError(msg, {} /*vbid*/);
     }
 

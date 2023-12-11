@@ -2108,22 +2108,25 @@ bool DcpConsumer::isFlowControlEnabled() const {
     return flowControl.isEnabled();
 }
 
-std::ostream& operator<<(std::ostream& os,
-                         DcpConsumer::NoopIntervalNegotiation::State state) {
+std::string format_as(DcpConsumer::NoopIntervalNegotiation::State state) {
     using State = DcpConsumer::NoopIntervalNegotiation::State;
     switch (state) {
     case State::PendingMillisecondsRequest:
-        return os << "PendingMillisecondsRequest";
+        return "PendingMillisecondsRequest";
     case State::PendingMillisecondsResponse:
-        return os << "PendingMillisecondsResponse";
+        return "PendingMillisecondsResponse";
     case State::PendingSecondsRequest:
-        return os << "PendingSecondsRequest";
+        return "PendingSecondsRequest";
     case State::PendingSecondsResponse:
-        return os << "PendingSecondsResponse";
+        return "PendingSecondsResponse";
     case State::Completed:
-        return os << "Completed";
+        return "Completed";
     }
-    os << fmt::format("Invalid NoopIntervalNegotiation::State: {}",
-                      uint8_t(state));
-    return os;
+    return fmt::format("Invalid NoopIntervalNegotiation::State: {}",
+                       uint8_t(state));
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         DcpConsumer::NoopIntervalNegotiation::State state) {
+    return os << format_as(state);
 }

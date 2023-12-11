@@ -466,3 +466,9 @@ private:
 
 std::ostream& operator<<(std::ostream& os, const Manager& manager);
 } // namespace Collections
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Collections::Manager> : ostream_formatter {};
+#endif

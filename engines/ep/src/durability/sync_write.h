@@ -89,3 +89,9 @@ protected:
 
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<DurabilityMonitor::SyncWrite> : ostream_formatter {};
+#endif

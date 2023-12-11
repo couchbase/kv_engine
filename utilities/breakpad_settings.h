@@ -43,3 +43,11 @@ struct Settings {
 void to_json(nlohmann::json& json, const Settings& settings);
 void from_json(const nlohmann::json& json, Settings& settings);
 } // namespace cb::breakpad
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<cb::breakpad::Content> : ostream_formatter {};
+template <>
+struct fmt::formatter<cb::breakpad::Settings> : ostream_formatter {};
+#endif

@@ -62,6 +62,10 @@ std::string to_string(MetricType type) {
 std::ostream& operator<<(std::ostream& os, const MetricType& type) {
     return os << to_string(type);
 }
+inline auto format_as(const MetricType& type) {
+    return to_string(type);
+}
+
 } // namespace prometheus
 
 // leading text to be included in the header and source files
@@ -208,7 +212,7 @@ void from_json(const nlohmann::json& j, Spec::Prometheus& p) {
             throw std::runtime_error(
                     fmt::format("Stat:{} has invalid prometheus.family type "
                                 "{}, must be a string",
-                                j.at("key"),
+                                j.at("key").get<std::string>(),
                                 family.type_name()));
         }
         family.get_to(p.family);
@@ -220,7 +224,7 @@ void from_json(const nlohmann::json& j, Spec::Prometheus& p) {
             throw std::runtime_error(
                     fmt::format("Stat:{} has invalid prometheus.labels type "
                                 "{}, must be an object",
-                                j.at("key"),
+                                j.at("key").get<std::string>(),
                                 labels.type_name()));
         }
         labels.get_to(p.labels);
@@ -277,7 +281,7 @@ void from_json(const nlohmann::json& j, Spec& s) {
             throw std::runtime_error(
                     fmt::format("Stat:{} has invalid type field type "
                                 "{}, must be a string",
-                                j.at("family"),
+                                j.at("family").get<std::string>(),
                                 type.type_name()));
         }
         type.get_to(s.type);
@@ -357,6 +361,11 @@ std::ostream& operator<<(std::ostream& os, const Spec& spec) {
 
     return os;
 }
+
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Spec> : ostream_formatter {};
+#endif
 
 nlohmann::json readJsonFile(const char* filename) {
     try {

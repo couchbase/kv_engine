@@ -684,6 +684,7 @@ protected:
 
 std::ostream& operator<<(std::ostream& os,
                          DcpConsumer::NoopIntervalNegotiation::State state);
+std::string format_as(DcpConsumer::NoopIntervalNegotiation::State state);
 
 /**
  * RAII helper class to update the flowControl object with the number of

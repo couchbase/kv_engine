@@ -473,6 +473,8 @@ std::ostream& operator<<(std::ostream& out,
 std::ostream& operator<<(std::ostream& out,
                          const cb::mcbp::ServerOpcode& opcode);
 
+std::string format_as(ClientOpcode opcode);
+std::string format_as(ServerOpcode opcode);
 } // namespace cb::mcbp
 
 /**

@@ -476,14 +476,14 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                         "lastReadSeqno:{} "
                         "curChkSeqno:{}",
                         vb_,
-                        lastSentSnapStartSeqno,
-                        lastSentSnapEndSeqno,
+                        lastSentSnapStartSeqno.load(),
+                        lastSentSnapEndSeqno.load(),
                         startSeqno,
                         endSeqno,
                         sid,
                         getName(),
-                        lastReadSeqno,
-                        curChkSeqno);
+                        lastReadSeqno.load(),
+                        curChkSeqno.load());
                 throw std::logic_error(msg);
             }
 
@@ -1743,15 +1743,15 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                     "lastReadSeqno:{} "
                     "curChkSeqno:{}",
                     vb_,
-                    lastSentSnapStartSeqno,
-                    lastSentSnapEndSeqno,
+                    lastSentSnapStartSeqno.load(),
+                    lastSentSnapEndSeqno.load(),
                     snapStart,
                     snapEnd,
                     flags,
                     sid,
                     getName(),
-                    lastReadSeqno,
-                    curChkSeqno);
+                    lastReadSeqno.load(),
+                    curChkSeqno.load());
             throw std::logic_error(msg);
         }
         lastSentSnapEndSeqno.store(snapEnd, std::memory_order_relaxed);
@@ -2754,15 +2754,15 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
                 "lastReadSeqno:{} "
                 "curChkSeqno:{}",
                 vb_,
-                lastSentSnapStartSeqno,
-                lastSentSnapEndSeqno,
+                lastSentSnapStartSeqno.load(),
+                lastSentSnapEndSeqno.load(),
                 start,
                 end,
                 flags,
                 sid,
                 getName(),
-                lastReadSeqno,
-                curChkSeqno);
+                lastReadSeqno.load(),
+                curChkSeqno.load());
         throw std::logic_error(msg);
     }
 

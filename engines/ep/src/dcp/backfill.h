@@ -173,6 +173,8 @@ private:
     folly::Synchronized<State> state{};
 };
 
+std::string format_as(DCPBackfill::State state);
+
 /**
  * KVStoreScanTracker is a class used to count how many scans are in existence
  * and providing methods to know if a new scan can be created.

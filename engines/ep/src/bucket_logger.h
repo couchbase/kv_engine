@@ -12,6 +12,8 @@
 #pragma once
 
 #include "spdlog/logger.h"
+#include <fmt/core.h>
+#include <spdlog/fmt/ostr.h>
 
 class EventuallyPersistentEngine;
 
@@ -299,4 +301,98 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 #define EP_LOG_CRITICAL_RAW(msg) \
     EP_LOG_RAW(spdlog::level::level_enum::critical, msg)
 
-#include "bucket_logger_impl.h"
+template <typename S, typename... Args>
+void BucketLogger::log(spdlog::level::level_enum lvl,
+                       const S& fmt,
+                       Args&&... args) {
+    if (!should_log(lvl)) {
+        return;
+    }
+
+#if FMT_VERSION < 90000
+    logInner(lvl, fmt, fmt::make_args_checked<Args...>(fmt, args...));
+#else
+    logInner(lvl, fmt, fmt::make_format_args(args...));
+#endif
+}
+
+template <typename... Args>
+void BucketLogger::log(spdlog::level::level_enum lvl, const char* msg) {
+    if (!should_log(lvl)) {
+        return;
+    }
+    logInner(lvl, msg, {});
+}
+
+template <typename T>
+void BucketLogger::log(spdlog::level::level_enum lvl, const T& msg) {
+    if (!should_log(lvl)) {
+        return;
+    }
+
+#if FMT_VERSION < 90000
+    logInner(lvl, "{}", fmt::make_args_checked<T>("{}", msg));
+#else
+    logInner(lvl, "{}", fmt::make_format_args(msg));
+#endif
+}
+
+template <typename... Args>
+void BucketLogger::trace(const char* fmt, const Args&... args) {
+    log(spdlog::level::trace, fmt, args...);
+}
+
+template <typename... Args>
+void BucketLogger::debug(const char* fmt, const Args&... args) {
+    log(spdlog::level::debug, fmt, args...);
+}
+
+template <typename... Args>
+void BucketLogger::info(const char* fmt, const Args&... args) {
+    log(spdlog::level::info, fmt, args...);
+}
+
+template <typename... Args>
+void BucketLogger::warn(const char* fmt, const Args&... args) {
+    log(spdlog::level::warn, fmt, args...);
+}
+
+template <typename... Args>
+void BucketLogger::error(const char* fmt, const Args&... args) {
+    log(spdlog::level::err, fmt, args...);
+}
+
+template <typename... Args>
+void BucketLogger::critical(const char* fmt, const Args&... args) {
+    log(spdlog::level::critical, fmt, args...);
+}
+
+template <typename T>
+void BucketLogger::trace(const T& msg) {
+    log(spdlog::level::trace, msg);
+}
+
+template <typename T>
+void BucketLogger::debug(const T& msg) {
+    log(spdlog::level::debug, msg);
+}
+
+template <typename T>
+void BucketLogger::info(const T& msg) {
+    log(spdlog::level::info, msg);
+}
+
+template <typename T>
+void BucketLogger::warn(const T& msg) {
+    log(spdlog::level::warn, msg);
+}
+
+template <typename T>
+void BucketLogger::error(const T& msg) {
+    log(spdlog::level::err, msg);
+}
+
+template <typename T>
+void BucketLogger::critical(const T& msg) {
+    log(spdlog::level::critical, msg);
+}

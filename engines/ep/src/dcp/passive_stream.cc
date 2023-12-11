@@ -1076,9 +1076,9 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 "PassiveStream::processMarker: snapEnd:{} < "
                 "visibleSnapEnd:{}, snapStart:{}, hcs:{}, "
                 "checkpointType:{}, historical:{}",
-                cur_snapshot_end,
+                cur_snapshot_end.load(),
                 visibleSeq,
-                cur_snapshot_start,
+                cur_snapshot_start.load(),
                 hcs ? std::to_string(*hcs) : "nullopt",
                 ::to_string(checkpointType),
                 ::to_string(historical));

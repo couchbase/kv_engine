@@ -681,3 +681,17 @@ std::ostream& operator<<(std::ostream&, const RangeScan&);
 std::ostream& operator<<(std::ostream&, const RangeScan::ContinueLimits&);
 std::ostream& operator<<(std::ostream&, const RangeScan::ContinueState&);
 std::ostream& operator<<(std::ostream&, const RangeScan::ContinueRunState&);
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<RangeScan> : ostream_formatter {};
+template <>
+struct fmt::formatter<RangeScan::State> : ostream_formatter {};
+template <>
+struct fmt::formatter<RangeScan::ContinueLimits> : ostream_formatter {};
+template <>
+struct fmt::formatter<RangeScan::ContinueState> : ostream_formatter {};
+template <>
+struct fmt::formatter<RangeScan::ContinueRunState> : ostream_formatter {};
+#endif

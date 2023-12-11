@@ -64,6 +64,8 @@ enum class ValueFilter {
     VALUES_DECOMPRESSED
 };
 
+std::string format_as(ValueFilter vf);
+
 enum class ScanStatus {
     Success, // reached the end
     Yield, // scan should yield and resume later
@@ -72,12 +74,14 @@ enum class ScanStatus {
 };
 
 std::ostream& operator<<(std::ostream& os, ScanStatus);
+std::string format_as(ScanStatus);
 
 enum class DocumentFilter {
     ALL_ITEMS,
     NO_DELETES,
     ALL_ITEMS_AND_DROPPED_COLLECTIONS
 };
+std::string format_as(DocumentFilter df);
 
 enum class SnapshotSource {
     Historical, // Required for PITR
@@ -122,6 +126,7 @@ protected:
 enum class CompactDBStatus { Success, Aborted, Failed };
 
 std::ostream& operator<<(std::ostream&, const CompactDBStatus&);
+std::string format_as(CompactDBStatus);
 
 /**
  * Functional interface of a KVStore. Each KVStore implementation must implement
@@ -854,3 +859,4 @@ std::string to_string(KVStoreIface::ReadVBStateStatus status);
 
 std::ostream& operator<<(std::ostream&,
                          const KVStoreIface::GetCollectionStatsStatus&);
+std::string format_as(const KVStoreIface::GetCollectionStatsStatus&);

@@ -199,3 +199,14 @@ using DroppedCb = std::function<void(
         const DiskDocKey& key, int64_t seqno, bool aborted, int64_t pcs)>;
 
 } // namespace Collections::KVStore
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<Collections::KVStore::Manifest> : ostream_formatter {};
+template <>
+struct fmt::formatter<Collections::KVStore::OpenScope> : ostream_formatter {};
+template <>
+struct fmt::formatter<Collections::KVStore::OpenCollection>
+    : ostream_formatter {};
+#endif

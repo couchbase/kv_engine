@@ -498,33 +498,42 @@ void KVStore::delSystemEvent(TransactionContext& txnCtx,
                              const queued_item item) {
     del(txnCtx, item);
 }
+std::string format_as(const FlushStateDeletion& fsd) {
+    switch (fsd) {
+    case FlushStateDeletion::Delete:
+        return "FlushStateDeletion::Delete";
+    case FlushStateDeletion::LogicallyDocNotFound:
+        return "FlushStateDeletion::LogicallyDocNotFound";
+    case FlushStateDeletion::DocNotFound:
+        return "FlushStateDeletion::DocNotFound";
+    case FlushStateDeletion::Failed:
+        return "FlushStateDeletion::Failed";
+    }
+    return fmt::format("INVALID FlushStateDeletion value: {}",
+                       static_cast<int>(fsd));
+}
 
 std::ostream& operator<<(std::ostream& os, const FlushStateDeletion& state) {
-    switch (state) {
-    case FlushStateDeletion::Delete:
-        return os << "FlushStateDeletion::Delete";
-    case FlushStateDeletion::LogicallyDocNotFound:
-        return os << "FlushStateDeletion::LogicallyDocNotFound";
-    case FlushStateDeletion::DocNotFound:
-        return os << "FlushStateDeletion::DocNotFound";
-    case FlushStateDeletion::Failed:
-        return os << "FlushStateDeletion::Failed";
+    return os << format_as(state);
+}
+
+std::string format_as(const FlushStateMutation& fsm) {
+    switch (fsm) {
+    case FlushStateMutation::Failed:
+        return "FlushStateMutation::Failed";
+    case FlushStateMutation::Insert:
+        return "FlushStateMutation::Insert";
+    case FlushStateMutation::LogicalInsert:
+        return "FlushStateMutation::LogicalInsert";
+    case FlushStateMutation::Update:
+        return "FlushStateMutation::Update";
     }
-    return os << "INVALID FlushStateDeletion value:" << static_cast<int>(state);
+    return fmt::format("INVALID FlushStateMutation value: {}",
+                       static_cast<int>(fsm));
 }
 
 std::ostream& operator<<(std::ostream& os, const FlushStateMutation& state) {
-    switch (state) {
-    case FlushStateMutation::Failed:
-        return os << "FlushStateMutation::Failed";
-    case FlushStateMutation::Insert:
-        return os << "FlushStateMutation::Insert";
-    case FlushStateMutation::LogicalInsert:
-        return os << "FlushStateMutation::LogicalInsert";
-    case FlushStateMutation::Update:
-        return os << "FlushStateMutation::Update";
-    }
-    return os << "INVALID FlushStateMutation value:" << static_cast<int>(state);
+    return os << format_as(state);
 }
 
 IORequest::IORequest(queued_item itm)
@@ -691,56 +700,56 @@ bool KVStore::checkAndFixKVStoreCreatedItem(Item& item) {
     return false;
 }
 
-std::ostream& operator<<(std::ostream& os, const ValueFilter& vf) {
+std::string format_as(const ValueFilter vf) {
     switch (vf) {
     case ValueFilter::KEYS_ONLY:
-        os << "KEYS_ONLY";
-        break;
+        return "KEYS_ONLY";
     case ValueFilter::VALUES_COMPRESSED:
-        os << "VALUES_COMPRESSED";
-        break;
+        return "VALUES_COMPRESSED";
     case ValueFilter::VALUES_DECOMPRESSED:
-        os << "VALUES_DECOMPRESSED";
-        break;
-    default:
-        os << "INVALID ValueFilter value:" +
-                        std::to_string(static_cast<uint64_t>(vf));
-        break;
+        return "VALUES_DECOMPRESSED";
     }
-    return os;
+    return fmt::format("INVALID ValueFilter value:{}",
+                       static_cast<uint64_t>(vf));
+}
+
+std::ostream& operator<<(std::ostream& os, const ValueFilter& vf) {
+    return os << format_as(vf);
+}
+
+std::string format_as(const DocumentFilter df) {
+    switch (df) {
+    case DocumentFilter::ALL_ITEMS:
+        return "ALL_ITEMS";
+    case DocumentFilter::NO_DELETES:
+        return "NO_DELETES";
+    case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
+        return "ALL_ITEMS_AND_DROPPED_COLLECTIONS";
+    }
+    return fmt::format("INVALID ValueFilter value:{}",
+                       static_cast<uint64_t>(df));
 }
 
 std::ostream& operator<<(std::ostream& os, const DocumentFilter& df) {
-    switch (df) {
-    case DocumentFilter::ALL_ITEMS:
-        os << "ALL_ITEMS";
-        break;
-    case DocumentFilter::NO_DELETES:
-        os << "NO_DELETES";
-        break;
-    case DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS:
-        os << "ALL_ITEMS_AND_DROPPED_COLLECTIONS";
-        break;
-    default:
-        os << "INVALID ValueFilter value:" +
-                        std::to_string(static_cast<uint64_t>(df));
-        break;
+    return os << format_as(df);
+}
+
+std::string format_as(ScanStatus status) {
+    switch (status) {
+    case ScanStatus::Success:
+        return "ScanStatus::Success";
+    case ScanStatus::Yield:
+        return "ScanStatus::Yield";
+    case ScanStatus::Cancelled:
+        return "ScanStatus::Cancelled";
+    case ScanStatus::Failed:
+        return "ScanStatus::Failed";
     }
-    return os;
+    folly::assume_unreachable();
 }
 
 std::ostream& operator<<(std::ostream& os, ScanStatus status) {
-    switch (status) {
-    case ScanStatus::Success:
-        return os << "ScanStatus::Success";
-    case ScanStatus::Yield:
-        return os << "ScanStatus::Yield";
-    case ScanStatus::Cancelled:
-        return os << "ScanStatus::Cancelled";
-    case ScanStatus::Failed:
-        return os << "ScanStatus::Failed";
-    }
-    folly::assume_unreachable();
+    return os << format_as(status);
 }
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status) {
@@ -759,30 +768,39 @@ std::string to_string(KVStoreIface::ReadVBStateStatus status) {
     folly::assume_unreachable();
 }
 
-std::ostream& operator<<(std::ostream& os, const CompactDBStatus& status) {
+std::string format_as(CompactDBStatus status) {
     switch (status) {
     case CompactDBStatus::Success:
-        return os << "CompactDBStatus::Success";
+        return "CompactDBStatus::Success";
     case CompactDBStatus::Aborted:
-        return os << "CompactDBStatus::Aborted";
+        return "CompactDBStatus::Aborted";
     case CompactDBStatus::Failed:
-        return os << "CompactDBStatus::Failed";
+        return "CompactDBStatus::Failed";
     }
-    return os << "INVALID CompactDBStatus value:" << static_cast<int>(status);
+    return fmt::format("INVALID CompactDBStatus value:{}",
+                       static_cast<int>(status));
+}
+
+std::ostream& operator<<(std::ostream& os, const CompactDBStatus& status) {
+    return os << format_as(status);
+}
+
+std::string format_as(const KVStoreIface::GetCollectionStatsStatus& status) {
+    switch (status) {
+    case KVStoreIface::GetCollectionStatsStatus::Success:
+        return "GetCollectionStatsStatus::Success";
+    case KVStoreIface::GetCollectionStatsStatus::NotFound:
+        return "GetCollectionStatsStatus::NotFound";
+    case KVStoreIface::GetCollectionStatsStatus::Failed:
+        return "GetCollectionStatsStatus::Failed";
+    }
+    return fmt::format("INVALID GetCollectionStatsStatus value:{}",
+                       static_cast<int>(status));
 }
 
 std::ostream& operator<<(std::ostream& os,
                          const KVStoreIface::GetCollectionStatsStatus& status) {
-    switch (status) {
-    case KVStoreIface::GetCollectionStatsStatus::Success:
-        return os << "GetCollectionStatsStatus::Success";
-    case KVStoreIface::GetCollectionStatsStatus::NotFound:
-        return os << "GetCollectionStatsStatus::NotFound";
-    case KVStoreIface::GetCollectionStatsStatus::Failed:
-        return os << "GetCollectionStatsStatus::Failed";
-    }
-    return os << "INVALID GetCollectionStatsStatus value:"
-              << static_cast<int>(status);
+    return os << format_as(status);
 }
 
 DBFileInfo& DBFileInfo::operator+=(const DBFileInfo& other) {

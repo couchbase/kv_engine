@@ -551,3 +551,9 @@ private:
     std::unordered_map<Vbid, std::set<StoredDocKey>> loading;
     std::array<size_t, int(MutationLogType::NumberOfTypes)> itemsSeen;
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<MutationLog> : ostream_formatter {};
+#endif

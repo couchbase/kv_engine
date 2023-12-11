@@ -67,3 +67,9 @@ struct PersistedStats {
 std::ostream& operator<<(std::ostream& os, const PersistedStats& ps);
 
 } // namespace Collections::VB
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 100000
+template <>
+struct fmt::formatter<Collections::VB::PersistedStats> : ostream_formatter {};
+#endif

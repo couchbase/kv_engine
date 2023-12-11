@@ -934,7 +934,7 @@ bool CheckpointManager::queueDirty(
                     ::to_string(qi->getOperation()),
                     qi->getBySeqno(),
                     qi->getKey(),
-                    lastBySeqno,
+                    lastBySeqno.load(),
                     openCkpt->getSnapshotStartSeqno(),
                     openCkpt->getSnapshotEndSeqno());
             throw std::logic_error(msg);

@@ -338,8 +338,10 @@ void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
                     systemClockTolerance,
                     lastKnownSystemTime,
                     systemTime,
-                    fmt::localtime(time_point<system_clock>(epoch.load())),
-                    fmt::localtime(time_point<system_clock>(newEpoch)),
+                    fmt::localtime(system_clock::to_time_t(
+                            time_point<system_clock>(epoch.load()))),
+                    fmt::localtime(system_clock::to_time_t(
+                            time_point<system_clock>(newEpoch))),
                     duration_cast<duration<float>>(nextSystemTimeCheck),
                     systemClockCheckWarnings);
         }

@@ -473,3 +473,9 @@ protected:
     // @todo: Try to remove this, currenlty necessary for testing wipeTracked()
     friend class ActiveDurabilityMonitorTest;
 };
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<ActiveDurabilityMonitor> : ostream_formatter {};
+#endif

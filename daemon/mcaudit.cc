@@ -117,7 +117,7 @@ static void do_audit(Cookie* cookie,
     getAuditHandle().withRLock([id, warn, &event](auto& handle) {
         if (handle) {
             if (!handle->put_event(id, event)) {
-                LOG_WARNING("{}: {}", warn, event);
+                LOG_WARNING("{}: {}", warn, event.dump());
             }
         }
     });

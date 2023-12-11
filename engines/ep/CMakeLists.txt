@@ -610,7 +610,6 @@ if(CB_ENABLE_HEADER_INCLUDE_CHECK)
 
     # List of headers to ignore / not attempt to compile
     list(REMOVE_ITEM ep_headers
-      src/bucket_logger_impl.h # Included via bucket_logger.h
       src/config.cmake.h  # XXXX
       src/tasks.def.h  # X-Macro file; cannot be compiled by itself
     )

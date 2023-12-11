@@ -229,9 +229,11 @@ std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta) {
 }
 
 std::ostream& operator<<(std::ostream& os, const ScopeMetaData& meta) {
-    os << "sid:" << meta.sid << ",name:" << meta.name;
+    return os << format_as(meta);
+}
 
-    return os;
+std::string format_as(const ScopeMetaData& meta) {
+    return fmt::format("sid:{},name:{}", meta.sid, meta.name);
 }
 
 } // end namespace Collections

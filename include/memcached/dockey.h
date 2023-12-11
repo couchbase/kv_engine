@@ -150,6 +150,9 @@ private:
 
 bool operator==(CollectionIDType lhs, const CollectionID& rhs);
 std::ostream& operator<<(std::ostream& os, const CollectionID& cid);
+inline auto format_as(const CollectionID& cid) {
+    return cid.to_string();
+}
 
 using ScopeIDType = uint32_t;
 class ScopeID {
@@ -212,6 +215,9 @@ private:
 
 bool operator==(ScopeIDType lhs, const ScopeID& rhs);
 std::ostream& operator<<(std::ostream& os, const ScopeID& sid);
+inline auto format_as(const ScopeID& sid) {
+    return sid.to_string();
+}
 
 using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;
 

@@ -1716,6 +1716,14 @@ std::ostream& operator<<(std::ostream& out,
     return out;
 }
 
+std::string format_as(ClientOpcode opcode) {
+    return ::to_string(opcode);
+}
+
+std::string format_as(ServerOpcode opcode) {
+    return ::to_string(opcode);
+}
+
 } // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::ClientOpcode opcode) {

@@ -341,3 +341,9 @@ protected:
 std::ostream& operator<<(std::ostream& os, const Filter& filter);
 
 } // namespace Collections::VB
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<Collections::VB::Filter> : ostream_formatter {};
+#endif

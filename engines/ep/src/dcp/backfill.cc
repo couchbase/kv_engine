@@ -101,21 +101,24 @@ void DCPBackfill::cancel() {
     }
 }
 
-std::ostream& operator<<(std::ostream& os, DCPBackfill::State state) {
+std::string format_as(DCPBackfill::State state) {
     switch (state) {
     case DCPBackfill::State::Create:
-        return os << "State::Create";
+        return "State::Create";
     case DCPBackfill::State::Scan:
-        return os << "State::Scan";
+        return "State::Scan";
     case DCPBackfill::State::ScanHistory:
-        return os << "State::ScanHistory";
+        return "State::ScanHistory";
     case DCPBackfill::State::Done:
-        return os << "State::Done";
+        return "State::Done";
     }
     throw std::logic_error(fmt::format("{}: Invalid state:{}",
                                        __PRETTY_FUNCTION__,
                                        std::to_string(int(state))));
-    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, DCPBackfill::State state) {
+    return os << format_as(state);
 }
 
 std::ostream& operator<<(std::ostream& os, backfill_status_t status) {

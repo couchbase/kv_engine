@@ -924,3 +924,9 @@ std::string to_string(const DurabilityMonitor::Position<Container>& pos,
     ss << "}";
     return ss.str();
 }
+
+#include <fmt/ostream.h>
+#if FMT_VERSION >= 90000
+template <>
+struct fmt::formatter<ActiveDurabilityMonitor::State> : ostream_formatter {};
+#endif
