@@ -132,27 +132,23 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
        to dead state. We do not want to add any new message to the buffer or
        process any items in the buffer once we set the stream state to dead. */
     std::unique_lock<std::mutex> lg(buffer.bufMutex);
-    uint32_t unackedBytes = clearBuffer_UNLOCKED();
-    bool killed = false;
+    const auto unackedBytes = clearBuffer_UNLOCKED();
 
     std::lock_guard<std::mutex> slh(streamMutex);
     if (transitionState(StreamState::Dead)) {
-        killed = true;
-    }
-
-    if (killed) {
-        auto severity = spdlog::level::level_enum::info;
-        if (cb::mcbp::DcpStreamEndStatus::Disconnected == status) {
-            severity = spdlog::level::level_enum::warn;
-        }
+        const auto severity =
+                status == cb::mcbp::DcpStreamEndStatus::Disconnected
+                        ? spdlog::level::level_enum::warn
+                        : spdlog::level::level_enum::info;
         log(severity,
-            "({}) Setting stream to dead state, last_seqno is {}, "
-            "unAckedBytes is {}, status is {}",
+            "({}) Setting stream to dead state, last_seqno is {}, unAckedBytes "
+            "is {}, status is {}",
             vb_,
             last_seqno.load(),
             unackedBytes,
             cb::mcbp::to_string(status));
     }
+
     return unackedBytes;
 }
 
