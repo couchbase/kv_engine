@@ -264,13 +264,15 @@ public:
                     const DocKey& key,
                     size_t nbytes,
                     uint32_t flags,
-                    rel_time_t exptime,
+                    time_t exptime,
                     const value_t& body,
-                    uint8_t datatype,
+                    protocol_binary_datatype_t datatype,
                     uint64_t theCas,
                     int64_t bySeq,
                     Vbid vbid,
-                    int64_t revSeq)>;
+                    uint64_t revSeq)>;
+
+    static CreateItemCB getDefaultCreateItemCallback();
 
     /**
      * Retrieve multiple documents from the underlying storage system at once.

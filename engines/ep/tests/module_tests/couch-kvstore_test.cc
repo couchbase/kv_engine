@@ -531,19 +531,7 @@ public:
         kvstore = std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config), ops);
         initialize_kv_store(kvstore.get());
-        defaultCreateItemCallback = [](const DocKey& key,
-                                       size_t nbytes,
-                                       uint32_t flags,
-                                       rel_time_t exptime,
-                                       const value_t& body,
-                                       uint8_t datatype,
-                                       uint64_t theCas,
-                                       int64_t bySeq,
-                                       Vbid vbid,
-                                       int64_t revSeq)
-                -> std::pair<cb::engine_errc, std::unique_ptr<Item>> {
-            return {cb::engine_errc::success, nullptr};
-        };
+        defaultCreateItemCallback = kvstore->getDefaultCreateItemCallback();
     }
 
     ~CouchKVStoreErrorInjectionTest() override {

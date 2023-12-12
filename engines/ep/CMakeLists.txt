@@ -357,6 +357,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/kvstore/nexus-kvstore/nexus-kvstore-config.cc
             src/kvstore/kvstore.cc
             src/kvstore/kvstore_config.cc
+            src/kvstore/kvstore_iface.cc
             src/kv_bucket.cc
             src/kvshard.cc
             src/learning_age_and_mfu_based_eviction.cc

@@ -627,7 +627,8 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
                     "couchstore_docinfo_by_id returned success but docInfo "
                     "is NULL");
         }
-        errCode = fetchDoc(db, docInfo, rv, vb, filter);
+        errCode = fetchDoc(
+                db, docInfo, rv, vb, filter, getDefaultCreateItemCallback());
         if (errCode != COUCHSTORE_SUCCESS) {
             logger.warn(
                     "CouchKVStore::getWithHeader: fetchDoc error:{} [{}],"
@@ -2724,7 +2725,8 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
                                           DocInfo* docinfo,
                                           GetValue& docValue,
                                           Vbid vbId,
-                                          ValueFilter filter) const {
+                                          ValueFilter filter,
+                                          CreateItemCB createItemCb) const {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     const bool fetchCompressed = (filter == ValueFilter::VALUES_COMPRESSED);
     const couchstore_open_options openOptions =
@@ -3590,8 +3592,12 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     vb_bgfetch_item_ctx_t& bg_itm_ctx = (*qitr).second;
 
     const auto valueFilter = bg_itm_ctx.getValueFilter();
-    couchstore_error_t errCode = cbCtx->cks.fetchDoc(
-            db, docinfo, bg_itm_ctx.value, cbCtx->vbId, valueFilter);
+    couchstore_error_t errCode = cbCtx->cks.fetchDoc(db,
+                                                     docinfo,
+                                                     bg_itm_ctx.value,
+                                                     cbCtx->vbId,
+                                                     valueFilter,
+                                                     cbCtx->createItemCallback);
     using namespace std::chrono;
     auto fetDocEndTime = steady_clock::now();
 
@@ -4555,7 +4561,8 @@ GetValue CouchKVStore::getBySeqno(KVFileHandle& handle,
     }
 
     GetValue rv;
-    status = fetchDoc(db, docInfo, rv, vbid, filter);
+    status = fetchDoc(
+            db, docInfo, rv, vbid, filter, getDefaultCreateItemCallback());
 
     if (status != COUCHSTORE_SUCCESS) {
         ++st.numGetFailure;

@@ -299,7 +299,8 @@ public:
                                 DocInfo* docinfo,
                                 GetValue& docValue,
                                 Vbid vbId,
-                                ValueFilter filter) const;
+                                ValueFilter filter,
+                                CreateItemCB createItemCb) const;
     cb::engine_errc couchErr2EngineErr(couchstore_error_t errCode) const;
 
     cb::engine_errc getAllKeys(
