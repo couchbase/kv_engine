@@ -182,7 +182,8 @@ void DcpReplicatorImpl::createPipesForNode(const Cluster& cluster,
              cb::mcbp::Feature::XERROR,
              cb::mcbp::Feature::SELECT_BUCKET,
              cb::mcbp::Feature::SNAPPY,
-             cb::mcbp::Feature::JSON}};
+             cb::mcbp::Feature::JSON,
+             cb::mcbp::Feature::Collections}};
 
     for (size_t node = 0; node < vbids.size(); ++node) {
         if (vbids[node].empty()) {
@@ -216,7 +217,8 @@ void DcpReplicatorImpl::createPipeForNodes(const Cluster& cluster,
              cb::mcbp::Feature::XERROR,
              cb::mcbp::Feature::SELECT_BUCKET,
              cb::mcbp::Feature::SNAPPY,
-             cb::mcbp::Feature::JSON}};
+             cb::mcbp::Feature::JSON,
+             cb::mcbp::Feature::Collections}};
 
     if (vbids[specific.consumer].empty()) {
         // I don't have any connections towards this node
@@ -240,7 +242,12 @@ void DcpReplicatorImpl::createDcpPipe(const Cluster& cluster,
 
     // Create and send a DCP open
     auto rsp = connection->execute(BinprotDcpOpenCommand{
-            name, cb::mcbp::request::DcpOpenPayload::Producer});
+            name,
+            cb::mcbp::request::DcpOpenPayload::Producer |
+                    cb::mcbp::request::DcpOpenPayload::IncludeXattrs |
+                    cb::mcbp::request::DcpOpenPayload::
+                            IncludeDeletedUserXattrs |
+                    cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes});
     if (!rsp.isSuccess()) {
         throw std::runtime_error(
                 "DcpReplicatorImpl::start: Failed to set up "

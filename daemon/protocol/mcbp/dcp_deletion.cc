@@ -16,6 +16,15 @@
 #include <mcbp/protocol/request.h>
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
+#include <xattr/blob.h>
+
+static bool invalidXattrSize(cb::const_byte_buffer value,
+                             protocol_binary_datatype_t datatype) {
+    const char* payload = reinterpret_cast<const char*>(value.data());
+    cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
+                         mcbp::datatype::is_snappy(datatype));
+    return blob.get_system_size() > cb::limits::PrivilegedBytes;
+}
 
 static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     auto& request = cookie.getHeader().getRequest();
@@ -41,24 +50,22 @@ static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     cb::const_byte_buffer meta{value.data() + value.size() - nmeta, nmeta};
     value = {value.data(), value.size() - nmeta};
 
-    uint32_t priv_bytes = 0;
-    if (mcbp::datatype::is_xattr(datatype)) {
-        priv_bytes = gsl::narrow<uint32_t>(value.size());
+    if (mcbp::datatype::is_xattr(datatype) &&
+        invalidXattrSize(value, datatype)) {
+        return cb::engine_errc::too_big;
     }
-    if (priv_bytes <= cb::limits::PrivilegedBytes) {
-        return dcpDeletion(cookie,
-                           opaque,
-                           key,
-                           value,
-                           priv_bytes,
-                           datatype,
-                           cas,
-                           vbucket,
-                           by_seqno,
-                           rev_seqno,
-                           meta);
-    }
-    return cb::engine_errc::too_big;
+
+    return dcpDeletion(cookie,
+                       opaque,
+                       key,
+                       value,
+                       0, // @todo: remove priv_bytes. unused.
+                       datatype,
+                       cas,
+                       vbucket,
+                       by_seqno,
+                       rev_seqno,
+                       meta);
 }
 
 // The updated deletion sends no extended meta, but does send a deletion time
@@ -86,25 +93,22 @@ static cb::engine_errc dcp_deletion_v2_executor(Cookie& cookie) {
     const uint32_t delete_time = payload.getDeleteTime();
 
     auto value = request.getValue();
-    uint32_t priv_bytes = 0;
-    if (mcbp::datatype::is_xattr(datatype)) {
-        priv_bytes = gsl::narrow<uint32_t>(value.size());
+    if (mcbp::datatype::is_xattr(datatype) &&
+        invalidXattrSize(value, datatype)) {
+        return cb::engine_errc::too_big;
     }
 
-    if (priv_bytes <= cb::limits::PrivilegedBytes) {
-        return dcpDeletionV2(cookie,
-                             opaque,
-                             key,
-                             value,
-                             priv_bytes,
-                             datatype,
-                             cas,
-                             vbucket,
-                             by_seqno,
-                             rev_seqno,
-                             delete_time);
-    }
-    return cb::engine_errc::too_big;
+    return dcpDeletionV2(cookie,
+                         opaque,
+                         key,
+                         value,
+                         0, // @todo: remove this unused parameter
+                         datatype,
+                         cas,
+                         vbucket,
+                         by_seqno,
+                         rev_seqno,
+                         delete_time);
 }
 
 void dcp_deletion_executor(Cookie& cookie) {

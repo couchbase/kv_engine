@@ -12,6 +12,7 @@
 
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <memcached/limits.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
@@ -232,6 +233,43 @@ TEST_F(DurabilityTest, SyncWriteReviveDeletedDocument) {
     conn->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
+    cmd = {};
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::ReviveDocument);
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "tnx.bar",
+                    R"("This should succeed")");
+    conn->sendCommand(cmd);
+    conn->recvResponse(resp);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+// Verify that we can create (and replicate) a large xattr, exceed the PrivBytes
+TEST_F(DurabilityTest, CreateAsDeletedLarge) {
+    BinprotSubdocMultiMutationCommand cmd;
+    std::string name = "CreateAsDeletedLarge";
+    // Ensure we exceed priv bytes. Just using this size is enough when we add
+    // the key
+    std::string value(cb::limits::PrivilegedBytes, 'v');
+    cmd.setKey(name);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(mcbp::subdoc::doc_flag::CreateAsDeleted);
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    "tnx.foo",
+                    "\"" + value + "\"");
+    auto conn = getConnection();
+    conn->sendCommand(cmd);
+
+    BinprotSubdocMultiMutationResponse resp;
+    conn->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+
+    // Do a sync-write after to ensure the test replicates the previous big
+    // xattr
     cmd = {};
     cmd.setKey(name);
     cmd.addDocFlag(mcbp::subdoc::doc_flag::AccessDeleted);
