@@ -158,6 +158,7 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
 int main() {
     LLVMFuzzerInitialize(nullptr, nullptr);
     LLVMFuzzerTestOneInput(nullptr, 0);
+    shutdown_audit();
     return 0;
 }
 #endif
