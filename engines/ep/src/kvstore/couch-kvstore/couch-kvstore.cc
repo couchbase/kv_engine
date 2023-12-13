@@ -133,12 +133,20 @@ static std::pair<couchstore_error_t, nlohmann::json> getLocalVbState(Db& db) {
  * @param value an optional value, this allows "key-only" paths to be
  *        distinguishable from a value of 0 length.
  * @param fetchedCompressed The value is compressed
+ * @param createItemCb the callback that will determine if there is
+ * sufficient memory before creating an item.
+ *
+ * @return If there is sufficient memory to allocate for an item a GetValue with
+ * a unique pointer to an item and cb::engine_errc:success is returned.
+ * Otherwise, a GetValue with nullptr as it's item and
+ * cb::engine_errc::temporary_failure/no_memory is returned.
  */
-static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
-                                                 const DocInfo& docinfo,
-                                                 const MetaData& metadata,
-                                                 std::optional<sized_buf> value,
-                                                 bool fetchedCompressed) {
+static GetValue makeItemFromDocInfo(Vbid vbid,
+                                    const DocInfo& docinfo,
+                                    const MetaData& metadata,
+                                    std::optional<sized_buf> value,
+                                    bool fetchedCompressed,
+                                    KVStoreIface::CreateItemCB createItemCb) {
     auto datatype = metadata.getDataType();
     // If document was fetched compressed, then set SNAPPY flag for non-zero
     // length documents.
@@ -146,24 +154,31 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
-    value_t body;
+    size_t nbytes = 0;
     if (value) {
-        body.reset(TaggedPtr<Blob>(Blob::New(value->buf, value->size),
-                                   TaggedPtrBase::NoTagValue));
+        nbytes = docinfo.physical_size;
     }
     // Strip off the DurabilityPrepare namespace (if present) from the persisted
     // dockey before we create the in-memory item.
-    auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
+    auto diskDocKey = makeDiskDocKey(docinfo.id);
+    auto [status, item] = createItemCb(diskDocKey.getDocKey(),
+                                       nbytes,
                                        metadata.getFlags(),
                                        metadata.getExptime(),
-                                       body,
+                                       value_t(),
                                        datatype,
                                        metadata.getCas(),
                                        docinfo.db_seq,
                                        vbid,
                                        docinfo.rev_seq);
+    if (status != cb::engine_errc::success) {
+        return GetValue(std::move(item), status);
+    }
 
+    // Blob creation is deferred to avoid exceeding quota.
     if (value) {
+        item->replaceValue(TaggedPtr<Blob>(Blob::New(value->buf, value->size),
+                                           TaggedPtrBase::NoTagValue));
         KVStore::checkAndFixKVStoreCreatedItem(*item);
     }
 
@@ -203,7 +218,7 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
                                    to_string(metadata.getDurabilityOp()));
         }
     }
-    return item;
+    return GetValue(std::move(item), status);
 }
 
 static std::string getDBFileName(const std::string& dbname,
@@ -801,8 +816,12 @@ void CouchKVStore::getRange(Vbid vb,
         if (doc) {
             value = doc->data;
         }
-        state.userFunc(GetValue{makeItemFromDocInfo(
-                state.vb, *docinfo, *metadata, value, fetchCompressed)});
+        state.userFunc(makeItemFromDocInfo(state.vb,
+                                           *docinfo,
+                                           *metadata,
+                                           value,
+                                           fetchCompressed,
+                                           getDefaultCreateItemCallback()));
         if (doc) {
             couchstore_free_document(doc);
         }
@@ -891,9 +910,14 @@ static int notify_expired_item(DocInfo& info,
     }
 
     auto vbid = ctx.getVBucket()->getId();
-    auto it = makeItemFromDocInfo(vbid, info, metadata, data, false);
+    auto gv = makeItemFromDocInfo(vbid,
+                                  info,
+                                  metadata,
+                                  data,
+                                  false,
+                                  KVStoreIface::getDefaultCreateItemCallback());
 
-    ctx.expiryCallback->callback(*it, currtime);
+    ctx.expiryCallback->callback(*gv.item, currtime);
 
     return COUCHSTORE_SUCCESS;
 }
@@ -2742,10 +2766,14 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
             docinfo->deleted, metadata->getDataType());
     if (filter == ValueFilter::KEYS_ONLY && !forceValueFetch) {
         // Can skip reading document value.
-        auto it = makeItemFromDocInfo(
-                vbId, *docinfo, *metadata, std::nullopt, fetchCompressed);
+        auto gv = makeItemFromDocInfo(vbId,
+                                      *docinfo,
+                                      *metadata,
+                                      std::nullopt,
+                                      fetchCompressed,
+                                      std::move(createItemCb));
 
-        docValue = GetValue(std::move(it));
+        docValue = std::move(gv);
         // update ep-engine IO stats
         ++st.io_bg_fetch_docs_read;
         st.io_bgfetch_doc_bytes += (docinfo->id.size + docinfo->rev_meta.size);
@@ -2776,9 +2804,13 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
     }
 
     try {
-        auto it = makeItemFromDocInfo(
-                vbId, *docinfo, *metadata, value, fetchCompressed);
-        docValue = GetValue(std::move(it));
+        auto gv = makeItemFromDocInfo(vbId,
+                                      *docinfo,
+                                      *metadata,
+                                      value,
+                                      fetchCompressed,
+                                      std::move(createItemCb));
+        docValue = std::move(gv);
     } catch (std::bad_alloc&) {
         couchstore_free_document(doc);
         return COUCHSTORE_ERROR_ALLOC_FAIL;
@@ -2917,9 +2949,13 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         }
     }
 
-    auto it = makeItemFromDocInfo(
-            vbucketId, *docinfo, *metadata, value, fetchCompressed);
-    GetValue rv(std::move(it), cb::engine_errc::success, -1, keysOnly);
+    auto gv = makeItemFromDocInfo(vbucketId,
+                                  *docinfo,
+                                  *metadata,
+                                  value,
+                                  fetchCompressed,
+                                  KVStoreIface::getDefaultCreateItemCallback());
+    GetValue rv(std::move(gv.item), cb::engine_errc::success, -1, keysOnly);
     cb.callback(rv);
 
     couchstore_free_document(doc);
@@ -3606,7 +3642,13 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
         st.numGetFailure++;
     }
 
-    bg_itm_ctx.value.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
+    // In the event of a Couchstore error (errCode != COUCHSTORE_SUCCESS), we
+    // update the background item context's status to the equivalent engine
+    // error. We also ensure not to override the temp_failure/no_memory status
+    // set by createItemCallback.
+    if (errCode != COUCHSTORE_SUCCESS) {
+        bg_itm_ctx.value.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
+    }
 
     bool return_val_ownership_transferred = false;
     for (auto& fetch : bg_itm_ctx.getRequests()) {
@@ -3614,8 +3656,7 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
         st.readTimeHisto.add(
                 duration_cast<microseconds>(fetDocEndTime - fetch->initTime));
         if (errCode == COUCHSTORE_SUCCESS) {
-            st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
-                                 bg_itm_ctx.value.item->getNBytes());
+            st.readSizeHisto.add(docinfo->id.size + docinfo->physical_size);
         }
     }
     if (!return_val_ownership_transferred) {
