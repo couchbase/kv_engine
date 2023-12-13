@@ -135,7 +135,10 @@ def parse_slow_operation(node, m):
             event['args'] = {'opaque': opaque,
                              'fd': fd,
                              'peer': slow_op['peer']}
-            event['args']['key'] = slow_op['packet']['key']
+            try:
+                event['args']['key'] = slow_op['packet']['key']
+            except KeyError:
+                pass
             event['args']['bucket'] = slow_op['bucket']
             event['args']['vbucket'] = slow_op['packet']['vbucket']
             event['args']['time'] = time
