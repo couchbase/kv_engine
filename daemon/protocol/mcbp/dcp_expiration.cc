@@ -14,6 +14,15 @@
 #include "utilities.h"
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
+#include <xattr/blob.h>
+
+static bool invalidXattrSize(cb::const_byte_buffer value,
+                             protocol_binary_datatype_t datatype) {
+    const char* payload = reinterpret_cast<const char*>(value.data());
+    cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
+                         cb::mcbp::datatype::is_snappy(datatype));
+    return blob.get_system_size() > cb::limits::PrivilegedBytes;
+}
 
 void dcp_expiration_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
@@ -27,12 +36,8 @@ void dcp_expiration_executor(Cookie& cookie) {
 
         auto value = req.getValue();
 
-        uint32_t priv_bytes = 0;
-        if (cb::mcbp::datatype::is_xattr(datatype)) {
-            priv_bytes = gsl::narrow<uint32_t>(value.size());
-        }
-
-        if (priv_bytes > cb::limits::PrivilegedBytes) {
+        if (cb::mcbp::datatype::is_xattr(datatype) &&
+            invalidXattrSize(value, datatype)) {
             ret = cb::engine_errc::too_big;
         } else {
             ret = dcpExpiration(cookie,
