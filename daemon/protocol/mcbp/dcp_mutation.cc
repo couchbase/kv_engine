@@ -30,13 +30,11 @@ static inline cb::engine_errc do_dcp_mutation(Cookie& cookie) {
                                         nmeta};
     value = {value.data(), value.size() - nmeta};
 
-    uint32_t priv_bytes = 0;
     if (cb::mcbp::datatype::is_xattr(datatype)) {
         const char* payload = reinterpret_cast<const char*>(value.data());
         cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
                              cb::mcbp::datatype::is_snappy(datatype));
-        priv_bytes = uint32_t(blob.get_system_size());
-        if (priv_bytes > cb::limits::PrivilegedBytes) {
+        if (blob.get_system_size() > cb::limits::PrivilegedBytes) {
             return cb::engine_errc::too_big;
         }
     }
@@ -45,7 +43,6 @@ static inline cb::engine_errc do_dcp_mutation(Cookie& cookie) {
                        req.getOpaque(),
                        cookie.getConnection().makeDocKey(req.getKey()),
                        value,
-                       priv_bytes,
                        datatype,
                        req.getCas(),
                        req.getVBucket(),

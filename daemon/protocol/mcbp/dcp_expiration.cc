@@ -39,7 +39,6 @@ void dcp_expiration_executor(Cookie& cookie) {
                                 req.getOpaque(),
                                 connection.makeDocKey(req.getKey()),
                                 value,
-                                priv_bytes,
                                 uint8_t(req.getDatatype()),
                                 req.getCas(),
                                 req.getVBucket(),

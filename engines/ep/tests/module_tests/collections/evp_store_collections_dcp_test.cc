@@ -120,7 +120,6 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                       /*opaque*/ 2,
                       StoredDocKey{"meat:bacon", CollectionEntry::meat},
                       cb::const_byte_buffer(),
-                      /*priv_bytes*/ 0,
                       PROTOCOL_BINARY_DATATYPE_JSON,
                       /*cas*/ 0,
                       vbid,

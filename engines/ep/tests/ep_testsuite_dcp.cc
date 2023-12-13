@@ -979,7 +979,6 @@ static void dcp_stream_to_replica(EngineIface* h,
                               opaque,
                               docKey,
                               value,
-                              0, // priv bytes
                               datatype,
                               cas,
                               vbucket,
@@ -1115,7 +1114,6 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
                                 opaque,
                                 docKey,
                                 {},
-                                0, // priv bytes
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 cas,
                                 vbucket,
@@ -1237,7 +1235,6 @@ extern "C" {
                                        stream_opaque,
                                        docKey,
                                        {(const uint8_t*)"value", 5},
-                                       0, // priv bytes
                                        PROTOCOL_BINARY_RAW_BYTES,
                                        i * 3, // cas
                                        Vbid(0),
@@ -2489,7 +2486,6 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
-                          0, // privileged bytes
                           PROTOCOL_BINARY_RAW_BYTES,
                           0, // cas
                           vbid,
@@ -3321,7 +3317,6 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -3453,7 +3448,6 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -3487,7 +3481,6 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -3610,7 +3603,6 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               0, // cas
                               Vbid(0),
@@ -3695,7 +3687,6 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -3729,7 +3720,6 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
-                          0, // privileged bytes
                           PROTOCOL_BINARY_RAW_BYTES,
                           i * 3, // cas
                           Vbid(0),
@@ -3838,7 +3828,6 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -4769,7 +4758,6 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           opaque + 1,
                           docKey,
                           {(const uint8_t*)data, dataLen},
-                          0,
                           datatype,
                           cas,
                           vbucket,
@@ -4813,7 +4801,6 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                           opaque,
                           docKey,
                           {(const uint8_t*)data, dataLen},
-                          0,
                           datatype,
                           cas,
                           vbucket,
@@ -4903,7 +4890,6 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           opaque + 1,
                           docKey,
                           {},
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           cas,
                           vbucket,
@@ -4919,7 +4905,6 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                           opaque,
                           docKey,
                           {},
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           cas,
                           vbucket,
@@ -4998,7 +4983,6 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                             opaque + 1,
                             docKey,
                             {},
-                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             cas,
                             vbucket,
@@ -5014,7 +4998,6 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                             opaque,
                             docKey,
                             {},
-                            0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             cas,
                             vbucket,
@@ -6267,7 +6250,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0,
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3,
                               Vbid(0),
@@ -6288,7 +6270,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                           stream_opaque,
                           key,
                           {(const uint8_t*)"val", 3},
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           35,
                           Vbid(0),
@@ -6306,7 +6287,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                           stream_opaque,
                           key5,
                           {},
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           40,
                           Vbid(0),
@@ -6326,7 +6306,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                                         stream_opaque,
                                         docKey20,
                                         {(const uint8_t*)"val", 3},
-                                        0,
                                         PROTOCOL_BINARY_RAW_BYTES,
                                         45,
                                         Vbid(0),
@@ -6410,7 +6389,6 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0,
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3,
                               Vbid(0),
@@ -6482,7 +6460,6 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                             stream_opaque,
                                             docKey,
                                             {(const uint8_t*)"val", 3},
-                                            0,
                                             PROTOCOL_BINARY_RAW_BYTES,
                                             i * 3,
                                             Vbid(0),
@@ -6544,7 +6521,6 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
                           stream_opaque,
                           docKey,
                           value,
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           10,
                           Vbid(0),
@@ -6562,7 +6538,6 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
                           stream_opaque,
                           docKey,
                           {},
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           10,
                           Vbid(0),
@@ -6620,7 +6595,6 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -6961,7 +6935,6 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)value.c_str(), value.size()},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               -1, // cas
                               Vbid(0),
@@ -7000,7 +6973,6 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                           stream_opaque,
                           docKey,
                           {},
-                          0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           -1, // cas
                           Vbid(0),
@@ -7203,7 +7175,6 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -7286,7 +7257,6 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                           stream_opaque,
                           docKey,
                           {(const uint8_t*)"value", 5},
-                          0, // privileged bytes
                           datatype,
                           cas, // cas
                           rep_vb_num, // vbucket
@@ -7631,7 +7601,6 @@ static enum test_result test_mb19982(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),
@@ -7750,7 +7719,6 @@ static enum test_result test_MB_34634(EngineIface* h) {
                          opaque,
                          docKey1,
                          {/*empty value*/},
-                         0, // priv bytes
                          PROTOCOL_BINARY_RAW_BYTES,
                          10000, // cas
                          vb,
@@ -7885,7 +7853,6 @@ static enum test_result test_MB_34664(EngineIface* h) {
                               stream_opaque,
                               docKey,
                               {(const uint8_t*)"value", 5},
-                              0, // privileged bytes
                               PROTOCOL_BINARY_RAW_BYTES,
                               i * 3, // cas
                               Vbid(0),

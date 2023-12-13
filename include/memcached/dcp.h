@@ -515,8 +515,6 @@ struct DcpIface {
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
      * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
      * @param datatype The datatype for the incomming item
      * @param cas The documents CAS value
      * @param vbucket The vbucket identifier for the document
@@ -533,7 +531,6 @@ struct DcpIface {
                                                    uint32_t opaque,
                                                    const DocKey& key,
                                                    cb::const_byte_buffer value,
-                                                   size_t priv_bytes,
                                                    uint8_t datatype,
                                                    uint64_t cas,
                                                    Vbid vbucket,
@@ -552,8 +549,6 @@ struct DcpIface {
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
      * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
      * @param datatype The datatype for the incomming item
      * @param cas The documents CAS value
      * @param vbucket The vbucket identifier for the document
@@ -567,7 +562,6 @@ struct DcpIface {
             uint32_t opaque,
             const DocKey& key,
             cb::const_byte_buffer value,
-            size_t priv_bytes,
             uint8_t datatype,
             uint64_t cas,
             Vbid vbucket,
@@ -582,8 +576,6 @@ struct DcpIface {
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
      * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
      * @param datatype The datatype for the incomming item
      * @param cas The documents CAS value
      * @param vbucket The vbucket identifier for the document
@@ -597,7 +589,6 @@ struct DcpIface {
             uint32_t opaque,
             const DocKey& key,
             cb::const_byte_buffer value,
-            size_t priv_bytes,
             uint8_t datatype,
             uint64_t cas,
             Vbid vbucket,
@@ -614,8 +605,6 @@ struct DcpIface {
      * @param opaque The opaque field in the message (identifying the stream)
      * @param key The documents key
      * @param value The value to store
-     * @param priv_bytes The number of bytes in the value which should be
-     *                   allocated from the privileged pool
      * @param datatype The datatype for the incomming item
      * @param cas The documents CAS value
      * @param vbucket The vbucket identifier for the document
@@ -629,7 +618,6 @@ struct DcpIface {
             uint32_t opaque,
             const DocKey& key,
             cb::const_byte_buffer value,
-            size_t priv_bytes,
             uint8_t datatype,
             uint64_t cas,
             Vbid vbucket,
@@ -718,7 +706,6 @@ struct DcpIface {
             uint32_t opaque,
             const DocKey& key,
             cb::const_byte_buffer value,
-            size_t priv_bytes,
             uint8_t datatype,
             uint64_t cas,
             Vbid vbucket,

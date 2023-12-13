@@ -266,7 +266,6 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
               consumer->mutation(1 /*opaque*/,
                                  docKey,
                                  {}, // value
-                                 0, // priv bytes
                                  PROTOCOL_BINARY_RAW_BYTES,
                                  0, // cas
                                  vbid,
@@ -615,7 +614,6 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
               consumer->mutation(opaque,
                                  docKey,
                                  {}, // value
-                                 0, // priv bytes
                                  PROTOCOL_BINARY_RAW_BYTES,
                                  0, // cas
                                  vbid,
@@ -892,7 +890,6 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     consumer->deletion(/*opaque*/ 1,
                        /*key*/ docKey,
                        /*value*/ {},
-                       /*priv_bytes*/ 0,
                        /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                        /*cas*/ 0,
                        /*vbucket*/ vbid,
@@ -952,7 +949,6 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
     consumer->mutation(/*opaque*/ 1,
                        /*key*/ docKey,
                        /*values*/ value,
-                       /*priv_bytes*/ 0,
                        /*datatype*/ PROTOCOL_BINARY_DATATYPE_JSON,
                        /*cas*/ 0,
                        /*vbucket*/ vbid,
@@ -1021,7 +1017,6 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
               consumer->mutation(opaque,
                                  docKey,
                                  {}, // value
-                                 0, // priv bytes
                                  PROTOCOL_BINARY_RAW_BYTES,
                                  0, // cas
                                  vbid,
@@ -1059,7 +1054,6 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                 consumer->mutation(opaque,
                                    docKey,
                                    {}, // value
-                                   0, // priv bytes
                                    PROTOCOL_BINARY_RAW_BYTES,
                                    0, // cas
                                    vbid,
@@ -1081,7 +1075,6 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                   consumer->mutation(opaque,
                                      docKey,
                                      {}, // value
-                                     0, // priv bytes
                                      PROTOCOL_BINARY_RAW_BYTES,
                                      0, // cas
                                      vbid,

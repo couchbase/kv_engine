@@ -361,7 +361,6 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
         consumer->mutation(1 /*opaque*/,
                            docKey,
                            {(const uint8_t*)value.c_str(), value.length()},
-                           0, // privileged bytes
                            PROTOCOL_BINARY_RAW_BYTES, // datatype
                            0, // cas
                            vbid, // vbucket
@@ -879,7 +878,6 @@ TEST_F(SingleThreadedEPBucketTest,
                   consumer->mutation(opaque,
                                      key,
                                      {},
-                                     0,
                                      dtype,
                                      {},
                                      vbid,
@@ -893,15 +891,15 @@ TEST_F(SingleThreadedEPBucketTest,
 
         EXPECT_EQ(expected,
                   consumer->deletion(
-                          opaque, key, {}, 0, dtype, {}, vbid, 2, {}, {}));
+                          opaque, key, {}, dtype, {}, vbid, 2, {}, {}));
 
         EXPECT_EQ(expected,
                   consumer->deletionV2(
-                          opaque, key, {}, 0, dtype, {}, vbid, 3, {}, {}));
+                          opaque, key, {}, dtype, {}, vbid, 3, {}, {}));
 
         EXPECT_EQ(expected,
                   consumer->expiration(
-                          opaque, key, {}, 0, dtype, {}, vbid, 4, {}, {}));
+                          opaque, key, {}, dtype, {}, vbid, 4, {}, {}));
 
         EXPECT_EQ(
                 expected,
@@ -922,7 +920,6 @@ TEST_F(SingleThreadedEPBucketTest,
                   consumer->prepare(opaque,
                                     key,
                                     {},
-                                    0,
                                     dtype,
                                     {},
                                     vbid,
@@ -1002,7 +999,6 @@ TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {
               consumer->prepare(opaque1,
                                 key,
                                 {},
-                                0,
                                 dtype,
                                 {},
                                 vbid,

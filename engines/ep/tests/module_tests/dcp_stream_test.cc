@@ -2709,7 +2709,6 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                                      key,
                                      {},
                                      0,
-                                     0,
                                      1,
                                      vbid,
                                      0,
@@ -3117,7 +3116,6 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                       consumer->prepare(opaque,
                                         {"key", DocKeyEncodesCollectionId::No},
                                         value,
-                                        0 /*priv_bytes*/,
                                         datatype,
                                         0 /*cas*/,
                                         vbid,
@@ -3134,7 +3132,6 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                       consumer->deletion(opaque,
                                          {"key", DocKeyEncodesCollectionId::No},
                                          value,
-                                         0 /*priv_bytes*/,
                                          datatype,
                                          0 /*cas*/,
                                          vbid,
@@ -3207,7 +3204,6 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                       consumer->prepare(opaque,
                                         key,
                                         value,
-                                        0 /*priv_bytes*/,
                                         datatype,
                                         0 /*cas*/,
                                         vbid,
@@ -3224,7 +3220,6 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                       consumer->deletion(opaque,
                                          key,
                                          value,
-                                         0 /*priv_bytes*/,
                                          datatype,
                                          0 /*cas*/,
                                          vbid,
@@ -3363,7 +3358,6 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                   consumer->prepare(opaque,
                                     {"key", DocKeyEncodesCollectionId::No},
                                     valueBuf,
-                                    0 /*priv_bytes*/,
                                     datatype,
                                     0 /*cas*/,
                                     vbid,
@@ -3380,7 +3374,6 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                   consumer->deletion(opaque,
                                      {"key", DocKeyEncodesCollectionId::No},
                                      valueBuf,
-                                     0 /*priv_bytes*/,
                                      datatype,
                                      0 /*cas*/,
                                      vbid,
@@ -4919,7 +4912,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                  {},
                                  0,
                                  0,
-                                 0,
                                  vbid,
                                  0,
                                  snapStart,
@@ -4933,7 +4925,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
               consumer->mutation(opaque,
                                  keyB,
                                  {},
-                                 0,
                                  0,
                                  0,
                                  vbid,
@@ -5000,7 +4991,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
               consumer->mutation(opaque,
                                  keyC,
                                  {},
-                                 0,
                                  0,
                                  0,
                                  vbid,
@@ -5071,7 +5061,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                  {},
                                  0,
                                  0,
-                                 0,
                                  vbid,
                                  0,
                                  4 /*seqno*/,
@@ -5129,7 +5118,6 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
                                  {},
                                  0,
                                  0,
-                                 0,
                                  vbid,
                                  0,
                                  1, // seqno
@@ -5173,7 +5161,6 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
               consumer->mutation(opaque,
                                  key,
                                  {},
-                                 0,
                                  0,
                                  0,
                                  vbid,
@@ -5281,7 +5268,6 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
                                  {},
                                  0,
                                  0,
-                                 0,
                                  vbid,
                                  0,
                                  1, // seqno
@@ -5376,7 +5362,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
                                  {},
                                  0,
                                  0,
-                                 0,
                                  vbid,
                                  0,
                                  1, // seqno
@@ -5430,7 +5415,6 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
               consumer->mutation(opaque,
                                  key,
                                  {},
-                                 0,
                                  0,
                                  0,
                                  vbid,
@@ -6589,29 +6573,27 @@ TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
     DocKey key(keyStr, DocKeyEncodesCollectionId::No);
 
     // check error code when stream isn't present for vbucket 99
-    EXPECT_EQ(
-            cb::engine_errc::no_such_key,
-            consumer->mutation(
-                    opaque, key, {}, 0, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              consumer->mutation(
+                      opaque, key, {}, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
     // check error code when using a non matching opaque
     opaque = 99999;
     EXPECT_EQ(cb::engine_errc::key_already_exists,
               consumer->mutation(
-                      opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
+                      opaque, key, {}, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
 
     // enable V7 dcp status codes
     consumer->enableV7DcpStatus();
     // check error code when stream isn't present for vbucket 99
     opaque = 0;
-    EXPECT_EQ(
-            cb::engine_errc::stream_not_found,
-            consumer->mutation(
-                    opaque, key, {}, 0, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
+    EXPECT_EQ(cb::engine_errc::stream_not_found,
+              consumer->mutation(
+                      opaque, key, {}, 0, 0, Vbid(99), 0, 1, 0, 0, 0, {}, 0));
     // check error code when using a non matching opaque
     opaque = 99999;
     EXPECT_EQ(cb::engine_errc::opaque_no_match,
               consumer->mutation(
-                      opaque, key, {}, 0, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
+                      opaque, key, {}, 0, 0, vbid, 0, 1, 0, 0, 0, {}, 0));
 }
 
 void STPassiveStreamPersistentTest::checkVBState(uint64_t lastSnapStart,
@@ -7638,7 +7620,6 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                  {},
                                  0,
                                  0,
-                                 0,
                                  vbid,
                                  0,
                                  2, // seqno
@@ -7690,7 +7671,6 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
               consumer->mutation(opaque,
                                  key,
                                  {},
-                                 0,
                                  0,
                                  0,
                                  vbid,

@@ -4434,7 +4434,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
               consumer->prepare(stream->getOpaque(),
                                 key,
                                 {}, // value (none)
-                                0, // priv_bytes
                                 0, // datatype
                                 0, // cas
                                 vbid,
@@ -4523,7 +4522,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
               consumer->prepare(stream->getOpaque(),
                                 key,
                                 {}, // value (none)
-                                0, // priv_bytes
                                 0, // datatype
                                 0, // cas
                                 vbid,
@@ -5754,7 +5752,6 @@ TEST_P(DurabilityPromotionStreamTest, ReplicaDeadActiveCanCommitPrepare) {
             consumer->prepare(DurabilityPassiveStreamTest::stream->getOpaque(),
                               key,
                               {}, // value (none)
-                              0, // priv_bytes
                               0, // datatype
                               0, // cas
                               vbid,

@@ -528,7 +528,6 @@ TEST_F(WarmupTest, MB_32577) {
                                /*opaque*/ 1,
                                /*key*/ docKey,
                                /*value*/ {},
-                               /*priv_bytes*/ 0,
                                /*datatype*/ PROTOCOL_BINARY_RAW_BYTES,
                                /*cas*/ 0,
                                /*vbucket*/ vbid,

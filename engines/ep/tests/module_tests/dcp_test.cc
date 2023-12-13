@@ -1197,7 +1197,6 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     consumer->mutation(0, // opaque
                        docKey,
                        {}, // value
-                       0, // priv bytes
                        PROTOCOL_BINARY_RAW_BYTES,
                        0, // cas
                        vbid, // vbucket
@@ -1214,7 +1213,6 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     consumer->deletion(0, // opaque
                        docKey,
                        {}, // value
-                       0, // priv bytes
                        PROTOCOL_BINARY_RAW_BYTES,
                        0, // cas
                        vbid, // vbucket
@@ -1227,7 +1225,6 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     consumer->expiration(0, // opaque
                          docKey,
                          {}, // value
-                         0, // priv bytes
                          PROTOCOL_BINARY_RAW_BYTES,
                          0, // cas
                          vbid, // vbucket
@@ -2673,7 +2670,6 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
               consumer->mutation(opaque,
                                  {"key", DocKeyEncodesCollectionId::No},
                                  {}, // value
-                                 0, // priv bytes
                                  PROTOCOL_BINARY_RAW_BYTES,
                                  0, // cas
                                  vbid,

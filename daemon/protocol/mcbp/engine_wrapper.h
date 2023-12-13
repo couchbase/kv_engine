@@ -208,8 +208,6 @@ cb::engine_errc dcpControl(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param key The document key
  * @param value The document value to store
- * @param privilegedPoolSize The number of bytes in the value which should be
- *                   allocated from the privileged pool
  * @param datatype The document datatype
  * @param cas The documents CAS
  * @param vbid The vbucket id
@@ -222,7 +220,6 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
                             uint32_t opaque,
                             const DocKey& key,
                             cb::const_byte_buffer value,
-                            size_t privilegedPoolSize,
                             uint8_t datatype,
                             uint64_t cas,
                             Vbid vbid,
@@ -237,8 +234,6 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param key The document key
  * @param value The document value to store
- * @param privilegedPoolSize The number of bytes in the value which should be
- *                   allocated from the privileged pool
  * @param datatype The document datatype
  * @param cas The documents CAS
  * @param vbid The vbucket id
@@ -251,7 +246,6 @@ cb::engine_errc dcpDeletionV2(Cookie& cookie,
                               uint32_t opaque,
                               const DocKey& key,
                               cb::const_byte_buffer value,
-                              size_t priv_bytes,
                               uint8_t datatype,
                               uint64_t cas,
                               Vbid vbid,
@@ -266,8 +260,6 @@ cb::engine_errc dcpDeletionV2(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param key The document key
  * @param value The document value to store
- * @param privilegedPoolSize The number of bytes in the value which should be
- *                   allocated from the privileged pool
  * @param datatype The document datatype
  * @param cas The documents CAS
  * @param vbid The vbucket id
@@ -280,7 +272,6 @@ cb::engine_errc dcpExpiration(Cookie& cookie,
                               uint32_t opaque,
                               const DocKey& key,
                               cb::const_byte_buffer value,
-                              size_t privilegedPoolSize,
                               uint8_t datatype,
                               uint64_t cas,
                               Vbid vbid,
@@ -309,8 +300,6 @@ cb::engine_errc dcpGetFailoverLog(Cookie& cookie,
  * @param opaque The opaque field in the received message
  * @param key The document key
  * @param value The document value to store
- * @param privilegedPoolSize The number of bytes in the value which should be
- *                   allocated from the privileged pool
  * @param datatype The document datatype
  * @param cas The documents CAS
  * @param vbid The vbucket id
@@ -327,7 +316,6 @@ cb::engine_errc dcpMutation(Cookie& cookie,
                             uint32_t opaque,
                             const DocKey& key,
                             cb::const_byte_buffer value,
-                            size_t privilegedPoolSize,
                             uint8_t datatype,
                             uint64_t cas,
                             Vbid vbid,
@@ -476,7 +464,6 @@ cb::engine_errc dcpPrepare(Cookie& cookie,
                            uint32_t opaque,
                            const DocKey& key,
                            cb::const_byte_buffer value,
-                           size_t priv_bytes,
                            uint8_t datatype,
                            uint64_t cas,
                            Vbid vbucket,

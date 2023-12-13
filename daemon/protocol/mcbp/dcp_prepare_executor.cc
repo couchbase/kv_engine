@@ -27,13 +27,11 @@ void dcp_prepare_executor(Cookie& cookie) {
         const auto datatype = uint8_t(req.getDatatype());
         const auto value = req.getValue();
 
-        uint32_t priv_bytes = 0;
         if (cb::mcbp::datatype::is_xattr(datatype)) {
             const char* payload = reinterpret_cast<const char*>(value.data());
             cb::xattr::Blob blob({const_cast<char*>(payload), value.size()},
                                  cb::mcbp::datatype::is_snappy(datatype));
-            priv_bytes = uint32_t(blob.get_system_size());
-            if (priv_bytes > cb::limits::PrivilegedBytes) {
+            if (blob.get_system_size() > cb::limits::PrivilegedBytes) {
                 ret = cb::engine_errc::too_big;
             }
         }
@@ -43,7 +41,6 @@ void dcp_prepare_executor(Cookie& cookie) {
                              req.getOpaque(),
                              cookie.getConnection().makeDocKey(req.getKey()),
                              value,
-                             priv_bytes,
                              datatype,
                              req.getCas(),
                              req.getVBucket(),
