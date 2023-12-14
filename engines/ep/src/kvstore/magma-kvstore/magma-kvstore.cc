@@ -1105,14 +1105,19 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     st.io_bgfetch_doc_bytes +=
             keySlice.Len() + metaSlice.Len() + valueSlice.Len();
 
-    return makeGetValue(vbid, keySlice, metaSlice, valueSlice, filter);
+    return makeGetValue(vbid,
+                        keySlice,
+                        metaSlice,
+                        valueSlice,
+                        filter,
+                        getDefaultCreateItemCallback());
 }
 
 using GetOperations = magma::OperationsList<Magma::GetOperation>;
 
 void MagmaKVStore::getMulti(Vbid vbid,
                             vb_bgfetch_queue_t& itms,
-                            CreateItemCB) const {
+                            CreateItemCB createItemCb) const {
     // Convert the vb_bgfetch_queue_t (which is a std::unordered_map
     // under the covers) to a vector of GetOperations.
     // Note: We can't pass vb_bgfetch_queue_t to GetDocs because GetDocs
@@ -1126,10 +1131,10 @@ void MagmaKVStore::getMulti(Vbid vbid,
                 &it.second));
     }
 
-    auto cb = [this, &vbid](Status status,
-                            const Magma::GetOperation& op,
-                            const Slice& metaSlice,
-                            const Slice& valueSlice) {
+    auto cb = [this, &vbid, &createItemCb](Status status,
+                                           const Magma::GetOperation& op,
+                                           const Slice& metaSlice,
+                                           const Slice& valueSlice) {
         bool found = status.IsOkDocFound();
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
@@ -1150,7 +1155,8 @@ void MagmaKVStore::getMulti(Vbid vbid,
                                              op.Key,
                                              metaSlice,
                                              valueSlice,
-                                             bg_itm_ctx->getValueFilter());
+                                             bg_itm_ctx->getValueFilter(),
+                                             std::move(createItemCb));
             GetValue* rv = &bg_itm_ctx->value;
 
             for (auto& fetch : bg_itm_ctx->getRequests()) {
@@ -1210,7 +1216,12 @@ void MagmaKVStore::getRange(Vbid vbid,
             // continue scanning
             return false;
         }
-        auto rv = makeGetValue(vbid, keySlice, metaSlice, valueSlice, filter);
+        auto rv = makeGetValue(vbid,
+                               keySlice,
+                               metaSlice,
+                               valueSlice,
+                               filter,
+                               getDefaultCreateItemCallback());
         cb(std::move(rv));
 
         // continue scanning
@@ -1368,7 +1379,8 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const Slice& keySlice,
                                              const Slice& metaSlice,
                                              const Slice& valueSlice,
-                                             ValueFilter filter) const {
+                                             ValueFilter filter,
+                                             CreateItemCB createItemcb) const {
     auto key = makeDiskDocKey(keySlice);
     const auto meta = magmakv::getDocMeta(metaSlice);
 
@@ -1446,11 +1458,13 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
                                     const Slice& keySlice,
                                     const Slice& metaSlice,
                                     const Slice& valueSlice,
-                                    ValueFilter filter) const {
-    return GetValue(makeItem(vb, keySlice, metaSlice, valueSlice, filter),
-                    cb::engine_errc::success,
-                    -1,
-                    false);
+                                    ValueFilter filter,
+                                    CreateItemCB createItemCb) const {
+    return GetValue(
+            makeItem(vb, keySlice, metaSlice, valueSlice, filter, createItemCb),
+            cb::engine_errc::success,
+            -1,
+            false);
 }
 
 int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
@@ -2366,7 +2380,12 @@ ScanStatus MagmaKVStore::scanOne(
                 magmakv::isCompressed(docMeta));
     }
 
-    auto itm = makeItem(ctx.vbid, keySlice, metaSlice, value, ctx.valFilter);
+    auto itm = makeItem(ctx.vbid,
+                        keySlice,
+                        metaSlice,
+                        value,
+                        ctx.valFilter,
+                        getDefaultCreateItemCallback());
 
     // When we are requested to return the values as compressed AND
     // the value isn't compressed, attempt to compress the value.
@@ -3203,7 +3222,8 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                                              keySlice,
                                              metaSlice,
                                              Slice(),
-                                             ValueFilter::KEYS_ONLY);
+                                             ValueFilter::KEYS_ONLY,
+                                             getDefaultCreateItemCallback());
                 cb->callback(rv);
             };
 
@@ -4100,7 +4120,12 @@ GetValue MagmaKVStore::getBySeqno(KVFileHandle& handle,
     }
 
     if (status.IsOkDocFound()) {
-        rv.item = makeItem(vbid, *key, *meta, *value, filter);
+        rv.item = makeItem(vbid,
+                           *key,
+                           *meta,
+                           *value,
+                           filter,
+                           getDefaultCreateItemCallback());
         rv.setStatus(cb::engine_errc::success);
         return rv;
     }

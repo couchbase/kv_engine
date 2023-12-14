@@ -620,13 +620,15 @@ protected:
                                    const magma::Slice& keySlice,
                                    const magma::Slice& metaSlice,
                                    const magma::Slice& valueSlice,
-                                   ValueFilter filter) const;
+                                   ValueFilter filter,
+                                   CreateItemCB createItemCb) const;
 
     GetValue makeGetValue(Vbid vb,
                           const magma::Slice& keySlice,
                           const magma::Slice& metaSlice,
                           const magma::Slice& valueSlice,
-                          ValueFilter filter) const;
+                          ValueFilter filter,
+                          CreateItemCB createItemCb) const;
 
     virtual int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                          VB::Commit& commitData,
