@@ -43,6 +43,9 @@ bool validate(cb::json::SyntaxValidator& validator, std::string_view blob);
 /// Same as the above but a new syntax validator gets created every time
 bool validate(std::string_view blob);
 
+// Function exists for testing. This runs the validate loop and exposes the
+// system size that validate itself checks.
+size_t get_system_size(std::string_view blob);
 
 /**
  * Get the offset of the body into the specified payload
