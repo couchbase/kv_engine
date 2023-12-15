@@ -21,7 +21,6 @@
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
-#include "replicationthrottle.h"
 #include "vbucket.h"
 
 #include <gsl/gsl-lite.hpp>
@@ -350,20 +349,21 @@ cb::engine_errc PassiveStream::messageReceived(
         }
     }
 
-    switch (engine->getReplicationThrottle().getStatus()) {
-    case ReplicationThrottle::Status::Disconnect:
+    const auto& bucket = *engine->getKVBucket();
+    switch (bucket.getReplicationThrottleStatus()) {
+    case KVBucket::ReplicationThrottleStatus::Disconnect:
         log(spdlog::level::level_enum::warn,
             "{} Disconnecting the connection as there is "
             "no memory to complete replication",
             vb_);
         return cb::engine_errc::disconnect;
-    case ReplicationThrottle::Status::Process:
+    case KVBucket::ReplicationThrottleStatus::Process:
         if (buffer.empty() && !alwaysBufferOperations) {
             // Memory available and no message buffered -> process the response
             const auto ret = processMessage(dcpResponse.get());
             const auto err = ret.getError();
             if (err == cb::engine_errc::no_memory) {
-                if (engine->getReplicationThrottle().doDisconnectOnNoMem()) {
+                if (bucket.disconnectReplicationAtOOM()) {
                     log(spdlog::level::level_enum::warn,
                         "{} Disconnecting the connection as there is no "
                         "memory to complete replication; process dcp "
@@ -381,7 +381,7 @@ cb::engine_errc PassiveStream::messageReceived(
             }
         }
         break;
-    case ReplicationThrottle::Status::Pause:
+    case KVBucket::ReplicationThrottleStatus::Pause:
         /* Do nothing specific here, we buffer item for this case and
            other cases below */
         break;
@@ -476,7 +476,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
     processed_bytes = total_bytes_processed;
 
     if (failed) {
-        if (noMem && engine->getReplicationThrottle().doDisconnectOnNoMem()) {
+        if (noMem && engine->getKVBucket()->disconnectReplicationAtOOM()) {
             log(spdlog::level::level_enum::warn,
                 "{} Processor task indicating disconnection as "
                 "there is no memory to complete replication; process dcp "

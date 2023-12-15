@@ -41,7 +41,6 @@
 #include "kvshard.h"
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_callbacks.h"
-#include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "seqno_persistence_notify_task.h"
 #include "tasks.h"
@@ -64,6 +63,7 @@
 #include <platform/timeutils.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
+#include <utilities/math_utilities.h>
 
 #include <chrono>
 #include <cstring>
@@ -3367,4 +3367,16 @@ bool KVBucket::isCompactionExpiryFetchInline() const {
 
 size_t KVBucket::getNumCheckpointDestroyers() const {
     return ckptDestroyerTasks.rlock()->size();
+}
+
+KVBucket::ReplicationThrottleStatus KVBucket::getReplicationThrottleStatus()
+        const {
+    const auto& stats = engine.getEpStats();
+    const auto memoryUsed = stats.getEstimatedTotalMemoryUsed();
+    const auto bucketQuota = stats.getMaxDataSize();
+    if (memoryUsed <= cb::fractionOf(bucketQuota, mutationMemRatio)) {
+        return ReplicationThrottleStatus::Process;
+    }
+    return disconnectReplicationAtOOM() ? ReplicationThrottleStatus::Disconnect
+                                        : ReplicationThrottleStatus::Pause;
 }

@@ -56,7 +56,6 @@ class VBucketCountVisitor;
 
 // Forward decl
 class EventuallyPersistentEngine;
-class ReplicationThrottle;
 
 namespace cb::prometheus {
 enum class MetricGroup;
@@ -729,13 +728,6 @@ public:
     DcpFlowControlManager& getDcpFlowControlManager() {
         return *dcpFlowControlManager;
     }
-
-    /**
-     * Returns the replication throttle instance
-     *
-     * @return Ref to replication throttle
-     */
-    ReplicationThrottle& getReplicationThrottle();
 
     CheckpointConfig& getCheckpointConfig() {
         return *checkpointConfig;

@@ -23,10 +23,9 @@
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "objectregistry.h"
-#include "replicationthrottle.h"
 #include "vbucket.h"
-#include <fmt/chrono.h>
 #include <executor/executorpool.h>
+#include <fmt/chrono.h>
 #include <phosphor/phosphor.h>
 #include <xattr/utils.h>
 
@@ -1314,13 +1313,13 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
     uint32_t bytesProcessed = 0;
     size_t iterations = 0;
     do {
-        switch (engine_.getReplicationThrottle().getStatus()) {
-        case ReplicationThrottle::Status::Pause:
+        switch (engine_.getKVBucket()->getReplicationThrottleStatus()) {
+        case KVBucket::ReplicationThrottleStatus::Pause:
             backoffs++;
             vbReady.pushUnique(stream->getVBucket());
             return cannot_process;
 
-        case ReplicationThrottle::Status::Disconnect:
+        case KVBucket::ReplicationThrottleStatus::Disconnect:
             backoffs++;
             vbReady.pushUnique(stream->getVBucket());
             logger->warn(
@@ -1329,7 +1328,7 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
                     stream->getVBucket());
             return stop_processing;
 
-        case ReplicationThrottle::Status::Process:
+        case KVBucket::ReplicationThrottleStatus::Process:
             bytesProcessed = 0;
             rval = stream->processBufferedMessages(
                     bytesProcessed, processBufferedMessagesBatchSize);

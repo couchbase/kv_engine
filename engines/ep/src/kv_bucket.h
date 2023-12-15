@@ -36,7 +36,6 @@ class EPStats;
 class ExpiredItemPager;
 class InitialMFUTask;
 class NotifiableTask;
-class ReplicationThrottle;
 class SeqnoPersistenceNotifyTask;
 class VBucketCountVisitor;
 class DatatypeStatVisitor;
@@ -745,15 +744,6 @@ public:
 
     bool isCrossBucketHtQuotaSharing() const;
 
-    /**
-     * Returns the replication throttle instance
-     *
-     * @return Ref to replication throttle
-     */
-    ReplicationThrottle& getReplicationThrottle() {
-        return *replicationThrottle;
-    }
-
     /// return the buckets maxTtl value
     std::chrono::seconds getMaxTtl() const;
 
@@ -1094,6 +1084,24 @@ public:
      */
     size_t getNumCheckpointDestroyers() const;
 
+    enum class ReplicationThrottleStatus : uint8_t {
+        Process,
+        Pause,
+        Disconnect
+    };
+
+    /**
+     * @return one of the replication-throttle states, depending on the memory
+     *  state of the bucket.
+     */
+    ReplicationThrottleStatus getReplicationThrottleStatus() const;
+
+    /**
+     * @return whether OOM conditions on the bucket can trigger disconnection of
+     *  replication links.
+     */
+    virtual bool disconnectReplicationAtOOM() const = 0;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1346,9 +1354,6 @@ protected:
      * Is this bucket sharing HashTable quota?
      */
     const bool crossBucketHtQuotaSharing;
-
-    /* Contains info about throttling the replication */
-    std::unique_ptr<ReplicationThrottle> replicationThrottle;
 
     std::atomic<size_t> maxTtl;
 

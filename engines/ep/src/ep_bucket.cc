@@ -29,7 +29,6 @@
 #include "kvstore/persistence_callback.h"
 #include "kvstore/rollback_callback.h"
 #include "range_scans/range_scan_callbacks.h"
-#include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "tasks.h"
 #include "vb_commit.h"
@@ -254,7 +253,6 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     } else {
         eviction_policy = EvictionPolicy::Full;
     }
-    replicationThrottle = std::make_unique<ReplicationThrottleEP>(engine);
 
     // Pre 7.0.0 Flushers were a part of KVShard so keep the same default
     // scaling.
@@ -2714,4 +2712,8 @@ cb::engine_errc EPBucket::prepareForResume() {
     updateCompactionConcurrency();
 
     return cb::engine_errc::success;
+}
+
+bool EPBucket::disconnectReplicationAtOOM() const {
+    return false;
 }

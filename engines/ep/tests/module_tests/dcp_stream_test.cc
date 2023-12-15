@@ -26,7 +26,6 @@
 #include "kv_bucket.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/kvstore.h"
-#include "replicationthrottle.h"
 #include "test_helpers.h"
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
@@ -2689,8 +2688,8 @@ void SingleThreadedPassiveStreamTest::mb_33773(
             SnapshotMarkerResponse::baseMsgBytes +
             sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
     stats.setMaxDataSize(1);
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     // Push mutations
     EXPECT_EQ(0, stream->getNumBufferItems());
@@ -7692,8 +7691,8 @@ void SingleThreadedPassiveStreamTest::replicaToActiveBufferedRejected(
     auto& config = engine->getConfiguration();
     config.setMutationMemRatio(0);
 
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     auto vb = engine->getVBucket(vbid);
 
@@ -7737,8 +7736,8 @@ void SingleThreadedPassiveStreamTest::replicaToActiveBufferedRejected(
     // And process the buffered commit. This commit should be rejected!
     stats.setMaxDataSize(size);
     config.setMutationMemRatio(0.99);
-    ASSERT_EQ(ReplicationThrottle::Status::Process,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Process,
+              engine->getKVBucket()->getReplicationThrottleStatus());
     EXPECT_EQ(more_to_process, consumer->processBufferedItems());
     EXPECT_EQ(all_processed, consumer->processBufferedItems());
 

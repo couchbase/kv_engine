@@ -20,7 +20,6 @@
 #include "ephemeral_vb.h"
 #include "ephemeral_vb_count_visitor.h"
 #include "failover-table.h"
-#include "replicationthrottle.h"
 #include "rollback_result.h"
 #include "seqno_persistence_notify_task.h"
 #include <executor/executorpool.h>
@@ -103,8 +102,6 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& engine)
     // in initialize().
     tombstonePurgerTask =
             std::make_shared<EphTombstoneHTCleaner>(engine, *this);
-
-    replicationThrottle = std::make_unique<ReplicationThrottleEphe>(engine);
 }
 
 EphemeralBucket::~EphemeralBucket() = default;
@@ -461,4 +458,9 @@ cb::engine_errc EphemeralBucket::getImplementationStats(
     using namespace cb::stats;
     collector.addStat(Key::ep_pending_compactions, 0);
     return cb::engine_errc::success;
+}
+
+bool EphemeralBucket::disconnectReplicationAtOOM() const {
+    return engine.getConfiguration().getEphemeralFullPolicy() ==
+           "fail_new_data";
 }

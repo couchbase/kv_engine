@@ -38,7 +38,6 @@
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "lambda_task.h"
-#include "replicationthrottle.h"
 #include "seqno_persistence_notify_task.h"
 #include "tasks.h"
 #include "tests/mock/mock_couch_kvstore.h"

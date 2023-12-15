@@ -374,7 +374,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/probabilistic_counter.cc
             src/progress_tracker.cc
             src/quota_sharing_item_pager.cc
-            src/replicationthrottle.cc
             src/linked_list.cc
             src/range_lock_manager.cc
             src/range_scans/range_scan.cc

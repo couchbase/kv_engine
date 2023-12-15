@@ -26,7 +26,6 @@
 #include "durability/passive_durability_monitor.h"
 #include "ep_bucket.h"
 #include "kvstore/kvstore.h"
-#include "replicationthrottle.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "vbucket_utils.h"
@@ -4449,8 +4448,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     auto& stats = engine->getEpStats();
     const size_t size = stats.getMaxDataSize();
     stats.setMaxDataSize(1);
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     // Now buffer commit
     EXPECT_EQ(cb::engine_errc::success,
@@ -4537,8 +4536,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     auto& stats = engine->getEpStats();
     const size_t size = stats.getMaxDataSize();
     stats.setMaxDataSize(1);
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     // Now buffer abort
     EXPECT_EQ(cb::engine_errc::success,
@@ -4610,8 +4609,8 @@ void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
     auto& stats = engine->getEpStats();
     const size_t size = stats.getMaxDataSize();
     stats.setMaxDataSize(1);
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     auto vb = engine->getVBucket(vbid);
 
@@ -4648,8 +4647,8 @@ void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
     // Prior to the fix it would be processed against the active.
     config.setMutationMemRatio(0.99);
     stats.setMaxDataSize(size);
-    ASSERT_EQ(ReplicationThrottle::Status::Process,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Process,
+              engine->getKVBucket()->getReplicationThrottleStatus());
     EXPECT_EQ(more_to_process, consumer->processBufferedItems());
     EXPECT_EQ(all_processed, consumer->processBufferedItems());
 
@@ -4707,8 +4706,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedPrepare) {
     stats.setMaxDataSize(1);
     auto& config = engine->getConfiguration();
     config.setMutationMemRatio(0);
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     auto vb = engine->getVBucket(vbid);
 
@@ -4737,8 +4736,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedPrepare) {
     // Prior to the fix it would be processed against the active.
     config.setMutationMemRatio(0.99);
     stats.setMaxDataSize(size);
-    ASSERT_EQ(ReplicationThrottle::Status::Process,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Process,
+              engine->getKVBucket()->getReplicationThrottleStatus());
     EXPECT_EQ(more_to_process, consumer->processBufferedItems());
     EXPECT_EQ(all_processed, consumer->processBufferedItems());
 

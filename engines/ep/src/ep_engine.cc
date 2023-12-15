@@ -41,7 +41,6 @@
 #include "kvstore/kvstore.h"
 #include "quota_sharing_item_pager.h"
 #include "range_scans/range_scan_callbacks.h"
-#include "replicationthrottle.h"
 #include "stats-info.h"
 #include "string_utils.h"
 #include "trace_helpers.h"
@@ -7034,10 +7033,6 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     workload.reset();
     checkpointConfig.reset();
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
-}
-
-ReplicationThrottle& EventuallyPersistentEngine::getReplicationThrottle() {
-    return getKVBucket()->getReplicationThrottle();
 }
 
 const std::string& EpEngineTaskable::getName() const {

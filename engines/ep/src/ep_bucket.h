@@ -360,6 +360,8 @@ public:
      */
     std::shared_ptr<RangeScan> takeNextRangeScan(size_t taskId);
 
+    bool disconnectReplicationAtOOM() const override;
+
     /// Hook that gets called from prepareForPause. Phase of prepareForPause()
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;

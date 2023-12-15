@@ -24,7 +24,6 @@
 #include "dcp/response.h"
 #include "ep_task.h"
 #include "failover-table.h"
-#include "replicationthrottle.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 #include "vbucket.h"
@@ -340,8 +339,8 @@ TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
     // Force the stream to buffer rather than process messages immediately
     auto& config = engine->getConfiguration();
     config.setMutationMemRatio(0.0);
-    ASSERT_EQ(ReplicationThrottle::Status::Pause,
-              engine->getReplicationThrottle().getStatus());
+    ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
+              engine->getKVBucket()->getReplicationThrottleStatus());
 
     // 1. Add the first message, a snapshot marker.
     consumer->snapshotMarker(/*opaque*/ 1,

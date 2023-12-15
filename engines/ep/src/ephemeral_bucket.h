@@ -181,6 +181,8 @@ public:
         return true;
     }
 
+    bool disconnectReplicationAtOOM() const override;
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;
