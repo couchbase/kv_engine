@@ -156,6 +156,15 @@ bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
         // The system event documents must not be paged-out
         return false;
     }
+
+    // Cannot auto-delete this v if it has a pending v. Simplest is to
+    // look again for a pending v in the hash-table.
+    // @todo MB-60105: Tracks that scanning the hash-chain again is not the most
+    // efficient fix.
+    if (ht.unlocked_find(lh, v.getKey()).pendingSV) {
+        return false;
+    }
+
     return true;
 }
 

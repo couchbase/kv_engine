@@ -473,6 +473,29 @@ TEST_F(EphemeralVBucketTest, SoftDeleteDuringBackfill) {
               mockEpheVB->public_getNumListItems());
 }
 
+// MB-60046: The ephemeral auto-delete was able to delete a committed item which
+// has a pending write (disrupting DCP). Test checks eligibleToPageOut now
+// detects this case.
+TEST_F(EphemeralVBucketTest, CannotPageOutCommittedAndPendingKey) {
+    auto meta = nlohmann::json{
+            {"topology", nlohmann::json::array({{"active", "replica"}})}};
+    vbucket->setState(vbucket_state_active, &meta);
+    // Commit and item and then also make it pending.
+    auto key = makeStoredDocKey("key");
+    auto item = makeCommittedItem(key, "value");
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*item, item->getCas()));
+    item = makePendingItem(key, "value");
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
+    ctx.durability =
+            DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
+    ASSERT_EQ(MutationStatus::WasClean,
+              public_processSet(*item, item->getCas(), ctx));
+    auto result = vbucket->ht.findForRead(key);
+    ASSERT_TRUE(result.storedValue);
+    ASSERT_FALSE(vbucket->eligibleToPageOut(result.lock, *result.storedValue));
+}
+
 // EphemeralVB Tombstone Purging //////////////////////////////////////////////
 
 class EphTombstoneTest : public EphemeralVBucketTest {

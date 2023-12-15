@@ -337,6 +337,12 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
                 "non-active object");
     }
     HashBucketLock hbl = getLockedBucket(key);
+    auto rv = unlocked_find(hbl, key);
+    return {std::move(hbl), rv.committedSV, rv.pendingSV};
+}
+
+HashTable::UnlockedFindResult HashTable::unlocked_find(
+        const HashBucketLock& hbl, const DocKey& key) const {
     // Scan through all elements in the hash bucket chain looking for Committed
     // and Pending items with the same key.
     StoredValue* foundCmt = nullptr;
@@ -354,7 +360,7 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
         }
     }
 
-    return {std::move(hbl), foundCmt, foundPend};
+    return {foundCmt, foundPend};
 }
 
 HashTable::RandomKeyVisitor::RandomKeyVisitor(size_t size, int random)
