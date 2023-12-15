@@ -109,4 +109,8 @@ private:
 
     /* Bytes processed from the flow control buffer */
     std::atomic<uint64_t> freedBytes;
+
+    // Ratio of freed bytes in the DCP Consumer buffer that triggers a BufferAck
+    // message to the Producer
+    const double ackRatio;
 };

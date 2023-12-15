@@ -24,7 +24,8 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
       enabled(engine.getConfiguration().isDcpConsumerFlowControlEnabled()),
       lastBufferAck(ep_current_time()),
       ackedBytes(0),
-      freedBytes(0) {
+      freedBytes(0),
+      ackRatio(engine.getConfiguration().getDcpConsumerFlowControlAckRatio()) {
     if (enabled) {
         // This call is responsible for recomputing the per-consumer buffer size
         // (based on the new number of consumers on this node) for all
@@ -93,7 +94,7 @@ void FlowControl::setBufferSize(size_t newSize) {
 }
 
 size_t FlowControl::getBufferAckThreshold() const {
-    return static_cast<size_t>(buffer.rlock()->getSize() * 0.2);
+    return static_cast<size_t>(buffer.rlock()->getSize() * ackRatio);
 }
 
 bool FlowControl::isBufferSufficientlyDrained() {
