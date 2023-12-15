@@ -26,6 +26,7 @@
 #include "durability/passive_durability_monitor.h"
 #include "ep_bucket.h"
 #include "kvstore/kvstore.h"
+#include "replicationthrottle.h"
 #include "test_helpers.h"
 #include "vbucket_state.h"
 #include "vbucket_utils.h"
@@ -33,7 +34,6 @@
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
-#include "../mock/mock_replicationthrottle.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -4378,14 +4378,6 @@ TEST_P(DurabilityPassiveStreamTest,
                             largeValue,
                             Requirements(Level::Majority, Timeout::Infinity()));
     prepare->setBySeqno(prepareSeqno);
-
-    // We *don't* want the replication throttle to kick in before we attempt
-    // to process the prepare, so configure the MockReplicationThrottle to
-    // just return "Process" when called during the messageReceived call
-    // below.
-    using namespace ::testing;
-    EXPECT_CALL(engine->getMockReplicationThrottle(), getStatus())
-            .WillOnce(Return(ReplicationThrottle::Status::Process));
 
     // Message received by stream. Too large for current mem_used so should
     // be buffered and return TMPFAIL

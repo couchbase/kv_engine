@@ -486,7 +486,6 @@ SET(MOCK_SOURCE
     tests/mock/mock_ephemeral_bucket.cc
     tests/mock/mock_ephemeral_vb.cc
     tests/mock/mock_kvstore.cc
-    tests/mock/mock_replicationthrottle.cc
     tests/mock/mock_stream.cc
     tests/mock/mock_synchronous_ep_engine.cc
     tests/mock/mock_taskable.cc

@@ -18,17 +18,11 @@
 #include "kvstore/kvstore.h"
 #include "mock_checkpoint_manager.h"
 #include "mock_item_freq_decayer.h"
-#include "mock_replicationthrottle.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
 
 MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
     : EPBucket(theEngine) {
-    // Replace replicationThrottle with Mock to allow controlling when it
-    // pauses during tests.
-    replicationThrottle =
-            std::make_unique<::testing::NiceMock<MockReplicationThrottle>>(
-                    replicationThrottle.release());
     ON_CALL(*this, dropKey)
             .WillByDefault([this](VBucket& vb,
                                   const DiskDocKey& key,

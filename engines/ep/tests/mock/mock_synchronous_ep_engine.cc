@@ -20,7 +20,6 @@
 #include "mock_dcp_conn_map.h"
 #include "mock_ep_bucket.h"
 #include "mock_ephemeral_bucket.h"
-#include "mock_replicationthrottle.h"
 #include "objectregistry.h"
 #include <executor/executorpool.h>
 #include <fmt/format.h>
@@ -275,9 +274,4 @@ DocKey SynchronousEPEngine::public_makeDocKey(CookieIface& cookie,
     const auto buf = cb::const_byte_buffer{
             reinterpret_cast<const uint8_t*>(key.data()), key.size()};
     return makeDocKey(cookie, buf);
-}
-
-MockReplicationThrottle& SynchronousEPEngine::getMockReplicationThrottle() {
-    return dynamic_cast<MockReplicationThrottle&>(
-            kvBucket->getReplicationThrottle());
 }

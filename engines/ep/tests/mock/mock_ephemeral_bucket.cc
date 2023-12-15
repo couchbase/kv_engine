@@ -14,17 +14,11 @@
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "mock_checkpoint_manager.h"
-#include "mock_replicationthrottle.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
 
 MockEphemeralBucket::MockEphemeralBucket(EventuallyPersistentEngine& theEngine)
     : EphemeralBucket(theEngine) {
-    // Replace replicationThrottle with Mock to allow controlling when it
-    // pauses during tests.
-    replicationThrottle =
-            std::make_unique<::testing::NiceMock<MockReplicationThrottle>>(
-                    replicationThrottle.release());
 }
 
 VBucketPtr MockEphemeralBucket::makeVBucket(

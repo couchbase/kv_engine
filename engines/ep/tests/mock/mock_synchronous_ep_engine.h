@@ -19,7 +19,6 @@
 
 #include <memory>
 
-struct MockReplicationThrottle;
 class SynchronousEPEngine;
 
 using SynchronousEPEngineUniquePtr =
@@ -115,7 +114,6 @@ public:
     using EventuallyPersistentEngine::doCollectionStats;
     using EventuallyPersistentEngine::doConnAggStats;
     using EventuallyPersistentEngine::doEngineStats;
-    MockReplicationThrottle& getMockReplicationThrottle();
 
 private:
     std::unique_ptr<QuotaSharingManager> quotaSharingManager;
