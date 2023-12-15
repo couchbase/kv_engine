@@ -25,7 +25,9 @@ FlowControl::FlowControl(EventuallyPersistentEngine& engine,
       lastBufferAck(ep_current_time()),
       ackedBytes(0),
       freedBytes(0),
-      ackRatio(engine.getConfiguration().getDcpConsumerFlowControlAckRatio()) {
+      ackRatio(engine.getConfiguration().getDcpConsumerFlowControlAckRatio()),
+      ackSeconds(
+              engine.getConfiguration().getDcpConsumerFlowControlAckSeconds()) {
     if (enabled) {
         // This call is responsible for recomputing the per-consumer buffer size
         // (based on the new number of consumers on this node) for all
@@ -63,10 +65,11 @@ cb::engine_errc FlowControl::handleFlowCtl(
     // Send a buffer ack when the buffer is sufficiently drained, or every 5
     // secs if there's any unacked byte.
     const auto ackableBytes = freedBytes.load();
-    const auto sendBufferAck =
-            ackableBytes > getBufferAckThreshold() ||
-            (ackableBytes > 0 && (ep_current_time() - lastBufferAck) > 5);
-    if (sendBufferAck) {
+    const bool byteThresholdCondition = ackableBytes > getBufferAckThreshold();
+    const bool timeThresholdCondition =
+            ackableBytes > 0 &&
+            (ep_current_time() - lastBufferAck) > ackSeconds.count();
+    if (byteThresholdCondition || timeThresholdCondition) {
         lastBufferAck = ep_current_time();
         ackedBytes.fetch_add(ackableBytes);
         freedBytes.fetch_sub(ackableBytes);

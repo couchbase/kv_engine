@@ -1039,6 +1039,12 @@
             "type": "float",
             "dynamic": false
         },
+        "dcp_consumer_flow_control_ack_seconds": {
+            "default": "5",
+            "descr": "Max seconds after which a Consumer acks all the remaining freed bytes, regardless of whether dcp_consumer_flow_control_ack_ratio has kicked-in or not",
+            "type": "size_t",
+            "dynamic": false
+        },
         "dcp_enable_noop": {
             "default": "true",
             "descr": "Whether DCP Consumer connections should attempt to negotiate no-ops with the Producer",

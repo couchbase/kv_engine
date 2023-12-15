@@ -113,4 +113,9 @@ private:
     // Ratio of freed bytes in the DCP Consumer buffer that triggers a BufferAck
     // message to the Producer
     const double ackRatio;
+
+    // Max seconds after which a Consumer acks all the remaining freed bytes,
+    // regardless of whether dcp_consumer_flow_control_ack_ratio has kicked-in
+    // or not
+    const std::chrono::seconds ackSeconds;
 };
