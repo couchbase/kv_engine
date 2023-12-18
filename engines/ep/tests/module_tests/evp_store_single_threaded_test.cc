@@ -6461,3 +6461,19 @@ TEST_P(WarmupSTSingleShardTest, WarmupScanResetsStatusOnEarlyReturn) {
     GetValue gv = store->get(testKey, vbid, cookie, options);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
+
+MutationStatus STParameterizedBucketTest::public_processSet(
+        VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
+    auto htRes = vb.ht.findForUpdate(item.getKey());
+    auto* v = htRes.selectSVToModify(item);
+    return vb
+            .processSet(htRes,
+                        v,
+                        item,
+                        0 /*cas*/,
+                        true /*allowExisting*/,
+                        false /*hasMetadata*/,
+                        ctx,
+                        {/*no predicate*/})
+            .first;
+}

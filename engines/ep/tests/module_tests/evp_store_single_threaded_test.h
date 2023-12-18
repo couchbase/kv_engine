@@ -17,7 +17,10 @@
 
 #include "config.h"
 #include "dcp/dcp-types.h"
+#include "hash_table.h"
 #include "kv_bucket_test.h"
+#include "vbucket_queue_item_ctx.h"
+
 #include <executor/fake_executorpool.h>
 #include <libcouchstore/couch_db.h>
 #include <memcached/storeddockey_fwd.h>
@@ -780,6 +783,11 @@ protected:
      *        in this case the backfill should succeed.
      */
     void testPurgeSeqnoAdvancesAfterStreamRequest(bool ignorePurgedTombstones);
+
+    MutationStatus public_processSet(VBucket& vb,
+                                     Item& item,
+                                     const VBQueueItemCtx& ctx = VBQueueItemCtx{
+                                             CanDeduplicate::Yes});
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {

@@ -2737,7 +2737,7 @@ private:
     TestingHook<folly::SharedMutex&> fetchValidValueHook;
 
     friend class DurabilityMonitorTest;
-    friend class SingleThreadedActiveStreamTest;
+    friend class STParameterizedBucketTest;
     friend class VBucketTestBase;
     friend class VBucketTestIntrospector;
     friend class VBucketDurabilityTest;

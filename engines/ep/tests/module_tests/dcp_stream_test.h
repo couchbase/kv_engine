@@ -13,8 +13,6 @@
 
 #include "dcp/response.h"
 #include "dcp_test.h"
-#include "hash_table.h"
-#include "vbucket_queue_item_ctx.h"
 #include <utilities/test_manifest.h>
 
 class MockDcpConsumer;
@@ -51,10 +49,6 @@ protected:
     void setupProducer(const std::vector<std::pair<std::string, std::string>>&
                                controls = {});
 
-    MutationStatus public_processSet(VBucket& vb,
-                                     Item& item,
-                                     const VBQueueItemCtx& ctx = VBQueueItemCtx{
-                                             CanDeduplicate::Yes});
     /**
      * Reset the current producer and stream and recreate with the given params.
      *

@@ -49,6 +49,7 @@ enum class IsCommitted : char { No, Yes };
 enum class IsCompaction : char { No, Yes };
 enum class IsPiTR : char { No, Yes };
 enum class CanDeduplicate : char { No, Yes };
+enum class EnforceMemCheck : char { No, Yes };
 
 static inline CanDeduplicate getCanDeduplicateFromHistory(bool value) {
     // history:true => CanDeduplicate::No

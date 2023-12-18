@@ -1600,22 +1600,6 @@ void SingleThreadedActiveStreamTest::setupProducer(
     stream->setActive();
 }
 
-MutationStatus SingleThreadedActiveStreamTest::public_processSet(
-        VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
-    auto htRes = vb.ht.findForUpdate(item.getKey());
-    auto* v = htRes.selectSVToModify(item);
-    return vb
-            .processSet(htRes,
-                        v,
-                        item,
-                        0 /*cas*/,
-                        true /*allowExisting*/,
-                        false /*hasMetadata*/,
-                        ctx,
-                        {/*no predicate*/})
-            .first;
-}
-
 void SingleThreadedActiveStreamTest::recreateProducerAndStream(
         VBucket& vb,
         uint32_t flags,
@@ -7755,6 +7739,70 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedDeletion) {
 
 TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedSystemEvent) {
     replicaToActiveBufferedRejected(DcpResponse::Event::SystemEvent);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, QueueItemBypassMemCheck) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    removeCheckpoint(vb);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+
+    // Force OOM
+    engine->getConfiguration().setMutationMemRatio(0);
+
+    const size_t seqno = 1;
+    SnapshotMarker snapshotMarker(1, // opaque
+                                  vbid,
+                                  seqno,
+                                  seqno,
+                                  MARKER_FLAG_MEMORY,
+                                  std::optional<uint64_t>(0),
+                                  {},
+                                  {},
+                                  {});
+    stream->processMarker(&snapshotMarker);
+
+    const std::string key = "key";
+    const std::string value(1024 * 1024, 'v');
+
+    // Note: Marker for 'seqno' already processed
+    auto item = make_item(
+            vbid, makeStoredDocKey(key + std::to_string(seqno)), value);
+    item.setBySeqno(seqno);
+
+    // Verify legacy behaviour first
+    // By EnforceMemCheck::Yes (ie legacy behaviour) the Set fails
+    {
+        VBQueueItemCtx ctx{GenerateBySeqno::No,
+                           GenerateCas::No,
+                           GenerateDeleteTime::No,
+                           TrackCasDrift::Yes,
+                           DurabilityItemCtx{item.getDurabilityReqs(), cookie},
+                           nullptr,
+                           {},
+                           CanDeduplicate::Yes,
+                           EnforceMemCheck::Yes};
+        EXPECT_EQ(MutationStatus::NoMem, public_processSet(vb, item, ctx));
+        EXPECT_EQ(vb.getHighSeqno(), 0);
+    }
+
+    // Core check
+    // By EnforceMemCheck::No the Set succeeds
+    {
+        VBQueueItemCtx ctx{GenerateBySeqno::No,
+                           GenerateCas::No,
+                           GenerateDeleteTime::No,
+                           TrackCasDrift::Yes,
+                           DurabilityItemCtx{item.getDurabilityReqs(), cookie},
+                           nullptr,
+                           {},
+                           CanDeduplicate::Yes,
+                           EnforceMemCheck::No};
+        EXPECT_EQ(MutationStatus::WasClean, public_processSet(vb, item, ctx));
+        EXPECT_EQ(vb.getHighSeqno(), 1);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

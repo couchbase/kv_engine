@@ -3502,13 +3502,15 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
                 getId().to_string());
     }
 
-    if (bucket && KVBucket::isCheckpointMemoryStateFull(
-                          bucket->verifyCheckpointMemoryState())) {
-        return {MutationStatus::NoMem, {}};
-    }
+    if (queueItmCtx.enforceMemCheck == EnforceMemCheck::Yes) {
+        if (bucket && KVBucket::isCheckpointMemoryStateFull(
+                              bucket->verifyCheckpointMemoryState())) {
+            return {MutationStatus::NoMem, {}};
+        }
 
-    if (!hasMemoryForStoredValue(itm)) {
-        return {MutationStatus::NoMem, {}};
+        if (!hasMemoryForStoredValue(itm)) {
+            return {MutationStatus::NoMem, {}};
+        }
     }
 
     if (v == nullptr && itm.isDeleted() && cas &&

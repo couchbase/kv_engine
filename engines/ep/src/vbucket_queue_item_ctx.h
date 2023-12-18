@@ -65,7 +65,8 @@ struct VBQueueItemCtx {
                    std::optional<DurabilityItemCtx> durability,
                    PreLinkDocumentContext* preLinkDocumentContext_,
                    std::optional<int64_t> overwritingPrepareSeqno,
-                   CanDeduplicate deduplicate)
+                   CanDeduplicate deduplicate,
+                   EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes)
         : genBySeqno(genBySeqno),
           genCas(genCas),
           generateDeleteTime(generateDeleteTime),
@@ -73,7 +74,8 @@ struct VBQueueItemCtx {
           durability(durability),
           preLinkDocumentContext(preLinkDocumentContext_),
           overwritingPrepareSeqno(overwritingPrepareSeqno),
-          deduplicate(deduplicate) {
+          deduplicate(deduplicate),
+          enforceMemCheck(enforceMemCheck) {
     }
 
     GenerateBySeqno genBySeqno = GenerateBySeqno::Yes;
@@ -93,4 +95,8 @@ struct VBQueueItemCtx {
 
     // By default deduplication is enabled
     const CanDeduplicate deduplicate = CanDeduplicate::Yes;
+
+    // Whether the caller wants to force queueing this item regardless of any
+    // memory condition
+    const EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes;
 };
