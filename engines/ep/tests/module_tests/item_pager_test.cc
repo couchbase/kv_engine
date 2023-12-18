@@ -1818,6 +1818,96 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
     EXPECT_TRUE(softDeleteCalled) << "Nothing was deleted";
 }
 
+// Test covers MB-60046. A pending and committed key must not find itself auto
+// deleted, else the delete of the commit will be rejected by the DCP replica
+// and cause disconnects.
+TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_60046) {
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Register a cursor now to hold data in checkpoints for validation
+    auto& vb = *store->getVBucket(vbid);
+    auto cursorResult = vb.checkpointManager->registerCursorBySeqno(
+            "test", 1, CheckpointCursor::Droppable::No);
+    ASSERT_FALSE(cursorResult.tryBackfill) << *vb.checkpointManager;
+    auto cursor = cursorResult.takeCursor().lock();
+
+    // Two functions for writing active and replica keys.
+    auto setActive = [this](int count) {
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("active_" + std::to_string(count)),
+                          "value");
+        item.setFreqCounterValue(0);
+        storeItem(item);
+    };
+
+    int count = 0;
+    setActive(count);
+    auto key = makeStoredDocKey("active_" + std::to_string(count));
+    // Now make the key written also pending
+    ASSERT_EQ(cb::engine_errc::would_block,
+              storeItem(*makePendingItem(key, "pending-value")));
+    // One more item
+    setActive(++count);
+    EXPECT_GE(vb.getNumItems(), 2);
+
+    // Process the current queue before we generate the deletes
+    std::vector<queued_item> items;
+    vb.checkpointManager->getItemsForCursor(*cursor,
+                                            items,
+                                            std::numeric_limits<size_t>::max(),
+                                            std::numeric_limits<size_t>::max());
+    EXPECT_NE(0, items.size()) << *vb.checkpointManager;
+    bool pendingFound{false};
+    bool committedFound{false};
+    for (const auto& item : items) {
+        if (item->getKey() == key) {
+            if (item->isPending()) {
+                ASSERT_FALSE(pendingFound);
+                pendingFound = true;
+            } else {
+                ASSERT_FALSE(committedFound);
+                committedFound = true;
+            }
+        }
+    }
+    // Both pending and committed must be seen before we trigger auto-delete
+    ASSERT_TRUE(pendingFound);
+    ASSERT_TRUE(committedFound);
+    items.clear();
+
+    // Now trigger the auto-delete paging. Lower the quota and try to write 1
+    // more key.
+    engine->setMaxDataSize(engine->getEpStats().getPreciseTotalMemoryUsed());
+    setActive(++count);
+    runHighMemoryPager();
+
+    // Iterate through the checkpoint and check all deletes.
+    vb.checkpointManager->getItemsForCursor(*cursor,
+                                            items,
+                                            std::numeric_limits<size_t>::max(),
+                                            std::numeric_limits<size_t>::max());
+    // Should be some new mutations (deletes)
+    EXPECT_NE(0, items.size()) << *vb.checkpointManager;
+    int deleteCount{0};
+    for (const auto& item : items) {
+        if (item->getKey() == key) {
+            // The key should not be found in the new batch of items. The
+            // original commit+pending were in the first batch and not expected
+            // to see again. Prior to the fix, a delete(key) was seen here.
+            FAIL() << *item;
+        }
+        if (item->isDeleted()) {
+            ++deleteCount;
+        }
+    }
+    // We certainly should see deletes.
+    ASSERT_NE(0, deleteCount);
+}
+
 /**
  * Test fixture for expiry pager tests - enables the Expiry Pager (in addition
  * to what the parent class does).
