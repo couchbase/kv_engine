@@ -266,6 +266,7 @@ enum class CommittedState : char {
 #if FMT_VERSION >= 100000
 #ifndef ATOMIC_FORMATTER_DEFINED
 #define ATOMIC_FORMATTER_DEFINED 1
+#include <atomic>
 template <typename T>
 struct fmt::formatter<std::atomic<T>> : ostream_formatter {};
 #endif
