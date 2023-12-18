@@ -14,6 +14,7 @@
 #include <event2/event.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <xattr/blob.h>
@@ -926,6 +927,102 @@ TEST_P(DcpControlValidatorTest, InvalidBody) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
+/**
+ * Test class for DcpDeletion validation - the bool parameter toggles
+ * collections on/off (as that subtly changes the encoding of a deletion)
+ */
+class DcpXattrValidatorTest : public ::testing::WithParamInterface<
+                                      std::tuple<cb::mcbp::ClientOpcode, bool>>,
+                              public ValidatorTest {
+public:
+    DcpXattrValidatorTest()
+        : ValidatorTest(true), // collections always on
+          builder({scratch.data(), scratch.size()}),
+          header(*reinterpret_cast<cb::mcbp::Request*>(scratch.data())) {
+    }
+
+    void SetUp() override {
+        ValidatorTest::SetUp();
+        connection.enableDatatype(cb::mcbp::Feature::XATTR);
+        connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+
+        builder.setMagic(cb::mcbp::Magic::ClientRequest);
+        builder.setOpcode(std::get<0>(GetParam()));
+        builder.setDatatype(cb::mcbp::Datatype(getDatatype()));
+
+        std::array<uint8_t, 2> key = {0, 'a'};
+        builder.setKey({key.data(), key.size()});
+
+        if (std::get<0>(GetParam()) == cb::mcbp::ClientOpcode::DcpMutation) {
+            cb::mcbp::request::DcpMutationPayload extras;
+            extras.setBySeqno(1);
+            builder.setExtras(extras.getBuffer());
+        } else if (std::get<0>(GetParam()) ==
+                   cb::mcbp::ClientOpcode::DcpDeletion) {
+            cb::mcbp::request::DcpDeletionV2Payload extras(0, 0, 0);
+            builder.setExtras(extras.getBuffer());
+        } else if (std::get<0>(GetParam()) ==
+                   cb::mcbp::ClientOpcode::DcpExpiration) {
+            cb::mcbp::request::DcpExpirationPayload extras(0, 0, 0);
+            builder.setExtras(extras.getBuffer());
+        } else {
+            FAIL() << "Invalid opcode";
+        }
+    }
+
+    bool isSnappyEnabled() const {
+        return std::get<1>(GetParam());
+    }
+
+    uint8_t getDatatype() const {
+        using cb::mcbp::Datatype;
+        if (isSnappyEnabled()) {
+            return uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy);
+        }
+        return uint8_t(Datatype::Xattr);
+    }
+
+    static std::string PrintToStringParamName(
+            const testing::TestParamInfo<
+                    std::tuple<cb::mcbp::ClientOpcode, bool>>& info) {
+        return fmt::format("{}_snappy_is_{}",
+                           std::get<0>(info.param),
+                           std::get<1>(info.param));
+    }
+
+protected:
+    std::array<uint8_t, 1024 * 1024 * 2> scratch;
+    cb::mcbp::RequestBuilder builder;
+    cb::mcbp::Request& header;
+};
+
+TEST_P(DcpXattrValidatorTest, SystemXattrTooLarge) {
+    std::string_view value;
+    cb::xattr::Blob blob;
+    cb::compression::Buffer deflated;
+
+    // Generate an xattr blob that is illegal (system data exceeds 1MiB limit)
+    int keyIndex{0};
+    // use a larger value to reduce iterations
+    std::string longValue = "{\"" + std::string(2048, 'c') + "\"}";
+    while (blob.size() <= cb::limits::PrivilegedBytes + 1) {
+        std::string key = "_foo_" + std::to_string(++keyIndex);
+        blob.set(key, longValue);
+    }
+
+    if (isSnappyEnabled()) {
+        cb::compression::deflateSnappy(value, deflated);
+        value = deflated;
+    } else {
+        value = blob.finalize();
+    }
+    builder.setValue(value);
+    EXPECT_EQ("The provided xattr segment is not valid",
+              validate_error_context(std::get<0>(GetParam()),
+                                     static_cast<void*>(scratch.data()),
+                                     cb::mcbp::Status::XattrEinval));
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DcpOpenValidatorTest,
                          ::testing::Bool(),
@@ -982,4 +1079,13 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DcpControlValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(
+        SnappyOnOff,
+        DcpXattrValidatorTest,
+        ::testing::Combine(
+                ::testing::Values(cb::mcbp::ClientOpcode::DcpMutation,
+                                  cb::mcbp::ClientOpcode::DcpDeletion,
+                                  cb::mcbp::ClientOpcode::DcpExpiration),
+                ::testing::Bool()),
+        DcpXattrValidatorTest::PrintToStringParamName);
 } // namespace mcbp::test

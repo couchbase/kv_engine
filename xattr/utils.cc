@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 #include <json/syntax_validator.h>
+#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <platform/compress.h>
 #include <xattr/blob.h>
@@ -36,17 +37,22 @@ static std::string_view trim_string(std::string_view blob) {
     return blob.substr(0, n);
 }
 
-bool validate(std::string_view blob) {
-    return validate(*cb::json::SyntaxValidator::New(), blob);
-}
+struct ValidationData {
+    bool valid{false};
+    size_t systemSize{0};
+};
 
-bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
+static ValidationData validate1(cb::json::SyntaxValidator& validator,
+                                std::string_view blob) {
     if (blob.size() < 4) {
         // we must have room for the length field
-        return false;
+        return {};
     }
 
     std::size_t size;
+
+    // The system size always includes the 4-byte length.
+    std::size_t systemSize{4};
 
     // You probably want to look in docs/Document.md for a detailed
     // description of the actual memory layout and why I'm adding
@@ -58,7 +64,7 @@ bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
         // may be the same size as the blob if the actual data payload is empty
         size = get_body_offset(blob);
         if (size > blob.size()) {
-            return false;
+            return {};
         }
 
         // @todo fix the hash thing so I can use the keybuf directly
@@ -71,7 +77,7 @@ bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
             //    1  byte key
             //    2x 1 byte '\0'
             if (offset + 7 > size) {
-                return false;
+                return {};
             }
 
             const auto kvsize = ntohl(
@@ -79,7 +85,7 @@ bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
             offset += 4;
             if (offset + kvsize > size) {
                 // The kvsize exceeds the blob size
-                return false;
+                return {};
             }
 
             // pick out the key
@@ -89,7 +95,7 @@ bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
 
             // Validate the key
             if (!is_valid_xattr_key(keybuf)) {
-                return false;
+                return {};
             }
 
             // pick out the value
@@ -100,22 +106,41 @@ bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
             // Validate the value (must be legal json)
             if (!validator.validate(valuebuf)) {
                 // Failed to parse the JSON
-                return false;
+                return {};
             }
 
             if (kvsize != (keybuf.size() + valuebuf.size() + 2)) {
-                return false;
+                return {};
             }
 
             if (!keys.insert(std::string{keybuf}).second) {
-                return false;
+                return {};
+            }
+
+            if (keybuf[0] == '_') {
+                systemSize += 4; // The length to next xattr is included
+                // Add the key and value and the \0 terminator bytes
+                systemSize += keybuf.size() + valuebuf.size() + 2;
             }
         }
     } catch (const std::out_of_range&) {
-        return false;
+        return {};
     }
 
-    return offset == size;
+    return {offset == size, systemSize};
+}
+
+bool validate(cb::json::SyntaxValidator& validator, std::string_view blob) {
+    const auto vData = validate1(validator, blob);
+    return vData.valid && vData.systemSize <= cb::limits::PrivilegedBytes;
+}
+
+bool validate(std::string_view blob) {
+    return validate(*cb::json::SyntaxValidator::New(), blob);
+}
+
+size_t get_system_size(std::string_view blob) {
+    return validate1(*cb::json::SyntaxValidator::New(), blob).systemSize;
 }
 
 // Test that a len doesn't exceed size, the idea that len is the value read from

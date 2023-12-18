@@ -10,6 +10,8 @@
  */
 #include <folly/portability/GTest.h>
 #include <gsl/gsl-lite.hpp>
+#include <memcached/limits.h>
+#include <xattr/blob.h>
 #include <xattr/utils.h>
 #ifdef WIN32
 #include <winsock2.h>
@@ -122,4 +124,28 @@ TEST_F(XattrValidatorTest, TestXattrDuplicateKeysNotAllowed) {
     addKvPair("_sync", R"({ "foo" : "bar" })");
 
     EXPECT_FALSE(cb::xattr::validate(getBuffer()));
+}
+
+TEST_F(XattrValidatorTest, TestXattrCompareWithBlob) {
+    addKvPair("_sync1", R"({ "foo" : "bar" })");
+    addKvPair("_sync2", R"({ "foo" : "fighters" })");
+
+    EXPECT_TRUE(cb::xattr::validate(getBuffer()));
+    // The cb::xattr::validate must be working with the same system size as Blob
+    cb::xattr::Blob blob{{this->blob.data(), this->blob.size()}};
+    EXPECT_EQ(blob.get_system_size(), cb::xattr::get_system_size(getBuffer()));
+}
+
+TEST_F(XattrValidatorTest, TestXattrInvalidSystemSize) {
+    int keyIndex{0};
+    std::string longValue = R"({"foo": ")" + std::string(1024, 'c') + "\"}";
+
+    while (blob.size() <= cb::limits::PrivilegedBytes + 1) {
+        addKvPair("_sync" + std::to_string(++keyIndex), longValue);
+    }
+    addKvPair("_final", R"({ "foo" : "bar" })");
+
+    EXPECT_FALSE(cb::xattr::validate(getBuffer()));
+    cb::xattr::Blob blob{{this->blob.data(), this->blob.size()}};
+    EXPECT_EQ(blob.get_system_size(), cb::xattr::get_system_size(getBuffer()));
 }

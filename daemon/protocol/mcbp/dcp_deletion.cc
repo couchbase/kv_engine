@@ -14,8 +14,8 @@
 #include "utilities.h"
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/request.h>
-#include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
+#include <xattr/blob.h>
 
 static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     auto& request = cookie.getHeader().getRequest();
@@ -40,24 +40,16 @@ static cb::engine_errc dcp_deletion_v1_executor(Cookie& cookie) {
     auto value = request.getValue();
     cb::const_byte_buffer meta{value.data() + value.size() - nmeta, nmeta};
     value = {value.data(), value.size() - nmeta};
-
-    uint32_t priv_bytes = 0;
-    if (cb::mcbp::datatype::is_xattr(datatype)) {
-        priv_bytes = gsl::narrow<uint32_t>(value.size());
-    }
-    if (priv_bytes <= cb::limits::PrivilegedBytes) {
-        return dcpDeletion(cookie,
-                           opaque,
-                           key,
-                           value,
-                           datatype,
-                           cas,
-                           vbucket,
-                           by_seqno,
-                           rev_seqno,
-                           meta);
-    }
-    return cb::engine_errc::too_big;
+    return dcpDeletion(cookie,
+                       opaque,
+                       key,
+                       value,
+                       datatype,
+                       cas,
+                       vbucket,
+                       by_seqno,
+                       rev_seqno,
+                       meta);
 }
 
 // The updated deletion sends no extended meta, but does send a deletion time
@@ -84,25 +76,16 @@ static cb::engine_errc dcp_deletion_v2_executor(Cookie& cookie) {
     const uint64_t rev_seqno = payload.getRevSeqno();
     const uint32_t delete_time = payload.getDeleteTime();
 
-    auto value = request.getValue();
-    uint32_t priv_bytes = 0;
-    if (cb::mcbp::datatype::is_xattr(datatype)) {
-        priv_bytes = gsl::narrow<uint32_t>(value.size());
-    }
-
-    if (priv_bytes <= cb::limits::PrivilegedBytes) {
-        return dcpDeletionV2(cookie,
-                             opaque,
-                             key,
-                             value,
-                             datatype,
-                             cas,
-                             vbucket,
-                             by_seqno,
-                             rev_seqno,
-                             delete_time);
-    }
-    return cb::engine_errc::too_big;
+    return dcpDeletionV2(cookie,
+                         opaque,
+                         key,
+                         request.getValue(),
+                         datatype,
+                         cas,
+                         vbucket,
+                         by_seqno,
+                         rev_seqno,
+                         delete_time);
 }
 
 void dcp_deletion_executor(Cookie& cookie) {
