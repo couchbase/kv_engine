@@ -329,6 +329,11 @@ protected:
      */
     bool emptyQueues(std::unique_lock<std::mutex>& lock) const;
 
+    /**
+     * The backfill create mode to use.
+     */
+    DCPBackfillCreateMode getCreateMode() const;
+
     mutable std::mutex lock;
 
     // List of backfills which have just been scheduled (added to Backfill

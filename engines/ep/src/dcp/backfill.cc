@@ -47,7 +47,10 @@ backfill_status_t DCPBackfill::run() {
         if (status == backfill_success) {
             currentState = validateTransition(currentState,
                                               getNextScanState(currentState));
-            status = scan(currentState);
+            // Continue with the scan, if allowed to.
+            if (createMode == DCPBackfillCreateMode::CreateAndScan) {
+                status = scan(currentState);
+            }
         } else if (status == backfill_finished) {
             // Create->Done
             currentState = validateTransition(currentState, State::Done);

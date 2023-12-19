@@ -321,6 +321,11 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
+    // The backfill is about to run for the first time, set the create mode.
+    if (Source::Initializing == source) {
+        backfill->setCreateMode(getCreateMode());
+    }
+
     lh.unlock();
     backfill_status_t status = backfill->run();
     lh.lock();
@@ -476,6 +481,16 @@ std::string BackfillManager::to_string(BackfillManager::ScheduleOrder order) {
 bool BackfillManager::emptyQueues(std::unique_lock<std::mutex>& lock) const {
     return initializingBackfills.empty() && activeBackfills.empty() &&
            snoozingBackfills.empty() && pendingBackfills.empty();
+}
+
+DCPBackfillCreateMode BackfillManager::getCreateMode() const {
+    switch (scheduleOrder) {
+    case BackfillManager::ScheduleOrder::RoundRobin:
+        return DCPBackfillCreateMode::CreateAndScan;
+    case BackfillManager::ScheduleOrder::Sequential:
+        return DCPBackfillCreateMode::CreateOnly;
+    }
+    folly::assume_unreachable();
 }
 
 void BackfillManager::setBackfillByteLimit(size_t bytes) {

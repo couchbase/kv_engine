@@ -18,12 +18,14 @@
 
 using ::testing::_;
 using ::testing::InSequence;
+using ::testing::NiceMock;
 using ::testing::Return;
 
 class GMockDCPBackfill : public DCPBackfillIface {
 public:
     MOCK_METHOD0(run, backfill_status_t());
     MOCK_METHOD0(cancel, void());
+    MOCK_METHOD1(setCreateMode, void(DCPBackfillCreateMode));
     MOCK_CONST_METHOD0(getVBucketId, Vbid());
     MOCK_CONST_METHOD0(shouldCancel, bool());
     MOCK_CONST_METHOD0(getUID, uint64_t());
@@ -179,6 +181,38 @@ TEST_F(BackfillManagerTest, Sequential) {
     for (int i = 0; i < 9; i++) {
         backfillMgr->backfill();
     }
+}
+
+static void testBackfillCreateMode(BackfillManager& backfillMgr,
+                                   BackfillManager::ScheduleOrder order,
+                                   DCPBackfillCreateMode expectedMode) {
+    auto backfill = std::make_unique<NiceMock<GMockDCPBackfill>>();
+    backfillMgr.setBackfillOrder(BackfillManager::ScheduleOrder::Sequential);
+
+    InSequence s;
+    EXPECT_CALL(*backfill, setCreateMode(DCPBackfillCreateMode::CreateOnly));
+    EXPECT_CALL(*backfill, run()).WillOnce(Return(backfill_success));
+
+    ASSERT_EQ(BackfillManager::ScheduleResult::Active,
+              backfillMgr.schedule(std::move(backfill)));
+
+    backfillMgr.backfill();
+}
+
+TEST_F(BackfillManagerTest, CreateModeForSequential) {
+    // Not interested in behaviour of backfillTracker for this test.
+    ignoreBackfillTracker();
+    testBackfillCreateMode(*backfillMgr,
+                           BackfillManager::ScheduleOrder::Sequential,
+                           DCPBackfillCreateMode::CreateOnly);
+}
+
+TEST_F(BackfillManagerTest, CreateModeForRoundRobin) {
+    // Not interested in behaviour of backfillTracker for this test.
+    ignoreBackfillTracker();
+    testBackfillCreateMode(*backfillMgr,
+                           BackfillManager::ScheduleOrder::RoundRobin,
+                           DCPBackfillCreateMode::CreateAndScan);
 }
 
 /**

@@ -27,6 +27,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/array_histogram_test.cc
         module_tests/atomic_unordered_map_test.cc
         module_tests/backfill-manager_test.cc
+        module_tests/backfill_test.cc
         module_tests/backfill_disk_test.cc
         module_tests/basic_ll_test.cc
         module_tests/bloomfilter_test.cc

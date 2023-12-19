@@ -32,6 +32,22 @@ enum backfill_status_t {
 std::ostream& operator<<(std::ostream&, backfill_status_t);
 
 /**
+ * Defines how a backfill should behave when it is created (when it first runs).
+ */
+enum class DCPBackfillCreateMode {
+    /**
+     * A backfill should be created and then return success.
+     */
+    CreateOnly,
+    /**
+     * A backfill can immediately proceed to the scan phase after created.
+     * This reduces the overall backfill duration for this backfill, but is
+     * incompatible with sequential backfills.
+     */
+    CreateAndScan,
+};
+
+/**
  * Interface for classes which perform DCP Backfills.
  */
 struct DCPBackfillIface {
@@ -58,6 +74,12 @@ struct DCPBackfillIface {
      * Get the u64 value which uniquely identifies this object
      */
     virtual uint64_t getUID() const = 0;
+
+    /**
+     * Sets the DCPBackfillCreateMode for the backfill.
+     * Changing this property has no effect after the backfill has run.
+     */
+    virtual void setCreateMode(DCPBackfillCreateMode mode) = 0;
 };
 
 /**
@@ -134,6 +156,10 @@ public:
         return uid;
     }
 
+    void setCreateMode(DCPBackfillCreateMode mode) override {
+        createMode = mode;
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream&, State);
 
@@ -155,6 +181,12 @@ protected:
     std::chrono::steady_clock::duration runtime{0};
     /// start time for each invocation of run
     std::chrono::steady_clock::time_point runStart;
+    /**
+     * The requested CreateMode. This value should be set before the backfill
+     * runs for the first time, however, some tests do not do this and
+     * currently expect CreateAndScan.
+     */
+    DCPBackfillCreateMode createMode{DCPBackfillCreateMode::CreateAndScan};
 
 private:
     /**

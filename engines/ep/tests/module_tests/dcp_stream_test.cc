@@ -2199,29 +2199,22 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     auto& readyQ1 = stream1->public_readyQ();
     auto& readyQ2 = stream2->public_readyQ();
 
-    // all streams will create/scan but yield, so all have a snapshot marker and
-    // one mutation
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(backfill_success, bfm.backfill());
     ASSERT_EQ(backfill_success, bfm.backfill());
-
-    EXPECT_EQ(2, readyQ0.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ0.front()->getEvent());
-    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
-
-    EXPECT_EQ(2, readyQ1.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.front()->getEvent());
-    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ1.back()->getEvent());
-
-    EXPECT_EQ(2, readyQ2.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
-    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
+    EXPECT_EQ(1, readyQ0.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ0.back()->getEvent());
+    EXPECT_EQ(1, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.back()->getEvent());
+    EXPECT_EQ(1, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
 
     // To drive a single vBucket's backfill to completion in this test requires
-    // further 2 steps:
-    // 1. For pushing the last itam over the stream
-    // 2. For settling, as the backfill yields after (1)
-    const int backfillSteps = 2;
+    // further 3 steps:
+    // 1. For pushing the first item over the stream
+    // 2. For pushing the second item over the stream
+    // 3. For settling, as the backfill yields after (2)
+    const int backfillSteps = 3;
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
     }
@@ -2229,13 +2222,10 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     // 2. Verify that all of the first VB has now backfilled.
     EXPECT_EQ(3, readyQ0.size());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
-    EXPECT_EQ(2, readyQ1.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.front()->getEvent());
-    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
-    EXPECT_EQ(2, readyQ2.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
-    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
-
+    EXPECT_EQ(1, readyQ1.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ1.back()->getEvent());
+    EXPECT_EQ(1, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
     }
@@ -2245,10 +2235,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ0.back()->getEvent());
     EXPECT_EQ(3, readyQ1.size());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ1.back()->getEvent());
-    EXPECT_EQ(2, readyQ2.size());
-    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
-    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
-
+    EXPECT_EQ(1, readyQ2.size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.back()->getEvent());
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
     }
@@ -2261,7 +2249,11 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     EXPECT_EQ(3, readyQ2.size());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
 
-    ASSERT_EQ(backfill_finished, bfm.backfill());
+    EXPECT_EQ(backfill_finished, bfm.backfill());
+    EXPECT_EQ(backfill_finished, bfm.backfill());
+    EXPECT_EQ(backfill_finished, bfm.backfill());
+    EXPECT_EQ(backfill_finished, bfm.backfill());
+    EXPECT_EQ(backfill_finished, bfm.backfill());
 }
 
 TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
