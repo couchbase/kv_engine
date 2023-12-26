@@ -857,6 +857,7 @@ nlohmann::json MemcachedConnection::stats(const std::string& subcommand,
                 }
             },
             subcommand,
+            {},
             getFrameInfo);
     return ret;
 }
@@ -1497,9 +1498,31 @@ MutationInfo MemcachedConnection::store(const std::string& id,
 
 void MemcachedConnection::stats(
         std::function<void(const std::string&, const std::string&)> callback,
-        const std::string& group,
+        std::string group,
+        std::string value,
         GetFrameInfoFunction getFrameInfo) {
-    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat, group);
+    stats([&callback](const auto& k, const auto& v, auto) { callback(k, v); },
+          group,
+          value,
+          getFrameInfo);
+}
+
+void MemcachedConnection::stats(
+        std::function<void(const std::string&,
+                           const std::string&,
+                           cb::mcbp::Datatype)> callback,
+        std::string group,
+        std::string value,
+        GetFrameInfoFunction getFrameInfo) {
+    BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Stat, std::move(group));
+    if (!value.empty() && hasFeature(cb::mcbp::Feature::JSON)) {
+        try {
+            auto json = nlohmann::json::parse(value);
+            cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        } catch (const std::exception&) {
+        }
+    }
+    cmd.setValue(std::move(value));
     applyFrameInfos(cmd, getFrameInfo);
     sendCommand(cmd);
 
@@ -1522,7 +1545,9 @@ void MemcachedConnection::stats(
             key = std::to_string(counter++);
         }
 
-        callback(key, response.getDataString());
+        callback(key,
+                 response.getDataString(),
+                 cb::mcbp::Datatype(response.getDatatype()));
     }
 }
 
@@ -1532,6 +1557,7 @@ std::map<std::string, std::string> MemcachedConnection::statsMap(
     stats([&ret](const std::string& key,
                  const std::string& value) -> void { ret[key] = value; },
           subcommand,
+          {},
           getFrameInfo);
     return ret;
 }

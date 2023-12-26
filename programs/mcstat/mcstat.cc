@@ -20,6 +20,79 @@
 
 using namespace cb::terminal;
 
+static bool request_dcp_stat(MemcachedConnection& connection,
+                             const std::string& impersonate,
+                             bool json) {
+    try {
+        auto getFrameInfos = [&impersonate]() -> FrameInfoVector {
+            if (impersonate.empty()) {
+                return {};
+            }
+            FrameInfoVector ret;
+            ret.emplace_back(std::make_unique<
+                             cb::mcbp::request::ImpersonateUserFrameInfo>(
+                    impersonate));
+            return ret;
+        };
+
+        bool first_time = true;
+        connection.stats(
+                [&first_time, json](const auto& key,
+                                    const auto& value,
+                                    auto datatype) -> void {
+                    if (json) {
+                        if (first_time) {
+                            std::cout << "{" << std::endl;
+                            first_time = false;
+                        } else {
+                            std::cout << "," << std::endl;
+                        }
+                    }
+
+                    if (datatype == cb::mcbp::Datatype::JSON) {
+                        auto payload = nlohmann::json::parse(value);
+                        if (json) {
+                            fmt::print(
+                                    stdout, R"("{}":{})", key, payload.dump(2));
+                        } else if (payload.is_object()) {
+                            for (auto iter = payload.begin();
+                                 iter != payload.end();
+                                 ++iter) {
+                                fmt::print(stdout,
+                                           "{}_{} {}\n",
+                                           key,
+                                           iter.key(),
+                                           iter.value());
+                            }
+                        } else {
+                            fmt::print(stdout, "{} {}\n", key, value);
+                        }
+                    } else {
+                        // dump it as a string value for now
+                        if (json) {
+                            fmt::print(stdout, R"("{}":"{}")", key, value);
+                        } else {
+                            fmt::print(stdout, "{} {}\n", key, value);
+                        }
+                    }
+                },
+                "dcp",
+                R"({ "stream_format" : "json" })",
+                getFrameInfos);
+        if (json) {
+            std::cout << "}" << std::endl;
+        }
+    } catch (const ConnectionError& ex) {
+        if (ex.isInvalidArguments()) {
+            return false;
+        }
+        std::cerr << TerminalColor::Red << ex.what() << ": "
+                  << ex.getErrorJsonContext().dump(2) << TerminalColor::Reset
+                  << std::endl;
+    }
+    return true;
+}
+
 /**
  * Request a stat from the server
  * @param sock socket connected to the server
@@ -31,6 +104,15 @@ static void request_stat(MemcachedConnection& connection,
                          bool json,
                          bool format,
                          const std::string& impersonate) {
+    if (statGroup == "dcp") {
+        // It is possible to request these stats in a (network and
+        // memory) optimized format
+        if (request_dcp_stat(connection, impersonate, json)) {
+            return;
+        }
+        // The node does not support the new mode to fetch the
+        // stats.. fall back
+    }
     try {
         auto getFrameInfos = [&impersonate]() -> FrameInfoVector {
             if (impersonate.empty()) {
@@ -76,6 +158,7 @@ static void request_stat(MemcachedConnection& connection,
                         }
                     },
                     statGroup,
+                    {},
                     getFrameInfos);
         }
     } catch (const ConnectionError& ex) {
@@ -297,7 +380,8 @@ int main(int argc, char** argv) {
         auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
         connection->setAgentName("mcstat " MEMCACHED_VERSION);
-        connection->setFeatures({cb::mcbp::Feature::XERROR});
+        connection->setFeatures(
+                {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
 
         if (allBuckets) {
             buckets = connection->listBuckets();

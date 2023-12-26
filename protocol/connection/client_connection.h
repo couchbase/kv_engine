@@ -599,11 +599,32 @@ public:
      *
      * @param callback the callback to call for each stat
      * @param group the stats group to request
+     * @param value the value to pass to a stats request (used for filter for
+     *              dcp etc)
+     * @getFrameInfo callback to get the frame info's to use in the request
      */
     void
     stats(std::function<void(const std::string&, const std::string&)> callback,
-          const std::string& group = std::string{},
+          std::string group = std::string{},
+          std::string value = std::string{},
           GetFrameInfoFunction getFrameInfo = {});
+
+    /**
+     * Get statistics from the server, and fire a callback with the key and
+     * value of each reported stat
+     *
+     * @param callback the callback to call for each stat
+     * @param group the stats group to request
+     * @param value the value to pass to a stats request (used for filter for
+     *              dcp etc)
+     * @getFrameInfo callback to get the frame info's to use in the request
+     */
+    void stats(std::function<void(const std::string&,
+                                  const std::string&,
+                                  cb::mcbp::Datatype)> callback,
+               std::string group = std::string{},
+               std::string value = std::string{},
+               GetFrameInfoFunction getFrameInfo = {});
 
     /**
      * Get stats as a map
