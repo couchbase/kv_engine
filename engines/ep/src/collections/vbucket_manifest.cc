@@ -586,7 +586,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
 
     if (!inserted) {
         throwException<std::logic_error>(
-                __FUNCTION__,
+                __func__,
                 "The collection already exists: failed adding collection:" +
                         identifiers.second.to_string() +
                         ", name:" + std::string(collectionName) +
@@ -611,7 +611,7 @@ ScopeEntry& Manifest::addNewScopeEntry(
     auto [itr, emplaced] = scopes.try_emplace(sid, 0, sharedMeta);
     if (!emplaced) {
         throwException<std::logic_error>(
-                __FUNCTION__, "scope already exists, scope:" + sid.to_string());
+                __func__, "scope already exists, scope:" + sid.to_string());
     }
 
     return itr->second;
@@ -648,7 +648,7 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
     auto itr = map.find(cid);
     if (itr == map.end()) {
         throwException<std::logic_error>(
-                __FUNCTION__, "did not find collection:" + cid.to_string());
+                __func__, "did not find collection:" + cid.to_string());
     }
 
     // record the uid of the manifest which removed the collection
@@ -694,7 +694,7 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
     auto itr = map.find(cid);
     if (itr == map.end()) {
         throwException<std::logic_error>(
-                __FUNCTION__, "did not find collection:" + cid.to_string());
+                __func__, "did not find collection:" + cid.to_string());
     }
 
     // record the uid of the manifest which modified the collection
@@ -744,8 +744,7 @@ const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
     auto itr = map.find(identifier);
     if (itr == map.end()) {
         throwException<std::logic_error>(
-                __FUNCTION__,
-                "did not find collection:" + identifier.to_string());
+                __func__, "did not find collection:" + identifier.to_string());
     }
 
     return itr->second;
@@ -755,7 +754,7 @@ const ScopeEntry& Manifest::getScopeEntry(ScopeID sid) const {
     auto itr = scopes.find(sid);
     if (itr == scopes.end()) {
         throwException<std::logic_error>(
-                __FUNCTION__, "did not find scope:" + sid.to_string());
+                __func__, "did not find scope:" + sid.to_string());
     }
 
     return itr->second;
@@ -846,7 +845,7 @@ void Manifest::dropScope(VBucketStateLockRef vbStateLock,
     // tombstone being transmitted from the active.
     if (!optionalSeqno && itr == scopes.end()) {
         throwException<std::logic_error>(
-                __FUNCTION__,
+                __func__,
                 "no seqno defined and the scope doesn't exist, scope:" +
                         sid.to_string());
     } else if (itr != scopes.end()) {
@@ -1416,7 +1415,7 @@ uint64_t Manifest::getItemCount(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string());
     }
     return itr->second.getItemCount();
@@ -1426,7 +1425,7 @@ uint64_t Manifest::getHighSeqno(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string());
     }
     return itr->second.getHighSeqno();
@@ -1438,7 +1437,7 @@ void Manifest::setHighSeqno(CollectionID collection,
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string() +
                         " with value:" + std::to_string(value));
     }
@@ -1450,7 +1449,7 @@ void Manifest::setDiskSize(CollectionID collection, size_t size) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string());
     }
     itr->second.setDiskSize(size);
@@ -1460,7 +1459,7 @@ void Manifest::updateDataSize(ScopeID sid, ssize_t delta) const {
     auto itr = scopes.find(sid);
     if (itr == scopes.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__, "failed find of scope:" + sid.to_string());
+                __func__, "failed find of scope:" + sid.to_string());
     }
     itr->second.updateDataSize(delta);
 }
@@ -1469,7 +1468,7 @@ size_t Manifest::getDataSize(ScopeID sid) const {
     auto scope = scopes.find(sid);
     if (scope == scopes.end()) {
         throwException<std::logic_error>(
-                __FUNCTION__, "scope not found for " + sid.to_string());
+                __func__, "scope not found for " + sid.to_string());
     }
     return scope->second.getDataSize();
 }
@@ -1482,8 +1481,7 @@ void Manifest::updateScopeDataSize(const container::const_iterator entry,
     }
 
     if (entry == map.end()) {
-        throwException<std::invalid_argument>(__FUNCTION__,
-                                              "iterator is invalid");
+        throwException<std::invalid_argument>(__func__, "iterator is invalid");
     }
 
     updateDataSize(entry->second.getScopeID(), delta);
@@ -1493,7 +1491,7 @@ uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string());
     }
     return itr->second.getPersistedHighSeqno();
@@ -1508,8 +1506,7 @@ void Manifest::setPersistedHighSeqno(CollectionID collection,
             return;
         }
         throwException<std::logic_error>(
-                __FUNCTION__,
-                "did not find collection:" + collection.to_string());
+                __func__, "did not find collection:" + collection.to_string());
     }
     itr->second.setPersistedHighSeqno(value);
 }
@@ -1518,7 +1515,7 @@ void Manifest::incrementItemCount(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string());
     }
     return itr->second.incrementItemCount();
@@ -1528,7 +1525,7 @@ void Manifest::decrementItemCount(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__,
+                __func__,
                 "failed find of collection:" + collection.to_string());
     }
     return itr->second.decrementItemCount();
@@ -1727,7 +1724,7 @@ void Manifest::setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
 
 uint64_t Manifest::getDefaultCollectionMaxVisibleSeqno() const {
     if (!doesDefaultCollectionExist()) {
-        throwException<std::logic_error>(__FUNCTION__,
+        throwException<std::logic_error>(__func__,
                                          "did not find default collection");
     }
 
@@ -1736,7 +1733,7 @@ uint64_t Manifest::getDefaultCollectionMaxVisibleSeqno() const {
 
 uint64_t Manifest::getDefaultCollectionMaxLegacyDCPSeqno() const {
     if (!doesDefaultCollectionExist()) {
-        throwException<std::logic_error>(__FUNCTION__,
+        throwException<std::logic_error>(__func__,
                                          "did not find default collection");
     }
 
@@ -1747,7 +1744,7 @@ CanDeduplicate Manifest::getCanDeduplicate(CollectionID cid) const {
     auto itr = map.find(cid);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__, "failed find of collection:" + cid.to_string());
+                __func__, "failed find of collection:" + cid.to_string());
     }
     return itr->second.getCanDeduplicate();
 }
@@ -1756,7 +1753,7 @@ cb::ExpiryLimit Manifest::getMaxTtl(CollectionID cid) const {
     auto itr = map.find(cid);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
-                __FUNCTION__, "failed find of collection:" + cid.to_string());
+                __func__, "failed find of collection:" + cid.to_string());
     }
     return itr->second.getMaxTtl();
 }

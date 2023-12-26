@@ -701,7 +701,7 @@ protected:
 
     void incrementItemCount(const container::const_iterator entry) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -710,7 +710,7 @@ protected:
 
     void decrementItemCount(const container::const_iterator entry) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -720,7 +720,7 @@ protected:
     void updateItemCount(const container::const_iterator entry,
                          ssize_t delta) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -730,7 +730,7 @@ protected:
     void updateDiskSize(const container::const_iterator entry,
                         ssize_t delta) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -749,7 +749,7 @@ protected:
     void setDiskSize(const container::const_iterator entry,
                      size_t newValue) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -767,7 +767,7 @@ protected:
 
     size_t getDiskSize(const container::const_iterator entry) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -791,7 +791,7 @@ protected:
                       uint64_t value,
                       HighSeqnoType type) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -824,7 +824,7 @@ protected:
     uint64_t getPersistedHighSeqno(
             const container::const_iterator entry) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -834,7 +834,7 @@ protected:
     bool setPersistedHighSeqno(const container::const_iterator entry,
                                uint64_t value) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -844,7 +844,7 @@ protected:
     void resetPersistedHighSeqno(const container::const_iterator entry,
                                  uint64_t value) const {
         if (entry == map.end()) {
-            throwException<std::invalid_argument>(__FUNCTION__,
+            throwException<std::invalid_argument>(__func__,
                                                   "iterator is invalid");
         }
 
@@ -1257,7 +1257,7 @@ protected:
      * Return a string for use in throwException, returns:
      *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
      *
-     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param thrower a string for who is throwing, typically __func__
      * @param error a string containing the error and useful data
      * @returns string as per description above
      */
@@ -1268,7 +1268,7 @@ protected:
      * throw exception with the following error string:
      *   "VB::Manifest::<thrower>:<error>, this:<ostream *this>"
      *
-     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param thrower a string for who is throwing, typically __func__
      * @param error a string containing the error and useful data
      * @throws exception
      */

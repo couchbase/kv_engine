@@ -71,7 +71,7 @@ public:
         // start can only be set to a new, greater value
         if (seqno <= startSeqno) {
             throwException<std::invalid_argument>(
-                    __FUNCTION__,
+                    __func__,
                     "cannot set startSeqno from:" + std::to_string(startSeqno) +
                             " to:" + std::to_string(seqno));
         }
@@ -230,7 +230,7 @@ private:
      * Return a string for use in throwException, returns:
      *   "VB::ManifestEntry::<thrower>:<error>, this:<ostream *this>"
      *
-     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param thrower a string for who is throwing, typically __func__
      * @param error a string containing the error and useful data
      * @returns string as per description above
      */
@@ -241,7 +241,7 @@ private:
      * throw exception with the following error string:
      *   "VB::ManifestEntry::<thrower>:<error>, this:<ostream *this>"
      *
-     * @param thrower a string for who is throwing, typically __FUNCTION__
+     * @param thrower a string for who is throwing, typically __func__
      * @param error a string containing the error and useful data
      * @throws exception
      */

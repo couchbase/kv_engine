@@ -694,7 +694,7 @@ GetValue NexusKVStore::get(const DiskDocKey& key,
     auto primaryGetValue = primary->get(key, vb, filter);
     auto secondaryGetValue = secondary->get(key, vb, filter);
 
-    doPostGetChecks(__FUNCTION__, vb, key, primaryGetValue, secondaryGetValue);
+    doPostGetChecks(__func__, vb, key, primaryGetValue, secondaryGetValue);
     return primaryGetValue;
 }
 
@@ -723,7 +723,7 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
     auto secondaryGetValue = secondary->getWithHeader(
             *nexusFileHandle.secondaryFileHandle, key, vb, filter);
 
-    doPostGetChecks(__FUNCTION__, vb, key, primaryGetValue, secondaryGetValue);
+    doPostGetChecks(__func__, vb, key, primaryGetValue, secondaryGetValue);
     return primaryGetValue;
 }
 
@@ -805,7 +805,7 @@ void NexusKVStore::getMulti(Vbid vb,
         }
 
         doPostGetChecks(
-                __FUNCTION__, vb, key, value.value, secondaryItr->second.value);
+                __func__, vb, key, value.value, secondaryItr->second.value);
     }
 }
 
@@ -875,7 +875,7 @@ void NexusKVStore::getRange(Vbid vb,
         }
 
         if (primaryGetValues.front().getStatus() == cb::engine_errc::success) {
-            doPostGetChecks(__FUNCTION__,
+            doPostGetChecks(__func__,
                             vb,
                             DiskDocKey(primaryGetValues.front().item->getKey()),
                             primaryGetValues.front(),
