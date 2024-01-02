@@ -628,14 +628,11 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
             << "The foo attribute should be gone";
 }
 
-TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
-    if (!isCouchstore()) {
-        GTEST_SKIP();
-    }
+TEST_P(EPBucketFullEvictionTest, GetMultiExceedsBucketQuota) {
     ASSERT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
     const auto& stats = engine->getEpStats();
-    EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
+    EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize());
 
     // Load a document of size 1MiB
     int valueSize = 1 * 1024 * 1024;
@@ -657,91 +654,18 @@ TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     // set bucket quota to current memory usage
-    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed());
+    std::string msg;
+    auto newSize = stats.getEstimatedTotalMemoryUsed();
+    engine->setMaxDataSize(newSize);
 
     // run bgFetch
     runBGFetcherTask();
 
-    // BGFetch should fail to allocate memory above bucekt quota (now works for
-    // couch-kvstore), however this still fails for magma
+    // BGFetch should fail to allocate memory above bucekt quota, however
+    // currently we allow BGFetch to exceed bucket quota
     auto vb = store->getVBucket(vbid);
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
-    EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
-}
-
-TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
-    if (!isCouchstore()) {
-        GTEST_SKIP();
-    }
-
-    // This test relies on precise memory tracking
-    const auto& stats = engine->getEpStats();
-    if (!stats.isMemoryTrackingEnabled()) {
-        GTEST_SKIP();
-    }
-
-    ASSERT_EQ(cb::engine_errc::success,
-              store->setVBucketState(vbid, vbucket_state_active, {}));
-    EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
-
-    int valueSize = 1 * 1024 * 1024;
-
-    // Load documents of size 1MiB
-    const std::string value(valueSize, 'x');
-    auto key1 = makeStoredDocKey("key_0");
-    auto key2 = makeStoredDocKey("key_1");
-
-    // store an items
-    store_item(vbid, key1, value);
-    store_item(vbid, key2, value);
-    flush_vbucket_to_disk(vbid, 2);
-
-    // evict items
-    evict_key(vbid, key1);
-    evict_key(vbid, key2);
-
-    // check item has been removed
-    auto options = static_cast<get_options_t>(
-            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
-            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
-    auto cookie1 = create_mock_cookie();
-    auto cookie2 = create_mock_cookie();
-
-    auto gv = store->get(key1, vbid, cookie1, options);
-    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
-    gv = store->get(key2, vbid, cookie2, options);
-    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
-
-    // set bucket quota to current memory usage + 3MiB such that the first
-    // bgfetch will pass and the second one will fail:
-    // couchstore fetches value + addition overhead = ~1.3MiB
-    // We want an additional 1MiB for fetching the first item successfully
-    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() + (3 * valueSize));
-
-    int callbackCounter = 0;
-    cookie1->setUserNotifyIoComplete(
-            [&callbackCounter](cb::engine_errc status) {
-                EXPECT_EQ(cb::engine_errc::success, status);
-                callbackCounter++;
-            });
-    cookie2->setUserNotifyIoComplete(
-            [&callbackCounter](cb::engine_errc status) {
-                EXPECT_EQ(cb::engine_errc::temporary_failure, status);
-                callbackCounter++;
-            });
-
-    // run bgFetch
-    runBGFetcherTask();
-
-    // BGFetch should fail to allocate memory above bucekt quota (now works for
-    // couch-kvstore), however this still fails for magma
-    auto vb = store->getVBucket(vbid);
-    EXPECT_FALSE(vb->hasPendingBGFetchItems());
-    EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
-    EXPECT_EQ(2, callbackCounter);
-
-    destroy_mock_cookie(cookie1);
-    destroy_mock_cookie(cookie2);
+    EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.getMaxDataSize());
 }
 
 TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {

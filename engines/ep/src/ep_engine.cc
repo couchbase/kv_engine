@@ -2329,8 +2329,8 @@ EventuallyPersistentEngine::createItem(const DocKey& key,
                                        int64_t bySeq,
                                        Vbid vbid,
                                        int64_t revSeq) {
-    if (!memoryTracker->isBelowMutationMemoryQuota(sizeof(Item) + sizeof(Blob) +
-                                                   key.size() + nbytes)) {
+    if (!hasMemoryForItemAllocation(sizeof(Item) + sizeof(Blob) + key.size() +
+                                    nbytes)) {
         return {memoryCondition(), nullptr};
     }
     try {
