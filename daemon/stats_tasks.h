@@ -12,6 +12,7 @@
 #include <executor/globaltask.h>
 #include <folly/Synchronized.h>
 #include <folly/io/IOBuf.h>
+#include <json/syntax_validator.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <deque>
@@ -64,28 +65,31 @@ private:
     static constexpr size_t BUFFER_CAPACITY = 16 * 1024;
 
     struct TaskData {
+        /**
+         * Append an MCBP frame to the end of the stream containing
+         * the key-value pair
+         *
+         * @param k the stat key
+         * @param v she stat value
+         * @return the total size of the key value pair
+         */
+        std::size_t append(std::string_view k, std::string_view v);
+        /// The opaque field to add to all of the packets in the stream
+        uint32_t opaque;
+        /// validator used to check if the provided value is JSON
+        std::unique_ptr<cb::json::SyntaxValidator> validator;
         cb::engine_errc command_error{cb::engine_errc::success};
         std::deque<std::unique_ptr<folly::IOBuf>> stats_buf;
     };
 
-    /**
-     * Callback from the getStats implementation of the sub-class.
-     *
-     * @param writable_data Provides synchronised access to the task data.
-     * @param k The stat key.
-     * @param v The stat value.
-     */
-    void addStatCallback(TaskData& writable_data,
-                         std::string_view k,
-                         std::string_view v);
-
     folly::Synchronized<TaskData, std::mutex> taskData;
+
     /**
      * The total size of buffered responses. Logically the same as the sum of
      * taskData.stats_buf[i]->length(), but maintained separately for
      * efficiency.
      */
-    std::atomic<ssize_t> statsBufSize{0};
+    std::atomic<size_t> statsBufSize{0};
 };
 
 /**

@@ -22,8 +22,40 @@
 #include <logger/logger.h>
 #include <memory>
 
-StatsTask::StatsTask(TaskId id, Cookie& cookie)
-    : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie) {
+std::size_t StatsTask::TaskData::append(std::string_view k,
+                                        std::string_view v) {
+    cb::mcbp::response::StatsResponse rsp(k.size(), v.size());
+    if (validator && validator->validate(v)) {
+        rsp.setDatatype(cb::mcbp::Datatype::JSON);
+    }
+    rsp.setOpaque(opaque);
+    auto header = rsp.getBuffer();
+    const auto total = header.size() + k.size() + v.size();
+    if (stats_buf.empty() || stats_buf.back()->tailroom() < total) {
+        stats_buf.emplace_back(folly::IOBuf::createCombined(BUFFER_CAPACITY));
+    }
+
+    // Write the mcbp response into the task's buffer (header, key, value).
+    auto& iob = *stats_buf.back();
+    iob.reserve(0, total);
+    std::copy(header.begin(), header.end(), iob.writableTail());
+    iob.append(sizeof(rsp));
+    std::copy(k.begin(), k.end(), iob.writableTail());
+    iob.append(k.size());
+    std::copy(v.begin(), v.end(), iob.writableTail());
+    iob.append(v.size());
+    return total;
+}
+
+StatsTask::StatsTask(TaskId id, Cookie& cookie_)
+    : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie_) {
+    taskData.withLock([this](auto& data) {
+        data.opaque = cookie.getHeader().getOpaque();
+        if (cookie.getConnection().isDatatypeEnabled(
+                    PROTOCOL_BINARY_DATATYPE_JSON)) {
+            data.validator = cb::json::SyntaxValidator::New();
+        }
+    });
 }
 
 cb::engine_errc StatsTask::getCommandError() const {
@@ -85,7 +117,7 @@ bool StatsTask::run() {
         auto addStatFn = [this, &data](std::string_view key,
                                        std::string_view value,
                                        CookieIface&) {
-            addStatCallback(data, key, value);
+            statsBufSize += data.append(key, value);
         };
         getStats(data.command_error, addStatFn);
         // If the handler isn't would_block we should signal the cookie
@@ -97,31 +129,6 @@ bool StatsTask::run() {
         }
     });
     return false;
-}
-
-void StatsTask::addStatCallback(TaskData& writable_data,
-                                std::string_view k,
-                                std::string_view v) {
-    cb::mcbp::response::StatsResponse rsp(k.size(), v.size());
-    rsp.setOpaque(cookie.getHeader().getOpaque());
-    auto header = rsp.getBuffer();
-    const auto total = header.size() + k.size() + v.size();
-    if (writable_data.stats_buf.empty() ||
-        writable_data.stats_buf.back()->tailroom() < total) {
-        writable_data.stats_buf.emplace_back(
-                folly::IOBuf::createCombined(BUFFER_CAPACITY));
-    }
-
-    // Write the mcbp response into the task's buffer (header, key, value).
-    auto& iob = *writable_data.stats_buf.back();
-    iob.reserve(0, total);
-    std::copy(header.begin(), header.end(), iob.writableTail());
-    iob.append(sizeof(rsp));
-    std::copy(k.begin(), k.end(), iob.writableTail());
-    iob.append(k.size());
-    std::copy(v.begin(), v.end(), iob.writableTail());
-    iob.append(v.size());
-    statsBufSize += total;
 }
 
 StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
