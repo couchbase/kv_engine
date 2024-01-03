@@ -47,7 +47,7 @@ TEST_F(UpgradeTest, ExpiryOpcodeDoesntEnableDeleteV2) {
 
     // store and delete a document on the active
     auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
     auto info = conn->store("foo", Vbid(0), "value");
     EXPECT_NE(0, info.cas);
@@ -58,7 +58,7 @@ TEST_F(UpgradeTest, ExpiryOpcodeDoesntEnableDeleteV2) {
     const auto nrep = bucket->getVbucketMap()[0].size() - 1;
     for (std::size_t rep = 0; rep < nrep; ++rep) {
         conn = bucket->getConnection(Vbid(0), vbucket_state_replica, rep);
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
 
         // Wait for persistence of our item

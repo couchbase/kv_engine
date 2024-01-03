@@ -69,7 +69,7 @@ public:
 
     void SetUp() override {
         conn = cluster->getConnection(0);
-        conn->authenticate("@admin", "password");
+        conn->authenticate("@admin");
         conn->selectBucket("metering");
         if (GetParam() != MeteringType::UnmeteredByPrivilege) {
             conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
@@ -199,7 +199,7 @@ protected:
     std::unique_ptr<MemcachedConnection> getReplicaConn() {
         auto bucket = cluster->getBucket("metering");
         auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
-        rconn->authenticate("@admin", "password");
+        rconn->authenticate("@admin");
         rconn->selectBucket("metering");
         rconn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
 
@@ -457,7 +457,7 @@ void MeteringTest::upsert(DocKey id,
 /// were its usage isn't being metered.
 TEST_P(MeteringTest, UnmeteredPrivilege) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("metering");
     admin->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
 
@@ -507,7 +507,7 @@ TEST_P(MeteringTest, UnmeteredPrivilege) {
 TEST_P(MeteringTest, OpsMetered) {
     using namespace cb::mcbp;
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
 
     auto executeWithExpectedCU = [&admin](std::function<void()> func,
@@ -826,7 +826,7 @@ TEST_P(MeteringTest, OpsMetered) {
     };
 
     auto connection = cluster->getConnection(0);
-    connection->authenticate("@admin", "password");
+    connection->authenticate("@admin");
     connection->selectBucket("metering");
     connection->dropPrivilege(cb::rbac::Privilege::Unmetered);
     connection->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
@@ -3117,7 +3117,7 @@ TEST_P(MeteringTest, TTL_Expiry_Compaction) {
     std::this_thread::sleep_for(std::chrono::seconds{2});
 
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("metering");
     auto rsp = admin->execute(BinprotCompactDbCommand{});
     EXPECT_TRUE(rsp.isSuccess());
@@ -3347,7 +3347,7 @@ TEST_P(MeteringTest, ImposedUsersMayMeter) {
     upsert(key, getStringValue());
 
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("metering");
     admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
     admin->setFeature(cb::mcbp::Feature::Collections, true);
@@ -3397,9 +3397,9 @@ TEST_P(MeteringTest, MB54479) {
     auto active = bucket->getConnection(Vbid{2}, vbucket_state_active);
     auto replica = bucket->getConnection(Vbid{2}, vbucket_state_replica, 1);
 
-    active->authenticate("@admin", "password");
+    active->authenticate("@admin");
     active->selectBucket("metering");
-    replica->authenticate("@admin", "password");
+    replica->authenticate("@admin");
     replica->selectBucket("metering");
 
     nlohmann::json before;

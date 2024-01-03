@@ -48,13 +48,13 @@ TEST(PauseResumeServerlessTest, PauseResume) {
     std::vector<std::unique_ptr<MemcachedConnection>> adminConns;
     cluster->iterateNodes([&adminConns](const Node& node) {
         auto conn = node.getConnection();
-        conn->authenticate("@admin", "password");
+        conn->authenticate("@admin");
         adminConns.push_back(std::move(conn));
     });
 
     // store a document to bucket-0
     auto bucket0 = adminConns.at(0)->clone();
-    bucket0->authenticate("bucket-0", "bucket-0");
+    bucket0->authenticate("bucket-0");
     bucket0->selectBucket("bucket-0");
     writeDoc(*bucket0);
 
@@ -90,7 +90,7 @@ TEST(PauseResumeServerlessTest, PauseResume) {
 
     // Succeeds to store a document in bucket which is not paused (bucket-1)
     auto bucket1 = adminConns.at(0)->clone();
-    bucket1->authenticate("bucket-1", "bucket-1");
+    bucket1->authenticate("bucket-1");
     bucket1->selectBucket("bucket-1");
     EXPECT_EQ("ready",
               getBucketInformation(*adminConns.at(0), "bucket-1")["state"]);
@@ -108,7 +108,7 @@ TEST(PauseResumeServerlessTest, PauseResume) {
     // (must reconnect as old connection was disconnected on pause).
     cluster->getBucket("bucket-0")->setupReplication();
     bucket0 = adminConns.at(0)->clone();
-    bucket0->authenticate("bucket-0", "bucket-0");
+    bucket0->authenticate("bucket-0");
     bucket0->selectBucket("bucket-0");
 
     writeDoc(*bucket0);

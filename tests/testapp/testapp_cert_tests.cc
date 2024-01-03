@@ -70,7 +70,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithoutCert) {
     const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     connection->connect();
-    connection->authenticate("@admin", "password", "PLAIN");
+    connection->authenticate("@admin");
 }
 
 /**
@@ -85,7 +85,7 @@ TEST_F(SslCertTest, LoginWhenDiabledWithCert) {
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "john");
     connection->connect();
-    connection->authenticate("@admin", "password", "PLAIN");
+    connection->authenticate("@admin");
 }
 
 /**
@@ -98,7 +98,7 @@ TEST_F(SslCertTest, LoginEnabledWithoutCert) {
     const auto connection = createConnection();
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     connection->connect();
-    connection->authenticate("@admin", "password", "PLAIN");
+    connection->authenticate("@admin");
 }
 
 /**
@@ -112,7 +112,7 @@ TEST_F(SslCertTest, LoginEnabledWithCertNoMapping) {
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     setClientCertData(*connection, "trond");
     connection->connect();
-    connection->authenticate("@admin", "password", "PLAIN");
+    connection->authenticate("@admin");
 }
 
 /**
@@ -132,7 +132,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
     // We should be authenticated from the cert, so we should not be
     // allowed to perform another authentication
     try {
-        connection->authenticate("@admin", "password", "PLAIN");
+        connection->authenticate("@admin");
         FAIL() << "SASL Auth should be disabled for cert auth'd connections";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotSupported())
@@ -265,7 +265,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
     connection->setXerrorSupport(true);
 
     try {
-        connection->authenticate("@admin", "password", "PLAIN");
+        connection->authenticate("@admin");
         FAIL() << "SASL Auth should be disabled for cert auth'd connections";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotSupported())
@@ -378,7 +378,7 @@ TEST_F(SslCertTest, RecognizeInternalUserFromCert) {
     EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 
     // We should be allowed to change user
-    connection->authenticate("@fts", mcd_env->getPassword("@fts"));
+    connection->authenticate("@fts");
     connection->stats(
             [&json](const auto&, const auto& value) {
                 json = nlohmann::json::parse(value);

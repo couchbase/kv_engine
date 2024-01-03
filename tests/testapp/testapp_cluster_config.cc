@@ -220,7 +220,7 @@ void ClusterConfigTest::test_CccpPushNotification(bool global, bool brief) {
     }
 
     auto second = userConnection->clone();
-    second->authenticate("Luke", mcd_env->getPassword("Luke"));
+    second->authenticate("Luke");
     second->selectBucket(bucketName);
     second->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
     second->setFeature(cb::mcbp::Feature::Duplex, true);

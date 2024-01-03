@@ -94,11 +94,11 @@ protected:
 
 TEST_F(CrossBucketQuotaSharingTest, ItemFreqDecayerScheduledForAllBuckets) {
     auto conn1 = bucket1->getConnection(Vbid(0));
-    conn1->authenticate("@admin", "password", "PLAIN");
+    conn1->authenticate("@admin");
     conn1->selectBucket(bucket1->getName());
 
     auto conn2 = bucket2->getConnection(Vbid(0));
-    conn2->authenticate("@admin", "password", "PLAIN");
+    conn2->authenticate("@admin");
     conn2->selectBucket(bucket2->getName());
 
     auto bucket1FreqDecayerRuns =

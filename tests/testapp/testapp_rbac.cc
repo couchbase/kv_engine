@@ -35,7 +35,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 TEST_P(RbacTest, DontAllowUnknownUsers) {
     auto& conn = getConnection();
     try {
-        conn.authenticate("sharon", "sharonpw", "PLAIN");
+        conn.authenticate("sharon", "sharonpw");
         FAIL() << "Users without an RBAC profile should not be allowed access";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAuthError()) << error.what();
@@ -78,7 +78,7 @@ TEST_P(RbacTest, ReloadSasl_NoAccess) {
 
 TEST_P(RbacTest, ScrubNoAccess) {
     auto& c = getConnection();
-    c.authenticate("larry", "larrypassword", "PLAIN");
+    c.authenticate("larry");
 
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
     BinprotResponse response;
@@ -143,11 +143,11 @@ public:
         adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
         smith_holder = getConnection().clone();
-        prepare_auth_connection(*smith_holder, "smith", "smithpassword");
+        prepare_auth_connection(*smith_holder, "smith");
         jones_holder = getConnection().clone();
-        prepare_auth_connection(*jones_holder, "jones", "jonespassword");
+        prepare_auth_connection(*jones_holder, "jones");
         larry_holder = getConnection().clone();
-        prepare_auth_connection(*larry_holder, "larry", "larrypassword");
+        prepare_auth_connection(*larry_holder, "larry");
     }
 
     void TearDown() override {
@@ -213,9 +213,8 @@ protected:
     }
 
     static void prepare_auth_connection(MemcachedConnection& c,
-                                        const std::string& username,
-                                        const std::string& password) {
-        c.authenticate(username, password);
+                                        const std::string& username) {
+        c.authenticate(username);
         c.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                        cb::mcbp::Feature::XATTR,
                        cb::mcbp::Feature::XERROR,
@@ -274,7 +273,7 @@ TEST_P(RbacRoleTest, Arithmetic) {
 
     // reset the connection to get back the privilege
     rw.reconnect();
-    prepare_auth_connection(rw,"larry", "larrypassword");
+    prepare_auth_connection(rw, "larry");
     // With upsert it should be allowed to create the key
     rw.arithmetic(name, 0, 0);
 
@@ -358,7 +357,7 @@ TEST_P(RbacRoleTest, MutationTest_WriteOnly) {
 
     // Reset privilege set
     wo.reconnect();
-    prepare_auth_connection(wo, "jones", "jonespassword");
+    prepare_auth_connection(wo, "jones");
 
     // If we drop the Upsert privilege we should only be allowed to do add
     wo.dropPrivilege(cb::rbac::Privilege::Upsert);
@@ -454,7 +453,7 @@ TEST_P(RbacRoleTest, DontAutoselectBucketNoAccess) {
     adminConnection->createBucket("jones", "", BucketType::Memcached);
 
     auto& conn = getConnection();
-    conn.authenticate("jones", mcd_env->getPassword("jones"));
+    conn.authenticate("jones");
 
     nlohmann::json json;
     conn.stats([&json](const auto& k,
@@ -472,7 +471,7 @@ TEST_P(RbacRoleTest, DontAutoselectBucketNoAccess) {
     ASSERT_FALSE(json.empty()) << "connections self did not return JSON";
     ASSERT_NE(0, json["bucket_index"]) << "Should not be in no-bucket";
 
-    conn.authenticate("larry", mcd_env->getPassword("larry"));
+    conn.authenticate("larry");
     json = {};
     conn.stats([&json](const auto& k,
                        const auto& v) { json = nlohmann::json::parse(v); },

@@ -165,6 +165,19 @@ void AuthProviderService::upsertUser(UserEntry entry) {
     }
 }
 
+std::optional<UserEntry> AuthProviderService::lookupUser(
+        const std::string& user) {
+    return users.withWLock([&user](auto& db) -> std::optional<UserEntry> {
+        // check to see if we're replacing an entry
+        for (auto& e : db) {
+            if (e.username == user) {
+                return e;
+            }
+        }
+        return {};
+    });
+}
+
 void AuthProviderService::onRequest(bufferevent* bev,
                                     const mcbp::Request& req) {
     switch (req.getMagic()) {

@@ -21,7 +21,7 @@ protected:
         reconfigure();
 
         admin = connectionMap.getConnection().clone();
-        admin->authenticate("@admin", "password", "PLAIN");
+        admin->authenticate("@admin");
         admin->selectBucket(bucketName);
         user = connectionMap.getConnection("ssl").clone();
         const auto [uc, sc] = getConnectionCounts();
@@ -92,7 +92,7 @@ TEST_F(MaxConnectionTest, MaxUserConnectionsConnection) {
 
     // But I should be able to create a system connection
     auto c = admin->clone();
-    c->authenticate("@admin", "password", "PLAIN");
+    c->authenticate("@admin");
 }
 
 TEST_F(MaxConnectionTest, SystemConnection) {

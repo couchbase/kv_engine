@@ -29,7 +29,7 @@ namespace cb::test {
 /// Verify that the detailed stat requests provide all the fields we expect
 TEST(MiscTest, TestBucketDetailedStats) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
 
     nlohmann::json bucket;
     admin->stats(
@@ -60,11 +60,11 @@ TEST(MiscTest, TestCmdStats) {
     const Vbid vbid0{0};
 
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->stats("reset");
 
     auto user0 = cluster->getConnection(0);
-    user0->authenticate("bucket-0", "bucket-0");
+    user0->authenticate("bucket-0");
     user0->selectBucket("bucket-0");
     user0->store("TestCmdStats_asdf", vbid0, "lorem");
     for (int ii = 0; ii < 3; ++ii) {
@@ -73,7 +73,7 @@ TEST(MiscTest, TestCmdStats) {
     user0->remove("TestCmdStats_asdf", vbid0);
 
     auto user1 = cluster->getConnection(0);
-    user1->authenticate("bucket-1", "bucket-1");
+    user1->authenticate("bucket-1");
     user1->selectBucket("bucket-1");
     user1->store("TestCmdStats_zxcv", vbid0, "ipsum");
     for (int ii = 0; ii < 2; ++ii) {
@@ -110,7 +110,7 @@ TEST(MiscTest, TestCmdStats) {
 /// the default value
 TEST(MiscTest, TestDefaultThrottleLimit) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     auto bucket = cluster->createBucket("TestDefaultThrottleLimit",
                                         {{"replicas", 2}, {"max_vbuckets", 8}});
     if (!bucket) {
@@ -158,7 +158,7 @@ TEST(MiscTest, TestDefaultThrottleLimit) {
 /// the test once it should be supported)
 TEST(MiscTest, DISABLED_MaxConnectionPerBucket) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     auto getNumClients = [&admin]() -> std::size_t {
         size_t num_clients = 0;
         admin->stats(
@@ -183,7 +183,7 @@ TEST(MiscTest, DISABLED_MaxConnectionPerBucket) {
     BinprotResponse rsp;
     do {
         auto conn = cluster->getConnection(0);
-        conn->authenticate("bucket-1", "bucket-1");
+        conn->authenticate("bucket-1");
         rsp = conn->execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::SelectBucket, "bucket-1"});
         if (rsp.isSuccess()) {
@@ -213,7 +213,7 @@ TEST(MiscTest, DISABLED_MaxConnectionPerBucket) {
 
     // It should be possible to connect "internal" users
     auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
+    conn->authenticate("@admin");
     conn->selectBucket("bucket-1");
     connections.emplace_back(std::move(conn));
     EXPECT_EQ(MaxConnectionsPerBucket + 1, getNumClients());
@@ -230,11 +230,11 @@ TEST(MiscTest, StopClientDataIngress) {
     };
 
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("bucket-0");
 
     auto bucket0 = admin->clone();
-    bucket0->authenticate("bucket-0", "bucket-0");
+    bucket0->authenticate("bucket-0");
     bucket0->selectBucket("bucket-0");
 
     // store a document
@@ -267,7 +267,7 @@ TEST(MiscTest, StopClientDataIngress) {
         }
         // Succeeds to store a document in bucket-1
         auto bucket1 = admin->clone();
-        bucket1->authenticate("bucket-1", "bucket-1");
+        bucket1->authenticate("bucket-1");
         bucket1->selectBucket("bucket-1");
         writeDoc(*bucket1);
 
@@ -283,10 +283,10 @@ TEST(MiscTest, StopClientDataIngress) {
 
 TEST(MiscTest, StopClientDataIngressLockedByNsServer) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
 
     auto regulator = admin->clone();
-    regulator->authenticate("@admin", "password");
+    regulator->authenticate("@admin");
     regulator->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
 
     using cb::mcbp::Status;
@@ -333,7 +333,7 @@ TEST(MiscTest, StopClientDataIngressLockedByNsServer) {
 /// configuration.
 TEST(MiscTest, MemcachedBucketNotSupported) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     auto rsp = admin->execute(BinprotCreateBucketCommand{
             "NotSupported", "default_engine.so", ""});
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
@@ -341,7 +341,7 @@ TEST(MiscTest, MemcachedBucketNotSupported) {
 
 TEST(MiscTest, TraceInfoEnabled) {
     auto admin = cluster->getConnection(2);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("bucket-1");
     Document doc;
     doc.info.id = "TraceInfoEnabled";

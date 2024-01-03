@@ -43,6 +43,13 @@
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
+folly::Synchronized<std::function<std::string(const std::string&)>, std::mutex>
+        MemcachedConnection::lookupPasswordCallback;
+void MemcachedConnection::setLookupUserPasswordFunction(
+        std::function<std::string(const std::string&)> func) {
+    *lookupPasswordCallback.lock() = std::move(func);
+}
+
 /// Helper function to check if we're running in unit test mode or not
 static bool is_unit_test_mode() {
     return getenv("MEMCACHED_UNIT_TESTS") != nullptr;
@@ -1198,9 +1205,28 @@ void MemcachedConnection::recvResponse(BinprotResponse& response,
     traceData = response.getTracingData();
 }
 
-void MemcachedConnection::authenticate(const std::string& username,
-                                       const std::string& password,
-                                       const std::string& mech) {
+void MemcachedConnection::authenticate(
+        const std::string& user,
+        const std::optional<std::string>& password,
+        const std::string& mech) {
+    std::string pw;
+    if (password) {
+        pw = *password;
+    } else {
+        pw = lookupPasswordCallback.withLock([&user](auto& cb) -> std::string {
+            if (cb) {
+                return cb(user);
+            }
+            return {};
+        });
+    }
+
+    return doSaslAuthenticate(user, pw, mech);
+}
+
+void MemcachedConnection::doSaslAuthenticate(const std::string& username,
+                                             const std::string& password,
+                                             const std::string& mech) {
     cb::sasl::client::ClientContext client(
             [username]() -> std::string { return username; },
             [password]() -> std::string { return password; },

@@ -103,7 +103,7 @@ public:
             bool collections) {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         conn->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                            cb::mcbp::Feature::XATTR,

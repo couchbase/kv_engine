@@ -34,7 +34,7 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
     // up DCP.
     {
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
 
         // Force a new checkpoint everytime an item is queued
@@ -70,7 +70,7 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
 
     // 3) Get replica on node 1 to ensure that we have replicated our document.
     auto conn = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
     getReplica(*conn.get(), Vbid(0), "foo");
 
@@ -85,7 +85,7 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
 
     // 5) Verify the replication stream works by doing another get replica.
     conn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
     getReplica(*conn.get(), Vbid(0), "foo");
 

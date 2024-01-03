@@ -32,7 +32,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 TEST_P(RegressionTest, MB_26196) {
     auto& conn = getConnection();
 
-    conn.authenticate("jones", "jonespassword", "PLAIN");
+    conn.authenticate("jones");
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig, "", ""};
     auto response = conn.execute(cmd);
@@ -225,7 +225,7 @@ TEST_P(RegressionTest, MB_31149) {
  */
 TEST_P(RegressionTest, MB_32078) {
     auto& connection = getConnection();
-    connection.authenticate("Luke", mcd_env->getPassword("Luke"));
+    connection.authenticate("Luke");
     connection.selectBucket(bucketName);
     connection.store("MB-32078-testkey", Vbid(0), "value");
 
@@ -262,7 +262,7 @@ TEST_P(RegressionTest, MB_32081) {
              0x3a, 0x22, 0x74, 0x65, 0x73, 0x74, 0x22, 0x7d}}; // |
 
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     Frame frame;
     frame.payload = std::move(packet);
@@ -287,7 +287,7 @@ TEST_P(RegressionTest, SetCtrlToken) {
  */
 TEST_P(RegressionTest, MB35528) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     conn.setDatatypeJson(true);
     conn.increment(name, 1, 0, 0, nullptr);
@@ -312,7 +312,7 @@ TEST_P(RegressionTest, MB37506) {
     };
 
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
 
     // Add the DcpStreamID (which we used to stop parsing after checking)
@@ -336,7 +336,7 @@ TEST_P(RegressionTest, MB37506) {
 ///            processing a command where the validator return a failure
 TEST_P(RegressionTest, MB38243) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
 
     for (int ii = 0; ii < 10; ++ii) {
@@ -442,8 +442,8 @@ TEST_P(RegressionTest, MB40076) {
 TEST_P(RegressionTest, MB44460) {
     auto& conn = getConnection();
     auto admin = conn.clone();
-    admin->authenticate("@admin", "password", "PLAIN");
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    admin->authenticate("@admin");
+    conn.authenticate("Luke");
     auto stats = conn.stats("connections self");
     ASSERT_EQ(1, stats.size());
     const auto connectionid = stats.front()["socket"].get<size_t>();
@@ -603,21 +603,21 @@ TEST_P(RegressionTest, MB49126) {
 TEST_P(RegressionTest, MB54848) {
     auto& conn = getConnection();
     try {
-        conn.authenticate("jones", "invalidpassword", "PLAIN");
+        conn.authenticate("jones", "invalidpassword");
         FAIL() << "authentication should fail";
     } catch (const std::exception& e) {
         EXPECT_STREQ("Authentication failed: Auth failure (32)", e.what());
     }
 
     try {
-        conn.authenticate("nouser", "password", "PLAIN");
+        conn.authenticate("nouser", "password");
         FAIL() << "authentication should fail";
     } catch (const std::exception& e) {
         EXPECT_STREQ("Authentication failed: Auth failure (32)", e.what());
     }
 
     try {
-        conn.authenticate("UserWithoutProfile", "password", "PLAIN");
+        conn.authenticate("UserWithoutProfile");
         FAIL() << "authentication should fail";
     } catch (const std::exception& e) {
         EXPECT_STREQ("Authentication failed: Auth failure (32)", e.what());
@@ -683,7 +683,7 @@ TEST_P(RegressionTest, MB55754) {
 
     // Return key_already_exists "forever" to make sure we give up
     auto conn = userConnection->clone();
-    conn->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn->authenticate("Luke");
     conn->selectBucket(bucketName);
     conn->setAutoRetryTmpfail(false);
     nlohmann::json conn_stats_before;

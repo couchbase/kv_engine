@@ -50,7 +50,7 @@ public:
     static std::unique_ptr<MemcachedConnection> getConnection() {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         conn->setFeature(cb::mcbp::Feature::Collections, true);
         return conn;
@@ -89,7 +89,7 @@ TEST_F(CollectionsTests, TestInvalidCollection) {
     // Test using a non-bucket privileged user so we exercise the
     // Connection::collectionInfo functionality
     auto conn = getConnection();
-    conn->authenticate(username, password);
+    conn->authenticate(username);
     conn->selectBucket("default");
 
     // collections 1 to 7 are reserved and invalid from a client
@@ -210,7 +210,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     // I'm allowed to read from the default collection and read and write
     // to the fruit collection
-    conn->authenticate(username, password);
+    conn->authenticate(username);
     conn->selectBucket("default");
 
     testSubdocRbac(*conn, "TestBasicRbac");

@@ -58,7 +58,7 @@ public:
             buckets.push_back(bucket);
 
             auto conn = bucket->getConnection(Vbid(0));
-            conn->authenticate("@admin", "password", "PLAIN");
+            conn->authenticate("@admin");
             conn->selectBucket(bucket->getName());
             conns.push_back(std::move(conn));
         }
@@ -464,7 +464,7 @@ TEST_F(TwoBucketQSPagingTest,
         auto tempBucket = cluster->createBucket("tempbucket", bucketConfig);
         // Setup a connection to the bucket
         auto tempBucketConn = tempBucket->getConnection(Vbid(0));
-        tempBucketConn->authenticate("@admin", "password", "PLAIN");
+        tempBucketConn->authenticate("@admin");
         tempBucketConn->selectBucket(tempBucket->getName());
         ClusterTest::setMemWatermarks(
                 *tempBucketConn,

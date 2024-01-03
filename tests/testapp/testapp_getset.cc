@@ -870,7 +870,7 @@ TEST_P(GetSetTest, TestPrependCasMismatch) {
 
 TEST_P(GetSetTest, TestIllegalVbucket) {
     auto& conn = getConnection();
-    conn.authenticate("@admin", "password", "PLAIN");
+    conn.authenticate("@admin");
     // A memcached bucket only use vbucket 0
     conn.createBucket("bucket", "", BucketType::Memcached);
     conn.selectBucket("bucket");

@@ -53,9 +53,8 @@ protected:
 
         for (const auto& mech : mechanisms) {
             conn.reconnect();
-            conn.authenticate(
-                    bucket1, mcd_env->getPassword(bucket1), mechanism);
-            conn.authenticate(bucket2, mcd_env->getPassword(bucket2), mech);
+            conn.authenticate(bucket1, {}, mechanism);
+            conn.authenticate(bucket2, {}, mech);
         }
     }
 
@@ -96,9 +95,7 @@ protected:
 
     std::vector<std::string> mechanisms;
     const std::string bucket1{"bucket-1"};
-    const std::string password1{"1S|=,%#x1"};
     const std::string bucket2{"bucket-2"};
-    const std::string password2{"secret"};
     const std::string bucket3{"bucket-3"};
 };
 
@@ -110,22 +107,22 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(SaslTest, SinglePLAIN) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate(bucket1, password1, "PLAIN");
+    conn.authenticate(bucket1, {}, "PLAIN");
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA1) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate(bucket1, password1, "SCRAM-SHA1");
+    conn.authenticate(bucket1, {}, "SCRAM-SHA1");
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA256) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate(bucket1, password1, "SCRAM-SHA256");
+    conn.authenticate(bucket1, {}, "SCRAM-SHA256");
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA512) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate(bucket1, password1, "SCRAM-SHA512");
+    conn.authenticate(bucket1, {}, "SCRAM-SHA512");
 }
 
 TEST_P(SaslTest, UnknownUserPlain) {
@@ -201,11 +198,11 @@ TEST_P(SaslTest, TestDisablePLAIN) {
         conn.reconnect();
         if (mech == "SCRAM-SHA1") {
             // This should work
-            conn.authenticate(bucket1, password1, mech);
+            conn.authenticate(bucket1, {}, mech);
         } else {
             // All other should fail
             try {
-                conn.authenticate(bucket1, password1, mech);
+                conn.authenticate(bucket1, {}, mech);
                 FAIL() << "Mechanism " << mech << " should be disabled";
             } catch (const ConnectionError& e) {
                 EXPECT_TRUE(e.isAuthError());
@@ -216,7 +213,7 @@ TEST_P(SaslTest, TestDisablePLAIN) {
     // verify that we didn't change the setting for the other connection
     c.reconnect();
     // And PLAIN auth should work
-    c.authenticate(bucket1, password1, "PLAIN");
+    c.authenticate(bucket1, {}, "PLAIN");
 
     // Restore the sasl mechanisms
     setSupportedMechanisms(before, conn.isSsl());
@@ -244,7 +241,7 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     const auto mechs = conn.getSaslMechanisms();
 
     // Do a SASL auth
-    conn.authenticate(bucket3, mcd_env->getPassword(bucket3), mechs);
+    conn.authenticate(bucket3, {}, mechs);
 
     // Select the bucket
     conn.selectBucket(bucket3);

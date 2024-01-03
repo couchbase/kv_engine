@@ -22,7 +22,7 @@ protected:
     static std::unique_ptr<MemcachedConnection> getConnection() {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         conn->setFeature(cb::mcbp::Feature::Collections, true);
         return conn;
@@ -63,13 +63,13 @@ public:
 })"_json});
 
         conn = getConnection();
-        conn->authenticate(username, password);
+        conn->authenticate(username);
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacBucket");
         conn->dcpControl("enable_noop", "true");
 
         connNoStream = getConnection();
-        connNoStream->authenticate(usernameNoStream, password);
+        connNoStream->authenticate(usernameNoStream);
         connNoStream->selectBucket("default");
         connNoStream->dcpOpenProducer("CollectionsRbacBucketNoStream");
         connNoStream->dcpControl("enable_noop", "true");
@@ -159,7 +159,7 @@ public:
   "domain": "external"
 })"_json});
         conn = getConnection();
-        conn->authenticate(username, password);
+        conn->authenticate(username);
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacScope");
         conn->dcpControl("enable_noop", "true");
@@ -236,13 +236,13 @@ public:
   "domain": "external"
 })"_json});
         conn = getConnection();
-        conn->authenticate(username, password);
+        conn->authenticate(username);
         conn->selectBucket("default");
         conn->dcpOpenProducer("CollectionsRbacCollection");
         conn->dcpControl("enable_noop", "true");
 
         connNoStream = getConnection();
-        connNoStream->authenticate(username, password);
+        connNoStream->authenticate(username);
         connNoStream->selectBucket("default");
     }
 
@@ -402,7 +402,7 @@ TEST_F(CollectionsDcpTests, TestBasicRbacCollectionsSuccess) {
 })"_json});
 
     auto conn = getConnection();
-    conn->authenticate(username, password);
+    conn->authenticate(username);
     conn->selectBucket("default");
     conn->dcpOpenProducer("TestBasicRbacCollectionsSuccess");
     conn->dcpControl("enable_noop", "true");
@@ -427,7 +427,7 @@ TEST_F(CollectionsDcpTests, TestBasicRbacFail) {
 })"_json});
 
     auto conn = getConnection();
-    conn->authenticate(username, password);
+    conn->authenticate(username);
     conn->selectBucket("default");
     conn->dcpOpenProducer("TestBasicRbacFail");
     conn->dcpControl("enable_noop", "true");

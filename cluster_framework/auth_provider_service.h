@@ -53,6 +53,8 @@ public:
     void upsertUser(UserEntry entry);
     void removeUser(const std::string& user);
 
+    std::optional<UserEntry> lookupUser(const std::string& user);
+
 protected:
     /// Handle the authenticate request and send the reply
     void onAuthenticate(bufferevent* bev, const cb::mcbp::Request& req);

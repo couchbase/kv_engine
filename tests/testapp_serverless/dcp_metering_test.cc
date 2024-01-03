@@ -30,7 +30,7 @@ public:
 protected:
     static void SetUpTestCase() {
         auto conn = cluster->getConnection(0);
-        conn->authenticate("@admin", "password");
+        conn->authenticate("@admin");
         conn->selectBucket("dcp");
 
         for (size_t ii = 0; ii < NumDocuments; ++ii) {
@@ -48,7 +48,7 @@ protected:
 /// Verify that we can run DCP without throttling or metering
 TEST_F(DcpTest, DcpDrainNoMeterNoThrottle) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("dcp");
 
     nlohmann::json before;
@@ -80,7 +80,7 @@ TEST_F(DcpTest, DcpDrainNoMeterNoThrottle) {
 /// Verify that DCP gets throttled and metered
 TEST_F(DcpTest, DcpDrainMeteredAndThrottled) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     admin->selectBucket("dcp");
 
     nlohmann::json before;

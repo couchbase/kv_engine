@@ -10,6 +10,7 @@
 
 #include "clustertest.h"
 
+#include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <mcbp/protocol/unsigned_leb128.h>
@@ -26,6 +27,23 @@ std::ostream& cb::test::operator<<(std::ostream& os,
 }
 
 void cb::test::ClusterTest::StartCluster() {
+    MemcachedConnection::setLookupUserPasswordFunction(
+            [](const std::string& user) -> std::string {
+                if (user == "@admin") {
+                    return "password";
+                }
+
+                if (cluster) {
+                    auto ue =
+                            cluster->getAuthProviderService().lookupUser(user);
+                    if (ue) {
+                        return ue->password;
+                    }
+                }
+
+                return {};
+            });
+
     cluster = Cluster::create(4);
     if (!cluster) {
         std::cerr << "Failed to create the cluster" << std::endl;

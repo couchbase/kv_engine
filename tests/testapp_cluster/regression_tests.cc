@@ -42,7 +42,7 @@ TEST_F(RegressionTest, MB51135) {
 
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("MB51135", "MB51135");
+    conn->authenticate("MB51135");
     conn->selectBucket(bucket->getName());
     // Verify that I can create a document
     {

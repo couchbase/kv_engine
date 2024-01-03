@@ -24,7 +24,7 @@ void executeOnAllNodes(cb::test::Cluster& cluster,
                        std::function<void(MemcachedConnection&)> callback) {
     for (std::size_t ii = 0; ii < cluster.size(); ++ii) {
         auto admin = cluster.getConnection(ii);
-        admin->authenticate("@admin", "password");
+        admin->authenticate("@admin");
         callback(*admin);
     }
 }
@@ -60,7 +60,7 @@ TEST(ConfigOnlyTest, SetClusterConfigCreatesBucket) {
     setClusterConfig(*cluster, 0, "cluster-config", dummy_clustermap, 1000);
 
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
+    admin->authenticate("@admin");
     // MB-53379: Clients with Collections enabled can't select a "config-only"
     // bucket. Enable collections to verify that it works
     admin->setFeature(cb::mcbp::Feature::Collections, true);
@@ -118,7 +118,7 @@ TEST(ConfigOnlyTest, DeleteClusterConfigBucket) {
     setClusterConfig(*cluster, 0, bucketname, dummy_clustermap, 1000);
 
     auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
+    conn->authenticate("@admin");
     // Select bucket will fail if the wasn't successfully created
     // and we want to have a connection in the bucket to verify that
     // we can still delete the bucket even if we've got connected clients

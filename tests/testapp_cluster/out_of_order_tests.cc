@@ -24,7 +24,7 @@ protected:
     static void testGetReorderWithAndWithoutReorder(Reorder reorder) {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         conn->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
 

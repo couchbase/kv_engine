@@ -92,7 +92,7 @@ TEST_F(BasicClusterTest, GetReplica) {
     auto bucket = cluster->getBucket("default");
     {
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         auto info = conn->store("foo", Vbid(0), "value");
         EXPECT_NE(0, info.cas);
@@ -103,7 +103,7 @@ TEST_F(BasicClusterTest, GetReplica) {
     const auto nrep = bucket->getVbucketMap()[0].size() - 1;
     for (std::size_t rep = 0; rep < nrep; ++rep) {
         auto conn = bucket->getConnection(Vbid(0), vbucket_state_replica, rep);
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
 
         BinprotResponse rsp;
@@ -121,7 +121,7 @@ TEST_F(BasicClusterTest, GetReplica) {
 TEST_F(BasicClusterTest, MultiGet) {
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
 
     std::vector<std::pair<const std::string, Vbid>> keys;
@@ -157,7 +157,7 @@ TEST_F(BasicClusterTest, MultiGet) {
 TEST_F(BasicClusterTest, Observe) {
     auto bucket = cluster->getBucket("default");
     auto replica = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
-    replica->authenticate("@admin", "password", "PLAIN");
+    replica->authenticate("@admin");
     replica->selectBucket(bucket->getName());
 
     BinprotObserveCommand observe({{Vbid{0}, "BasicClusterTest_Observe"}});
@@ -171,7 +171,7 @@ TEST_F(BasicClusterTest, Observe) {
     // store it on the primary
     {
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         conn->store("BasicClusterTest_Observe", Vbid{0}, "value");
     }
@@ -193,7 +193,7 @@ TEST_F(BasicClusterTest, Observe) {
 TEST_F(BasicClusterTest, ObserveMulti) {
     auto bucket = cluster->getBucket("default");
     auto replica = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
-    replica->authenticate("@admin", "password", "PLAIN");
+    replica->authenticate("@admin");
     replica->selectBucket(bucket->getName());
 
     BinprotObserveCommand observe(
@@ -211,7 +211,7 @@ TEST_F(BasicClusterTest, ObserveMulti) {
     // store it on the primary
     {
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         conn->store("ObserveMulti", Vbid{0}, "value");
     }
@@ -253,7 +253,7 @@ TEST_F(BasicClusterTest, UsingExternalAuth) {
     cluster->getAuthProviderService().upsertUser(ue);
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("extuser", "extpass", "PLAIN");
+    conn->authenticate("extuser");
     conn->selectBucket(bucket->getName());
     conn->store("BasicClusterTest_Observe", Vbid{0}, "value");
 
@@ -265,7 +265,7 @@ TEST_F(BasicClusterTest, UsingExternalAuth) {
 TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
 
     auto rsp = conn->execute(BinprotDcpOpenCommand{
@@ -370,7 +370,7 @@ TEST_F(BasicClusterTest, MB_47216) {
     auto rsp =
             conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
     EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
     EXPECT_TRUE(rsp.isSuccess());
 }

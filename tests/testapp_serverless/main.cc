@@ -21,6 +21,8 @@
 #include <platform/dirutils.h>
 #include <platform/platform_socket.h>
 #include <platform/socket.h>
+#include <protocol/connection/client_connection.h>
+
 #include <csignal>
 #include <filesystem>
 #include <iostream>
@@ -28,6 +30,18 @@
 
 namespace cb::test {
 std::unique_ptr<cb::test::Cluster> cluster;
+
+static std::string lookupUserPasswordFunction(const std::string& user) {
+    if (user == "@admin") {
+        return "password";
+    }
+
+    auto ue = cluster->getAuthProviderService().lookupUser(user);
+    if (ue) {
+        return ue->password;
+    }
+    return {};
+}
 
 /// Start the cluster with 3 nodes all set to serverless deployment;
 /// create 5 buckets named [bucket-0, bucket-4] and set up the
@@ -188,6 +202,9 @@ void shutdownCluster() {
 int main(int argc, char** argv) {
     setupWindowsDebugCRTAssertHandling();
     cb::net::initialize();
+
+    MemcachedConnection::setLookupUserPasswordFunction(
+            cb::test::lookupUserPasswordFunction);
 
 #if defined(EVTHREAD_USE_WINDOWS_THREADS_IMPLEMENTED)
     const auto failed = evthread_use_windows_threads() == -1;

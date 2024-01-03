@@ -59,5 +59,5 @@ TEST_P(IPv6Test, Authenticate) {
     });
 
     ASSERT_TRUE(connection) << "Failed to locate connection";
-    connection->authenticate("@admin", "password");
+    connection->authenticate("@admin");
 }

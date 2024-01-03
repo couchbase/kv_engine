@@ -88,7 +88,7 @@ TEST_P(CmdTimerTest, AllBuckets) {
     // Smith only has access to the bucket rbac_test - should only see numbers
     // from that.
     auto& c = getConnection();
-    c.authenticate("smith", "smithpassword", "PLAIN");
+    c.authenticate("smith");
 
     response = c.execute(BinprotGetCmdTimerCommand{"/all/", opcode});
     EXPECT_TRUE(response.isSuccess());
@@ -115,7 +115,7 @@ TEST_P(CmdTimerTest, NoBucket) {
 
     // Smith attempting to access no-bucket should fail.
     auto& c = getConnection();
-    c.authenticate("smith", "smithpassword", "PLAIN");
+    c.authenticate("smith");
 
     for (auto bucket : {"", "@no bucket@"}) {
         SCOPED_TRACE(fmt::format("for bucket '{}'", bucket));
@@ -132,7 +132,7 @@ TEST_P(CmdTimerTest, NoBucket) {
 TEST_P(CmdTimerTest, NoAccess) {
     auto& c = getConnection();
 
-    c.authenticate("jones", "jonespassword", "PLAIN");
+    c.authenticate("jones");
     for (const auto& bucket : {"", "/all/", "rbac_test", bucketName.c_str()}) {
         const auto response =
                 c.execute(BinprotGetCmdTimerCommand{bucket, opcode});

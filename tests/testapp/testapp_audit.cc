@@ -307,7 +307,7 @@ TEST_P(AuditTest, ValidateAuditLogFileCreated) {
  */
 TEST_P(AuditTest, AuditIllegalPacket) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
 
     // A set command should have 8 bytes of extra;
@@ -440,7 +440,7 @@ TEST_P(AuditTest, AuditSelectBucket) {
 // event.
 TEST_P(AuditTest, AuditSubdocLookup) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     conn.store("doc", Vbid(0), "{\"foo\": 1}");
     BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocGet,
@@ -467,7 +467,7 @@ TEST_P(AuditTest, AuditSubdocLookup) {
 // event.
 TEST_P(AuditTest, AuditSubdocMutation) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                              "doc",
@@ -493,7 +493,7 @@ TEST_P(AuditTest, AuditSubdocMutation) {
 // event.
 TEST_P(AuditTest, AuditSubdocMultiMutation) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     BinprotSubdocMultiMutationCommand cmd(
             "doc",
@@ -524,7 +524,7 @@ TEST_P(AuditTest, AuditSubdocMultiMutation) {
 // Check that a delete via subdoc is audited correctly.
 TEST_P(AuditTest, AuditSubdocMultiMutationDelete) {
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     conn.store("doc", Vbid(0), "foo");
 
@@ -611,7 +611,7 @@ TEST_P(AuditTest, MB33603_Filtering) {
     doc.value = "blah blah";
 
     auto jane = userConnection->clone();
-    jane->authenticate("Jane", mcd_env->getPassword("Jane"), "PLAIN");
+    jane->authenticate("Jane");
     jane->selectBucket("default");
     // That should not generate an audit event
     jane->mutate(doc, Vbid{0}, MutationType::Set);
@@ -731,7 +731,7 @@ TEST_P(AuditTest, MB41183_UnifiedConnectionDescription) {
 TEST_P(AuditTest, MB51863) {
     auto& conn = getConnection();
 
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     std::vector<cb::mcbp::Feature> features = {
             {cb::mcbp::Feature::MUTATION_SEQNO,

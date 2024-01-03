@@ -10,6 +10,7 @@
 #pragma once
 
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
+#include <folly/Synchronized.h>
 #include <folly/io/async/DelayedDestruction.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine_error.h>
@@ -407,14 +408,13 @@ public:
     }
 
     /**
-     * Perform a SASL authentication to memcached
+     * Perform SASL authentication to memcached for the provided user
+     * (looking up the password by using the callback function).
      *
-     * @param username the username to use in authentication
-     * @param password the password to use in authentication
-     * @param mech the SASL mech to use
+     * @param user The user to authenticate
      */
-    void authenticate(const std::string& username,
-                      const std::string& password,
+    void authenticate(const std::string& user,
+                      const std::optional<std::string>& password = {},
                       const std::string& mech = "PLAIN");
 
     /**
@@ -1088,7 +1088,21 @@ public:
         userValidateReceivedFrameCallback = std::move(callback);
     }
 
+    static void setLookupUserPasswordFunction(
+            std::function<std::string(const std::string&)> func);
+
 protected:
+    /**
+     * Perform a SASL authentication to memcached
+     *
+     * @param username the username to use in authentication
+     * @param password the password to use in authentication
+     * @param mech the SASL mech to use
+     */
+    void doSaslAuthenticate(const std::string& username,
+                            const std::string& password,
+                            const std::string& mech);
+
     void sendBuffer(const std::vector<iovec>& buf);
     void sendBuffer(cb::const_byte_buffer buf);
 
@@ -1165,6 +1179,10 @@ protected:
     std::function<void(const cb::mcbp::Header&)>
             userValidateReceivedFrameCallback;
     std::unique_ptr<cb::json::SyntaxValidator> jsonValidator;
+
+    static folly::Synchronized<std::function<std::string(const std::string&)>,
+                               std::mutex>
+            lookupPasswordCallback;
 };
 
 #include <fmt/ostream.h>

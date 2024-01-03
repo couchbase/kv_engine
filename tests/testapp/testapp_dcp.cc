@@ -31,7 +31,7 @@ protected:
                 true,
                 {Feature::JSON, Feature::SNAPPY, Feature::SnappyEverywhere},
                 getTestName());
-        connection->authenticate("@admin", mcd_env->getPassword("@admin"));
+        connection->authenticate("@admin");
         connection->selectBucket(bucketName);
 
         const auto rsp = connection->execute(BinprotDcpOpenCommand{
@@ -105,7 +105,7 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     // we should extend this test to validate all of the
     // various commands.
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
     conn.sendCommand(
@@ -135,7 +135,7 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
             << "SASL LIST MECH should fail";
     try {
-        conn->authenticate("@admin", "password");
+        conn->authenticate("@admin");
         FAIL() << "DCP connections should not be able to reauthenticate";
     } catch (const ConnectionError& error) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, error.getReason())

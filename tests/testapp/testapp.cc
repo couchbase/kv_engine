@@ -103,8 +103,7 @@ void TestappTest::rebuildAdminConnection() {
     connectionMap.iterate([](const auto& c) {
         if (!adminConnection) {
             adminConnection = c.clone();
-            adminConnection->authenticate(
-                    "@admin", mcd_env->getPassword("@admin"), "PLAIN");
+            adminConnection->authenticate("@admin");
             adminConnection->unselectBucket();
 
             std::vector<cb::mcbp::Feature> features = {
@@ -128,7 +127,7 @@ void TestappTest::rebuildUserConnection(bool tls) {
     connectionMap.iterate([&](const auto& c) {
         if (!userConnection && (c.isSsl() == tls)) {
             userConnection = c.clone();
-            userConnection->authenticate("Luke", mcd_env->getPassword("Luke"));
+            userConnection->authenticate("Luke");
             userConnection->selectBucket(bucketName);
         }
     });
@@ -682,7 +681,7 @@ SOCKET connect_to_server_plain() {
     }
     MemcachedConnection connection("127.0.0.1", port, AF_INET, false);
     connection.connect();
-    connection.authenticate("Luke", mcd_env->getPassword("Luke"));
+    connection.authenticate("Luke");
     connection.selectBucket("default");
     return connection.releaseSocket();
 }
@@ -1166,7 +1165,7 @@ MemcachedConnection& TestappTest::getConnection() {
 
 MemcachedConnection& TestappTest::getAdminConnection() {
     auto& conn = getConnection();
-    conn.authenticate("@admin", "password", conn.getSaslMechanisms());
+    conn.authenticate("@admin");
     return conn;
 }
 
@@ -1332,6 +1331,9 @@ int main(int argc, char** argv) {
                   << std::endl;
         exit(EXIT_FAILURE);
     }
+
+    MemcachedConnection::setLookupUserPasswordFunction(
+            [](const auto& user) { return mcd_env->getPassword(user); });
 
     cb::net::initialize();
     try {

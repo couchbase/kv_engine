@@ -64,7 +64,7 @@ static void deleteBucket(
         const std::string& name,
         std::function<void(const std::string&)> stateCallback) {
     auto clone = conn.clone();
-    clone->authenticate("@admin", "password", "PLAIN");
+    clone->authenticate("@admin");
     const auto timeout =
             std::chrono::system_clock::now() + std::chrono::seconds{5};
     conn.sendCommand(
@@ -109,7 +109,7 @@ TEST_P(BucketTest, DeleteWhileClientSendCommand) {
     adminConnection->createBucket("bucket", "", BucketType::Memcached);
 
     auto& second_conn = getConnection();
-    second_conn.authenticate("Luke", mcd_env->getPassword("Luke"), "PLAIN");
+    second_conn.authenticate("Luke");
     second_conn.selectBucket("bucket");
 
     // We need to get the second connection sitting the `conn_read_packet_body`
@@ -146,7 +146,7 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
     for (int jj = 0; jj < 5; ++jj) {
         connections.emplace_back(conn.clone());
         auto& c = connections.back();
-        c->authenticate("Luke", mcd_env->getPassword("Luke"), "PLAIN");
+        c->authenticate("Luke");
         c->selectBucket("bucket");
 
         auto testfile =
@@ -212,7 +212,7 @@ TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
                                   BucketType::Memcached);
 
     auto& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     const auto id = conn.getServerConnectionId();
     conn.selectBucket("bucket");
 
@@ -291,7 +291,7 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
     adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
     auto& conn = getConnection();
-    conn.authenticate("smith", "smithpassword", "PLAIN");
+    conn.authenticate("smith");
     auto response = conn.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, name});
     EXPECT_EQ(cb::mcbp::Status::NoBucket, response.getStatus());
@@ -311,7 +311,7 @@ TEST_P(BucketTest, TestListSomeBuckets) {
 
     // Reconnect and authenticate as a user with access to only one of them
     auto& conn = getConnection();
-    conn.authenticate("smith", mcd_env->getPassword("smith"));
+    conn.authenticate("smith");
     const std::vector<std::string> expected = {"rbac_test"};
     EXPECT_EQ(expected, conn.listBuckets());
 

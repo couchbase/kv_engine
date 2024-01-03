@@ -418,7 +418,7 @@ TEST_F(TestappTest, MB56893) {
 
     // Authenticate and try the same packet
     conn.reconnect();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     try {
         // We don't really know how libevent will deliver the data
         // so just let try to send 1M and read something... We should either

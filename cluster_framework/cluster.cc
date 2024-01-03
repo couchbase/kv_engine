@@ -107,7 +107,7 @@ ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
     forAllNodes([this, &globalmap](const auto& node) {
         auto connection = node.getConnection();
         connection->connect();
-        connection->authenticate("@admin", "password", "plain");
+        connection->authenticate("@admin");
         connection->setAgentName("cluster_testapp");
         connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                                  cb::mcbp::Feature::XATTR,
@@ -160,7 +160,7 @@ void ClusterImpl::createBucketOnNode(const Node& node,
                                      std::string_view config) {
     auto connection = node.getConnection();
     connection->connect();
-    connection->authenticate("@admin", "password", "plain");
+    connection->authenticate("@admin");
     connection->setAgentName("cluster_testapp");
     connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                              cb::mcbp::Feature::XATTR,
@@ -306,7 +306,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
         forAllNodes([&name](const auto& node) {
             auto connection = node.getConnection();
             connection->connect();
-            connection->authenticate("@admin", "password", "plain");
+            connection->authenticate("@admin");
             try {
                 connection->deleteBucket(name);
             } catch (const std::exception&) {
@@ -342,7 +342,7 @@ void ClusterImpl::deleteBucket(const std::string& name) {
     forAllNodes([name](const auto& node) {
         auto connection = node.getConnection();
         connection->connect();
-        connection->authenticate("@admin", "password", "plain");
+        connection->authenticate("@admin");
         connection->deleteBucket(name);
         // And nuke the files for the database on that node.
         removeWithRetry(node.directory / name);

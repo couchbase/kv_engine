@@ -77,7 +77,7 @@ protected:
     static std::unique_ptr<MemcachedConnection> getConnection() {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin", "password", "PLAIN");
+        conn->authenticate("@admin");
         conn->selectBucket(bucket->getName());
         return conn;
     }

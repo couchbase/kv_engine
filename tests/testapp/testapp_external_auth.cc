@@ -79,7 +79,7 @@ protected:
         auto& conn = getConnection();
         provider = conn.clone();
         // Register as RBAC provider
-        provider->authenticate("@admin", "password", "PLAIN");
+        provider->authenticate("@admin");
         provider->setDatatypeJson(true);
         provider->setDuplexSupport(true);
         const auto response = provider->execute(BinprotAuthProviderCommand{});
@@ -325,10 +325,10 @@ TEST_P(ExternalAuthTest, GetActiveUsers) {
     auto clone3 = conn.clone();
     auto clone4 = conn.clone();
 
-    clone1->authenticate("smith", "smithpassword", "PLAIN");
-    clone2->authenticate("smith", "smithpassword", "PLAIN");
-    clone3->authenticate("jones", "jonespassword", "PLAIN");
-    clone4->authenticate("@admin", "password", "PLAIN");
+    clone1->authenticate("smith");
+    clone2->authenticate("smith");
+    clone3->authenticate("jones");
+    clone4->authenticate("@admin");
 
     // Log in 2 external ones
     auto osbourne1 = loginOsbourne();

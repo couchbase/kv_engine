@@ -38,7 +38,7 @@ TEST_F(RbacTest, DcpOpenWithoutAccess) {
     "domain": "external"
   })"_json});
     auto conn = cluster->getConnection(0);
-    conn->authenticate(dcpuser, dcppass);
+    conn->authenticate(dcpuser);
     conn->selectBucket(bucket);
 
     auto rsp = conn->execute(
@@ -65,7 +65,7 @@ TEST_F(RbacTest, DcpOpenWithProducerAccess) {
     "domain": "external"
   })"_json});
     auto conn = cluster->getConnection(0);
-    conn->authenticate(dcpuser, dcppass);
+    conn->authenticate(dcpuser);
     conn->selectBucket(bucket);
     auto rsp =
             conn->execute(BinprotDcpOpenCommand{"DcpOpenWithProducerAccess"});
@@ -93,7 +93,7 @@ TEST_F(RbacTest, DcpOpenWithConsumerAccess) {
     "domain": "external"
   })"_json});
     auto conn = cluster->getConnection(0);
-    conn->authenticate(dcpuser, dcppass);
+    conn->authenticate(dcpuser);
     conn->selectBucket(bucket);
     auto rsp = conn->execute(
             BinprotDcpOpenCommand{"DcpOpenWithConsumerAccess",
@@ -120,7 +120,7 @@ void RbacSeqnosTests::SetUp() {
 
     // Make high-seqno !default
     auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password", "PLAIN");
+    conn->authenticate("@admin");
     conn->selectBucket("default");
     conn->setFeature(cb::mcbp::Feature::Collections, true);
     defaultCollectionHighSeqno =
@@ -182,7 +182,7 @@ void RbacSeqnosTests::configureUsers(const nlohmann::json& userConfig) {
 
 TEST_F(RbacSeqnosTests, ObserveSeqno) {
     auto conn = cluster->getConnection(0);
-    conn->authenticate("userCannot", "pass");
+    conn->authenticate("userCannot");
     conn->selectBucket(bucket);
 
     try {
@@ -196,7 +196,7 @@ TEST_F(RbacSeqnosTests, ObserveSeqno) {
 
     for (const auto& user :
          std::vector<std::string>{{"userCan1"}, {"userCan2"}, {"userCan3"}}) {
-        conn->authenticate(user, "pass");
+        conn->authenticate(user);
         conn->selectBucket(bucket);
         conn->observeSeqno(Vbid(0), highSeqno.vbucketuuid);
     }
@@ -206,7 +206,7 @@ TEST_F(RbacSeqnosTests, ObserveSeqno) {
 /// as long as it has at least 1 read privilege within the bucket
 TEST_F(RbacSeqnosTests, GetAllVbSeqnosBucket) {
     auto conn = cluster->getConnection(0);
-    conn->authenticate("userCannot", "pass");
+    conn->authenticate("userCannot");
     conn->selectBucket(bucket);
     conn->setFeature(cb::mcbp::Feature::Collections, true);
 
@@ -216,7 +216,7 @@ TEST_F(RbacSeqnosTests, GetAllVbSeqnosBucket) {
 
     for (const auto& user :
          std::vector<std::string>{{"userCan1"}, {"userCan2"}, {"userCan3"}}) {
-        conn->authenticate(user, "pass");
+        conn->authenticate(user);
         conn->selectBucket(bucket);
 
         rsp = conn->getAllVBucketSequenceNumbers();
@@ -232,7 +232,7 @@ TEST_F(RbacSeqnosTests, GetAllVbSeqnosCollections) {
     auto conn = cluster->getConnection(0);
 
     // userCan1 have full bucket privileges and can read everything:
-    conn->authenticate("userCan1", "pass");
+    conn->authenticate("userCan1");
     conn->selectBucket(bucket);
     conn->setFeature(cb::mcbp::Feature::Collections, true);
 
@@ -247,7 +247,7 @@ TEST_F(RbacSeqnosTests, GetAllVbSeqnosCollections) {
     EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
 
     // userCan2 have scope Read access to scope 0
-    conn->authenticate("userCan2", "pass");
+    conn->authenticate("userCan2");
     conn->selectBucket(bucket);
     rsp = conn->getAllVBucketSequenceNumbers(0, CollectionUid::fruit);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
@@ -256,7 +256,7 @@ TEST_F(RbacSeqnosTests, GetAllVbSeqnosCollections) {
     EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
 
     // userCan3 have only read access to collection 0
-    conn->authenticate("userCan3", "pass");
+    conn->authenticate("userCan3");
     conn->selectBucket(bucket);
     rsp = conn->getAllVBucketSequenceNumbers(0, CollectionUid::defaultC);
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
@@ -270,7 +270,7 @@ TEST_F(RbacSeqnosTests, GetAllVbSeqnosDefaultOnly) {
     auto conn = cluster->getConnection(0);
     for (const auto& user :
          std::vector<std::string>{{"userCan1"}, {"userCan2"}, {"userCan3"}}) {
-        conn->authenticate(user, "pass");
+        conn->authenticate(user);
         conn->selectBucket(bucket);
 
         auto rsp = conn->getAllVBucketSequenceNumbers();

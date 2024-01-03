@@ -124,9 +124,9 @@ TEST_P(ArithmeticTest, TestConcurrentAccess) {
     const int incrDelta = 7;
     const int decrDelta = -3;
 
-    conn1->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn1->authenticate("Luke");
     conn1->selectBucket(bucketName);
-    conn2->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn2->authenticate("Luke");
     conn2->selectBucket(bucketName);
 
     // Create the starting point

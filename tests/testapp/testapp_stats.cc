@@ -614,7 +614,7 @@ TEST_P(StatsTest, TestPrivilegedConnections) {
 TEST_P(StatsTest, TestUnprivilegedConnections) {
     // Everyone should be allowed to see its own connection details
     MemcachedConnection& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn.authenticate("Luke");
     conn.setAgentName("TestUnprivilegedConnections 1.0");
     conn.setFeatures({cb::mcbp::Feature::XERROR});
     auto stats = conn.stats("connections");
@@ -650,13 +650,13 @@ TEST_P(StatsTest, TestUnprivilegedConnections) {
 
 TEST_P(StatsTest, TestUnprivilegedConnectionsWithSpecificFd) {
     auto conn1 = getConnection().clone();
-    conn1->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn1->authenticate("Luke");
     conn1->setFeatures({cb::mcbp::Feature::XERROR});
     auto stats1 = conn1->stats("connections");
     ASSERT_EQ(1, stats1.size());
 
     auto conn2 = conn1->clone();
-    conn2->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn2->authenticate("Luke");
     conn2->setFeatures({cb::mcbp::Feature::XERROR});
     auto stats2 = conn2->stats("connections");
     ASSERT_EQ(1, stats2.size());

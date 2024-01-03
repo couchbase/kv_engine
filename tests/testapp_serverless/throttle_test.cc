@@ -24,7 +24,7 @@ namespace cb::test {
 TEST(ThrottleTest, OpsAreThrottled) {
     auto func = [](const std::string& name) {
         auto conn = cluster->getConnection(0);
-        conn->authenticate(name, name);
+        conn->authenticate(name);
         conn->selectBucket(name);
         conn->setReadTimeout(std::chrono::seconds{3});
 
@@ -45,7 +45,7 @@ TEST(ThrottleTest, OpsAreThrottled) {
                 std::chrono::duration_cast<std::chrono::seconds>(end - start));
 
         nlohmann::json stats;
-        conn->authenticate("@admin", "password");
+        conn->authenticate("@admin");
         conn->stats(
                 [&stats](const auto& k, const auto& v) {
                     stats = nlohmann::json::parse(v);
@@ -73,7 +73,7 @@ TEST(ThrottleTest, OpsAreThrottled) {
 
 TEST(ThrottleTest, NonBlockingThrottlingMode) {
     auto conn = cluster->getConnection(0);
-    conn->authenticate("bucket-0", "bucket-0");
+    conn->authenticate("bucket-0");
     conn->selectBucket("bucket-0");
     conn->setFeature(cb::mcbp::Feature::NonBlockingThrottlingMode, true);
     conn->setReadTimeout(std::chrono::seconds{30});
@@ -127,7 +127,7 @@ TEST(ThrottleTest, DeleteBucketWhileThrottling) {
     bucket->setThrottleLimits(1, 1);
 
     auto conn = cluster->getConnection(0);
-    conn->authenticate("testBucket", "testBucket");
+    conn->authenticate("testBucket");
     conn->selectBucket("testBucket");
     conn->setReadTimeout(std::chrono::seconds{30});
 
@@ -141,7 +141,7 @@ TEST(ThrottleTest, DeleteBucketWhileThrottling) {
     // Setup a second connection on which we will do our gets. We will have auth
     // issues when trying to grab stats later otherwise...
     auto conn1 = cluster->getConnection(0);
-    conn1->authenticate("testBucket", "testBucket");
+    conn1->authenticate("testBucket");
     conn1->selectBucket("testBucket");
 
     // Sent a few gets to the server, don't wait for responses as they should
@@ -154,7 +154,7 @@ TEST(ThrottleTest, DeleteBucketWhileThrottling) {
 
     // Sanity stats checks
     nlohmann::json stats;
-    conn->authenticate("@admin", "password");
+    conn->authenticate("@admin");
     conn->stats([&stats](const auto& k,
                          const auto& v) { stats = nlohmann::json::parse(v); },
                 "bucket_details testBucket");
@@ -170,7 +170,7 @@ TEST(ThrottleTest, DeleteBucketWhileThrottling) {
 ///            a new bucket
 TEST(ThrottleTest, MB57074) {
     auto conn = cluster->getConnection(0);
-    conn->authenticate("@admin", "password");
+    conn->authenticate("@admin");
 
     nlohmann::json first;
     {

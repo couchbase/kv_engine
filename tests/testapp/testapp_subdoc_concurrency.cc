@@ -36,11 +36,11 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     userConnection->store("b", Vbid{0}, "[]");
 
     auto c1 = userConnection->clone();
-    c1->authenticate("Luke", mcd_env->getPassword("Luke"));
+    c1->authenticate("Luke");
     c1->selectBucket(bucketName);
 
     auto c2 = userConnection->clone();
-    c2->authenticate("Luke", mcd_env->getPassword("Luke"));
+    c2->authenticate("Luke");
     c2->selectBucket(bucketName);
 
     const size_t push_count = 200;
