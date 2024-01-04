@@ -369,6 +369,8 @@ public:
      * is passed in as an argument. The information returned contains
      * the item count, file size and space used.
      *
+     * Note: For some backends (Couchstore), this may require going to disk.
+     *
      * @throws std::runtime_error (and subclasses) if it was not possible to
      *         obtain the DB file info.
      */

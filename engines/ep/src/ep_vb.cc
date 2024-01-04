@@ -421,7 +421,13 @@ uint64_t EPVBucket::getHistoryDiskSize() {
         return 0;
     }
     try {
-        return shard->getRWUnderlying()->getDbFileInfo(getId()).historyDiskSize;
+        auto& kvstore = *shard->getRWUnderlying();
+        // Avoid calling getDbFileInfo when backend does not support history.
+        // Especially important for Couchstore, as the call goes to disk.
+        if (kvstore.getStorageProperties().canRetainHistory()) {
+            return kvstore.getDbFileInfo(getId()).historyDiskSize;
+        }
+        return 0;
     } catch (std::runtime_error& error) {
         EP_LOG_WARN(
                 "EPVBucket::getHistoryDiskSize: Exception caught during "
