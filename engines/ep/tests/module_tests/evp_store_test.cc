@@ -629,12 +629,14 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
 }
 
 TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
-    if (!isCouchstore()) {
+    // This test relies on precise memory tracking
+    const auto& stats = engine->getEpStats();
+    if (!stats.isMemoryTrackingEnabled()) {
         GTEST_SKIP();
     }
+
     ASSERT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
-    const auto& stats = engine->getEpStats();
     EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 
     // Load a document of size 1MiB
@@ -662,18 +664,18 @@ TEST_P(EPBucketFullEvictionTest, GetMultiShouldNotExceedMutationWatermark) {
     // run bgFetch
     runBGFetcherTask();
 
-    // BGFetch should fail to allocate memory above bucekt quota (now works for
-    // couch-kvstore), however this still fails for magma
     auto vb = store->getVBucket(vbid);
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
     EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
 }
 
 TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
-    if (!isCouchstore()) {
+    // This test involves adjusting the bucket quota for the backend. Since
+    // Nexus utilises both Magma and Couchstore, manipulating the bucket quota
+    // to accommodate one backend will result in failure for the other.
+    if (isNexus()) {
         GTEST_SKIP();
     }
-
     // This test relies on precise memory tracking
     const auto& stats = engine->getEpStats();
     if (!stats.isMemoryTrackingEnabled()) {
@@ -688,17 +690,17 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
 
     // Load documents of size 1MiB
     const std::string value(valueSize, 'x');
-    auto key1 = makeStoredDocKey("key_0");
-    auto key2 = makeStoredDocKey("key_1");
+    auto key0 = makeStoredDocKey("key_0");
+    auto key1 = makeStoredDocKey("key_1");
 
-    // store an items
+    // store items
+    store_item(vbid, key0, value);
     store_item(vbid, key1, value);
-    store_item(vbid, key2, value);
     flush_vbucket_to_disk(vbid, 2);
 
     // evict items
+    evict_key(vbid, key0);
     evict_key(vbid, key1);
-    evict_key(vbid, key2);
 
     // check item has been removed
     auto options = static_cast<get_options_t>(
@@ -707,37 +709,64 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     auto cookie1 = create_mock_cookie();
     auto cookie2 = create_mock_cookie();
 
-    auto gv = store->get(key1, vbid, cookie1, options);
+    // Couchstore sorts key pointers and retrieves the first item in the queue.
+    // Initially, the queue is ["Key_1", "Key_0"], which is then sorted to
+    // ["Key_0", "Key_1"]. In Magma, there is no sorting; instead, the first
+    // item from the queue is popped and requested. When a new item is
+    // requested, it is pushed to the front of the queue. To ensure Key_0 always
+    // succeeds and Key_1 fails, we first request Key_1 ["Key_1"] and then
+    // request Key_0 ["Key_0", "Key_1"].
+    auto gv = store->get(key1, vbid, cookie2, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
-    gv = store->get(key2, vbid, cookie2, options);
+    gv = store->get(key0, vbid, cookie1, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
     // set bucket quota to current memory usage + 3MiB such that the first
     // bgfetch will pass and the second one will fail:
     // couchstore fetches value + addition overhead = ~1.3MiB
     // We want an additional 1MiB for fetching the first item successfully
-    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() + (3 * valueSize));
+    // Magma requires an addition 1MiB overhead than couchstore.
+    if (engine->getConfiguration().getBackend() == "magma") {
+        engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
+                               (4 * valueSize));
+    } else {
+        engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
+                               (3 * valueSize));
+    }
 
     int callbackCounter = 0;
-    cookie1->setUserNotifyIoComplete(
-            [&callbackCounter](cb::engine_errc status) {
-                EXPECT_EQ(cb::engine_errc::success, status);
-                callbackCounter++;
-            });
-    cookie2->setUserNotifyIoComplete(
-            [&callbackCounter](cb::engine_errc status) {
-                EXPECT_EQ(cb::engine_errc::temporary_failure, status);
-                callbackCounter++;
-            });
+    int numSucess = 0;
+    int numFailure = 0;
+    cookie1->setUserNotifyIoComplete([&callbackCounter,
+                                      &numSucess,
+                                      &numFailure](cb::engine_errc status) {
+        if (status == cb::engine_errc::success) {
+            numSucess++;
+        } else {
+            numFailure++;
+        }
+        callbackCounter++;
+    });
+    cookie2->setUserNotifyIoComplete([&callbackCounter,
+                                      &numSucess,
+                                      &numFailure](cb::engine_errc status) {
+        if (status == cb::engine_errc::success) {
+            numSucess++;
+        } else {
+            numFailure++;
+        }
+        callbackCounter++;
+    });
 
     // run bgFetch
     runBGFetcherTask();
 
-    // BGFetch should fail to allocate memory above bucekt quota (now works for
-    // couch-kvstore), however this still fails for magma
+    // BGFetch should fail to allocate memory above bucekt quota
     auto vb = store->getVBucket(vbid);
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
     EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
+    EXPECT_EQ(1, numSucess);
+    EXPECT_EQ(1, numFailure);
     EXPECT_EQ(2, callbackCounter);
 
     destroy_mock_cookie(cookie1);
@@ -1075,7 +1104,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     vb.reset();
     // Before destroying the engine, prevent createItemCallback from becoming
     // invalid
-    createItemCallback = nullptr;
+    createItemCallback = KVStoreIface::getDefaultCreateItemCallback();
     resetEngineAndWarmup();
     createItemCallback = this->engine->getCreateItemCallback();
     vb = store->getVBucket(vbid);
