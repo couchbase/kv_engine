@@ -67,19 +67,19 @@ protected:
     // per test tear-down function.
     void TearDown() override;
 
-    void getReplica(MemcachedConnection& conn,
-                    Vbid vbid,
-                    const std::string& key);
+    static void getReplica(MemcachedConnection& conn,
+                           Vbid vbid,
+                           const std::string& key);
 
-    MemStats getMemStats(MemcachedConnection& conn);
+    static MemStats getMemStats(MemcachedConnection& conn);
 
-    void setFlushParam(MemcachedConnection& conn,
-                       const std::string& paramName,
-                       const std::string& paramValue);
+    static void setFlushParam(MemcachedConnection& conn,
+                              const std::string& paramName,
+                              const std::string& paramValue);
 
-    void setMemWatermarks(MemcachedConnection& conn,
-                          size_t memLowWat,
-                          size_t memHighWat);
+    static void setMemWatermarks(MemcachedConnection& conn,
+                                 size_t memLowWat,
+                                 size_t memHighWat);
 
     static std::unique_ptr<Cluster> cluster;
 };

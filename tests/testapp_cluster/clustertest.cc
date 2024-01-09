@@ -85,22 +85,23 @@ void cb::test::ClusterTest::TearDown() {
 }
 
 void cb::test::ClusterTest::getReplica(MemcachedConnection& conn,
-                                       Vbid vbid,
+                                       const Vbid vbid,
                                        const std::string& key) {
     BinprotResponse rsp;
     do {
         BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetReplica);
-        cmd.setVBucket(Vbid(0));
+        cmd.setVBucket(vbid);
         cmd.setKey(key);
 
         rsp = conn.execute(cmd);
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
-    EXPECT_TRUE(rsp.isSuccess());
+    EXPECT_TRUE(rsp.isSuccess())
+            << rsp.getStatus() << ": " << rsp.getDataView();
 }
 
 cb::test::MemStats cb::test::ClusterTest::getMemStats(
         MemcachedConnection& conn) {
-    auto stats = conn.stats("memory");
+    const auto stats = conn.stats("memory");
     return MemStats{
             stats["mem_used"].get<size_t>(),
             stats["ep_mem_low_wat"].get<size_t>(),
@@ -111,12 +112,13 @@ cb::test::MemStats cb::test::ClusterTest::getMemStats(
 void cb::test::ClusterTest::setFlushParam(MemcachedConnection& conn,
                                           const std::string& paramName,
                                           const std::string& paramValue) {
-    auto cmd = BinprotSetParamCommand(
+    const auto cmd = BinprotSetParamCommand(
             cb::mcbp::request::SetParamPayload::Type::Flush,
             paramName,
             paramValue);
-    const auto resp = BinprotMutationResponse(conn.execute(cmd));
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    const auto resp = conn.execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus())
+            << resp.getDataView();
 }
 
 void cb::test::ClusterTest::setMemWatermarks(MemcachedConnection& conn,
