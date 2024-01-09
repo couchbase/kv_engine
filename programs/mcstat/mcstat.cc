@@ -62,7 +62,7 @@ static bool request_dcp_stat(MemcachedConnection& connection,
                                            "{}_{} {}\n",
                                            key,
                                            iter.key(),
-                                           iter.value());
+                                           iter.value().dump());
                             }
                         } else {
                             fmt::print(stdout, "{} {}\n", key, value);
