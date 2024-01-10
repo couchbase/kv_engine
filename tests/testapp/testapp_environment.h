@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <memcached/protocol_binary.h>
 #include <nlohmann/json_fwd.hpp>
 #include <functional>
 #include <string>
@@ -97,6 +98,22 @@ public:
     void setMinCompressionRatio(MemcachedConnection& conn,
                                 const std::string& bucketName,
                                 const std::string& value);
+
+    /**
+     * Set a configuration param for the named bucket.
+     *
+     * @param conn The connection to use (must have admin privileges)
+     * @param bucketName The name of the bucket to modify
+     * @param paramName
+     * @param paramValue
+     * @param paramType See cb::mcbp::request::SetParamPayload::Type for
+     * details.
+     */
+    void setParam(MemcachedConnection& conn,
+                  const std::string& bucketName,
+                  const std::string& paramName,
+                  const std::string& paramValue,
+                  cb::mcbp::request::SetParamPayload::Type paramType);
 
 protected:
     static void createEwbBucket(const std::string& name,

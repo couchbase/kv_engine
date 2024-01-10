@@ -63,51 +63,49 @@ void TestBucketImpl::createEwbBucket(const std::string& name,
     conn.createBucket(name, cfg, BucketType::EWouldBlock);
 }
 
-// Both memcache and ep-engine buckets support set_param for xattr on/off
+// Both memcached and ep-engine buckets support set_param for xattr on/off
 void TestBucketImpl::setXattrEnabled(MemcachedConnection& conn,
                                      const std::string& bucketName,
                                      bool value) {
-    conn.executeInBucket(bucketName, [&](auto& connection) {
-        // Encode a set_flush_param (like cbepctl)
-        BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::SetParam,
-                                  "xattr_enabled",
-                                  value ? "true" : "false"};
-        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
-                cb::mcbp::request::SetParamPayload::Type::Flush)));
-
-        const auto resp = connection.execute(cmd);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    setParam(conn,
+             bucketName,
+             "xattr_enabled",
+             value ? "true" : "false",
+             cb::mcbp::request::SetParamPayload::Type::Flush);
 }
 
 void TestBucketImpl::setCompressionMode(MemcachedConnection& conn,
                                         const std::string& bucketName,
                                         const std::string& value) {
-    conn.executeInBucket(bucketName, [&](auto& connection) {
-        // Encode a set_flush_param (like cbepctl)
-        BinprotGenericCommand cmd{
-                cb::mcbp::ClientOpcode::SetParam, "compression_mode", value};
-        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
-                cb::mcbp::request::SetParamPayload::Type::Flush)));
-
-        const auto resp = connection.execute(cmd);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    });
+    setParam(conn,
+             bucketName,
+             "compression_mode",
+             value,
+             cb::mcbp::request::SetParamPayload::Type::Flush);
 }
 
 void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
                                             const std::string& bucketName,
                                             const std::string& value) {
-    conn.executeInBucket(bucketName, [&](auto& connection) {
-        // Encode a set_flush_param (like cbepctl)
-        BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::SetParam,
-                                  "min_compression_ratio",
-                                  value};
-        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
-                cb::mcbp::request::SetParamPayload::Type::Flush)));
+    setParam(conn,
+             bucketName,
+             "min_compression_ratio",
+             value,
+             cb::mcbp::request::SetParamPayload::Type::Flush);
+}
 
-        const auto resp = connection.execute(cmd);
-        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+void TestBucketImpl::setParam(
+        MemcachedConnection& conn,
+        const std::string& bucketName,
+        const std::string& paramName,
+        const std::string& paramValue,
+        cb::mcbp::request::SetParamPayload::Type paramType) {
+    conn.executeInBucket(bucketName, [&](auto& connection) {
+        BinprotGenericCommand cmd{
+                cb::mcbp::ClientOpcode::SetParam, paramName, paramValue};
+        cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(paramType)));
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  connection.execute(cmd).getStatus());
     });
 }
 
