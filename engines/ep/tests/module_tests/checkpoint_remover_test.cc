@@ -22,6 +22,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "test_helpers.h"
+#include "thread_gate.h"
 #include "vbucket.h"
 
 void CheckpointRemoverTest::SetUp() {
@@ -447,6 +448,70 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     EXPECT_EQ(0, stats.itemsExpelledFromCheckpoints);
     EXPECT_GT(stats.itemsRemovedFromCheckpoints, initialRemoved);
     EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+}
+
+// Without the fix, there is a data race in
+// CheckpointManager::takeAndResetCursors which did not take a queueLock,
+// and could mutate the CheckpointManager while it is being accessed,
+// e.g. in CheckpointManager::getListOfCursorsToDrop.
+TEST_P(CheckpointRemoverTest, MB59601) {
+    if (!isPersistent()) {
+        GTEST_SKIP();
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& config = engine->getConfiguration();
+    config.setChkExpelEnabled(false);
+    config.setMaxSize(100UL * 1024 * 1024);
+    // Disable the mem-based checkpoint creation in this test, we would end up
+    // doing straight CheckpointRemoval rather than ItemExpel/CursorDrop
+    config.setCheckpointMaxSize(std::numeric_limits<size_t>::max());
+    const auto chkptMemRecoveryLimit =
+            config.getMaxSize() * store->getCheckpointMemoryRatio() *
+            store->getCheckpointMemoryRecoveryUpperMark();
+    auto& stats = engine->getEpStats();
+    stats.mem_low_wat.store(1);
+
+    int numItems = 0;
+    const std::string value(1024 * 1024, 'x');
+    while (stats.getCheckpointManagerEstimatedMemUsage() <
+           chkptMemRecoveryLimit) {
+        auto docKey = "key_" + std::to_string(++numItems);
+        store_item(vbid, makeStoredDocKey(docKey), value);
+    }
+    flushVBucketToDiskIfPersistent(vbid, numItems);
+
+    // VB needs to be replica to rollback
+    store->setVBucketState(vbid, vbucket_state_replica);
+
+    EXPECT_GT(stats.getNumCheckpoints(), 0);
+    EXPECT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
+
+    /// Synchronises just before accessing and mutating CM::cursors
+    ThreadGate tg(2);
+    std::thread bgThread;
+
+    auto& oldManager = *store->getVBucket(vbid)->checkpointManager;
+    oldManager.takeAndResetCursorsHook = [this, &tg, &bgThread]() {
+        // Note: takeAndResetCursorsHook is executed *after* the new VBucket
+        // has already been created
+
+        auto& newManager = *store->getVBucket(vbid)->checkpointManager;
+        newManager.getListOfCursorsToDropHook = [&tg]() { tg.threadUp(); };
+        bgThread = std::thread([this]() {
+            auto remover = std::make_shared<CheckpointMemRecoveryTask>(
+                    engine.get(),
+                    engine->getEpStats(),
+                    engine->getConfiguration().getChkRemoverStime(),
+                    0);
+            remover->run();
+        });
+
+        tg.threadUp();
+    };
+
+    store->rollback(vbid, 0);
+    bgThread.join();
 }
 
 // Test written for MB-36366. With the fix removed this test failed because
