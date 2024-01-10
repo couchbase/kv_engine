@@ -599,6 +599,14 @@ public:
     // (and not yet re-acquired) the CM::lock. Introduced in MB-56644.
     TestingHook<> expelHook;
 
+    /// Testing hook called at the start of CM::takeAndResetCursors.
+    /// Introduced in MB-59601.
+    TestingHook<> takeAndResetCursorsHook;
+
+    /// Testing hook called just before iterating CM::cursors in
+    /// CM::getListOfCursorsToDrop. Introduced in MB-59601.
+    TestingHook<> getListOfCursorsToDropHook;
+
 protected:
     /**
      * @param lh, the queueLock held

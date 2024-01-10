@@ -836,6 +836,8 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
                                             ? *backupFound->second
                                             : *persistenceCursor;
 
+        getListOfCursorsToDropHook();
+
         for (const auto& pair : cursors) {
             const auto cursor = pair.second;
             // Note: Strict condition here.
@@ -1734,13 +1736,23 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
 }
 
 void CheckpointManager::takeAndResetCursors(CheckpointManager& other) {
-    pCursor = other.pCursor;
-    persistenceCursor = pCursor.lock().get();
-    for (auto& cursor : other.cursors) {
-        cursors[cursor.second->getName()] = cursor.second;
-    }
-    other.cursors.clear();
+    other.takeAndResetCursorsHook();
 
+    Cursor otherPCursor;
+    cursor_index otherCursors;
+    {
+        std::lock_guard<std::mutex> otherLH(other.queueLock);
+        otherPCursor = other.pCursor;
+        otherCursors = std::move(other.cursors);
+        other.cursors.clear();
+    }
+
+    std::lock_guard<std::mutex> lh(queueLock);
+    pCursor = std::move(otherPCursor);
+    persistenceCursor = pCursor.lock().get();
+    for (auto& cursor : otherCursors) {
+        cursors[cursor.second->getName()] = std::move(cursor.second);
+    }
     resetCursors();
 }
 
