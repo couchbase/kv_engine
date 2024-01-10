@@ -829,6 +829,14 @@ cb::engine_errc EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
     // reference if that's the case
     // schedule to the current batch of background fetch of the given
     // vbucket
+
+    size_t requiredMemory =
+            StoredValue::getRequiredStorage(key) + sizeof(FrontEndBGFetchItem);
+    auto status = engine.checkMemoryForBGFetch(requiredMemory);
+    if (status != cb::engine_errc::success) {
+        return status;
+    }
+
     const auto filter =
             isMeta ? ValueFilter::KEYS_ONLY
                    : dynamic_cast<EPBucket&>(*bucket)

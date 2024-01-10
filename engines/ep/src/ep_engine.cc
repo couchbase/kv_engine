@@ -5439,6 +5439,14 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     return cb::engine_errc::failed;
 }
 
+cb::engine_errc EventuallyPersistentEngine::checkMemoryForBGFetch(
+        size_t pendingBytes) {
+    if (memoryTracker->isBelowMutationMemoryQuota(pendingBytes)) {
+        return cb::engine_errc::success;
+    }
+    return memoryCondition();
+}
+
 cb::engine_errc EventuallyPersistentEngine::testPrivilege(
         CookieIface& cookie,
         cb::rbac::Privilege priv,

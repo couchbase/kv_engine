@@ -970,6 +970,17 @@ public:
                                    CollectionID) const;
 
     /**
+     * Checks if adding the specified memory size will keep memory usage below
+     * the mutation watermark. If so, returns success; otherwise, invoke
+     * eviction and return no_memory/temp_failure.
+     *
+     * @param pendingBytes The size of memory to be added.
+     * @return cb::engine_errc::success if addition memory size is available,
+     * otherwise no_memory / temp_failure.
+     */
+    cb::engine_errc checkMemoryForBGFetch(size_t pendingBytes);
+
+    /**
      * Test the access for the given privilege for the bucket.scope.collection
      * This differs from checkPrivilege in that the error case has no side
      * effect, such as setting error extras/logging

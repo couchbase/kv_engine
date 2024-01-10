@@ -773,6 +773,51 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     destroy_mock_cookie(cookie2);
 }
 
+TEST_P(EPBucketFullEvictionTest, DontQueueBGFetchItemAboveMutationWatermark) {
+    // This test relies on precise memory tracking
+    const auto& stats = engine->getEpStats();
+    if (!stats.isMemoryTrackingEnabled()) {
+        GTEST_SKIP();
+    }
+
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, {}));
+    EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
+
+    int valueSize = 1 * 1024 * 1024;
+
+    // Load document of size 1MiB
+    const std::string value(valueSize, 'x');
+    auto key0 = makeStoredDocKey("key_0");
+
+    // store item
+    store_item(vbid, key0, value);
+    flush_vbucket_to_disk(vbid);
+
+    // evict item
+    evict_key(vbid, key0);
+
+    // try to bgFetch item
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    auto cookie = create_mock_cookie();
+
+    // set bucket quota using current memory usage as 93%
+    double mutationWat = engine->getConfiguration().getMutationMemRatio();
+    engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() / mutationWat);
+
+    auto gv = store->get(key0, vbid, cookie, options);
+    EXPECT_NE(cb::engine_errc::would_block, gv.getStatus());
+
+    // BGFetch queue should remain empty
+    auto vb = store->getVBucket(vbid);
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+    EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
+
+    destroy_mock_cookie(cookie);
+}
+
 TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
