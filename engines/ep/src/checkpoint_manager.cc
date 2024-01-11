@@ -393,9 +393,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // nextSeqnoAvailableFromCheckpoint
         const uint64_t nextSeqnoAvailableFromCheckpoint = lastBySeqno + 1;
         const auto tryBackfill =
-                (nextSeqnoAvailableFromCheckpoint == lastProcessedSeqno + 1
-                         ? false
-                         : true);
+                (nextSeqnoAvailableFromCheckpoint != lastProcessedSeqno + 1);
         return createCursorRegResult((*ckptIt)->begin(),
                                      0,
                                      tryBackfill,
@@ -465,8 +463,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         if (lastProcessedSeqno < *st) {
             // Trigger backfill only if there's a gap between lastProcessedSeqno
             // and st
-            const auto tryBackfill =
-                    (*st == lastProcessedSeqno + 1 ? false : true);
+            const auto tryBackfill = (*st != lastProcessedSeqno + 1);
             return createCursorRegResult(ckpt.begin(), 0, tryBackfill, *st);
         }
 
@@ -834,10 +831,9 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
         // the backup cursor exists. So that can be exploited to simplify
         // the logic further here.
 
-        const auto backupExists =
-                cursors.find(backupPCursorName) != cursors.end();
-        const auto& specialCursor = backupExists
-                                            ? *cursors.at(backupPCursorName)
+        const auto backupFound = cursors.find(backupPCursorName);
+        const auto& specialCursor = (backupFound != cursors.end())
+                                            ? *backupFound->second
                                             : *persistenceCursor;
 
         for (const auto& pair : cursors) {
@@ -1294,8 +1290,8 @@ uint64_t CheckpointManager::getMaxVisibleSeqno() const {
 std::shared_ptr<CheckpointCursor>
 CheckpointManager::getBackupPersistenceCursor() {
     std::lock_guard<std::mutex> lh(queueLock);
-    const auto exists = cursors.find(backupPCursorName) != cursors.end();
-    return exists ? cursors[backupPCursorName] : nullptr;
+    const auto backupFound = cursors.find(backupPCursorName);
+    return (backupFound != cursors.end()) ? backupFound->second : nullptr;
 }
 
 void CheckpointManager::dump() const {
