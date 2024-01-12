@@ -1170,14 +1170,14 @@ MemcachedConnection& TestappTest::getAdminConnection() {
 }
 
 MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
-    std::vector<cb::mcbp::Feature> features = {{
-            cb::mcbp::Feature::MUTATION_SEQNO,
-            cb::mcbp::Feature::XATTR,
-            cb::mcbp::Feature::XERROR,
-            cb::mcbp::Feature::SELECT_BUCKET,
-            cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
-            cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
-    }};
+    std::vector features = {
+            {cb::mcbp::Feature::MUTATION_SEQNO,
+             cb::mcbp::Feature::XATTR,
+             cb::mcbp::Feature::XERROR,
+             cb::mcbp::Feature::SELECT_BUCKET,
+             cb::mcbp::Feature::SubdocReplaceBodyWithXattr,
+             cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
+             cb::mcbp::Feature::SubdocBinaryXattr}};
     switch (hasSnappySupport()) {
     case ClientSnappySupport::Everywhere:
         features.push_back(cb::mcbp::Feature::SnappyEverywhere);

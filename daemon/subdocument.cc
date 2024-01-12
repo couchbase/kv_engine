@@ -763,6 +763,8 @@ void SubdocCommandContext::send_single_response() {
 
     context.response_val_len = 0;
     std::string_view value = {};
+    bool binary = false;
+
     if (traits.responseHasValue()) {
         // The value may have been created in the xattr or the body phase
         // so it should only be one, so if it isn't an xattr it should be
@@ -772,7 +774,11 @@ void SubdocCommandContext::send_single_response() {
         if (context.getOperations(phase).empty()) {
             phase = SubdocExecutionContext::Phase::Body;
         }
-        auto mloc = context.getOperations(phase)[0].result.matchloc();
+        const auto& op = context.getOperations(phase)[0];
+        binary = (op.flags & SUBDOC_FLAG_BINARY_VALUE) ==
+                 SUBDOC_FLAG_BINARY_VALUE;
+
+        auto mloc = op.result.matchloc();
         value = {mloc.at, mloc.length};
         context.response_val_len = value.size();
     }
@@ -804,7 +810,8 @@ void SubdocCommandContext::send_single_response() {
                         extras,
                         {},
                         value,
-                        traits.responseDatatype(context.in_datatype),
+                        binary ? cb::mcbp::Datatype::Raw
+                               : traits.responseDatatype(context.in_datatype),
                         cookie.getCas());
 }
 

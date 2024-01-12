@@ -301,6 +301,10 @@ enum class Status : uint16_t {
     /// A deleted document can't have a user value
     SubdocDeletedDocumentCantHaveValue = 0xd7,
 
+    /// The operation used SUBDOC_FLAG_BINARY_VALUE, but the value
+    /// was not a binary field.
+    SubdocFieldNotBinaryValue = 0xd8,
+
     /*************************************************************************/
 
     /**

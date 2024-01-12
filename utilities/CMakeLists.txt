@@ -55,10 +55,11 @@ if (BREAKPAD_FOUND)
   target_link_libraries(mcd_util PRIVATE ${BREAKPAD_LIBRARIES})
 endif()
 target_link_libraries(mcd_util
+        PUBLIC
+                platform
         PRIVATE
                 engine_utilities
                 memcached_logger
-                platform
                 hdrhistogram
                 OpenSSL::SSL)
 add_sanitizers(mcd_util)
@@ -76,6 +77,7 @@ cb_add_test_executable(utilities_testapp
         breakpad_settings_test.cc
         config_parser_test.cc
         stat_group_test.cc
+        string_utilities_test.cc
         throttle_utilities_test.cc
         util_test.cc)
 kv_enable_pch(utilities_testapp)
@@ -90,3 +92,10 @@ add_sanitizers(utilities_testapp)
 add_test(NAME memcached-utilities-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND utilities_testapp)
+
+cb_add_test_executable(string_utilities_benchmark
+        string_utilities_benchmark.cc)
+target_link_libraries(string_utilities_benchmark PRIVATE
+        benchmark::benchmark mcd_util)
+platform_enable_pch(string_utilities_benchmark)
+add_sanitizers(string_utilities_benchmark)

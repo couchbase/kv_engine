@@ -155,7 +155,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGet>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::GET,
             cb::mcbp::ClientOpcode::Invalid,
-            SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH,
+            SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
+                    SUBDOC_FLAG_BINARY_VALUE,
             SUBDOC_FLAG_NONE,
             cb::mcbp::subdoc::doc_flag::AccessDeleted |
                     cb::mcbp::subdoc::doc_flag::ReviveDocument |
@@ -191,7 +192,7 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>() {
             Subdoc::Command::DICT_ADD,
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
-                    SUBDOC_FLAG_EXPAND_MACROS,
+                    SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_BINARY_VALUE,
             SUBDOC_FLAG_NONE,
             doc_flag::Mkdoc | doc_flag::AccessDeleted |
                     doc_flag::ReviveDocument | doc_flag::Add |
@@ -210,7 +211,7 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>() {
             Subdoc::Command::DICT_UPSERT,
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH |
-                    SUBDOC_FLAG_EXPAND_MACROS,
+                    SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_BINARY_VALUE,
             SUBDOC_FLAG_NONE,
             doc_flag::Mkdoc | doc_flag::AccessDeleted |
                     doc_flag::ReviveDocument | doc_flag::Add |
@@ -244,7 +245,7 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocReplace>() {
             Subdoc::Command::REPLACE,
             cb::mcbp::ClientOpcode::Invalid,
             SUBDOC_FLAG_NONE | SUBDOC_FLAG_XATTR_PATH |
-                    SUBDOC_FLAG_EXPAND_MACROS,
+                    SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_BINARY_VALUE,
             SUBDOC_FLAG_NONE,
             cb::mcbp::subdoc::doc_flag::AccessDeleted |
                     cb::mcbp::subdoc::doc_flag::ReviveDocument |
@@ -375,7 +376,7 @@ get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>() {
     return {CommandScope::AttributesAndBody,
             Subdoc::Command::GET,
             cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-            SUBDOC_FLAG_XATTR_PATH,
+            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_BINARY_VALUE,
             SUBDOC_FLAG_XATTR_PATH,
             doc_flag::AccessDeleted | doc_flag::ReviveDocument,
             false,

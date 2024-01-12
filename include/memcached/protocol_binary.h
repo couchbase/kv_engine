@@ -340,6 +340,8 @@ typedef enum : uint8_t {
      */
     SUBDOC_FLAG_EXPAND_MACROS = 0x10,
 
+    /// The provided value is a binary value
+    SUBDOC_FLAG_BINARY_VALUE = 0x20,
 } protocol_binary_subdoc_flag;
 
 namespace cb::mcbp::subdoc {

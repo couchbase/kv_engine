@@ -15,6 +15,7 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -80,3 +81,23 @@ std::ostream& operator<<(std::ostream& ostr, const std::optional<T>& optional) {
  * @return the part of the name which represents the thread pool
  */
 std::string_view get_thread_pool_name(std::string_view threadname);
+
+/**
+ * Base64 encode the provided value with a prefix and value
+ *
+ * @param view the data to encode
+ * @return a std::string with the following syntax:
+ *           'cb-content-base64-encoded:value'
+ */
+std::string base64_encode_value(std::string_view view);
+
+/**
+ * Base64 decode the provided value with a prefix and value
+ *
+ * @param view the data to decode
+ * @return a std::string with the following syntax:
+ *           'cb-content-base64-encoded:value'
+ * @throws std::invalid_argument if the data doesn't contain the correct
+ *            format
+ */
+std::string base64_decode_value(std::string_view view);

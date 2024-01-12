@@ -10,9 +10,13 @@
  */
 #include "testapp_xattr.h"
 
+#include <folly/Range.h>
+#include <folly/io/IOBuf.h>
+#include <platform/compress.h>
 #include <platform/crc32c.h>
+#include <platform/dirutils.h>
 #include <platform/string_hex.h>
-
+#include <utilities/string_utilities.h>
 #include <array>
 
 using namespace cb::mcbp;
@@ -2471,4 +2475,253 @@ TEST_P(XattrTest, MB57864_macro_expansion) {
             break;
         }
     }
+}
+
+TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
+    std::string payload;
+    {
+        const auto fname = std::filesystem::path{SOURCE_ROOT} / "tests" /
+                           "testapp" / "testapp_xattr.cc";
+        auto content = cb::io::loadFile(fname.generic_string());
+        payload = folly::StringPiece{
+                cb::compression::deflateSnappy(content)->coalesce()};
+    }
+
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P |
+                                SUBDOC_FLAG_BINARY_VALUE,
+                        "tnx.op.staged",
+                        payload);
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                SUBDOC_FLAG_NONE,
+                "couchbase",
+                R"({"version": "mad-hatter", "next_version": "cheshire-cat"})");
+        userConnection->sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        userConnection->recvResponse(multiResp);
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << "Failed to store the data";
+    }
+
+    // Verify that things looks like we expect them to
+    {
+        auto resp = subdoc_multi_lookup({{ClientOpcode::SubdocGet,
+                                          SUBDOC_FLAG_XATTR_PATH,
+                                          "tnx.op.staged"},
+                                         {ClientOpcode::SubdocGet,
+                                          SUBDOC_FLAG_NONE,
+                                          "couchbase.version"}});
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
+        ASSERT_EQ(base64_encode_value(payload), results[0].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
+        ASSERT_EQ(R"("mad-hatter")", results[1].value);
+    }
+
+    // and it gets returned as binary if we request binary read
+    {
+        auto resp = subdoc_multi_lookup(
+                {{ClientOpcode::SubdocGet,
+                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_BINARY_VALUE,
+                  "tnx.op.staged"},
+                 {ClientOpcode::SubdocGet,
+                  SUBDOC_FLAG_NONE,
+                  "couchbase.version"}});
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        auto& results = resp.getResults();
+        ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
+        ASSERT_EQ(payload, results[0].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
+        ASSERT_EQ(R"("mad-hatter")", results[1].value);
+    }
+
+    // Replace the body with the staged value (but don't tell the server
+    // that the value should be treated as a binary value and flipped
+    // back
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx.op.staged",
+                        {});
+        userConnection->sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        userConnection->recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << multiResp.getDataString();
+    }
+
+    auto val = userConnection->get(name, Vbid{0});
+    // Verify that the server didn't "decode" the value
+    EXPECT_EQ(base64_encode_value(payload), val.value);
+
+    // And finally replace with the binary value...
+    // Replace the body with the staged value and remove the staged xattr
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_BINARY_VALUE,
+                        "tnx.op.staged",
+                        {});
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDelete,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "tnx.op.staged",
+                        {});
+        userConnection->sendCommand(cmd);
+
+        BinprotSubdocMultiMutationResponse multiResp;
+        userConnection->recvResponse(multiResp);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << multiResp.getDataString();
+    }
+
+    val = userConnection->get(name, Vbid{0});
+    EXPECT_EQ(val.info.datatype, Datatype::Raw);
+    EXPECT_EQ(val.value, payload);
+}
+
+TEST_P(XattrTest, UpsertWithXattrBase64EncodedBinaryValue) {
+    auto upsert = [this](const std::string& value) {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                        "base64",
+                        value);
+        userConnection->sendCommand(cmd);
+        BinprotSubdocMultiMutationResponse multiResp;
+        userConnection->recvResponse(multiResp);
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+                << "Failed to store the data";
+    };
+
+    // Verify that we can store the actual encoded bits
+    std::string encoded = base64_encode_value("base64_encode_value");
+    upsert(encoded);
+
+    // verify that we can store it as part of an object
+
+    std::string_view view = encoded;
+    // Remove the encosed " " in the string to avoid getting it escaped
+    // in the json due to nlohmanns automatic " of strings
+    view.remove_prefix(1);
+    view.remove_suffix(1);
+    nlohmann::json json = {{"raw", "raw"}, {"base64", view}};
+    upsert(json.dump());
+}
+
+TEST_P(XattrTest, BinaryFlagMustBeWithXattr) {
+    BinprotSubdocCommand cmd{ClientOpcode::SubdocGet, name, "foo"};
+    auto rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::SubdocPathEnoent, rsp.getStatus());
+
+    cmd.addPathFlags(SUBDOC_FLAG_BINARY_VALUE);
+    rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::SubdocXattrInvalidFlagCombo, rsp.getStatus());
+    EXPECT_EQ("BINARY_VALUE flag requires XATTR flag to be set",
+              rsp.getErrorContext());
+}
+
+TEST_P(XattrTest, BinaryFlagAndExpandMacrosIsNotLegal) {
+    auto rsp = userConnection->execute(BinprotSubdocCommand{
+            ClientOpcode::SubdocDictUpsert,
+            name,
+            "foo",
+            "blob",
+            SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH |
+                    SUBDOC_FLAG_BINARY_VALUE});
+    EXPECT_EQ(Status::SubdocXattrInvalidFlagCombo, rsp.getStatus());
+    EXPECT_EQ("BINARY_VALUE can't be used together with EXPAND_MACROS",
+              rsp.getErrorContext());
+}
+
+/// Simulate that an old client (without support for binary values)
+/// Fetch an object which contains a binary value, modify the value
+/// and store the resulting object. Let the "new" client read
+/// its binary value and verify that it is correct.
+TEST_P(XattrTest, BinaryValueAccessedFromOldClient) {
+    BinprotSubdocCommand cmd{ClientOpcode::SubdocDictUpsert,
+                             name,
+                             "foo.bar.binary",
+                             "value",
+                             SUBDOC_FLAG_BINARY_VALUE | SUBDOC_FLAG_MKDIR_P |
+                                     SUBDOC_FLAG_XATTR_PATH};
+    auto rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus());
+
+    // Receive the parent object
+    cmd = BinprotSubdocCommand{ClientOpcode::SubdocGet,
+                               name,
+                               "foo.bar",
+                               {},
+                               SUBDOC_FLAG_XATTR_PATH};
+    rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus());
+    EXPECT_EQ(R"({"binary":"cb-content-base64-encoded:dmFsdWU="})",
+              rsp.getDataView());
+    auto json = nlohmann::json::parse(rsp.getDataView());
+
+    // Add a new attribute to the object
+    json["ascii"] = "ascii-value";
+    cmd = BinprotSubdocCommand{ClientOpcode::SubdocDictUpsert,
+                               name,
+                               "foo.bar",
+                               json.dump(),
+                               SUBDOC_FLAG_XATTR_PATH};
+    rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus());
+
+    // Read the object back
+    cmd = BinprotSubdocCommand{ClientOpcode::SubdocGet,
+                               name,
+                               "foo.bar",
+                               {},
+                               SUBDOC_FLAG_XATTR_PATH};
+    rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus());
+    EXPECT_EQ(
+            R"({"ascii":"ascii-value","binary":"cb-content-base64-encoded:dmFsdWU="})",
+            rsp.getDataView());
+
+    // And we could also read the binary piece back:
+    cmd = BinprotSubdocCommand{
+            ClientOpcode::SubdocGet,
+            name,
+            "foo.bar.binary",
+            {},
+            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_BINARY_VALUE};
+    rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus());
+    EXPECT_EQ("value", rsp.getDataView());
+}
+
+TEST_P(XattrTest, NonBinaryValueRequestedWithBinaryFlag) {
+    BinprotSubdocCommand cmd{ClientOpcode::SubdocDictUpsert,
+                             name,
+                             "foo.nonbinary",
+                             R"("value")",
+                             SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_XATTR_PATH};
+    auto rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus());
+
+    // Receive the parent object
+    cmd = BinprotSubdocCommand{
+            ClientOpcode::SubdocGet,
+            name,
+            "foo.nonbinary",
+            {},
+            SUBDOC_FLAG_BINARY_VALUE | SUBDOC_FLAG_XATTR_PATH};
+    rsp = userConnection->execute(cmd);
+    EXPECT_EQ(Status::SubdocFieldNotBinaryValue, rsp.getStatus())
+            << rsp.getDataString();
 }

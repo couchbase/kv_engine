@@ -305,9 +305,9 @@ BinprotSubdocCommand& BinprotSubdocCommand::setValue(std::string value_) {
 }
 BinprotSubdocCommand& BinprotSubdocCommand::addPathFlags(
         protocol_binary_subdoc_flag flags_) {
-    static protocol_binary_subdoc_flag validFlags = SUBDOC_FLAG_XATTR_PATH |
-                                                    SUBDOC_FLAG_MKDIR_P |
-                                                    SUBDOC_FLAG_EXPAND_MACROS;
+    static protocol_binary_subdoc_flag validFlags =
+            SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P |
+            SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_BINARY_VALUE;
     if ((flags_ & ~validFlags) == 0) {
         flags = flags | flags_;
     } else {

@@ -474,4 +474,7 @@ protected:
     std::string xtoc_vattr;
 
     std::vector<std::string> expandedVirtualMacrosBackingStore;
+
+    std::vector<std::string> binaryEncodedStorage;
+
 }; // class SubdocExecutionContext

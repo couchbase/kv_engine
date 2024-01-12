@@ -151,6 +151,11 @@ enum class Feature : uint16_t {
     /// allows the client to operate on multiple XATTR keys within the same
     /// MultiMutation/MultiLookup operation
     SubdocAllowsAccessOnMultipleXattrKeys = 0x20,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// allows the client store binary values in XATTRs specified with
+    /// SUBDOC_FLAG_BINARY_VALUE
+    SubdocBinaryXattr = 0x21,
 };
 
 } // namespace cb::mcbp
