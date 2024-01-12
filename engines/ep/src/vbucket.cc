@@ -2491,7 +2491,9 @@ cb::engine_errc VBucket::deleteWithMeta(
         }
     }
 
-    if (v && v->isLocked(ep_current_time()) &&
+    Expects(v);
+
+    if (v->isLocked(ep_current_time()) &&
         (getState() == vbucket_state_replica ||
          getState() == vbucket_state_pending)) {
         v->unlock();
@@ -2502,7 +2504,7 @@ cb::engine_errc VBucket::deleteWithMeta(
     bool metaBgFetch = true;
     const auto cachedVbState = getState(); // read cachedVbState once
     const bool mayNeedXattrsPreserving =
-            v && cachedVbState == vbucket_state_active &&
+            cachedVbState == vbucket_state_active &&
             cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
             !v->isTempNonExistentItem();
 
@@ -2519,13 +2521,7 @@ cb::engine_errc VBucket::deleteWithMeta(
                                {} /*overwritingPrepareSeqno*/,
                                cHandle.getCanDeduplicate()};
 
-    if (!v) {
-        if (eviction == EvictionPolicy::Full) {
-            delrv = MutationStatus::NeedBgFetch;
-        } else {
-            delrv = MutationStatus::NotFound;
-        }
-    } else if (mayNeedXattrsPreserving && !v->isResident()) {
+    if (mayNeedXattrsPreserving && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
         // MB-36087: Any non-resident value
@@ -2555,7 +2551,9 @@ cb::engine_errc VBucket::deleteWithMeta(
                                                           bySeqno,
                                                           deleteSource);
     }
-    cas = v ? v->getCas() : 0;
+    // Note: v reset to a new ptr by multiple paths, still !null expected
+    Expects(v);
+    cas = v->getCas();
 
     switch (delrv) {
     case MutationStatus::NoMem:
@@ -2568,12 +2566,6 @@ cb::engine_errc VBucket::deleteWithMeta(
         return cb::engine_errc::no_such_key;
     case MutationStatus::WasDirty:
     case MutationStatus::WasClean: {
-        if (v == nullptr) {
-            // Scan build thinks v could be nullptr - check to suppress warning
-            throw std::logic_error(
-                    "VBucket::addBackfillItem: "
-                    "StoredValue should not be null if status WasClean");
-        }
         if (seqno) {
             *seqno = static_cast<uint64_t>(v->getBySeqno());
         }
