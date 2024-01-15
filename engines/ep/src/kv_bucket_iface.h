@@ -222,7 +222,8 @@ public:
      *                      item exists already
      * @param genBySeqno whether or not to generate sequence number
      * @param emd ExtendedMetaData class object that contains any ext meta
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return the result of the store operation
      */
     virtual cb::engine_errc setWithMeta(
@@ -235,7 +236,8 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = nullptr) = 0;
+            ExtendedMetaData* emd = nullptr,
+            EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) = 0;
 
     /**
      * Add a prepare to the store

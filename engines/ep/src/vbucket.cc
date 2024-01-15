@@ -2110,7 +2110,8 @@ cb::engine_errc VBucket::setWithMeta(
         bool allowExisting,
         GenerateBySeqno genBySeqno,
         GenerateCas genCas,
-        const Collections::VB::CachingReadHandle& cHandle) {
+        const Collections::VB::CachingReadHandle& cHandle,
+        EnforceMemCheck enforceMemCheck) {
     auto htRes = ht.findForUpdate(itm.getKey());
     auto* v = htRes.selectSVToModify(itm);
     auto& hbl = htRes.getHBL();
@@ -2185,7 +2186,8 @@ cb::engine_errc VBucket::setWithMeta(
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
             {} /*overwritingPrepareSeqno*/,
-            cHandle.getCanDeduplicate()};
+            cHandle.getCanDeduplicate(),
+            enforceMemCheck};
 
     MutationStatus status;
     std::optional<VBNotifyCtx> notifyCtx;

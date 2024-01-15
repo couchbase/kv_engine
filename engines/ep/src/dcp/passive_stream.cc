@@ -360,7 +360,8 @@ cb::engine_errc PassiveStream::messageReceived(
     case KVBucket::ReplicationThrottleStatus::Process:
         if (buffer.empty() && !alwaysBufferOperations) {
             // Memory available and no message buffered -> process the response
-            const auto ret = processMessage(dcpResponse.get());
+            const auto ret =
+                    processMessage(dcpResponse.get(), EnforceMemCheck::Yes);
             const auto err = ret.getError();
             if (err == cb::engine_errc::no_memory) {
                 if (bucket.disconnectReplicationAtOOM()) {
@@ -428,7 +429,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
 
         const auto seqno = response->getBySeqno();
 
-        const auto ret = processMessage(response.get());
+        const auto ret = processMessage(response.get(), EnforceMemCheck::Yes);
 
         const auto err = ret.getError();
         if (err == cb::engine_errc::temporary_failure ||
@@ -491,7 +492,7 @@ process_items_error_t PassiveStream::processBufferedMessages(
 }
 
 cb::engine_errc PassiveStream::processMessageInner(
-        MutationConsumerMessage* message) {
+        MutationConsumerMessage* message, EnforceMemCheck enforceMemCheck) {
     auto consumer = consumerPtr.lock();
     if (!consumer) {
         return cb::engine_errc::disconnect;
@@ -542,7 +543,8 @@ cb::engine_errc PassiveStream::processMessageInner(
                                                  true,
                                                  GenerateBySeqno::No,
                                                  GenerateCas::No,
-                                                 message->getExtMetaData());
+                                                 message->getExtMetaData(),
+                                                 enforceMemCheck);
         break;
     case DcpResponse::Event::Expiration:
         deleteSource = DeleteSource::TTL;
@@ -1396,7 +1398,7 @@ std::string PassiveStream::Labeller::getLabel(const char* name) const {
 }
 
 PassiveStream::ProcessMessageResult PassiveStream::processMessage(
-        gsl::not_null<DcpResponse*> response) {
+        gsl::not_null<DcpResponse*> response, EnforceMemCheck enforceMemCheck) {
     auto vb = engine->getVBucket(vb_);
     if (!vb) {
         return {*this, cb::engine_errc::not_my_vbucket, {}};
@@ -1406,17 +1408,21 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     auto* resp = response.get();
     switch (resp->getEvent()) {
     case DcpResponse::Event::Mutation:
-        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp));
+        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
+                                  enforceMemCheck);
         break;
     case DcpResponse::Event::Deletion:
-        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp));
+        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
+                                  EnforceMemCheck::Yes); // @todo MB-31869
         break;
     case DcpResponse::Event::Expiration:
-        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp));
+        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
+                                  EnforceMemCheck::Yes); // @todo MB-31869
         break;
     case DcpResponse::Event::Prepare: {
         auto* prepare = dynamic_cast<MutationConsumerMessage*>(resp);
-        ret = processMessageInner(prepare);
+        ret = processMessageInner(prepare,
+                                  EnforceMemCheck::Yes); // @todo MB-31869
         if (ret == cb::engine_errc::success) {
             Expects(prepare->getItem()->getBySeqno() ==
                     engine->getVBucket(vb_)->getHighSeqno());

@@ -306,7 +306,13 @@ public:
     }
 
     cb::engine_errc processMutation(MutationConsumerMessage* mutation) {
-        return PassiveStream::processMessageInner(mutation);
+        return PassiveStream::processMessageInner(mutation,
+                                                  EnforceMemCheck::Yes);
+    }
+
+    ProcessMessageResult public_processMessage(
+            gsl::not_null<DcpResponse*> resp, EnforceMemCheck enforceMemCheck) {
+        return PassiveStream::processMessage(resp, enforceMemCheck);
     }
 
     auto& getBufferMessages() const {

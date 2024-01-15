@@ -3638,7 +3638,8 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
                                        true,
                                        GenerateBySeqno::No,
                                        GenerateCas::No,
-                                       vbucket->lockCollections(key)));
+                                       vbucket->lockCollections(key),
+                                       EnforceMemCheck::Yes));
     }
 
     ++seqno;

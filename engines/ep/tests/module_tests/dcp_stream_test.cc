@@ -7741,7 +7741,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedSystemEvent) {
     replicaToActiveBufferedRejected(DcpResponse::Event::SystemEvent);
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, QueueItemBypassMemCheck) {
+TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck) {
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = *vb.checkpointManager;
@@ -7752,8 +7752,9 @@ TEST_P(SingleThreadedPassiveStreamTest, QueueItemBypassMemCheck) {
     // Force OOM
     engine->getConfiguration().setMutationMemRatio(0);
 
+    const uint32_t opaque = 1;
     const size_t seqno = 1;
-    SnapshotMarker snapshotMarker(1, // opaque
+    SnapshotMarker snapshotMarker(opaque,
                                   vbid,
                                   seqno,
                                   seqno,
@@ -7766,41 +7767,23 @@ TEST_P(SingleThreadedPassiveStreamTest, QueueItemBypassMemCheck) {
 
     const std::string key = "key";
     const std::string value(1024 * 1024, 'v');
-
-    // Note: Marker for 'seqno' already processed
-    auto item = make_item(
-            vbid, makeStoredDocKey(key + std::to_string(seqno)), value);
-    item.setBySeqno(seqno);
+    auto mutation = makeMutationConsumerMessage(1, vbid, value, opaque, key);
 
     // Verify legacy behaviour first
     // By EnforceMemCheck::Yes (ie legacy behaviour) the Set fails
     {
-        VBQueueItemCtx ctx{GenerateBySeqno::No,
-                           GenerateCas::No,
-                           GenerateDeleteTime::No,
-                           TrackCasDrift::Yes,
-                           DurabilityItemCtx{item.getDurabilityReqs(), cookie},
-                           nullptr,
-                           {},
-                           CanDeduplicate::Yes,
-                           EnforceMemCheck::Yes};
-        EXPECT_EQ(MutationStatus::NoMem, public_processSet(vb, item, ctx));
+        const auto res = stream->public_processMessage(mutation.get(),
+                                                       EnforceMemCheck::Yes);
+        EXPECT_EQ(cb::engine_errc::no_memory, res.getError());
         EXPECT_EQ(vb.getHighSeqno(), 0);
     }
 
     // Core check
     // By EnforceMemCheck::No the Set succeeds
     {
-        VBQueueItemCtx ctx{GenerateBySeqno::No,
-                           GenerateCas::No,
-                           GenerateDeleteTime::No,
-                           TrackCasDrift::Yes,
-                           DurabilityItemCtx{item.getDurabilityReqs(), cookie},
-                           nullptr,
-                           {},
-                           CanDeduplicate::Yes,
-                           EnforceMemCheck::No};
-        EXPECT_EQ(MutationStatus::WasClean, public_processSet(vb, item, ctx));
+        const auto res = stream->public_processMessage(mutation.get(),
+                                                       EnforceMemCheck::No);
+        EXPECT_EQ(cb::engine_errc::success, res.getError());
         EXPECT_EQ(vb.getHighSeqno(), 1);
     }
 }

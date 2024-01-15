@@ -640,7 +640,8 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
                                   /*allowExisting*/ true,
                                   GenerateBySeqno::No,
                                   GenerateCas::No,
-                                  vb->lockCollections(key)));
+                                  vb->lockCollections(key),
+                                  EnforceMemCheck::Yes));
         return;
     }
 

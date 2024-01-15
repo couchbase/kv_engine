@@ -142,8 +142,11 @@ protected:
      * processing a mutation and deletion/expiration.
      *
      * @param message The message sent to the DcpConsumer/PassiveStream
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      */
-    cb::engine_errc processMessageInner(MutationConsumerMessage* message);
+    cb::engine_errc processMessageInner(MutationConsumerMessage* message,
+                                        EnforceMemCheck enforceMemCheck);
 
     /// Process an incoming commit of a SyncWrite.
     cb::engine_errc processCommit(const CommitSyncWriteConsumer& commit);
@@ -329,9 +332,12 @@ protected:
      * path.
      *
      * @param resp The DcpResponse to be processed
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return ProcessMessageResult, see struct for details
      */
-    ProcessMessageResult processMessage(gsl::not_null<DcpResponse*> resp);
+    ProcessMessageResult processMessage(gsl::not_null<DcpResponse*> resp,
+                                        EnforceMemCheck enforceMemCheck);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.

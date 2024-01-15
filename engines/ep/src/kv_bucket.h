@@ -110,7 +110,8 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno = GenerateBySeqno::Yes,
             GenerateCas genCas = GenerateCas::No,
-            ExtendedMetaData* emd = nullptr) override;
+            ExtendedMetaData* emd = nullptr,
+            EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) override;
 
     cb::engine_errc prepare(Item& item, CookieIface* cookie) override;
 

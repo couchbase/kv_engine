@@ -1097,7 +1097,8 @@ public:
      * @param genBySeqno whether or not to generate sequence number
      * @param genCas
      * @param cHandle Collections readhandle (caching mode) for this key
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return the result of the store operation
      */
     cb::engine_errc setWithMeta(
@@ -1111,7 +1112,8 @@ public:
             bool allowExisting,
             GenerateBySeqno genBySeqno,
             GenerateCas genCas,
-            const Collections::VB::CachingReadHandle& cHandle);
+            const Collections::VB::CachingReadHandle& cHandle,
+            EnforceMemCheck enforceMemCheck);
 
     /**
      * Creates a pending SyncWrite, which might be aborted or committed in the

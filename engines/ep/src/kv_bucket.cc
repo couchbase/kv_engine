@@ -1753,7 +1753,8 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       bool allowExisting,
                                       GenerateBySeqno genBySeqno,
                                       GenerateCas genCas,
-                                      ExtendedMetaData* emd) {
+                                      ExtendedMetaData* emd,
+                                      EnforceMemCheck enforceMemCheck) {
     Expects(cookie);
     auto lr = lookupVBucket(itm.getVBucketId());
     if (!lr) {
@@ -1795,7 +1796,8 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                  allowExisting,
                                  genBySeqno,
                                  genCas,
-                                 cHandle);
+                                 cHandle,
+                                 enforceMemCheck);
         }
     }
 
