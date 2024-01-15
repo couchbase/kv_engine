@@ -40,7 +40,7 @@ std::unique_ptr<McdEnvironment> mcd_env;
 std::atomic_bool expectMemcachedTermination{false};
 std::unique_ptr<ProcessMonitor> memcachedProcess;
 
-in_port_t port = -1;
+in_port_t port = 0;
 SOCKET sock = INVALID_SOCKET;
 static time_t server_start_time = 0;
 
@@ -585,7 +585,7 @@ void TestappTest::parse_portnumber_file() {
 
         // The tests which don't use the MemcachedConnection class needs the
         // global variables port and ssl_port to be set
-        port = (in_port_t)-1;
+        port = 0;
 
         connectionMap.iterate([](const MemcachedConnection& connection) {
             if (connection.getFamily() == AF_INET) {
@@ -595,21 +595,21 @@ void TestappTest::parse_portnumber_file() {
             }
         });
 
-        if (port == in_port_t(-1)) {
+        if (port == 0) {
             std::stringstream ss;
             connectionMap.iterate([&ss](const MemcachedConnection& connection) {
                 ss << "[" << connection.to_string() << "]," << std::endl;
             });
 
             throw std::runtime_error(
-                    "parse_portnumber_file: Failed to locate an plain IPv4 "
+                    "parse_portnumber_file: Failed to locate a plain IPv4 "
                     "connection from: " +
                     ss.str());
         }
         EXPECT_EQ(0, remove(mcd_env->getPortnumberFile().c_str()));
     } catch (const std::exception& e) {
         std::cerr << "FATAL ERROR in parse_portnumber_file!" << std::endl
-                  << "An error occured while getting the connection ports: "
+                  << "An error occurred while getting the connection ports:"
                   << std::endl
                   << e.what() << std::endl;
         std::abort();
@@ -675,9 +675,9 @@ void TestappTest::start_external_server() {
 }
 
 SOCKET connect_to_server_plain() {
-    if (port == in_port_t(-1)) {
+    if (port == 0) {
         throw std::runtime_error(
-                "create_connect_plain_socket: Can't connect to port == -1");
+                "create_connect_plain_socket: Can't connect to port == 0");
     }
     MemcachedConnection connection("127.0.0.1", port, AF_INET, false);
     connection.connect();
