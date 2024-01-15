@@ -2502,12 +2502,6 @@ cb::engine_errc VBucket::deleteWithMeta(
     MutationStatus delrv;
     std::optional<VBNotifyCtx> notifyCtx;
     bool metaBgFetch = true;
-    const auto cachedVbState = getState(); // read cachedVbState once
-    const bool mayNeedXattrsPreserving =
-            cachedVbState == vbucket_state_active &&
-            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
-            !v->isTempNonExistentItem();
-
     std::unique_ptr<Item> itm;
     // MB-33919: The incoming meta.exptime should be used as the delete-time
     // so request GenerateDeleteTime::No, if the incoming value is 0, a new
@@ -2520,6 +2514,13 @@ cb::engine_errc VBucket::deleteWithMeta(
                                nullptr /* No pre link step needed */,
                                {} /*overwritingPrepareSeqno*/,
                                cHandle.getCanDeduplicate()};
+
+    // Note: Inbound replication doesn't touch the payload, active manipulates
+    // it, replica stores as it is
+    const bool mayNeedXattrsPreserving =
+            state == vbucket_state_active &&
+            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
+            !v->isTempNonExistentItem();
 
     if (mayNeedXattrsPreserving && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
@@ -2551,6 +2552,7 @@ cb::engine_errc VBucket::deleteWithMeta(
                                                           bySeqno,
                                                           deleteSource);
     }
+
     // Note: v reset to a new ptr by multiple paths, still !null expected
     Expects(v);
     cas = v->getCas();
@@ -4203,22 +4205,22 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
 
     auto prunedXattrs = xattr.finalize();
 
-    if (!prunedXattrs.empty()) {
-        // Something remains - Create a Blob and copy-in just the XATTRs
-        auto newValue =
-                Blob::New(reinterpret_cast<const char*>(prunedXattrs.data()),
-                          prunedXattrs.size());
-        auto rv = v.toItem(getId());
-        rv->setCas(itemMeta.cas);
-        rv->setFlags(itemMeta.flags);
-        rv->setExpTime(itemMeta.exptime);
-        rv->setRevSeqno(itemMeta.revSeqno);
-        rv->replaceValue(TaggedPtr<Blob>(newValue, TaggedPtrBase::NoTagValue));
-        rv->setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
-        return rv;
-    } else {
+    if (prunedXattrs.empty()) {
         return {};
     }
+
+    // Something remains - Create a Blob and copy-in just the XATTRs
+    auto newValue =
+            Blob::New(reinterpret_cast<const char*>(prunedXattrs.data()),
+                      prunedXattrs.size());
+    auto rv = v.toItem(getId());
+    rv->setCas(itemMeta.cas);
+    rv->setFlags(itemMeta.flags);
+    rv->setExpTime(itemMeta.exptime);
+    rv->setRevSeqno(itemMeta.revSeqno);
+    rv->replaceValue(TaggedPtr<Blob>(newValue, TaggedPtrBase::NoTagValue));
+    rv->setDataType(PROTOCOL_BINARY_DATATYPE_XATTR);
+    return rv;
 }
 
 bool VBucket::isLogicallyNonExistent(
