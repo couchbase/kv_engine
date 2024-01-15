@@ -7833,6 +7833,11 @@ TEST_P(SingleThreadedPassiveStreamTest,
     testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration, true);
 }
 
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Expiration_NoValue) {
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration, false);
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCPassiveStreamTest,
                          STParameterizedBucketTest::magmaConfigValues(),
