@@ -425,7 +425,8 @@ protected:
         item.setBySeqno(seqno);
         item.setPreparedMaybeVisible();
 
-        EXPECT_EQ(cb::engine_errc::success, store->prepare(item, cookie));
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->prepare(item, cookie, EnforceMemCheck::Yes));
     }
 
     /**
@@ -2139,7 +2140,8 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
             makePendingItem(makeStoredDocKey("key"), "value", requirements);
     pending->setCas(1);
     pending->setBySeqno(1);
-    ASSERT_EQ(cb::engine_errc::success, store->prepare(*pending, cookie));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->prepare(*pending, cookie, EnforceMemCheck::Yes));
     ASSERT_EQ(1, vb.getDurabilityMonitor().getNumTracked());
 
     // Test: Change to active via takeover (null topology),
@@ -3572,7 +3574,8 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
                                      cb::durability::Timeout::Infinity()});
     pending3->setCas(1);
     pending3->setBySeqno(3);
-    EXPECT_EQ(cb::engine_errc::success, store->prepare(*pending3, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              store->prepare(*pending3, cookie, EnforceMemCheck::Yes));
     // Trigger update of HPS (normally called by PassiveStream).
     vb.notifyPassiveDMOfSnapEndReceived(3);
 

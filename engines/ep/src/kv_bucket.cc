@@ -1807,7 +1807,9 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     return rv;
 }
 
-cb::engine_errc KVBucket::prepare(Item& itm, CookieIface* cookie) {
+cb::engine_errc KVBucket::prepare(Item& itm,
+                                  CookieIface* cookie,
+                                  EnforceMemCheck enforceMemCheck) {
     Expects(cookie);
     auto lr = lookupVBucket(itm.getVBucketId());
     if (!lr) {
@@ -1845,7 +1847,8 @@ cb::engine_errc KVBucket::prepare(Item& itm, CookieIface* cookie) {
                              true /*allowExisting*/,
                              GenerateBySeqno::No,
                              GenerateCas::No,
-                             cHandle);
+                             cHandle,
+                             enforceMemCheck);
         }
     }
 

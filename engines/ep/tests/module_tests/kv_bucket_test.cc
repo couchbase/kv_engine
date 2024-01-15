@@ -660,7 +660,8 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
                           /*allowExisting*/ true,
                           GenerateBySeqno::No,
                           GenerateCas::No,
-                          vb->lockCollections(key)));
+                          vb->lockCollections(key),
+                          EnforceMemCheck::Yes));
 }
 
 std::unordered_map<CollectionID, Collections::VB::PersistedStats>

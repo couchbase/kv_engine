@@ -7741,7 +7741,8 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedSystemEvent) {
     replicaToActiveBufferedRejected(DcpResponse::Event::SystemEvent);
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck) {
+void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
+        DcpResponse::Event event) {
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = *vb.checkpointManager;
@@ -7767,7 +7768,21 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck) {
 
     const std::string key = "key";
     const std::string value(1024 * 1024, 'v');
-    auto mutation = makeMutationConsumerMessage(1, vbid, value, opaque, key);
+
+    using namespace cb::durability;
+    std::optional<Requirements> reqs;
+    switch (event) {
+    case DcpResponse::Event::Mutation:
+        break;
+    case DcpResponse::Event::Prepare:
+        reqs = Requirements(Level::Majority, Timeout::Infinity());
+        break;
+    default:
+        GTEST_FAIL();
+    }
+
+    auto mutation =
+            makeMutationConsumerMessage(1, vbid, value, opaque, key, reqs);
 
     // Verify legacy behaviour first
     // By EnforceMemCheck::Yes (ie legacy behaviour) the Set fails
@@ -7786,6 +7801,14 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck) {
         EXPECT_EQ(cb::engine_errc::success, res.getError());
         EXPECT_EQ(vb.getHighSeqno(), 1);
     }
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Mutation) {
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Mutation);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Prepare) {
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Prepare);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

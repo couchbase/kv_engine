@@ -586,8 +586,8 @@ cb::engine_errc PassiveStream::processMessageInner(
         }
         break;
     case DcpResponse::Event::Prepare:
-        ret = engine->getKVBucket()->prepare(*message->getItem(),
-                                             consumer->getCookie());
+        ret = engine->getKVBucket()->prepare(
+                *message->getItem(), consumer->getCookie(), enforceMemCheck);
         // If the stream has received and successfully processed a pending
         // SyncWrite, then we have to flag that the Replica must notify the
         // DurabilityMonitor at snapshot-end received for the DM to move the
@@ -1421,8 +1421,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         break;
     case DcpResponse::Event::Prepare: {
         auto* prepare = dynamic_cast<MutationConsumerMessage*>(resp);
-        ret = processMessageInner(prepare,
-                                  EnforceMemCheck::Yes); // @todo MB-31869
+        ret = processMessageInner(prepare, enforceMemCheck);
         if (ret == cb::engine_errc::success) {
             Expects(prepare->getItem()->getBySeqno() ==
                     engine->getVBucket(vb_)->getHighSeqno());

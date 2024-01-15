@@ -113,7 +113,9 @@ public:
             ExtendedMetaData* emd = nullptr,
             EnforceMemCheck enforceMemCheck = EnforceMemCheck::Yes) override;
 
-    cb::engine_errc prepare(Item& item, CookieIface* cookie) override;
+    cb::engine_errc prepare(Item& item,
+                            CookieIface* cookie,
+                            EnforceMemCheck enforceMemCheck) override;
 
     GetValue getAndUpdateTtl(const DocKey& key,
                              Vbid vbucket,

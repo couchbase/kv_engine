@@ -185,6 +185,14 @@ protected:
     // coverage for MB-59518
     void replicaToActiveBufferedRejected(DcpResponse::Event event);
 
+    /**
+     * Verify that PassiveStream is capable of forcing inbound DCP traffic
+     * regardless of any OOM condition
+     *
+     * @param event The DCP Event under test
+     */
+    void testProcessMessageBypassMemCheck(DcpResponse::Event event);
+
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
     // SetUp()?

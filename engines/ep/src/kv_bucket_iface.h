@@ -243,10 +243,13 @@ public:
      * Add a prepare to the store
      * @param item the prepare to set
      * @param cookie the cookie representing the client to store the item
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return the result of the store operation
      */
-    virtual cb::engine_errc prepare(Item& item, CookieIface* cookie) = 0;
+    virtual cb::engine_errc prepare(Item& item,
+                                    CookieIface* cookie,
+                                    EnforceMemCheck enforceMemCheck) = 0;
 
     /**
      * Retrieve a value, but update its TTL first

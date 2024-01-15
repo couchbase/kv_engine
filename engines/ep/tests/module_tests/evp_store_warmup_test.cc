@@ -948,7 +948,8 @@ void DurabilityWarmupTest::storePrepare(const std::string& key,
     prepare->setVBucketId(vbid);
     prepare->setBySeqno(seqno);
     prepare->setCas(cas);
-    EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
 
     EXPECT_EQ(tracked + 1, vb->getDurabilityMonitor().getNumTracked());
 }
@@ -1997,7 +1998,8 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     // snap 1
     vb->checkpointManager->createSnapshot(
             1, 1, {} /*HCS*/, CheckpointType::Memory, 0);
-    ASSERT_EQ(cb::engine_errc::success, store->prepare(*item, cookie));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->prepare(*item, cookie, EnforceMemCheck::Yes));
     flush_vbucket_to_disk(vbid);
     vb->notifyPassiveDMOfSnapEndReceived(1);
 
@@ -2055,7 +2057,8 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         prepare->setVBucketId(vbid);
         prepare->setCas(1);
         prepare->setBySeqno(1);
-        EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
 
         // 2) Receive the abort
         auto abortKey = makeStoredDocKey("abort");
@@ -2153,7 +2156,8 @@ TEST_P(DurabilityWarmupTest, IncompleteDiskSnapshotWarmsUpToHighSeqno) {
         prepare->setVBucketId(vbid);
         prepare->setCas(1);
         prepare->setBySeqno(1);
-        EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
 
         EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 
@@ -2232,7 +2236,8 @@ TEST_P(DurabilityWarmupTest, CompleteDiskSnapshotWarmsUpPCStoPPS) {
         prepare->setVBucketId(vbid);
         prepare->setCas(3);
         prepare->setBySeqno(3);
-        EXPECT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
 
         EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());
 

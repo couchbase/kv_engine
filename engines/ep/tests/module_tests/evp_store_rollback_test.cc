@@ -1420,7 +1420,8 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
         prepare->setDeleted();
     }
 
-    ASSERT_EQ(cb::engine_errc::success, store->prepare(*prepare, cookie));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
     if (flush) {
         flush_vbucket_to_disk(vbid, 1);
     }

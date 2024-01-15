@@ -1131,7 +1131,8 @@ public:
      * @param genBySeqno whether or not to generate sequence number
      * @param genCas whether to generate a new cas or match against the provided
      * @param cHandle collections readhandle (caching mode) for this key
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return the result of the prepare operation
      */
     cb::engine_errc prepare(VBucketStateLockRef vbStateLock,
@@ -1144,7 +1145,8 @@ public:
                             bool allowExisting,
                             GenerateBySeqno genBySeqno,
                             GenerateCas genCas,
-                            const Collections::VB::CachingReadHandle& cHandle);
+                            const Collections::VB::CachingReadHandle& cHandle,
+                            EnforceMemCheck enforceMemCheck);
 
     /**
      * Delete an item in the vbucket
