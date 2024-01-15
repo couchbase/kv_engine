@@ -1418,7 +1418,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         break;
     case DcpResponse::Event::Expiration:
         ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
-                                  EnforceMemCheck::Yes); // @todo MB-31869
+                                  enforceMemCheck);
         break;
     case DcpResponse::Event::Prepare: {
         auto* prepare = dynamic_cast<MutationConsumerMessage*>(resp);

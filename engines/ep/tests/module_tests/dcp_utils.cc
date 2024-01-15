@@ -97,7 +97,7 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         uint64_t opaque,
         std::optional<std::string> key,
         std::optional<cb::durability::Requirements> reqs,
-        bool deletion,
+        std::optional<DeleteSource> deletion,
         uint64_t revSeqno) {
     const auto key_ = key ? *key : "key_" + std::to_string(seqno);
     queued_item qi(new Item(makeStoredDocKey(key_),
@@ -114,7 +114,7 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         qi->setPendingSyncWrite(*reqs);
     }
     if (deletion) {
-        qi->setDeleted(DeleteSource::Explicit);
+        qi->setDeleted(*deletion);
     }
     return std::make_unique<MutationConsumerMessage>(
             std::move(qi),

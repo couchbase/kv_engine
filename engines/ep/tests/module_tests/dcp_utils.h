@@ -11,6 +11,7 @@
 #pragma once
 
 #include <memcached/durability_spec.h>
+#include <memcached/types.h>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -53,7 +54,7 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         uint64_t opaque,
         std::optional<std::string> key = {},
         std::optional<cb::durability::Requirements> reqs = {},
-        bool deletion = false,
+        std::optional<DeleteSource> deletion = {},
         uint64_t revSeqno = 1);
 
 std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(

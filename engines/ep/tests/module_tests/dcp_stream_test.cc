@@ -6366,7 +6366,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                                   opaque,
                                                   {},
                                                   {} /*DurReqs*/,
-                                                  true /*deletion*/,
+                                                  DeleteSource::Explicit,
                                                   2 /*revSeqno*/)));
 
     auto& kvStore = *store->getRWUnderlying(vbid);
@@ -7771,7 +7771,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
 
     using namespace cb::durability;
     std::optional<Requirements> reqs;
-    bool deletion = false;
+    std::optional<DeleteSource> deletion;
     switch (event) {
     case DcpResponse::Event::Mutation:
         break;
@@ -7779,7 +7779,10 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
         reqs = Requirements(Level::Majority, Timeout::Infinity());
         break;
     case DcpResponse::Event::Deletion:
-        deletion = true;
+        deletion = DeleteSource::Explicit;
+        break;
+    case DcpResponse::Event::Expiration:
+        deletion = DeleteSource::TTL;
         break;
     default:
         GTEST_FAIL();
@@ -7818,6 +7821,11 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Prepare) {
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Deletion_WithValue) {
     testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Expiration_WithValue) {
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
