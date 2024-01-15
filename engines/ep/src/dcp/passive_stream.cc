@@ -582,7 +582,8 @@ cb::engine_errc PassiveStream::processMessageInner(
                                                      true,
                                                      GenerateBySeqno::No,
                                                      GenerateCas::No,
-                                                     message->getExtMetaData());
+                                                     message->getExtMetaData(),
+                                                     enforceMemCheck);
         }
         break;
     case DcpResponse::Event::Prepare:
@@ -1413,7 +1414,7 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         break;
     case DcpResponse::Event::Deletion:
         ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
-                                  EnforceMemCheck::Yes); // @todo MB-31869
+                                  enforceMemCheck);
         break;
     case DcpResponse::Event::Expiration:
         ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),

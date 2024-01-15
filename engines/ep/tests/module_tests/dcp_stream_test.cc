@@ -7771,18 +7771,22 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
 
     using namespace cb::durability;
     std::optional<Requirements> reqs;
+    bool deletion = false;
     switch (event) {
     case DcpResponse::Event::Mutation:
         break;
     case DcpResponse::Event::Prepare:
         reqs = Requirements(Level::Majority, Timeout::Infinity());
         break;
+    case DcpResponse::Event::Deletion:
+        deletion = true;
+        break;
     default:
         GTEST_FAIL();
     }
 
-    auto mutation =
-            makeMutationConsumerMessage(1, vbid, value, opaque, key, reqs);
+    auto mutation = makeMutationConsumerMessage(
+            1, vbid, value, opaque, key, reqs, deletion);
 
     // Verify legacy behaviour first
     // By EnforceMemCheck::Yes (ie legacy behaviour) the Set fails
@@ -7809,6 +7813,11 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Mutation) {
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Prepare) {
     testProcessMessageBypassMemCheck(DcpResponse::Event::Prepare);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Deletion_WithValue) {
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
