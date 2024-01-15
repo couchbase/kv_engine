@@ -2386,7 +2386,8 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
                                     GenerateCas::No,
                                     dwmItem->getBySeqno(),
                                     nullptr,
-                                    DeleteSource::Explicit));
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
 
     // run the triggered bgfetch
     runBGFetcherTask();
@@ -2422,7 +2423,8 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
                                     GenerateCas::No,
                                     dwmItem->getBySeqno(),
                                     nullptr,
-                                    DeleteSource::Explicit));
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
 
     destroy_mock_cookie(cookie1);
 }

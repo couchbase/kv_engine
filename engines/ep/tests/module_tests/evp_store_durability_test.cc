@@ -3691,7 +3691,8 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
                                           GenerateCas::No,
                                           seqno /*seqno*/,
                                           vbucket->lockCollections(key),
-                                          DeleteSource::TTL));
+                                          DeleteSource::TTL,
+                                          EnforceMemCheck::Yes));
     }
 
     EXPECT_FALSE(vbucket->ht.findForRead(key).storedValue);

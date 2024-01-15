@@ -1193,7 +1193,8 @@ public:
      * @param cHandle Collections readhandle (caching mode) for this key
      * @param deleteSource The source of the deletion, which if TTL triggers the
      *                     expiration path.
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return the result of the operation
      */
     cb::engine_errc deleteWithMeta(
@@ -1208,7 +1209,8 @@ public:
             GenerateCas generateCas,
             uint64_t bySeqno,
             const Collections::VB::CachingReadHandle& cHandle,
-            DeleteSource deleteSource);
+            DeleteSource deleteSource,
+            EnforceMemCheck enforceMemCheck);
 
     /**
      * Delete an expired item.
@@ -2125,12 +2127,14 @@ protected:
      *
      * @param hbl Hash table bucket lock that must be held
      * @param key the key for which a temporary item needs to be added
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return Result indicating the status of the operation. If successful
      *         (BgFetch) then includes the pointer to the created temp item.
      */
     AddTempSVResult addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                       const DocKey& key);
+                                       const DocKey& key,
+                                       EnforceMemCheck enforceMemCheck);
 
     /**
      * Internal wrapper function around the callback to be called when a new

@@ -2165,7 +2165,8 @@ TEST_P(STExpiryPagerTest, MB_25671) {
                                      GenerateCas::No,
                                      0,
                                      nullptr,
-                                     DeleteSource::Explicit);
+                                     DeleteSource::Explicit,
+                                     EnforceMemCheck::Yes);
     };
     // Prior to the MB fix - this would crash.
     EXPECT_EQ(err, deleteWithMeta());
@@ -2637,7 +2638,8 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
                                      GenerateCas::No,
                                      0,
                                      nullptr,
-                                     DeleteSource::Explicit);
+                                     DeleteSource::Explicit,
+                                     EnforceMemCheck::Yes);
     };
     // A bgfetch is required for full or value eviction because we need the
     // xattr value

@@ -331,7 +331,8 @@ public:
      * @param emd ExtendedMetaData class object that contains any ext meta
      * @param deleteSource Determines the source of deletion and if TTL, it
      *                     triggers the expiry path.
-     *
+     * @param enforceMemCheck Whether we want to enforce mem conditions on this
+     *  processing
      * @return the result of the delete operation
      */
     virtual cb::engine_errc deleteWithMeta(const DocKey& key,
@@ -346,7 +347,8 @@ public:
                                            GenerateCas generateCas,
                                            uint64_t bySeqno,
                                            ExtendedMetaData* emd,
-                                           DeleteSource deleteSource) = 0;
+                                           DeleteSource deleteSource,
+                                           EnforceMemCheck enforceMemCheck) = 0;
 
     /**
      * Resets the Bucket. Removes all elements from each VBucket's &

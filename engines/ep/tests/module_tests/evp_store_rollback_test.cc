@@ -1552,7 +1552,8 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
                                      GenerateCas::No,
                                      delSeqno,
                                      vb->lockCollections(key),
-                                     DeleteSource::Explicit));
+                                     DeleteSource::Explicit,
+                                     EnforceMemCheck::Yes));
     }
 
     if (flush) {

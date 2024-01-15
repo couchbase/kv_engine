@@ -143,7 +143,8 @@ public:
                                    GenerateCas generateCas,
                                    uint64_t bySeqno,
                                    ExtendedMetaData* emd,
-                                   DeleteSource deleteSource) override;
+                                   DeleteSource deleteSource,
+                                   EnforceMemCheck enforceMemCheck) override;
 
     void reset() override;
 

@@ -566,7 +566,8 @@ cb::engine_errc PassiveStream::processMessageInner(
                     GenerateCas::No,
                     *message->getBySeqno(),
                     message->getExtMetaData(),
-                    deleteSource);
+                    deleteSource,
+                    enforceMemCheck);
             if (ret == cb::engine_errc::no_such_key) {
                 ret = cb::engine_errc::success;
             }

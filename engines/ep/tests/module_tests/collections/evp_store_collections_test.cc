@@ -336,7 +336,8 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
                                     GenerateCas::No,
                                     0,
                                     nullptr,
-                                    DeleteSource::Explicit));
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
 
     EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->setWithMeta(item2,

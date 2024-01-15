@@ -2433,7 +2433,8 @@ cb::engine_errc VBucket::deleteWithMeta(
         GenerateCas generateCas,
         uint64_t bySeqno,
         const Collections::VB::CachingReadHandle& cHandle,
-        DeleteSource deleteSource) {
+        DeleteSource deleteSource,
+        EnforceMemCheck enforceMemCheck) {
     const auto& key = cHandle.getKey();
     auto htRes = ht.findForUpdate(key);
     auto* v = htRes.selectSVToModify(false);
@@ -2471,7 +2472,7 @@ cb::engine_errc VBucket::deleteWithMeta(
             } else {
                 // Even though bloomfilter predicted that item doesn't exist
                 // on disk, we must put this delete on disk if the cas is valid.
-                auto rv = addTempStoredValue(hbl, key);
+                auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
                 if (rv.status == TempAddStatus::NoMem) {
                     return cb::engine_errc::no_memory;
                 }
@@ -2482,7 +2483,7 @@ cb::engine_errc VBucket::deleteWithMeta(
     } else {
         if (!v) {
             // We should always try to persist a delete here.
-            auto rv = addTempStoredValue(hbl, key);
+            auto rv = addTempStoredValue(hbl, key, enforceMemCheck);
             if (rv.status == TempAddStatus::NoMem) {
                 return cb::engine_errc::no_memory;
             }
@@ -2687,7 +2688,7 @@ std::unique_ptr<CompactionBGFetchItem> VBucket::processExpiredItem(
         }
 
         if (maybeKeyExistsInFilter(key)) {
-            auto addTemp = addTempStoredValue(hbl, key);
+            auto addTemp = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
             if (addTemp.status == TempAddStatus::NoMem) {
                 return nullptr;
             }
@@ -4013,7 +4014,9 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
 }
 
 VBucket::AddTempSVResult VBucket::addTempStoredValue(
-        const HashTable::HashBucketLock& hbl, const DocKey& key) {
+        const HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        EnforceMemCheck enforceMemCheck) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "VBucket::addTempStoredValue: htLock not held for " +
@@ -4029,7 +4032,8 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
              0,
              StoredValue::state_temp_init);
 
-    if (!hasMemoryForStoredValue(itm)) {
+    if (enforceMemCheck == EnforceMemCheck::Yes &&
+        !hasMemoryForStoredValue(itm)) {
         return {TempAddStatus::NoMem, nullptr};
     }
 

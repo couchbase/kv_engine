@@ -6239,7 +6239,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                     genCas,
                                     0 /*bySeqno*/,
                                     extendedMetaData.get(),
-                                    deleteSource);
+                                    deleteSource,
+                                    EnforceMemCheck::Yes);
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(

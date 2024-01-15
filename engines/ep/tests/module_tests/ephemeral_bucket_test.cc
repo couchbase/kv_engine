@@ -184,7 +184,8 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
                       GenerateCas::No,
                       store->getVBucket(replicaVB)->getHighSeqno() + 1,
                       nullptr /* extended metadata */,
-                      DeleteSource::Explicit));
+                      DeleteSource::Explicit,
+                      EnforceMemCheck::Yes));
 
     EXPECT_LT(stats.replicaHTMemory, largerItemMem);
     EXPECT_GT(stats.replicaHTMemory, 0);

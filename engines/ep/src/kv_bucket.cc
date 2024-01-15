@@ -2165,7 +2165,8 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
                                          GenerateCas generateCas,
                                          uint64_t bySeqno,
                                          ExtendedMetaData* emd,
-                                         DeleteSource deleteSource) {
+                                         DeleteSource deleteSource,
+                                         EnforceMemCheck enforceMemCheck) {
     Expects(cookie);
     auto lr = lookupVBucket(vbucket);
     if (!lr) {
@@ -2209,7 +2210,8 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
                                   generateCas,
                                   bySeqno,
                                   cHandle,
-                                  deleteSource);
+                                  deleteSource,
+                                  enforceMemCheck);
     }
 }
 

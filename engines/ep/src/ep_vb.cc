@@ -319,7 +319,8 @@ void EPVBucket::completeCompactionExpiryBgFetch(
         // prevent us from having multiple values for the same key.
         auto* sVToUse = htRes.committed;
         if (!htRes.committed) {
-            auto addTemp = addTempStoredValue(htRes.getHBL(), key.getDocKey());
+            auto addTemp = addTempStoredValue(
+                    htRes.getHBL(), key.getDocKey(), EnforceMemCheck::Yes);
             if (addTemp.status == TempAddStatus::NoMem) {
                 return;
             }
@@ -487,7 +488,7 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
         if (eviction == EvictionPolicy::Value) {
             return cb::engine_errc::no_such_key;
         } else {
-            auto rv = addTempStoredValue(res.lock, key);
+            auto rv = addTempStoredValue(res.lock, key, EnforceMemCheck::Yes);
             switch (rv.status) {
             case TempAddStatus::NoMem:
                 return cb::engine_errc::no_memory;
@@ -857,7 +858,7 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
-    auto rv = addTempStoredValue(hbl, key);
+    auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
     switch (rv.status) {
     case TempAddStatus::NoMem:
         return cb::engine_errc::no_memory;
@@ -877,7 +878,7 @@ EPVBucket::createBgFetchForCompactionExpiry(
         const HashTable::HashBucketLock& hbl,
         const DocKey& key,
         const Item& item) {
-    auto rv = addTempStoredValue(hbl, key);
+    auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
     switch (rv.status) {
     case TempAddStatus::NoMem:
         return nullptr;

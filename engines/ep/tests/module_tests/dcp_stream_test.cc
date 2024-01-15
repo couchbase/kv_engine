@@ -7742,7 +7742,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedSystemEvent) {
 }
 
 void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
-        DcpResponse::Event event) {
+        DcpResponse::Event event, bool hasValue) {
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = *vb.checkpointManager;
@@ -7767,7 +7767,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
     stream->processMarker(&snapshotMarker);
 
     const std::string key = "key";
-    const std::string value(1024 * 1024, 'v');
+    const auto value = hasValue ? std::string(1024 * 1024, 'v') : std::string();
 
     using namespace cb::durability;
     std::optional<Requirements> reqs;
@@ -7811,21 +7811,26 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Mutation) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Mutation);
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Mutation, true);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Prepare) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Prepare);
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Prepare, true);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Deletion_WithValue) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion);
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion, true);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Deletion_NoValue) {
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion, false);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Expiration_WithValue) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration);
+    testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration, true);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

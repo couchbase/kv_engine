@@ -190,8 +190,10 @@ protected:
      * regardless of any OOM condition
      *
      * @param event The DCP Event under test
+     * @param hasValue Used for verifying empty/non-empty tombstones
      */
-    void testProcessMessageBypassMemCheck(DcpResponse::Event event);
+    void testProcessMessageBypassMemCheck(DcpResponse::Event event,
+                                          bool hasValue);
 
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in

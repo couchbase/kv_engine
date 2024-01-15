@@ -153,7 +153,8 @@ AddStatus VBucketTestBase::addOne(const StoredDocKey& k, int expiry) {
 
 TempAddStatus VBucketTestBase::addOneTemp(const StoredDocKey& k) {
     auto hbl_sv = lockAndFind(k);
-    return vbucket->addTempStoredValue(hbl_sv.first, k).status;
+    return vbucket->addTempStoredValue(hbl_sv.first, k, EnforceMemCheck::Yes)
+            .status;
 }
 
 void VBucketTestBase::addMany(std::vector<StoredDocKey>& keys,
@@ -309,7 +310,7 @@ VBucketTestBase::public_processExpiredItem(
 
 StoredValue* VBucketTestBase::public_addTempStoredValue(
         const HashTable::HashBucketLock& hbl, const DocKey& key) {
-    auto res = vbucket->addTempStoredValue(hbl, key);
+    auto res = vbucket->addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
     EXPECT_EQ(TempAddStatus::BgFetch, res.status);
     return res.storedValue;
 }
