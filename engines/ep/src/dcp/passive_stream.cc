@@ -72,7 +72,6 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
 }
 
 PassiveStream::~PassiveStream() {
-    uint32_t unackedBytes = clearBuffer_UNLOCKED();
     if (state_ != StreamState::Dead) {
         // Destructed a "live" stream, log it.
         log(spdlog::level::level_enum::info,
@@ -127,12 +126,6 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
 }
 
 uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
-    /* Hold buffer lock so that we clear out all items before we set the stream
-       to dead state. We do not want to add any new message to the buffer or
-       process any items in the buffer once we set the stream state to dead. */
-    std::unique_lock<std::mutex> lg(buffer.bufMutex);
-    const auto unackedBytes = clearBuffer_UNLOCKED();
-
     std::lock_guard<std::mutex> slh(streamMutex);
     if (transitionState(StreamState::Dead)) {
         const auto severity =
@@ -140,8 +133,8 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
                         ? spdlog::level::level_enum::warn
                         : spdlog::level::level_enum::info;
         log(severity,
-            "({}) Setting stream to dead state, last_seqno is {}, unAckedBytes "
-            "is {}, status is {}",
+            "({}) Setting stream to dead state, lastSeqno:{}, unackedBytes:{}, "
+            "status:{}",
             vb_,
             last_seqno.load(),
             unackedBytes,
@@ -152,8 +145,7 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
 }
 
 uint32_t PassiveStream::moveFlowControlBytes() {
-    std::unique_lock<std::mutex> lg(buffer.bufMutex);
-    return std::exchange(buffer.bytes, 0);
+    return std::exchange(unackedBytes, 0);
 }
 
 std::string PassiveStream::getStreamTypeName() const {
@@ -353,142 +345,40 @@ cb::engine_errc PassiveStream::messageReceived(
     switch (bucket.getReplicationThrottleStatus()) {
     case KVBucket::ReplicationThrottleStatus::Disconnect:
         log(spdlog::level::level_enum::warn,
-            "{} Disconnecting the connection as there is "
-            "no memory to complete replication",
+            "{} Disconnecting the connection as there is no memory to complete "
+            "replication",
             vb_);
         return cb::engine_errc::disconnect;
-    case KVBucket::ReplicationThrottleStatus::Process:
-        if (buffer.empty() && !alwaysBufferOperations) {
-            // Memory available and no message buffered -> process the response
-            const auto ret =
-                    processMessage(dcpResponse.get(), EnforceMemCheck::Yes);
-            const auto err = ret.getError();
-            if (err == cb::engine_errc::no_memory) {
-                if (bucket.disconnectReplicationAtOOM()) {
-                    log(spdlog::level::level_enum::warn,
-                        "{} Disconnecting the connection as there is no "
-                        "memory to complete replication; process dcp "
-                        "event returned no memory",
-                        vb_);
-                    return cb::engine_errc::disconnect;
-                }
-            }
-            if (err == cb::engine_errc::success && seqno) {
-                last_seqno.store(*seqno);
-            }
-            if (err != cb::engine_errc::temporary_failure &&
-                err != cb::engine_errc::no_memory) {
-                return err;
-            }
+    case KVBucket::ReplicationThrottleStatus::Process: {
+        return forceMessage(*dcpResponse).getError();
+    }
+    case KVBucket::ReplicationThrottleStatus::Pause: {
+        forceMessage(*dcpResponse).getError();
+
+        // @todo MB-31869: active-check for preventing that we consume memory
+        //  for dead streams are being removes. We can remove the check once we
+        //  get rid of the buffer
+        if (isActive()) {
+            unackedBytes += ufc.release();
         }
-        break;
-    case KVBucket::ReplicationThrottleStatus::Pause:
-        /* Do nothing specific here, we buffer item for this case and
-           other cases below */
-        break;
+        return cb::engine_errc::temporary_failure;
+    }
     }
 
-    // Only buffer if the stream is not dead
-    if (isActive()) {
-        buffer.push({std::move(dcpResponse), ufc.release()});
-    }
-    return cb::engine_errc::temporary_failure;
+    folly::assume_unreachable();
 }
 
-process_items_error_t PassiveStream::processBufferedMessages(
-        uint32_t& processed_bytes, size_t batchSize) {
-    std::unique_lock<std::mutex> lh(buffer.bufMutex);
-    uint32_t count = 0;
-    uint32_t total_bytes_processed = 0;
-    bool failed = false, noMem = false;
+process_items_error_t PassiveStream::processUnackedBytes(
+        uint32_t& processed_bytes) {
+    const auto& bucket = *engine->getKVBucket();
+    const auto availableBytes = bucket.getMemAvailableForReplication();
+    const auto ackableBytes = std::min(unackedBytes.load(), availableBytes);
 
-    while (count < batchSize && !buffer.messages.empty()) {
-        /* If the stream is in dead state we should not process any remaining
-           items in the buffer, we should rather clear them */
-        if (!isActive()) {
-            total_bytes_processed += clearBuffer_UNLOCKED();
-            processed_bytes = total_bytes_processed;
-            return all_processed;
-        }
+    // Tell the Consumer how many bytes we can ack back to the Producer
+    processed_bytes += ackableBytes;
 
-        // MB-31410: The front-end thread can process new incoming messages
-        // only /after/ all the buffered ones have been processed.
-        // So, here we get only a reference. We remove the message from the
-        // buffer later, only /after/ we have processed it.
-        // That is because the front-end thread checks if buffer.empty() for
-        // deciding if it's time to start again processing new incoming
-        // mutations. That happens in PassiveStream::messageReceived.
-        auto [response, message_bytes] = buffer.moveFromFront(lh);
-
-        // Release bufMutex whilst we attempt to process the message
-        // a lock inversion exists with connManager if we hold this.
-        lh.unlock();
-
-        // MB-31410: Only used for testing
-        processBufferedMessages_postFront_Hook();
-
-        const auto seqno = response->getBySeqno();
-
-        const auto ret = processMessage(response.get(), EnforceMemCheck::Yes);
-
-        const auto err = ret.getError();
-        if (err == cb::engine_errc::temporary_failure ||
-            err == cb::engine_errc::no_memory) {
-            failed = true;
-            if (err == cb::engine_errc::no_memory) {
-                noMem = true;
-            }
-        }
-
-        // If we failed and the stream is not dead, just break the loop and
-        // return. We will try again with processing the message at the next
-        // run.
-        // Note:
-        //     1) no need to re-acquire bufMutex here
-        //     2) we have not removed the unique_ptr from the buffer yet, but
-        //        we must give the item back to the buffer queue
-        if (failed && isActive()) {
-            lh.lock();
-            // isActive should be false if the queue was emptied, but check
-            // anyway so we're more robust against any future code changes to
-            // isActive and closeStream
-            if (!buffer.messages.empty()) {
-                buffer.moveToFront(lh, {std::move(response), message_bytes});
-            }
-            lh.unlock();
-            break;
-        }
-
-        // At this point we have processed the message successfully,
-        // then we can remove it from the buffer.
-        // Note: we need to re-acquire bufMutex to update the buffer safely
-        lh.lock();
-        buffer.pop_front(lh);
-
-        count++;
-        if (err != cb::engine_errc::out_of_range) {
-            total_bytes_processed += message_bytes;
-        }
-        if (err == cb::engine_errc::success && seqno) {
-            last_seqno.store(*seqno);
-        }
-    }
-
-    processed_bytes = total_bytes_processed;
-
-    if (failed) {
-        if (noMem && engine->getKVBucket()->disconnectReplicationAtOOM()) {
-            log(spdlog::level::level_enum::warn,
-                "{} Processor task indicating disconnection as "
-                "there is no memory to complete replication; process dcp "
-                "event returned no memory ",
-                vb_);
-            return stop_processing;
-        }
-        return cannot_process;
-    }
-
-    return all_processed;
+    unackedBytes -= ackableBytes;
+    return unackedBytes > 0 ? cannot_process : all_processed;
 }
 
 cb::engine_errc PassiveStream::processMessageInner(
@@ -1194,15 +1084,8 @@ void PassiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     Stream::addStats(add_stat, c);
 
     try {
-        size_t bufferItems = 0;
-        size_t bufferBytes = 0;
-        {
-            std::lock_guard<std::mutex> lg(buffer.bufMutex);
-            bufferItems = buffer.messages.size();
-            bufferBytes = buffer.bytes;
-        }
-        add_casted_stat("buffer_items", bufferItems, add_stat, c);
-        add_casted_stat("buffer_bytes", bufferBytes, add_stat, c);
+        add_casted_stat("unacked_bytes", unackedBytes, add_stat, c);
+
         add_casted_stat("last_received_seqno", last_seqno.load(), add_stat, c);
         add_casted_stat(
                 "ready_queue_memory", getReadyQueueMemory(), add_stat, c);
@@ -1247,13 +1130,6 @@ std::unique_ptr<DcpResponse> PassiveStream::next() {
     }
 
     return popFromReadyQ();
-}
-
-uint32_t PassiveStream::clearBuffer_UNLOCKED() {
-    uint32_t unackedBytes = buffer.bytes;
-    buffer.messages.clear();
-    buffer.bytes = 0;
-    return unackedBytes;
 }
 
 bool PassiveStream::transitionState(StreamState newState) {
@@ -1486,4 +1362,24 @@ PassiveStream::ProcessMessageResult::~ProcessMessageResult() {
     if (err == cb::engine_errc::success && seqno) {
         stream->handleSnapshotEnd(*seqno);
     }
+}
+
+size_t PassiveStream::getUnackedBytes() const {
+    return unackedBytes;
+}
+
+PassiveStream::ProcessMessageResult PassiveStream::forceMessage(
+        DcpResponse& resp) {
+    auto ret = processMessage(&resp, EnforceMemCheck::No);
+
+    const auto err = ret.getError();
+    Expects(err != cb::engine_errc::temporary_failure);
+    Expects(err != cb::engine_errc::no_memory);
+
+    const auto seqno = resp.getBySeqno();
+    if (err == cb::engine_errc::success && seqno) {
+        last_seqno.store(*seqno);
+    }
+
+    return ret;
 }

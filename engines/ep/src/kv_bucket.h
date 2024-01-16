@@ -1106,6 +1106,12 @@ public:
      */
     virtual bool disconnectReplicationAtOOM() const = 0;
 
+    /**
+     * @return The difference between the replication-threshold and the current
+     *  mem usage. Capped at 0 on the negatives.
+     */
+    size_t getMemAvailableForReplication() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the

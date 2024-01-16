@@ -444,6 +444,7 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
         // the stream from the streams map as it has completed its lifetime.
         removeStream(vbucket);
 
+        // @todo MB-31869: Review once buffer removed
         // Note we are potentially racing with the consumer buffering task
         // which may call setDead, so we don't call setDead here (that could be
         // state transition violation/exception), hence we just move out the
@@ -1330,8 +1331,7 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
 
         case KVBucket::ReplicationThrottleStatus::Process:
             bytesProcessed = 0;
-            rval = stream->processBufferedMessages(
-                    bytesProcessed, processBufferedMessagesBatchSize);
+            rval = stream->processUnackedBytes(bytesProcessed);
             if ((rval == cannot_process) || (rval == stop_processing)) {
                 backoffs++;
             }
@@ -1992,8 +1992,12 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
         return cb::engine_errc::no_memory;
     }
 
-    // The item was buffered and will be processed later
     if (err == cb::engine_errc::temporary_failure) {
+        // The item was forced into the Checkpoint but bytes aren't being acked
+        // back to the producer yet as the node is OOM.
+        // Here we schedule the DcpConsumerTask. There we verify the OOM state
+        // of the node and we resume with acking unacked bytes when we recover
+        // from OOM.
         notifyVbucketReady(vbucket);
         return cb::engine_errc::success;
     }

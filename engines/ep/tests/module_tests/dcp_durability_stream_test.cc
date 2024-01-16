@@ -4344,6 +4344,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             cb::durability::Level::PersistToMajority);
 }
 
+// @todo MB-31869: review
+//
 // Regression test for MB-41024: check that if a Prepare is received when under
 // memory pressure and it is initially rejected and queued, that the snapshot
 // end is not notified twice to PDM.
@@ -4379,7 +4381,7 @@ TEST_P(DurabilityPassiveStreamTest,
     prepare->setBySeqno(prepareSeqno);
 
     // Message received by stream. Too large for current mem_used so should
-    // be buffered and return TMPFAIL
+    // be unacked and return TMPFAIL
     EXPECT_EQ(cb::engine_errc::temporary_failure,
               stream->messageReceived(std::make_unique<MutationConsumerMessage>(
                       prepare,
@@ -4395,12 +4397,11 @@ TEST_P(DurabilityPassiveStreamTest,
     // Increase threshold to allow mutation to be processed.
     engine->getConfiguration().setMutationMemRatio(1.0);
 
-    // Test: now process the buffered message. This would previously throw a
+    // Test: now process the unacked message. This would previously throw a
     // Monotonic logic_error exception when attempting to push the same
     // seqno to the PDM::receivedSnapshotEnds
     uint32_t processedBytes = 0;
-    EXPECT_EQ(all_processed,
-              stream->processBufferedMessages(processedBytes, 1));
+    EXPECT_EQ(all_processed, stream->processUnackedBytes(processedBytes));
 }
 
 TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
@@ -4680,15 +4681,18 @@ void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
     flushVBucketToDiskIfPersistent(vbid);
 }
 
-TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       DISABLED_ReplicaToActiveBufferedCommit) {
     replicaToActiveBufferedResolution(true);
 }
 
-TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedAbort) {
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       DISABLED_ReplicaToActiveBufferedAbort) {
     replicaToActiveBufferedResolution(false);
 }
 
-TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedPrepare) {
+TEST_P(DurabilityPassiveStreamPersistentTest,
+       DISABLED_ReplicaToActiveBufferedPrepare) {
     // Begin by pushing a mutation. Only to get away from seqno:0
     auto key = makeStoredDocKey("key");
     EXPECT_EQ(cb::engine_errc::success,

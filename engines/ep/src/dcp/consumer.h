@@ -640,7 +640,8 @@ protected:
 
     FlowControl flowControl;
 
-       /**
+    // @todo MB-31869: remove
+    /**
      * An upper bound on how many times drainStreamsBufferedItems will
      * call into processBufferedMessages before returning and triggering
      * Processor to yield. Initialised from the configuration
@@ -648,6 +649,7 @@ protected:
      */
     size_t processBufferedMessagesYieldThreshold;
 
+    // @todo MB-31869: remove
     /**
      * An upper bound on how many items a single consumer stream will process
      * in one call of stream->processBufferedMessages()
@@ -661,6 +663,7 @@ protected:
      */
     std::atomic_bool allowSanitizeValueInDeletion;
 
+    // @todo MB-31869: remove
     bool alwaysBufferOperations{false};
 
     /**

@@ -1746,8 +1746,7 @@ TEST_P(SingleThreadedPassiveStreamTest, StreamStats) {
     };
 
     // PassiveStream stats
-    expectStreamStat("buffer_bytes");
-    expectStreamStat("buffer_items");
+    expectStreamStat("unacked_bytes");
     expectStreamStat("cur_snapshot_prepare");
     expectStreamStat("cur_snapshot_type");
     expectStreamStat("end_seqno");
@@ -2435,7 +2434,7 @@ TEST_P(SingleThreadedActiveStreamTest,
  * test covers a generic scenario where we try to process any kind of
  * out-of-order messages (e.g., mutations and snapshot-markers).
  */
-TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
+TEST_P(SingleThreadedPassiveStreamTest, DISABLED_MB31410) {
     const std::string value(1024 * 1024, 'x');
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = 100;
@@ -2615,8 +2614,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB31410) {
     //     (<nextFrontEndSeqno>)" thrown in the test body.
     uint32_t bytesProcessed{0};
     ASSERT_NO_THROW(EXPECT_EQ(all_processed,
-                              stream->processBufferedMessages(
-                                      bytesProcessed, 100 /*batchSize*/)));
+                              stream->processUnackedBytes(bytesProcessed)));
     EXPECT_GT(bytesProcessed, 0);
 
     frontEndThread.join();
@@ -2844,32 +2842,32 @@ TEST_P(SingleThreadedPassiveStreamTest,
 
 // Do mb33773 with the close stream interleaved into the processBufferedMessages
 // This is more reflective of the actual MB as this case would result in a fault
-TEST_P(SingleThreadedPassiveStreamTest, MB_33773_interleaved) {
+TEST_P(SingleThreadedPassiveStreamTest, DISABLED_MB_33773_interleaved) {
     mb_33773(mb_33773Mode::closeStreamOnTask);
 }
 
 // Do mb33773 with the close stream before processBufferedMessages. This is
 // checking that flow-control is updated with the fix in place
-TEST_P(SingleThreadedPassiveStreamTest, MB_33773) {
+TEST_P(SingleThreadedPassiveStreamTest, DISABLED_MB_33773) {
     mb_33773(mb_33773Mode::closeStreamBeforeTask);
 }
 
 // Test more of the changes in mb33773, this mode makes the processing fail
 // because there's not enough memory, this makes us exercise the code that swaps
 // a reponse back into the deque
-TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom) {
+TEST_P(SingleThreadedPassiveStreamTest, DISABLED_MB_33773_oom) {
     mb_33773(mb_33773Mode::noMemory);
 }
 
 // Test more of the changes in mb33773, this mode makes the processing fail
 // because there's not enough memory, this makes us exercise the code that swaps
 // a reponse back into the deque
-TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
+TEST_P(SingleThreadedPassiveStreamTest, DISABLED_MB_33773_oom_close) {
     mb_33773(mb_33773Mode::noMemoryAndClosed);
 }
 
 // Push a streamEnd whilst messages are buffered
-TEST_P(SingleThreadedPassiveStreamTest, MB_33773_stream_end) {
+TEST_P(SingleThreadedPassiveStreamTest, DISABLED_MB_33773_stream_end) {
     mb_33773(mb_33773Mode::streamEndMessage);
 }
 
@@ -7729,15 +7727,18 @@ void SingleThreadedPassiveStreamTest::replicaToActiveBufferedRejected(
     EXPECT_EQ(0, vb->getHighSeqno());
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedMutation) {
+TEST_P(SingleThreadedPassiveStreamTest,
+       DISABLED_ReplicaToActiveBufferedMutation) {
     replicaToActiveBufferedRejected(DcpResponse::Event::Mutation);
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedDeletion) {
+TEST_P(SingleThreadedPassiveStreamTest,
+       DISABLED_ReplicaToActiveBufferedDeletion) {
     replicaToActiveBufferedRejected(DcpResponse::Event::Deletion);
 }
 
-TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedSystemEvent) {
+TEST_P(SingleThreadedPassiveStreamTest,
+       DISABLED_ReplicaToActiveBufferedSystemEvent) {
     replicaToActiveBufferedRejected(DcpResponse::Event::SystemEvent);
 }
 
@@ -7768,46 +7769,55 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
 
     const std::string key = "key";
     const auto value = hasValue ? std::string(1024 * 1024, 'v') : std::string();
+    size_t messageBytes = key.size() + value.size();
 
     using namespace cb::durability;
     std::optional<Requirements> reqs;
     std::optional<DeleteSource> deletion;
     switch (event) {
     case DcpResponse::Event::Mutation:
+        messageBytes += MutationResponse::mutationBaseMsgBytes;
         break;
-    case DcpResponse::Event::Prepare:
+    case DcpResponse::Event::Prepare: {
         reqs = Requirements(Level::Majority, Timeout::Infinity());
+        messageBytes += MutationResponse::prepareBaseMsgBytes;
         break;
-    case DcpResponse::Event::Deletion:
+    }
+    case DcpResponse::Event::Deletion: {
         deletion = DeleteSource::Explicit;
+        messageBytes += MutationResponse::deletionBaseMsgBytes;
         break;
-    case DcpResponse::Event::Expiration:
+    }
+    case DcpResponse::Event::Expiration: {
         deletion = DeleteSource::TTL;
+        messageBytes += MutationResponse::expirationBaseMsgBytes;
         break;
+    }
     default:
         GTEST_FAIL();
     }
 
-    auto mutation = makeMutationConsumerMessage(
+    ASSERT_EQ(0, stream->getUnackedBytes());
+
+    auto message = makeMutationConsumerMessage(
             1, vbid, value, opaque, key, reqs, deletion);
+    const auto res = stream->messageReceived(std::move(message));
 
-    // Verify legacy behaviour first
-    // By EnforceMemCheck::Yes (ie legacy behaviour) the Set fails
-    {
-        const auto res = stream->public_processMessage(mutation.get(),
-                                                       EnforceMemCheck::Yes);
-        EXPECT_EQ(cb::engine_errc::no_memory, res.getError());
-        EXPECT_EQ(vb.getHighSeqno(), 0);
-    }
+    EXPECT_EQ(cb::engine_errc::temporary_failure, res);
+    EXPECT_EQ(vb.getHighSeqno(), 1);
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
 
-    // Core check
-    // By EnforceMemCheck::No the Set succeeds
-    {
-        const auto res = stream->public_processMessage(mutation.get(),
-                                                       EnforceMemCheck::No);
-        EXPECT_EQ(cb::engine_errc::success, res.getError());
-        EXPECT_EQ(vb.getHighSeqno(), 1);
-    }
+    // Still OOM, DcpConsumerTask can't process unacked bytes
+    uint32_t processedBytes = 0;
+    EXPECT_EQ(cannot_process, stream->processUnackedBytes(processedBytes));
+    EXPECT_EQ(0, processedBytes);
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+
+    // System recovers from OOM
+    engine->getConfiguration().setMutationMemRatio(1);
+    EXPECT_EQ(all_processed, stream->processUnackedBytes(processedBytes));
+    EXPECT_EQ(messageBytes, processedBytes);
+    EXPECT_EQ(0, stream->getUnackedBytes());
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Mutation) {

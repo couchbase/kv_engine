@@ -3496,8 +3496,6 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
-
     // Might get a buffer ack which we don't care about here so step past
     // anything not a snapshot marker (the first thing we care about).
     do {
@@ -3615,8 +3613,6 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
                               INITIAL_NRU_VALUE),
                 "Failed to dcp mutate.");
     }
-
-    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     checkeq(cb::engine_errc::success,
             dcp->close_stream(*cookie, stream_opaque, Vbid(0), {}),
@@ -4818,8 +4814,6 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
             get_int_stat(h, flow_ctl_stat_buf.c_str(), "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
-    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
-
     check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
           "Failed to set vbucket state.");
 
@@ -4918,8 +4912,6 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
             get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
             "Consumer flow ctl mutation bytes not accounted correctly");
 
-    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
-
     wait_for_stat_change(h, "curr_items", 1);
     verify_curr_items(h, 0, "one item deleted");
     testHarness->destroy_cookie(cookie);
@@ -5010,8 +5002,6 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
     checkeq(exp_unacked_bytes,
             get_int_stat(h, "eq_dcpq:unittest:unacked_bytes", "dcp"),
             "Consumer flow ctl expiration bytes not accounted correctly");
-
-    wait_for_stat_to_be(h, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
     wait_for_stat_change(h, "curr_items", 1);
     verify_curr_items(h, 0, "one item expired");
@@ -6296,10 +6286,6 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             cb::engine_errc::out_of_range,
             "Deletion should've returned ERANGE!");
 
-    std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
-
-    int buffered_items = get_int_stat(h, bufferItemsStr.c_str(), "dcp");
-
     const DocKey docKey20{
             (const uint8_t*)"key20", 5, DocKeyEncodesCollectionId::No};
     cb::engine_errc err = dcp->mutation(*cookie,
@@ -6317,17 +6303,9 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                                         {},
                                         INITIAL_NRU_VALUE);
 
-    if (buffered_items == 0) {
-        checkeq(err,
-                cb::engine_errc::out_of_range,
-                "Mutation shouldn't have been accepted!");
-    } else {
-        checkeq(err,
-                cb::engine_errc::success,
-                "Mutation should have been buffered!");
-    }
-
-    wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
+    checkeq(err,
+            cb::engine_errc::out_of_range,
+            "Mutation shouldn't have been accepted!");
 
     // Full Evictions: must wait for all items to have been flushed before
     // asserting item counts
@@ -6402,9 +6380,6 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                 cb::engine_errc::success,
                 "Unexpected return code for mutation!");
     }
-
-    std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
-    wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
     checkeq(dcp->close_stream(*cookie1, stream_opaque, Vbid(0), {}),
             cb::engine_errc::success,
@@ -6607,9 +6582,6 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                               INITIAL_NRU_VALUE),
                 "Unexpected return code for mutation!");
     }
-
-    std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
-    wait_for_stat_to_be(h, bufferItemsStr.c_str(), 0, "dcp");
 
     // Invalid snapshot marker with end <= start
     checkeq(dcp->snapshot_marker(*cookie,
@@ -7191,8 +7163,9 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
 
     // Expect buffered items and the processer's task state to be
     // CANNOT_PROCESS, because of numerous backoffs.
-    checklt(0, get_int_stat(h, "eq_dcpq:unittest:stream_0_buffer_items", "dcp"),
-          "Expected buffered items for the stream");
+    checklt(0,
+            get_int_stat(h, "eq_dcpq:unittest:stream_0_unacked_bytes", "dcp"),
+            "Expected unacked bytes for the stream");
     wait_for_stat_to_be_gte(h, "eq_dcpq:unittest:total_backoffs", 1, "dcp");
     checkne("ALL_PROCESSED"s,
             get_str_stat(h, "eq_dcpq:unittest:processor_task_state", "dcp"),

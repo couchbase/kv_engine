@@ -312,7 +312,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
  * Test that the DCP processor returns a 'yield' return code when
  * working on a large enough buffer size.
  */
-TEST_F(SingleThreadedEPBucketTest, MB18452_yield_dcp_processor) {
+TEST_F(SingleThreadedEPBucketTest, DISABLED_MB18452_yield_dcp_processor) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 

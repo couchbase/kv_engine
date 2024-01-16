@@ -18,6 +18,7 @@
 
 #include <engines/ep/src/collections/collections_types.h>
 #include <memcached/engine_error.h>
+#include <platform/non_negative_counter.h>
 
 class AbortSyncWriteConsumer;
 class BucketLogger;
@@ -57,17 +58,24 @@ public:
 
     ~PassiveStream() override;
 
-    process_items_error_t processBufferedMessages(uint32_t& processed_bytes,
-                                                  size_t batchSize);
+    /**
+     * Observes the memory state of the node and triggers buffer-ack of unacked
+     * DCP bytes when the system recovers from OOM.
+     *
+     * @param [out] processed_bytes
+     * @return process_items_error_t, see struct definition for details
+     */
+    process_items_error_t processUnackedBytes(uint32_t& processed_bytes);
 
     std::unique_ptr<DcpResponse> next();
 
     uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     /**
-     * Moves the current buffered flow control bytes out of this object, setting
-     * the streams counter back to 0.
-     * @return how many buffered bytes are outstanding
+     * Moves the current pending flow control bytes out of this object, setting
+     * the stream counter back to 0.
+     *
+     * @return how many bytes are outstanding
      */
     uint32_t moveFlowControlBytes();
 
@@ -132,6 +140,14 @@ public:
      * @param seqno
      */
     void handleSnapshotEnd(uint64_t seqno);
+
+    /**
+     * @return the number of bytes of DCP messages that have been queued into
+     *  the Checkpoint but not acked back to the Producer yet. That happens when
+     *  the Consumer's node is OOM.
+     *  Unacked bytes processing deferred to the DcpConsumerTask.
+     */
+    size_t getUnackedBytes() const;
 
 protected:
     bool transitionState(StreamState newState);
@@ -257,8 +273,6 @@ protected:
 
     void processSetVBucketState(SetVBucketState* state);
 
-    uint32_t clearBuffer_UNLOCKED();
-
     /**
      * Push a StreamRequest into the readyQueue. The StreamRequest is initiaised
      * from the object's state except for the uuid.
@@ -339,6 +353,14 @@ protected:
     ProcessMessageResult processMessage(gsl::not_null<DcpResponse*> resp,
                                         EnforceMemCheck enforceMemCheck);
 
+    /**
+     * Process the given message by bypassing memory checks.
+     *
+     * @param resp The DcpResponse to be processed
+     * @return ProcessMessageResult, see struct for details
+     */
+    ProcessMessageResult forceMessage(DcpResponse& resp);
+
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.
     std::atomic<StreamState> state_{StreamState::Pending};
@@ -388,6 +410,7 @@ protected:
     // which will decide if it can stream data to us.
     const Collections::ManifestUid vb_manifest_uid;
 
+    // @todo MB-31869: remove
     struct Buffer {
         bool empty() const;
 
@@ -437,6 +460,13 @@ protected:
         std::deque<BufferType> messages;
     } buffer;
 
+    // This accounts received bytes of DCP messages processed in OOM state.
+    // Those messages are queued into the Checkpoints but bytes not acked back
+    // to the Producer. Bytes acked back to the Producer when the Consumer
+    // recovers from OOM.
+    cb::AtomicNonNegativeCounter<size_t> unackedBytes;
+
+    // @todo MB-31869: remove
     /*
      * MB-31410: Only used for testing.
      * This hook is executed in the PassiveStream::processBufferedMessages
@@ -457,6 +487,7 @@ protected:
     // backed off due to ENOMEM. Only used for limiting logging
     std::atomic<bool> isNoMemory{false};
 
+    // @todo MB-31869: remove
     bool alwaysBufferOperations{false};
 
     // True if the consumer/producer enabled FlatBuffers

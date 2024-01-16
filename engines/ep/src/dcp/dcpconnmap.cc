@@ -311,6 +311,8 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
         }
     }
 
+    // @todo MB-60415: Review and possibly remove
+    //
     // Note we shutdown the stream *not* under the connsLock; this is
     // because as part of closing a DcpConsumer stream we need to
     // acquire PassiveStream::buffer.bufMutex; and that could deadlock

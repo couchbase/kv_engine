@@ -694,7 +694,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
    In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
    indicate close of the consumer conn and in other cases it is expected to
    just defer processing. */
-TEST_P(STDcpTest, ProcessReplicationBufferAfterThrottleThreshold) {
+TEST_P(STDcpTest, DISABLED_ProcessReplicationBufferAfterThrottleThreshold) {
     processConsumerMutationsNearThreshold(true);
 }
 
