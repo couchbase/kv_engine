@@ -1410,25 +1410,12 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
     auto* resp = response.get();
     switch (resp->getEvent()) {
     case DcpResponse::Event::Mutation:
-        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
-                                  enforceMemCheck);
-        break;
     case DcpResponse::Event::Deletion:
-        ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
-                                  enforceMemCheck);
-        break;
     case DcpResponse::Event::Expiration:
+    case DcpResponse::Event::Prepare:
         ret = processMessageInner(dynamic_cast<MutationConsumerMessage*>(resp),
                                   enforceMemCheck);
         break;
-    case DcpResponse::Event::Prepare: {
-        auto* prepare = dynamic_cast<MutationConsumerMessage*>(resp);
-        ret = processMessageInner(prepare, enforceMemCheck);
-        if (ret == cb::engine_errc::success) {
-            Expects(prepare->getItem()->getBySeqno() ==
-                    engine->getVBucket(vb_)->getHighSeqno());
-        }
-    } break;
     case DcpResponse::Event::Commit:
         ret = processCommit(dynamic_cast<CommitSyncWriteConsumer&>(*resp));
         break;
@@ -1446,10 +1433,9 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         std::lock_guard<std::mutex> lh(streamMutex);
         transitionState(StreamState::Dead);
     } break;
-    case DcpResponse::Event::SystemEvent: {
-        ret = processSystemEvent(*dynamic_cast<SystemEventMessage*>(resp));
+    case DcpResponse::Event::SystemEvent:
+        ret = processSystemEvent(dynamic_cast<SystemEventMessage&>(*resp));
         break;
-    }
     case DcpResponse::Event::StreamReq:
     case DcpResponse::Event::AddStream:
     case DcpResponse::Event::SeqnoAcknowledgement:
