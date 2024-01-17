@@ -164,11 +164,6 @@ protected:
      */
     void consumerYieldConfigChanged(size_t newValue);
 
-    /*
-     * Change the batchsize that the DcpConsumer::Processor operates with
-     */
-    void consumerBatchSizeConfigChanged(size_t newValue);
-
     /**
      * Change the idle timeout that Producers and Consumers operate with
      */

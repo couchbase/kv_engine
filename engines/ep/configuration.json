@@ -1174,18 +1174,6 @@
                 }
             }
         },
-        "dcp_consumer_process_buffered_messages_batch_size" : {
-            "default": "10",
-            "descr": "The maximum number of items stream->processBufferedMessages will consume.",
-            "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000000,
-                    "min": 1
-                }
-            }
-        },
         "fsync_after_every_n_bytes_written": {
             "default": "1048576",
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",

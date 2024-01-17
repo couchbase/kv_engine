@@ -972,12 +972,6 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
                    "dcp_consumer_process_buffered_messages_yield_limit") {
             getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
                     std::stoull(val));
-        } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
-            auto v = size_t(std::stoul(val));
-            checkNumeric(val.c_str());
-            validate(v, size_t(1), std::numeric_limits<size_t>::max());
-            getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(
-                    v);
         } else if (key == "dcp_enable_noop") {
             getConfiguration().setDcpEnableNoop(cb_stob(val));
         } else if (key == "dcp_idle_timeout") {

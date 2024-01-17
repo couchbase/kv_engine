@@ -323,18 +323,15 @@ TEST_F(SingleThreadedEPBucketTest, DISABLED_MB18452_yield_dcp_processor) {
     EXPECT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
-    // The processBufferedItems should yield every "yield * batchSize"
-    // So add '(n * (yield * batchSize)) + 1' messages and we should see
+    // The processUnackedItems should yield every N iterations.
+    // So add (n * yield + 1) messages and we should see
     // processBufferedMessages return 'more_to_process' 'n' times and then
     // 'all_processed' once.
     const int n = 4;
     const int yield =
             engine->getConfiguration()
                     .getDcpConsumerProcessBufferedMessagesYieldLimit();
-    const int batchSize =
-            engine->getConfiguration()
-                    .getDcpConsumerProcessBufferedMessagesBatchSize();
-    const int numItems = n * (batchSize * yield);
+    const int numItems = n * yield;
 
     // Force the stream to buffer rather than process messages immediately
     auto& config = engine->getConfiguration();

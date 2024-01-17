@@ -329,10 +329,6 @@ public:
         processBufferedMessagesYieldThreshold = newValue;
     }
 
-    void setProcessBufferedMessagesBatchSize(size_t newValue) {
-        processBufferedMessagesBatchSize = newValue;
-    }
-
     void setDisconnect() override;
 
     void setAllowSanitizeValueInDeletion(bool value) {
@@ -652,13 +648,6 @@ protected:
      *  'dcp_consumer_process_buffered_messages_yield_limit'
      */
     size_t processBufferedMessagesYieldThreshold;
-
-    // @todo MB-31869: remove
-    /**
-     * An upper bound on how many items a single consumer stream will process
-     * in one call of stream->processBufferedMessages()
-     */
-    size_t processBufferedMessagesBatchSize;
 
     /**
      * Whether this consumer should just sanitize invalid payloads in deletions

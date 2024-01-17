@@ -48,9 +48,6 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
             "dcp_consumer_process_buffered_messages_yield_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
     config.addValueChangedListener(
-            "dcp_consumer_process_buffered_messages_batch_size",
-            std::make_unique<DcpConfigChangeListener>(*this));
-    config.addValueChangedListener(
             "dcp_idle_timeout",
             std::make_unique<DcpConfigChangeListener>(*this));
     config.addValueChangedListener(
@@ -449,8 +446,6 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(std::string_view key,
                                                            size_t value) {
     if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
         myConnMap.consumerYieldConfigChanged(value);
-    } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
-        myConnMap.consumerBatchSizeConfigChanged(value);
     } else if (key == "dcp_idle_timeout") {
         myConnMap.idleTimeoutConfigChanged(value);
     }
@@ -473,20 +468,6 @@ void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer) {
             dcpConsumer->setProcessorYieldThreshold(newValue);
-        }
-    }
-}
-
-/*
- * Find all DcpConsumers and set the processor batchsize
- */
-void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
-    for (const auto& cookieToConn : *handle) {
-        auto* dcpConsumer =
-                dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
-        if (dcpConsumer) {
-            dcpConsumer->setProcessBufferedMessagesBatchSize(newValue);
         }
     }
 }

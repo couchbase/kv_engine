@@ -158,10 +158,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       flowControl(engine, *this),
       processBufferedMessagesYieldThreshold(
               engine.getConfiguration()
-                      .getDcpConsumerProcessBufferedMessagesYieldLimit()),
-      processBufferedMessagesBatchSize(
-              engine.getConfiguration()
-                      .getDcpConsumerProcessBufferedMessagesBatchSize()) {
+                      .getDcpConsumerProcessBufferedMessagesYieldLimit()) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
