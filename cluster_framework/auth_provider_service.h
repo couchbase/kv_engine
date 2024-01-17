@@ -16,6 +16,7 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
