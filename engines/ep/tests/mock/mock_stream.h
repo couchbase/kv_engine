@@ -319,11 +319,6 @@ public:
         return buffer.messages;
     }
 
-    void setProcessBufferedMessages_postFront_Hook(
-            std::function<void()>& hook) {
-        processBufferedMessages_postFront_Hook = hook;
-    }
-
     /**
      * Set a test hook which fires before PassiveStream transitions to dead in
      * the unbuffered case

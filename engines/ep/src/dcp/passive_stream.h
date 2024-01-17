@@ -466,17 +466,6 @@ protected:
     // recovers from OOM.
     cb::AtomicNonNegativeCounter<size_t> unackedBytes;
 
-    // @todo MB-31869: remove
-    /*
-     * MB-31410: Only used for testing.
-     * This hook is executed in the PassiveStream::processBufferedMessages
-     * function, just after we have got the front message from the buffer.
-     * Used for triggering an error condition where the front-end may process
-     * new incoming messages before the DcpConsumerTask has processed all
-     * messages in the buffer.
-     */
-    TestingHook<> processBufferedMessages_postFront_Hook;
-
     /*
      * MB-56675: This test hook is invoked just before the streamEnd path sets
      * the stream to the dead state (only on the unbuffered path)

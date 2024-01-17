@@ -135,15 +135,6 @@ protected:
     void consumePassiveStreamAddStream();
     void maybeConsumePassiveStreamSeqnoAck();
 
-    enum class mb_33773Mode {
-        closeStreamOnTask,
-        closeStreamBeforeTask,
-        noMemory,
-        noMemoryAndClosed,
-        streamEndMessage
-    };
-    void mb_33773(mb_33773Mode mode);
-
     /**
      * Test that when we transition state to active we clear the
      * initialDiskSnapshot flag to ensure that we can stream from this vBucket.
@@ -181,9 +172,6 @@ protected:
             bool sysXattrs,
             const std::optional<cb::durability::Requirements>& durReqs,
             bool compressed = false);
-
-    // coverage for MB-59518
-    void replicaToActiveBufferedRejected(DcpResponse::Event event);
 
     /**
      * Verify that PassiveStream is capable of forcing inbound DCP traffic
