@@ -1201,6 +1201,16 @@ void MemcachedConnection::recvResponse(BinprotResponse& response,
         throw std::logic_error(fmt::format(
                 "{}: Expected response frame, got {}", __func__, frame));
     }
+
+    if (opcode != cb::mcbp::ClientOpcode::Invalid &&
+        frame.getResponse()->getClientOpcode() != opcode) {
+        throw std::logic_error(
+                fmt::format("{}: Expected opcode {} from response, got {}",
+                            __func__,
+                            opcode,
+                            frame.getResponse()->getClientOpcode()));
+    }
+
     response.assign(std::move(frame.payload));
     traceData = response.getTracingData();
 }
