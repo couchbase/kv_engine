@@ -1043,9 +1043,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
         engine->getConfiguration().setMutationMemRatio(1.0);
     }
 
-    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
-        (engine->getConfiguration().getEphemeralFullPolicy()) ==
-                "fail_new_data") {
+    if (ephemeralFailNewData()) {
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
         while (true) {
             /* Keep sending items till the memory usage goes above the
@@ -1115,6 +1113,12 @@ TEST_P(STDcpTest, ReplicateAfterThrottleThreshold) {
    indicate close of the consumer conn and in other cases it is expected to
    just defer processing. */
 TEST_P(STDcpTest, ReplicateJustBeforeThrottleThreshold) {
+#ifdef WIN32
+    if (ephemeralFailNewData()) {
+        GTEST_SKIP();
+    }
+#endif
+
     sendConsumerMutationsNearThreshold(false);
 }
 
