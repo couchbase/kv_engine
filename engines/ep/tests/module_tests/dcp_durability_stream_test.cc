@@ -4404,6 +4404,7 @@ TEST_P(DurabilityPassiveStreamTest,
     EXPECT_EQ(all_processed, stream->processUnackedBytes(processedBytes));
 }
 
+// @todo MB-31869: review
 TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     auto key = makeStoredDocKey("bufferDcp");
 
@@ -4480,8 +4481,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     engine->getEpStats().setMaxDataSize(size);
 
     // And process buffered items
-    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
-    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Snapshot and commit processed
     ackBytes += sizeof(protocol_binary_request_header) +
@@ -4492,6 +4493,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 }
 
+// @todo MB-31869: review
 TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     auto key = makeStoredDocKey("bufferDcp");
 
@@ -4568,8 +4570,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     engine->getEpStats().setMaxDataSize(size);
 
     // And process buffered items
-    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
-    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Snapshot and commit processed
     ackBytes += sizeof(protocol_binary_request_header) +
@@ -4650,8 +4652,8 @@ void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
     stats.setMaxDataSize(size);
     ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Process,
               engine->getKVBucket()->getReplicationThrottleStatus());
-    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
-    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Before fixing high-seqno would be at 3 (commit/abort)
     EXPECT_EQ(2, vb->getHighSeqno());
@@ -4742,8 +4744,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     stats.setMaxDataSize(size);
     ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Process,
               engine->getKVBucket()->getReplicationThrottleStatus());
-    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
-    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Prepare must be rejected, no change to high-seq
     EXPECT_EQ(1, vb->getHighSeqno());

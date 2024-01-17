@@ -650,7 +650,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
                 "fail_new_data") {
         /* Make a call to the function that would be called by the processor
            task here */
-        EXPECT_EQ(stop_processing, consumer->processBufferedItems());
+        EXPECT_EQ(stop_processing, consumer->processUnackedBytes());
 
         /* Expect the connection to be notified */
         EXPECT_FALSE(consumer->isPaused());
@@ -664,9 +664,9 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
         /* Make a call to the function that would be called by the processor
            task here */
         if (beyondThreshold) {
-            EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+            EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
         } else {
-            EXPECT_EQ(cannot_process, consumer->processBufferedItems());
+            EXPECT_EQ(cannot_process, consumer->processUnackedBytes());
         }
 
         EXPECT_EQ(backfoffs + 1, consumer->getNumBackoffs());

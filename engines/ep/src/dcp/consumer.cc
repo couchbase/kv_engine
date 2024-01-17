@@ -76,7 +76,7 @@ public:
         }
 
         double sleepFor = 0.0;
-        enum ProcessUnackedBytesResult state = consumer->processBufferedItems();
+        enum ProcessUnackedBytesResult state = consumer->processUnackedBytes();
         switch (state) {
             case all_processed:
                 sleepFor = INT_MAX;
@@ -1308,7 +1308,7 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueBackoff += backoffs;
 }
 
-ProcessUnackedBytesResult DcpConsumer::drainStreamsBufferedItems(
+ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
         std::shared_ptr<PassiveStream> stream, size_t yieldThreshold) {
     ProcessUnackedBytesResult rval = all_processed;
     uint32_t bytesProcessed = 0;
@@ -1359,7 +1359,7 @@ ProcessUnackedBytesResult DcpConsumer::drainStreamsBufferedItems(
     return rval;
 }
 
-ProcessUnackedBytesResult DcpConsumer::processBufferedItems() {
+ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
     ProcessUnackedBytesResult process_ret = all_processed;
     Vbid vbucket = Vbid(0);
     while (vbReady.popFront(vbucket)) {
@@ -1369,8 +1369,8 @@ ProcessUnackedBytesResult DcpConsumer::processBufferedItems() {
             continue;
         }
 
-        process_ret = drainStreamsBufferedItems(stream,
-                                                processBufferedMessagesYieldThreshold);
+        process_ret = processUnackedBytes(
+                stream, processBufferedMessagesYieldThreshold);
 
         switch (process_ret) {
         case all_processed:

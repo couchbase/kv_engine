@@ -384,11 +384,11 @@ TEST_F(SingleThreadedEPBucketTest, DISABLED_MB18452_yield_dcp_processor) {
 
     // 3. processBufferedItems returns more_to_process n times
     for (int ii = 0; ii < n; ii++) {
-        EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+        EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
     }
 
     // 4. processBufferedItems returns a final all_processed
-    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Drop the stream
     consumer->closeStream(/*opaque*/ 0, vbid);

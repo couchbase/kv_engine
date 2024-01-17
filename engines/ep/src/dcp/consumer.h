@@ -289,7 +289,13 @@ public:
 
     void closeStreamDueToVbStateChange(Vbid vbucket, vbucket_state_t state);
 
-    ProcessUnackedBytesResult processBufferedItems();
+    /**
+     * Observes the memory state of the node and triggers buffer-ack of unacked
+     * DCP bytes when the system recovers from OOM.
+     *
+     * @return ProcessUnackedBytesResult, see struct definition for details
+     */
+    ProcessUnackedBytesResult processUnackedBytes();
 
     uint64_t incrOpaqueCounter();
 
@@ -430,14 +436,12 @@ protected:
     void notifyVbucketReady(Vbid vbucket);
 
     /**
-     * Drain the stream of bufferedItems
-     * The function will stop draining
-     *  - if there's no more data - all_processed
-     *  - if the replication throttle says no more - cannot_process
-     *  - if there's an error, e.g. ETMPFAIL/ENOMEM - cannot_process
-     *  - if we hit the yieldThreshold - more_to_process
+     * Observes the memory state of the node and triggers buffer-ack of unacked
+     * DCP bytes for the given stream when the system recovers from OOM.
+     *
+     * @return ProcessUnackedBytesResult, see struct definition for details
      */
-    ProcessUnackedBytesResult drainStreamsBufferedItems(
+    ProcessUnackedBytesResult processUnackedBytes(
             std::shared_ptr<PassiveStream> stream, size_t yieldThreshold);
 
     /**

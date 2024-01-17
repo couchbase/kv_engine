@@ -7720,8 +7720,8 @@ void SingleThreadedPassiveStreamTest::replicaToActiveBufferedRejected(
     config.setMutationMemRatio(0.99);
     ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Process,
               engine->getKVBucket()->getReplicationThrottleStatus());
-    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
-    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Expect no change, operation was rejected
     EXPECT_EQ(0, vb->getHighSeqno());
