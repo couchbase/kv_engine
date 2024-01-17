@@ -568,23 +568,28 @@ TEST_P(STDcpTest, ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
             IncludeDeletedUserXattrs::Yes);
 }
 
-void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
+// Here we test how the Processor task in DCP consumer handles the scenario
+// where the memory usage is beyond the replication throttle threshold.
+// In the case of Ephemeral/fail_new_data it is expected to trigger the consumer
+// disconnection. In the other cases it is expected to just forcibly processing
+// the item but deferring to acknowledge bytes to the producer.
+TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
     auto* cookie = create_mock_cookie(engine.get());
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1, snapEnd = 10;
-    const uint64_t bySeqno = snapStart;
+    const uint64_t seqno = snapStart;
 
-    /* Set up a consumer connection */
+    // Set up a consumer connection
     auto& connMap = engine->getDcpConnMap();
     auto& mockConnMap = static_cast<MockDcpConnMap&>(connMap);
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     mockConnMap.addConn(cookie, consumer);
 
-    /* Replica vbucket */
+    // Replica vbucket
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    /* Passive stream */
+    // Passive stream
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
@@ -593,7 +598,7 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream->isActive());
 
-    /* Send a snapshotMarker before sending items for replication */
+    // Receive a marker
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
@@ -603,82 +608,59 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
-    /* Simulate a situation where adding a mutation temporarily fails
-       and hence adds the mutation to a replication buffer. For that, we
-       set vbucket::takeover_backed_up to true */
-    engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(true);
+    // Simulate OOM on the node
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0);
 
-    /* Send an item for replication and expect it to be buffered */
-    const DocKey docKey{"mykey", DocKeyEncodesCollectionId::No};
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->mutation(opaque,
-                                 docKey,
-                                 {}, // value
-                                 PROTOCOL_BINARY_RAW_BYTES,
-                                 0, // cas
-                                 vbid,
-                                 0, // flags
-                                 bySeqno,
-                                 0, // rev seqno
-                                 0, // exptime
-                                 0, // locktime
-                                 {}, // meta
-                                 0)); // nru
-    EXPECT_EQ(1, stream->getNumBufferItems());
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(0, stream->getUnackedBytes());
 
-    /* Set back the vbucket::takeover_backed_up to false */
-    engine->getKVBucket()->getVBucket(vbid)->setTakeoverBackedUpState(false);
-
-    /* Set 'mem_used' beyond the 'replication threshold' */
-    EPStats& stats = engine->getEpStats();
-    if (beyondThreshold) {
-        /* Actually setting it well above also, as there can be a drop in memory
-           usage during testing */
-        stats.setMaxDataSize(stats.getPreciseTotalMemoryUsed() / 4);
-    } else {
-        /* set max size to a value just over */
-        stats.setMaxDataSize(stats.getPreciseTotalMemoryUsed() + 1);
-        /* Simpler to set the replication threshold to 1 and test, rather than
-           testing with maxData = (memUsed * mutationMemRatio); that
-           is, we are avoiding a division */
-        engine->getConfiguration().setMutationMemRatio(1.0);
-    }
+    // Receive an item. At OOM the item is queued into the checkpoint but not
+    // acked back to the Producer.
+    const auto res = consumer->mutation(opaque,
+                                        {"key", DocKeyEncodesCollectionId::No},
+                                        {}, // value
+                                        PROTOCOL_BINARY_RAW_BYTES,
+                                        0, // cas
+                                        vbid,
+                                        0, // flags
+                                        seqno,
+                                        0, // rev seqno
+                                        0, // exptime
+                                        0, // locktime
+                                        {}, // meta
+                                        0); // nru
+    const auto unackedBytes = stream->getUnackedBytes();
+    const auto backfoffs = consumer->getNumBackoffs();
+    EXPECT_EQ(0, backfoffs);
 
     MockDcpMessageProducers producers;
-    if ((engine->getConfiguration().getBucketType() == "ephemeral") &&
-        (engine->getConfiguration().getEphemeralFullPolicy()) ==
-                "fail_new_data") {
-        /* Make a call to the function that would be called by the processor
-           task here */
-        EXPECT_EQ(stop_processing, consumer->processUnackedBytes());
+    if (ephemeralFailNewData()) {
+        // Expect disconnect signal in ephemeral/fail_new_data.
+        EXPECT_EQ(cb::engine_errc::disconnect, res);
+        EXPECT_EQ(0, vb.getHighSeqno());
+        EXPECT_EQ(0, unackedBytes);
 
-        /* Expect the connection to be notified */
+        // Expect the connection to be notified
         EXPECT_FALSE(consumer->isPaused());
 
-        /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        EXPECT_EQ(cb::engine_errc::disconnect,
-                  consumer->step(false, producers));
+        // Simulate the DcpConsumerTask - Nothing to process, we are just
+        // disconnecting
+        EXPECT_EQ(all_processed, consumer->processUnackedBytes());
     } else {
-        uint32_t backfoffs = consumer->getNumBackoffs();
+        // We process the replica items but indirectly throttle replication by
+        // not sending flow control acks to the roducer. Hence we do not drop
+        // the connection here.
+        EXPECT_EQ(cb::engine_errc::success, res);
+        EXPECT_EQ(1, vb.getHighSeqno());
+        EXPECT_EQ(unackedBytes, stream->getUnackedBytes());
 
-        /* Make a call to the function that would be called by the processor
-           task here */
-        if (beyondThreshold) {
-            EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
-        } else {
-            EXPECT_EQ(cannot_process, consumer->processUnackedBytes());
-        }
+        // Simulate the DcpConsumerTask
+        EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
 
+        // Still OOM
         EXPECT_EQ(backfoffs + 1, consumer->getNumBackoffs());
-
-        /* In 'couchbase' buckets we buffer the replica items and indirectly
-           throttle replication by not sending flow control acks to the
-           producer. Hence we do not drop the connection here */
-        EXPECT_EQ(cb::engine_errc::success, consumer->step(false, producers));
-
-        /* Close stream before deleting the connection */
-        EXPECT_EQ(cb::engine_errc::success,
-                  consumer->closeStream(opaque, vbid));
     }
 
     connMap.disconnect(cookie);
@@ -687,32 +669,6 @@ void STDcpTest::processConsumerMutationsNearThreshold(bool beyondThreshold) {
     EXPECT_TRUE(connMap.isDeadConnectionsEmpty());
 
     destroy_mock_cookie(cookie);
-}
-
-/* Here we test how the Processor task in DCP consumer handles the scenario
-   where the memory usage is beyond the replication throttle threshold.
-   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
-   indicate close of the consumer conn and in other cases it is expected to
-   just defer processing. */
-TEST_P(STDcpTest, DISABLED_ProcessReplicationBufferAfterThrottleThreshold) {
-    processConsumerMutationsNearThreshold(true);
-}
-
-/* Here we test how the Processor task in DCP consumer handles the scenario
-   where the memory usage is just below the replication throttle threshold,
-   but will go over the threshold when it adds the new mutation from the
-   processor buffer to the hashtable.
-   In case of Ephemeral buckets with 'fail_new_data' policy it is expected to
-   indicate close of the consumer conn and in other cases it is expected to
-   just defer processing. */
-TEST_P(STDcpTest,
-       DISABLED_ProcessReplicationBufferJustBeforeThrottleThreshold) {
-    /* There are sporadic failures seen while testing this. The problem is
-       we need to have a memory usage just below max_size, so we need to
-       start at that point. But sometimes the memory usage goes further below
-       resulting in the test failure (a hang). Hence commenting out the test.
-       Can be run locally as and when needed. */
-    processConsumerMutationsNearThreshold(false);
 }
 
 /* Checks that the DCP producer does an async stream close when the DCP client
