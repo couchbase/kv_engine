@@ -261,10 +261,6 @@ public:
                           uint64_t prepareSeqno,
                           uint64_t abortSeqno) override;
 
-    cb::engine_errc control(uint32_t opaque,
-                            std::string_view key,
-                            std::string_view value) override;
-
     bool doRollback(uint32_t opaque, Vbid vbid, uint64_t rollbackSeqno);
 
     /**
@@ -338,12 +334,6 @@ public:
     bool isAllowSanitizeValueInDeletion() {
         return allowSanitizeValueInDeletion.load();
     }
-
-    /**
-     * Force streams to buffer?
-     * @return true if streams should always buffer operations
-     */
-    bool shouldBufferOperations() const;
 
     /**
      * @return Whether FlowControl is enabled on this consumer connection
@@ -655,9 +645,6 @@ protected:
      * Non-const as the related configuration param is dynamic.
      */
     std::atomic_bool allowSanitizeValueInDeletion;
-
-    // @todo MB-31869: remove
-    bool alwaysBufferOperations{false};
 
     /**
      * Handles the negotiation for ChangeStreams.

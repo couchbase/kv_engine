@@ -476,9 +476,6 @@ protected:
     // backed off due to ENOMEM. Only used for limiting logging
     std::atomic<bool> isNoMemory{false};
 
-    // @todo MB-31869: remove
-    bool alwaysBufferOperations{false};
-
     // True if the consumer/producer enabled FlatBuffers
     bool flatBuffersSystemEventsEnabled{false};
 

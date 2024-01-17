@@ -2078,32 +2078,6 @@ cb::engine_errc DcpConsumer::getOpaqueMissMatchErrorCode() const {
                                 : cb::engine_errc::key_already_exists;
 }
 
-cb::engine_errc DcpConsumer::control(uint32_t opaque,
-                                     std::string_view key,
-                                     std::string_view value) {
-    if (engine_.getConfiguration().isDcpConsumerControlEnabled()) {
-        if (key == "always_buffer_operations") {
-            alwaysBufferOperations = value == "true";
-            // Warn about this because only tests should be here
-            logger->warn(
-                    "always_buffer_operations:{} results in "
-                    "alwaysBufferOperations:{}",
-                    value,
-                    alwaysBufferOperations ? "true" : "false");
-            return cb::engine_errc::success;
-        }
-
-        logger->warn("Invalid ctrl parameter {} {}", key, value);
-        return cb::engine_errc::invalid_arguments;
-    }
-
-    return ConnHandler::control(opaque, key, value);
-}
-
-bool DcpConsumer::shouldBufferOperations() const {
-    return alwaysBufferOperations;
-}
-
 bool DcpConsumer::isFlowControlEnabled() const {
     return flowControl.isEnabled();
 }

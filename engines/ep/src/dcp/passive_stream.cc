@@ -64,7 +64,6 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_ack(false),
       cur_snapshot_prepare(false),
       vb_manifest_uid(vb_manifest_uid),
-      alwaysBufferOperations(c->shouldBufferOperations()),
       flatBuffersSystemEventsEnabled(c->areFlatBuffersSystemEventsEnabled()) {
     std::lock_guard<std::mutex> lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
