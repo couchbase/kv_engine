@@ -4154,6 +4154,79 @@ TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa_SysXa) {
 }
 
 /**
+ * This test covers starting a stream at seqno X from a checkpoint with start
+ * seqno X-N, where the first N items have been expelled. In this case, since
+ * the next mutation will be X+1 and that has not been expelled, we don't have
+ * to backfill. The first snapshot marker should have a snap_start_seqno of X,
+ * and not X-N (the start seqno of the checkpoint).
+ */
+TEST_P(SingleThreadedActiveStreamTest, SnapshotForCheckpointWithExpelledItems) {
+    // We need to re-create the stream with a specific startSeqno
+    stream.reset();
+
+    auto& vb = *engine->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    manager.createNewCheckpoint();
+
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+    ASSERT_EQ(checkpoint.getNumberOfElements(), 2);
+
+    store_item(vbid, makeStoredDocKey("seqno-1"), "");
+    store_item(vbid, makeStoredDocKey("seqno-2"), "");
+    store_item(vbid, makeStoredDocKey("seqno-3"), "");
+
+    ASSERT_EQ(checkpoint.getHighSeqno(), 3);
+    ASSERT_EQ(checkpoint.getNumberOfElements(), 5);
+
+    // Unexpelled items at seqno:4
+    store_item(vbid, makeStoredDocKey("seqno-4"), "");
+    store_item(vbid, makeStoredDocKey("seqno-5"), "");
+
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    const auto stopExpelCursor =
+        manager.registerCursorBySeqno(
+                        "test-cursor", 3, CheckpointCursor::Droppable::Yes)
+                .takeCursor()
+                .lock();
+    // Expel up to seqno:3
+    EXPECT_EQ(3, manager.expelUnreferencedCheckpointItems().count);
+    ASSERT_EQ(checkpoint.getNumberOfElements(), 4);
+
+    // Simulate client reconnecting at seqno:3.
+    stream = producer->mockActiveStreamRequest(0 /*flags*/,
+                                               0 /*opaque*/,
+                                               vb,
+                                               3 /*st_seqno*/,
+                                               ~0 /*en_seqno*/,
+                                               vb.failovers->getLatestUUID(),
+                                               3 /*snap_start_seqno*/,
+                                               3 /*snap_end_seqno*/);
+    auto outstandingItems = stream->public_getOutstandingItems(vb);
+    stream->public_processItems(outstandingItems);
+
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(3, readyQ.size());
+
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(3, snapMarker.getStartSeqno())
+            << "Snapshot start seqno should be that of the first mutation";
+
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    auto mutation = dynamic_cast<MutationResponse&>(*resp);
+    EXPECT_EQ(4, mutation.getBySeqno())
+            << "Unexpected seqno for first mutation response";
+}
+
+/**
  * Verifies that streams that set NO_VALUE still backfill the full payload for
  * SystemEvents and succeed in making the DCP message from that.
  */
