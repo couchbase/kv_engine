@@ -62,6 +62,7 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
 
 void addEndpoint(std::string path,
                  IncludeTimestamps timestamps,
+                 IncludeMetaMetrics metaMetrics,
                  GetStatsCallback getStatsCB) {
     auto handle = instance.wlock();
     if (!handle) {
@@ -70,9 +71,8 @@ void addEndpoint(std::string path,
                 "MetricServer instance",
                 path));
     }
-    handle->addEndpoint(std::move(path),
-                        timestamps,
-                        std::move(getStatsCB));
+    handle->addEndpoint(
+            std::move(path), timestamps, metaMetrics, std::move(getStatsCB));
 }
 
 void shutdown() {
@@ -205,6 +205,7 @@ MetricServer::~MetricServer() {
 
 void MetricServer::addEndpoint(std::string path,
                                IncludeTimestamps timestamps,
+                               IncludeMetaMetrics metaMetrics,
                                GetStatsCallback getStatsCB) {
     if (!isAlive()) {
         throw std::runtime_error(
@@ -217,6 +218,9 @@ void MetricServer::addEndpoint(std::string path,
 
     exposer->RegisterAuth(authCB, authRealm, path);
     exposer->RegisterCollectable(ptr, path);
+    if (metaMetrics == IncludeMetaMetrics::No) {
+        exposer->RemoveCollectable(exposer->GetMetaCollectable(path), path);
+    }
     endpoints.emplace_back(std::move(ptr));
 }
 

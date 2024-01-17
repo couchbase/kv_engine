@@ -35,22 +35,32 @@ static nlohmann::json prometheus_init(
         cb::prometheus::AuthCallback authCB) {
     auto port = cb::prometheus::initialize(config, std::move(authCB));
 
+    using cb::prometheus::IncludeMetaMetrics;
     using cb::prometheus::IncludeTimestamps;
+    // Only the low cardinality metrics include the exposer_ metrics.
+    // This is because ns_server will concat the outputs from both endpoints,
+    // and joining the two sets of exposer_ naively will result in duplicates,
+    // which is not valid Prometheus exposition format.
     cb::prometheus::addEndpoint("/_prometheusMetrics",
                                 IncludeTimestamps::Yes,
+                                IncludeMetaMetrics::Yes,
                                 server_prometheus_stats_low);
     cb::prometheus::addEndpoint("/_prometheusMetricsNoTS",
                                 IncludeTimestamps::No,
+                                IncludeMetaMetrics::Yes,
                                 server_prometheus_stats_low);
     cb::prometheus::addEndpoint("/_prometheusMetricsHigh",
                                 IncludeTimestamps::Yes,
+                                IncludeMetaMetrics::No,
                                 server_prometheus_stats_high);
     cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
                                 IncludeTimestamps::No,
+                                IncludeMetaMetrics::No,
                                 server_prometheus_stats_high);
     if (cb::serverless::isEnabled()) {
         cb::prometheus::addEndpoint("/_metering",
                                     IncludeTimestamps::No,
+                                    IncludeMetaMetrics::No,
                                     server_prometheus_metering);
     }
 
