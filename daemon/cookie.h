@@ -607,6 +607,11 @@ public:
         write_thottling_factor = value;
     }
 
+    /// Get the timepoint when the command started
+    std::chrono::steady_clock::time_point getStartTime() const {
+        return start;
+    }
+
 protected:
     /**
      * Log the current connection if its execution time exceeds the

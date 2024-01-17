@@ -90,3 +90,22 @@ TEST_F(TracingTest, FailOnFeatureRequestWhenDisabledOnServer) {
     EXPECT_THROW(userConnection->setFeature(cb::mcbp::Feature::Tracing, true),
                  std::runtime_error);
 }
+
+/// Verify that trace time gets added to all kinds of commands (even the
+/// ones which don't block or add any other trace spans)
+TEST_F(TracingTest, MB60379) {
+    // Enable Tracing feature on Server
+    setTracingFeatureOnServer(true);
+
+    userConnection->mutate(document, Vbid(0), MutationType::Add);
+
+    // Request Trace Info
+    userConnection->setFeature(cb::mcbp::Feature::Tracing, true);
+    BinprotGetAndTouchCommand cmd(name, Vbid{0}, 0);
+
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_TRUE(rsp.isSuccess());
+    auto traceData = rsp.getTracingData();
+    EXPECT_TRUE(traceData);
+    EXPECT_NE(0, traceData->count());
+}

@@ -1524,9 +1524,12 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         };
 
         if (tracing) {
-            auto& tracer = cookie.getTracer();
+            auto duration =
+                    std::chrono::duration_cast<cb::tracing::Span::Duration>(
+                            std::chrono::steady_clock::now() -
+                            cookie.getStartTime());
             add_frame_info(ServerRecvSendDurationFrameInfoMagic,
-                           tracer.getEncodedMicros());
+                           cb::tracing::Tracer::encodeMicros(duration.count()));
         }
 
         if (ru) {
