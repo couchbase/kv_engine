@@ -12,25 +12,12 @@
 #include "testapp_client_test.h"
 #include <xattr/utils.h>
 
-enum class AlwaysBuffer { Yes, No };
-
-std::string to_string(AlwaysBuffer value) {
-    switch (value) {
-    case AlwaysBuffer::Yes:
-        return "AlwaysBufferYes";
-    case AlwaysBuffer::No:
-        return "AlwaysBufferNo";
-    }
-    throw std::invalid_argument("to_string(AlwaysBuffer)");
-}
-
-class DcpConsumerBufferAckTest
-    : public TestappTest,
-      public ::testing::WithParamInterface<::testing::tuple<TransportProtocols,
-                                                            XattrSupport,
-                                                            ClientJSONSupport,
-                                                            ClientSnappySupport,
-                                                            AlwaysBuffer>> {
+class DcpConsumerAckTest : public TestappTest,
+                           public ::testing::WithParamInterface<
+                                   ::testing::tuple<TransportProtocols,
+                                                    XattrSupport,
+                                                    ClientJSONSupport,
+                                                    ClientSnappySupport>> {
 public:
     static void SetUpTestCase() {
         if (mcd_env->getTestBucket().getName() == "default_engine") {
@@ -64,17 +51,12 @@ public:
         // vbucket must be replica for addStream
         conn->setVbucket(Vbid{0}, vbucket_state_replica, {/*no json*/});
 
-        std::vector<std::pair<std::string, std::string>> controls;
-        if (testAlwaysBuffered()) {
-            controls.emplace_back("always_buffer_operations", "true");
-        }
-
         setupConsumer(
                 *conn,
                 "replication:" + std::string(::testing::UnitTest::GetInstance()
                                                      ->current_test_info()
                                                      ->name()),
-                controls);
+                {});
         setupConsumerStream(*conn, Vbid(0), {{0xdeadbeefull, 0}});
 
         // Setup a Document
@@ -206,10 +188,6 @@ public:
         return ::testing::get<3>(GetParam()) == ClientSnappySupport::Yes;
     }
 
-    bool testAlwaysBuffered() const {
-        return ::testing::get<4>(GetParam()) == AlwaysBuffer::Yes;
-    }
-
     static uint64_t nextSeqno() {
         return seqno++;
     }
@@ -224,40 +202,36 @@ public:
     static uint64_t cas;
 };
 
-uint64_t DcpConsumerBufferAckTest::seqno{1};
-uint64_t DcpConsumerBufferAckTest::cas{1};
+uint64_t DcpConsumerAckTest::seqno{1};
+uint64_t DcpConsumerAckTest::cas{1};
 
 struct ToStringCombinedTestName {
-    std::string operator()(
-            const ::testing::TestParamInfo<::testing::tuple<TransportProtocols,
-                                                            XattrSupport,
-                                                            ClientJSONSupport,
-                                                            ClientSnappySupport,
-                                                            AlwaysBuffer>>&
-                    info) const {
+    std::string operator()(const ::testing::TestParamInfo<
+                           ::testing::tuple<TransportProtocols,
+                                            XattrSupport,
+                                            ClientJSONSupport,
+                                            ClientSnappySupport>>& info) const {
         std::string rv = to_string(::testing::get<0>(info.param)) + "_" +
                          to_string(::testing::get<1>(info.param)) + "_" +
                          to_string(::testing::get<2>(info.param)) + "_" +
-                         to_string(::testing::get<3>(info.param)) + "_" +
-                         to_string(::testing::get<4>(info.param));
+                         to_string(::testing::get<3>(info.param));
         return rv;
     }
 };
 
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
-        DcpConsumerBufferAckTest,
-        ::testing::Combine(
-                ::testing::Values(TransportProtocols::McbpPlain),
-                ::testing::Values(XattrSupport::Yes, XattrSupport::No),
-                ::testing::Values(ClientJSONSupport::Yes,
-                                  ClientJSONSupport::No),
-                ::testing::Values(ClientSnappySupport::Yes,
-                                  ClientSnappySupport::No),
-                ::testing::Values(AlwaysBuffer::Yes, AlwaysBuffer::No)),
+        DcpConsumerAckTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain),
+                           ::testing::Values(XattrSupport::Yes,
+                                             XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::Yes,
+                                             ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::Yes,
+                                             ClientSnappySupport::No)),
         ToStringCombinedTestName());
 
-TEST_P(DcpConsumerBufferAckTest, Basic) {
+TEST_P(DcpConsumerAckTest, Basic) {
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
             1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
 
@@ -270,7 +244,7 @@ TEST_P(DcpConsumerBufferAckTest, Basic) {
     conn->recvDcpBufferAck(conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno()));
 }
 
-TEST_P(DcpConsumerBufferAckTest, DeleteWithValue) {
+TEST_P(DcpConsumerAckTest, DeleteWithValue) {
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
             1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
 
@@ -295,7 +269,7 @@ TEST_P(DcpConsumerBufferAckTest, DeleteWithValue) {
 }
 
 // Similar to previous test but use a highly compressible 'body'
-TEST_P(DcpConsumerBufferAckTest, DeleteWithCompressibleValue) {
+TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
     generateDocumentValue(getVeryCompressibleValue());
 
     conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
@@ -328,7 +302,7 @@ TEST_P(DcpConsumerBufferAckTest, DeleteWithCompressibleValue) {
 // delete triggers value sanitisation code and results in an ACK using the
 // decompressed size, which this test forces to be much larger than what we
 // sent.
-TEST_P(DcpConsumerBufferAckTest, DeleteWithManyCompressibleXattrs) {
+TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     // The xattr key/value will be repeating characters, which will compress
     // well. These are also system keys so they are retained by sanitisation.
     std::string xattrKey = "_" + std::string(5, 'a');
