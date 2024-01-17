@@ -63,9 +63,9 @@ public:
      * DCP bytes when the system recovers from OOM.
      *
      * @param [out] processed_bytes
-     * @return process_items_error_t, see struct definition for details
+     * @return ProcessUnackedBytesResult, see struct definition for details
      */
-    process_items_error_t processUnackedBytes(uint32_t& processed_bytes);
+    ProcessUnackedBytesResult processUnackedBytes(uint32_t& processed_bytes);
 
     std::unique_ptr<DcpResponse> next();
 

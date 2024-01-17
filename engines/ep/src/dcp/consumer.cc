@@ -76,7 +76,7 @@ public:
         }
 
         double sleepFor = 0.0;
-        enum process_items_error_t state = consumer->processBufferedItems();
+        enum ProcessUnackedBytesResult state = consumer->processBufferedItems();
         switch (state) {
             case all_processed:
                 sleepFor = INT_MAX;
@@ -1308,9 +1308,9 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueBackoff += backoffs;
 }
 
-process_items_error_t DcpConsumer::drainStreamsBufferedItems(
+ProcessUnackedBytesResult DcpConsumer::drainStreamsBufferedItems(
         std::shared_ptr<PassiveStream> stream, size_t yieldThreshold) {
-    process_items_error_t rval = all_processed;
+    ProcessUnackedBytesResult rval = all_processed;
     uint32_t bytesProcessed = 0;
     size_t iterations = 0;
     do {
@@ -1359,8 +1359,8 @@ process_items_error_t DcpConsumer::drainStreamsBufferedItems(
     return rval;
 }
 
-process_items_error_t DcpConsumer::processBufferedItems() {
-    process_items_error_t process_ret = all_processed;
+ProcessUnackedBytesResult DcpConsumer::processBufferedItems() {
+    ProcessUnackedBytesResult process_ret = all_processed;
     Vbid vbucket = Vbid(0);
     while (vbReady.popFront(vbucket)) {
         auto stream = findStream(vbucket);
@@ -1406,7 +1406,7 @@ bool DcpConsumer::notifiedProcessor(bool to) {
     return processorNotification.compare_exchange_strong(inverse, to);
 }
 
-void DcpConsumer::setProcessorTaskState(enum process_items_error_t to) {
+void DcpConsumer::setProcessorTaskState(enum ProcessUnackedBytesResult to) {
     processorTaskState = to;
 }
 

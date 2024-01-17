@@ -39,7 +39,7 @@ class PassiveStream;
 
 class ConnHandler;
 
-enum process_items_error_t {
+enum ProcessUnackedBytesResult {
     all_processed,
     more_to_process,
     cannot_process,

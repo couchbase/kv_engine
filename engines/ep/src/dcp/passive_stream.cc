@@ -368,7 +368,7 @@ cb::engine_errc PassiveStream::messageReceived(
     folly::assume_unreachable();
 }
 
-process_items_error_t PassiveStream::processUnackedBytes(
+ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
         uint32_t& processed_bytes) {
     const auto& bucket = *engine->getKVBucket();
     const auto availableBytes = bucket.getMemAvailableForReplication();

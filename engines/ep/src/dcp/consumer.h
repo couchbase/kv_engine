@@ -289,7 +289,7 @@ public:
 
     void closeStreamDueToVbStateChange(Vbid vbucket, vbucket_state_t state);
 
-    process_items_error_t processBufferedItems();
+    ProcessUnackedBytesResult processBufferedItems();
 
     uint64_t incrOpaqueCounter();
 
@@ -307,7 +307,7 @@ public:
 
     bool notifiedProcessor(bool to);
 
-    void setProcessorTaskState(enum process_items_error_t to);
+    void setProcessorTaskState(enum ProcessUnackedBytesResult to);
 
     std::string getProcessorTaskStatusStr() const;
 
@@ -437,7 +437,7 @@ protected:
      *  - if there's an error, e.g. ETMPFAIL/ENOMEM - cannot_process
      *  - if we hit the yieldThreshold - more_to_process
      */
-    process_items_error_t drainStreamsBufferedItems(
+    ProcessUnackedBytesResult drainStreamsBufferedItems(
             std::shared_ptr<PassiveStream> stream, size_t yieldThreshold);
 
     /**
@@ -556,7 +556,7 @@ protected:
 
     uint64_t opaqueCounter;
     size_t processorTaskId;
-    std::atomic<enum process_items_error_t> processorTaskState;
+    std::atomic<enum ProcessUnackedBytesResult> processorTaskState;
 
     VBReadyQueue vbReady;
     std::atomic<bool> processorNotification;
