@@ -176,11 +176,19 @@ MetricServer::MetricServer(in_port_t port,
 
         // used to store the newly created KVCollectable into the array
         auto arrayItr = endpoints.begin();
-        for (auto [cardinality, timestamps] : {
-                     std::make_pair(Cardinality::Low, IncludeTimestamps::No),
-                     std::make_pair(Cardinality::Low, IncludeTimestamps::Yes),
-                     std::make_pair(Cardinality::High, IncludeTimestamps::No),
-                     std::make_pair(Cardinality::High, IncludeTimestamps::Yes),
+        for (auto [cardinality, timestamps, metaMetrics] : {
+                     std::make_tuple(Cardinality::Low,
+                                     IncludeTimestamps::No,
+                                     IncludeMetaMetrics::Yes),
+                     std::make_tuple(Cardinality::Low,
+                                     IncludeTimestamps::Yes,
+                                     IncludeMetaMetrics::Yes),
+                     std::make_tuple(Cardinality::High,
+                                     IncludeTimestamps::No,
+                                     IncludeMetaMetrics::No),
+                     std::make_tuple(Cardinality::High,
+                                     IncludeTimestamps::Yes,
+                                     IncludeMetaMetrics::No),
              }) {
             auto ptr = std::make_shared<KVCollectable>(
                     cardinality, timestamps, getStatsCB);
@@ -195,6 +203,12 @@ MetricServer::MetricServer(in_port_t port,
 
             exposer->RegisterAuth(authCB, authRealm, path);
             exposer->RegisterCollectable(ptr, path);
+
+            if (metaMetrics == IncludeMetaMetrics::No) {
+                exposer->RemoveCollectable(exposer->GetMetaCollectable(path),
+                                           path);
+            }
+
             *arrayItr = std::move(ptr);
             ++arrayItr;
         }
