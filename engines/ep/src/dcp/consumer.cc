@@ -156,9 +156,9 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       consumerName(std::move(consumerName_)),
       processorTaskRunning(false),
       flowControl(engine, *this),
-      processBufferedMessagesYieldThreshold(
+      processUnackedBytesYieldLimit(
               engine.getConfiguration()
-                      .getDcpConsumerProcessBufferedMessagesYieldLimit()) {
+                      .getDcpConsumerProcessUnackedBytesYieldLimit()) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
@@ -1366,8 +1366,8 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
             continue;
         }
 
-        process_ret = processUnackedBytes(
-                stream, processBufferedMessagesYieldThreshold);
+        process_ret =
+                processUnackedBytes(stream, processUnackedBytesYieldLimit);
 
         switch (process_ret) {
         case all_processed:

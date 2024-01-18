@@ -333,7 +333,7 @@ TEST_F(SingleThreadedEPBucketTest, DcpConsumerTaskYields) {
     //  for processing all the unacked bytes
     const auto maxIterations =
             engine->getConfiguration()
-                    .getDcpConsumerProcessBufferedMessagesYieldLimit();
+                    .getDcpConsumerProcessUnackedBytesYieldLimit();
     const auto numItems = maxIterations + 1;
 
     const uint32_t opaque = 1;

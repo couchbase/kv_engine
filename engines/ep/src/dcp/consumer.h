@@ -321,8 +321,8 @@ public:
      */
     void scheduleNotifyIfNecessary();
 
-    void setProcessorYieldThreshold(size_t newValue) {
-        processBufferedMessagesYieldThreshold = newValue;
+    void setProcessUnackedBytesYieldLimit(size_t newValue) {
+        processUnackedBytesYieldLimit = newValue;
     }
 
     void setDisconnect() override;
@@ -630,14 +630,14 @@ protected:
 
     FlowControl flowControl;
 
-    // @todo MB-31869: remove
+    // @todo MB-60436: Review and possibly remove
     /**
-     * An upper bound on how many times drainStreamsBufferedItems will
-     * call into processBufferedMessages before returning and triggering
-     * Processor to yield. Initialised from the configuration
-     *  'dcp_consumer_process_buffered_messages_yield_limit'
+     * An upper bound on how many times drainStreamsUnakcedBytes will call
+     * call into processUnackedBytes before returning and triggering
+     * DcpConsumerTask to yield. Initialised from the configuration
+     * 'dcp_consumer_process_unacked_bytes_yield_limit'
      */
-    size_t processBufferedMessagesYieldThreshold;
+    size_t processUnackedBytesYieldLimit;
 
     /**
      * Whether this consumer should just sanitize invalid payloads in deletions

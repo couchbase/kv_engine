@@ -45,7 +45,7 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     // Note: these allocations are deleted by ~Configuration
     auto& config = engine.getConfiguration();
     config.addValueChangedListener(
-            "dcp_consumer_process_buffered_messages_yield_limit",
+            "dcp_consumer_process_unacked_bytes_yield_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
     config.addValueChangedListener(
             "dcp_idle_timeout",
@@ -444,7 +444,7 @@ DcpConnMap::DcpConfigChangeListener::DcpConfigChangeListener(DcpConnMap& connMap
 
 void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(std::string_view key,
                                                            size_t value) {
-    if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
+    if (key == "dcp_consumer_process_unacked_bytes_yield_limit") {
         myConnMap.consumerYieldConfigChanged(value);
     } else if (key == "dcp_idle_timeout") {
         myConnMap.idleTimeoutConfigChanged(value);
@@ -467,7 +467,7 @@ void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer) {
-            dcpConsumer->setProcessorYieldThreshold(newValue);
+            dcpConsumer->setProcessUnackedBytesYieldLimit(newValue);
         }
     }
 }

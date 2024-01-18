@@ -1156,9 +1156,9 @@
                 }
             }
         },
-        "dcp_consumer_process_buffered_messages_yield_limit" : {
+        "dcp_consumer_process_unacked_bytes_yield_limit" : {
             "default": "10",
-            "descr": "The number of processBufferedMessages iterations before forcing the task to yield.",
+            "descr": "The number of DcpConsumerTask iterations before forcing the task to yield.",
 	        "dynamic": true,
             "type": "size_t",
             "validator": {

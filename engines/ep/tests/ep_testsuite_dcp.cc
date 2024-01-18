@@ -7625,10 +7625,10 @@ static enum test_result test_set_dcp_param(EngineIface* h) {
         }
     };
 
-    func("dcp_consumer_process_buffered_messages_yield_limit",
+    func("dcp_consumer_process_unacked_bytes_yield_limit",
          1000,
          cb::engine_errc::success);
-    func("dcp_consumer_process_buffered_messages_yield_limit",
+    func("dcp_consumer_process_unacked_bytes_yield_limit",
          0,
          cb::engine_errc::invalid_arguments);
     return SUCCESS;
