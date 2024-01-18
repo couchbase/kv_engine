@@ -441,7 +441,7 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
         // the stream from the streams map as it has completed its lifetime.
         removeStream(vbucket);
 
-        // @todo MB-31869: Review once buffer removed
+        // @todo MB-60438: Review and possibly remove
         // Note we are potentially racing with the consumer buffering task
         // which may call setDead, so we don't call setDead here (that could be
         // state transition violation/exception), hence we just move out the
