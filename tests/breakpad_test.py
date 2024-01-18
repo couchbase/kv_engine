@@ -273,7 +273,8 @@ config = {"interfaces": [{"tag":"plain",
           "root" : os.path.abspath(args.source_root),
           "verbosity" : 2,
           "rbac_file" : os.path.abspath(rbac_file.name),
-          "logger" : { "filename" : test_temp_dir + "/log"}}
+          "logger" : { "filename" : test_temp_dir + "/log",
+                       "unit_test" : True }}
 config_json = json.dumps(config)
 
 # Need a temporary file which can be opened (a second time) by memcached,
