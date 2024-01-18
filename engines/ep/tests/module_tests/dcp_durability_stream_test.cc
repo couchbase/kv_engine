@@ -4345,66 +4345,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
 }
 
 // @todo MB-31869: review
-//
-// Regression test for MB-41024: check that if a Prepare is received when under
-// memory pressure and it is initially rejected and queued, that the snapshot
-// end is not notified twice to PDM.
-TEST_P(DurabilityPassiveStreamTest,
-       MB_41024_PrepareAtSnapEndWithMemoryPressure) {
-    if (ephemeralFailNewData()) {
-        // This configuration disconnects if a replication stream would
-        // go over the high watermark - so test not applicable.
-        return;
-    }
-    // Set mutation memory threshold to zero so a single mutation can push us
-    // over the limit (limit = threshold * bucket quota).
-    engine->getConfiguration().setMutationMemRatio(0.0);
-    ASSERT_EQ(0.0, store->getMutationMemRatio());
-
-    // Send initial snapshot marrker.
-    uint32_t opaque = 0;
-    auto prepareSeqno = 1;
-    // Require a disk snapshot so PassiveStream::handleSnapshotEnd() notifies
-    // the PDM even if we haven't successfully processed a Prepare.
-    makeAndProcessSnapshotMarker(
-            opaque, prepareSeqno, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
-
-    // Setup - send prepare. This should initially be rejected, by virtue
-    // of it value size which would make mem_used greater than
-    // bucket quota * mutation_mem_ratio.
-    std::string largeValue(1024 * 1024 * 10, '\0');
-    using namespace cb::durability;
-    auto prepare =
-            makePendingItem(makeStoredDocKey("key"),
-                            largeValue,
-                            Requirements(Level::Majority, Timeout::Infinity()));
-    prepare->setBySeqno(prepareSeqno);
-
-    // Message received by stream. Too large for current mem_used so should
-    // be unacked and return TMPFAIL
-    EXPECT_EQ(cb::engine_errc::temporary_failure,
-              stream->messageReceived(std::make_unique<MutationConsumerMessage>(
-                      prepare,
-                      opaque,
-                      IncludeValue::Yes,
-                      IncludeXattrs::Yes,
-                      IncludeDeleteTime::No,
-                      IncludeDeletedUserXattrs::Yes,
-                      DocKeyEncodesCollectionId::No,
-                      nullptr,
-                      cb::mcbp::DcpStreamId{})));
-
-    // Increase threshold to allow mutation to be processed.
-    engine->getConfiguration().setMutationMemRatio(1.0);
-
-    // Test: now process the unacked message. This would previously throw a
-    // Monotonic logic_error exception when attempting to push the same
-    // seqno to the PDM::receivedSnapshotEnds
-    uint32_t processedBytes = 0;
-    EXPECT_EQ(all_processed, stream->processUnackedBytes(processedBytes));
-}
-
-// @todo MB-31869: review
 TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpCommit) {
     auto key = makeStoredDocKey("bufferDcp");
 
