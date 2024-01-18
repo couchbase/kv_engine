@@ -7468,6 +7468,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
     // for variable keys:
     std::map<std::string_view, std::vector<std::regex> > statsPatterns{
             {"hash", {std::regex{"vb_0:histo_\\d+,\\d+"}}},
+            {"checkpoint", {std::regex{"vb_0:persistence-backup:[a-z_]+"}}},
+            {"checkpoint 0", {std::regex{"vb_0:persistence-backup:[a-z_]+"}}},
             {"kvtimings",
              {std::regex{"ro_[0-3]:readTime_\\d+,\\d+"},
               std::regex{"ro_[0-3]:readSize_\\d+,\\d+"},
