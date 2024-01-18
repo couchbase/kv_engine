@@ -32,10 +32,10 @@ static void log_handled_exception() {
 #endif
     // Attempt to get the exception's what() message.
     try {
-        static int tried_throw = 0;
+        static std::atomic_bool tried_throw = false;
         // try once to re-throw currently active exception (so we can print
         // its what() message).
-        if (tried_throw++ == 0) {
+        if (!tried_throw.exchange(true)) {
             throw;
         }
     } catch (const std::exception& e) {
