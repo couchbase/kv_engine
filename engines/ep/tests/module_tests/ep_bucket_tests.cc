@@ -312,83 +312,72 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
  * Test that the DCP processor returns a 'yield' return code when
  * working on a large enough buffer size.
  */
-TEST_F(SingleThreadedEPBucketTest, DISABLED_MB18452_yield_dcp_processor) {
+TEST_F(SingleThreadedEPBucketTest, DcpConsumerTaskYields) {
     // We need a replica VB
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
-    // Create a MockDcpConsumer
+    // Create Consumer and Stream
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+    EXPECT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid, 0));
 
-    // Add the stream
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
-
-    // The processUnackedItems should yield every N iterations.
-    // So add (n * yield + 1) messages and we should see
-    // processBufferedMessages return 'more_to_process' 'n' times and then
-    // 'all_processed' once.
-    const int n = 4;
-    const int yield =
-            engine->getConfiguration()
-                    .getDcpConsumerProcessBufferedMessagesYieldLimit();
-    const int numItems = n * yield;
-
-    // Force the stream to buffer rather than process messages immediately
+    // Force the stream to backoff on acking back bytes
     auto& config = engine->getConfiguration();
     config.setMutationMemRatio(0.0);
     ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
               engine->getKVBucket()->getReplicationThrottleStatus());
 
-    // 1. Add the first message, a snapshot marker.
-    consumer->snapshotMarker(/*opaque*/ 1,
-                             vbid,
-                             /*startseq*/ 0,
-                             /*endseq*/ numItems,
-                             /*flags*/ 0,
-                             /*HCS*/ {},
-                             /*maxVisibleSeqno*/ {});
+    auto stream = consumer->getVbucketStream(vbid);
+    ASSERT_EQ(0, stream->getUnackedBytes());
 
-    // 2. Now add the rest as mutations.
-    for (int ii = 1; ii <= numItems; ii++) {
-        const std::string key = "key" + std::to_string(ii);
-        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
-        std::string value = "value";
+    // Note: Adding a number of items that will require 2 DcpConsumerTask runs
+    //  for processing all the unacked bytes
+    const auto maxIterations =
+            engine->getConfiguration()
+                    .getDcpConsumerProcessBufferedMessagesYieldLimit();
+    const auto numItems = maxIterations + 1;
 
-        consumer->mutation(1 /*opaque*/,
-                           docKey,
-                           {(const uint8_t*)value.c_str(), value.length()},
-                           PROTOCOL_BINARY_RAW_BYTES, // datatype
-                           0, // cas
-                           vbid, // vbucket
-                           0, // flags
-                           ii, // bySeqno
-                           0, // revSeqno
-                           0, // exptime
-                           0, // locktime
-                           {}, // meta
-                           0); // nru
+    const uint32_t opaque = 1;
+    const std::string key = "key";
+    auto value = std::string(1024 * 1024, 'v');
+    for (size_t seqno = 1; seqno <= numItems; ++seqno) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->snapshotMarker(
+                          opaque, vbid, seqno, seqno, 0, {}, {}));
+
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->mutation(
+                          opaque,
+                          {key, DocKeyEncodesCollectionId::No},
+                          {(const uint8_t*)value.c_str(), value.length()},
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          0,
+                          vbid,
+                          0,
+                          seqno,
+                          0,
+                          0,
+                          0,
+                          {},
+                          0));
     }
+    EXPECT_EQ(numItems, store->getVBucket(vbid)->getHighSeqno());
 
-    // Check that all items + snap-marker were buffered
-    ASSERT_EQ(numItems + 1,
-              consumer->getVbucketStream(vbid)->getNumBufferItems());
-    // Unblock consumer
-    config.setMutationMemRatio(0.99);
+    // Check that items bytes were not acked
+    ASSERT_GT(stream->getUnackedBytes(), 0);
 
     // Get our target stream ready.
-    static_cast<MockDcpConsumer*>(consumer.get())
-            ->public_notifyVbucketReady(vbid);
+    consumer->public_notifyVbucketReady(vbid);
 
-    // 3. processBufferedItems returns more_to_process n times
-    for (int ii = 0; ii < n; ii++) {
-        EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
-    }
+    // Unblock consumer
+    config.setMutationMemRatio(1);
 
-    // 4. processBufferedItems returns a final all_processed
+    // First ConsumerTask run, processes unacked bytes for the first
+    // maxIteration mutations
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    // Second run, processes unacked bytes for the +1 extra mutation, all done
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
-    // Drop the stream
-    consumer->closeStream(/*opaque*/ 0, vbid);
+    consumer->closeStream(0, vbid);
 }
 
 /*
