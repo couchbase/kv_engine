@@ -1232,41 +1232,6 @@ void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
     }
 }
 
-bool PassiveStream::Buffer::empty() const {
-    std::lock_guard<std::mutex> lh(bufMutex);
-    return messages.empty();
-}
-
-void PassiveStream::Buffer::push(PassiveStream::Buffer::BufferType bufferItem) {
-    std::lock_guard<std::mutex> lg(bufMutex);
-    bytes += bufferItem.second;
-    messages.emplace_back(std::move(bufferItem));
-}
-
-void PassiveStream::Buffer::pop_front(const std::unique_lock<std::mutex>& lh) {
-    if (messages.empty()) {
-        return;
-    }
-    if (messages.front().first) {
-        bytes -= messages.front().second;
-    }
-
-    messages.pop_front();
-}
-
-PassiveStream::Buffer::BufferType PassiveStream::Buffer::moveFromFront(
-        const std::unique_lock<std::mutex>& lh) {
-    bytes -= messages.front().second;
-    return {std::move(messages.front().first), messages.front().second};
-}
-
-void PassiveStream::Buffer::moveToFront(
-        const std::unique_lock<std::mutex>& lh,
-        PassiveStream::Buffer::BufferType bufferItem) {
-    bytes += bufferItem.second;
-    messages.front().first = std::move(bufferItem.first);
-}
-
 std::string PassiveStream::Labeller::getLabel(const char* name) const {
     return fmt::format("PassiveStream({} {})::{}",
                        stream.getVBucket(),

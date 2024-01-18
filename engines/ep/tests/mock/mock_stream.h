@@ -315,10 +315,6 @@ public:
         return PassiveStream::processMessage(resp, enforceMemCheck);
     }
 
-    auto& getBufferMessages() const {
-        return buffer.messages;
-    }
-
     /**
      * Set a test hook which fires before PassiveStream transitions to dead in
      * the unbuffered case

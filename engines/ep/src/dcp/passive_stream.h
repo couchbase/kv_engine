@@ -126,11 +126,6 @@ public:
 
     static std::string to_string(StreamState st);
 
-    size_t getNumBufferItems() const {
-        std::lock_guard<std::mutex> lh(buffer.bufMutex);
-        return buffer.messages.size();
-    }
-
     /**
      * Inform the stream on the latest seqno successfully processed. The
      * function updates the stream's state in the case where that latest seqno
@@ -409,56 +404,6 @@ protected:
     // collections manifest. Send the collections manifest uid to the Active
     // which will decide if it can stream data to us.
     const Collections::ManifestUid vb_manifest_uid;
-
-    // @todo MB-31869: remove
-    struct Buffer {
-        bool empty() const;
-
-        // Buffer stores a pair, the DcpResponse and the 'pristine' ack size
-        // which is used for generating DCP buffer acknowledgement messages
-        using BufferType = std::pair<std::unique_ptr<DcpResponse>, uint32_t>;
-
-        void push(BufferType message);
-
-        /*
-         * Caller must of locked bufMutex and pass as lh (not asserted)
-         */
-        void pop_front(const std::unique_lock<std::mutex>& lh);
-
-        /**
-         * Obtain ownership of the "front" DcpResponse (and its ack size) by
-         * moving the unique_ptr out of the underlying std::deque. The deque
-         * size is not changed, but the deque now has an empty unique_ptr at
-         * the front. This allows for the caller to abort and use moveToFront to
-         * put the DcpResponse back in the queue at the front.
-         *
-         * This call will also decrement the Buffer::bytes member
-         *
-         * @param lh Caller must lock bufMutex and provide a lock holder as
-         *        evidence of doing so.
-         * @return BufferType with the message.front() DcpResponse and ack size
-         */
-        BufferType moveFromFront(const std::unique_lock<std::mutex>& lh);
-
-        /*
-         * Effectively undo the effect of moveFromFront by moving back the
-         * DcpResponse to the front of the std::deque. The size of the deque is
-         * left unchanged.
-         *
-         * @param lh Caller must lock bufMutex and provide a lock holder as
-         *        evidence of doing so.
-         * @param bufferItem put back on the front of the queue the pair of
-         *        DcpResponse and ack size
-         */
-        void moveToFront(const std::unique_lock<std::mutex>& lh,
-                         PassiveStream::Buffer::BufferType bufferItem);
-
-        size_t bytes{0};
-        /* Lock ordering w.r.t to streamMutex:
-           First acquire bufMutex and then streamMutex */
-        mutable std::mutex bufMutex;
-        std::deque<BufferType> messages;
-    } buffer;
 
     // This accounts received bytes of DCP messages processed in OOM state.
     // Those messages are queued into the Checkpoints but bytes not acked back
