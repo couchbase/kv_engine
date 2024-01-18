@@ -4430,10 +4430,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 }
 
-// @todo MB-31869: review
-TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
-    auto key = makeStoredDocKey("bufferDcp");
-
+TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
     // Messages go into the consumer so we update flow-control
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(stream->getOpaque(),
@@ -4449,6 +4446,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value),
               ackBytes);
+    auto key = makeStoredDocKey("bufferDcp");
     EXPECT_EQ(cb::engine_errc::success,
               consumer->prepare(stream->getOpaque(),
                                 key,
@@ -4470,7 +4468,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
                 sizeof(cb::mcbp::request::DcpPreparePayload) + key.size() + 2;
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
-    // Force consumer to buffer
+    // Force consumer to backoff on acking bytes
     auto& config = engine->getConfiguration();
     config.setMutationMemRatio(0.0);
     auto& stats = engine->getEpStats();
@@ -4479,7 +4477,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     ASSERT_EQ(KVBucket::ReplicationThrottleStatus::Pause,
               engine->getKVBucket()->getReplicationThrottleStatus());
 
-    // Now buffer abort
+    // Receive the Abort
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(stream->getOpaque(),
                                        vbid,
@@ -4489,7 +4487,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
                                        0,
                                        0));
 
-    // No change, snapshot is now buffered
+    // No change, marker hasn't been acked
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -4499,18 +4497,18 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
                               1 /*prepare*/,
                               2 /*abort*/));
 
-    // No change, commit is now buffered
+    // No change, abort hasn't been acked
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
-    // undo the adjustments so that processing of buffered items will work
-    config.setMutationMemRatio(0.99);
+    // Recover from OOM
+    config.setMutationMemRatio(1);
     engine->getEpStats().setMaxDataSize(size);
 
-    // And process buffered items
+    // And process unacked bytes
     EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
-    // Snapshot and commit processed
+    // Marker and Commit bytes acked
     ackBytes += sizeof(protocol_binary_request_header) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
