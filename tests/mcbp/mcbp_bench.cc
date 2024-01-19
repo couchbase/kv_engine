@@ -94,3 +94,22 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
 BENCHMARK_REGISTER_F(McbpValidatorBench, GetBench);
 BENCHMARK_REGISTER_F(McbpValidatorBench, SetBench);
 BENCHMARK_REGISTER_F(McbpValidatorBench, AddBench);
+
+int main(int argc, char** argv) {
+    using namespace std::string_view_literals;
+    cb::rbac::initialize();
+    cb::rbac::createPrivilegeDatabase(R"({  "unknown": {
+    "buckets": {
+      "*": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "all"
+    ],
+    "domain": "local"
+  }})"sv);
+
+    ::benchmark::Initialize(&argc, argv);
+    ::benchmark::RunSpecifiedBenchmarks();
+}

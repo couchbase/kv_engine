@@ -9,6 +9,7 @@
  */
 #include <memcached/rbac.h>
 
+#include <fmt/format.h>
 #include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
@@ -627,7 +628,11 @@ PrivilegeContext createInitialContext(const UserIdent& user) {
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
-    const auto content = cb::io::loadFile(filename, std::chrono::seconds{5});
+    createPrivilegeDatabase(
+            cb::io::loadFile(filename, std::chrono::seconds{5}));
+}
+
+void createPrivilegeDatabase(std::string_view content) {
     std::unique_ptr<PrivilegeDatabase> database;
     std::string error;
 
@@ -638,9 +643,8 @@ void loadPrivilegeDatabase(const std::string& filename) {
     // throw std::invalid_argument), and runtime_error to make sure we push
     // the content of the database to the caller.
     try {
-        nlohmann::json json;
-        json = nlohmann::json::parse(content);
-        database = std::make_unique<PrivilegeDatabase>(json, Domain::Local);
+        database = std::make_unique<PrivilegeDatabase>(
+                nlohmann::json::parse(content), Domain::Local);
     } catch (nlohmann::json::exception& e) {
         error = e.what();
     } catch (const std::logic_error& e) {
@@ -650,15 +654,13 @@ void loadPrivilegeDatabase(const std::string& filename) {
     }
 
     if (!error.empty()) {
-        std::stringstream ss;
-        ss << "Failed to parse RBAC database: " << error << std::endl
-           << cb::userdataStartTag << "RBAC database content: " << std::endl
-           << "===========================================" << std::endl
-           << content << std::endl
-           << "===========================================" << std::endl
-           << cb::userdataEndTag;
-
-        throw std::runtime_error(ss.str());
+        throw std::runtime_error(
+                fmt::format("Failed to parse RBAC database: {}. RBAC database "
+                            "content: {}{}{}",
+                            error,
+                            cb::userdataStartTag,
+                            content,
+                            cb::userdataEndTag));
     }
 
     auto& ctx = contexts[to_index(Domain::Local)];

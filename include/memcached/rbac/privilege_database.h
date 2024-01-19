@@ -558,6 +558,14 @@ PrivilegeContext createInitialContext(const UserIdent& user);
 void loadPrivilegeDatabase(const std::string& filename);
 
 /**
+ * Create a (local) privilege database based on the provided content
+ *
+ * @param content The JSON representation for the privilege database
+ * @throws std::runtime_error
+ */
+void createPrivilegeDatabase(std::string_view content);
+
+/**
  * Check if the specified user have access to the specified bucket
  */
 bool mayAccessBucket(const UserIdent& user, const std::string& bucket);

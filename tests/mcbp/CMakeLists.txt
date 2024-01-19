@@ -34,5 +34,5 @@ cb_add_test_executable(memcached_mcbp_bench mcbp_bench.cc)
 kv_enable_pch(memcached_mcbp_bench)
 target_link_libraries(memcached_mcbp_bench PRIVATE
                       memcached_daemon
-                      benchmark::benchmark benchmark::benchmark_main)
+                      benchmark::benchmark)
 add_sanitizers(memcached_mcbp_bench)
