@@ -54,13 +54,16 @@ class bcolors:
 # one for the main release train and one for each set of branches for MPs.
 sequences = {
     'couchstore': [
-         [('couchbase/neo', 'couchbase/master')]
+        [('couchbase/trinity', 'couchbase/master')],
+        [('couchbase/neo', 'couchbase/trinity')]
     ],
 
     'kv_engine': [
         # main kv_engine release train sequence
-        [('couchbase/neo',
-          'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/master')],
+
+        [('couchbase/neo', 'couchbase/trinity')],
+
         # kv_engine 7.1.x release train; one branch for each
         # maintenance release which required subsequent maintenance
         # patches, finishing in neo branch.
@@ -74,7 +77,9 @@ sequences = {
 
     'platform': [
         # main platform release train
-        [('couchbase/neo', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/master')],
+
+        [('couchbase/neo', 'couchbase/trinity')],
 
         # platform 7.1.x maintenance train
         [('couchbase/7.1.4', 'couchbase/neo')],
