@@ -12,7 +12,7 @@
  * Tests that check certain events make it into the audit log.
  */
 
-#include "testapp.h"
+#include "testapp_audit.h"
 
 #include "testapp_client_test.h"
 #include <auditd/couchbase_audit_events.h>
@@ -25,72 +25,50 @@
 #include <string>
 #include <thread>
 
-class AuditTest : public TestappClientTest {
-public:
-    void SetUp() override {
-        TestappClientTest::SetUp();
-        reconfigure_client_cert_auth("disabled", "", "", "");
-        auto logdir = mcd_env->getAuditLogDir();
-        std::filesystem::remove_all(logdir);
-        std::filesystem::create_directories(logdir);
-        setEnabled(true);
+void AuditTest::SetUp() {
+    TestappClientTest::SetUp();
+    reconfigure_client_cert_auth("disabled", "", "", "");
+    auto logdir = mcd_env->getAuditLogDir();
+    std::filesystem::remove_all(logdir);
+    std::filesystem::create_directories(logdir);
+    setEnabled(true);
+}
+
+void AuditTest::TearDown() {
+    reconfigure_client_cert_auth("disabled", "", "", "");
+    setEnabled(false);
+    std::filesystem::create_directories(mcd_env->getAuditLogDir());
+    TestappClientTest::TearDown();
+}
+
+void AuditTest::setEnabled(bool mode) {
+    auto& json = mcd_env->getAuditConfig();
+    json["auditd_enabled"] = mode;
+    json["filtering_enabled"] = true;
+    json["disabled_userids"][0] = {
+            {"domain", to_string(cb::rbac::Domain::Local)},
+            {"user", "MB33603"}};
+    json["disabled_userids"][1] = {
+            {"domain", to_string(cb::rbac::Domain::Local)}, {"user", "Jane"}};
+
+    json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_READ)] =
+            "enabled";
+    json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_MODIFY)] =
+            "enabled";
+    json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_DELETE)] =
+            "enabled";
+
+    reconfigureAudit();
+}
+
+void AuditTest::reconfigureAudit() {
+    try {
+        mcd_env->rewriteAuditConfig();
+    } catch (std::exception& e) {
+        FAIL() << "Failed to toggle audit state: " << e.what();
     }
-
-    void TearDown() override {
-        reconfigure_client_cert_auth("disabled", "", "", "");
-        setEnabled(false);
-        std::filesystem::create_directories(mcd_env->getAuditLogDir());
-        TestappClientTest::TearDown();
-    }
-
-    void setEnabled(bool mode) {
-        auto& json = mcd_env->getAuditConfig();
-        json["auditd_enabled"] = mode;
-        json["filtering_enabled"] = true;
-        json["disabled_userids"][0] = {
-                {"domain", to_string(cb::rbac::Domain::Local)},
-                {"user", "MB33603"}};
-        json["disabled_userids"][1] = {
-                {"domain", to_string(cb::rbac::Domain::Local)},
-                {"user", "Jane"}};
-
-        json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_READ)] =
-                "enabled";
-        json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_MODIFY)] =
-                "enabled";
-        json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_DELETE)] =
-                "enabled";
-
-        reconfigureAudit();
-    }
-
-    void reconfigureAudit() {
-        try {
-            mcd_env->rewriteAuditConfig();
-        } catch (std::exception& e) {
-            FAIL() << "Failed to toggle audit state: " << e.what();
-        }
-        adminConnection->reloadAuditConfiguration();
-    }
-
-    std::vector<nlohmann::json> readAuditData();
-
-    std::vector<nlohmann::json> splitJsonData(const std::string& input);
-
-    bool searchAuditLogForID(int id,
-                             const std::string& username = "",
-                             const std::string& bucketname = "");
-
-    /**
-     * Iterate over all of the entries found in the log file(s) over and
-     * over until the callback method returns false.
-     *
-     * @param callback the callback containing the audit event
-     */
-    void iterate(const std::function<bool(const nlohmann::json&)>& callback);
-
-    int getAuditCount(const std::vector<nlohmann::json>& entries, int id);
-};
+    adminConnection->reloadAuditConfiguration();
+}
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          AuditTest,

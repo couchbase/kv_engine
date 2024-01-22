@@ -23,9 +23,13 @@ cb::sasl::Domain cb::sasl::to_domain(std::string_view domain) {
     using namespace std::string_view_literals;
     if (domain == "local"sv || domain == "builtin"sv ||
         domain == "couchbase"sv) {
-        return cb::sasl::Domain::Local;
-    } else if (domain == "external") {
-        return cb::sasl::Domain::External;
+        return Domain::Local;
+    }
+    if (domain == "external") {
+        return Domain::External;
+    }
+    if (domain == "unknown") {
+        return Domain::Unknown;
     }
     throw std::invalid_argument(
             fmt::format("cb::sasl::to_domain: invalid domain: {}", domain));
@@ -37,6 +41,8 @@ std::string to_string(cb::sasl::Domain domain) {
         return "local";
     case cb::sasl::Domain::External:
         return "external";
+    case cb::sasl::Domain::Unknown:
+        return "unknown";
     }
     throw std::invalid_argument("cb::sasl::to_string: invalid domain " +
                                 std::to_string(int(domain)));

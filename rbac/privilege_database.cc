@@ -129,6 +129,9 @@ static int to_index(Domain domain) {
         return 0;
     case Domain::External:
         return 1;
+    case Domain::Unknown:
+        throw std::logic_error(
+                "to_index(): Using Unkown domain don't make sense");
     }
 
     throw std::invalid_argument("to_index(): Invalid domain provided");

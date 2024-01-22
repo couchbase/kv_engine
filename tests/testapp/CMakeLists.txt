@@ -25,6 +25,7 @@ set(memcached_testapp_SOURCES
     testapp.h
     testapp_arithmetic.cc
     testapp_audit.cc
+    testapp_audit.h
     testapp_binprot.cc
     testapp_binprot.h
     testapp_bucket.cc

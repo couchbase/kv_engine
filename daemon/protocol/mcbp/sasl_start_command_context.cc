@@ -53,6 +53,8 @@ cb::engine_errc SaslStartCommandContext::initial() {
                 // AUTH service
                 if (error == cb::sasl::Error::NO_USER &&
                     Settings::instance().isExternalAuthServiceEnabled()) {
+                    connection.getSaslServerContext()->setDomain(
+                            cb::sasl::Domain::External);
                     task = std::make_shared<StartSaslAuthTask>(
                             cookie,
                             *connection.getSaslServerContext(),

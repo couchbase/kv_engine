@@ -30,7 +30,9 @@ enum class Domain : uint8_t {
      * The user is defined somewhere else but authenticated through
      * `saslauthd`
      */
-    External
+    External,
+    /// The domain is unknown
+    Unknown,
 };
 
 Domain to_domain(std::string_view domain);

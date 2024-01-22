@@ -10,8 +10,10 @@
 
 #include "auth_provider.h"
 #include "testapp.h"
+#include "testapp_audit.h"
 #include "testapp_client_test.h"
 
+#include <auditd/couchbase_audit_events.h>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memory>
@@ -416,4 +418,50 @@ TEST_P(ExternalAuthTest, TestErrorIncludeLdapInfo) {
                 "selected authentication mechanism.";
         EXPECT_EQ(blueprint, message);
     }
+}
+
+TEST_P(ExternalAuthTest, TestExternalAuthAudit) {
+    auto logdir = mcd_env->getAuditLogDir();
+    std::filesystem::remove_all(logdir);
+    std::filesystem::create_directories(logdir);
+
+    auto& json = mcd_env->getAuditConfig();
+    json["auditd_enabled"] = true;
+    json["event_states"]
+        [std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)] = "enabled";
+    AuditTest::reconfigureAudit();
+
+    auto& conn = getConnection();
+
+    BinprotSaslAuthCommand saslAuthCommand;
+    saslAuthCommand.setChallenge({"\0TestExternalAuthAudit\0password", 31});
+    saslAuthCommand.setMechanism("PLAIN");
+    conn.sendCommand(saslAuthCommand);
+
+    stepAuthProvider();
+
+    // Now read out the response from the client
+    BinprotResponse response;
+    conn.recvResponse(response);
+    EXPECT_FALSE(response.isSuccess());
+    EXPECT_EQ(cb::mcbp::Status::AuthError, response.getStatus());
+
+    // Audit is async.. so we need to wait for the audit to appear..
+    bool found = false;
+    AuditTest::iterate([&found](const nlohmann::json& entry) -> bool {
+        if (entry.value("id", 0) == MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
+            EXPECT_EQ("external",
+                      entry["real_userid"]["domain"].get<std::string>());
+            EXPECT_EQ("TestExternalAuthAudit",
+                      entry["real_userid"]["user"].get<std::string>());
+            found = true;
+            return true;
+        }
+        return false;
+    });
+
+    EXPECT_TRUE(found) << "Timed out waiting for log entry to appear";
+    found = false;
+    json["auditd_enabled"] = false;
+    AuditTest::reconfigureAudit();
 }
