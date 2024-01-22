@@ -105,6 +105,10 @@ protected:
             return {std::move(name), cb::rbac::Domain::External};
         }
 
+        if (str == "unknown"sv) {
+            return {std::move(name), cb::rbac::Domain::Unknown};
+        }
+
         throw std::runtime_error(fmt::format(
                 "userIdentFromString: invalid domain privided: {}", str));
     }

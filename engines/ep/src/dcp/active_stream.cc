@@ -1650,12 +1650,21 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
 
-        // Pin the snapshot start seqno to the checkpoint's start seqno if this
-        // a checkpoint snapshot. But only do this if there's a gap in the seqno
-        // range between the last snapshot's endSeqno and this snapshot's
-        // startSeqno
+        // MB-50333: Pin the snapshot start seqno to the start seqno of the
+        // checkpoint that the items we are processing belong to.
+        // MB-50543: Since AS::snapshot() can pick up items from a previous
+        // checkpoint, starting after the start seqno, and also items from the
+        // next checkpoint in one go, we need to check whether we've already
+        // sent the snapshot marker for the previous checkpoint, which would end
+        // at a higher seqno.
         if (nextSnapshotIsCheckpoint && nextSnapStart > lastSentSnapEndSeqno) {
-            snapStart = nextSnapStart;
+            // MB-59759: We should consider the requested snap_start_seqno_, as
+            // when a stream starts in the middle of a checkpoint and all items
+            // up to that point have been deduped or expelled, the checkpoint
+            // start seqno can be before the snapshot at the consumer, causing
+            // failures in the consumer (see monotonics in
+            // PassiveStream::reconnectStream).
+            snapStart = std::max(snap_start_seqno_, nextSnapStart);
         }
 
         /*

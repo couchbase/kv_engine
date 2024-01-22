@@ -28,6 +28,9 @@ TEST(AuditEventFilterTest, CreateFromJson) {
       "filter_out": {
         "user/couchbase": [
           20482
+        ],
+        "user2/unknown": [
+          20482
         ]
       }
     }
@@ -41,6 +44,9 @@ TEST(AuditEventFilterTest, CreateFromJson) {
     "filter_out": {
       "user/couchbase": [
         20480
+      ],
+      "user2/unknown": [
+        20480
       ]
     }
   }
@@ -52,17 +58,25 @@ TEST(AuditEventFilterTest, CreateFromJson) {
 
     EXPECT_TRUE(filter->isFilteredOut(
             20480, {"user", cb::rbac::Domain::Local}, {}, {}, {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            20480, {"user2", cb::rbac::Domain::Unknown}, {}, {}, {}, {}));
     EXPECT_FALSE(filter->isFilteredOut(
             20480, {"user", cb::rbac::Domain::External}, {}, {}, {}, {}));
     EXPECT_FALSE(filter->isFilteredOut(
             20481, {"user", cb::rbac::Domain::Local}, {}, {}, {}, {}));
     EXPECT_FALSE(filter->isFilteredOut(
             20482, {"user", cb::rbac::Domain::Local}, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20481, {"user2", cb::rbac::Domain::Unknown}, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20482, {"user2", cb::rbac::Domain::Unknown}, {}, {}, {}, {}));
 
     // Verify that we fall back to the default bucket if we don't have a match
     // for the given bucket
     EXPECT_TRUE(filter->isFilteredOut(
             20480, {"user", cb::rbac::Domain::Local}, {}, "bucket", {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            20480, {"user2", cb::rbac::Domain::Unknown}, {}, "bucket", {}, {}));
     EXPECT_FALSE(filter->isFilteredOut(
             20480, {"user", cb::rbac::Domain::External}, {}, "bucket", {}, {}));
     EXPECT_FALSE(filter->isFilteredOut(
@@ -77,6 +91,18 @@ TEST(AuditEventFilterTest, CreateFromJson) {
             20481, {"user", cb::rbac::Domain::Local}, &euid, "bucket", {}, {}));
     EXPECT_FALSE(filter->isFilteredOut(
             20482, {"user", cb::rbac::Domain::Local}, &euid, "bucket", {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(20481,
+                                       {"user2", cb::rbac::Domain::Unknown},
+                                       &euid,
+                                       "bucket",
+                                       {},
+                                       {}));
+    EXPECT_FALSE(filter->isFilteredOut(20482,
+                                       {"user2", cb::rbac::Domain::Unknown},
+                                       &euid,
+                                       "bucket",
+                                       {},
+                                       {}));
 
     // Verify that we pick the bucket specific config
     EXPECT_FALSE(filter->isFilteredOut(
