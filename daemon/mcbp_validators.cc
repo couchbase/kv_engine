@@ -149,6 +149,135 @@ static Status setCurrentCollectionInfo(Cookie& cookie, CollectionID cid) {
     return Status::Success;
 }
 
+static Status parseFrameExtras(Cookie& cookie,
+                               const cb::mcbp::Request& request) {
+    Status status = Status::Success;
+    auto opcode = request.getClientOpcode();
+    try {
+        request.parseFrameExtras([&status, &cookie, &opcode](
+                                         cb::mcbp::request::FrameInfoId id,
+                                         cb::const_byte_buffer data) -> bool {
+            switch (id) {
+            case cb::mcbp::request::FrameInfoId::Barrier:
+                if (!data.empty()) {
+                    cookie.setErrorContext("Barrier should not contain value");
+                    status = Status::Einval;
+                    // terminate parsing
+                    return false;
+                } else {
+                    cookie.setBarrier();
+                }
+                return true;
+            case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
+                try {
+                    cb::durability::Requirements req(data);
+                    if (!req.isValid()) {
+                        status = Status::Einval;
+                        cookie.setErrorContext(
+                                "Invalid durability requirements");
+                        return false;
+                    }
+                    if (!cb::mcbp::is_durability_supported(opcode)) {
+                        status = Status::Einval;
+                        cookie.setErrorContext(
+                                R"(The requested command does not support durability requirements)");
+                        // terminate parsing
+                        return false;
+                    }
+                    cookie.setDurable();
+                    return true;
+                } catch (const std::exception& exception) {
+                    // According to the spec the size may be 1 byte
+                    // indicating the level and 2 optional bytes indicating
+                    // the timeout.
+                    if (data.size() == 1 || data.size() == 3) {
+                        status = Status::DurabilityInvalidLevel;
+                    } else {
+                        status = Status::Einval;
+                    }
+                    std::string msg(exception.what());
+                    // trim off the exception prefix
+                    const std::string prefix{"Requirements(): "};
+                    if (msg.find(prefix) == 0) {
+                        msg = msg.substr(prefix.size());
+                    }
+                    cookie.setErrorContext(msg);
+                    return false;
+                }
+            case cb::mcbp::request::FrameInfoId::DcpStreamId:
+                if (data.size() != sizeof(cb::mcbp::DcpStreamId)) {
+                    status = Status::Einval;
+                    cookie.setErrorContext("DcpStreamId invalid size:" +
+                                           std::to_string(data.size()));
+                    return false;
+                }
+                return true;
+            case cb::mcbp::request::FrameInfoId::Impersonate:
+                if (data.empty()) {
+                    cookie.setErrorContext("Impersonated user must be set");
+                    status = Status::Einval;
+                    // terminate parsing
+                    return false;
+                }
+
+                if (data.front() == '^') {
+                    status = cookie.setEffectiveUser(
+                            {std::string{reinterpret_cast<const char*>(
+                                                 data.data() + 1),
+                                         data.size() - 1},
+                             cb::rbac::Domain::External});
+                } else {
+                    status = cookie.setEffectiveUser(
+                            {std::string{
+                                     reinterpret_cast<const char*>(data.data()),
+                                     data.size()},
+                             cb::rbac::Domain::Local});
+                }
+
+                return status == Status::Success;
+            case cb::mcbp::request::FrameInfoId::PreserveTtl:
+                if (data.empty()) {
+                    if (cb::mcbp::is_preserve_ttl_supported(opcode)) {
+                        cookie.setPreserveTtl(true);
+                    } else {
+                        status = Status::NotSupported;
+                        cookie.setErrorContext(
+                                "This command does not support PreserveTtl");
+                    }
+                } else {
+                    status = Status::Einval;
+                    cookie.setErrorContext(
+                            "PreserveTtl should not contain value");
+                }
+                return status == Status::Success;
+            case cb::mcbp::request::FrameInfoId::ImpersonateExtraPrivilege:
+                if (data.empty()) {
+                    cookie.setErrorContext("Privilege name must be set");
+                    status = Status::Einval;
+                    return false;
+                }
+                try {
+                    cookie.addImposedUserExtraPrivilege(
+                            cb::rbac::to_privilege(std::string{
+                                    reinterpret_cast<const char*>(data.data()),
+                                    data.size()}));
+                } catch (const std::invalid_argument&) {
+                    cookie.setErrorContext("Failed to look up the privilege");
+                    status = Status ::Einval;
+                    return false;
+                }
+                return true; // continue parsing
+            } // switch (id)
+            status = Status::UnknownFrameInfo;
+            return false;
+        });
+    } catch (const std::overflow_error&) {
+        cookie.setErrorContext("Invalid encoding in FrameExtras");
+        return Status::Einval;
+    }
+    return status;
+}
+
 /**
  * Verify the header meets basic sanity checks and fields length
  * match the provided expected lengths.
@@ -281,140 +410,18 @@ Status McbpValidator::verify_header(Cookie& cookie,
         return Status::XattrEinval;
     }
 
-    // Validate the frame id's
-    auto status = Status::Success;
-    auto opcode = request.getClientOpcode();
-
-    try {
-        request.parseFrameExtras([&status, &cookie, &opcode](
-                                         cb::mcbp::request::FrameInfoId id,
-                                         cb::const_byte_buffer data) -> bool {
-            switch (id) {
-            case cb::mcbp::request::FrameInfoId::Barrier:
-                if (!data.empty()) {
-                    cookie.setErrorContext("Barrier should not contain value");
-                    status = Status::Einval;
-                    // terminate parsing
-                    return false;
-                } else {
-                    cookie.setBarrier();
-                }
-                return true;
-            case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
-                try {
-                    cb::durability::Requirements req(data);
-                    if (!req.isValid()) {
-                        status = Status::Einval;
-                        cookie.setErrorContext(
-                                "Invalid durability requirements");
-                        return false;
-                    }
-                    if (!cb::mcbp::is_durability_supported(opcode)) {
-                        status = Status::Einval;
-                        cookie.setErrorContext(
-                                R"(The requested command does not support durability requirements)");
-                        // terminate parsing
-                        return false;
-                    }
-                    cookie.setDurable();
-                    return true;
-                } catch (const std::exception& exception) {
-                    // According to the spec the size may be 1 byte
-                    // indicating the level and 2 optional bytes indicating
-                    // the timeout.
-                    if (data.size() == 1 || data.size() == 3) {
-                        status = Status::DurabilityInvalidLevel;
-                    } else {
-                        status = Status::Einval;
-                    }
-                    std::string msg(exception.what());
-                    // trim off the exception prefix
-                    const std::string prefix{"Requirements(): "};
-                    if (msg.find(prefix) == 0) {
-                        msg = msg.substr(prefix.size());
-                    }
-                    cookie.setErrorContext(msg);
-                    return false;
-                }
-            case cb::mcbp::request::FrameInfoId::DcpStreamId:
-                if (data.size() != sizeof(cb::mcbp::DcpStreamId)) {
-                    status = Status::Einval;
-                    cookie.setErrorContext("DcpStreamId invalid size:" +
-                                           std::to_string(data.size()));
-                    return false;
-                }
-                return true;
-            case cb::mcbp::request::FrameInfoId::Impersonate:
-                if (data.empty()) {
-                    cookie.setErrorContext("Impersonated user must be set");
-                    status = Status::Einval;
-                    // terminate parsing
-                    return false;
-                }
-
-                if (data.front() == '^') {
-                    status = cookie.setEffectiveUser(
-                            {std::string{reinterpret_cast<const char*>(
-                                                 data.data() + 1),
-                                         data.size() - 1},
-                             cb::rbac::Domain::External});
-                } else {
-                    status = cookie.setEffectiveUser(
-                            {std::string{
-                                     reinterpret_cast<const char*>(data.data()),
-                                     data.size()},
-                             cb::rbac::Domain::Local});
-                }
-
-                return status == Status::Success;
-            case cb::mcbp::request::FrameInfoId::PreserveTtl:
-                if (data.empty()) {
-                    if (cb::mcbp::is_preserve_ttl_supported(opcode)) {
-                        cookie.setPreserveTtl(true);
-                    } else {
-                        status = Status::NotSupported;
-                        cookie.setErrorContext(
-                                "This command does not support PreserveTtl");
-                    }
-                } else {
-                    status = Status::Einval;
-                    cookie.setErrorContext(
-                            "PreserveTtl should not contain value");
-                }
-                return status == Status::Success;
-            case cb::mcbp::request::FrameInfoId::ImpersonateExtraPrivilege:
-                if (data.empty()) {
-                    cookie.setErrorContext("Privilege name must be set");
-                    status = Status::Einval;
-                    return false;
-                }
-                try {
-                    cookie.addImposedUserExtraPrivilege(
-                            cb::rbac::to_privilege(std::string{
-                                    reinterpret_cast<const char*>(data.data()),
-                                    data.size()}));
-                } catch (const std::invalid_argument&) {
-                    cookie.setErrorContext("Failed to look up the privilege");
-                    status = Status ::Einval;
-                    return false;
-                }
-                return true; // continue parsing
-            } // switch (id)
-            status = Status::UnknownFrameInfo;
-            return false;
-        });
-    } catch (const std::overflow_error&) {
-        status = Status::Einval;
-        cookie.setErrorContext("Invalid encoding in FrameExtras");
+    // Validate the frame id's?
+    if (!request.getFramingExtras().empty()) {
+        auto status = parseFrameExtras(cookie, request);
+        if (status != Status::Success) {
+            return status;
+        }
     }
 
     if (generates_dockey == GeneratesDocKey::Yes &&
         !is_document_key_valid(cookie)) {
-        status = cb::mcbp::Status::Einval;
-    }
-
-    if (status != Status::Success) {
-        return status;
+        // setErrorContext done within is_document_key_valid
+        return cb::mcbp::Status::Einval;
     }
 
     // We need to set the scope and collection identifiers into the Cookie
@@ -444,7 +451,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         cb::mcbp::is_collection_command(request.getClientOpcode()) &&
         (cookie.getPrivilegeContext().hasScopePrivileges() ||
          cookie.getEffectiveUser() || cb::serverless::isEnabled())) {
-        status = setCurrentCollectionInfo(
+        auto status = setCurrentCollectionInfo(
                 cookie, cookie.getRequestKey().getCollectionID());
         if (status != Status::Success) {
             return status;
@@ -454,7 +461,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
     const auto ingress_status =
             connection.getBucket().data_ingress_status.load();
     if (ingress_status != cb::mcbp::Status::Success &&
-        cb::mcbp::is_client_writing_data(opcode)) {
+        cb::mcbp::is_client_writing_data(request.getClientOpcode())) {
         return ingress_status;
     }
 
