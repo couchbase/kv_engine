@@ -12,12 +12,25 @@
 #include "testapp_client_test.h"
 #include <xattr/utils.h>
 
-class DcpConsumerAckTest : public TestappTest,
-                           public ::testing::WithParamInterface<
-                                   ::testing::tuple<TransportProtocols,
-                                                    XattrSupport,
-                                                    ClientJSONSupport,
-                                                    ClientSnappySupport>> {
+enum class OutOfMem { Yes, No };
+
+std::string to_string(OutOfMem value) {
+    switch (value) {
+    case OutOfMem::Yes:
+        return "OutOfMemYes";
+    case OutOfMem::No:
+        return "OutOfMemNo";
+    }
+    folly::assume_unreachable();
+}
+
+class DcpConsumerAckTest
+    : public TestappTest,
+      public ::testing::WithParamInterface<::testing::tuple<TransportProtocols,
+                                                            XattrSupport,
+                                                            ClientJSONSupport,
+                                                            ClientSnappySupport,
+                                                            OutOfMem>> {
 public:
     static void SetUpTestCase() {
         if (mcd_env->getTestBucket().getName() == "default_engine") {
@@ -29,7 +42,8 @@ public:
         TestappTest::doSetUpTestCaseWithConfiguration(
                 generate_config(),
                 "dcp_consumer_control_enabled=true;"
-                "dcp_consumer_buffer_ratio=0.0");
+                "dcp_consumer_buffer_ratio=0.0;"
+                "dcp_consumer_flow_control_ack_ratio=0.0");
     }
     void SetUp() override {
         if (mcd_env->getTestBucket().getName() == "default_engine") {
@@ -51,12 +65,14 @@ public:
         // vbucket must be replica for addStream
         conn->setVbucket(Vbid{0}, vbucket_state_replica, {/*no json*/});
 
-        setupConsumer(
-                *conn,
-                "replication:" + std::string(::testing::UnitTest::GetInstance()
-                                                     ->current_test_info()
-                                                     ->name()),
-                {});
+        auto& bucket = mcd_env->getTestBucket();
+        if (testOutOfMem()) {
+            bucket.setMutationMemRatio(*conn, "0.0");
+        } else {
+            bucket.setMutationMemRatio(*conn, "1.0");
+        }
+
+        setupConsumer(*conn, "replication:test_consumer", {});
         setupConsumerStream(*conn, Vbid(0), {{0xdeadbeefull, 0}});
 
         // Setup a Document
@@ -188,6 +204,17 @@ public:
         return ::testing::get<3>(GetParam()) == ClientSnappySupport::Yes;
     }
 
+    bool testOutOfMem() const {
+        return ::testing::get<4>(GetParam()) == OutOfMem::Yes;
+    }
+
+    size_t getUnackedBytes() const {
+        const auto dcpStats = conn->stats("dcp");
+        const auto statName =
+                "eq_dcpq:replication:test_consumer:stream_0_unacked_bytes";
+        return dcpStats[statName].get<size_t>();
+    }
+
     static uint64_t nextSeqno() {
         return seqno++;
     }
@@ -206,15 +233,18 @@ uint64_t DcpConsumerAckTest::seqno{1};
 uint64_t DcpConsumerAckTest::cas{1};
 
 struct ToStringCombinedTestName {
-    std::string operator()(const ::testing::TestParamInfo<
-                           ::testing::tuple<TransportProtocols,
-                                            XattrSupport,
-                                            ClientJSONSupport,
-                                            ClientSnappySupport>>& info) const {
+    std::string operator()(
+            const ::testing::TestParamInfo<::testing::tuple<TransportProtocols,
+                                                            XattrSupport,
+                                                            ClientJSONSupport,
+                                                            ClientSnappySupport,
+                                                            OutOfMem>>& info)
+            const {
         std::string rv = to_string(::testing::get<0>(info.param)) + "_" +
                          to_string(::testing::get<1>(info.param)) + "_" +
                          to_string(::testing::get<2>(info.param)) + "_" +
-                         to_string(::testing::get<3>(info.param));
+                         to_string(::testing::get<3>(info.param)) + "_" +
+                         to_string(::testing::get<4>(info.param));
         return rv;
     }
 };
@@ -228,31 +258,83 @@ INSTANTIATE_TEST_SUITE_P(
                            ::testing::Values(ClientJSONSupport::Yes,
                                              ClientJSONSupport::No),
                            ::testing::Values(ClientSnappySupport::Yes,
-                                             ClientSnappySupport::No)),
+                                             ClientSnappySupport::No),
+                           ::testing::Values(OutOfMem::Yes, OutOfMem::No)),
         ToStringCombinedTestName());
 
 TEST_P(DcpConsumerAckTest, Basic) {
-    conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
+    const auto markerBytes = conn->dcpSnapshotMarkerV2(
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
 
-    conn->recvDcpBufferAck(conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno()));
+    auto& bucket = mcd_env->getTestBucket();
+    if (testOutOfMem()) {
+        ASSERT_EQ(markerBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(markerBytes);
+
+    if (testOutOfMem()) {
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
+
+    const auto mutationBytes =
+            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(mutationBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(mutationBytes);
+
+    if (testOutOfMem()) {
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
 
     // Do a delete with no value
     doc.value = {};
     doc.info.datatype = cb::mcbp::Datatype::Raw;
     doc.info.cas = nextCas();
-    conn->recvDcpBufferAck(conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno()));
+    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(delBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(delBytes);
 }
 
 TEST_P(DcpConsumerAckTest, DeleteWithValue) {
-    conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
+    const auto markerBytes = conn->dcpSnapshotMarkerV2(
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
 
-    conn->recvDcpBufferAck(conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno()));
+    auto& bucket = mcd_env->getTestBucket();
+    if (testOutOfMem()) {
+        ASSERT_EQ(markerBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(markerBytes);
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(0, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
+
+    const auto mutationBytes =
+            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(mutationBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(mutationBytes);
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(0, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
 
     doc.info.cas = nextCas();
-
-    auto tx = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
 
     // Json values are only legal when combined with xattr
     if (testJson() && !testXattr()) {
@@ -264,7 +346,11 @@ TEST_P(DcpConsumerAckTest, DeleteWithValue) {
         // In the compressed + buffer only mode this would trigger a variant of
         // MB-47318, but the ack value would be smaller than we sent (which is
         // worse as may eventually lead to a indefinite pause)
-        conn->recvDcpBufferAck(tx);
+        if (testOutOfMem()) {
+            ASSERT_EQ(delBytes, getUnackedBytes());
+            bucket.setMutationMemRatio(*conn, "1.0");
+        }
+        conn->recvDcpBufferAck(delBytes);
     }
 }
 
@@ -272,14 +358,37 @@ TEST_P(DcpConsumerAckTest, DeleteWithValue) {
 TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
     generateDocumentValue(getVeryCompressibleValue());
 
-    conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
+    const auto markerBytes = conn->dcpSnapshotMarkerV2(
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
 
-    conn->recvDcpBufferAck(conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno()));
+    auto& bucket = mcd_env->getTestBucket();
+    if (testOutOfMem()) {
+        ASSERT_EQ(markerBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(markerBytes);
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(0, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
+
+    const auto mutationBytes =
+            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(mutationBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(mutationBytes);
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(0, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
 
     doc.info.cas = nextCas();
-
-    auto tx = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
 
     // Json values are only legal when combined with xattr
     if (testJson() && !testXattr()) {
@@ -291,7 +400,11 @@ TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
         // In the compressed + buffer only mode this would trigger a variant of
         // MB-47318, but the ack value would be smaller than we sent (which is
         // worse as may eventually lead to a indefinite pause)
-        conn->recvDcpBufferAck(tx);
+        if (testOutOfMem()) {
+            ASSERT_EQ(delBytes, getUnackedBytes());
+            bucket.setMutationMemRatio(*conn, "1.0");
+        }
+        conn->recvDcpBufferAck(delBytes);
     }
 }
 
@@ -308,14 +421,37 @@ TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     std::string xattrKey = "_" + std::string(5, 'a');
     generateDocumentValue(getSmallValue(), xattrKey, 10);
 
-    conn->recvDcpBufferAck(conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/));
+    const auto markerBytes = conn->dcpSnapshotMarkerV2(
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
 
-    conn->recvDcpBufferAck(conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno()));
+    auto& bucket = mcd_env->getTestBucket();
+    if (testOutOfMem()) {
+        ASSERT_EQ(markerBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(markerBytes);
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(0, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
+
+    const auto mutationBytes =
+            conn->dcpMutation(doc, 1 /*opaque*/, nextSeqno());
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(mutationBytes, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "1.0");
+    }
+    conn->recvDcpBufferAck(mutationBytes);
+
+    if (testOutOfMem()) {
+        ASSERT_EQ(0, getUnackedBytes());
+        bucket.setMutationMemRatio(*conn, "0.0");
+    }
 
     doc.info.cas = nextCas();
-
-    auto tx = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
+    const auto delBytes = conn->dcpDeletionV2(doc, 1 /*opaque*/, nextSeqno());
 
     // Json values are only legal when combined with xattr
     if (testJson() && !testXattr()) {
@@ -326,6 +462,10 @@ TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     } else {
         // In the compressed + buffer only mode this would trigger MB-47318. The
         // ack was larger than we sent.
-        conn->recvDcpBufferAck(tx);
+        if (testOutOfMem()) {
+            ASSERT_EQ(delBytes, getUnackedBytes());
+            bucket.setMutationMemRatio(*conn, "1.0");
+        }
+        conn->recvDcpBufferAck(delBytes);
     }
 }
