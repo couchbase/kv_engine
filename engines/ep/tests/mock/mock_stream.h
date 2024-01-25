@@ -323,6 +323,10 @@ public:
         streamDeadHook = hook;
     }
 
+    void setProcessUnackedBytes_TestHook(std::function<void()> hook) {
+        processUnackedBytes_TestHook = hook;
+    }
+
     std::unique_ptr<DcpResponse> public_popFromReadyQ();
 
     const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() const {
