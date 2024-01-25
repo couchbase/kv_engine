@@ -352,7 +352,7 @@ cb::engine_errc PassiveStream::messageReceived(
         return forceMessage(*dcpResponse).getError();
     }
     case KVBucket::ReplicationThrottleStatus::Pause: {
-        forceMessage(*dcpResponse).getError();
+        forceMessage(*dcpResponse);
 
         // @todo MB-60439: Review and possibly remove.
         //  Legacy active check for preventing that we consume memory by

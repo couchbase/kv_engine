@@ -94,6 +94,15 @@ void TestBucketImpl::setMinCompressionRatio(MemcachedConnection& conn,
              cb::mcbp::request::SetParamPayload::Type::Flush);
 }
 
+void TestBucketImpl::setMutationMemRatio(MemcachedConnection& conn,
+                                         const std::string& value) {
+    BinprotGenericCommand cmd{
+            cb::mcbp::ClientOpcode::SetParam, "mutation_mem_ratio", value};
+    cmd.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+            cb::mcbp::request::SetParamPayload::Type::Flush)));
+    ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
+}
+
 void TestBucketImpl::setParam(
         MemcachedConnection& conn,
         const std::string& bucketName,

@@ -100,6 +100,15 @@ public:
                                 const std::string& value);
 
     /**
+     * Set the mutation_mem_ratio in EP config.
+     *
+     * @param conn The connection to use (must have admin privileges)
+     * @param value The new param value
+     */
+    void setMutationMemRatio(MemcachedConnection& conn,
+                             const std::string& value);
+
+    /**
      * Set a configuration param for the named bucket.
      *
      * @param conn The connection to use (must have admin privileges)
