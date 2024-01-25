@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <fmt/ostream.h>
 #include <mcbp/protocol/datatype.h>
 #include <memcached/dockey.h>
 #include <sys/types.h>
@@ -262,8 +263,6 @@ enum class CommittedState : char {
     PrepareCommitted = 5,
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 #ifndef ATOMIC_FORMATTER_DEFINED
 #define ATOMIC_FORMATTER_DEFINED 1
 #include <atomic>
@@ -272,4 +271,3 @@ struct fmt::formatter<std::atomic<T>> : ostream_formatter {};
 #endif
 template <>
 struct fmt::formatter<ItemIface> : ostream_formatter {};
-#endif

@@ -35,6 +35,7 @@
 #include "mutation_log_entry.h"
 
 #include "utility.h"
+#include <fmt/ostream.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/storeddockey.h>
 #include <memcached/vbucket.h>
@@ -552,8 +553,5 @@ private:
     std::array<size_t, int(MutationLogType::NumberOfTypes)> itemsSeen;
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<MutationLog> : ostream_formatter {};
-#endif

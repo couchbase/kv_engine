@@ -12,6 +12,7 @@
 
 #include "diskdockey.h"
 #include "range_scans/range_scan_types.h"
+#include <fmt/ostream.h>
 #include <folly/Synchronized.h>
 #include <memcached/engine_error.h>
 #include <memcached/range_scan.h>
@@ -682,8 +683,6 @@ std::ostream& operator<<(std::ostream&, const RangeScan::ContinueLimits&);
 std::ostream& operator<<(std::ostream&, const RangeScan::ContinueState&);
 std::ostream& operator<<(std::ostream&, const RangeScan::ContinueRunState&);
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<RangeScan> : ostream_formatter {};
 template <>
@@ -694,4 +693,3 @@ template <>
 struct fmt::formatter<RangeScan::ContinueState> : ostream_formatter {};
 template <>
 struct fmt::formatter<RangeScan::ContinueRunState> : ostream_formatter {};
-#endif

@@ -12,6 +12,7 @@
 
 #include "ep_types.h"
 
+#include <fmt/ostream.h>
 #include <memcached/vbucket.h>
 #include <nlohmann/json.hpp>
 #include <platform/n_byte_integer.h>
@@ -237,10 +238,7 @@ std::ostream& operator<<(std::ostream& os, const vbucket_state& vbs);
 
 std::ostream& operator<<(std::ostream& os, const vbucket_transition_state& vbs);
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<vbucket_state> : ostream_formatter {};
 template <>
 struct fmt::formatter<vbucket_transition_state> : ostream_formatter {};
-#endif

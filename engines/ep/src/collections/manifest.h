@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <fmt/ostream.h>
 #include <nlohmann/json_fwd.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -373,8 +374,5 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest);
 
 } // end namespace Collections
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<Collections::Manifest> : ostream_formatter {};
-#endif

@@ -16,6 +16,7 @@
 #include "ep_types.h"
 #include "eviction_utils.h"
 #include "queue_op.h"
+#include <fmt/ostream.h>
 #include <platform/atomic.h>
 
 #include <mcbp/protocol/datatype.h>
@@ -692,8 +693,5 @@ struct OrderItemsForDeDuplication {
     bool operator()(const queued_item& i1, const queued_item& i2);
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<Item> : ostream_formatter {};
-#endif

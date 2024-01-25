@@ -13,6 +13,7 @@
 
 #include "collections/collections_types.h"
 
+#include <fmt/ostream.h>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -124,8 +125,5 @@ std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext);
 } // namespace VB
 } // namespace Collections
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<Collections::VB::ScanContext> : ostream_formatter {};
-#endif

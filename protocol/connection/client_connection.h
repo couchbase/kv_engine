@@ -10,6 +10,7 @@
 #pragma once
 
 #include <engines/ewouldblock_engine/ewouldblock_engine.h>
+#include <fmt/ostream.h>
 #include <folly/Synchronized.h>
 #include <folly/io/async/DelayedDestruction.h>
 #include <memcached/bucket_type.h>
@@ -1185,8 +1186,5 @@ protected:
             lookupPasswordCallback;
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<Frame> : ostream_formatter {};
-#endif

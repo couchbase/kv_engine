@@ -19,6 +19,7 @@
 #include "collections/vbucket_manifest_scope_entry.h"
 #include "ep_types.h"
 
+#include <fmt/ostream.h>
 #include <folly/SharedMutex.h>
 #include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
@@ -1438,8 +1439,6 @@ std::ostream& operator<<(std::ostream&, const Manifest::DroppedCollections&);
 } // end namespace VB
 } // end namespace Collections
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<Collections::VB::Manifest> : ostream_formatter {};
 template <>
@@ -1450,4 +1449,3 @@ struct fmt::formatter<Collections::VB::Manifest::DroppedCollectionInfo>
 template <>
 struct fmt::formatter<Collections::VB::Manifest::DroppedCollections>
     : ostream_formatter {};
-#endif

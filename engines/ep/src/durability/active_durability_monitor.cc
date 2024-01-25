@@ -148,8 +148,6 @@ private:
     }
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<ActiveDurabilityMonitor::ResolvedQueue>
     : ostream_formatter {};
@@ -157,7 +155,6 @@ template <>
 struct fmt::formatter<
         std::reference_wrapper<ActiveDurabilityMonitor::ResolvedQueue>>
     : ostream_formatter {};
-#endif
 
 ActiveDurabilityMonitor::ActiveDurabilityMonitor(
         EPStats& stats,

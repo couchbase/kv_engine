@@ -15,6 +15,7 @@
 #include "memcached/engine_error.h"
 #include "utilities/testing_hook.h"
 
+#include <fmt/ostream.h>
 #include <folly/SynchronizedPtr.h>
 #include <memcached/storeddockey_fwd.h>
 #include <nlohmann/json_fwd.hpp>
@@ -474,8 +475,5 @@ protected:
     friend class ActiveDurabilityMonitorTest;
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<ActiveDurabilityMonitor> : ostream_formatter {};
-#endif

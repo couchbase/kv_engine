@@ -13,6 +13,7 @@
 #include "durability_monitor.h"
 
 #include "item.h"
+#include <fmt/ostream.h>
 #include <memcached/storeddockey_fwd.h>
 
 /**
@@ -90,8 +91,5 @@ protected:
     friend std::ostream& operator<<(std::ostream&, const SyncWrite&);
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<DurabilityMonitor::SyncWrite> : ostream_formatter {};
-#endif

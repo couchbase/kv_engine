@@ -11,6 +11,7 @@
 #pragma once
 
 #include <boost/uuid/uuid.hpp>
+#include <fmt/ostream.h>
 
 namespace cb::rangescan {
 
@@ -19,8 +20,5 @@ using Id = boost::uuids::uuid;
 
 } // namespace cb::rangescan
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<cb::rangescan::Id> : ostream_formatter {};
-#endif

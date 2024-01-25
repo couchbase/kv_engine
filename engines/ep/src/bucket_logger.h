@@ -309,11 +309,7 @@ void BucketLogger::log(spdlog::level::level_enum lvl,
         return;
     }
 
-#if FMT_VERSION < 90000
-    logInner(lvl, fmt, fmt::make_args_checked<Args...>(fmt, args...));
-#else
     logInner(lvl, fmt, fmt::make_format_args(args...));
-#endif
 }
 
 template <typename... Args>
@@ -330,11 +326,7 @@ void BucketLogger::log(spdlog::level::level_enum lvl, const T& msg) {
         return;
     }
 
-#if FMT_VERSION < 90000
-    logInner(lvl, "{}", fmt::make_args_checked<T>("{}", msg));
-#else
     logInner(lvl, "{}", fmt::make_format_args(msg));
-#endif
 }
 
 template <typename... Args>

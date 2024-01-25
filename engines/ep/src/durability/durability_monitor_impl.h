@@ -21,6 +21,7 @@
 #include "item.h"
 #include "passive_durability_monitor.h"
 #include "sync_write.h"
+#include <fmt/ostream.h>
 #include <platform/monotonic.h>
 #include <platform/monotonic_queue.h>
 #include <chrono>
@@ -925,8 +926,5 @@ std::string to_string(const DurabilityMonitor::Position<Container>& pos,
     return ss.str();
 }
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<ActiveDurabilityMonitor::State> : ostream_formatter {};
-#endif

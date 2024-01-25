@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <fmt/ostream.h>
 #include <memory>
 
 /*
@@ -28,8 +29,5 @@ class VBucket;
 
 using VBucketPtr = std::shared_ptr<VBucket>;
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<VBucketPtr> : ostream_formatter {};
-#endif

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <fmt/ostream.h>
 #include <iosfwd>
 
 /**
@@ -79,11 +80,8 @@ struct ThreadPoolConfig {
     StorageThreadCount num_storage_threads{StorageThreadCount::Default};
 };
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<ThreadPoolConfig::IOThreadsPerCore> : ostream_formatter {
 };
 template <>
 struct fmt::formatter<ThreadPoolConfig::ThreadCount> : ostream_formatter {};
-#endif

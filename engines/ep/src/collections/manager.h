@@ -15,6 +15,7 @@
 #include "collections/shared_metadata_table.h"
 #include "ep_types.h"
 
+#include <fmt/ostream.h>
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
@@ -467,8 +468,5 @@ private:
 std::ostream& operator<<(std::ostream& os, const Manager& manager);
 } // namespace Collections
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<Collections::Manager> : ostream_formatter {};
-#endif

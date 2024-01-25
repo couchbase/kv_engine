@@ -14,6 +14,7 @@
 #include "collections/collections_types.h"
 #include "item.h"
 
+#include <fmt/ostream.h>
 #include <memcached/dcp_stream_id.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
@@ -342,8 +343,5 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter);
 
 } // namespace Collections::VB
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<Collections::VB::Filter> : ostream_formatter {};
-#endif

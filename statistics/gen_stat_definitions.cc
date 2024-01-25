@@ -362,10 +362,8 @@ std::ostream& operator<<(std::ostream& os, const Spec& spec) {
     return os;
 }
 
-#if FMT_VERSION >= 100000
 template <>
 struct fmt::formatter<Spec> : ostream_formatter {};
-#endif
 
 nlohmann::json readJsonFile(const char* filename) {
     try {

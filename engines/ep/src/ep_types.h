@@ -14,6 +14,7 @@
 #include "queue_op.h"
 #include "utilities/lock_utilities.h"
 
+#include <fmt/ostream.h>
 #include <folly/container/F14Map-fwd.h>
 #include <memcached/vbucket.h>
 #include <chrono>
@@ -436,8 +437,6 @@ enum class ErrorHandlingMethod {
 
 } // namespace cb
 
-#include <fmt/ostream.h>
-#if FMT_VERSION >= 90000
 template <>
 struct fmt::formatter<CanDeduplicate> : ostream_formatter {};
 template <>
@@ -452,4 +451,3 @@ template <>
 struct fmt::formatter<EvictionPolicy> : ostream_formatter {};
 template <>
 struct fmt::formatter<ExpireBy> : ostream_formatter {};
-#endif
