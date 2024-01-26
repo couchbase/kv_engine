@@ -98,6 +98,15 @@
  *    they may change.
  *    "internal" metrics will not be publicly documented.
  *
+ * *  "deprecated"
+ *    Release version in which the metric will be deprecated.
+ *    If present, the notes attribute should include a sentence indicating how clients
+ *    should adapt and move away from using this metric.
+ *    Optional. Not added in metrics_metadata.json if not present (or empty).
+ *
+ * *  "notes"
+ *    End-user understandable notes and comments relating to this metric.
+ *    Optional. Not added in metrics_metadata.json if not present (or empty).
  *
  * //// cb::stats::Key
  *

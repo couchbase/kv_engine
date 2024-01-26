@@ -165,6 +165,8 @@ struct Spec {
     bool prometheusEnabled = true;
     std::string stability = "committed";
     std::string added = "";
+    std::string deprecated = "";
+    std::string notes = "";
 
     std::string_view getName() const {
         return prometheus.family.empty() ? enumKey : prometheus.family;
@@ -200,6 +202,10 @@ struct Spec {
         }
         if (added.empty()) {
             fail("'{}' missing required field: added\n", enumKey);
+        }
+
+        if (!deprecated.empty() && notes.empty()) {
+            fail("'{}' has deprecated field, but missing notes field", enumKey);
         }
         return success;
     }
@@ -293,6 +299,14 @@ void from_json(const nlohmann::json& j, Spec& s) {
 
     if (auto itr = j.find("added"); itr != j.end()) {
         s.added = itr.value();
+    }
+
+    if (auto itr = j.find("deprecated"); itr != j.end()) {
+        s.deprecated = itr.value();
+    }
+
+    if (auto itr = j.find("notes"); itr != j.end()) {
+        s.notes = itr.value();
     }
 }
 
@@ -401,6 +415,14 @@ std::pair<std::string, nlohmann::json> generateDocEntry(const Spec& spec) {
 
     if (!spec.added.empty()) {
         statDoc["added"] = spec.added;
+    }
+
+    if (!spec.deprecated.empty()) {
+        statDoc["deprecated"] = spec.deprecated;
+    }
+
+    if (!spec.notes.empty()) {
+        statDoc["notes"] = spec.notes;
     }
 
     // work out the full name
