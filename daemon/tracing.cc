@@ -49,7 +49,7 @@ cb::engine_errc ioctlGetTracingConfig(Cookie& cookie,
                                       std::string& value,
                                       cb::mcbp::Datatype& datatype) {
     std::lock_guard<std::mutex> lh(configMutex);
-    value = *lastConfig.toString();
+    value = lastConfig.toString();
     return cb::engine_errc::success;
 }
 
