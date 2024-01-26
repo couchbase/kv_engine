@@ -7426,6 +7426,75 @@ TEST_P(SingleThreadedPassiveStreamTest,
     testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration, false);
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    removeCheckpoint(vb);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+
+    // Force OOM
+    engine->getConfiguration().setMutationMemRatio(0);
+
+    const uint32_t opaque = 1;
+    const size_t seqno = 1;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  seqno,
+                                  seqno,
+                                  MARKER_FLAG_MEMORY,
+                                  std::optional<uint64_t>(0),
+                                  {},
+                                  {},
+                                  {});
+    stream->processMarker(&snapshotMarker);
+
+    const std::string key = "key";
+    const auto value = std::string(1024 * 1024, 'v');
+    const auto messageBytes =
+            MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
+
+    ASSERT_EQ(0, stream->getUnackedBytes());
+
+    queued_item qi(makeCommittedItem(makeStoredDocKey(key), value));
+    qi->setBySeqno(seqno);
+    const auto docKey = qi->getDocKey();
+    const auto res = consumer->public_processMutationOrPrepare(
+            vbid, opaque, docKey, std::move(qi), {}, messageBytes);
+
+    // Note: PassiveStream returns temporary_failure but DcpConsumer turns it
+    // into success.
+    EXPECT_EQ(cb::engine_errc::success, res);
+    EXPECT_EQ(vb.getHighSeqno(), 1);
+    // Evidence of executing the OOM path is given by counters though
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+
+    auto& control = consumer->getFlowControl();
+    ASSERT_EQ(0, control.getFreedBytes());
+
+    // Still OOM, DcpConsumerTask can't process unacked bytes
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(0, control.getFreedBytes());
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+
+    std::function<void()> hook = [this, &control, messageBytes]() {
+        // Close the stream. That processes all unacked bytes and clears
+        // counters
+        consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
+        EXPECT_EQ(messageBytes, control.getFreedBytes());
+    };
+    stream->setProcessUnackedBytes_TestHook(hook);
+
+    // System recovers from OOM
+    engine->getConfiguration().setMutationMemRatio(1);
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    // All uncaked bytes already processed at stream close, we shouldn't be
+    // seeing any variation on counters.
+    // Note: Before the fix this fails as (freedBytes = 2 * messageBytes)
+    EXPECT_EQ(messageBytes, control.getFreedBytes());
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCPassiveStreamTest,
                          STParameterizedBucketTest::magmaConfigValues(),

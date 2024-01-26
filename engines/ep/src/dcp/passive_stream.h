@@ -417,6 +417,12 @@ protected:
      */
     TestingHook<> streamDeadHook;
 
+    /**
+     * MB-60468: Test hook executed at PassiveStream::processUnackedBytes'
+     * prologue.
+     */
+    TestingHook<> processUnackedBytes_TestHook;
+
     // Flag indicating if the most recent call to processMessageInner
     // backed off due to ENOMEM. Only used for limiting logging
     std::atomic<bool> isNoMemory{false};

@@ -140,7 +140,7 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
             cb::mcbp::to_string(status));
     }
 
-    return unackedBytes;
+    return moveFlowControlBytes();
 }
 
 uint32_t PassiveStream::moveFlowControlBytes() {
@@ -370,6 +370,13 @@ cb::engine_errc PassiveStream::messageReceived(
 
 ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
         uint32_t& processed_bytes) {
+    processUnackedBytes_TestHook();
+
+    // Note: We need to sync on state transitions as setDead() is possibly
+    // acking all the remaining unackedBytes. Here we would ack again the bytes
+    // twice otherwise, see MB-60468.
+    std::lock_guard<std::mutex> lh(streamMutex);
+
     const auto& bucket = *engine->getKVBucket();
     const auto availableBytes = bucket.getMemAvailableForReplication();
     const auto ackableBytes = std::min(unackedBytes.load(), availableBytes);
