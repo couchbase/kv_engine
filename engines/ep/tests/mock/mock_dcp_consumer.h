@@ -208,4 +208,14 @@ public:
             const {
         return changeStreamsNegotiation;
     }
+
+    /**
+     * Proxy to Consumer::processMutationOrPrepare()
+     */
+    cb::engine_errc public_processMutationOrPrepare(Vbid vbid,
+                                                    uint32_t opaque,
+                                                    const DocKey& key,
+                                                    queued_item item,
+                                                    cb::const_byte_buffer meta,
+                                                    size_t msgBytes);
 };
