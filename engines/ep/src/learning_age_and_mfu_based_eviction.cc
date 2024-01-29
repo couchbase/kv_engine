@@ -129,7 +129,7 @@ void LearningAgeAndMFUBasedEviction::tearDownVBucketVisit(
 std::pair<uint16_t, uint64_t> LearningAgeAndMFUBasedEviction::getThresholds(
         double freqPercentage, double agePercentage) const {
     size_t runningTotal = 0;
-    uint16_t freqThreshold;
+    uint16_t freqThreshold = 0;
     size_t percentileOfFreqCounts =
             (freqPercentage / 100.0) * totalFreqCounterValues;
     for (size_t i = 0; i < freqCounters.size(); i++) {
