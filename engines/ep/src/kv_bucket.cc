@@ -1388,7 +1388,10 @@ void KVBucket::appendAggregatedVBucketStats(
         stateCol.addStat(Key::vb_mem_freed_by_checkpoint_removal,
                          visitor.getCheckpointMemFreedByRemoval());
 
+        // Will be removed in Morpheus.Next. Tracked via MB-60598.
         stateCol.addStat(Key::vb_ht_memory, visitor.getHashtableMemory());
+        stateCol.addStat(Key::vb_ht_memory_overhead,
+                         visitor.getHashtableMemory());
         stateCol.addStat(Key::vb_ht_item_memory, visitor.getItemMemory());
         stateCol.addStat(Key::vb_ht_item_memory_uncompressed,
                          visitor.getUncompressedItemMemory());

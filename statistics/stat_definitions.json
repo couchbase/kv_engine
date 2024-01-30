@@ -3075,7 +3075,27 @@
             "family": "vb_ht_memory"
         },
         "description": "Memory overhead of the HashTable",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        /*
+         * Morpheus is currently 8.0.0, if it changes eventually fix the
+         * version below. Filed MB-60547 to track.
+         */
+        "deprecated": "8.0.0",
+        "notes": "Renamed as kv_vb_ht_memory_overhead_bytes, as it describes the metric more accurately"
+    },
+    {
+        "key": "vb_ht_memory_overhead",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_ht_memory_overhead",
+        "prometheus": {
+            "family": "vb_ht_memory_overhead"
+        },
+        "description": "Memory overhead of the HashTable",
+        /*
+         * Morpheus is currently 8.0.0, if it changes eventually fix the
+         * version below. Filed MB-60547 to track.
+         */
+        "added": "8.0.0"
     },
     {
         "key": "vb_ht_item_memory",
