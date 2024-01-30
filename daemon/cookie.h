@@ -552,15 +552,9 @@ public:
     void release() override;
     void notifyIoComplete(cb::engine_errc status) override;
     cb::engine_errc preLinkDocument(item_info& info) override;
-    /// Mark this cookie as a durable request
-    void setDurable() {
-        durable = true;
-    }
 
     /// Does this cookie represent a durable request
-    bool isDurable() const {
-        return durable;
-    }
+    bool isDurable() const;
 
     /**
      * Get the amount of read/write units we should use for metering.
@@ -779,9 +773,6 @@ protected:
 
     /// Is the cookie currently throttled
     std::atomic_bool throttled{false};
-
-    /// Is this a durable operation or not
-    std::atomic_bool durable{false};
 
     bool ewouldblock = false;
 

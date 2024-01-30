@@ -184,7 +184,6 @@ static Status parseFrameExtras(Cookie& cookie,
                         // terminate parsing
                         return false;
                     }
-                    cookie.setDurable();
                     return true;
                 } catch (const std::exception& exception) {
                     // According to the spec the size may be 1 byte

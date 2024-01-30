@@ -19,6 +19,8 @@
 
 #include <daemon/buckets.h>
 #include <mcbp/protocol/status.h>
+#include <serverless/config.h>
+
 #include <set>
 
 // We can't use a set of enums that easily in an unordered_set.. just use an
@@ -381,8 +383,10 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
 
         case cb::mcbp::Feature::ReportUnitUsage:
-            connection.setReportUnitUsage(true);
-            added = true;
+            if (cb::serverless::isEnabled()) {
+                connection.setReportUnitUsage(true);
+                added = true;
+            }
             break;
         case cb::mcbp::Feature::NonBlockingThrottlingMode:
             connection.setNonBlockingThrottlingMode(true);
