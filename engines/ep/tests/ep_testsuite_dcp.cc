@@ -7089,7 +7089,7 @@ static enum test_result test_dcp_on_vbucket_state_change(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
+static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
     wait_for_flusher_to_settle(h);
@@ -7116,53 +7116,36 @@ static enum test_result test_dcp_consumer_processer_behavior(EngineIface* h) {
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    int i = 1;
-    while (true) {
-        // Stats lookup is costly; only perform check every 100
-        // iterations (we only need to be greater than 1.25 *
-        // ep_max_size, not exactly at that point).
-        if ((i % 100) == 0) {
-            if (get_int_stat(h, "mem_used") >=
-                1.25 * get_int_stat(h, "ep_max_size")) {
-                break;
-            }
-        }
+    set_param(h, EngineParamCategory::Flush, "mutation_mem_ratio", "0.0");
+    checkeq(0.0f,
+            get_float_stat(h, "ep_mutation_mem_ratio"),
+            "Incorrect value for ep_mutation_mem_ratio");
 
-        if (i % 20) {
-            checkeq(cb::engine_errc::success,
-                    dcp->snapshot_marker(*cookie,
-                                         stream_opaque,
-                                         Vbid(0),
-                                         i,
-                                         i + 20,
-                                         0x01,
-                                         {} /*HCS*/,
-                                         {} /*maxVisibleSeqno*/),
-                    "Failed to send snapshot marker");
-        }
-        const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
-        checkeq(cb::engine_errc::success,
-                dcp->mutation(*cookie,
-                              stream_opaque,
-                              docKey,
-                              {(const uint8_t*)"value", 5},
-                              PROTOCOL_BINARY_RAW_BYTES,
-                              i * 3, // cas
-                              Vbid(0),
-                              0, // flags
-                              i, // by_seqno
-                              0, // rev_seqno
-                              0, // expiration
-                              0, // lock_time
-                              {}, // meta
-                              INITIAL_NRU_VALUE),
-                "Failed to send dcp mutation");
-        ++i;
-    }
+    const uint64_t seqno = 1;
+    checkeq(cb::engine_errc::success,
+            dcp->snapshot_marker(
+                    *cookie, stream_opaque, Vbid(0), seqno, seqno, 0, {}, {}),
+            "Failed to send snapshot marker");
+    const DocKey docKey("key", DocKeyEncodesCollectionId::No);
+    const std::string value = "value";
+    checkeq(cb::engine_errc::success,
+            dcp->mutation(*cookie,
+                          stream_opaque,
+                          docKey,
+                          {(const uint8_t*)value.c_str(), value.size()},
+                          PROTOCOL_BINARY_RAW_BYTES,
+                          0,
+                          Vbid(0),
+                          0,
+                          seqno,
+                          0,
+                          0,
+                          0,
+                          {},
+                          INITIAL_NRU_VALUE),
+            "Failed to send dcp mutation");
 
-    // Expect buffered items and the processer's task state to be
-    // CANNOT_PROCESS, because of numerous backoffs.
+    // Expect unacked bytes not being processed as the consumer is OOM
     checklt(0,
             get_int_stat(h, "eq_dcpq:unittest:stream_0_unacked_bytes", "dcp"),
             "Expected unacked bytes for the stream");
@@ -8538,11 +8521,11 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("test dcp consumer's processer task behavior",
-                 test_dcp_consumer_processer_behavior,
+        TestCase("test dcp consumer OOM behavior",
+                 test_dcp_consumer_oom_behavior,
                  test_setup,
                  teardown,
-                 "max_size=1048576",
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test get all vb seqnos",
