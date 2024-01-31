@@ -1143,7 +1143,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                 return cb::engine_errc::not_supported;
             }
             supportsSyncReplication = SyncReplication::SyncWrites;
-            if (!consumerName.empty()) {
+            if (!consumerName.lock()->empty()) {
                 supportsSyncReplication = SyncReplication::SyncReplication;
             }
             return cb::engine_errc::success;
@@ -1209,7 +1209,7 @@ cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
         return cb::engine_errc::invalid_arguments;
     }
 
-    if (consumerName.empty()) {
+    if (consumerName.lock()->empty()) {
         logger->warn(
                 "({}) seqno_acknowledge failed because this producer does"
                 " not have an associated consumer name");
@@ -1257,7 +1257,9 @@ cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
 
     seqnoAckHook();
 
-    return stream->seqnoAck(consumerName, prepared_seqno);
+    return consumerName.withLock([&](const auto& lockedConsumerName) {
+        return stream->seqnoAck(lockedConsumerName, prepared_seqno);
+    });
 }
 
 bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
@@ -2215,7 +2217,7 @@ cb::mcbp::DcpStreamEndStatus DcpProducer::mapEndStreamStatus(
 }
 
 std::string DcpProducer::getConsumerName() const {
-    return consumerName;
+    return consumerName.copy();
 }
 
 bool DcpProducer::isOutOfOrderSnapshotsEnabled() const {

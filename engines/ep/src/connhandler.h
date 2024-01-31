@@ -19,6 +19,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
+#include <relaxed_atomic.h>
 
 #include <folly/Synchronized.h>
 #include <atomic>
@@ -468,7 +469,7 @@ protected:
      * Flag used to state if we've received a control message with
      * "v7_dcp_status_codes" = "true".
      */
-    bool enabledV7DcpStatus = false;
+    cb::RelaxedAtomic<bool> enabledV7DcpStatus = false;
 
     /**
      * True if the sub-class has successfully enabled system events using

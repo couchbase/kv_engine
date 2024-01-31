@@ -623,7 +623,8 @@ protected:
 
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.
-    std::string consumerName;
+
+    folly::Synchronized<std::string, std::mutex> consumerName;
 
     /// Timestamp of when we last transmitted a message to our peer.
     cb::AtomicTimePoint<> lastSendTime;
@@ -714,12 +715,14 @@ protected:
      * Does the producer allow the client to create more than one active stream
      * per vbucket (client must enable this feature)
      */
-    MultipleStreamRequests multipleStreamRequests{MultipleStreamRequests::No};
+    cb::RelaxedAtomic<MultipleStreamRequests> multipleStreamRequests{
+            MultipleStreamRequests::No};
 
     /**
      * Does the client support snapshots that are not sequence ordered?
      */
-    OutOfOrderSnapshots outOfOrderSnapshots{OutOfOrderSnapshots::No};
+    cb::RelaxedAtomic<OutOfOrderSnapshots> outOfOrderSnapshots{
+            OutOfOrderSnapshots::No};
 
     /**
      * Lock that prevent concurrent execution of closeAllStreams function. This
