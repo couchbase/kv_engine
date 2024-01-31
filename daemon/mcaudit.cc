@@ -54,10 +54,22 @@ static bool isEnabled(uint32_t id,
 static bool isEnabled(uint32_t id,
                       const Connection& connection,
                       const cb::rbac::UserIdent* euid) {
+    auto* filter = connection.getThread().getAuditEventFilter();
+    if (!filter || // no filter -> drop all events
+        !filter->isEnabled()) {
+        return false;
+    }
+
     return isEnabled(id, connection, euid, connection.getBucket().name, {}, {});
 }
 
 static bool isEnabled(uint32_t id, const Cookie& cookie) {
+    auto* filter = cookie.getConnection().getThread().getAuditEventFilter();
+    if (!filter || // no filter -> drop all events
+        !filter->isEnabled()) {
+        return false;
+    }
+
     const auto& connection = cookie.getConnection();
     auto [sid, cid] = cookie.getScopeAndCollection();
     return isEnabled(id,

@@ -48,6 +48,9 @@ public:
     /// Get a JSON description of this filter
     virtual nlohmann::json to_json() const = 0;
 
+    /// Is audit enabled or not
+    virtual bool isEnabled() const = 0;
+
     /**
      * Check if the provided identifier is enabled globally (or in the provided
      * bucket). This may be used as an optimization to bypass parsing JSON.
