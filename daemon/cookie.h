@@ -69,7 +69,9 @@ public:
      * @param packet the entire packet
      * @param tracing_enabled if tracing is enabled for this request
      */
-    void initialize(const cb::mcbp::Header& packet, bool tracing_enabled);
+    void initialize(std::chrono::steady_clock::time_point now,
+                    const cb::mcbp::Header& packet,
+                    bool tracing_enabled);
 
     /// Is this object initialized or not..
     bool empty() const {
