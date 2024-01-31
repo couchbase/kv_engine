@@ -635,7 +635,8 @@ void Connection::executeCommandPipeline() {
             auto& cookie = *cookies.back();
             // We always want to collect trace information if we're running
             // for a serverless configuration
-            cookie.initialize(getPacket(), serverless || isTracingEnabled());
+            cookie.initialize(
+                    now, getPacket(), serverless || isTracingEnabled());
             updateRecvBytes(cookie.getPacket().size());
 
             const auto status = cookie.validate();

@@ -445,12 +445,14 @@ Cookie::Cookie(Connection& conn)
       resource_allocation_domain(ResourceAllocationDomain::None) {
 }
 
-void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
+void Cookie::initialize(std::chrono::steady_clock::time_point now,
+                        const cb::mcbp::Header& header,
+                        bool tracing_enabled) {
     reset();
     setTracingEnabled(tracing_enabled ||
                       Settings::instance().alwaysCollectTraceInfo());
     setPacket(header);
-    start = std::chrono::steady_clock::now();
+    start = std::move(now);
 
     if (Settings::instance().getVerbose() > 1) {
         try {
@@ -796,7 +798,6 @@ void Cookie::reset() {
     cas = 0;
     commandContext.reset();
     tracer.clear();
-    durable = false;
     Expects(!ewouldblock &&
             "Cookie::reset() when ewouldblock is true could result in an "
             "outstanding notifyIoComplete occuring on wrong cookie");
@@ -1116,6 +1117,26 @@ bool Cookie::isCollectionsSupported() const {
 }
 bool Cookie::isDatatypeSupported(protocol_binary_datatype_t datatype) const {
     return connection.isDatatypeEnabled(datatype);
+}
+
+bool Cookie::isDurable() const {
+    if (packet->isRequest()) {
+        bool found = false;
+        getRequest().parseFrameExtras(
+                [&found](cb::mcbp::request::FrameInfoId id,
+                         cb::const_byte_buffer data) -> bool {
+                    if (id ==
+                        cb::mcbp::request::FrameInfoId::DurabilityRequirement) {
+                        found = true;
+                        // stop parsing
+                        return false;
+                    }
+                    // Continue parsing
+                    return true;
+                });
+        return found;
+    }
+    return false;
 }
 
 std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {

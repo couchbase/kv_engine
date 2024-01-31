@@ -69,7 +69,9 @@ public:
      * @param packet the entire packet
      * @param tracing_enabled if tracing is enabled for this request
      */
-    void initialize(const cb::mcbp::Header& packet, bool tracing_enabled);
+    void initialize(std::chrono::steady_clock::time_point now,
+                    const cb::mcbp::Header& packet,
+                    bool tracing_enabled);
 
     /// Is this object initialized or not..
     bool empty() const {
@@ -552,15 +554,9 @@ public:
     void release() override;
     void notifyIoComplete(cb::engine_errc status) override;
     cb::engine_errc preLinkDocument(item_info& info) override;
-    /// Mark this cookie as a durable request
-    void setDurable() {
-        durable = true;
-    }
 
     /// Does this cookie represent a durable request
-    bool isDurable() const {
-        return durable;
-    }
+    bool isDurable() const;
 
     /**
      * Get the amount of read/write units we should use for metering.
@@ -779,9 +775,6 @@ protected:
 
     /// Is the cookie currently throttled
     std::atomic_bool throttled{false};
-
-    /// Is this a durable operation or not
-    std::atomic_bool durable{false};
 
     bool ewouldblock = false;
 
