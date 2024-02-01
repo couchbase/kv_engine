@@ -3092,6 +3092,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
     EXPECT_FALSE(result.isMetered());
+    EXPECT_FALSE(result.isSystemCollection());
 
     result = engine->get_collection_meta(*cookie, CollectionEntry::meat, vbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
@@ -4772,6 +4773,33 @@ TEST_P(CollectionsParameterizedTest, DefaultCollectionLegacySeqnos) {
 
     resetEngineAndWarmup();
     validate(5, 5, 5);
+}
+
+TEST_P(CollectionsParameterizedTest, GetCollectionMetaForSystemCollection) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Add a _system collection to vbid(0)
+    CollectionsManifest manifest;
+    manifest.add(ScopeEntry::shop1)
+            .add(CollectionEntry::systemCollection, ScopeEntry::shop1);
+    setCollections(cookie, manifest);
+
+    // _default may have the _ prefix, but is special it's still a collection
+    // for any old user....
+    auto result = engine->get_collection_meta(
+            *cookie, CollectionEntry::defaultC, vbid);
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(manifest.getUid(), result.getManifestId());
+    EXPECT_EQ(ScopeID::Default, result.getScopeId());
+    EXPECT_FALSE(result.isMetered());
+    EXPECT_FALSE(result.isSystemCollection());
+
+    result = engine->get_collection_meta(
+            *cookie, CollectionEntry::systemCollection, vbid);
+    EXPECT_EQ(cb::engine_errc::success, result.result);
+    EXPECT_EQ(manifest.getUid(), result.getManifestId());
+    EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
+    EXPECT_FALSE(result.isMetered());
+    EXPECT_TRUE(result.isSystemCollection());
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,

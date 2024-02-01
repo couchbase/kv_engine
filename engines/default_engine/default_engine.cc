@@ -1006,7 +1006,7 @@ cb::EngineErrorGetCollectionMetaResult default_engine::get_collection_meta(
     if (cid.isDefaultCollection()) {
         // default collection belongs to the default scope and is always metered
         return cb::EngineErrorGetCollectionMetaResult(
-                0, ScopeID{ScopeID::Default}, true);
+                0, ScopeID{ScopeID::Default}, true, false);
     }
     // All other collections do not exist
     return cb::EngineErrorGetCollectionMetaResult(0);

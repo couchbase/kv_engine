@@ -41,6 +41,7 @@ constexpr char maxCollection[] =
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 constexpr char historical[] = "historical";
+constexpr char systemCollection[] = "_system";
 
 } // namespace CollectionName
 
@@ -56,6 +57,8 @@ const CollectionID dairy2 = 0xd;
 const CollectionID customer1 = 0xb;
 const CollectionID maxCollection = 0xe;
 const CollectionID historical = 0xf;
+const CollectionID systemCollection = 0x10;
+
 } // namespace CollectionUid
 
 namespace CollectionEntry {
@@ -86,6 +89,7 @@ Entry_(dairy2);
 Entry_(customer1);
 Entry_(maxCollection);
 Entry_(historical);
+Entry_(systemCollection);
 
 #undef Entry_
 } // namespace CollectionEntry
