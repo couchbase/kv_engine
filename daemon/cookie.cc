@@ -452,21 +452,7 @@ void Cookie::initialize(std::chrono::steady_clock::time_point now,
     setTracingEnabled(tracing_enabled ||
                       Settings::instance().alwaysCollectTraceInfo());
     setPacket(header);
-    start = std::move(now);
-
-    if (Settings::instance().getVerbose() > 1) {
-        try {
-            LOG_TRACE(">{} Read command {}",
-                      connection.getId(),
-                      header.to_json(false).dump());
-        } catch (const std::exception&) {
-            // Failed to decode the header.. do a raw dump instead
-            LOG_TRACE(">{} Read command {}",
-                      connection.getId(),
-                      cb::to_hex({reinterpret_cast<const uint8_t*>(packet),
-                                  sizeof(*packet)}));
-        }
-    }
+    start = now;
 }
 
 cb::mcbp::Status Cookie::validate() {
