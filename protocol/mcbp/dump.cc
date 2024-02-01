@@ -258,7 +258,7 @@ protected:
                 }
 
                 vector.emplace_back(ss.str());
-                return false;
+                return true;
             });
 
             if (vector.empty()) {
