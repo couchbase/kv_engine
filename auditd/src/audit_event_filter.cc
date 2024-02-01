@@ -225,6 +225,10 @@ public:
         return ret;
     }
 
+    bool isEnabled() const override {
+        return true;
+    }
+
     bool isEnabled(uint32_t id,
                    std::optional<std::string_view> bucket) const override {
         if (bucket) {
@@ -300,6 +304,10 @@ public:
 
     bool isValid() const override {
         return generation == AuditImpl::generation;
+    }
+
+    bool isEnabled() const override {
+        return false;
     }
 
     bool isEnabled(uint32_t, std::optional<std::string_view>) const override {
