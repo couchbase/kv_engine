@@ -198,7 +198,6 @@ void DcpConnMap::vbucketStateChanged(
         vbucket_state_t state,
         bool closeInboundStreams,
         folly::SharedMutex::WriteHolder* vbstateLock) {
-    std::lock_guard<std::mutex> lh(connsLock);
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
