@@ -15,8 +15,9 @@
 #include "connmap.h"
 #include "ep_types.h"
 
-#include <memcached/engine.h>
 #include <folly/SharedMutex.h>
+#include <folly/Synchronized.h>
+#include <memcached/engine.h>
 #include <atomic>
 #include <list>
 #include <string>
@@ -102,8 +103,7 @@ public:
     void shutdownAllConnections();
 
     bool isDeadConnectionsEmpty() override {
-        std::lock_guard<std::mutex> lh(connsLock);
-        return deadConnections.empty();
+        return deadConnections.rlock()->empty();
     }
 
     /**
@@ -146,15 +146,11 @@ public:
     void setBackfillByteLimit(size_t bytes);
 
 protected:
-    // Synchronizes only the access to ::deadConnections.
-    // The cookie->connection mapping is handled entirely in ConnStore.
-    std::mutex connsLock;
-
-    /*
-     * deadConnections is protected (as opposed to private) because
-     * of the module test ep-engine_dead_connections_test
-     */
-    std::list<std::shared_ptr<ConnHandler>> deadConnections;
+    // Stores connections that have gone thorugh DcpConnMap::disconnect.
+    // Dead connections are then released asynchronously in
+    // DcpConnMap::manageConnections (via ConnManager task).
+    folly::Synchronized<std::list<std::shared_ptr<ConnHandler>>>
+            deadConnections;
 
     /*
      * Change the value at which a DcpConsumer::Processor task will yield

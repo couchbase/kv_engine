@@ -24,7 +24,7 @@ public:
     }
 
     size_t getNumberOfDeadConnections() {
-        return deadConnections.size();
+        return deadConnections.rlock()->size();
     }
 
     void initialize() {

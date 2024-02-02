@@ -326,8 +326,7 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
 
     // Finished disconnecting the stream; add it to the deadConnections list.
     if (conn) {
-        std::lock_guard<std::mutex> lh(connsLock);
-        deadConnections.push_back(conn);
+        deadConnections.wlock()->push_back(conn);
     }
 }
 
@@ -335,10 +334,10 @@ void DcpConnMap::manageConnections() {
     std::list<std::shared_ptr<ConnHandler>> release;
     std::list<std::shared_ptr<ConnHandler>> toNotify;
     {
-        std::lock_guard<std::mutex> lh(connsLock);
-        while (!deadConnections.empty()) {
-            release.push_back(deadConnections.front());
-            deadConnections.pop_front();
+        auto locked = deadConnections.wlock();
+        while (!locked->empty()) {
+            release.push_back(locked->front());
+            locked->pop_front();
         }
 
         // Collect the list of connections that need to be signaled.
@@ -420,8 +419,9 @@ void DcpConnMap::notifyBackfillManagerTasks() {
 }
 
 void DcpConnMap::addStats(const AddStatFn& add_stat, CookieIface& c) {
-    std::lock_guard<std::mutex> lh(connsLock);
-    add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
+    add_casted_stat("ep_dcp_dead_conn_count",
+                    deadConnections.rlock()->size(),
+                    add_stat,
                     c);
 }
 
