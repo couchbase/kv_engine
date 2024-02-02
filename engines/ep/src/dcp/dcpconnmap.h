@@ -146,11 +146,8 @@ public:
     void setBackfillByteLimit(size_t bytes);
 
 protected:
-    // @todo: Review usage and description, it seems that this mutex
-    //  synchronizes only deadConnections after we introduced ConnStore
-    //
-    // Synchonises access to the {map_} members, i.e. adding
-    // removing connections.
+    // Synchronizes only the access to ::deadConnections.
+    // The cookie->connection mapping is handled entirely in ConnStore.
     std::mutex connsLock;
 
     /*

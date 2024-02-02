@@ -273,8 +273,6 @@ void DcpConnMap::cancelTasks(CookieToConnectionMap& map) {
 }
 
 void DcpConnMap::disconnect(CookieIface* cookie) {
-    // Move the connection matching this cookie from the map_
-    // data structure (under connsLock).
     std::shared_ptr<ConnHandler> conn;
     {
         auto handle = connStore->getCookieToConnectionMapHandle();
@@ -308,11 +306,10 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
 
     // @todo MB-60415: Review and possibly remove
     //
-    // Note we shutdown the stream *not* under the connsLock; this is
+    // Note we shutdown the stream *not* under the map-lock; this is
     // because as part of closing a DcpConsumer stream we need to
     // acquire PassiveStream::buffer.bufMutex; and that could deadlock
-    // in EPBucket::setVBucketState, via
-    // PassiveStream::processBufferedMessages.
+    // in EPBucket::setVBucketState, via PassiveStream::processBufferedMessages.
     if (conn) {
         auto producer = std::dynamic_pointer_cast<DcpProducer>(conn);
         if (producer) {
@@ -327,8 +324,7 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
         }
     }
 
-    // Finished disconnecting the stream; add it to the
-    // deadConnections list.
+    // Finished disconnecting the stream; add it to the deadConnections list.
     if (conn) {
         std::lock_guard<std::mutex> lh(connsLock);
         deadConnections.push_back(conn);
