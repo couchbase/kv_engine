@@ -189,7 +189,7 @@ protected:
             const std::string& connName,
             const std::string& consumerName) const;
 
-    bool isPassiveStreamConnected_UNLOCKED(Vbid vbucket);
+    bool isPassiveStreamConnected(Vbid vbucket);
 
     /*
      * Closes all streams associated with each connection in `map`.

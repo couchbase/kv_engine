@@ -98,7 +98,7 @@ std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
             engine, cookie, connName, consumerName);
 }
 
-bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(Vbid vbucket) {
+bool DcpConnMap::isPassiveStreamConnected(Vbid vbucket) {
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* dcpConsumer =
@@ -119,9 +119,8 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
                                              uint32_t opaque,
                                              Vbid vbucket,
                                              uint32_t flags) {
-    std::lock_guard<std::mutex> lh(connsLock);
-    /* Check if a stream (passive) for the vbucket is already present */
-    if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
+    // Check if a stream (passive) for the vbucket is already present
+    if (isPassiveStreamConnected(vbucket)) {
         EP_LOG_WARN(
                 "{} ({}) Failing to add passive stream, "
                 "as one already exists for the vbucket!",
