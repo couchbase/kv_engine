@@ -505,7 +505,6 @@ std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
 }
 
 bool DcpConnMap::isConnections() {
-    std::lock_guard<std::mutex> lh(connsLock);
     return !connStore->getCookieToConnectionMapHandle()->empty();
 }
 
