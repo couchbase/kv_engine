@@ -202,7 +202,8 @@ public:
     virtual void setCurrentCollectionInfo(ScopeID sid,
                                           CollectionID cid,
                                           uint64_t manifestUid,
-                                          bool metered) = 0;
+                                          bool metered,
+                                          bool systemCollection) = 0;
 
     /**
      * Return true if throttling is required.

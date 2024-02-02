@@ -120,6 +120,7 @@ static Status setCurrentCollectionInfo(Cookie& cookie, CollectionID cid) {
     ScopeID sid;
     uint64_t manifestUid = 0;
     bool metered = false;
+    bool systemCollection = false;
 
     // Note: It is only safe to skip the default collection lookup when not
     // deployed as "serverless" (we need the correct metering state when
@@ -136,6 +137,7 @@ static Status setCurrentCollectionInfo(Cookie& cookie, CollectionID cid) {
             manifestUid = res.getManifestId();
             sid = res.getScopeId();
             metered = res.isMetered();
+            systemCollection = res.isSystemCollection();
         } else if (res.result == cb::engine_errc::unknown_collection) {
             // Could not get the collection's scope - an unknown collection
             // against the manifest with id stored in res.first.
@@ -145,7 +147,8 @@ static Status setCurrentCollectionInfo(Cookie& cookie, CollectionID cid) {
             return cb::mcbp::to_status(res.result);
         }
     }
-    cookie.setCurrentCollectionInfo(sid, cid, manifestUid, metered);
+    cookie.setCurrentCollectionInfo(
+            sid, cid, manifestUid, metered, systemCollection);
     return Status::Success;
 }
 

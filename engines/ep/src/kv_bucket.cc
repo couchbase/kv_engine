@@ -1669,7 +1669,8 @@ GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
                 entry->sid,
                 cid,
                 uid,
-                entry->metered == Collections::Metered::Yes);
+                entry->metered == Collections::Metered::Yes,
+                Collections::isSystemCollection(entry->name, cid));
     }
 
     while (itm == nullptr) {
