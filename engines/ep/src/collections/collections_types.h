@@ -232,6 +232,15 @@ using DataLimit = std::optional<size_t>;
 
 static const DataLimit NoDataLimit{};
 
+/**
+ * A system collection - one which is created by Couchbase for some internal
+ * use will use the _ prefix. However the _default collection which is also
+ * created by Couchbase is not classed the same.
+ */
+inline bool isSystemCollection(std::string_view name, CollectionID cid) {
+    return !cid.isDefaultCollection() && !name.empty() && name.front() == '_';
+}
+
 namespace VB {
 enum class ManifestUpdateStatus {
     Success,

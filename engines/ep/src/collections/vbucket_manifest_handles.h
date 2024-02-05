@@ -650,6 +650,11 @@ public:
         return itr->second.isMetered();
     }
 
+    /// @return collection name
+    std::string_view getName() const {
+        return itr->second.getName();
+    }
+
     void dump();
 
 protected:

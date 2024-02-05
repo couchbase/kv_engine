@@ -456,9 +456,10 @@ public:
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
                                   uint64_t manifestUid,
-                                  bool metered) override {
-        currentCollectionInfo =
-                CurrentCollectionInfo(sid, cid, manifestUid, metered);
+                                  bool metered,
+                                  bool systemCollection) override {
+        currentCollectionInfo = CurrentCollectionInfo(
+                sid, cid, manifestUid, metered, systemCollection);
     }
 
     const std::pair<std::optional<ScopeID>, std::optional<CollectionID>>
@@ -723,8 +724,13 @@ protected:
         CurrentCollectionInfo(ScopeID sid,
                               CollectionID cid,
                               uint64_t uid,
-                              bool metered)
-            : sid(sid), cid(cid), manifestUid(uid), metered(metered) {
+                              bool metered,
+                              bool systemCollection)
+            : sid(sid),
+              cid(cid),
+              manifestUid(uid),
+              metered(metered),
+              systemCollection(systemCollection) {
         }
         CurrentCollectionInfo() = default;
         void reset() {
@@ -734,6 +740,7 @@ protected:
         std::optional<CollectionID> cid;
         uint64_t manifestUid{0};
         bool metered{false};
+        bool systemCollection{false};
     } currentCollectionInfo;
 
     /// The privilege context the command should use for evaluating commands
