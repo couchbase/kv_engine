@@ -188,7 +188,7 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     auto& respCounters = bucket.responseCounters;
     // Ignore success responses by starting from begin + 1
     uint64_t total_resp_errors = std::accumulate(
-            std::begin(respCounters) + 1, std::end(respCounters), 0);
+            std::begin(respCounters) + 1, std::end(respCounters), uint64_t(0));
     collector.addStat(Key::total_resp_errors, total_resp_errors);
 
     collector.addStat(Key::clients, bucket.clients);

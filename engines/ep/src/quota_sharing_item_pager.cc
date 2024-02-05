@@ -115,7 +115,7 @@ size_t QuotaSharingItemPager::getEvictableMemForState(
         PermittedVBStates states) const {
     return std::accumulate(kvBuckets.begin(),
                            kvBuckets.end(),
-                           0,
+                           size_t(0),
                            [this, &states](auto acc, KVBucket& kvBucket) {
                                return acc + getEvictableBytes(kvBucket, states);
                            });
@@ -224,8 +224,8 @@ void QuotaSharingItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
     std::size_t estimatedTotalMemUsed = std::accumulate(
             kvBuckets.begin(),
             kvBuckets.end(),
-            0,
-            [](size_t acc, KVBucket& kvBucket) {
+            std::size_t(0),
+            [](auto acc, KVBucket& kvBucket) {
                 return acc + kvBucket.getEPEngine()
                                      .getEpStats()
                                      .getEstimatedTotalMemoryUsed();
