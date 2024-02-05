@@ -361,7 +361,10 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::CollectionsGetID, empty);
     setup(cb::mcbp::ClientOpcode::CollectionsGetScopeID, empty);
 
-    setup(cb::mcbp::ClientOpcode::RangeScanCreate, require<Privilege::Read>);
+    // The RangeScan collection is embedded in a JSON payload (for create) and
+    // then continue/cancel need to re-inspect the existing RangeScan object.
+    // So setup as empty and ep-engine does the checks.
+    setup(cb::mcbp::ClientOpcode::RangeScanCreate, empty);
     setup(cb::mcbp::ClientOpcode::RangeScanContinue, empty);
     setup(cb::mcbp::ClientOpcode::RangeScanCancel, empty);
 

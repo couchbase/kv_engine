@@ -51,7 +51,6 @@ RangeScan::RangeScan(
     try {
         uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
         createTime = now();
-
     } catch (...) {
         // Failed to create the scan, so we no longer need to count it
         resourceTracker.decrNumRunningRangeScans();
@@ -155,6 +154,14 @@ cb::rangescan::Id RangeScan::createScan(
         EPBucket& bucket,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+    auto privStatus = hasPrivilege(cookie, bucket.getEPEngine());
+    if (privStatus != cb::engine_errc::success) {
+        throw cb::engine_error(
+                privStatus,
+                fmt::format("{} createScan hasPrivilege returned failure",
+                            getLogId()));
+    }
+
     auto valFilter = cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)
                              ? ValueFilter::VALUES_COMPRESSED
                              : ValueFilter::VALUES_DECOMPRESSED;

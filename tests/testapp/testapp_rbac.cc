@@ -136,6 +136,29 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     EXPECT_EQ(expected, json["error"]["context"]);
 }
 
+TEST_P(RbacTest, RangeScanCreate) {
+    auto& admin = getAdminConnection();
+
+    admin.dropPrivilege(cb::rbac::Privilege::RangeScan);
+    admin.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                       cb::mcbp::Feature::XATTR,
+                       cb::mcbp::Feature::XERROR,
+                       cb::mcbp::Feature::SELECT_BUCKET,
+                       cb::mcbp::Feature::SNAPPY,
+                       cb::mcbp::Feature::JSON});
+    admin.selectBucket("default");
+
+    // minimal config, we only need a valid JSON object to then reach priv
+    // checks
+    nlohmann::json config = {
+            {"range", {{"start", "dGVzdA=="}, {"end", "dGVzdA=="}}},
+            {"collection", "0"}};
+
+    BinprotRangeScanCreate create(Vbid(0), config);
+    auto resp = admin.execute(create);
+    ASSERT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
+}
+
 class RbacRoleTest : public TestappClientTest {
 public:
     void SetUp() override {
