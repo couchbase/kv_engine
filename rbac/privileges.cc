@@ -38,6 +38,8 @@ static const std::unordered_map<std::string, Privilege> privilegemap = {
         {"Impersonate", Privilege::Impersonate},
         {"Settings", Privilege::Settings},
         {"SystemSettings", Privilege::SystemSettings},
+        {"SystemCollectionLookup", Privilege::SystemCollectionLookup},
+        {"SystemCollectionMutation", Privilege::SystemCollectionMutation},
         {"RangeScan", Privilege::RangeScan}};
 
 std::string to_string(Privilege privilege) {
@@ -89,6 +91,8 @@ bool is_bucket_privilege(Privilege priv) {
     case Privilege::Settings:
     case Privilege::SimpleStats:
     case Privilege::RangeScan:
+    case Privilege::SystemCollectionLookup:
+    case Privilege::SystemCollectionMutation:
         return true;
 
     case Privilege::NodeSupervisor:
@@ -121,6 +125,8 @@ bool is_collection_privilege(Privilege priv) {
     case Privilege::DcpStream:
     case Privilege::SimpleStats:
     case Privilege::RangeScan:
+    case Privilege::SystemCollectionLookup:
+    case Privilege::SystemCollectionMutation:
         return true;
 
     case Privilege::DcpConsumer:
@@ -168,6 +174,8 @@ bool is_legal_privilege(Privilege privilege) {
     case Privilege::Impersonate:
     case Privilege::Settings:
     case Privilege::SystemSettings:
+    case Privilege::SystemCollectionLookup:
+    case Privilege::SystemCollectionMutation:
     case Privilege::RangeScan:
         return true;
     }

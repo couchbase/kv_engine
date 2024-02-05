@@ -974,6 +974,11 @@ bool Manifest::isScopeValid(ScopeID scopeID) const {
     return scopes.count(scopeID) != 0;
 }
 
+Visibility Manifest::getScopeVisibility(ScopeID sid) const {
+    const auto& entry = getScopeEntry(sid);
+    return Collections::getScopeVisibility(entry.getName(), sid);
+}
+
 Manifest::container::const_iterator Manifest::getManifestEntry(
         const DocKey& key, AllowSystemKeys) const {
     CollectionID lookup = key.getCollectionID();
@@ -1300,6 +1305,24 @@ StatsForFlush Manifest::getStatsForFlush(CollectionID cid,
     // Not open or open is not the correct generation
     // It has to be in this droppedCollections
     return droppedCollections.rlock()->get(cid, seqno);
+}
+
+std::optional<DcpFilterMeta> Manifest::getMetaForDcpFilter(
+        CollectionID cid) const {
+    auto collection = map.find(cid);
+    if (collection == map.end()) {
+        return {};
+    }
+
+    auto scope = scopes.find(collection->second.getScopeID());
+    if (scope == scopes.end()) {
+        return {};
+    }
+
+    // Return the system true/false of collection and scope (and the scopeID)
+    return DcpFilterMeta{Collections::getCollectionVisibility(
+                                 collection->second.getName(), cid),
+                         collection->second.getScopeID()};
 }
 
 template <class T>

@@ -176,15 +176,13 @@ bool Filter::addCollection(const nlohmann::json& object,
     // Require that the requested collection exists in the manifest.
     // DCP cannot filter an unknown collection.
     CollectionID cid{object.get<std::string>()};
-    ScopeID sid;
-    auto scope = rh.getScopeID(cid);
-    if (!scope) {
+    auto filterData = rh.getMetaForDcpFilter(cid);
+    if (!filterData) {
         // Error time
         return false;
     }
-    sid = *scope;
 
-    insertCollection(cid, sid);
+    insertCollection(cid, *filterData);
     return true;
 }
 
@@ -201,15 +199,25 @@ bool Filter::addScope(const nlohmann::json& object,
         return false;
     }
 
+    // set the scopeID member so we know we're tracking a complete scope (which
+    // means the collection set can change as we see new collections pass-by)
     scopeID = sid;
+    // set the scope visibility so we know if we're tracking a system scope
+    filteredScopeVisibility = rh.getScopeVisibility(sid);
     for (CollectionID cid : collectionVector.value()) {
-        insertCollection(cid, sid);
+        auto filterData = rh.getMetaForDcpFilter(cid);
+        if (!filterData) {
+            // Error time
+            return false;
+        }
+        insertCollection(cid, *filterData);
     }
     return true;
 }
 
-void Filter::insertCollection(CollectionID cid, ScopeID sid) {
-    this->filter.insert({cid, sid});
+void Filter::insertCollection(CollectionID cid, DcpFilterMeta filterData) {
+    auto [itr, emplaced] = this->filter.try_emplace(cid, filterData);
+    Expects(emplaced);
     if (cid.isDefaultCollection()) {
         defaultAllowed = true;
     }
@@ -296,11 +304,14 @@ bool Filter::processCollectionEvent(const Item& item) {
     }
 
     CollectionID cid;
+    Visibility collectionVisibility{false};
     std::optional<ScopeID> sid;
     if (!item.isDeleted()) {
         auto dcpData = VB::Manifest::getCreateEventData(item);
         sid = dcpData.metaData.sid;
         cid = dcpData.metaData.cid;
+        collectionVisibility = Collections::getCollectionVisibility(
+                dcpData.metaData.name, cid);
     } else {
         auto dcpData = VB::Manifest::getDropEventData(
                 {item.getData(), item.getNBytes()});
@@ -323,7 +334,7 @@ bool Filter::processCollectionEvent(const Item& item) {
             return true;
         } else {
             // update the filter set as this collection is in our scope
-            filter.insert({cid, *sid});
+            filter.insert({cid, DcpFilterMeta{collectionVisibility, *scopeID}});
         }
     }
 
@@ -364,8 +375,11 @@ bool Filter::processScopeEvent(const Item& item) {
 
 void Filter::enableDefaultCollection() {
     defaultAllowed = true;
-    // For simpler client usage, insert in the set
-    filter.insert({CollectionID::Default, ScopeID::Default});
+    // For simpler client usage, insert the default collection into the set.
+    // This collection is not system, resides in the default scope (and that
+    // scope is not system either)
+    filter.insert({CollectionID::Default,
+                   DcpFilterMeta{Visibility::User, ScopeID::Default}});
 }
 
 void Filter::disableDefaultCollection() {
@@ -415,52 +429,71 @@ void Filter::addStats(const AddStatFn& add_stat,
 cb::engine_errc Filter::checkPrivileges(
         CookieIface& cookie, const EventuallyPersistentEngine& engine) {
     const auto rev = cookie.getPrivilegeContextRevision();
-    if (!lastCheckedPrivilegeRevision ||
-        lastCheckedPrivilegeRevision.value() != rev) {
-        lastCheckedPrivilegeRevision = rev;
-        if (passthrough) {
-            // Must have access to the bucket
-            return engine.testPrivilege(
-                    cookie, cb::rbac::Privilege::DcpStream, {}, {});
-        } else if (scopeID) {
-            // Must have access to at least the scope
-            return engine.testPrivilege(
-                    cookie, cb::rbac::Privilege::DcpStream, scopeID, {});
-        } else {
-            // Must have access to the collections
-            bool unknownCollection = false;
-            bool accessError = false;
 
-            // Check all collections
-            for (const auto& c : filter) {
-                const auto status =
-                        engine.testPrivilege(cookie,
-                                             cb::rbac::Privilege::DcpStream,
-                                             c.second,
-                                             c.first);
-                switch (status) {
-                case cb::engine_errc::success:
-                    continue;
-                case cb::engine_errc::unknown_collection:
-                    unknownCollection = true;
-                    break;
-                case cb::engine_errc::no_access:
-                    accessError = true;
-                    break;
-                default:
-                    throw std::logic_error(
-                            "Filter::checkPrivileges: unexpected error:" +
-                            to_string(status));
-                }
-            }
-            // Ordering here is important - 1 unknown collection in a sea of
-            // success/no_access dominates and shall be what is seen
-            if (unknownCollection) {
-                return cb::engine_errc::unknown_collection;
-            } else if (accessError) {
-                return cb::engine_errc::no_access;
-            }
+    if (lastCheckedPrivilegeRevision && *lastCheckedPrivilegeRevision == rev) {
+        // Nothing changed since last check
+        return cb::engine_errc::success;
+    }
+
+    lastCheckedPrivilegeRevision = rev;
+    if (passthrough) {
+        // Passthrough require access to the system collections
+        if (cookie.testPrivilege(
+                          cb::rbac::Privilege::SystemCollectionLookup, {}, {})
+                    .failed()) {
+            return cb::engine_errc::no_access;
         }
+        // Must have access to the bucket
+        return engine.testPrivilege(
+                cookie, cb::rbac::Privilege::DcpStream, {}, {});
+    }
+
+    if (scopeID) {
+        // Must have access to at least the scope
+        return engine.testScopeAccess(
+                cookie,
+                cb::rbac::Privilege::SystemCollectionLookup,
+                cb::rbac::Privilege::DcpStream,
+                *scopeID,
+                filteredScopeVisibility);
+    }
+
+    // Must have access to the collections
+    bool unknownCollection = false;
+    bool accessError = false;
+
+    // Check all collections
+    for (const auto& [cid, meta] : filter) {
+        const auto status = engine.testCollectionAccess(
+                cookie,
+                cb::rbac::Privilege::SystemCollectionLookup,
+                cb::rbac::Privilege::DcpStream,
+                cid,
+                meta.scopeId,
+                meta.collectionVisibility);
+        switch (status) {
+        case cb::engine_errc::success:
+            continue;
+        case cb::engine_errc::unknown_collection:
+            unknownCollection = true;
+            break;
+        case cb::engine_errc::no_access:
+            accessError = true;
+            break;
+        default:
+            throw std::logic_error(fmt::format(
+                    "Filter::checkPrivileges: unexpected error: {}", status));
+        }
+    }
+
+    // Ordering here is important - 1 unknown collection in a sea of
+    // success/no_access dominates and shall be what is seen
+    if (unknownCollection) {
+        return cb::engine_errc::unknown_collection;
+    }
+
+    if (accessError) {
+        return cb::engine_errc::no_access;
     }
 
     return cb::engine_errc::success;

@@ -54,12 +54,50 @@ static PrivilegeAccess require(Cookie& cookie) {
     return cookie.checkPrivilege(T);
 }
 
-static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
+static PrivilegeAccess requirePrivilegesOnCurrentDocument(
+        Cookie& cookie, Privilege system_privilege, Privilege user_privilege) {
+    if (cookie.isAccessingSystemCollection()) {
+        auto ret = cookie.checkPrivilege(system_privilege);
+        if (ret.failed()) {
+            return ret;
+        }
+    }
+    return cookie.checkPrivilege(user_privilege);
+}
+
+static auto requireReadOnCurrentDocument(Cookie& cookie) {
+    return requirePrivilegesOnCurrentDocument(
+            cookie, Privilege::SystemCollectionLookup, Privilege::Read);
+}
+
+static auto requireUpsertOnCurrentDocument(Cookie& cookie) {
+    return requirePrivilegesOnCurrentDocument(
+            cookie, Privilege::SystemCollectionMutation, Privilege::Upsert);
+}
+
+static PrivilegeAccess requireDeleteOnCurrentDocument(Cookie& cookie) {
+    return requirePrivilegesOnCurrentDocument(
+            cookie, Privilege::SystemCollectionMutation, Privilege::Delete);
+}
+
+static PrivilegeAccess requireInsertOrUpsertOnCurrentDocument(Cookie& cookie) {
+    if (cookie.isAccessingSystemCollection()) {
+        auto ret = cookie.checkPrivilege(Privilege::SystemCollectionMutation);
+        if (ret.failed()) {
+            return ret;
+        }
+    }
+
     if (cookie.checkPrivilege(Privilege::Insert).success()) {
         return cb::rbac::PrivilegeAccessOk;
-    } else {
-        return cookie.checkPrivilege(Privilege::Upsert);
     }
+
+    return cookie.checkPrivilege(Privilege::Upsert);
+}
+
+static PrivilegeAccess requireMetaWriteOnCurrentDocument(Cookie& cookie) {
+    return requirePrivilegesOnCurrentDocument(
+            cookie, Privilege::SystemCollectionMutation, Privilege::MetaWrite);
 }
 
 static PrivilegeAccess dcpConsumerOrProducer(Cookie& cookie) {
@@ -85,31 +123,31 @@ static PrivilegeAccess empty(Cookie& cookie) {
 }
 
 McbpPrivilegeChains::McbpPrivilegeChains() {
-    setup(cb::mcbp::ClientOpcode::Get, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Getq, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Getk, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Getkq, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::Get, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Getq, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Getk, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Getkq, requireReadOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::GetFailoverLog, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Set, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Setq, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Add, requireInsertOrUpsert);
-    setup(cb::mcbp::ClientOpcode::Addq, requireInsertOrUpsert);
-    setup(cb::mcbp::ClientOpcode::Replace, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Replaceq, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Delete, require<Privilege::Delete>);
-    setup(cb::mcbp::ClientOpcode::Deleteq, require<Privilege::Delete>);
-    setup(cb::mcbp::ClientOpcode::Append, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Appendq, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Prepend, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Prependq, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Increment, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Increment, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Incrementq, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Incrementq, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Decrement, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Decrement, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Decrementq, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Decrementq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Set, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Setq, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Add, requireInsertOrUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Addq, requireInsertOrUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Replace, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Replaceq, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Delete, requireDeleteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Deleteq, requireDeleteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Append, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Appendq, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Prepend, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Prependq, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Increment, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Increment, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Incrementq, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Incrementq, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Decrement, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Decrement, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Decrementq, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Decrementq, requireUpsertOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::Quit, empty);
     setup(cb::mcbp::ClientOpcode::Quitq, empty);
     setup(cb::mcbp::ClientOpcode::Flush, require<Privilege::NodeSupervisor>);
@@ -118,11 +156,11 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::Version, empty);
     setup(cb::mcbp::ClientOpcode::Stat, empty);
     setup(cb::mcbp::ClientOpcode::Verbosity, require<Privilege::Administrator>);
-    setup(cb::mcbp::ClientOpcode::Touch, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Gat, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Gat, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::Gatq, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::Gatq, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::Touch, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Gat, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Gat, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Gatq, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::Gatq, requireUpsertOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::Hello, empty);
     setup(cb::mcbp::ClientOpcode::GetErrorMap, empty);
     setup(cb::mcbp::ClientOpcode::SaslListMechs, empty);
@@ -206,7 +244,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::StartPersistence,
           require<Privilege::Administrator>);
     setup(cb::mcbp::ClientOpcode::SetParam, require<Privilege::Administrator>);
-    setup(cb::mcbp::ClientOpcode::GetReplica, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::GetReplica, requireReadOnCurrentDocument);
 
     /* Bucket engine */
     setup(cb::mcbp::ClientOpcode::CreateBucket,
@@ -230,20 +268,26 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::Observe, empty);
 
     setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::Administrator>);
-    setup(cb::mcbp::ClientOpcode::GetLocked, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::UnlockKey, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::GetLocked, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::UnlockKey, requireReadOnCurrentDocument);
 
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.
      */
-    setup(cb::mcbp::ClientOpcode::GetMeta, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::GetqMeta, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::SetWithMeta, require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::SetqWithMeta, require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::AddWithMeta, require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::AddqWithMeta, require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::DelWithMeta, require<Privilege::MetaWrite>);
-    setup(cb::mcbp::ClientOpcode::DelqWithMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::GetMeta, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::GetqMeta, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SetWithMeta,
+          requireMetaWriteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SetqWithMeta,
+          requireMetaWriteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::AddWithMeta,
+          requireMetaWriteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::AddqWithMeta,
+          requireMetaWriteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::DelWithMeta,
+          requireMetaWriteOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::DelqWithMeta,
+          requireMetaWriteOnCurrentDocument);
 
     /**
      * Command to enable data traffic after completion of warm
@@ -258,7 +302,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /// Command to manage interfaces
     setup(cb::mcbp::ClientOpcode::Ifconfig, require<Privilege::NodeSupervisor>);
     /// Command that returns meta data for Set, Add, Del
-    setup(cb::mcbp::ClientOpcode::ReturnMeta, require<Privilege::MetaWrite>);
+    setup(cb::mcbp::ClientOpcode::ReturnMeta,
+          requireMetaWriteOnCurrentDocument);
     /**
      * Command to trigger compaction of a vbucket
      */
@@ -290,39 +335,44 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      */
 
     /* Retrieval commands */
-    setup(cb::mcbp::ClientOpcode::SubdocGet, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::SubdocExists, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocGet, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SubdocExists, requireReadOnCurrentDocument);
 
     /* Dictionary commands */
-    setup(cb::mcbp::ClientOpcode::SubdocDictAdd, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::SubdocDictUpsert, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocDictAdd,
+          requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+          requireUpsertOnCurrentDocument);
 
     /* Generic modification commands */
-    setup(cb::mcbp::ClientOpcode::SubdocDelete, require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::SubdocReplace, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocDelete, requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SubdocReplace,
+          requireUpsertOnCurrentDocument);
 
     /* Array commands */
     setup(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-          require<Privilege::Upsert>);
+          requireUpsertOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-          require<Privilege::Upsert>);
+          requireUpsertOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::SubdocArrayInsert,
-          require<Privilege::Upsert>);
+          requireUpsertOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-          require<Privilege::Upsert>);
-    setup(cb::mcbp::ClientOpcode::SubdocGetCount, require<Privilege::Read>);
+          requireUpsertOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SubdocGetCount, requireReadOnCurrentDocument);
 
     /* Arithmetic commands */
-    setup(cb::mcbp::ClientOpcode::SubdocCounter, require<Privilege::Read>);
-    setup(cb::mcbp::ClientOpcode::SubdocCounter, require<Privilege::Upsert>);
+    setup(cb::mcbp::ClientOpcode::SubdocCounter, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::SubdocCounter,
+          requireUpsertOnCurrentDocument);
 
     /* Multi-Path commands */
-    setup(cb::mcbp::ClientOpcode::SubdocMultiLookup, require<Privilege::Read>);
+    setup(cb::mcbp::ClientOpcode::SubdocMultiLookup,
+          requireReadOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::SubdocMultiMutation,
-          require<Privilege::Upsert>);
+          requireUpsertOnCurrentDocument);
 
     setup(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-          require<Privilege::Upsert>);
+          requireUpsertOnCurrentDocument);
 
     /* Scrub the data */
     setup(cb::mcbp::ClientOpcode::Scrub, require<Privilege::Administrator>);

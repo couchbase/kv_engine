@@ -883,109 +883,98 @@ std::unique_ptr<folly::IOBuf> Cookie::inflateSnappy(std::string_view input) {
     return cb::compression::inflateSnappy(input);
 }
 
+nlohmann::json Cookie::getPrivilegeFailedErrorMessage(
+        std::string opcode,
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) {
+    nlohmann::json json;
+    json["bucket"] = connection.getBucket().name;
+    if (euid) {
+        auto nm = nlohmann::json(*euid);
+        json["euid"] = nm;
+        json["euid"]["user"] = cb::tagUserData(nm["user"]);
+        if (euidPrivilegeContext) {
+            json["euid"]["context"] = euidPrivilegeContext->to_string();
+        }
+    }
+    if (sid) {
+        json["scope"] = sid->to_string();
+    }
+    if (cid) {
+        json["collection"] = cid->to_string();
+    }
+    json["context"] = privilegeContext->to_string();
+    json["UUID"] = getEventId();
+    json["privilege"] = to_string(privilege);
+    json["command"] = std::move(opcode);
+    return json;
+}
+
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         cb::rbac::Privilege privilege,
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) {
     using cb::rbac::PrivilegeAccess;
-    auto ret = checkPrivilege(*privilegeContext, privilege, sid, cid);
-
-    if (ret.success() && euidPrivilegeContext) {
-        const auto idx = size_t(privilege);
-        if (euidExtraPrivileges.test(idx)) {
-            // the caller explicitly granted the privilege
-            return cb::rbac::PrivilegeAccessOk;
-        }
-        return checkPrivilege(*euidPrivilegeContext, privilege, sid, cid);
+    auto ret = testPrivilege(privilege, sid, cid);
+    if (ret.success()) {
+        return ret;
     }
+
+    auto command = to_string(getRequest().getClientOpcode());
+    auto json = getPrivilegeFailedErrorMessage(command, privilege, sid, cid);
+
+    if (Settings::instance().isPrivilegeDebug()) {
+        audit_privilege_debug(*this,
+                              command,
+                              connection.getBucket().name,
+                              to_string(privilege),
+                              json.dump());
+
+        LOG_INFO("{}: RBAC {} privilege debug: {}",
+                 connection.getId(),
+                 connection.getDescription(),
+                 json.dump());
+
+        return cb::rbac::PrivilegeAccessOk;
+    }
+    audit_command_access_failed(*this);
+    LOG_WARNING("{} RBAC {} missing privilege: {}",
+                connection.getId(),
+                connection.getDescription(),
+                json.dump());
+
+    // Add a textual error as well
+    setErrorContext(
+            fmt::format("Authorization failure: can't execute {} operation "
+                        "without the {} privilege",
+                        command,
+                        to_string(privilege)));
 
     return ret;
 }
 
-cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
-        const cb::rbac::PrivilegeContext& ctx,
+cb::rbac::PrivilegeAccess Cookie::testPrivilege(
         cb::rbac::Privilege privilege,
         std::optional<ScopeID> sid,
-        std::optional<CollectionID> cid) {
-    const auto ret = ctx.check(privilege, sid, cid);
+        std::optional<CollectionID> cid) const {
+    using cb::rbac::PrivilegeAccess;
+
+    const auto ret = privilegeContext->check(privilege, sid, cid);
     if (ret.failed()) {
-        const auto opcode = getRequest().getClientOpcode();
-        const auto command(to_string(opcode));
-        const auto privilege_string = cb::rbac::to_string(privilege);
-        const auto context = ctx.to_string();
-
-        nlohmann::json json;
-        json["bucket"] = connection.getBucket().name;
-        if (&ctx != privilegeContext.get()) {
-            auto nm = nlohmann::json(*euid);
-            json["euid"] = nm;
-            json["euid"]["user"] = cb::tagUserData(nm["user"]);
-        }
-        if (sid) {
-            json["scope"] = sid->to_string();
-        }
-        if (cid) {
-            json["collection"] = cid->to_string();
-        }
-        json["context"] = context;
-        json["UUID"] = getEventId();
-        json["privilege"] = privilege_string;
-        json["command"] = command;
-
-        if (Settings::instance().isPrivilegeDebug()) {
-            audit_privilege_debug(*this,
-                                  command,
-                                  connection.getBucket().name,
-                                  privilege_string,
-                                  context);
-
-            LOG_INFO("{}: RBAC {} privilege debug: {}",
-                     connection.getId(),
-                     connection.getDescription(),
-                     json.dump());
-
-            return cb::rbac::PrivilegeAccessOk;
-        } else {
-            audit_command_access_failed(*this);
-            LOG_WARNING("{} RBAC {} missing privilege: {}",
-                        connection.getId(),
-                        connection.getDescription(),
-                        json.dump());
-            // Add a textual error as well
-            setErrorContext("Authorization failure: can't execute " + command +
-                            " operation without the " + privilege_string +
-                            " privilege");
-        }
+        return ret;
     }
 
-    return ret;
-}
-
-cb::rbac::PrivilegeAccess Cookie::testPrivilege(
-        cb::rbac::Privilege privilege,
-        std::optional<ScopeID> sid,
-        std::optional<CollectionID> cid) const {
-    using cb::rbac::PrivilegeAccess;
-    auto ret = testPrivilege(*privilegeContext, privilege, sid, cid);
-
-    if (ret.success() && euidPrivilegeContext) {
+    if (euidPrivilegeContext) {
         const auto idx = size_t(privilege);
         if (euidExtraPrivileges.test(idx)) {
             // the caller explicitly granted the privilege
             return cb::rbac::PrivilegeAccessOk;
         }
-        return testPrivilege(*euidPrivilegeContext, privilege, sid, cid);
+        return euidPrivilegeContext->check(privilege, sid, cid);
     }
 
     return ret;
-}
-
-cb::rbac::PrivilegeAccess Cookie::testPrivilege(
-        const cb::rbac::PrivilegeContext& ctx,
-        cb::rbac::Privilege privilege,
-        std::optional<ScopeID> sid,
-        std::optional<CollectionID> cid) const {
-    return ctx.check(privilege, sid, cid);
 }
 
 cb::rbac::PrivilegeAccess Cookie::checkForPrivilegeAtLeastInOneCollection(
@@ -1018,9 +1007,21 @@ cb::mcbp::Status Cookie::setEffectiveUser(const cb::rbac::UserIdent& e) {
 }
 
 bool Cookie::fetchEuidPrivilegeSet() {
-    if (checkPrivilege(
-                *privilegeContext, cb::rbac::Privilege::Impersonate, {}, {})
+    if (privilegeContext->check(cb::rbac::Privilege::Impersonate, {}, {})
                 .failed()) {
+        const auto command = to_string(getRequest().getClientOpcode());
+        auto json = getPrivilegeFailedErrorMessage(
+                command, cb::rbac::Privilege::Impersonate, {}, {});
+        audit_command_access_failed(*this);
+        LOG_WARNING("{} RBAC {} missing privilege: {}",
+                    connection.getId(),
+                    connection.getDescription(),
+                    json.dump());
+        // Add a textual error as well
+        setErrorContext(
+                fmt::format("Authorization failure: can't execute {} operation "
+                            "without the Impersonate privilege",
+                            command));
         sendResponse(cb::mcbp::Status::Eaccess);
         return false;
     }

@@ -383,10 +383,11 @@ nlohmann::json Manifest::to_json(
     for (const auto& [sid, scopeMeta] : scopes) {
         nlohmann::json scope;
         scope[CollectionsKey] = nlohmann::json::array();
-        bool visible = isVisible(sid, {});
+        bool visible =
+                isVisible(sid, {}, getScopeVisibility(scopeMeta.name, sid));
         for (const auto& c : scopeMeta.collections) {
             // Include if the collection is visible
-            if (isVisible(sid, c.cid)) {
+            if (isVisible(sid, c.cid, getCollectionVisibility(c.name, c.cid))) {
                 nlohmann::json collection;
                 collection[NameKey] = c.name;
                 collection[UidKey] = fmt::format("{0:x}", uint32_t{c.cid});

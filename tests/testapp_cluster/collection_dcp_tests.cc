@@ -40,7 +40,7 @@ public:
   "buckets": {
     "default": {
       "privileges": [
-        "DcpProducer", "DcpStream"
+        "DcpProducer", "DcpStream","SystemCollectionLookup"
       ]
     }
   },

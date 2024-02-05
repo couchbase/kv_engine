@@ -2243,7 +2243,7 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
                     "to find collectionID:{}, scopeID:{}, in the manifest",
                     vbucket.getId(),
                     coll.first,
-                    coll.second);
+                    coll.second.scopeId);
             // return std::nullopt as we don't want our caller to use rollback
             // optimisation for collections streams as we weren't able to find
             // the collections for the stream in the manifest.

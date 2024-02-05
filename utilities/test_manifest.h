@@ -105,6 +105,7 @@ constexpr char maxScope[] =
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+constexpr char systemScope[] = "_system";
 
 } // namespace ScopeName
 
@@ -115,6 +116,7 @@ const ScopeID shop1 = 8;
 const ScopeID shop2 = 9;
 const ScopeID customer = 8;
 const ScopeID maxScope = 10;
+const ScopeID systemScope = 0x10;
 } // namespace ScopeUid
 
 namespace ScopeEntry {
@@ -138,6 +140,7 @@ Entry_(shop1);
 Entry_(shop2);
 Entry_(customer);
 Entry_(maxScope);
+Entry_(systemScope);
 #undef Entry_
 } // namespace ScopeEntry
 

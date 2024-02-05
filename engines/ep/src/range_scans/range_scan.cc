@@ -345,9 +345,12 @@ size_t RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
 
 cb::engine_errc RangeScan::hasPrivilege(
         CookieIface& cookie, const EventuallyPersistentEngine& engine) {
-    return engine.checkPrivilege(cookie,
-                                 cb::rbac::Privilege::RangeScan,
-                                 start.getDocKey().getCollectionID());
+    return engine.checkCollectionAccess(
+            cookie,
+            {},
+            cb::rbac::Privilege::SystemCollectionLookup,
+            cb::rbac::Privilege::RangeScan,
+            start.getDocKey().getCollectionID());
 }
 
 RangeScan::ContinueIOThreadResult RangeScan::prepareToRunOnContinueTask() {
