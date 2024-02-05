@@ -78,7 +78,6 @@ void ExternalAuthManagerThread::responseReceived(
 
 void ExternalAuthManagerThread::run() {
     setRunning();
-
     std::unique_lock<std::mutex> lock(mutex);
     activeUsersLastSent = std::chrono::steady_clock::now();
     while (running) {
@@ -167,11 +166,13 @@ void ExternalAuthManagerThread::processRequestQueue() {
     auto* provider = connections.front();
 
     while (!incomingRequests.empty()) {
-        auto* startSaslTask =
-                dynamic_cast<StartSaslAuthTask*>(incomingRequests.front());
+        auto currentRequest = incomingRequests.front();
+        currentRequest->recordStartTime();
+
+        auto* startSaslTask = dynamic_cast<StartSaslAuthTask*>(currentRequest);
         if (startSaslTask == nullptr) {
-            auto* getAuthz = dynamic_cast<GetAuthorizationTask*>(
-                    incomingRequests.front());
+            auto* getAuthz =
+                    dynamic_cast<GetAuthorizationTask*>(currentRequest);
             if (getAuthz == nullptr) {
                 LOG_CRITICAL_RAW(
                         "ExternalAuthManagerThread::processRequestQueue(): "

@@ -9,6 +9,8 @@
  */
 #pragma once
 
+#include <gsl/gsl-lite.hpp>
+#include <chrono>
 #include <string>
 
 namespace cb::mcbp {
@@ -35,4 +37,15 @@ public:
      */
     virtual void externalResponse(cb::mcbp::Status status,
                                   const std::string& payload) = 0;
+    void recordStartTime() {
+        Expects(startTime.time_since_epoch().count() == 0);
+        startTime = std::chrono::steady_clock::now();
+    }
+
+    std::chrono::steady_clock::time_point getStartTime() const {
+        return startTime;
+    }
+
+private:
+    std::chrono::steady_clock::time_point startTime{};
 };

@@ -29,6 +29,8 @@ public:
     void externalResponse(cb::mcbp::Status status,
                           const std::string& payload) override;
 
+    void logIfSlowResponse() const;
+
     std::string getUsername() const {
         return user.name;
     }

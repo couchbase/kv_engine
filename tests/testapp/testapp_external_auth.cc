@@ -96,7 +96,7 @@ protected:
         TestappTest::TearDown();
     }
 
-    void stepAuthProvider() {
+    void stepAuthProvider(std::optional<std::chrono::microseconds> delay = {}) {
         Frame frame;
         do {
             provider->recvFrame(frame);
@@ -106,6 +106,12 @@ protected:
 
         TestappAuthProvider authProvider;
         const auto result = authProvider.process(*frame.getRequest());
+
+        // Sleep after receiving the request but before sending the reply
+        if (delay && delay.value().count() != 0) {
+            std::this_thread::sleep_for(*delay);
+        }
+
         const auto opaque = frame.getRequest()->getOpaque();
         const auto opcode = frame.getRequest()->getServerOpcode();
         frame.reset();
@@ -176,6 +182,7 @@ public:
     static void SetUpTestCase() {
         auto cfg = generate_config();
         cfg["threads"] = 1;
+        cfg["external_auth_slow_duration"] = "100 ms";
         doSetUpTestCaseWithConfiguration(cfg);
     }
 };
@@ -515,4 +522,41 @@ TEST_P(ExternalAuthSingleThreadTest, TestCountersForExternalAuthentication) {
                 authRequestsRecieved,
                 getStat<size_t>(adminConnection, "", "auth_external_received"));
     }
+}
+
+TEST_P(ExternalAuthSingleThreadTest, TestSlowResponseFromAuthProvider) {
+    BinprotSaslAuthCommand saslAuthCommand;
+    auto& conn = getConnection();
+    saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
+    saslAuthCommand.setMechanism("PlAiN");
+    conn.sendCommand(saslAuthCommand);
+
+    // Delay 101ms to force slow response
+    stepAuthProvider(std::chrono::milliseconds(101));
+
+    // Now read out the response from the client
+    BinprotResponse response;
+    conn.recvResponse(response);
+
+    EXPECT_TRUE(response.isSuccess());
+
+    // Check for slow operation log message
+    bool found = false;
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{30};
+    while (!found && std::chrono::steady_clock::now() < timeout) {
+        mcd_env->iterateLogLines([&found](auto line) {
+            if (line.find("Slow external user authentication") !=
+                std::string::npos) {
+                found = true;
+                return false;
+            }
+            return true;
+        });
+        // Logging is async so back off and wait a short while
+        if (!found) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        }
+    }
+    EXPECT_TRUE(found) << "Log message not found";
 }

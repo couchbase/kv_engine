@@ -91,6 +91,10 @@ public:
         condition_variable.notify_one();
     }
 
+    std::chrono::microseconds getExternalAuthSlowDuration() const {
+        return externalAuthSlowDuration.load();
+    }
+
     void setExternalAuthSlowDuration(std::chrono::microseconds duration) {
         externalAuthSlowDuration.store(duration);
         condition_variable.notify_one();
@@ -232,6 +236,10 @@ protected:
     std::atomic<std::chrono::microseconds> activeUsersPushInterval{
             std::chrono::minutes(5)};
 
+    /**
+     * The duration indicating when a response from the external auth provider
+     * is considered slow.
+     */
     std::atomic<std::chrono::microseconds> externalAuthSlowDuration{
             std::chrono::seconds(5)};
 

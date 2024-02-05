@@ -14,6 +14,7 @@
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "memcached.h"
+#include "platform/timeutils.h"
 #include "settings.h"
 #include <cbsasl/mechanism.h>
 #include <cbsasl/server.h>
@@ -36,8 +37,20 @@ std::string StartSaslAuthTask::getUsername() const {
     return serverContext.getUsername();
 }
 
+void StartSaslAuthTask::logIfSlowResponse() const {
+    auto duration = std::chrono::steady_clock::now() - getStartTime();
+    if (duration > externalAuthManager->getExternalAuthSlowDuration()) {
+        LOG_WARNING(
+                "Slow external user authentication took {}, with "
+                "username: {}",
+                cb::time2text(duration),
+                cb::tagUserData(getUsername()));
+    }
+}
+
 void StartSaslAuthTask::externalResponse(cb::mcbp::Status status,
                                          const std::string& payload) {
+    logIfSlowResponse();
     if (status == cb::mcbp::Status::Success) {
         successfull_external_auth();
     } else {
