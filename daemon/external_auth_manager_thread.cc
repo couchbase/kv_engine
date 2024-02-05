@@ -157,6 +157,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
                     std::make_unique<AuthResponse>(next, msg));
             requestMap[next++] =
                     std::make_pair(nullptr, incomingRequests.front());
+            ++totalAuthRequestSent;
             incomingRequests.pop();
         }
         return;
@@ -231,6 +232,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
                     });
         }
         requestMap[next++] = std::make_pair(provider, incomingRequests.front());
+        ++totalAuthRequestSent;
         incomingRequests.pop();
     }
 }
@@ -254,6 +256,7 @@ void ExternalAuthManagerThread::processResponseQueue() {
         } else {
             auto* task = iter->second.second;
             requestMap.erase(iter);
+            ++totalAuthRequestReceived;
             mutex.unlock();
             task->externalResponse(entry->status, entry->payload);
             mutex.lock();
@@ -261,6 +264,7 @@ void ExternalAuthManagerThread::processResponseQueue() {
         responses.pop();
     }
 }
+
 void ExternalAuthManagerThread::purgePendingDeadConnections() {
     auto pending = std::move(pendingRemoveConnection);
     for (const auto& connection : pending) {
@@ -300,6 +304,12 @@ void ExternalAuthManagerThread::login(const std::string& user) {
 
 void ExternalAuthManagerThread::logoff(const std::string& user) {
     activeUsers.logoff(user);
+}
+
+void ExternalAuthManagerThread::addStats(const StatCollector& collector) const {
+    using namespace cb::stats;
+    collector.addStat(Key::auth_external_sent, totalAuthRequestSent);
+    collector.addStat(Key::auth_external_received, totalAuthRequestReceived);
 }
 
 bool ExternalAuthManagerThread::haveRbacEntryForUser(

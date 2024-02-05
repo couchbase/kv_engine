@@ -2412,6 +2412,18 @@
         "added": "7.0.0"
     },
     {
+        "key": "auth_external_sent",
+        "description": "The total number of requests sent to the external authentication provider",
+        "unit": "count",
+        "added": "8.0.0"
+    },
+    {
+        "key": "auth_external_received",
+        "description": "The number of received external authentication responses",
+        "unit": "count",
+        "added": "8.0.0"
+    },
+    {
         "key": "get_hits",
         "description": "The number of successful get operations",
         "unit": "count",

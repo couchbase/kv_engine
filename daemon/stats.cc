@@ -11,6 +11,7 @@
 #include "stats.h"
 
 #include "buckets.h"
+#include "external_auth_manager_thread.h"
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
@@ -72,6 +73,7 @@ static void server_global_stats(const StatCollector& collector) {
         }
         collector.addStat(Key::auth_cmds, stats.auth_cmds);
         collector.addStat(Key::auth_errors, stats.auth_errors);
+        externalAuthManager->addStats(collector);
     }
 }
 

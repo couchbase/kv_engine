@@ -15,6 +15,7 @@
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/thread.h>
+#include <statistics/collector.h>
 #include <chrono>
 #include <mutex>
 #include <queue>
@@ -94,6 +95,8 @@ public:
 
     /// Check to see if we've got an up to date RBAC entry for the user
     bool haveRbacEntryForUser(const std::string& user) const;
+
+    void addStats(const StatCollector& collector) const;
 
 protected:
     /// The main loop of the thread
@@ -182,6 +185,12 @@ protected:
     std::queue<std::unique_ptr<AuthResponse>> incommingResponse;
 
     std::vector<Connection*> pendingRemoveConnection;
+
+    // Counter incremented for each request added to the requestMap
+    cb::RelaxedAtomic<size_t> totalAuthRequestSent;
+
+    // Counter incremented for each request removed from the requestMap
+    cb::RelaxedAtomic<size_t> totalAuthRequestReceived;
 
     class ActiveUsers {
     public:

@@ -171,6 +171,20 @@ protected:
     std::unique_ptr<MemcachedConnection> provider;
 };
 
+class ExternalAuthSingleThreadTest : public ExternalAuthTest {
+public:
+    static void SetUpTestCase() {
+        auto cfg = generate_config();
+        cfg["threads"] = 1;
+        doSetUpTestCaseWithConfiguration(cfg);
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         ExternalAuthSingleThreadTest,
+                         ::testing::Values(TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
+
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ExternalAuthTest,
                          ::testing::Values(TransportProtocols::McbpPlain),
@@ -464,4 +478,41 @@ TEST_P(ExternalAuthTest, TestExternalAuthAudit) {
     found = false;
     json["auditd_enabled"] = false;
     AuditTest::reconfigureAudit();
+}
+
+TEST_P(ExternalAuthSingleThreadTest, TestCountersForExternalAuthentication) {
+    auto conn = getConnection().clone();
+    auto& adminConnection = getAdminConnection();
+    adminConnection.selectBucket(bucketName);
+
+    // Initialise local counters from stats
+    auto authRequestsSent =
+            getStat<size_t>(adminConnection, "", "auth_external_sent");
+    auto authRequestsRecieved =
+            getStat<size_t>(adminConnection, "", "auth_external_sent");
+
+    for (int ii = 0; ii < 10; ++ii) {
+        BinprotSaslAuthCommand saslAuthCommand;
+        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
+        saslAuthCommand.setMechanism("PlAiN");
+        conn->sendCommand(saslAuthCommand);
+        ++authRequestsSent;
+
+        waitForStatToBe(
+                adminConnection, "", "auth_external_sent", authRequestsSent);
+
+        stepAuthProvider();
+
+        // Now read out the response from the client
+        BinprotResponse response;
+        conn->recvResponse(response);
+        ++authRequestsRecieved;
+
+        EXPECT_TRUE(response.isSuccess());
+
+        // Check if the correct stat has been updated
+        EXPECT_EQ(
+                authRequestsRecieved,
+                getStat<size_t>(adminConnection, "", "auth_external_received"));
+    }
 }

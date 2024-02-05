@@ -15,6 +15,7 @@
 #include <folly/portability/GTest.h>
 
 #include <daemon/buckets.h>
+#include <daemon/external_auth_manager_thread.h>
 #include <daemon/mcaudit.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
@@ -31,6 +32,12 @@
 #include <serverless/config.h>
 #include <chrono>
 #include <vector>
+
+void PrometheusStatTest::SetUpTestSuite() {
+    if (!externalAuthManager) {
+        externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
+    }
+}
 
 PrometheusStatTest::EndpointMetrics PrometheusStatTest::getMetrics() const {
     EndpointMetrics metrics;

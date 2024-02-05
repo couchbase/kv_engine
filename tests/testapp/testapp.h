@@ -22,6 +22,7 @@
 #include <protocol/connection/client_connection_map.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
+#include <fmt/format.h>
 #include <sys/types.h>
 #include <atomic>
 #include <cstdint>
@@ -208,6 +209,44 @@ protected:
                              Vbid vbid,
                              uint64_t uuid,
                              uint64_t seqno);
+
+    /**
+     * Return value of a specified stat.
+     */
+    template <typename T>
+    static T getStat(MemcachedConnection& conn,
+                     const std::string& stat_group,
+                     std::string_view stat_key) {
+        auto all_stats = conn.stats(stat_group);
+        return all_stats[stat_key].get<T>();
+    }
+
+    /**
+     * Check if a specific stat has been updated to a certain value within a
+     * specified maximum wait time.
+     */
+    template <typename T>
+    void waitForStatToBe(MemcachedConnection& conn,
+                         const std::string& stat_group,
+                         std::string_view stat_key,
+                         T expected,
+                         const std::chrono::seconds max_wait_time_in_secs =
+                                 std::chrono::seconds{30}) {
+        auto start_time = std::chrono::steady_clock::now();
+        while (std::chrono::steady_clock::now() - start_time <
+               max_wait_time_in_secs) {
+            if (expected == getStat<T>(conn, stat_group, stat_key)) {
+                return;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        throw std::runtime_error(
+                fmt::format("Timeout reached for stat: {}, stat_group: {}, "
+                            "expected to be {}",
+                            stat_key,
+                            stat_group,
+                            expected));
+    }
 
     /**
      *  Store the key and run waitForAtLeastSeqno, returns when persisted
