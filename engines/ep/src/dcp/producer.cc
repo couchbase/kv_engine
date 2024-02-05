@@ -309,9 +309,100 @@ cb::engine_errc DcpProducer::streamRequest(
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
         std::optional<std::string_view> json) {
+    StreamRequestInfo req{flags,
+                          vbucket_uuid,
+                          0 /* high_seqno */,
+                          start_seqno,
+                          end_seqno,
+                          snap_start_seqno,
+                          snap_end_seqno};
+    auto ret = cb::engine_errc::failed;
+    VBucketPtr vb;
+
+    std::tie(ret, vb) = checkConditionsForStreamRequest(req, vbucket, json);
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+    Expects(vb);
+
+    const auto maybeFilter = constructFilterForStreamRequest(*vb, json);
+    if (std::holds_alternative<cb::engine_errc>(maybeFilter)) {
+        return std::get<cb::engine_errc>(maybeFilter);
+    }
+    const auto& filter = std::get<Collections::VB::Filter>(maybeFilter);
+
+    bool callAddVBConnByVBId = false;
+    std::tie(ret, callAddVBConnByVBId) =
+            shouldAddVBToProducerConnection(vbucket, filter);
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+
+    ret = checkStreamRequestNeedsRollback(req, *vb, filter, rollback_seqno);
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+
+    ret = adjustSeqnosForStreamRequest(req, *vb, filter);
+    if (ret != cb::engine_errc::success) {
+        return ret;
+    }
+
+    // Take copy of Filter's streamID, given it will be moved-from when
+    // ActiveStream is constructed.
+    const auto streamID = filter.getStreamId();
+
+    if (!engine_.getMemoryTracker().isBelowBackfillThreshold() &&
+        getAuthenticatedUser() != "@ns_server") {
+        logger->warn(
+                "({}) Stream request failed because "
+                "memory usage is above quota",
+                vbucket);
+        return cb::engine_errc::no_memory;
+    }
+
+    std::shared_ptr<ActiveStream> stream;
+    try {
+        stream = std::make_shared<ActiveStream>(&engine_,
+                                                shared_from_this(),
+                                                getName(),
+                                                req.flags,
+                                                opaque,
+                                                *vb,
+                                                req.start_seqno,
+                                                req.end_seqno,
+                                                req.vbucket_uuid,
+                                                req.snap_start_seqno,
+                                                req.snap_end_seqno,
+                                                includeValue,
+                                                includeXattrs,
+                                                includeDeleteTime,
+                                                includeDeletedUserXattrs,
+                                                std::move(filter));
+    } catch (const cb::engine_error& e) {
+        logger->warn(
+                "({}) Stream request failed because "
+                "the filter cannot be constructed, returning:{}",
+                Vbid(vbucket),
+                e.code().value());
+        return cb::engine_errc(e.code().value());
+    }
+
+    return scheduleTasksForStreamRequest(std::move(stream),
+                                         *vb,
+                                         streamID,
+                                         std::move(callback),
+                                         callAddVBConnByVBId);
+}
+
+std::pair<cb::engine_errc, VBucketPtr>
+DcpProducer::checkConditionsForStreamRequest(
+        StreamRequestInfo& req,
+        Vbid vbucket,
+        std::optional<std::string_view> json) {
     lastReceiveTime = ep_uptime_now();
     if (doDisconnect()) {
-        return cb::engine_errc::disconnect;
+        return {cb::engine_errc::disconnect, nullptr};
     }
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
@@ -320,14 +411,15 @@ cb::engine_errc DcpProducer::streamRequest(
                 "({}) Stream request failed because "
                 "this vbucket doesn't exist",
                 vbucket);
-        return cb::engine_errc::not_my_vbucket;
+        return {cb::engine_errc::not_my_vbucket, nullptr};
     }
 
-    auto highSeqno = vb->getHighSeqno();
-    if (flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
-        start_seqno = snap_start_seqno = snap_end_seqno = highSeqno;
-        if (vbucket_uuid == 0) {
-            vbucket_uuid = vb->failovers->getLatestUUID();
+    req.high_seqno = vb->getHighSeqno();
+    if (req.flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
+        req.start_seqno = req.snap_start_seqno = req.snap_end_seqno =
+                req.high_seqno;
+        if (req.vbucket_uuid == 0) {
+            req.vbucket_uuid = vb->failovers->getLatestUUID();
         }
     }
 
@@ -339,11 +431,11 @@ cb::engine_errc DcpProducer::streamRequest(
                     "({}) noop is mandatory for v5 features like "
                     "xattrs and collections",
                     vbucket);
-            return cb::engine_errc::not_supported;
+            return {cb::engine_errc::not_supported, nullptr};
         }
     }
 
-    if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
+    if ((req.flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
         (vb->getState() != vbucket_state_active)) {
         logger->info(
                 "({}) Stream request failed because "
@@ -351,37 +443,45 @@ cb::engine_errc DcpProducer::streamRequest(
                 "requested",
                 vbucket,
                 vb->toString(vb->getState()));
-        return cb::engine_errc::not_my_vbucket;
+        return {cb::engine_errc::not_my_vbucket, nullptr};
     }
 
-    if (start_seqno > end_seqno) {
+    if (req.start_seqno > req.end_seqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because the start "
                 "seqno ({}) is larger than the end seqno ({}); "
                 "Incorrect params passed by the DCP client",
                 logHeader(),
                 vbucket,
-                start_seqno,
-                end_seqno);
-        return cb::engine_errc::out_of_range;
+                req.start_seqno,
+                req.end_seqno);
+        return {cb::engine_errc::out_of_range, nullptr};
     }
 
-    if (!(snap_start_seqno <= start_seqno && start_seqno <= snap_end_seqno)) {
+    if (!(req.snap_start_seqno <= req.start_seqno &&
+          req.start_seqno <= req.snap_end_seqno)) {
         logger->warn(
                 "({}) Stream request failed because "
                 "the snap start seqno ({}) <= start seqno ({})"
                 " <= snap end seqno ({}) is required",
                 vbucket,
-                snap_start_seqno,
-                start_seqno,
-                snap_end_seqno);
-        return cb::engine_errc::out_of_range;
+                req.snap_start_seqno,
+                req.start_seqno,
+                req.snap_end_seqno);
+        return {cb::engine_errc::out_of_range, nullptr};
     }
 
+    return {cb::engine_errc::success, std::move(vb)};
+}
+
+std::variant<Collections::VB::Filter, cb::engine_errc>
+DcpProducer::constructFilterForStreamRequest(
+        const VBucket& vb, std::optional<std::string_view> json) {
+    const Vbid vbucket = vb.getId();
     // Construct the filter before rollback checks so we ensure the client view
     // of collections is compatible with the vbucket.
     Collections::VB::Filter filter(
-            json, vb->getManifest(), *getCookie(), engine_);
+            json, vb.getManifest(), *getCookie(), engine_);
 
     if (!filter.getStreamId() &&
         multipleStreamRequests == MultipleStreamRequests::Yes) {
@@ -409,6 +509,11 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::not_supported;
     }
 
+    return std::move(filter);
+}
+
+std::pair<cb::engine_errc, bool> DcpProducer::shouldAddVBToProducerConnection(
+        Vbid vbucket, const Collections::VB::Filter& filter) {
     // Check if this vbid can be added to this producer connection, and if
     // the vb connection map needs updating (if this is a new VB).
     bool callAddVBConnByVBId = true;
@@ -428,7 +533,7 @@ cb::engine_errc DcpProducer::streamRequest(
                                 "vbucket",
                                 vbucket,
                                 filter.getStreamId().to_string());
-                        return cb::engine_errc::key_already_exists;
+                        return {cb::engine_errc::key_already_exists, false};
                     } else {
                         // Found a 'dead' stream which can be replaced.
                         handle.erase();
@@ -442,23 +547,32 @@ cb::engine_errc DcpProducer::streamRequest(
             }
         }
     }
+    return {cb::engine_errc::success, callAddVBConnByVBId};
+}
 
-    auto purgeSeqno = vb->getPurgeSeqno();
-    if (flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
+cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
+        const StreamRequestInfo& req,
+        VBucket& vb,
+        const Collections::VB::Filter& filter,
+        uint64_t* rollback_seqno) {
+    const Vbid vbucket = vb.getId();
+
+    auto purgeSeqno = vb.getPurgeSeqno();
+    if (req.flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
         // If the client does not care about purged tombstones, we issue
         // the request as-if the purgeSeqno is zero.
         purgeSeqno = 0;
     }
 
-    const auto needsRollback = vb->failovers->needsRollback(
-            start_seqno,
-            vb->getHighSeqno(),
-            vbucket_uuid,
-            snap_start_seqno,
-            snap_end_seqno,
+    const auto needsRollback = vb.failovers->needsRollback(
+            req.start_seqno,
+            req.high_seqno,
+            req.vbucket_uuid,
+            req.snap_start_seqno,
+            req.snap_end_seqno,
             purgeSeqno,
-            flags & DCP_ADD_STREAM_STRICT_VBUUID,
-            getHighSeqnoOfCollections(filter, *vb));
+            req.flags & DCP_ADD_STREAM_STRICT_VBUUID,
+            getHighSeqnoOfCollections(filter, vb));
 
     if (needsRollback) {
         *rollback_seqno = needsRollback->rollbackSeqno;
@@ -469,26 +583,32 @@ cb::engine_errc DcpProducer::streamRequest(
                 vbucket,
                 *rollback_seqno,
                 needsRollback->rollbackReason,
-                start_seqno,
-                end_seqno,
-                snap_start_seqno,
-                snap_end_seqno,
-                vbucket_uuid);
+                req.start_seqno,
+                req.end_seqno,
+                req.snap_start_seqno,
+                req.snap_end_seqno,
+                req.vbucket_uuid);
         return cb::engine_errc::rollback;
     }
 
-    std::vector<vbucket_failover_t> failoverEntries =
-            vb->failovers->getFailoverLog();
+    return cb::engine_errc::success;
+}
 
-    if (flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
+cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
+        StreamRequestInfo& req,
+        VBucket& vb,
+        const Collections::VB::Filter& filter) {
+    const Vbid vbucket = vb.getId();
+
+    if (req.flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
         if (filter.isPassThroughFilter()) {
-            end_seqno = highSeqno;
+            req.end_seqno = req.high_seqno;
         } else {
             // If we are not passing through all collections then need to
             // stop at highest seqno of the collections included (this also
             // covers the legacy filter case where only the default collection
             // is streamed).
-            auto highFilteredSeqno = getHighSeqnoOfCollections(filter, *vb);
+            auto highFilteredSeqno = getHighSeqnoOfCollections(filter, vb);
             if (!highFilteredSeqno) {
                 // If this happens it means an unknown collection id was
                 // specified in the filter ("race" where collection was dropped
@@ -501,18 +621,18 @@ cb::engine_errc DcpProducer::streamRequest(
                         filter);
                 return cb::engine_errc::unknown_collection;
             }
-            end_seqno = highFilteredSeqno.value();
+            req.end_seqno = highFilteredSeqno.value();
         }
     }
 
-    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
+    if (req.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        req.end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
     } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
         logger->warn("DCP connections with PiTR enabled must enable DISKONLY");
         return cb::engine_errc::invalid_arguments;
     }
 
-    if (start_seqno > end_seqno) {
+    if (req.start_seqno > req.end_seqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the end seqno ({}"
@@ -520,16 +640,16 @@ cb::engine_errc DcpProducer::streamRequest(
                 "snapEndSeqno {}; should have rolled back instead",
                 logHeader(),
                 vbucket,
-                start_seqno,
-                end_seqno,
-                flags,
-                vbucket_uuid,
-                snap_start_seqno,
-                snap_end_seqno);
+                req.start_seqno,
+                req.end_seqno,
+                req.flags,
+                req.vbucket_uuid,
+                req.snap_start_seqno,
+                req.snap_end_seqno);
         return cb::engine_errc::out_of_range;
     }
 
-    if (start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
+    if (req.start_seqno > req.high_seqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the vb highSeqno "
@@ -537,54 +657,26 @@ cb::engine_errc DcpProducer::streamRequest(
                 "{}, snapEndSeqno {}; should have rolled back instead",
                 logHeader(),
                 vbucket,
-                start_seqno,
-                vb->getHighSeqno(),
-                flags,
-                vbucket_uuid,
-                snap_start_seqno,
-                snap_end_seqno);
+                req.start_seqno,
+                req.high_seqno,
+                req.flags,
+                req.vbucket_uuid,
+                req.snap_start_seqno,
+                req.snap_end_seqno);
         return cb::engine_errc::out_of_range;
     }
 
-    if (!engine_.getMemoryTracker().isBelowBackfillThreshold() &&
-        getAuthenticatedUser() != "@ns_server") {
-        logger->warn(
-                "({}) Stream request failed because "
-                "memory usage is above quota",
-                vbucket);
-        return cb::engine_errc::no_memory;
-    }
+    return cb::engine_errc::success;
+}
 
-    // Take copy of Filter's streamID, given it will be moved-from when
-    // ActiveStream is constructed.
-    const auto streamID = filter.getStreamId();
+cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
+        std::shared_ptr<ActiveStream> s,
+        VBucket& vb,
+        const cb::mcbp::DcpStreamId streamID,
+        const dcp_add_failover_log callback,
+        const bool callAddVBConnByVBId) {
+    const Vbid vbucket = vb.getId();
 
-    std::shared_ptr<ActiveStream> s;
-    try {
-        s = std::make_shared<ActiveStream>(&engine_,
-                                           shared_from_this(),
-                                           getName(),
-                                           flags,
-                                           opaque,
-                                           *vb,
-                                           start_seqno,
-                                           end_seqno,
-                                           vbucket_uuid,
-                                           snap_start_seqno,
-                                           snap_end_seqno,
-                                           includeValue,
-                                           includeXattrs,
-                                           includeDeleteTime,
-                                           includeDeletedUserXattrs,
-                                           std::move(filter));
-    } catch (const cb::engine_error& e) {
-        logger->warn(
-                "({}) Stream request failed because "
-                "the filter cannot be constructed, returning:{}",
-                Vbid(vbucket),
-                e.code().value());
-        return cb::engine_errc(e.code().value());
-    }
     /* We want to create the 'createCheckpointProcessorTask' here even if
        the stream creation fails later on in the func. The goal is to
        create the 'checkpointProcessorTask' before any valid active stream
@@ -595,8 +687,8 @@ cb::engine_errc DcpProducer::streamRequest(
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_dead) {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        if (vb.getState() == vbucket_state_dead) {
             logger->warn(
                     "({}) Stream request failed because "
                     "this vbucket is in dead state",
@@ -604,7 +696,7 @@ cb::engine_errc DcpProducer::streamRequest(
             return cb::engine_errc::not_my_vbucket;
         }
 
-        if (vb->isReceivingInitialDiskSnapshot()) {
+        if (vb.isReceivingInitialDiskSnapshot()) {
             logger->info(
                     "({}) Stream request failed because this vbucket"
                     "is currently receiving its initial disk snapshot",
@@ -619,11 +711,13 @@ cb::engine_errc DcpProducer::streamRequest(
         updateStreamsMap(vbucket, streamID, s);
     }
 
+    const auto failoverEntries = vb.failovers->getFailoverLog();
+
     // See MB-25820:  Ensure that callback is called only after all other
     // possible error cases have been tested.  This is to ensure we do not
     // generate two responses for a single streamRequest.
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(nullptr,
-                                                                     true);
+    EventuallyPersistentEngine* epe =
+            ObjectRegistry::onSwitchThread(nullptr, true);
     cb::engine_errc rv = callback(failoverEntries);
     ObjectRegistry::onSwitchThread(epe);
     if (rv != cb::engine_errc::success) {

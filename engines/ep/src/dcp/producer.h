@@ -421,6 +421,63 @@ public:
     TestingHook<> updateStreamsMapHook;
 
 protected:
+    class StreamRequestInfo {
+    public:
+        StreamRequestInfo(uint32_t flags,
+                          uint64_t vbucket_uuid,
+                          uint64_t high_seqno,
+                          uint64_t start_seqno,
+                          uint64_t end_seqno,
+                          uint64_t snap_start_seqno,
+                          uint64_t snap_end_seqno)
+            : flags{flags},
+              vbucket_uuid{vbucket_uuid},
+              high_seqno{high_seqno},
+              start_seqno{start_seqno},
+              end_seqno{end_seqno},
+              snap_start_seqno{snap_start_seqno},
+              snap_end_seqno{snap_end_seqno} {
+        }
+
+        const uint32_t flags;
+        uint64_t vbucket_uuid;
+        uint64_t high_seqno;
+        uint64_t start_seqno;
+        uint64_t end_seqno;
+        uint64_t snap_start_seqno;
+        uint64_t snap_end_seqno;
+    };
+
+    std::pair<cb::engine_errc, VBucketPtr> checkConditionsForStreamRequest(
+            StreamRequestInfo& req,
+            Vbid vbucket,
+            std::optional<std::string_view> json);
+
+    std::variant<Collections::VB::Filter, cb::engine_errc>
+    constructFilterForStreamRequest(const VBucket& vb,
+                                    std::optional<std::string_view> json);
+
+    std::pair<cb::engine_errc, bool> shouldAddVBToProducerConnection(
+            Vbid vbucket, const Collections::VB::Filter& filter);
+
+    cb::engine_errc checkStreamRequestNeedsRollback(
+            const StreamRequestInfo& req,
+            VBucket& vb,
+            const Collections::VB::Filter& filter,
+            uint64_t* rollback_seqno);
+
+    cb::engine_errc adjustSeqnosForStreamRequest(
+            StreamRequestInfo& req,
+            VBucket& vb,
+            const Collections::VB::Filter& filter);
+
+    cb::engine_errc scheduleTasksForStreamRequest(
+            std::shared_ptr<ActiveStream> s,
+            VBucket& vb,
+            cb::mcbp::DcpStreamId streamID,
+            dcp_add_failover_log callback,
+            bool callAddVBConnByVBId);
+
     /**
      * For filtered DCP, method returns the maximum of all the high-seqnos of
      * the collections in the filter. std::nullopt is returned for and
