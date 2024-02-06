@@ -15,8 +15,9 @@
 #include "connmap.h"
 #include "ep_types.h"
 
-#include <memcached/engine.h>
 #include <folly/SharedMutex.h>
+#include <folly/Synchronized.h>
+#include <memcached/engine.h>
 #include <atomic>
 #include <list>
 #include <string>
@@ -102,8 +103,7 @@ public:
     void shutdownAllConnections();
 
     bool isDeadConnectionsEmpty() override {
-        std::lock_guard<std::mutex> lh(connsLock);
-        return deadConnections.empty();
+        return deadConnections.rlock()->empty();
     }
 
     /**
@@ -146,18 +146,11 @@ public:
     void setBackfillByteLimit(size_t bytes);
 
 protected:
-    // @todo: Review usage and description, it seems that this mutex
-    //  synchronizes only deadConnections after we introduced ConnStore
-    //
-    // Synchonises access to the {map_} members, i.e. adding
-    // removing connections.
-    std::mutex connsLock;
-
-    /*
-     * deadConnections is protected (as opposed to private) because
-     * of the module test ep-engine_dead_connections_test
-     */
-    std::list<std::shared_ptr<ConnHandler>> deadConnections;
+    // Stores connections that have gone thorugh DcpConnMap::disconnect.
+    // Dead connections are then released asynchronously in
+    // DcpConnMap::manageConnections (via ConnManager task).
+    folly::Synchronized<std::list<std::shared_ptr<ConnHandler>>>
+            deadConnections;
 
     /*
      * Change the value at which a DcpConsumer::Processor task will yield
@@ -189,7 +182,7 @@ protected:
             const std::string& connName,
             const std::string& consumerName) const;
 
-    bool isPassiveStreamConnected_UNLOCKED(Vbid vbucket);
+    bool isPassiveStreamConnected(Vbid vbucket);
 
     /*
      * Closes all streams associated with each connection in `map`.

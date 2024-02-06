@@ -98,7 +98,7 @@ std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
             engine, cookie, connName, consumerName);
 }
 
-bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(Vbid vbucket) {
+bool DcpConnMap::isPassiveStreamConnected(Vbid vbucket) {
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* dcpConsumer =
@@ -119,9 +119,8 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
                                              uint32_t opaque,
                                              Vbid vbucket,
                                              uint32_t flags) {
-    std::lock_guard<std::mutex> lh(connsLock);
-    /* Check if a stream (passive) for the vbucket is already present */
-    if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
+    // Check if a stream (passive) for the vbucket is already present
+    if (isPassiveStreamConnected(vbucket)) {
         EP_LOG_WARN(
                 "{} ({}) Failing to add passive stream, "
                 "as one already exists for the vbucket!",
@@ -199,7 +198,6 @@ void DcpConnMap::vbucketStateChanged(
         vbucket_state_t state,
         bool closeInboundStreams,
         folly::SharedMutex::WriteHolder* vbstateLock) {
-    std::lock_guard<std::mutex> lh(connsLock);
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
         auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
@@ -275,8 +273,6 @@ void DcpConnMap::cancelTasks(CookieToConnectionMap& map) {
 }
 
 void DcpConnMap::disconnect(CookieIface* cookie) {
-    // Move the connection matching this cookie from the map_
-    // data structure (under connsLock).
     std::shared_ptr<ConnHandler> conn;
     {
         auto handle = connStore->getCookieToConnectionMapHandle();
@@ -310,11 +306,10 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
 
     // @todo MB-60415: Review and possibly remove
     //
-    // Note we shutdown the stream *not* under the connsLock; this is
+    // Note we shutdown the stream *not* under the map-lock; this is
     // because as part of closing a DcpConsumer stream we need to
     // acquire PassiveStream::buffer.bufMutex; and that could deadlock
-    // in EPBucket::setVBucketState, via
-    // PassiveStream::processBufferedMessages.
+    // in EPBucket::setVBucketState, via PassiveStream::processBufferedMessages.
     if (conn) {
         auto producer = std::dynamic_pointer_cast<DcpProducer>(conn);
         if (producer) {
@@ -329,11 +324,9 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
         }
     }
 
-    // Finished disconnecting the stream; add it to the
-    // deadConnections list.
+    // Finished disconnecting the stream; add it to the deadConnections list.
     if (conn) {
-        std::lock_guard<std::mutex> lh(connsLock);
-        deadConnections.push_back(conn);
+        deadConnections.wlock()->push_back(conn);
     }
 }
 
@@ -341,10 +334,10 @@ void DcpConnMap::manageConnections() {
     std::list<std::shared_ptr<ConnHandler>> release;
     std::list<std::shared_ptr<ConnHandler>> toNotify;
     {
-        std::lock_guard<std::mutex> lh(connsLock);
-        while (!deadConnections.empty()) {
-            release.push_back(deadConnections.front());
-            deadConnections.pop_front();
+        auto locked = deadConnections.wlock();
+        while (!locked->empty()) {
+            release.push_back(locked->front());
+            locked->pop_front();
         }
 
         // Collect the list of connections that need to be signaled.
@@ -426,8 +419,9 @@ void DcpConnMap::notifyBackfillManagerTasks() {
 }
 
 void DcpConnMap::addStats(const AddStatFn& add_stat, CookieIface& c) {
-    std::lock_guard<std::mutex> lh(connsLock);
-    add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
+    add_casted_stat("ep_dcp_dead_conn_count",
+                    deadConnections.rlock()->size(),
+                    add_stat,
                     c);
 }
 
@@ -505,7 +499,6 @@ std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {
 }
 
 bool DcpConnMap::isConnections() {
-    std::lock_guard<std::mutex> lh(connsLock);
     return !connStore->getCookieToConnectionMapHandle()->empty();
 }
 
