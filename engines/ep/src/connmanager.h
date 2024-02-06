@@ -63,6 +63,8 @@ public:
 
     cb::RelaxedAtomic<Duration> snoozeTime;
 
+    cb::RelaxedAtomic<Duration> connectionCleanupInterval;
+
 private:
     ConnMap* connmap;
 };

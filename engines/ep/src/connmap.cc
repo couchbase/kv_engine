@@ -21,9 +21,13 @@ ConnManager::ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
              e.getConfiguration().getConnectionManagerInterval(),
              true),
       snoozeTime(Duration(e.getConfiguration().getConnectionManagerInterval())),
+      connectionCleanupInterval(Duration(e.getConfiguration().getConnectionCleanupInterval())),
       connmap(cmap) {
     engine->getConfiguration().addValueChangedListener(
             "connection_manager_interval",
+            std::make_unique<ConfigChangeListener>(*this));
+    engine->getConfiguration().addValueChangedListener(
+            "connection_cleanup_interval",
             std::make_unique<ConfigChangeListener>(*this));
 }
 
@@ -39,6 +43,8 @@ void ConnManager::ConfigChangeListener::floatValueChanged(std::string_view key,
                                                           float value) {
     if (key == "connection_manager_interval") {
         connManager.snoozeTime = Duration(value);
+    } else if (key == "connection_cleanup_interval") {
+        connManager.connectionCleanupInterval = Duration(value);
     }
 }
 

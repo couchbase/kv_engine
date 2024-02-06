@@ -28,6 +28,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "connmanager.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
@@ -817,6 +818,33 @@ protected:
     /* vbucket associated with this connection */
     Vbid vbid;
 };
+
+TEST_P(ConnectionTest, connection_cleanup_interval_config) {
+    MockDcpConnMap connMap(*engine);
+    ConnManager connMan(*engine, &connMap);
+    auto& config = engine->getConfiguration();
+    EXPECT_FLOAT_EQ(config.getConnectionCleanupInterval(),
+                    connMan.connectionCleanupInterval.load().count());
+
+    ASSERT_NE(2.2, config.getConnectionCleanupInterval());
+    config.setConnectionCleanupInterval(3.3);
+    config.setConnectionCleanupInterval(2.2);
+    EXPECT_FLOAT_EQ(2.2, config.getConnectionCleanupInterval());
+    EXPECT_FLOAT_EQ(2.2, connMan.connectionCleanupInterval.load().count());
+
+    try {
+        config.setConnectionCleanupInterval(0.01);
+    } catch (const std::range_error& ex) {
+        EXPECT_THAT(ex.what(),
+                    testing::HasSubstr(
+                            "Validation Error, connection_cleanup_interval "
+                            "takes values between 0.100000 and "));
+        EXPECT_FLOAT_EQ(2.2, config.getConnectionCleanupInterval());
+        EXPECT_FLOAT_EQ(2.2, connMan.connectionCleanupInterval.load().count());
+        return;
+    }
+    FAIL();
+}
 
 /*
  * Test that the connection manager interval is a multiple of the value we
