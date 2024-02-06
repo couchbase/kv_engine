@@ -332,14 +332,10 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
 
 void DcpConnMap::manageConnections() {
     std::list<std::shared_ptr<ConnHandler>> release;
+    deadConnections.wlock()->swap(release);
+
     std::list<std::shared_ptr<ConnHandler>> toNotify;
     {
-        auto locked = deadConnections.wlock();
-        while (!locked->empty()) {
-            release.push_back(locked->front());
-            locked->pop_front();
-        }
-
         // Collect the list of connections that need to be signaled.
         auto handle = connStore->getCookieToConnectionMapHandle();
         for (const auto& cookieToConn : *handle) {
