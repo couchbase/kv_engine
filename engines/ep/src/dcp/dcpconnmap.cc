@@ -334,6 +334,15 @@ void DcpConnMap::manageConnections() {
     std::list<std::shared_ptr<ConnHandler>> release;
     deadConnections.wlock()->swap(release);
 
+    for (auto& conn : release) {
+        auto prod = std::dynamic_pointer_cast<DcpProducer>(conn);
+        if (prod) {
+            removeVBConnections(*prod);
+        }
+    }
+}
+
+void DcpConnMap::notifyConnections() {
     std::list<std::shared_ptr<ConnHandler>> toNotify;
     {
         // Collect the list of connections that need to be signaled.
@@ -356,15 +365,6 @@ void DcpConnMap::manageConnections() {
     for (auto& it : toNotify) {
         if (it.get()) {
             engine.scheduleDcpStep(*it->getCookie());
-        }
-    }
-
-    while (!release.empty()) {
-        auto conn = release.front();
-        release.pop_front();
-        auto prod = std::dynamic_pointer_cast<DcpProducer>(conn);
-        if (prod) {
-            removeVBConnections(*prod);
         }
     }
 }

@@ -33,7 +33,12 @@ ConnManager::ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
 
 bool ConnManager::run() {
     TRACE_EVENT0("ep-engine/task", "ConnManager");
-    connmap->manageConnections();
+    connmap->notifyConnections();
+    const auto now = ep_uptime_now();
+    if (now - lastConnectionCleanupTime >= connectionCleanupInterval.load()) {
+        lastConnectionCleanupTime = now;
+        connmap->manageConnections();
+    }
     snooze(snoozeTime.load().count());
     return !engine->getEpStats().isShutdown || connmap->isConnections() ||
            !connmap->isDeadConnectionsEmpty();

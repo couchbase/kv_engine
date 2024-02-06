@@ -846,6 +846,35 @@ TEST_P(ConnectionTest, connection_cleanup_interval_config) {
     FAIL();
 }
 
+TEST_P(ConnectionTest, connection_cleanup_interval_connman) {
+    auto* cookie = create_mock_cookie(engine);
+    MockDcpConnMap connMap(*engine);
+    ConnManager connMan(*engine, &connMap);
+    auto& config = engine->getConfiguration();
+    // cleanup time is checked every connMan run, so it should happen after two
+    config.setConnectionManagerInterval(100);
+    config.setConnectionCleanupInterval(150);
+
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
+    connMap.newConsumer(*cookie, "test_consumer");
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
+
+    connMap.disconnect(cookie);
+    EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
+
+    TimeTraveller hermione(120);
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
+
+    TimeTraveller harry(120);
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
+    destroy_mock_cookie(cookie);
+}
+
 /*
  * Test that the connection manager interval is a multiple of the value we
  * are setting the noop interval to.  This ensures we do not set the the noop
