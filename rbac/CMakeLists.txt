@@ -22,3 +22,7 @@ add_test(NAME memcached-rbac-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_rbac_test)
 add_sanitizers(memcached_rbac_test)
+
+cb_add_test_executable(privilege_check_bench privilege_check_bench.cc)
+target_link_libraries(privilege_check_bench PRIVATE
+        Folly::headers benchmark::benchmark memcached_rbac)
