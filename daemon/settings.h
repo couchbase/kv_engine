@@ -747,6 +747,16 @@ public:
         notify_changed("active_external_users_push_interval");
     }
 
+    std::chrono::microseconds getExternalAuthSlowDuration() const {
+        return external_auth_slow_duration.load(std::memory_order_acquire);
+    }
+
+    void setExternalAuthSlowDuration(const std::chrono::microseconds delay) {
+        external_auth_slow_duration.store(delay, std::memory_order_release);
+        has.external_auth_slow_duration = true;
+        notify_changed("external_auth_slow_duration");
+    }
+
     std::string getPortnumberFile() const {
         return portnumber_file;
     }
@@ -998,6 +1008,11 @@ protected:
     std::atomic<std::chrono::microseconds> active_external_users_push_interval{
             std::chrono::minutes(5)};
 
+    /// The number of seconds to determine a slow operation for external
+    /// authentication
+    std::atomic<std::chrono::microseconds> external_auth_slow_duration{
+            std::chrono::seconds{5}};
+
     /// The maximum number of connections allowed
     std::atomic<size_t> max_connections{60000};
 
@@ -1196,6 +1211,7 @@ public:
         bool tcp_user_timeout = false;
         bool tcp_unauthenticated_user_timeout = false;
         bool active_external_users_push_interval = false;
+        bool external_auth_slow_duration = false;
         bool max_connections = false;
         bool system_connections = false;
         bool max_client_connection_details = false;

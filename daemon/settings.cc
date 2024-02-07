@@ -327,6 +327,22 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "\"active_external_users_push_interval\" must be a "
                         "number or string");
             }
+        } else if (key == "external_auth_slow_duration"sv) {
+            switch (value.type()) {
+            case nlohmann::json::value_t::number_unsigned:
+                setExternalAuthSlowDuration(
+                        std::chrono::seconds(value.get<int>()));
+                break;
+            case nlohmann::json::value_t::string:
+                setExternalAuthSlowDuration(
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                                cb::text2time(value.get<std::string>())));
+                break;
+            default:
+                cb::throwJsonTypeError(
+                        "\"external_auth_slow_duration\" must be a "
+                        "number or string");
+            }
         } else if (key == "max_concurrent_commands_per_connection"sv) {
             setMaxConcurrentCommandsPerConnection(value.get<size_t>());
         } else if (key == "phosphor_config"sv) {
@@ -853,6 +869,21 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                             .count());
             setActiveExternalUsersPushInterval(
                     other.getActiveExternalUsersPushInterval());
+        }
+    }
+
+    if (other.has.external_auth_slow_duration) {
+        if (getExternalAuthSlowDuration() !=
+            other.getExternalAuthSlowDuration()) {
+            LOG_INFO(
+                    R"(Change slow duration for external users authentication from {}s to {}s)",
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            getExternalAuthSlowDuration())
+                            .count(),
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            other.getExternalAuthSlowDuration())
+                            .count());
+            setExternalAuthSlowDuration(other.getExternalAuthSlowDuration());
         }
     }
 

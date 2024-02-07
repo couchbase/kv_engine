@@ -91,6 +91,11 @@ public:
         condition_variable.notify_one();
     }
 
+    void setExternalAuthSlowDuration(std::chrono::microseconds duration) {
+        externalAuthSlowDuration.store(duration);
+        condition_variable.notify_one();
+    }
+
     void setRbacCacheEpoch(std::chrono::steady_clock::time_point tp);
 
     /// Check to see if we've got an up to date RBAC entry for the user
@@ -226,6 +231,9 @@ protected:
      */
     std::atomic<std::chrono::microseconds> activeUsersPushInterval{
             std::chrono::minutes(5)};
+
+    std::atomic<std::chrono::microseconds> externalAuthSlowDuration{
+            std::chrono::seconds(5)};
 
     /**
      * The time point we last sent the list of active users to the auth
