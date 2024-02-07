@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2010-Present Couchbase, Inc.
  *
@@ -10,89 +9,38 @@
  */
 
 #include "connmap.h"
-#include "conn_store.h"
-#include "connhandler.h"
-#include "dcp/backfill-manager.h"
-#include "dcp/consumer.h"
-#include "dcp/producer.h"
-#include <daemon/tracing.h>
+#include "connmanager.h"
+#include "ep_engine.h"
+#include "ep_time.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
-#include <chrono>
-#include <limits>
-#include <queue>
-#include <string>
 
-/**
- * A task to manage connections.
- */
-class ConnManager : public EpTask {
-public:
-    class ConfigChangeListener : public ValueChangedListener {
-    public:
-        explicit ConfigChangeListener(ConnManager& connManager)
-            : connManager(connManager) {
-        }
+ConnManager::ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
+    : EpTask(e,
+             TaskId::ConnManager,
+             e.getConfiguration().getConnectionManagerInterval(),
+             true),
+      snoozeTime(Duration(e.getConfiguration().getConnectionManagerInterval())),
+      connmap(cmap) {
+    engine->getConfiguration().addValueChangedListener(
+            "connection_manager_interval",
+            std::make_unique<ConfigChangeListener>(*this));
+}
 
-        void floatValueChanged(std::string_view key, float value) override {
-            if (key == "connection_manager_interval") {
-                connManager.setSnoozeTime(std::chrono::duration<float>(value));
-            }
-        }
+bool ConnManager::run() {
+    TRACE_EVENT0("ep-engine/task", "ConnManager");
+    connmap->manageConnections();
+    snooze(snoozeTime.load().count());
+    return !engine->getEpStats().isShutdown || connmap->isConnections() ||
+           !connmap->isDeadConnectionsEmpty();
+}
 
-    private:
-        ConnManager& connManager;
-    };
-
-    ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
-        : EpTask(e,
-                 TaskId::ConnManager,
-                 e.getConfiguration().getConnectionManagerInterval(),
-                 true),
-          connmap(cmap),
-          snoozeTime(e.getConfiguration().getConnectionManagerInterval()) {
-        engine->getConfiguration().addValueChangedListener(
-                "connection_manager_interval",
-                std::make_unique<ConfigChangeListener>(*this));
+void ConnManager::ConfigChangeListener::floatValueChanged(std::string_view key,
+                                                          float value) {
+    if (key == "connection_manager_interval") {
+        connManager.snoozeTime = Duration(value);
     }
-
-    /**
-     * The ConnManager task is used to run the manageConnections function
-     * once a second.  This is required for two reasons:
-     * (1) To clean-up dead connections
-     * (2) To notify idle connections; either for connections that need to be
-     * closed or to ensure dcp noop messages are sent once a second.
-     */
-    bool run() override {
-        TRACE_EVENT0("ep-engine/task", "ConnManager");
-        connmap->manageConnections();
-        snooze(snoozeTime.count());
-        return !engine->getEpStats().isShutdown ||
-               connmap->isConnections() ||
-               !connmap->isDeadConnectionsEmpty();
-    }
-
-    std::string getDescription() const override {
-        return "Connection Manager";
-    }
-
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // In *theory* this should run very quickly (p50 of <1ms); however
-        // there's evidence it sometimes takes much longer than that.
-        // Given default interval is 0.1s, consider it "slow" if it takes
-        // more than 50ms - i.e. at the default interval it would consume
-        // half of a core if it took 50+ms.
-        return std::chrono::milliseconds(50);
-    }
-
-    void setSnoozeTime(std::chrono::duration<float> snooze) {
-        snoozeTime = snooze;
-    }
-
-private:
-    ConnMap *connmap;
-    std::chrono::duration<float> snoozeTime;
-};
+}
 
 ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
