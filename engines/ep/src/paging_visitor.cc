@@ -184,7 +184,7 @@ ExpiredPagingVisitor::shouldInterrupt() {
         return ExecutionState::Continue;
     }
 
-    if (stats.diskQueueSize.load() >= MAX_PERSISTENCE_QUEUE_SIZE) {
+    if (stats.getDiskQueueSize() >= MAX_PERSISTENCE_QUEUE_SIZE) {
         return ExecutionState::Pause;
     }
 

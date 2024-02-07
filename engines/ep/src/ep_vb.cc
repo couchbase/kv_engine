@@ -1293,7 +1293,7 @@ void EPVBucket::clearCMAndResetDiskQueueStats(uint64_t seqno) {
 
     const auto size = dirtyQueueSize.load();
     dirtyQueueSize.fetch_sub(size);
-    stats.diskQueueSize.fetch_sub(size);
+    stats.getCoreLocalDiskQueueSize().fetch_sub(size);
     dirtyQueueAge.store(0);
 }
 

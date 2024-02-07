@@ -571,14 +571,14 @@ void DurabilityEPBucketTest::testPersistPrepare(DocumentState docState) {
     ASSERT_EQ(1, ckptList.size());
 
     const auto& stats = engine->getEpStats();
-    ASSERT_EQ(1, stats.diskQueueSize);
+    ASSERT_EQ(1, stats.getDiskQueueSize());
 
     // Item must be flushed
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Item must have been removed from the disk queue
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
-    EXPECT_EQ(0, stats.diskQueueSize);
+    EXPECT_EQ(0, stats.getDiskQueueSize());
 
     // The item count must not increase when flushing Pending SyncWrites
     EXPECT_EQ(1, vb.getNumItems());
@@ -633,7 +633,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
         ASSERT_EQ(1, res.storedValue->getBySeqno());
     }
     const auto& stats = engine->getEpStats();
-    ASSERT_EQ(1, stats.diskQueueSize);
+    ASSERT_EQ(1, stats.getDiskQueueSize());
     const auto& ckptMgr = *store->getVBucket(vbid)->checkpointManager;
     ASSERT_EQ(1, ckptMgr.getNumItemsForPersistence());
     const auto& ckptList =
@@ -667,7 +667,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
                       queue_op::abort_sync_write);
     // pre, ce, cs, abr
     EXPECT_EQ(4, ckptMgr.getNumItemsForPersistence());
-    EXPECT_EQ(2, stats.diskQueueSize);
+    EXPECT_EQ(2, stats.getDiskQueueSize());
     validateHighAndVisibleSeqno(vb, 2, 0);
 
     EXPECT_EQ(2, vb.getHighSeqno());
@@ -684,7 +684,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
 
     EXPECT_EQ(0, vb.getNumItems());
     EXPECT_EQ(0, ckptMgr.getNumItemsForPersistence());
-    EXPECT_EQ(0, stats.diskQueueSize);
+    EXPECT_EQ(0, stats.getDiskQueueSize());
     EXPECT_EQ(0, vb.opsCreate); // nothing committed
     EXPECT_EQ(0, vb.opsUpdate); // nothing updated
     EXPECT_EQ(0, vb.opsDelete); // nothing deleted
