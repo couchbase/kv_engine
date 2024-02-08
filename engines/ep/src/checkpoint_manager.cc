@@ -874,9 +874,10 @@ std::vector<Cursor> CheckpointManager::getListOfCursorsToDrop() {
 
 void CheckpointManager::updateStatsForNewQueuedItem(
         const std::lock_guard<std::mutex>& lh, const queued_item& qi) {
-    ++stats.totalEnqueued;
+    ++stats.getCoreLocalTotalEnqueued();
     if (checkpointConfig.isPersistenceEnabled()) {
-        ++stats.diskQueueSize;
+        ++stats.getCoreLocalDiskQueueSize();
+
         vb.doStatsForQueueing(*qi, qi->size());
     }
 }

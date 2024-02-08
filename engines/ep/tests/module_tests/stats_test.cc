@@ -1167,13 +1167,11 @@ protected:
         stats.warmOOM.store(nonDefaultCounterValue);
         stats.warmupMemUsedCap.store(nonDefaultCounterValue);
         stats.warmupNumReadCap.store(nonDefaultCounterValue);
-        stats.diskQueueSize.store(nonDefaultCounterValue);
         stats.flusher_todo.store(nonDefaultCounterValue);
         stats.flusherCommits.store(nonDefaultCounterValue);
         stats.cumulativeFlushTime.store(nonDefaultCounterValue);
         stats.cumulativeCommitTime.store(nonDefaultCounterValue);
         stats.totalPersisted.store(nonDefaultCounterValue);
-        stats.totalEnqueued.store(nonDefaultCounterValue);
         stats.flushFailed.store(nonDefaultCounterValue);
         stats.flushExpired.store(nonDefaultCounterValue);
         stats.expired_access.store(nonDefaultCounterValue);
@@ -1307,7 +1305,6 @@ protected:
 
         EXPECT_EQ(nonStatValue, stats.warmupMemUsedCap);
         EXPECT_EQ(nonStatValue, stats.warmupNumReadCap);
-        EXPECT_EQ(nonStatValue, stats.diskQueueSize);
         EXPECT_EQ(nonStatValue, stats.mem_low_wat);
         EXPECT_EQ(nonStatValue, stats.mem_low_wat_percent);
         EXPECT_EQ(nonStatValue, stats.mem_high_wat);
@@ -1334,7 +1331,6 @@ protected:
         EXPECT_EQ(initializedValue, stats.cumulativeFlushTime);
         EXPECT_EQ(initializedValue, stats.cumulativeCommitTime);
         EXPECT_EQ(initializedValue, stats.totalPersisted);
-        EXPECT_EQ(initializedValue, stats.totalEnqueued);
         EXPECT_EQ(initializedValue, stats.flushFailed);
         EXPECT_EQ(initializedValue, stats.flushExpired);
         EXPECT_EQ(initializedValue, stats.expired_access);
@@ -1433,6 +1429,10 @@ protected:
         for (auto& hist : stats.syncWriteCommitTimes) {
             EXPECT_TRUE(hist.isEmpty());
         }
+
+        // These stats come from CoreLocal accumulation and are zero
+        EXPECT_EQ(0, stats.getDiskQueueSize());
+        EXPECT_EQ(0, stats.getTotalEnqueued());
     }
 };
 

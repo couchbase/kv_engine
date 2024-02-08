@@ -28,6 +28,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
+#include "connmanager.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/dcp-types.h"
 #include "dcp/dcpconnmap.h"
@@ -817,6 +818,62 @@ protected:
     /* vbucket associated with this connection */
     Vbid vbid;
 };
+
+TEST_P(ConnectionTest, connection_cleanup_interval_config) {
+    MockDcpConnMap connMap(*engine);
+    ConnManager connMan(*engine, &connMap);
+    auto& config = engine->getConfiguration();
+    EXPECT_FLOAT_EQ(config.getConnectionCleanupInterval(),
+                    connMan.connectionCleanupInterval.load().count());
+
+    ASSERT_NE(2.2, config.getConnectionCleanupInterval());
+    config.setConnectionCleanupInterval(3.3);
+    config.setConnectionCleanupInterval(2.2);
+    EXPECT_FLOAT_EQ(2.2, config.getConnectionCleanupInterval());
+    EXPECT_FLOAT_EQ(2.2, connMan.connectionCleanupInterval.load().count());
+
+    try {
+        config.setConnectionCleanupInterval(0.01);
+    } catch (const std::range_error& ex) {
+        EXPECT_THAT(ex.what(),
+                    testing::HasSubstr(
+                            "Validation Error, connection_cleanup_interval "
+                            "takes values between 0.100000 and "));
+        EXPECT_FLOAT_EQ(2.2, config.getConnectionCleanupInterval());
+        EXPECT_FLOAT_EQ(2.2, connMan.connectionCleanupInterval.load().count());
+        return;
+    }
+    FAIL();
+}
+
+TEST_P(ConnectionTest, connection_cleanup_interval_connman) {
+    auto* cookie = create_mock_cookie(engine);
+    MockDcpConnMap connMap(*engine);
+    ConnManager connMan(*engine, &connMap);
+    auto& config = engine->getConfiguration();
+    // cleanup time is checked every connMan run, so it should happen after two
+    config.setConnectionManagerInterval(100);
+    config.setConnectionCleanupInterval(150);
+
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
+    connMap.newConsumer(*cookie, "test_consumer");
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
+
+    connMap.disconnect(cookie);
+    EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
+
+    TimeTraveller hermione(120);
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
+
+    TimeTraveller harry(120);
+    ASSERT_TRUE(connMan.run());
+    EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
+    destroy_mock_cookie(cookie);
+}
 
 /*
  * Test that the connection manager interval is a multiple of the value we

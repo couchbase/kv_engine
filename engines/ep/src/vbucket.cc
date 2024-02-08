@@ -308,7 +308,7 @@ VBucket::~VBucket() {
         EP_LOG_WARN("~VBucket(): {} has {} pending ops", id, pendingOps.size());
     }
 
-    stats.diskQueueSize.fetch_sub(dirtyQueueSize.load());
+    stats.getCoreLocalDiskQueueSize().fetch_sub(dirtyQueueSize.load());
 
     // Clear out the bloomfilter(s)
     clearFilter();
@@ -793,7 +793,7 @@ void AggregatedFlushStats::accountItem(const Item& item) {
 
 void VBucket::doAggregatedFlushStats(const AggregatedFlushStats& aggStats) {
     const auto numItems = aggStats.getNumItems();
-    stats.diskQueueSize -= numItems;
+    stats.getCoreLocalDiskQueueSize() -= numItems;
     dirtyQueueSize -= numItems;
     decrDirtyQueueMem(sizeof(Item) * numItems);
     dirtyQueueDrain += numItems;
@@ -817,7 +817,7 @@ void VBucket::resetStats() {
     opsReject.store(0);
     opsUpdate.store(0);
 
-    stats.diskQueueSize.fetch_sub(dirtyQueueSize.exchange(0));
+    stats.getCoreLocalDiskQueueSize().fetch_sub(dirtyQueueSize.exchange(0));
     dirtyQueueMem.store(0);
     dirtyQueueFill.store(0);
     dirtyQueueAge.store(0);

@@ -743,6 +743,17 @@
                 }
             }
         },
+        "connection_cleanup_interval": {
+            "default": "1",
+            "descr": "How often connection manager task should release dead connections (in seconds).",
+            "type": "float",
+            "dynamic": true,
+            "validator": {
+                "range": {
+                    "min": 0.1
+                }
+            }
+        },
         "max_checkpoints": {
             "default": "10",
             "descr": "The expected max number of checkpoints in each VBucket on a balanced system. Note: That is not a hard limit on the single vbucket. That is used (together with checkpoint_memory_ratio) for computing checkpoint_max_size, which triggers checkpoint creation.",

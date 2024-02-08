@@ -968,6 +968,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
             getConfiguration().setDcpConsumerBufferRatio(std::stof(val));
         } else if (key == "connection_manager_interval") {
             getConfiguration().setConnectionManagerInterval(std::stof(val));
+        } else if (key == "connection_cleanup_interval") {
+            getConfiguration().setConnectionCleanupInterval(std::stof(val));
         } else if (key == "dcp_consumer_process_unacked_bytes_yield_limit") {
             getConfiguration().setDcpConsumerProcessUnackedBytesYieldLimit(
                     std::stoull(val));
@@ -3186,15 +3188,16 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     using namespace cb::stats;
 
-    collector.addStat(Key::ep_total_enqueued, epstats.totalEnqueued);
+    collector.addStat(Key::ep_total_enqueued, epstats.getTotalEnqueued());
     collector.addStat(Key::ep_total_deduplicated, epstats.totalDeduplicated);
     collector.addStat(Key::ep_total_deduplicated_flusher,
                       epstats.totalDeduplicatedFlusher);
     collector.addStat(Key::ep_expired_access, epstats.expired_access);
     collector.addStat(Key::ep_expired_compactor, epstats.expired_compactor);
     collector.addStat(Key::ep_expired_pager, epstats.expired_pager);
-    collector.addStat(Key::ep_queue_size, epstats.diskQueueSize);
-    collector.addStat(Key::ep_diskqueue_items, epstats.diskQueueSize);
+    auto diskQueueSize = epstats.getDiskQueueSize();
+    collector.addStat(Key::ep_queue_size, diskQueueSize);
+    collector.addStat(Key::ep_diskqueue_items, diskQueueSize);
     auto* flusher = kvBucket->getOneFlusher();
     if (flusher) {
         collector.addStat(Key::ep_commit_num, epstats.flusherCommits);
@@ -5507,7 +5510,7 @@ cb::engine_errc EventuallyPersistentEngine::handleObserve(
     }
 
     persist_time_hint = 0;
-    const auto queue_size = static_cast<double>(stats.diskQueueSize);
+    const auto queue_size = static_cast<double>(stats.getDiskQueueSize());
     const double item_trans_time = kvBucket->getTransactionTimePerItem();
 
     if (item_trans_time > 0 && queue_size > 0) {

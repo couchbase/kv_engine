@@ -31,10 +31,17 @@ public:
     void initialize();
 
     /**
-     * Purge dead connections or identify paused connections that should send
-     * NOOP messages to their destinations.
+     * Purge dead connections.
+     *
+     * @todo rename to clarify new role
      */
     virtual void manageConnections() = 0;
+
+    /**
+     * Identify paused connections that should send NOOP messages
+     * to their destinations.
+     */
+    virtual void notifyConnections() = 0;
 
     /**
      * Returns true if a dead connections list is not maintained,

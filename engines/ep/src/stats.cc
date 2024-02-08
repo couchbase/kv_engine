@@ -26,7 +26,6 @@ EPStats::EPStats()
     // be initialized in that function.
     : warmupMemUsedCap(0),
       warmupNumReadCap(0),
-      diskQueueSize(0),
       mem_low_wat(0),
       mem_low_wat_percent(0),
       mem_high_wat(0),
@@ -49,7 +48,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 2192,
+static_assert(sizeof(EPStats) == 2176,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {
@@ -202,6 +201,22 @@ void EPStats::setHighWaterMark(size_t value) {
     mem_high_wat_percent.store((double)(value) / getMaxDataSize());
 }
 
+size_t EPStats::getTotalEnqueued() const {
+    size_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->totalEnqueued;
+    }
+    return std::max(size_t(0), result);
+}
+
+size_t EPStats::getDiskQueueSize() const {
+    size_t result = 0;
+    for (const auto& core : coreLocal) {
+        result += core->diskQueueSize;
+    }
+    return std::max(size_t(0), result);
+}
+
 void EPStats::reset() {
     totalPersistVBState.reset();
     commit_time.store(0);
@@ -272,7 +287,6 @@ void EPStats::reset() {
     cumulativeFlushTime.reset();
     cumulativeCommitTime.reset();
     totalPersisted.reset();
-    totalEnqueued.reset();
     flushFailed.reset();
     flushExpired.reset();
     expired_access.reset();
@@ -308,6 +322,10 @@ void EPStats::reset() {
     replicaFrequencyValuesSnapshotHisto.reset();
     for (auto& hist : syncWriteCommitTimes) {
         hist.reset();
+    }
+
+    for (auto& core : coreLocal) {
+        core->totalEnqueued = 0;
     }
 }
 

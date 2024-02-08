@@ -98,6 +98,12 @@ public:
 
     //! Total number of checkpoints across all vbuckets
     BifurcatedCounter numCheckpoints;
+
+    //! Amount of items waiting for persistence
+    Counter diskQueueSize;
+
+    //! Cumulative number of items added to the queue.
+    Counter totalEnqueued;
 };
 
 /**
@@ -235,6 +241,24 @@ public:
      */
     void setHighWaterMark(size_t value);
 
+    CoreLocalStats::Counter& getCoreLocalDiskQueueSize() {
+        return coreLocal.get()->diskQueueSize;
+    }
+
+    CoreLocalStats::Counter& getCoreLocalTotalEnqueued() {
+        return coreLocal.get()->totalEnqueued;
+    }
+
+    /**
+     * @return sum of CoreLocal diskQueueSize
+     */
+    size_t getDiskQueueSize() const;
+
+    /**
+     * @return sum of CoreLocal totalEnqueued
+     */
+    size_t getTotalEnqueued() const;
+
     //! Number of keys warmed up during key-only loading.
     Counter warmedUpKeys;
     //! Number of key-values warmed up during data loading.
@@ -254,8 +278,6 @@ public:
     //  enable traffic
     std::atomic<double> warmupNumReadCap;
 
-    //! Amount of items waiting for persistence
-    cb::AtomicNonNegativeCounter<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
     Counter flusher_todo;
     //! Number of transaction commits.
@@ -268,8 +290,7 @@ public:
     Counter totalPersisted;
     //! Number of times VBucket state persisted.
     Counter totalPersistVBState;
-    //! Cumulative number of items added to the queue.
-    Counter totalEnqueued;
+
     //! Cumulative count of items de-duplicated when queued to CheckpointManager
     Counter totalDeduplicated;
     //! Cumulative count of items de-duplicated when processed at Flusher

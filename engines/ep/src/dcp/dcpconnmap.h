@@ -117,6 +117,8 @@ public:
 
     void manageConnections() override;
 
+    void notifyConnections() override;
+
     cb::engine_errc addPassiveStream(ConnHandler& conn,
                                      uint32_t opaque,
                                      Vbid vbucket,

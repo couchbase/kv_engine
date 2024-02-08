@@ -1026,7 +1026,7 @@ bool EPBucket::resumeFlusher() {
 }
 
 void EPBucket::wakeUpFlusher() {
-    if (stats.diskQueueSize.load() == 0) {
+    if (stats.getDiskQueueSize() == 0) {
         for (const auto& flusher : flushers) {
             flusher->wake();
         }
