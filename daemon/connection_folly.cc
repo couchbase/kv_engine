@@ -115,7 +115,13 @@ FollyConnection::FollyConnection(SOCKET sfd,
     asyncSocket->setReadCB(asyncReadCallback.get());
 }
 
-FollyConnection::~FollyConnection() = default;
+FollyConnection::~FollyConnection() {
+    if (isDCP()) {
+        LOG_INFO("{}: Releasing DCP connection: {}",
+                 socketDescriptor,
+                 to_json_tcp().dump());
+    }
+}
 
 bool FollyConnection::handshakeVer(folly::AsyncSSLSocket* socket,
                                    bool preverifyOk,

@@ -151,6 +151,12 @@ public:
     nlohmann::json to_json() const;
 
     /**
+     * Create a JSON representation of the members of the connection that
+     * store TCP-related details of this connection
+     */
+    nlohmann::json to_json_tcp() const;
+
+    /**
      * Enable or disable TCP NoDelay on the underlying socket
      *
      * @return true on success, false otherwise
