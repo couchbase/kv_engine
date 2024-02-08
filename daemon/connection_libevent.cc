@@ -73,7 +73,13 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     bufferevent_setwatermark(bev.get(), EV_READ, sizeof(cb::mcbp::Header), 0);
 }
 
-LibeventConnection::~LibeventConnection() = default;
+LibeventConnection::~LibeventConnection() {
+    if (isDCP() && getSendQueueSize() > 0) {
+        LOG_INFO("{}: Releasing DCP connection: {}",
+                 socketDescriptor,
+                 to_json_tcp().dump());
+    }
+}
 
 std::vector<unsigned long> LibeventConnection::getOpenSslErrorCodes() {
     std::vector<unsigned long> ret;

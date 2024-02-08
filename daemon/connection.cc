@@ -92,15 +92,16 @@ bool Connection::isConnectedToSystemPort() const {
 }
 
 nlohmann::json Connection::to_json() const {
-    nlohmann::json ret;
+    nlohmann::json ret = to_json_tcp();
+
+    ret["socket"] = socketDescriptor;
+    ret["peername"] = peername;
+    ret["sockname"] = sockname;
 
     ret["connection"] = cb::to_hex(uint64_t(this));
 
-    ret["socket"] = socketDescriptor;
     ret["yields"] = yields.load();
     ret["protocol"] = "memcached";
-    ret["peername"] = peername;
-    ret["sockname"] = sockname;
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
 
@@ -221,11 +222,19 @@ nlohmann::json Connection::to_json() const {
     }
 
     ret["ssl"] = isTlsEnabled();
+    ret["datatype"] = cb::mcbp::datatype::to_string(datatypeFilter.getRaw());
+    ret["last_used"] =
+            cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - last_used_timestamp));
+    return ret;
+}
+
+nlohmann::json Connection::to_json_tcp() const {
+    nlohmann::json ret;
+
     ret["total_recv"] = totalRecv;
     ret["total_queued_send"] = totalSend;
     ret["total_send"] = totalSend - getSendQueueSize();
-
-    ret["datatype"] = cb::mcbp::datatype::to_string(datatypeFilter.getRaw());
 
     ret["sendqueue"]["size"] = sendQueueInfo.size;
     ret["sendqueue"]["last"] = sendQueueInfo.last.time_since_epoch().count();
@@ -243,9 +252,6 @@ nlohmann::json Connection::to_json() const {
     }
 #endif
 
-    ret["last_used"] =
-            cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::steady_clock::now() - last_used_timestamp));
     return ret;
 }
 
