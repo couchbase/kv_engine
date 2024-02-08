@@ -20,6 +20,7 @@
 
 ObserveCommandContext::ObserveCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie) {
+    cookie.preserveRequest();
 }
 
 cb::engine_errc ObserveCommandContext::step() {
