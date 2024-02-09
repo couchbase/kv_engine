@@ -57,12 +57,18 @@ def human_duration_to_sec(h):
         if not m:
             return ts.total_seconds()
         (value, unit, h) = m.groups()
-        if unit == "m":
+        if unit == "h":
+            ts = ts + timedelta(hours=float(value))
+        elif unit == "m":
             ts = ts + timedelta(minutes=float(value))
         elif unit == "s":
             ts = ts + timedelta(seconds=float(value))
         elif unit == "ms":
             ts = ts + timedelta(milliseconds=float(value))
+        elif unit == "us":
+            ts = ts + timedelta(microseconds=float(value))
+        elif unit == "ns":
+            ts = ts + timedelta(microseconds=float(value) / 1000)
         else:
             raise ValueError("Unhandled unit '{}'".format(unit))
 
