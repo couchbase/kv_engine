@@ -233,9 +233,9 @@ nlohmann::json Connection::to_json_tcp() const {
     nlohmann::json ret;
 
     ret["total_recv"] = totalRecv;
-    ret["total_send"] = totalSend;
+    ret["total_queued_send"] = totalSend;
+    ret["total_send"] = totalSend - getSendQueueSize();
 
-    ret["sendqueue"]["actual"] = getSendQueueSize();
     ret["sendqueue"]["size"] = sendQueueInfo.size;
     ret["sendqueue"]["last"] = sendQueueInfo.last.time_since_epoch().count();
     ret["sendqueue"]["term"] = sendQueueInfo.term;
