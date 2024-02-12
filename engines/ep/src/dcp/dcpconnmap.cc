@@ -304,12 +304,8 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
         }
     }
 
-    // @todo MB-60415: Review and possibly remove
-    //
-    // Note we shutdown the stream *not* under the map-lock; this is
-    // because as part of closing a DcpConsumer stream we need to
-    // acquire PassiveStream::buffer.bufMutex; and that could deadlock
-    // in EPBucket::setVBucketState, via PassiveStream::processBufferedMessages.
+    // We do the minimal required work under ConnStore lock. All next steps can
+    // be executed lock-free.
     if (conn) {
         auto producer = std::dynamic_pointer_cast<DcpProducer>(conn);
         if (producer) {
@@ -322,10 +318,9 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
             consumer->closeAllStreams();
             consumer->scheduleNotify();
         }
-    }
 
-    // Finished disconnecting the stream; add it to the deadConnections list.
-    if (conn) {
+        // All streams closed, add to the deadConnections for releasing at
+        // ConnManager.
         deadConnections.wlock()->push_back(conn);
     }
 }
