@@ -175,26 +175,27 @@ public:
         : vbuckets(std::move(v)) {
         auto [host, port, family] = cb::inet::parse_hostname(hostname, {});
         connection = std::make_unique<MemcachedConnection>(
-                host, port, family, tls, eb);
+                host, port, family, tls, std::move(eb));
         connection->connect();
     }
 
-    MemcachedConnection& getConnection() {
+    MemcachedConnection& getConnection() const {
         return *connection;
     }
 
-    void enterMessagePump(std::string streamRequestValue,
-                          std::optional<nlohmann::json>& streamIdConfig,
+    void enterMessagePump(std::string_view streamRequestValue,
+                          const std::optional<nlohmann::json>& streamIdConfig,
                           uint32_t streamRequestFlags) {
         if (vbuckets.empty()) {
             return;
         }
-        int streamsPerVb = streamIdConfig ? streamIdConfig.value().size() : 1;
+        const auto streamsPerVb =
+                streamIdConfig ? streamIdConfig.value().size() : 1;
 
         std::unique_ptr<folly::IOBuf> head;
         folly::IOBuf* tailp = nullptr;
 
-        for (int ii = 0; ii < streamsPerVb; ii++) {
+        for (std::size_t ii = 0; ii < streamsPerVb; ++ii) {
             for (auto vb : vbuckets) {
                 totalStreams++;
                 BinprotDcpStreamRequestCommand streamRequestCommand;
@@ -208,8 +209,7 @@ public:
                 streamRequestCommand.setVBucket(Vbid(vb));
 
                 if (!streamRequestValue.empty()) {
-                    streamRequestCommand.setValue(
-                            std::string_view{streamRequestValue});
+                    streamRequestCommand.setValue(streamRequestValue);
                 }
 
                 if (streamIdConfig) {
@@ -376,7 +376,7 @@ protected:
         }
     }
 
-    void handleDcpNoop(const cb::mcbp::Request& header) {
+    void handleDcpNoop(const cb::mcbp::Request& header) const {
         cb::mcbp::Response resp = {};
         resp.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.setOpaque(header.getOpaque());
@@ -464,21 +464,21 @@ static void setControlMessages(
     }
 }
 
-std::pair<std::string, std::string> parseControlMessage(std::string value) {
+static std::pair<std::string, std::string> parseControlMessage(
+        const std::string& value) {
     auto idx = value.find('=');
     if (idx == std::string::npos) {
         std::cerr << "Error: control message should be key=value" << std::endl;
         std::exit(EXIT_FAILURE);
     }
-    return std::make_pair<std::string, std::string>(value.substr(0, idx),
-                                                    value.substr(idx + 1));
+    return {value.substr(0, idx), value.substr(idx + 1)};
 }
 
 /**
  * Given a string in the form of comma-separated integers, parse and return
  * a set of Vbids of those numbers.
  */
-std::unordered_set<Vbid> parseVBuckets(std::string value) {
+static std::unordered_set<Vbid> parseVBuckets(const std::string& value) {
     std::unordered_set<Vbid> vbuckets;
     for (auto& element : split_string(value, ",")) {
         Vbid::id_type vb;
@@ -511,18 +511,18 @@ std::unordered_set<Vbid> parseVBuckets(std::string value) {
 /// The vucketmap is a vector of pairs where the first entry is the
 /// hostname (and port) and the second entry is a vector containing
 /// all of the vbuckets there
-std::vector<std::pair<std::string, std::vector<uint16_t>>> vbucketmap;
+static std::vector<std::pair<std::string, std::vector<uint16_t>>> vbucketmap;
 
-void setupVBMap(const std::string& host,
-                in_port_t in_port,
-                sa_family_t family,
-                const std::string& user,
-                const std::string& password,
-                const std::string& bucket,
-                bool enableCollections,
-                const std::unordered_set<Vbid>& vbuckets,
-                std::shared_ptr<folly::EventBase> base) {
-    MemcachedConnection connection(host, in_port, family, tls, base);
+static void setupVBMap(const std::string& host,
+                       in_port_t in_port,
+                       sa_family_t family,
+                       const std::string& user,
+                       const std::string& password,
+                       const std::string& bucket,
+                       bool enableCollections,
+                       const std::unordered_set<Vbid>& vbuckets,
+                       std::shared_ptr<folly::EventBase> base) {
+    MemcachedConnection connection(host, in_port, family, tls, std::move(base));
     if (tls_certificate_file && tls_private_key_file) {
         connection.setTlsConfigFiles(*tls_certificate_file,
                                      *tls_private_key_file,
@@ -580,12 +580,11 @@ void setupVBMap(const std::string& host,
         // If user specified a subset of vBuckets, we only add to map if
         // this vbucket was included.
         if (vbuckets.empty() ||
-            std::find(vbuckets.begin(), vbuckets.end(), current_vbucket) !=
-                    vbuckets.end()) {
+            vbuckets.find(current_vbucket) != vbuckets.end()) {
             int nodeidx = e[0].get<int>();
             vbucketmap[nodeidx].second.emplace_back(current_vbucket.get());
         }
-        current_vbucket++;
+        ++current_vbucket;
     }
 }
 
@@ -882,7 +881,7 @@ int main(int argc, char** argv) {
             }
 
             int idx = 0;
-            for (auto vbuckets : perConnVbuckets) {
+            for (const auto& vbuckets : perConnVbuckets) {
                 connections.emplace_back(std::make_unique<DcpConnection>(
                         h, vbuckets, event_base));
                 auto& c = connections.back()->getConnection();
@@ -945,32 +944,27 @@ int main(int argc, char** argv) {
                 }
 
                 if (streamIdConfig) {
-                    ctrls.emplace_back(
-                            std::make_pair("enable_stream_id", "true"));
+                    ctrls.emplace_back("enable_stream_id", "true");
                 }
 
                 switch (enableOso) {
                 case EnableOSO::False:
                     break;
                 case EnableOSO::True:
-                    ctrls.emplace_back(std::make_pair(
-                            "enable_out_of_order_snapshots", "true"));
+                    ctrls.emplace_back("enable_out_of_order_snapshots", "true");
                     break;
                 case EnableOSO::TrueWithSeqnoAdvanced:
-                    ctrls.emplace_back(
-                            std::make_pair("enable_out_of_order_snapshots",
-                                           "true_with_seqno_advanced"));
+                    ctrls.emplace_back("enable_out_of_order_snapshots",
+                                       "true_with_seqno_advanced");
                     break;
                 }
 
                 if (enableFlatbufferSysEvents) {
-                    ctrls.emplace_back(std::make_pair(
-                            "flatbuffers_system_events", "true"));
+                    ctrls.emplace_back("flatbuffers_system_events", "true");
                 }
 
                 if (enableChangeStreams) {
-                    ctrls.emplace_back(
-                            std::make_pair("change_streams", "true"));
+                    ctrls.emplace_back("change_streams", "true");
                 }
 
                 setControlMessages(c, ctrls);
