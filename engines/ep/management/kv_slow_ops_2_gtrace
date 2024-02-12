@@ -18,9 +18,9 @@ Usage:
     <open Chrome -> chrome://tracing -> Load 'trace.json'
 """
 
+import argparse
 from datetime import datetime, timedelta
 import copy
-import fileinput
 import json
 import re
 import unittest
@@ -268,13 +268,13 @@ def parse_slow_op(trace):
     return json.loads(trace)
 
 
-def main():
+def main(file):
     print('[')
     global first
     node = ""
     skipped_slow_runtime_events = 0
     skipped_slow_scheduling_events = 0
-    for line in fileinput.input():
+    for line in file:
         # Check if we're parsing logs from multiple nodes, extracting data for rebasing timestamps if we are.
         #
         # Match strings beginning with a cbcollect filepath, such as:
@@ -466,4 +466,13 @@ if __name__ == '__main__':
     if os.environ.get('UNITTEST', '') == '1':
         unittest.main()
     else:
-        main()
+        import io
+
+        # Ignore any Unicode errors
+        unicode_errors = 'replace'
+        stdin = io.TextIOWrapper(sys.stdin.buffer, errors=unicode_errors)
+
+        parser = argparse.ArgumentParser()
+        parser.add_argument('file', type=argparse.FileType('r', errors=unicode_errors),
+                            nargs='?', default=stdin)
+        main(**vars(parser.parse_args()))
