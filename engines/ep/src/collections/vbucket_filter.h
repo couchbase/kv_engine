@@ -109,7 +109,7 @@ public:
      */
     bool checkAndUpdate(Item& item) {
         // passthrough, everything is allowed.
-        if (passthrough) {
+        if (isPassThroughFilter()) {
             return true;
         }
 
@@ -132,7 +132,7 @@ public:
      */
     bool check(DocKey key) const {
         // passthrough, everything is allowed.
-        if (passthrough) {
+        if (isPassThroughFilter()) {
             return true;
         }
 
@@ -163,10 +163,17 @@ public:
     void addStats(const AddStatFn& add_stat, CookieIface& c, Vbid vb) const;
 
     /**
-     * Was this filter constructed for a non-collection aware client?
+     * @return true if this filter constructed for a non-collection aware client
      */
     bool isLegacyFilter() const {
-        return !systemEventsAllowed;
+        return filterType == FilterType::Legacy;
+    }
+
+    /**
+     * @return true if this filter constructed a single scope
+     */
+    bool isScopeFilter() const {
+        return filterType == FilterType::Scope;
     }
 
     /// @return the size of the filter
@@ -204,7 +211,7 @@ public:
      * @return true if the filter is a pass-through filter
      */
     bool isPassThroughFilter() const {
-        return passthrough;
+        return filterType == FilterType::Passthrough;
     }
 
     /**
@@ -215,7 +222,7 @@ public:
      * events.
      */
     bool isCollectionFilter() const {
-        return !isPassThroughFilter() && !isLegacyFilter();
+        return filterType == FilterType::Collection;
     }
 
     /**
@@ -327,8 +334,8 @@ protected:
     void insertCollection(CollectionID cid, DcpFilterMeta filterData);
 
     Container filter;
-
-    std::optional<ScopeID> scopeID;
+    // For FilterType::Scope - the scope
+    ScopeID scopeID;
     Visibility filteredScopeVisibility{Visibility::User};
 
     // use an optional so we don't use any special values to mean unset
@@ -336,8 +343,24 @@ protected:
     cb::mcbp::DcpStreamId streamId = {};
     bool scopeIsDropped = false;
     bool defaultAllowed = false;
-    bool passthrough = false;
-    bool systemEventsAllowed = false;
+
+    enum class FilterType {
+        // The "bucket stream" - everything is allowed
+        Passthrough,
+
+        // The "bucket stream" for clients that don't understand collections.
+        // Only the default collection is visible
+        Legacy,
+
+        // A collection stream - user requested a set of collections
+        Collection,
+
+        // A scope stream - user requested a single scope (this is dynamic as
+        // new collections in the scope will grow the filter set)
+        Scope
+    } filterType;
+
+    static std::string to_string(FilterType);
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 

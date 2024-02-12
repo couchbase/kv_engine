@@ -339,7 +339,7 @@ public:
     }
     /// @return is this filter a passthrough (allows every collection)
     bool isPassthrough() const {
-        return passthrough;
+        return isPassThroughFilter();
     }
 
     /**
@@ -353,10 +353,10 @@ public:
 
     /// @return if system-events are allowed (e.g. create collection)
     bool allowSystemEvents() const {
-        return systemEventsAllowed;
+        return !isLegacyFilter();
     }
 
-    std::optional<ScopeID> getFilteredScopeID() const {
+    ScopeID getFilteredScopeID() const {
         return scopeID;
     }
 
@@ -1311,9 +1311,8 @@ TEST_F(CollectionsVBFilterTest, system_scope_filter) {
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
 
     // Check some state
-    auto scopeId = vbf.getFilteredScopeID();
-    ASSERT_TRUE(scopeId);
-    EXPECT_EQ(ScopeUid::systemScope, scopeId.value());
+    ASSERT_TRUE(vbf.isScopeFilter());
+    EXPECT_EQ(ScopeUid::systemScope, vbf.getFilteredScopeID());
     EXPECT_EQ(Collections::Visibility::System,
               vbf.getFilteredScopeVisibility());
 }

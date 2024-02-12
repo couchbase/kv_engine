@@ -1848,10 +1848,9 @@ TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
     // Filter stats
     expectStreamStat("filter_cids");
     expectStreamStat("filter_default_allowed");
-    expectStreamStat("filter_passthrough");
+    expectStreamStat("filter_type");
     expectStreamStat("filter_sid");
     expectStreamStat("filter_size");
-    expectStreamStat("filter_system_allowed");
 
     EXPECT_TRUE(stats.empty());
     if (HasFailure()) {
