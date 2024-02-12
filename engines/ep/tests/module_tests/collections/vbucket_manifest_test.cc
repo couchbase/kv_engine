@@ -393,6 +393,7 @@ public:
                         replica.wlock(rlh).replicaDrop(*vbR,
                                                        dcpData.manifestUid,
                                                        dcpData.cid,
+                                                       false,
                                                        qi->getBySeqno());
                     } else {
                         auto dcpData =
@@ -421,6 +422,7 @@ public:
                         replica.wlock(rlh).replicaDropScope(*vbR,
                                                             dcpData.manifestUid,
                                                             dcpData.sid,
+                                                            false,
                                                             qi->getBySeqno());
                     } else {
                         auto dcpData = Collections::VB::Manifest::
@@ -461,6 +463,7 @@ public:
                                 *vbR,
                                 Collections::ManifestUid{collection->uid()},
                                 collection->collectionId(),
+                                collection->systemCollection(),
                                 qi->getBySeqno());
                     } else {
                         const auto& collection = Collections::VB::Manifest::
@@ -513,6 +516,7 @@ public:
                                 *vbR,
                                 Collections::ManifestUid{scope->uid()},
                                 scope->scopeId(),
+                                scope->systemScope(),
                                 qi->getBySeqno());
                     } else {
                         const auto* scope =

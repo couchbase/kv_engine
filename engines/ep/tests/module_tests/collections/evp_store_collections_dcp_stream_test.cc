@@ -916,7 +916,8 @@ TEST_F(CollectionsDcpStreamsTest,
     Collections::DropEventDcpData dropEventDcpData{
             {Collections::ManifestUid{manifestUid++},
              ScopeEntry::defaultS.getId(),
-             CollectionEntry::dairy.getId()}};
+             CollectionEntry::dairy.getId(),
+             false}};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->systemEvent(
                       opaque,

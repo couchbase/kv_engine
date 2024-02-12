@@ -559,6 +559,9 @@ protected:
      * @param vb The vbucket to drop the collection from
      * @param newManUid the uid of the manifest which made the change
      * @param cid CollectionID to drop
+     * @param isSystemCollection this is optional as only the DCP path will
+     *        set this. A drop on the active does not need this extra flag as
+     *        the system state is known.
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
@@ -567,6 +570,7 @@ protected:
                         ::VBucket& vb,
                         ManifestUid newManUid,
                         CollectionID cid,
+                        std::optional<bool> isSystemCollection,
                         OptionalSeqno optionalSeqno);
 
     /**
@@ -643,6 +647,7 @@ protected:
      * @param vb The vbucket to drop the scope from
      * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID to drop
+     * @param isSystemScope optional bool (only specified on replication)
      * @param optionalSeqno Either a seqno to assign to the drop of the
      *        scope or none (none means the checkpoint will assign the seqno)
      */
@@ -651,6 +656,7 @@ protected:
                    ::VBucket& vb,
                    ManifestUid newManUid,
                    ScopeID sid,
+                   std::optional<bool> isSystemScope,
                    OptionalSeqno optionalSeqno);
 
     /**

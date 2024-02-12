@@ -12,6 +12,8 @@
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
+#include "collections/events_generated.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
@@ -87,6 +89,28 @@ public:
                 << "getEventsFromCheckpoint: no events in " << vbucket->getId();
 
         return res;
+    }
+
+    // This is a variation for when events are spread over many checkpoints.
+    // this function will iterate until no more events can be found.
+    void drainEventsFromCheckpoint(std::vector<queued_item>& events) {
+        bool done = false;
+        do {
+            std::vector<queued_item> items;
+
+            auto res = vbucket->checkpointManager->getNextItemsForPersistence(
+                    items);
+            for (const auto& qi : items) {
+                if (qi->getOperation() == queue_op::system_event) {
+                    events.push_back(qi);
+                }
+            }
+            done = items.empty();
+        } while (!done);
+
+        EXPECT_FALSE(events.empty())
+                << "drainEventsFromCheckpoint: no events in "
+                << vbucket->getId();
     }
 
     void applyEvents(TransactionContext& txnCtx,
@@ -580,6 +604,102 @@ TEST_P(CollectionsKVStoreTest, failForDuplicateScope) {
                     *vbucket,
                     makeManifest(cm));
     failForDuplicate();
+}
+
+TEST_P(CollectionsKVStoreTest, systemCollection) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::systemCollection);
+    cm.add(ScopeEntry::systemScope);
+    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                    *vbucket,
+                    makeManifest(cm));
+    // Check the events have the correct flag
+    std::vector<queued_item> events;
+    getEventsFromCheckpoint(events);
+    ASSERT_EQ(2, events.size());
+
+    for (const auto& qi : events) {
+        if (SystemEvent::Collection == SystemEvent(qi->getFlags())) {
+            const auto& collection =
+                    Collections::VB::Manifest::getCollectionFlatbuffer(
+                            qi->getValueView());
+            // System collection-ness is derived from the already stored name
+            EXPECT_TRUE(Collections::isSystemCollection(
+                    collection.name()->str(), collection.collectionId()));
+        } else {
+            EXPECT_EQ(SystemEvent::Scope, SystemEvent(qi->getFlags()));
+
+            const auto* scope = Collections::VB::Manifest::getScopeFlatbuffer(
+                    qi->getValueView());
+            // System scope-ness is derived from the already stored name
+            EXPECT_TRUE(Collections::isSystemScope(scope->name()->str(),
+                                                   scope->scopeId()));
+        }
+    }
+    events.clear();
+
+    cm.remove(CollectionEntry::systemCollection);
+    cm.remove(ScopeEntry::systemScope);
+    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                    *vbucket,
+                    makeManifest(cm));
+
+    getEventsFromCheckpoint(events);
+    ASSERT_EQ(2, events.size());
+
+    for (const auto& qi : events) {
+        EXPECT_TRUE(qi->isDeleted());
+        if (SystemEvent::Collection == SystemEvent(qi->getFlags())) {
+            const auto& droppedCollection =
+                    Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
+                            qi->getValueView());
+            EXPECT_TRUE(droppedCollection->systemCollection());
+        } else {
+            EXPECT_EQ(SystemEvent::Scope, SystemEvent(qi->getFlags()));
+            const auto* droppedScope =
+                    Collections::VB::Manifest::getDroppedScopeFlatbuffer(
+                            qi->getValueView());
+            EXPECT_TRUE(droppedScope->systemScope());
+        }
+    }
+}
+
+TEST_P(CollectionsKVStoreTest, systemCollectionReplicaTombstones) {
+    // Drop collections that were never created (replicate of a tombstone)
+    vbucket->checkpointManager->createSnapshot(
+            1, 2, std::nullopt, CheckpointType::Memory, 2);
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        manifest.wlock(rlh).replicaDrop(*vbucket,
+                                        Collections::ManifestUid(1),
+                                        CollectionID(8),
+                                        true,
+                                        1);
+        manifest.wlock(rlh).replicaDropScope(
+                *vbucket, Collections::ManifestUid(2), ScopeID(9), true, 2);
+    }
+
+    std::vector<queued_item> events;
+
+    drainEventsFromCheckpoint(events);
+    ASSERT_EQ(2, events.size());
+
+    for (const auto& qi : events) {
+        EXPECT_TRUE(qi->isDeleted());
+        if (SystemEvent::Collection == SystemEvent(qi->getFlags())) {
+            const auto& droppedCollection =
+                    Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
+                            qi->getValueView());
+            EXPECT_EQ(CollectionID(8), droppedCollection->collectionId());
+            EXPECT_TRUE(droppedCollection->systemCollection());
+        } else {
+            EXPECT_EQ(SystemEvent::Scope, SystemEvent(qi->getFlags()));
+            const auto* droppedScope =
+                    Collections::VB::Manifest::getDroppedScopeFlatbuffer(
+                            qi->getValueView());
+            EXPECT_TRUE(droppedScope->systemScope());
+        }
+    }
 }
 
 // Test that KV can handle multiple system events in a single 'commit'

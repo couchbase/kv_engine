@@ -19,24 +19,44 @@ namespace Collections {
  * All of the data a system event needs
  */
 struct CreateEventData {
+    CreateEventData(ManifestUid manifestUid, CollectionMetaData metaData)
+        : manifestUid(manifestUid), metaData(metaData) {
+    }
     ManifestUid manifestUid; // The Manifest which generated the event
     CollectionMetaData metaData; // The data of the new collection
 };
 
 struct DropEventData {
+    DropEventData(ManifestUid manifestUid,
+                  ScopeID sid,
+                  CollectionID cid,
+                  bool isSystemCollection)
+        : manifestUid(manifestUid),
+          sid(sid),
+          cid(cid),
+          isSystemCollection(isSystemCollection) {
+    }
     ManifestUid manifestUid; // The Manifest which generated the event
     ScopeID sid; // The scope that the collection belonged to
     CollectionID cid; // The collection the event belongs to
+    bool isSystemCollection{false}; // The dropped collection, was system?
 };
 
 struct CreateScopeEventData {
+    CreateScopeEventData(ManifestUid manifestUid, ScopeMetaData metaData)
+        : manifestUid(manifestUid), metaData(metaData) {
+    }
     ManifestUid manifestUid; // The Manifest which generated the event
     ScopeMetaData metaData; // The data of the new scope
 };
 
 struct DropScopeEventData {
+    DropScopeEventData(ManifestUid manifestUid, ScopeID sid, bool isSystemScope)
+        : manifestUid(manifestUid), sid(sid), isSystemScope(isSystemScope) {
+    }
     ManifestUid manifestUid; // The Manifest which generated the event
     ScopeID sid; // The scope the event belongs to
+    bool isSystemScope{false}; // The dropped scope, was system?
 };
 
 std::string to_string(const CreateEventData& event);

@@ -701,8 +701,12 @@ cb::engine_errc PassiveStream::processCreateCollection(
 cb::engine_errc PassiveStream::processDropCollection(
         VBucket& vb, const DropCollectionEvent& event) {
     try {
+        // set the isSystemCollection as false. If receiving a non-flatbuffers
+        // system event, the producer is not 7.6 and thus does not support
+        // system collections.
         vb.replicaDropCollection(event.getManifestUid(),
                                  event.getCollectionID(),
+                                 false,
                                  event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
@@ -734,8 +738,11 @@ cb::engine_errc PassiveStream::processCreateScope(
 cb::engine_errc PassiveStream::processDropScope(VBucket& vb,
                                                 const DropScopeEvent& event) {
     try {
-        vb.replicaDropScope(
-                event.getManifestUid(), event.getScopeID(), event.getBySeqno());
+        // If processing a !flat-buffer event, cannot be a system scope
+        vb.replicaDropScope(event.getManifestUid(),
+                            event.getScopeID(),
+                            false,
+                            event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processDropScope {} exception {}",
@@ -817,6 +824,7 @@ cb::engine_errc PassiveStream::processDropCollection(
                         event.getEventData());
         vb.replicaDropCollection(Collections::ManifestUid{collection->uid()},
                                  collection->collectionId(),
+                                 collection->systemCollection(),
                                  *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
@@ -855,6 +863,7 @@ cb::engine_errc PassiveStream::processDropScope(
                         event.getEventData());
         vb.replicaDropScope(Collections::ManifestUid{scope->uid()},
                             scope->scopeId(),
+                            scope->systemScope(),
                             *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,

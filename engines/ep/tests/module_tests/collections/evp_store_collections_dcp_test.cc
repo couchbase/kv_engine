@@ -77,7 +77,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                                   Collections::Metered::Yes,
                                                   CanDeduplicate::Yes}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
-    Collections::DropEventData dropEventData{manifestUid, sid, cid};
+    Collections::DropEventData dropEventData{manifestUid, sid, cid, false};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
 
     ASSERT_EQ(cb::engine_errc::success,
@@ -3660,7 +3660,7 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
     CollectionID cid = CollectionEntry::fruit.getId();
     Collections::ManifestUid manifestUid(cm.getUid());
     Collections::DropEventData dropEventData{
-            manifestUid, ScopeID::Default, cid};
+            manifestUid, ScopeID::Default, cid, false};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
 
     ASSERT_EQ(cb::engine_errc::success,
