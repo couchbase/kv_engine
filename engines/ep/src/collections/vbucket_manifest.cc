@@ -675,8 +675,8 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
     EP_LOG_DEBUG(
-            "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
-            "items:{} diskSize:{} {}{}",
+            "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}, "
+            "items:{}, diskSize:{}{}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),

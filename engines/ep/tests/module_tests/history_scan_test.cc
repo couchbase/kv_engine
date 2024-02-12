@@ -147,7 +147,7 @@ TEST_P(HistoryScanTest, basic_unique) {
 
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
-                     OutOfOrderSnapshots::Yes,
+                     OutOfOrderSnapshots::No,
                      0,
                      true, // sync-repl enabled
                      ~0ull,

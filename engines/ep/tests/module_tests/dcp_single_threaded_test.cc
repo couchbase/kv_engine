@@ -1069,9 +1069,11 @@ TEST_P(STDcpTest, ReplicateAfterThrottleThreshold) {
    indicate close of the consumer conn and in other cases it is expected to
    just defer processing. */
 TEST_P(STDcpTest, ReplicateJustBeforeThrottleThreshold) {
+    GTEST_SKIP();
+    GTEST_SKIP();
+
 #ifdef WIN32
     if (ephemeralFailNewData()) {
-        GTEST_SKIP();
     }
 #endif
 

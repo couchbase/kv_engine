@@ -252,7 +252,7 @@ DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
         return {false, std::nullopt};
     }
 
-    if (filter.isPassThroughFilter()) {
+    if (filter.isPassThroughFilter() || filter.isUserVisibleFilter()) {
         return {true, std::nullopt};
     }
 

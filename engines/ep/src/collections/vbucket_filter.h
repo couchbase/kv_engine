@@ -162,20 +162,6 @@ public:
      */
     void addStats(const AddStatFn& add_stat, CookieIface& c, Vbid vb) const;
 
-    /**
-     * @return true if this filter constructed for a non-collection aware client
-     */
-    bool isLegacyFilter() const {
-        return filterType == FilterType::Legacy;
-    }
-
-    /**
-     * @return true if this filter constructed a single scope
-     */
-    bool isScopeFilter() const {
-        return filterType == FilterType::Scope;
-    }
-
     /// @return the size of the filter
     size_t size() const {
         return filter.size();
@@ -207,11 +193,19 @@ public:
     }
 
     /**
-     * Method to check if the filter dose not filter collections
+     * Method to check if the filter does not filter collections
      * @return true if the filter is a pass-through filter
      */
     bool isPassThroughFilter() const {
         return filterType == FilterType::Passthrough;
+    }
+
+    /**
+     * Method to check if the filter only allows the default collection
+     * @return true if this filter constructed for a non-collection aware client
+     */
+    bool isLegacyFilter() const {
+        return filterType == FilterType::Legacy;
     }
 
     /**
@@ -223,6 +217,22 @@ public:
      */
     bool isCollectionFilter() const {
         return filterType == FilterType::Collection;
+    }
+
+    /**
+     * @return true if this filter constructed a single scope
+     */
+    bool isScopeFilter() const {
+        return filterType == FilterType::Scope;
+    }
+
+    /**
+     * Method to check if the filter permits User visible collections and denies
+     * System visible collections.
+     * @return true if the filter is a pass-through filter
+     */
+    bool isUserVisibleFilter() const {
+        return filterType == FilterType::UserVisible;
     }
 
     /**
@@ -352,11 +362,19 @@ protected:
         // Only the default collection is visible
         Legacy,
 
-        // A collection stream - user requested a set of collections
+        // The "bucket stream" for clients that don't have access to system
+        // collections. This is a mix of Collection and Scope behaviour - it
+        // filters for all non-system collections and also is dynamic in that
+        // new user visible collections are added.
+        UserVisible,
+
+        // A collection stream - user requested a set of collections and only
+        // those collections are allowed to pass the filter
         Collection,
 
-        // A scope stream - user requested a single scope (this is dynamic as
-        // new collections in the scope will grow the filter set)
+        // A scope stream - user requested a single scope and only that scope is
+        // allowed to pass the filter (this is dynamic as new collections in the
+        // scope will grow the filter set)
         Scope
     } filterType;
 
