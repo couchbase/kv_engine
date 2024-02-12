@@ -100,6 +100,15 @@ public:
         condition_variable.notify_one();
     }
 
+    std::chrono::microseconds getExternalAuthRequestTimeout() const {
+        return externalAuthRequestTimeout.load();
+    }
+
+    void setExternalAuthRequestTimeout(std::chrono::microseconds duration) {
+        externalAuthRequestTimeout.store(duration);
+        condition_variable.notify_one();
+    }
+
     void setRbacCacheEpoch(std::chrono::steady_clock::time_point tp);
 
     /// Check to see if we've got an up to date RBAC entry for the user
@@ -242,6 +251,12 @@ protected:
      */
     std::atomic<std::chrono::microseconds> externalAuthSlowDuration{
             std::chrono::seconds(5)};
+
+    /**
+     * The duration to determine when to timeout a request to external auth
+     */
+    std::atomic<std::chrono::microseconds> externalAuthRequestTimeout{
+            std::chrono::seconds(30)};
 
     /**
      * The time point we last sent the list of active users to the auth

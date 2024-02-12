@@ -343,6 +343,22 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "\"external_auth_slow_duration\" must be a "
                         "number or string");
             }
+        } else if (key == "external_auth_request_timeout"sv) {
+            switch (value.type()) {
+            case nlohmann::json::value_t::number_unsigned:
+                setExternalAuthRequestTimeout(
+                        std::chrono::seconds(value.get<int>()));
+                break;
+            case nlohmann::json::value_t::string:
+                setExternalAuthRequestTimeout(
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                                cb::text2time(value.get<std::string>())));
+                break;
+            default:
+                cb::throwJsonTypeError(
+                        "\"external_auth_request_timeout\" must be a "
+                        "number or string");
+            }
         } else if (key == "max_concurrent_commands_per_connection"sv) {
             setMaxConcurrentCommandsPerConnection(value.get<size_t>());
         } else if (key == "phosphor_config"sv) {
@@ -884,6 +900,22 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                             other.getExternalAuthSlowDuration())
                             .count());
             setExternalAuthSlowDuration(other.getExternalAuthSlowDuration());
+        }
+    }
+
+    if (other.has.external_auth_request_timeout) {
+        if (getExternalAuthRequestTimeout() !=
+            other.getExternalAuthRequestTimeout()) {
+            LOG_INFO(
+                    R"(Change request timeout for external users authentication from {}s to {}s)",
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            getExternalAuthRequestTimeout())
+                            .count(),
+                    std::chrono::duration_cast<std::chrono::seconds>(
+                            other.getExternalAuthRequestTimeout())
+                            .count());
+            setExternalAuthRequestTimeout(
+                    other.getExternalAuthRequestTimeout());
         }
     }
 

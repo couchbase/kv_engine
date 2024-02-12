@@ -448,7 +448,14 @@ static void settings_init() {
                             s.getExternalAuthSlowDuration());
                 }
             });
-
+    settings.addChangeListener(
+            "external_auth_request_timeout",
+            [](const std::string&, Settings& s) -> void {
+                if (externalAuthManager) {
+                    externalAuthManager->setExternalAuthRequestTimeout(
+                            s.getExternalAuthRequestTimeout());
+                }
+            });
     settings.setVerbose(0);
     settings.setNumWorkerThreads(get_number_of_worker_threads());
 
@@ -970,6 +977,8 @@ int memcached_main(int argc, char** argv) {
             Settings::instance().getActiveExternalUsersPushInterval());
     externalAuthManager->setExternalAuthSlowDuration(
             Settings::instance().getExternalAuthSlowDuration());
+    externalAuthManager->setExternalAuthRequestTimeout(
+            Settings::instance().getExternalAuthRequestTimeout());
     externalAuthManager->start();
 
     initialize_audit();
