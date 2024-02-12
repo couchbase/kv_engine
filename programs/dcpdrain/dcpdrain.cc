@@ -274,7 +274,7 @@ public:
         fmt::print(
                 "Connection took {} ms - {} mutations with a total of {} bytes "
                 "received in {} snapshots and {} oso snapshots (overhead {} "
-                "bytes, {})",
+                "bytes, {})\n",
                 duration.count(),
                 mutations,
                 total_bytes,
@@ -1022,7 +1022,7 @@ int main(int argc, char** argv) {
         fmt::print(
                 "Execution took {} ms - {} mutations with a total of {} bytes "
                 "received in {} snapshots and {} oso snapshots (overhead {} "
-                "bytes, {})",
+                "bytes, {})\n",
                 duration.count(),
                 mutations,
                 total_bytes,
