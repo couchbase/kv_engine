@@ -387,6 +387,14 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0", "history":true}]}]})",
+
+            // User collection cannot go in system scope
+            R"({"uid": "1",
+                "scopes": [
+                {"name": "_default", "uid": "0", "collections": []},
+                {"name": "_system_scope", "uid": "8",
+                  "collections": [{"name": "c1", "uid": "8"}]
+                }]})",
     };
 
     std::vector<std::string> validManifests = {
@@ -528,7 +536,20 @@ TEST(ManifestTest, validation) {
             // bucket.scope.collection which define history is permitted
             R"({"uid" : "1","history":true,
                 "scopes":[{"name":"_default", "uid":"0","history":true,
-                "collections":[{"name":"brewery","uid":"8","history":true}]}]})"};
+                "collections":[{"name":"brewery","uid":"8","history":true}]}]})",
+
+            // System collection can go anywhere
+            R"({"uid" : "1",
+                "scopes":[
+                {"name": "_default", "uid": "0", "collections": []},
+                {"name":"scope", "uid":"8",
+                "collections":[{"name":"_system","uid":"8"}]}]})",
+            R"({"uid" : "1",
+                "scopes":[
+                {"name": "_default", "uid": "0", "collections": []},
+                {"name":"_scope", "uid":"8",
+                "collections":[{"name":"_system","uid":"8"}]}]})",
+    };
 
     for (auto& manifest : invalidJson) {
         try {
