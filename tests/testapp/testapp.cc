@@ -499,6 +499,7 @@ nlohmann::json TestappTest::generate_config() {
             {"dedupe_nmvb_maps", false},
             {"active_external_users_push_interval", "30 m"},
             {"external_auth_slow_duration", "5 s"},
+            {"external_auth_request_timeout", "30 s"},
             {"error_maps_dir", get_errmaps_dir()},
             {"audit_file", mcd_env->getAuditFilename()},
             {"rbac_file", mcd_env->getRbacFilename()},

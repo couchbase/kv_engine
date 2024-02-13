@@ -13,6 +13,7 @@
 #include "connection.h"
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
+#include "platform/timeutils.h"
 #include "start_sasl_auth_task.h"
 #include "tracing.h" // SlowMutexThreshold
 
@@ -71,7 +72,7 @@ void ExternalAuthManagerThread::responseReceived(
 
     // Enqueue the response and let the auth thread deal with it
     std::lock_guard<std::mutex> guard(mutex);
-    incommingResponse.emplace(std::make_unique<AuthResponse>(
+    incommingResponse.emplace_back(std::make_unique<AuthResponse>(
             response.getOpaque(), response.getStatus(), response.getValue()));
     condition_variable.notify_all();
 }
@@ -82,12 +83,25 @@ void ExternalAuthManagerThread::run() {
     activeUsersLastSent = std::chrono::steady_clock::now();
     while (running) {
         if (incomingRequests.empty() && incommingResponse.empty()) {
-            // We need to wake up the next time we want to push the
-            // new active users list
             const auto now = std::chrono::steady_clock::now();
-            const auto sleeptime = activeUsersPushInterval.load() -
-                                   (now - activeUsersLastSent);
-            condition_variable.wait_for(lock, sleeptime);
+
+            // Calculate time required to sleep until the next active users list
+            // push event
+            const auto nextPushSleepTime = activeUsersPushInterval.load() -
+                                           (now - activeUsersLastSent);
+
+            if (!requestMap.empty()) {
+                auto nextTimeout = pendingRequests.begin()->first;
+
+                // Sleep until the next time dependent task is required to run
+                auto sleepTime = std::min(nextPushSleepTime, nextTimeout - now);
+                condition_variable.wait_for(lock, sleepTime);
+            } else {
+                // Sleep until we need to push the next active users list, as
+                // there are no requests to timeout
+                condition_variable.wait_for(lock, nextPushSleepTime);
+            }
+
             if (!running) {
                 // We're supposed to terminate
                 return;
@@ -103,6 +117,10 @@ void ExternalAuthManagerThread::run() {
 
         if (!incommingResponse.empty()) {
             processResponseQueue();
+        }
+
+        if (!requestMap.empty()) {
+            handleTimeoutRequest();
         }
 
         const auto now = std::chrono::steady_clock::now();
@@ -152,7 +170,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
         while (!incomingRequests.empty()) {
             const std::string msg =
                     R"({"error":{"context":"External auth service is down"}})";
-            incommingResponse.emplace(
+            incommingResponse.emplace_back(
                     std::make_unique<AuthResponse>(next, msg));
             requestMap[next++] =
                     std::make_pair(nullptr, incomingRequests.front());
@@ -232,7 +250,10 @@ void ExternalAuthManagerThread::processRequestQueue() {
                                 builder.getFrame()->getFrame());
                     });
         }
-        requestMap[next++] = std::make_pair(provider, incomingRequests.front());
+        requestMap[next] = std::make_pair(provider, currentRequest);
+        auto timeout = currentRequest->getStartTime() +
+                       getExternalAuthRequestTimeout();
+        pendingRequests.emplace(timeout, next++);
         ++totalAuthRequestSent;
         incomingRequests.pop();
     }
@@ -257,12 +278,41 @@ void ExternalAuthManagerThread::processResponseQueue() {
         } else {
             auto* task = iter->second.second;
             requestMap.erase(iter);
+            auto timeout =
+                    task->getStartTime() + getExternalAuthRequestTimeout();
+            auto pendingRequestIter = pendingRequests.find(timeout);
+            if (pendingRequestIter != pendingRequests.end()) {
+                pendingRequests.erase(pendingRequestIter);
+            }
+
             ++totalAuthRequestReceived;
             mutex.unlock();
             task->externalResponse(entry->status, entry->payload);
             mutex.lock();
         }
-        responses.pop();
+        responses.pop_front();
+    }
+}
+
+void ExternalAuthManagerThread::handleTimeoutRequest() {
+    const auto now = std::chrono::steady_clock::now();
+    for (auto& [timeout, opaque] : pendingRequests) {
+        if (timeout <= now) {
+            // Time out response if we have not received a response after
+            // externalAuthRequestTimeout duration
+            // We need to fix this if we want to redistribute them over to
+            // another provider
+            LOG_WARNING(
+                    "Request timed out, external authentication manager did "
+                    "not respond in {}",
+                    cb::time2text(getExternalAuthRequestTimeout()));
+            const std::string msg =
+                    R"({"error":{"context":"No response from external auth service"}})";
+            incommingResponse.emplace_back(
+                    std::make_unique<AuthResponse>(opaque, msg));
+        } else {
+            break;
+        }
     }
 }
 
@@ -281,7 +331,7 @@ void ExternalAuthManagerThread::purgePendingDeadConnections() {
                 // already, as we'll ignore unknown responses..
                 // We need to fix this if we want to redistribute
                 // them over to another provider
-                incommingResponse.emplace(
+                incommingResponse.emplace_back(
                         std::make_unique<AuthResponse>(req.first, msg));
                 req.second.first = nullptr;
             }

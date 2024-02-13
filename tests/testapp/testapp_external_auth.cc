@@ -107,7 +107,7 @@ protected:
         TestappAuthProvider authProvider;
         const auto result = authProvider.process(*frame.getRequest());
 
-        // Sleep after receiving the request but before sending the reply
+        // Sleep after receiving the request but before sending the response
         if (delay && delay.value().count() != 0) {
             std::this_thread::sleep_for(*delay);
         }
@@ -548,6 +548,49 @@ TEST_P(ExternalAuthSingleThreadTest, TestSlowResponseFromAuthProvider) {
         mcd_env->iterateLogLines([&found](auto line) {
             if (line.find("Slow external user authentication") !=
                 std::string::npos) {
+                found = true;
+                return false;
+            }
+            return true;
+        });
+        // Logging is async so back off and wait a short while
+        if (!found) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        }
+    }
+    EXPECT_TRUE(found) << "Log message not found";
+}
+
+TEST_P(ExternalAuthSingleThreadTest, TestTimeOutRequestToAuthProvider) {
+    // Test specific configuration
+    memcached_cfg["external_auth_request_timeout"] = "100 ms";
+    reconfigure();
+
+    BinprotSaslAuthCommand saslAuthCommand;
+    auto& conn = getConnection();
+    saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
+    saslAuthCommand.setMechanism("PlAiN");
+    conn.sendCommand(saslAuthCommand);
+
+    // Delay 101ms (timeout) + 20ms (max ExternalAuthManagerThread::run() will
+    // sleep), due to potential race and intimittent failure increase to 130ms
+    stepAuthProvider(std::chrono::milliseconds(130));
+
+    // Now read out the response from the client
+    BinprotResponse response;
+    conn.recvResponse(response);
+
+    // response will fail due to timeout
+    EXPECT_FALSE(response.isSuccess());
+
+    // Check for timeout request log message
+    bool found = false;
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{30};
+    while (!found && std::chrono::steady_clock::now() < timeout) {
+        mcd_env->iterateLogLines([&found](auto line) {
+            if (line.find("Request timed out, external authentication manager "
+                          "did not respond") != std::string::npos) {
                 found = true;
                 return false;
             }

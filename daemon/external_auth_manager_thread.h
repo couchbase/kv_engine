@@ -17,6 +17,7 @@
 #include <platform/thread.h>
 #include <statistics/collector.h>
 #include <chrono>
+#include <deque>
 #include <mutex>
 #include <queue>
 #include <unordered_map>
@@ -131,6 +132,12 @@ protected:
     void processResponseQueue();
 
     /**
+     * Timeout a request if a response has not been received within
+     * the duration defined by externalAuthRequestTimeout
+     */
+    void handleTimeoutRequest();
+
+    /**
      * Iterate over all of the connections marked as closed. Generate
      * error responses for all outstanding requests; decrement the reference
      * count and tell the thread to complete its shutdown logic.
@@ -154,6 +161,10 @@ protected:
     /// we could redistribute them O:)
     std::unordered_map<uint32_t, std::pair<Connection*, AuthnAuthzServiceTask*>>
             requestMap;
+
+    // The map to store the opaque of pending requests sorted by their timeout
+    // times
+    std::map<std::chrono::steady_clock::time_point, uint32_t> pendingRequests;
 
     /// The mutex variable used to protect access to _all_ the internal
     /// members
@@ -200,7 +211,7 @@ protected:
      * All of the various responses is stored within this queue to
      * be handled by the daemon thread
      */
-    std::queue<std::unique_ptr<AuthResponse>> incommingResponse;
+    std::deque<std::unique_ptr<AuthResponse>> incommingResponse;
 
     std::vector<Connection*> pendingRemoveConnection;
 
