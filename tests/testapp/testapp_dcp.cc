@@ -13,6 +13,7 @@
  */
 
 #include "testapp_client_test.h"
+#include <nlohmann/json.hpp>
 
 class DcpTest : public TestappClientTest {
 protected:
@@ -25,13 +26,18 @@ protected:
         return ::testing::UnitTest::GetInstance()->current_test_info()->name();
     }
 
-    auto createProducerConnection() {
+    auto createProducerConnection(
+            const std::function<void(MemcachedConnection&)>& on_auth_callback =
+                    {}) {
         using cb::mcbp::Feature;
         auto connection = getAdminConnection().clone(
                 true,
                 {Feature::JSON, Feature::SNAPPY, Feature::SnappyEverywhere},
                 getTestName());
         connection->authenticate("@admin");
+        if (on_auth_callback) {
+            on_auth_callback(*connection);
+        }
         connection->selectBucket(bucketName);
 
         const auto rsp = connection->execute(BinprotDcpOpenCommand{
@@ -41,8 +47,10 @@ protected:
         return connection;
     }
 
-    auto setupProducerWithStream() {
-        auto producerConn = createProducerConnection();
+    auto setupProducerWithStream(
+            const std::function<void(MemcachedConnection&)>& on_auth_callback =
+                    {}) {
+        auto producerConn = createProducerConnection(on_auth_callback);
 
         BinprotDcpStreamRequestCommand streamReq;
         streamReq.setDcpReserved(0);
@@ -173,4 +181,82 @@ TEST_P(DcpTest, DcpStreamStats) {
     EXPECT_TRUE(stats.contains(
             fmt::format("eq_dcpq:{}:stream_0_flags", getTestName())))
             << "dcp stats: " << stats.dump(2);
+}
+
+/// Verify that we log unclean DCP disconnects
+TEST_P(DcpTest, MB60706) {
+    nlohmann::json json;
+
+    std::string value(2048 * 1024, 'a');
+
+    for (int ii = 0; ii < 10; ++ii) {
+        store_document(fmt::format("MB60706_{}", ii), value, 0, 0, false);
+    }
+
+    auto conn = setupProducerWithStream([&json](auto& c) {
+        c.stats([&json](auto k, auto v) { json = nlohmann::json::parse(v); },
+                "connections self");
+    });
+
+    // Wait as long as the backfill have started
+    Frame frame;
+    do {
+        conn->recvFrame(frame);
+    } while (frame.getHeader()->isResponse() ||
+             frame.getRequest()->getClientOpcode() !=
+                     cb::mcbp::ClientOpcode::DcpMutation);
+
+    conn->close();
+    const auto id = json["socket"].get<int>();
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{10};
+    bool found = false;
+    std::string search_prefix =
+            fmt::format(R"(INFO {}: Releasing DCP connection: )", id);
+    json.clear();
+    do {
+        bool found_hello = false;
+        mcd_env->iterateLogLines([&id,
+                                  &found,
+                                  &found_hello,
+                                  &search_prefix,
+                                  &json](auto line) {
+            if (found_hello) {
+                auto idx = line.find(search_prefix);
+                found = idx != std::string_view::npos;
+                if (found) {
+                    std::string info(line.substr(idx + search_prefix.length()));
+                    json = nlohmann::json::parse(info);
+                    // stop searching
+                    return false;
+                }
+            } else {
+                if (line.find(fmt::format(
+                            R"(INFO {}: HELO [{{"a":"MB60706/McbpSsl"}}])",
+                            id)) != std::string_view::npos) {
+                    found_hello = true;
+                }
+            }
+            return true;
+        });
+        if (found) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{100});
+    } while (std::chrono::steady_clock::now() < timeout);
+    ASSERT_TRUE(found) << "Did not locate unclean shutdown";
+#ifdef __linux__
+    EXPECT_TRUE(json.contains("SIOCINQ"));
+    EXPECT_TRUE(json.contains("SIOCOUTQ"));
+#endif
+    EXPECT_TRUE(json.contains("sendqueue"));
+    ASSERT_TRUE(json["sendqueue"].is_object());
+    const auto& sendq = json["sendqueue"];
+    EXPECT_TRUE(sendq.contains("actual"));
+    EXPECT_TRUE(sendq.contains("last"));
+    EXPECT_TRUE(sendq.contains("size"));
+    EXPECT_TRUE(sendq.contains("term"));
+    EXPECT_TRUE(sendq["term"].get<bool>());
+    EXPECT_TRUE(json.contains("socket_options"));
+    ASSERT_TRUE(json["socket_options"].is_object());
 }
