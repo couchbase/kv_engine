@@ -561,32 +561,14 @@ SOCKET MemcachedConnection::releaseSocket() {
     auto ns = asyncSocket->detachNetworkSocket();
 
 #ifdef WIN32
-    DWORD imode = 0;
     // For some reason toFd doesn't return the real socket (or at least
     // the unit tests failed with "not a socket" when trying to use it for
-    // ioctlsocket so we need to use ns.data instead (which is a SOCKET)
-    auto st = ioctlsocket(ns.data, FIONBIO, &imode);
-    if (st != 0) {
-        if (st == SOCKET_ERROR) {
-            throw std::system_error(
-                    WSAGetLastError(), std::system_category(), "ioctlsocket");
-        }
-        throw std::system_error(st, std::system_category(), "ioctlsocket");
-    }
+    // ioctlsocket so we need to use ns.data instead (which is a SOCKET))
+    cb::net::set_socket_blocking(ns.data);
     return ns.data;
 #else
     auto ret = ns.toFd();
-    int flags = fcntl(ret, F_GETFL, 0);
-    if (flags == -1) {
-        throw std::system_error(
-                errno, std::system_category(), "fcntl(F_GETFL)");
-    }
-
-    flags &= ~O_NONBLOCK;
-    if (fcntl(ret, F_SETFL, flags) == -1) {
-        throw std::system_error(
-                errno, std::system_category(), "fcntl(F_SETFL)");
-    }
+    cb::net::set_socket_blocking(ret);
     return ret;
 #endif
 }
