@@ -1001,26 +1001,28 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
 
     if (ephemeralFailNewData()) {
         /* Expect disconnect signal in Ephemeral with "fail_new_data" policy */
-        while (true) {
+        size_t ii = 0;
+        cb::engine_errc ret;
+        do {
+            const auto keyI = std::to_string(ii++);
+            const StoredDocKey docKeyI{keyI, CollectionID::Default};
             /* Keep sending items till the memory usage goes above the
                threshold and the connection is disconnected */
-            if (cb::engine_errc::disconnect ==
-                consumer->mutation(opaque,
-                                   docKey,
-                                   {}, // value
-                                   PROTOCOL_BINARY_RAW_BYTES,
-                                   0, // cas
-                                   vbid,
-                                   0, // flags
-                                   ++bySeqno,
-                                   0, // rev seqno
-                                   0, // exptime
-                                   0, // locktime
-                                   {}, // meta
-                                   0)) {
-                break;
-            }
-        }
+            ret = consumer->mutation(opaque,
+                                     docKeyI,
+                                     {}, // value
+                                     PROTOCOL_BINARY_RAW_BYTES,
+                                     0, // cas
+                                     vbid,
+                                     0, // flags
+                                     ++bySeqno,
+                                     0, // rev seqno
+                                     0, // exptime
+                                     0, // locktime
+                                     {}, // meta
+                                     0);
+        } while (ret == cb::engine_errc::success);
+        EXPECT_EQ(cb::engine_errc::disconnect, ret);
     } else {
         /* In 'couchbase' buckets we buffer the replica items and indirectly
            throttle replication by not sending flow control acks to the
@@ -1069,14 +1071,6 @@ TEST_P(STDcpTest, ReplicateAfterThrottleThreshold) {
    indicate close of the consumer conn and in other cases it is expected to
    just defer processing. */
 TEST_P(STDcpTest, ReplicateJustBeforeThrottleThreshold) {
-    GTEST_SKIP();
-    GTEST_SKIP();
-
-#ifdef WIN32
-    if (ephemeralFailNewData()) {
-    }
-#endif
-
     sendConsumerMutationsNearThreshold(false);
 }
 
