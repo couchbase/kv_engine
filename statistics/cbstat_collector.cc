@@ -149,7 +149,31 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 }
 
 cb::engine_errc CBStatCollector::testPrivilegeForStat(
-        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
+        std::optional<cb::rbac::Privilege> additionalPriv,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
+    if (additionalPriv) {
+        try {
+            switch (cookie.testPrivilege(*additionalPriv, sid, cid)
+                            .getStatus()) {
+            case cb::rbac::PrivilegeAccess::Status::Ok:
+                break;
+            case cb::rbac::PrivilegeAccess::Status::Fail:
+                return cb::engine_errc::no_access;
+            case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+                return cid ? cb::engine_errc::unknown_collection
+                           : cb::engine_errc::unknown_scope;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR(
+                    "CBStatCollector::testPrivilegeForStat: received exception"
+                    "while checking additionalPriv for sid:{}: cid:{} {}",
+                    sid ? sid->to_string() : "no-scope",
+                    cid ? cid->to_string() : "no-collection",
+                    e.what());
+        }
+    }
+
     try {
         switch (cookie.testPrivilege(cb::rbac::Privilege::SimpleStats, sid, cid)
                         .getStatus()) {

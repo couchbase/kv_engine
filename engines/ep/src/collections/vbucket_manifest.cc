@@ -1592,10 +1592,14 @@ bool Manifest::addCollectionStats(Vbid vbid,
     format_to(std::back_inserter(key), "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
+    key.resize(0);
+
     if (doesDefaultCollectionExist()) {
         format_to(std::back_inserter(key), "vb_{}:default_mvs", vbid.get());
         collector.addStat(std::string_view(key.data(), key.size()),
                           defaultCollectionMaxVisibleSeqno);
+        key.resize(0);
+
         format_to(std::back_inserter(key),
                   "vb_{}:default_legacy_max_dcp_seqno",
                   vbid.get());
@@ -1604,6 +1608,17 @@ bool Manifest::addCollectionStats(Vbid vbid,
     }
 
     for (const auto& entry : map) {
+        std::optional<cb::rbac::Privilege> extraPriv;
+        if (isSystemCollection(entry.second.getName(), entry.first)) {
+            extraPriv = cb::rbac::Privilege::SystemCollectionLookup;
+        }
+
+        if (collector.testPrivilegeForStat(
+                    extraPriv, entry.second.getScopeID(), entry.first) !=
+            cb::engine_errc::success) {
+            continue;
+        }
+
         if (!entry.second.addStats(entry.first.to_string(), vbid, collector)) {
             return false;
         }
@@ -1628,6 +1643,16 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
                       scopeWithDataLimitExists);
 
     for (const auto& [sid, value] : scopes) {
+        std::optional<cb::rbac::Privilege> extraPriv;
+        if (isSystemScope(value.getName(), sid)) {
+            extraPriv = cb::rbac::Privilege::SystemCollectionLookup;
+        }
+
+        if (collector.testPrivilegeForStat(extraPriv, sid, {}) !=
+            cb::engine_errc::success) {
+            continue;
+        }
+
         key.resize(0);
         format_to(std::back_inserter(key), "vb_{}:{}:name:", vbid.get(), sid);
         collector.addStat(std::string_view(key.data(), key.size()),

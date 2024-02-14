@@ -18,6 +18,7 @@
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
+#include <memcached/rbac/privileges.h>
 #include <utilities/testing_hook.h>
 #include <memory>
 
@@ -348,6 +349,11 @@ private:
             KVBucket& bucket,
             folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
             Manifest&& newManifest);
+
+    static std::optional<cb::rbac::Privilege> getRequiredSystemPrivilege(
+            const CollectionMetaData&);
+    static std::optional<cb::rbac::Privilege> getRequiredSystemPrivilege(
+            ScopeID, const Scope&);
 
     /**
      * Get a copy of stats which are relevant at a per-collection level.

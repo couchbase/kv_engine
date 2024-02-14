@@ -243,8 +243,12 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
     if (!collection) {
         return {cb::engine_errc::unknown_collection, current->getUid()};
     }
-
-    return {current->getUid(), scope.value(), collection.value()};
+    // From scope.collection move to collection
+    path.remove_prefix(path.find_first_of(".") + 1);
+    return {current->getUid(),
+            scope.value(),
+            collection.value(),
+            isSystemCollection(path, collection.value())};
 }
 
 cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
@@ -573,9 +577,12 @@ Collections::Manager::doAllCollectionsStats(
     auto current = bucket.getCollectionsManager().currentManifest.rlock();
     // do stats for every collection
     for (const auto& entry : *current) {
-        // Access check for SimpleStats. Use testPrivilege as it won't log
-        if (collector.testPrivilegeForStat(entry.second.sid, entry.first) !=
-            cb::engine_errc::success) {
+        // Access check for SimpleStats + the optional system privilege.
+        // Use testPrivilege as it won't log
+        if (collector.testPrivilegeForStat(
+                    getRequiredSystemPrivilege(entry.second),
+                    entry.second.sid,
+                    entry.first) != cb::engine_errc::success) {
             continue; // skip this collection
         }
 
@@ -610,11 +617,14 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
             return cb::EngineErrorGetCollectionIDResult{
                     cb::engine_errc::invalid_arguments};
         }
-        // Collection's scope is needed for privilege check
-        auto [manifestUid, scope] =
-                bucket.getCollectionsManager().getScopeID(cid);
-        if (scope) {
-            res = {manifestUid, scope.value(), cid};
+        // Collection's scope and system state are needed for privilege check
+        auto [manifestUid, meta] =
+                bucket.getCollectionsManager().getCollectionEntry(cid);
+        if (meta) {
+            res = {manifestUid,
+                   meta->sid,
+                   cid,
+                   Collections::isSystemCollection(meta->name, cid)};
         } else {
             return {cb::engine_errc::unknown_collection, manifestUid};
         }
@@ -632,9 +642,13 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         }
     }
 
-    // Access check for SimpleStats
-    res.result = collector.testPrivilegeForStat(res.getScopeId(),
-                                                res.getCollectionId());
+    // Access check for SimpleStats + if required SystemCollectionLookup
+    std::optional<cb::rbac::Privilege> extraPriv;
+    if (res.isSystemCollection) {
+        extraPriv = cb::rbac::Privilege::SystemCollectionLookup;
+    }
+    res.result = collector.testPrivilegeForStat(
+            extraPriv, res.getScopeId(), res.getCollectionId());
     if (res.result != cb::engine_errc::success) {
         return res;
     }
@@ -743,8 +757,10 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
     for (auto itr = current->beginScopes(); itr != current->endScopes();
          ++itr) {
         // Access check for SimpleStats. Use testPrivilege as it won't log
-        if (collector.testPrivilegeForStat(itr->first, {}) !=
-            cb::engine_errc::success) {
+        if (collector.testPrivilegeForStat(
+                    getRequiredSystemPrivilege(itr->first, itr->second),
+                    itr->first,
+                    {}) != cb::engine_errc::success) {
             continue; // skip this scope
         }
 
@@ -789,8 +805,13 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         return res;
     }
 
-    // Access check for SimpleStats
-    res.result = collector.testPrivilegeForStat(res.getScopeId(), {});
+    // Access check for SimpleStats and maybe SystemCollectionLookup
+    std::optional<cb::rbac::Privilege> extraPriv;
+    if (res.isSystemScope()) {
+        extraPriv = cb::rbac::Privilege::SystemCollectionLookup;
+    }
+    res.result =
+            collector.testPrivilegeForStat(extraPriv, res.getScopeId(), {});
     if (res.result != cb::engine_errc::success) {
         return res;
     }
@@ -870,6 +891,26 @@ Collections::CachedStats Collections::Manager::getPerCollectionStats(
     }
     return {std::move(memUsed),
             std::move(visitor.summary) /* accumulated collection stats */};
+}
+
+std::optional<cb::rbac::Privilege>
+Collections::Manager::getRequiredSystemPrivilege(
+        const CollectionMetaData& meta) {
+    if (Collections::getCollectionVisibility(meta.name, meta.cid) ==
+        Collections::Visibility::System) {
+        return cb::rbac::Privilege::SystemCollectionLookup;
+    }
+    return std::nullopt;
+}
+
+std::optional<cb::rbac::Privilege>
+Collections::Manager::getRequiredSystemPrivilege(ScopeID sid,
+                                                 const Scope& scope) {
+    if (Collections::getScopeVisibility(scope.name, sid) ==
+        Collections::Visibility::System) {
+        return cb::rbac::Privilege::SystemCollectionLookup;
+    }
+    return std::nullopt;
 }
 
 Collections::CachedStats::CachedStats(

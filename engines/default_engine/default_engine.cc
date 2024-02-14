@@ -968,7 +968,7 @@ cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
         cb::engine_errc error = cb::engine_errc::unknown_scope;
         if (path == "_default._default" || path == "._default" || path == "." ||
             path == "_default.") {
-            return {0, ScopeID::Default, CollectionID::Default};
+            return {0, ScopeID::Default, CollectionID::Default, false};
         } else if (path.find(default_scope_path) == 0) {
             // path starts with "_default." so collection part is unknown
             error = cb::engine_errc::unknown_collection;

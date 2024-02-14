@@ -559,9 +559,15 @@ void Manifest::addCollectionStats(KVBucket& bucket,
             auto scopeC = collector.forScope(scopeName, sid);
             for (const auto& entry : scope.collections) {
                 auto collectionC = scopeC.forCollection(entry.name, entry.cid);
+
+                std::optional<cb::rbac::Privilege> extraPriv;
+                if (isSystemCollection(entry.name, entry.cid)) {
+                    extraPriv = cb::rbac::Privilege::SystemCollectionLookup;
+                }
                 // The inclusion of each collection requires an appropriate
                 // privilege
-                if (collectionC.testPrivilegeForStat(sid, entry.cid) !=
+                if (collectionC.testPrivilegeForStat(
+                            extraPriv, sid, entry.cid) !=
                     cb::engine_errc::success) {
                     continue; // skip this collection
                 }
@@ -605,7 +611,11 @@ void Manifest::addScopeStats(KVBucket& bucket,
             auto scopeC = collector.forScope(scopeName, entry.first);
             // The inclusion of each scope requires an appropriate
             // privilege
-            if (scopeC.testPrivilegeForStat(entry.first, {}) !=
+            std::optional<cb::rbac::Privilege> extraPriv;
+            if (isSystemScope(scopeName, entry.first)) {
+                extraPriv = cb::rbac::Privilege::SystemCollectionLookup;
+            }
+            if (scopeC.testPrivilegeForStat(extraPriv, entry.first, {}) !=
                 cb::engine_errc::success) {
                 continue; // skip this scope
             }

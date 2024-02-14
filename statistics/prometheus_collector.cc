@@ -123,7 +123,9 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
 }
 
 cb::engine_errc PrometheusStatCollector::testPrivilegeForStat(
-        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
+        std::optional<cb::rbac::Privilege> additionalPriv,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
     // Prometheus MetricServer requires the authed user to have the Stats
     // privilege, so a PrometheusStatCollector will only be created for
     // users with access to _all_ stats
