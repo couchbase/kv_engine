@@ -266,6 +266,11 @@ public:
      */
     void dump() const;
 
+    /**
+     * @return a summary of this filter used in streamRequest logging
+     */
+    std::string summary() const;
+
 protected:
     /**
      * Constructor helper method for parsing the JSON
