@@ -1385,3 +1385,18 @@ TEST_F(SettingsTest, TestQuotaSharingPagerSleepTime) {
     EXPECT_THROW(testValue(-1), std::invalid_argument);
     EXPECT_THROW(testValue(0), std::invalid_argument);
 }
+
+TEST_F(SettingsTest, TestPrometheusScrapeSlowDuration) {
+    Settings settings;
+
+    EXPECT_GT(settings.getSlowPrometheusScrapeDuration().count(), 0);
+
+    auto test = [&settings](uint32_t newVal) {
+        nlohmann::json config{{"slow_prometheus_scrape_duration", newVal}};
+        settings.reconfigure(config);
+        EXPECT_EQ(std::chrono::duration<float>(newVal),
+                  settings.getSlowPrometheusScrapeDuration());
+    };
+
+    EXPECT_NO_THROW(test(1));
+}

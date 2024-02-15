@@ -400,6 +400,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setMaxClientConnectionDetails(value.get<size_t>());
         } else if (key == "max_concurrent_authentications"sv) {
             setMaxConcurrentAuthentications(value.get<size_t>());
+        } else if (key == "slow_prometheus_scrape_duration"sv) {
+            setSlowPrometheusScrapeDuration(
+                    std::chrono::duration<float>(value.get<float>()));
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -1043,6 +1046,20 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             LOG_INFO(R"(Change Phosphor config from "{}" to "{}")", o, m);
             setPhosphorConfig(o);
         }
+    }
+
+    if (other.getSlowPrometheusScrapeDuration() !=
+        getSlowPrometheusScrapeDuration()) {
+        const auto o = getSlowPrometheusScrapeDuration();
+        const auto n = other.getSlowPrometheusScrapeDuration();
+        LOG_INFO("Changing slow prometheus scrape duration from {} to {}",
+                 cb::time2text(
+                         std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 o)),
+                 cb::time2text(
+                         std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 n)));
+        setSlowPrometheusScrapeDuration(n);
     }
 }
 

@@ -20,6 +20,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
+#include <platform/timeutils.h>
 #include <platform/uuid.h>
 #include <prometheus/exposer.h>
 #include <chrono>
@@ -130,7 +131,18 @@ public:
         // collect KV stats
         std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
         PrometheusStatCollector collector(statsMap);
+        auto start = std::chrono::steady_clock::now();
         getStatsCB(collector);
+        auto end = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                end - start);
+        auto limit = Settings::instance().getSlowPrometheusScrapeDuration();
+
+        if (duration > limit) {
+            LOG_WARNING("Slow prometheus scrape, path: {}, duration: {}",
+                        path,
+                        cb::time2text(duration));
+        }
 
         // KVCollectable interface requires a vector of metric families,
         // but during collection it is necessary to frequently look up

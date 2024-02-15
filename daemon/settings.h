@@ -15,6 +15,7 @@
 #include "network_interface.h"
 
 #include <memcached/engine.h>
+#include <platform/timeutils.h>
 #include <relaxed_atomic.h>
 #include <utilities/breakpad_settings.h>
 
@@ -935,6 +936,18 @@ public:
         notify_changed("quota_sharing_pager_sleep_time_ms");
     }
 
+    // duration units: secs.
+    void setSlowPrometheusScrapeDuration(
+            std::chrono::duration<float> duration) {
+        slow_prometheus_scrape_duration.store(duration,
+                                              std::memory_order_release);
+    }
+
+    // duration units: secs.
+    std::chrono::duration<float> getSlowPrometheusScrapeDuration() const {
+        return slow_prometheus_scrape_duration.load(std::memory_order_acquire);
+    }
+
 protected:
     /// The file containing audit configuration
     std::string audit_file;
@@ -1174,6 +1187,9 @@ protected:
     /// How long in milliseconds the ItemPager will sleep for when not being
     /// requested to run.
     std::atomic_int quota_sharing_pager_sleep_time_ms{5000};
+
+    std::atomic<std::chrono::duration<float>> slow_prometheus_scrape_duration{
+            std::chrono::duration<float>(0.2)};
 
     void notify_changed(const std::string& key);
 
