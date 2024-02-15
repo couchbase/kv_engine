@@ -77,7 +77,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                                   Collections::Metered::Yes,
                                                   CanDeduplicate::Yes}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
-    Collections::DropEventData dropEventData{manifestUid, sid, cid};
+    Collections::DropEventData dropEventData{manifestUid, sid, cid, false};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
 
     ASSERT_EQ(cb::engine_errc::success,
@@ -3660,7 +3660,7 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
     CollectionID cid = CollectionEntry::fruit.getId();
     Collections::ManifestUid manifestUid(cm.getUid());
     Collections::DropEventData dropEventData{
-            manifestUid, ScopeID::Default, cid};
+            manifestUid, ScopeID::Default, cid, false};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
 
     ASSERT_EQ(cb::engine_errc::success,
@@ -5404,6 +5404,92 @@ TEST_P(CollectionsDcpPersistentOnly, getRangeCountingSystemEvents) {
     EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
     resetEngineAndWarmup();
     EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
+}
+
+// Run a DCP stream with no access to the system collections and check that
+// memory and backfill streams filter out system collections.
+TEST_P(CollectionsDcpPersistentOnly, backfillWithSystemCollectionsNoAccess) {
+    auto checkDcp = [this](MockDcpProducer* p,
+                           CollectionsDcpTestProducers& dcpCallBacks,
+                           bool memory,
+                           int expectedMutations,
+                           int expectedCreates) {
+        using namespace cb::mcbp;
+        using namespace mcbp::systemevent;
+        int events = 0, mutations = 0, createEvent = 0;
+        while (cb::engine_errc::success == p->step(false, dcpCallBacks)) {
+            if (dcpCallBacks.last_op == ClientOpcode::DcpMutation) {
+                ++events;
+                ++mutations;
+                ASSERT_NE(dcpCallBacks.last_collection_id,
+                          CollectionUid::systemCollection);
+
+            } else if (dcpCallBacks.last_op == ClientOpcode::DcpSystemEvent &&
+                       dcpCallBacks.last_system_event == id::CreateCollection) {
+                ++events;
+                ++createEvent;
+                ASSERT_NE(dcpCallBacks.last_collection_id,
+                          CollectionUid::systemCollection);
+
+            } else if (dcpCallBacks.last_op !=
+                       ClientOpcode::DcpSnapshotMarker) {
+                ++events;
+            }
+        }
+        EXPECT_EQ(expectedMutations, mutations);
+        EXPECT_EQ(expectedCreates, createEvent);
+        EXPECT_EQ(events, expectedCreates + expectedMutations);
+    };
+
+    // Drop SystemCollectionLookup
+    MockCookie::setCheckPrivilegeFunction(
+            [](const CookieIface&,
+               cb::rbac::Privilege priv,
+               std::optional<ScopeID> sid,
+               std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
+                // Return no for system collection against bucket (no sid/cid)
+                if (priv == cb::rbac::Privilege::SystemCollectionLookup &&
+                    !sid && !cid) {
+                    return cb::rbac::PrivilegeAccessFail;
+                }
+                return cb::rbac::PrivilegeAccessOk;
+            });
+
+    {
+        VBucketPtr vb = store->getVBucket(vbid);
+
+        // Add a collection, then remove it. This adds events into the CP which
+        // we'll manually replicate with calls to step
+        CollectionsManifest cm;
+        cm.add(CollectionEntry::fruit);
+        cm.add(CollectionEntry::systemCollection);
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
+
+        store_item(vbid,
+                   makeStoredDocKey("sys", CollectionEntry::systemCollection),
+                   "v");
+        store_item(
+                vbid, makeStoredDocKey("fruit", CollectionEntry::fruit), "v");
+        // Bucket stream memory first
+        createDcpObjects({{nullptr, 0}});
+        notifyAndStepToCheckpoint();
+
+        // In memory check and expect 1 mutation, 1 system event
+        checkDcp(producer.get(), *producers, true, 1, 1);
+
+        flushVBucketToDiskIfPersistent(Vbid(0), 4);
+    }
+
+    // Ensure the DCP stream has to hit disk/seqlist for backfill
+    ensureDcpWillBackfill();
+    // Bucket stream from disk
+    createDcpObjects({{nullptr, 0}});
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+    // backfill check and expect 2 events, 1 mutation and 1 system event
+    checkDcp(producer.get(), *producers, false, 1, 1);
 }
 
 // runs persistent buckets but enables sync_every_batch for magma which helps

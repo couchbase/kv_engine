@@ -2061,8 +2061,10 @@ TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
 
         vb->checkpointManager->createSnapshot(
                 4, 4, 0, CheckpointType::Memory, 4);
-        this->vb->replicaDropCollection(
-                Collections::ManifestUid(uid++), CollectionEntry::dairy, 4);
+        this->vb->replicaDropCollection(Collections::ManifestUid(uid++),
+                                        CollectionEntry::dairy,
+                                        false,
+                                        4);
 
         // Clear this hook - don't want to add extra calls in subsequent
         // flushes.

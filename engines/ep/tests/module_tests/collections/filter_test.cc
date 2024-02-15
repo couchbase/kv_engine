@@ -10,6 +10,7 @@
  */
 
 #include "checkpoint_config.h"
+#include "collections/events_generated.h"
 #include "collections/manager.h"
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest.h"
@@ -339,7 +340,7 @@ public:
     }
     /// @return is this filter a passthrough (allows every collection)
     bool isPassthrough() const {
-        return passthrough;
+        return isPassThroughFilter();
     }
 
     /**
@@ -353,10 +354,10 @@ public:
 
     /// @return if system-events are allowed (e.g. create collection)
     bool allowSystemEvents() const {
-        return systemEventsAllowed;
+        return !isLegacyFilter();
     }
 
-    std::optional<ScopeID> getFilteredScopeID() const {
+    ScopeID getFilteredScopeID() const {
         return scopeID;
     }
 
@@ -1311,9 +1312,8 @@ TEST_F(CollectionsVBFilterTest, system_scope_filter) {
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
 
     // Check some state
-    auto scopeId = vbf.getFilteredScopeID();
-    ASSERT_TRUE(scopeId);
-    EXPECT_EQ(ScopeUid::systemScope, scopeId.value());
+    ASSERT_TRUE(vbf.isScopeFilter());
+    EXPECT_EQ(ScopeUid::systemScope, vbf.getFilteredScopeID());
     EXPECT_EQ(Collections::Visibility::System,
               vbf.getFilteredScopeVisibility());
 }
@@ -1494,4 +1494,138 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
     // Test 2)
     input = R"({"scope":"9"})";
     Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
+}
+
+// Check that when constructing a bucket filter/passthrough and the caller lacks
+// SystemCollectionLookup - a System filter is created
+TEST_F(CollectionsVBFilterAccessControlTest, system_filter) {
+    MockCookie::setCheckPrivilegeFunction(
+            [](const CookieIface&,
+               cb::rbac::Privilege priv,
+               std::optional<ScopeID> sid,
+               std::optional<CollectionID> cid) -> cb::rbac::PrivilegeAccess {
+                // Return no for system collection against bucket (no sid/cid)
+                if (priv == cb::rbac::Privilege::SystemCollectionLookup &&
+                    !sid && !cid) {
+                    return cb::rbac::PrivilegeAccessFail;
+                }
+                return cb::rbac::PrivilegeAccessOk;
+            });
+
+    cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
+    std::string input;
+    std::optional<std::string_view> json(input);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
+    EXPECT_TRUE(f.isUserVisibleFilter());
+    // Stores 2 collections + default
+    EXPECT_EQ(3, f.size());
+    // No oso for the system view - just more to test...
+    EXPECT_FALSE(f.isOsoSuitable(f.size() + 1));
+    EXPECT_FALSE(f.empty());
+
+    // The check interface will check "normal keys" - it has limited usage in
+    // the code.
+    EXPECT_TRUE(f.check(StoredDocKey{"yes", CollectionEntry::fruit}));
+    EXPECT_FALSE(f.check(StoredDocKey{"no", CollectionEntry::vegetable}));
+    EXPECT_FALSE(
+            f.check(StoredDocKey{"NO!", CollectionEntry::systemCollection}));
+
+    // But (and as per the usage) always say true for SystemEvent keys
+    EXPECT_TRUE(f.check(SystemEventFactory::makeCollectionEventKey(
+            CollectionUid::systemCollection, SystemEvent::Collection)));
+
+    // Check and update is different, it will dig into all keys and return and
+    // is the function that ultimately decides what DCP sends. This works on
+    // an Item& as input. We need a few Item's for the test
+    Item fruitMutation{
+            StoredDocKey{"yes", CollectionEntry::fruit}, 0, 0, nullptr, 0};
+    Item vegetableMutation{
+            StoredDocKey{"no", CollectionEntry::vegetable}, 0, 0, nullptr, 0};
+    Item systemMutation{StoredDocKey{"NO!", CollectionEntry::systemCollection},
+                        0,
+                        0,
+                        nullptr,
+                        0};
+    EXPECT_TRUE(f.checkAndUpdate(fruitMutation));
+    EXPECT_FALSE(f.checkAndUpdate(vegetableMutation));
+    EXPECT_FALSE(f.checkAndUpdate(systemMutation));
+
+    // SystemCollection SystemEvent - not allowed. Some boiler plate needed to
+    // build an Item which represents the collection create
+    {
+        flatbuffers::FlatBufferBuilder builder;
+        auto collection = Collections::VB::CreateCollection(
+                builder,
+                1, // manifest uid
+                uint32_t(ScopeUid::systemScope),
+                uint32_t(CollectionUid::systemCollection),
+                false, // no ttl
+                0, // ttl 0
+                builder.CreateString(CollectionName::systemCollection),
+                true, // history false
+                0,
+                false /*metered*/);
+        builder.Finish(collection);
+        EXPECT_FALSE(f.checkAndUpdate(*SystemEventFactory::makeCollectionEvent(
+                CollectionUid::systemCollection,
+                {builder.GetBufferPointer(), builder.GetSize()},
+                1)));
+    }
+
+    // Same for scope, boiler plate flatbuffer value
+    {
+        flatbuffers::FlatBufferBuilder builder;
+        auto scope = Collections::VB::CreateScope(
+                builder,
+                1, // "manifest"
+                uint32_t(ScopeUid::systemScope),
+                builder.CreateString(ScopeName::systemScope));
+        builder.Finish(scope);
+        EXPECT_FALSE(f.checkAndUpdate(*SystemEventFactory::makeScopeEvent(
+                ScopeUid::systemScope,
+                {builder.GetBufferPointer(), builder.GetSize()},
+                1)));
+    }
+
+    // But test that the system filter allows normal scopes and learns
+    // collections
+
+    {
+        flatbuffers::FlatBufferBuilder builder;
+        auto scope = Collections::VB::CreateScope(
+                builder,
+                1, // "manifest"
+                uint32_t(ScopeUid::shop1),
+                builder.CreateString(ScopeName::shop1));
+        builder.Finish(scope);
+        EXPECT_TRUE(f.checkAndUpdate(*SystemEventFactory::makeScopeEvent(
+                ScopeUid::shop1,
+                {builder.GetBufferPointer(), builder.GetSize()},
+                1)));
+    }
+
+    // Process the create of the vegetable collection, the filter will also
+    // update the set of valid collections
+    {
+        flatbuffers::FlatBufferBuilder builder;
+        auto collection = Collections::VB::CreateCollection(
+                builder,
+                1, // manifest uid
+                uint32_t(ScopeID::Default),
+                uint32_t(CollectionUid::vegetable),
+                false, // no ttl
+                0, // ttl 0
+                builder.CreateString(CollectionName::vegetable),
+                true, // history false
+                0,
+                false /*metered*/);
+        builder.Finish(collection);
+        EXPECT_TRUE(f.checkAndUpdate(*SystemEventFactory::makeCollectionEvent(
+                CollectionUid::vegetable,
+                {builder.GetBufferPointer(), builder.GetSize()},
+                1)));
+    }
+    EXPECT_TRUE(f.check(StoredDocKey{"no", CollectionEntry::vegetable}));
+    EXPECT_TRUE(f.checkAndUpdate(vegetableMutation));
 }

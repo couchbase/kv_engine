@@ -110,7 +110,7 @@ public:
      */
     bool checkAndUpdate(Item& item) {
         // passthrough, everything is allowed.
-        if (passthrough) {
+        if (isPassThroughFilter()) {
             return true;
         }
 
@@ -133,7 +133,7 @@ public:
      */
     bool check(DocKey key) const {
         // passthrough, everything is allowed.
-        if (passthrough) {
+        if (isPassThroughFilter()) {
             return true;
         }
 
@@ -162,13 +162,6 @@ public:
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat, CookieIface& c, Vbid vb) const;
-
-    /**
-     * Was this filter constructed for a non-collection aware client?
-     */
-    bool isLegacyFilter() const {
-        return !systemEventsAllowed;
-    }
 
     /// @return the size of the filter
     size_t size() const {
@@ -201,11 +194,19 @@ public:
     }
 
     /**
-     * Method to check if the filter dose not filter collections
+     * Method to check if the filter does not filter collections
      * @return true if the filter is a pass-through filter
      */
     bool isPassThroughFilter() const {
-        return passthrough;
+        return filterType == FilterType::Passthrough;
+    }
+
+    /**
+     * Method to check if the filter only allows the default collection
+     * @return true if this filter constructed for a non-collection aware client
+     */
+    bool isLegacyFilter() const {
+        return filterType == FilterType::Legacy;
     }
 
     /**
@@ -216,7 +217,23 @@ public:
      * events.
      */
     bool isCollectionFilter() const {
-        return !isPassThroughFilter() && !isLegacyFilter();
+        return filterType == FilterType::Collection;
+    }
+
+    /**
+     * @return true if this filter constructed a single scope
+     */
+    bool isScopeFilter() const {
+        return filterType == FilterType::Scope;
+    }
+
+    /**
+     * Method to check if the filter permits User visible collections and denies
+     * System visible collections.
+     * @return true if the filter is a pass-through filter
+     */
+    bool isUserVisibleFilter() const {
+        return filterType == FilterType::UserVisible;
     }
 
     /**
@@ -328,8 +345,8 @@ protected:
     void insertCollection(CollectionID cid, DcpFilterMeta filterData);
 
     Container filter;
-
-    std::optional<ScopeID> scopeID;
+    // For FilterType::Scope - the scope
+    ScopeID scopeID;
     Visibility filteredScopeVisibility{Visibility::User};
 
     // use an optional so we don't use any special values to mean unset
@@ -337,8 +354,32 @@ protected:
     cb::mcbp::DcpStreamId streamId = {};
     bool scopeIsDropped = false;
     bool defaultAllowed = false;
-    bool passthrough = false;
-    bool systemEventsAllowed = false;
+
+    enum class FilterType {
+        // The "bucket stream" - everything is allowed
+        Passthrough,
+
+        // The "bucket stream" for clients that don't understand collections.
+        // Only the default collection is visible
+        Legacy,
+
+        // The "bucket stream" for clients that don't have access to system
+        // collections. This is a mix of Collection and Scope behaviour - it
+        // filters for all non-system collections and also is dynamic in that
+        // new user visible collections are added.
+        UserVisible,
+
+        // A collection stream - user requested a set of collections and only
+        // those collections are allowed to pass the filter
+        Collection,
+
+        // A scope stream - user requested a single scope and only that scope is
+        // allowed to pass the filter (this is dynamic as new collections in the
+        // scope will grow the filter set)
+        Scope
+    } filterType;
+
+    static std::string to_string(FilterType);
 
     friend std::ostream& operator<<(std::ostream& os, const Filter& filter);
 

@@ -9,6 +9,8 @@
 //
 
 // Schema for the value of collection system events
+// This represents the data that is stored on disk as the value of a system
+// event and what is sent by DCP for connections enabling FlatBuffers.
 
 namespace Collections.VB;
 
@@ -57,6 +59,13 @@ table DroppedCollection {
     uid:ulong;
     scopeId:uint;
     collectionId:uint;
+
+    // All fields after here are added from 7.6
+    //
+    // systemCollection: Required so we can determine how to evaluate this event
+    // for DCP streams with no system collection privileges. This defaults to
+    // false, all collections before 7.6 will not be system collections.
+    systemCollection:bool = false;
 }
 
 // FlatBuffers SystemEvents: This is the structure used by CreateScope
@@ -72,6 +81,13 @@ table DroppedScope {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
     scopeId:uint;
+
+    // All fields after here are added from 7.6
+    //
+    // systemScope: Required so we can determine how to evaluate this event
+    // for DCP streams with no system collection privileges. This defaults to
+    // false, all scopes before 7.6 will not be system scopes.
+    systemScope:bool = false;
 }
 
 root_type Collection;

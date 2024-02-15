@@ -1959,6 +1959,7 @@ void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
 
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,
                                     CollectionID cid,
+                                    bool isSystemCollection,
                                     int64_t bySeqno) {
     // The state of the VBucket should not change here, because replicaDrop
     // will generate SystemEvent items.
@@ -1966,7 +1967,8 @@ void VBucket::replicaDropCollection(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock(rlh).replicaDrop(*this, uid, cid, bySeqno);
+    manifest->wlock(rlh).replicaDrop(
+            *this, uid, cid, isSystemCollection, bySeqno);
 }
 
 void VBucket::replicaCreateScope(Collections::ManifestUid uid,
@@ -1985,6 +1987,7 @@ void VBucket::replicaCreateScope(Collections::ManifestUid uid,
 
 void VBucket::replicaDropScope(Collections::ManifestUid uid,
                                ScopeID sid,
+                               bool isSystemScope,
                                int64_t bySeqno) {
     // The state of the VBucket should not change here, because
     // replicaDropScope will generate SystemEvent items.
@@ -1992,7 +1995,8 @@ void VBucket::replicaDropScope(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock(rlh).replicaDropScope(*this, uid, sid, bySeqno);
+    manifest->wlock(rlh).replicaDropScope(
+            *this, uid, sid, isSystemScope, bySeqno);
 }
 
 cb::engine_errc VBucket::prepare(

@@ -839,10 +839,12 @@ public:
      *
      * @param uid the uid of the manifest which made the change
      * @param cid CollectionID to drop
+     * @param isSystemCollection - true if dropping a system collection
      * @param bySeqno The seqno assigned to the collection drop event.
      */
     void replicaDropCollection(Collections::ManifestUid uid,
                                CollectionID cid,
+                               bool isSystemCollection,
                                int64_t bySeqno);
 
     /**
@@ -865,10 +867,12 @@ public:
      *
      * @param uid the uid of the manifest which made the change
      * @param sid ScopeID to drop
+     * @param isSystemScope - true if dropping a system scope
      * @param bySeqno The seqno assigned to the scope drop event.
      */
     void replicaDropScope(Collections::ManifestUid uid,
                           ScopeID sid,
+                          bool isSystemScope,
                           int64_t bySeqno);
 
     /**

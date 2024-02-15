@@ -159,6 +159,7 @@ std::optional<CollectionID> Manifest::applyDrops(
                        vb,
                        manifestUid,
                        cid,
+                       std::nullopt, // system state not needed
                        OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -232,6 +233,7 @@ std::optional<ScopeID> Manifest::applyScopeDrops(
                   vb,
                   manifestUid,
                   sid,
+                  std::nullopt, // system state not needed
                   OptionalSeqno{/*no-seqno*/});
     }
 
@@ -402,6 +404,7 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                        vb,
                        changeset.getUidForChange(manifestUid),
                        *finalDeletion,
+                       std::nullopt, // system state not needed
                        OptionalSeqno{/*no-seqno*/});
     }
 
@@ -459,6 +462,7 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                   vb,
                   changeset.uid,
                   *finalScopeDrop,
+                  std::nullopt,
                   OptionalSeqno{/*no-seqno*/});
     }
 
@@ -622,11 +626,13 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
                               ::VBucket& vb,
                               ManifestUid newManUid,
                               CollectionID cid,
+                              std::optional<bool> isSystemCollection,
                               OptionalSeqno optionalSeqno) {
     bool processingTombstone = false;
     // A replica that receives a collection tombstone is required to persist
     // that tombstone, so the replica can switch to active consistently
     if (optionalSeqno.has_value() && map.count(cid) == 0) {
+        Expects(isSystemCollection.has_value());
         // Must store an event that replicates what the active had
         processingTombstone = true;
 
@@ -636,9 +642,12 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
         // After adding the entry, we can now proceed to queue a system event
         // as normal, the system event we generate can now be used to re-trigger
         // DCP delete collection if the replica is itself DCP streamed (or made
-        // active)
+        // active).
+        // For the system collection state, we need to just set a private name
+        // and the later queueCollectionSystemEvent will then correctly set
+        // the system event value
         addNewCollectionEntry({ScopeID::Default, cid},
-                              "tombstone",
+                              *isSystemCollection ? "_tombstone" : "tombstone",
                               cb::ExpiryLimit{},
                               Metered::Yes,
                               CanDeduplicate::Yes,
@@ -666,8 +675,8 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
     EP_LOG_DEBUG(
-            "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
-            "items:{} diskSize:{} {}{}",
+            "{} drop collection:id:{} from scope:{}, seq:{}, manifest:{:#x}, "
+            "items:{}, diskSize:{}{}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
@@ -837,6 +846,7 @@ void Manifest::dropScope(VBucketStateLockRef vbStateLock,
                          ::VBucket& vb,
                          ManifestUid newManUid,
                          ScopeID sid,
+                         std::optional<bool> isSystemScope,
                          OptionalSeqno optionalSeqno) {
     auto itr = scopes.find(sid);
     // An active manifest must store the scope in-order to drop it, the optional
@@ -849,17 +859,26 @@ void Manifest::dropScope(VBucketStateLockRef vbStateLock,
                 "no seqno defined and the scope doesn't exist, scope:" +
                         sid.to_string());
     } else if (itr != scopes.end()) {
+        // We have the scope so we can definitively set this value in all cases
+        // i.e. drop from active or replica
+        isSystemScope = Collections::isSystemScope(itr->second.getName(), sid);
+
         // Tell the manager so that it can check for final clean-up
         manager->dereferenceMeta(sid, itr->second.takeMeta());
         // erase the entry (drops our reference to meta)
         scopes.erase(itr);
     }
 
+    // The value should have been passed by called (replication path) or set
+    // from the scope we found.
+    Expects(isSystemScope.has_value());
+
     // record the uid of the manifest which removed the scope
     updateUid(newManUid, optionalSeqno.has_value());
 
     flatbuffers::FlatBufferBuilder builder;
-    auto scope = CreateDroppedScope(builder, getManifestUid(), uint32_t(sid));
+    auto scope = CreateDroppedScope(
+            builder, getManifestUid(), uint32_t(sid), *isSystemScope);
     builder.Finish(scope);
 
     auto item = SystemEventFactory::makeScopeEvent(
@@ -1087,7 +1106,11 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     }
     case SystemEventType::Delete: {
         auto collection = CreateDroppedCollection(
-                builder, uid, uint32_t(entry.getScopeID()), uint32_t(cid));
+                builder,
+                uid,
+                uint32_t(entry.getScopeID()),
+                uint32_t(cid),
+                isSystemCollection(entry.getName(), cid));
         builder.Finish(collection);
         break;
     }
@@ -1388,7 +1411,8 @@ DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
             getDroppedCollectionFlatbuffer(flatbufferData);
     return {ManifestUid(droppedCollection->uid()),
             droppedCollection->scopeId(),
-            droppedCollection->collectionId()};
+            droppedCollection->collectionId(),
+            droppedCollection->systemCollection()};
 }
 
 CreateEventData Manifest::getCreateEventData(const Collection& collection) {
@@ -1416,7 +1440,9 @@ CreateScopeEventData Manifest::getCreateScopeEventData(
 DropScopeEventData Manifest::getDropScopeEventData(
         std::string_view flatbufferData) {
     const auto* droppedScope = getDroppedScopeFlatbuffer(flatbufferData);
-    return {ManifestUid(droppedScope->uid()), droppedScope->scopeId()};
+    return {ManifestUid(droppedScope->uid()),
+            droppedScope->scopeId(),
+            droppedScope->systemScope()};
 }
 
 std::string Manifest::getExceptionString(const std::string& thrower,

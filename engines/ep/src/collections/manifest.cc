@@ -128,6 +128,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
 
+    // Iterate over the scopes.
     for (const auto& scope : scopes) {
         throwIfWrongType(
                 std::string(ScopesKey), scope, nlohmann::json::value_t::object);
@@ -240,6 +241,17 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             if (metered && metered.value()) {
                 // metered:true present in the JSON manifest
                 meteredState = Metered::Yes;
+            }
+
+            // A "normal" collection must not be in a system scope
+            if (isSystemScope(nameValue, sidValue) &&
+                !isSystemCollection(cnameValue, cidValue)) {
+                throwInvalid(fmt::format(
+                        "collection cid:{} {} found in system scope sid:{} {}",
+                        cidValue,
+                        cnameValue,
+                        sidValue,
+                        nameValue));
             }
 
             enableDefaultCollection(cidValue);

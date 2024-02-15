@@ -781,17 +781,20 @@ public:
      * @param vb The vbucket to drop collection from
      * @param manifestUid the uid of the manifest which made the change
      * @param cid CollectionID to drop
+     * @param isSystemCollection true if dropping a system collection
      * @param endSeqno The end-seqno assigned to the end collection.
      */
     void replicaDrop(::VBucket& vb,
                      ManifestUid manifestUid,
                      CollectionID cid,
+                     bool isSystemCollection,
                      int64_t endSeqno) {
         manifest.dropCollection(vbStateLock,
                                 *this,
                                 vb,
                                 manifestUid,
                                 cid,
+                                isSystemCollection,
                                 OptionalSeqno{endSeqno});
     }
 
@@ -825,17 +828,20 @@ public:
      * @param vb The vbucket to drop the scope from
      * @param manifestUid the uid of the manifest which made the change
      * @param sid ScopeID to drop
+     * @param isSystemScope true if dropping a system scope
      * @param endSeqno The end-seqno assigned to the scope drop
      */
     void replicaDropScope(::VBucket& vb,
                           ManifestUid manifestUid,
                           ScopeID sid,
+                          bool isSystemScope,
                           int64_t endSeqno) {
         manifest.dropScope(vbStateLock,
                            *this,
                            vb,
                            manifestUid,
                            sid,
+                           isSystemScope,
                            OptionalSeqno{endSeqno});
     }
 
