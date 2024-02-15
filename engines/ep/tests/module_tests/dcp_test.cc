@@ -847,6 +847,7 @@ TEST_P(ConnectionTest, connection_cleanup_interval_config) {
 }
 
 TEST_P(ConnectionTest, connection_cleanup_interval_connman) {
+    using namespace std::chrono_literals;
     auto* cookie = create_mock_cookie(engine);
     MockDcpConnMap connMap(*engine);
     ConnManager connMan(*engine, &connMap);
@@ -865,11 +866,11 @@ TEST_P(ConnectionTest, connection_cleanup_interval_connman) {
     ASSERT_TRUE(connMan.run());
     EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
 
-    TimeTraveller hermione(120);
+    connMan.lastConnectionCleanupTime -= 100s;
     ASSERT_TRUE(connMan.run());
     EXPECT_EQ(1, connMap.getNumberOfDeadConnections());
 
-    TimeTraveller harry(120);
+    connMan.lastConnectionCleanupTime -= 150s;
     ASSERT_TRUE(connMan.run());
     EXPECT_EQ(0, connMap.getNumberOfDeadConnections());
     destroy_mock_cookie(cookie);
