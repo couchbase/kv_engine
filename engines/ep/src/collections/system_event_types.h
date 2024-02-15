@@ -20,7 +20,7 @@ namespace Collections {
  */
 struct CreateEventData {
     CreateEventData(ManifestUid manifestUid, CollectionMetaData metaData)
-        : manifestUid(manifestUid), metaData(metaData) {
+        : manifestUid(manifestUid), metaData(std::move(metaData)) {
     }
     ManifestUid manifestUid; // The Manifest which generated the event
     CollectionMetaData metaData; // The data of the new collection
@@ -44,7 +44,7 @@ struct DropEventData {
 
 struct CreateScopeEventData {
     CreateScopeEventData(ManifestUid manifestUid, ScopeMetaData metaData)
-        : manifestUid(manifestUid), metaData(metaData) {
+        : manifestUid(manifestUid), metaData(std::move(metaData)) {
     }
     ManifestUid manifestUid; // The Manifest which generated the event
     ScopeMetaData metaData; // The data of the new scope
