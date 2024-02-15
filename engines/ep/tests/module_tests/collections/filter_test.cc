@@ -42,15 +42,16 @@ public:
     void SetUp() override {
         CollectionsTest::SetUp();
         vb = store->getVBucket(vbid);
-        auto m = makeManifest(cm);
-        vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
         cookie = create_mock_cookie();
+        setCollections(cookie, cm);
     }
 
     ~CollectionsVBFilterTest() override {
         manager->dereferenceMeta(CollectionID{},
                                  entryInDefaultScope->takeMeta());
         manager->dereferenceMeta(CollectionID{}, entryInShop1Scope->takeMeta());
+        manager->dereferenceMeta(CollectionID{},
+                                 entryInSystemScope->takeMeta());
     }
 
     void TearDown() override {
@@ -68,7 +69,6 @@ public:
     CollectionsManifest cm;
     std::shared_ptr<Collections::Manager> manager =
             std::make_shared<Collections::Manager>();
-    Collections::VB::Manifest vbm{manager};
     // Tests need entry data which appear in default and 'shop1' scopes
     std::unique_ptr<Collections::VB::ManifestEntry> entryInDefaultScope =
             std::make_unique<Collections::VB::ManifestEntry>(
@@ -86,6 +86,17 @@ public:
                             CollectionID::Default,
                             Collections::VB::CollectionSharedMetaDataView{
                                     "name2", ScopeUid::shop1}),
+                    0,
+                    CanDeduplicate::Yes,
+                    cb::NoExpiryLimit,
+                    Collections::Metered::No);
+
+    std::unique_ptr<Collections::VB::ManifestEntry> entryInSystemScope =
+            std::make_unique<Collections::VB::ManifestEntry>(
+                    manager->createOrReferenceMeta(
+                            CollectionID::Default,
+                            Collections::VB::CollectionSharedMetaDataView{
+                                    "namee", ScopeUid::systemScope}),
                     0,
                     CanDeduplicate::Yes,
                     cb::NoExpiryLimit,
@@ -110,7 +121,8 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
             FAIL() << "Should have thrown an exception s:" << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
@@ -136,7 +148,8 @@ TEST_F(CollectionsVBFilterTest, junk_in_scope) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
             FAIL() << "Should have thrown an exception " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
@@ -154,8 +167,7 @@ TEST_F(CollectionsVBFilterTest, validation1) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::vector<std::string> inputs = {R"({"uid":"a"})",
                                        R"({"collections":["0"]})",
@@ -166,7 +178,8 @@ TEST_F(CollectionsVBFilterTest, validation1) {
         std::optional<std::string_view> json(s);
 
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
         } catch (...) {
             FAIL() << "Exception thrown with input " << s;
         }
@@ -179,8 +192,7 @@ TEST_F(CollectionsVBFilterTest, validation1) {
 TEST_F(CollectionsVBFilterTest, validation1_scope) {
     cm.add(CollectionEntry::fruit);
     cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::vector<std::string> inputs = {
             R"({"scope":"0"})",
@@ -190,7 +202,8 @@ TEST_F(CollectionsVBFilterTest, validation1_scope) {
         std::optional<std::string_view> json(s);
 
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
         } catch (...) {
             FAIL() << "Exception thrown with input " << s;
         }
@@ -205,8 +218,7 @@ TEST_F(CollectionsVBFilterTest, validation2) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::vector<std::string> inputs = {
             // wrong UID inputs
@@ -217,7 +229,8 @@ TEST_F(CollectionsVBFilterTest, validation2) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
             FAIL() << "Should have thrown an exception with input " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
@@ -231,8 +244,7 @@ TEST_F(CollectionsVBFilterTest, validation2) {
  * Test valid JSON formats to the filter, but they contain invalid content
  */
 TEST_F(CollectionsVBFilterTest, validation2_scope) {
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::vector<std::string> inputs = {
             R"({"scope":"9"})" // one unknown SID
@@ -241,7 +253,8 @@ TEST_F(CollectionsVBFilterTest, validation2_scope) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
             FAIL() << "Should have thrown an exception with input " << s;
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::unknown_scope, e.code());
@@ -257,8 +270,7 @@ TEST_F(CollectionsVBFilterTest, validation2_scope) {
 TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
     cm.add(CollectionEntry::meat);
     cm.add(ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::vector<std::string> inputs = {
             R"({"scope":"8",
@@ -267,7 +279,8 @@ TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
         try {
-            Collections::VB::Filter f(json, vbm, *cookie, *engine);
+            Collections::VB::Filter f(
+                    json, vb->getManifest(), *cookie, *engine);
             FAIL() << "Should have thrown an exception";
         } catch (const cb::engine_error& e) {
             EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
@@ -279,13 +292,12 @@ TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
 
 TEST_F(CollectionsVBFilterTest, validation2_empty_scope) {
     cm.add(ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string input = R"({"scope":"8"})";
     std::optional<std::string_view> json(input);
     try {
-        Collections::VB::Filter f(json, vbm, *cookie, *engine);
+        Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::invalid_arguments, e.code());
     } catch (...) {
@@ -303,12 +315,11 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::optional<std::string_view> json;
     try {
-        Collections::VB::Filter f(json, vbm, *cookie, *engine);
+        Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::unknown_collection, e.code());
@@ -324,7 +335,7 @@ public:
                           const Collections::VB::Manifest& manifest,
                           CookieIface* cookie,
                           EventuallyPersistentEngine& engine)
-        : Collections::VB::Filter(jsonFilter, manifest, *cookie, engine) {
+        : Filter(jsonFilter, manifest, *cookie, engine) {
     }
     /// @return is this filter a passthrough (allows every collection)
     bool isPassthrough() const {
@@ -344,6 +355,14 @@ public:
     bool allowSystemEvents() const {
         return systemEventsAllowed;
     }
+
+    std::optional<ScopeID> getFilteredScopeID() const {
+        return scopeID;
+    }
+
+    Collections::Visibility getFilteredScopeVisibility() const {
+        return filteredScopeVisibility;
+    }
 };
 
 /**
@@ -355,12 +374,11 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
-    CollectionsTestFilter f(json, vbm, cookie, *engine);
+    CollectionsTestFilter f(json, vb->getManifest(), cookie, *engine);
 
     // This is not a passthrough filter
     EXPECT_FALSE(f.isPassthrough());
@@ -380,12 +398,11 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
  */
 TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
     cm.add(CollectionEntry::meat);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"scope":"0"})";
     std::optional<std::string_view> json(jsonFilter);
-    CollectionsTestFilter f(json, vbm, cookie, *engine);
+    CollectionsTestFilter f(json, vb->getManifest(), cookie, *engine);
 
     EXPECT_FALSE(f.isPassthrough());
     EXPECT_TRUE(f.allowDefaultCollection());
@@ -399,12 +416,11 @@ TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
  */
 TEST_F(CollectionsVBFilterTest, filter_basic1_non_default_scope) {
     cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
-    CollectionsTestFilter f(json, vbm, cookie, *engine);
+    CollectionsTestFilter f(json, vb->getManifest(), cookie, *engine);
 
     EXPECT_FALSE(f.isPassthrough());
     EXPECT_FALSE(f.allowDefaultCollection());
@@ -423,12 +439,11 @@ TEST_F(CollectionsVBFilterTest, filter_basic2) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter; // empty string creates a pass through
     std::optional<std::string_view> json(jsonFilter);
-    CollectionsTestFilter f(json, vbm, cookie, *engine);
+    CollectionsTestFilter f(json, vb->getManifest(), cookie, *engine);
 
     // This is a passthrough filter
     EXPECT_TRUE(f.isPassthrough());
@@ -447,12 +462,11 @@ TEST_F(CollectionsVBFilterTest, filter_legacy) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // No string...
     std::optional<std::string_view> json;
-    CollectionsTestFilter f(json, vbm, cookie, *engine);
+    CollectionsTestFilter f(json, vb->getManifest(), cookie, *engine);
 
     // Not a pass through
     EXPECT_FALSE(f.isPassthrough());
@@ -474,13 +488,12 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // Yes to these guys
     EXPECT_TRUE(
@@ -529,13 +542,12 @@ TEST_F(CollectionsVBFilterTest, basic_allow_default_scope) {
     cm.add(CollectionEntry::dairy)
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy2, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"scope":"0"})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // Yes to default and dairy
     EXPECT_TRUE(
@@ -569,13 +581,12 @@ TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
     cm.add(CollectionEntry::dairy)
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy2, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // Yes to dairy2
     EXPECT_TRUE(
@@ -609,12 +620,11 @@ TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
  */
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
     cm.add(CollectionEntry::meat);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::optional<std::string_view> json;
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     // Legacy would only allow default
     EXPECT_TRUE(
             checkAndUpdate(vbf,
@@ -637,14 +647,13 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
  */
 TEST_F(CollectionsVBFilterTest, passthrough) {
     cm.add(CollectionEntry::meat);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string filterJson; // empty string
     std::optional<std::string_view> json(filterJson);
 
     // Everything is allowed (even junk, which isn't the filter's job to police)
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -690,14 +699,13 @@ TEST_F(CollectionsVBFilterTest, no_default) {
             .add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"collections":["8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
 
     // Now filter!
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     EXPECT_FALSE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -746,13 +754,12 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"collections":["8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
@@ -812,13 +819,12 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"collections":["0", "8"]})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"anykey", CollectionEntry::defaultC},
@@ -886,13 +892,12 @@ TEST_F(CollectionsVBFilterTest, remove2) {
 TEST_F(CollectionsVBFilterTest, system_events1) {
     cm.add(CollectionEntry::meat).add(CollectionEntry::fruit);
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter;
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // meat system event is allowed by the meat filter
     EXPECT_TRUE(checkAndUpdate(vbf,
@@ -920,14 +925,13 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
     cm.add(CollectionEntry::meat)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // only events for default and meat are allowed
     std::string jsonFilter = R"({"collections":["0", "8"]})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // meat system event is allowed by the meat filter
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -978,14 +982,13 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
     cm.add(CollectionEntry::dairy)
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::meat, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // Only events for defaultC and dairy are allowed
     std::string jsonFilter = R"({"scope":"0"})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // default (default) system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -1026,14 +1029,13 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
     cm.add(CollectionEntry::dairy)
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::meat, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // Only events for meat are allowed
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // meat (shop1) system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -1076,12 +1078,11 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::optional<std::string_view> json;
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // All system events dropped by this empty/legacy filter
     EXPECT_FALSE(checkAndUpdate(vbf,
@@ -1102,12 +1103,11 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
 TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     // Initially shop1 has the meat collection
     cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // Only have meat in this filter
     ASSERT_EQ(vbf.size(), 1);
@@ -1123,6 +1123,24 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
 
     EXPECT_EQ(vbf.size(), 2);
+
+    // Add a system collection (_ prefix) and check we know about it, this
+    // does not require that the VB::Manifest know as we deliberately do not
+    // look at that object from the filter checkAndUpdate path
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            Collections::ManifestUid(0),
+            CollectionUid::systemCollection,
+            CollectionName::systemCollection,
+            *entryInShop1Scope,
+            Collections::VB::Manifest::SystemEventType::Create,
+            {});
+    ASSERT_TRUE(checkAndUpdate(vbf, *ev));
+
+    EXPECT_EQ(vbf.size(), 3);
+    auto itr = vbf.find(CollectionUid::systemCollection);
+    EXPECT_NE(itr, vbf.end());
+    EXPECT_EQ(Collections::Visibility::System,
+              itr->second.collectionVisibility);
 }
 
 /**
@@ -1133,13 +1151,12 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
     cm.add(ScopeEntry::shop1)
             .add(CollectionEntry::meat, ScopeEntry::shop1)
             .add(CollectionEntry::dairy, ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // scope 8 is shop1
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
 
     // 2 collections in this filter
     ASSERT_EQ(vbf.size(), 2);
@@ -1175,20 +1192,18 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
 TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     // Initially shop1 has no collections
     cm.add(ScopeEntry::shop1);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
 
     // Create the filter
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     EXPECT_EQ(vbf.size(), 0);
 
     // Now add a new collection
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
-    m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // Meat system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -1209,13 +1224,12 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
 TEST_F(CollectionsVBFilterTest, snappy_event) {
     cm.remove(CollectionEntry::defaultC).add(CollectionEntry::fruit);
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string jsonFilter = R"({"collections":["9"]})";
     std::optional<std::string_view> json(jsonFilter);
 
-    CollectionsTestFilter vbf(json, vbm, cookie, *engine);
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
     EXPECT_TRUE(
             checkAndUpdate(vbf,
                            {StoredDocKey{"fruit:apple", CollectionEntry::fruit},
@@ -1248,21 +1262,60 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
 
 TEST_F(CollectionsVBFilterTest, size_stats_for_dropped_collection) {
     cm.add(CollectionEntry::fruit);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // Filter by fruit collection.
     std::string filterJson = R"({"collections":["9"]})";
     std::optional<std::string_view> filterManifest{filterJson};
-    Collections::VB::Filter filter(filterManifest, vbm, *cookie, *engine);
+    Collections::VB::Filter filter(
+            filterManifest, vb->getManifest(), *cookie, *engine);
 
     cm.remove(CollectionEntry::fruit);
-    m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // Make sure getSizeStats does not crash due to the collection in the
     // filter having been dropped.
-    filter.getSizeStats(vbm);
+    filter.getSizeStats(vb->getManifest());
+}
+
+// If anyone did want to filter on a system scope
+TEST_F(CollectionsVBFilterTest, system_scope_filter) {
+    cm.add(ScopeEntry::systemScope);
+    cm.add(CollectionEntry::systemCollection, ScopeEntry::systemScope);
+
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
+
+    std::string filterJson = R"({"scope":"10"})";
+    std::optional<std::string_view> json{filterJson};
+
+    CollectionsTestFilter vbf(json, vb->getManifest(), cookie, *engine);
+
+    // system collection is allowed by the filter
+    auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            Collections::ManifestUid(0),
+            CollectionUid::systemCollection,
+            CollectionName::systemCollection,
+            *entryInSystemScope,
+            Collections::VB::Manifest::SystemEventType::Create,
+            {});
+    EXPECT_TRUE(checkAndUpdate(vbf, *ev));
+
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            Collections::ManifestUid(0),
+            CollectionUid::defaultC,
+            CollectionName::defaultC,
+            *entryInDefaultScope,
+            Collections::VB::Manifest::SystemEventType::Create,
+            {});
+    // $default system event is not allowed by the filter
+    EXPECT_FALSE(checkAndUpdate(vbf, *ev));
+
+    // Check some state
+    auto scopeId = vbf.getFilteredScopeID();
+    ASSERT_TRUE(scopeId);
+    EXPECT_EQ(ScopeUid::systemScope, scopeId.value());
+    EXPECT_EQ(Collections::Visibility::System,
+              vbf.getFilteredScopeVisibility());
 }
 
 class CollectionsVBFilterAccessControlTest : public CollectionsVBFilterTest {
@@ -1287,13 +1340,12 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
                 return cb::rbac::PrivilegeAccessOk;
             });
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
     std::string input;
     std::optional<std::string_view> json(input);
 
     try {
-        Collections::VB::Filter f(json, vbm, *cookie, *engine);
+        Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1311,17 +1363,17 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
                 EXPECT_FALSE(cid);
                 EXPECT_FALSE(sid);
 
-                if (priv == cb::rbac::Privilege::DcpStream) {
+                if (priv == cb::rbac::Privilege::DcpStream ||
+                    priv == cb::rbac::Privilege::SystemCollectionLookup) {
                     return cb::rbac::PrivilegeAccessOk;
                 }
                 return cb::rbac::PrivilegeAccessFail;
             });
 
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
     std::string input;
     std::optional<std::string_view> json(input);
-    Collections::VB::Filter f(json, vbm, *cookie, *engine);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
 }
 
 // Test that 1) we cannot create a filter for a collection (9) when we don't
@@ -1346,8 +1398,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
             });
 
     cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // No access to fruit
     std::string input = R"({"collections":["9"]})";
@@ -1355,7 +1406,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
 
     // Test 1)
     try {
-        Collections::VB::Filter f(json, vbm, *cookie, *engine);
+        Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1365,7 +1416,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
 
     // Test 2)
     input = R"({"collections":["c"]})";
-    Collections::VB::Filter f(json, vbm, *cookie, *engine);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
 }
 
 // Similar to the above test, but here we try to build a multi-collection filter
@@ -1387,15 +1438,14 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collections) {
             });
 
     cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     // Multi collection request, but no access to fruit
     std::string input = R"({"collections":["c", "9"]})";
     std::optional<std::string_view> json(input);
 
     try {
-        Collections::VB::Filter f(json, vbm, *cookie, *engine);
+        Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1426,15 +1476,14 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
             });
 
     cm.add(ScopeEntry::shop1).add(ScopeEntry::shop2);
-    auto m = makeManifest(cm);
-    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+    ASSERT_EQ(cb::engine_errc::success, setCollections(cookie, cm));
 
     std::string input = R"({"scope":"8"})";
     std::optional<std::string_view> json(input);
 
     // Test 1)
     try {
-        Collections::VB::Filter f(json, vbm, *cookie, *engine);
+        Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
         FAIL() << "Should have thrown an exception";
     } catch (const cb::engine_error& e) {
         EXPECT_EQ(cb::engine_errc::no_access, e.code());
@@ -1444,5 +1493,5 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
 
     // Test 2)
     input = R"({"scope":"9"})";
-    Collections::VB::Filter f(json, vbm, *cookie, *engine);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
 }

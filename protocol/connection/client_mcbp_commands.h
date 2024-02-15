@@ -37,6 +37,10 @@ public:
 
     uint64_t getCas() const;
 
+    [[nodiscard]] bool hasFrameInfos() const {
+        return frame_info.empty();
+    }
+
     virtual void clear();
 
     void setKey(std::string key_);

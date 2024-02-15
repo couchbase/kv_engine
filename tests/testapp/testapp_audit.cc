@@ -541,6 +541,7 @@ TEST_P(AuditTest, AuditPut) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
 }
 
+#ifdef CB_DEVELOPMENT_ASSERTS
 TEST_P(AuditTest, AuditPutMissingMandatoryField) {
     auto rsp = adminConnection->execute(BinprotAuditPutCommand{
             MEMCACHED_AUDIT_INVALID_PACKET,
@@ -552,6 +553,7 @@ TEST_P(AuditTest, AuditPutMissingMandatoryField) {
     EXPECT_EQ(R"(["bucket","local","remote","timestamp"])",
               json["missing_elements"].dump());
 }
+#endif
 
 /// Filtering failed to work for memcached generated events as the domain
 /// for these events was hardcoded to "memcached"

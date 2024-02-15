@@ -177,7 +177,8 @@ void startCluster(int verbosity, std::string_view backend) {
       "Delete",
       "Upsert",
       "DcpProducer",
-      "DcpStream"
+      "DcpStream",
+      "SystemCollectionLookup"
     ]
   }
 },

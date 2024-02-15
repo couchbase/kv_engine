@@ -1024,6 +1024,9 @@ protected:
         return manifestUid;
     }
 
+    /// @return the Visibility of the given scope
+    Visibility getScopeVisibility(ScopeID sid) const;
+
     /**
      * Detailed stats for this VB::Manifest
      * @return true if addCollectionStats was successful, false if failed.
@@ -1237,6 +1240,8 @@ protected:
     uint64_t computeDefaultCollectionMaxLegacyDCPSeqno(uint64_t highSeqno,
                                                        Vbid vb,
                                                        KVStoreIface& kvs);
+
+    std::optional<DcpFilterMeta> getMetaForDcpFilter(CollectionID cid) const;
 
     /**
      * Retrieve from the Item the stored max visible default collection seqno

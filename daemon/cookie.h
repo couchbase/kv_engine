@@ -609,6 +609,10 @@ public:
         return start;
     }
 
+    bool isAccessingSystemCollection() const {
+        return currentCollectionInfo.systemCollection;
+    }
+
 protected:
     /**
      * Log the current connection if its execution time exceeds the
@@ -620,21 +624,21 @@ protected:
 
     bool doExecute();
 
-    /// Check if the current command have the requested privilege for
-    /// for the provided scope collection identifier
-    cb::rbac::PrivilegeAccess checkPrivilege(
-            const cb::rbac::PrivilegeContext& ctx,
+    void collectTimings(const std::chrono::steady_clock::time_point& end);
+
+    /**
+     * Construct the JSON to use for a privilege failed error message
+     * @param opcode the command
+     * @param privilege the privilege requested
+     * @param sid the scope in use
+     * @param cid the collection in use
+     * \return
+     */
+    nlohmann::json getPrivilegeFailedErrorMessage(
+            std::string opcode,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid);
-
-    cb::rbac::PrivilegeAccess testPrivilege(
-            const cb::rbac::PrivilegeContext& ctx,
-            cb::rbac::Privilege privilege,
-            std::optional<ScopeID> sid,
-            std::optional<CollectionID> cid) const;
-
-    void collectTimings(const std::chrono::steady_clock::time_point& end);
 
     /**
      * The connection object this cookie is bound to

@@ -1711,27 +1711,46 @@ cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
 
 cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
         CookieIface& cookie, const AddResponseFn& response) {
+    using Collections::Visibility;
     auto engine = acquireEngine(this);
     Collections::IsVisibleFunction isVisible =
             [&engine, &cookie](ScopeID sid,
-                               std::optional<CollectionID> cid) -> bool {
-        const auto status = engine->testPrivilege(
-                cookie, cb::rbac::Privilege::Read, sid, cid);
-        return status != cb::engine_errc::unknown_collection &&
-               status != cb::engine_errc::unknown_scope;
+                               std::optional<CollectionID> cid,
+                               Visibility visibility) -> bool {
+        // One of the system privileges needed if to access a system collection.
+        if (visibility == Visibility::System) {
+            if (cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemCollectionLookup,
+                              sid,
+                              cid)
+                        .failed() &&
+                cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemCollectionMutation,
+                              sid,
+                              cid)
+                        .failed()) {
+                return false;
+            }
+        }
+
+        return cookie.testPrivilege(cb::rbac::Privilege::Read, sid, cid)
+                       .getStatus() !=
+               cb::rbac::PrivilegeAccess::Status::FailNoPrivileges;
     };
-    auto rv = engine->getKVBucket()->getCollections(isVisible);
+
+    const auto [status, json] =
+            engine->getKVBucket()->getCollections(isVisible);
 
     std::string manifest;
-    if (rv.first == cb::mcbp::Status::Success) {
-        manifest = rv.second.dump();
+    if (status == cb::mcbp::Status::Success) {
+        manifest = json.dump();
     }
     return sendResponse(makeExitBorderGuard(std::cref(response)),
                         {}, // key
                         {}, // extra
                         manifest, // body
                         ValueIsJson::Yes,
-                        rv.first,
+                        status,
                         0,
                         cookie);
 }
@@ -1743,20 +1762,43 @@ EventuallyPersistentEngine::get_collection_id(CookieIface& cookie,
     auto rv = engine->getKVBucket()->getCollectionID(path);
 
     if (rv.result == cb::engine_errc::success) {
+        auto [uuid, meta] =
+                engine->getKVBucket()->getCollectionEntry(rv.collectionId);
+        if (!meta.has_value()) {
+            // We must have raced with a manifest update
+            return cb::EngineErrorGetCollectionIDResult{
+                    cb::engine_errc::unknown_collection};
+        }
+
+        using Collections::Visibility;
+        if (Collections::getCollectionVisibility(meta->name, rv.collectionId) ==
+            Visibility::System) {
+            if (cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemCollectionLookup,
+                              meta->sid,
+                              meta->cid)
+                        .failed() &&
+                cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemCollectionMutation,
+                              meta->sid,
+                              meta->cid)
+                        .failed()) {
+                return cb::EngineErrorGetCollectionIDResult{
+                        cb::engine_errc::no_access};
+            }
+        }
+
         // Test for any privilege, we are testing if we have visibility which
         // means at least 1 privilege in the bucket.scope.collection 'path'
-        auto status = testPrivilege(cookie,
-                                    cb::rbac::Privilege::Read,
-                                    rv.getScopeId(),
-                                    rv.getCollectionId());
-        if (status == cb::engine_errc::no_access) {
-            // This is fine, still visible - back to success
-            status = cb::engine_errc::success;
+        if (cookie.testPrivilege(
+                          cb::rbac::Privilege::Read, meta->sid, meta->cid)
+                    .getStatus() ==
+            cb::rbac::PrivilegeAccess::Status::FailNoPrivileges) {
+            rv.result = cb::engine_errc::unknown_collection;
         }
-        rv.result = status;
     }
-    if (rv.result == cb::engine_errc::unknown_collection ||
-        rv.result == cb::engine_errc::unknown_scope) {
+
+    if (rv.result == cb::engine_errc::unknown_collection) {
         engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
     return rv;
@@ -1767,20 +1809,36 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
     if (rv.result == cb::engine_errc::success) {
-        // Test for any privilege, we are testing if we have visibility which
-        // means at least 1 privilege in the bucket.scope 'path'
-        auto status = testPrivilege(
-                cookie, cb::rbac::Privilege::Read, rv.getScopeId(), {});
-        if (status == cb::engine_errc::no_access) {
-            // This is fine, still visible - back to success
-            status = cb::engine_errc::success;
+        if (rv.isSystemScope()) {
+            using Collections::Visibility;
+            if (cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemCollectionLookup,
+                              rv.scopeId,
+                              {})
+                        .failed() &&
+                cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemCollectionMutation,
+                              rv.scopeId,
+                              {})
+                        .failed()) {
+                return cb::EngineErrorGetScopeIDResult{
+                        cb::engine_errc::no_access};
+            }
         }
-        rv.result = status;
+
+        // Test for any privilege, we are testing if we have visibility which
+        // means at least 1 privilege in the bucket.scope.collection 'path'
+        if (cookie.testPrivilege(cb::rbac::Privilege::Read, rv.scopeId, {})
+                    .getStatus() ==
+            cb::rbac::PrivilegeAccess::Status::FailNoPrivileges) {
+            rv.result = cb::engine_errc::unknown_scope;
+        }
     }
 
     if (rv.result == cb::engine_errc::unknown_scope) {
         engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
+
     return rv;
 }
 
@@ -4447,7 +4505,11 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
         Vbid vbid,
         const DocKey& key,
         bool validate) {
-    auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
+    auto rv = checkCollectionAccess(cookie,
+                                    vbid,
+                                    cb::rbac::Privilege::SystemCollectionLookup,
+                                    cb::rbac::Privilege::Read,
+                                    key.getCollectionID());
     if (rv != cb::engine_errc::success) {
         return rv;
     }
@@ -5335,30 +5397,52 @@ void EventuallyPersistentEngine::resetStats() {
     }
 }
 
-cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        CookieIface& cookie, cb::rbac::Privilege priv, DocKey key) const {
-    return checkPrivilege(cookie, priv, key.getCollectionID());
-}
-
 void EventuallyPersistentEngine::auditDocumentAccess(
         CookieIface& cookie, cb::audit::document::Operation operation) const {
     NonBucketAllocationGuard guard;
     cookie.auditDocumentAccess(operation);
 }
 
-cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        CookieIface& cookie, cb::rbac::Privilege priv, CollectionID cid) const {
+cb::engine_errc EventuallyPersistentEngine::checkCollectionAccess(
+        CookieIface& cookie,
+        std::optional<Vbid> vbid,
+        std::optional<cb::rbac::Privilege> systemCollectionPrivilege,
+        cb::rbac::Privilege priv,
+        CollectionID cid) const {
     ScopeID sid{ScopeID::Default};
     uint64_t manifestUid{0};
     cb::engine_errc status = cb::engine_errc::success;
 
     if (!cid.isDefaultCollection()) {
-        auto res = getKVBucket()->getScopeID(cid);
-        manifestUid = res.first;
-        if (!res.second) {
-            status = cb::engine_errc::unknown_collection;
+        using Collections::getCollectionVisibility;
+        using Collections::Visibility;
+        Visibility visibility = Visibility::User;
+        if (vbid) {
+            auto vbucket = getVBucket(*vbid);
+            if (!vbucket) {
+                return cb::engine_errc::not_my_vbucket;
+            }
+            auto handle = vbucket->getManifest().lock(cid);
+            if (!handle.valid()) {
+                return cb::engine_errc::unknown_collection;
+            }
+            sid = handle.getScopeID();
+            manifestUid = handle.getManifestUid();
+            visibility = getCollectionVisibility(handle.getName(), cid);
         } else {
-            sid = res.second.value();
+            auto res = getKVBucket()->getCollectionEntry(cid);
+            manifestUid = res.first;
+            if (!res.second) {
+                status = cb::engine_errc::unknown_collection;
+            } else {
+                sid = res.second->sid;
+                visibility = getCollectionVisibility(res.second->name, cid);
+            }
+        }
+
+        if (systemCollectionPrivilege && visibility == Visibility::System) {
+            status = checkPrivilege(
+                    cookie, *systemCollectionPrivilege, sid, cid);
         }
     }
 
@@ -5380,10 +5464,74 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
                 int(priv),
                 cid.to_string(),
                 sid.to_string(),
-
                 to_string(status));
     }
     return status;
+}
+
+cb::engine_errc EventuallyPersistentEngine::testScopeAccess(
+        CookieIface& cookie,
+        std::optional<cb::rbac::Privilege> systemScopePrivilege,
+        cb::rbac::Privilege priv,
+        ScopeID sid,
+        Collections::Visibility visibility) const {
+    if (!sid.isDefaultScope()) {
+        using Collections::Visibility;
+        if (systemScopePrivilege && visibility == Visibility::System) {
+            switch (cookie.testPrivilege(*systemScopePrivilege, sid, {})
+                            .getStatus()) {
+            case cb::rbac::PrivilegeAccess::Status::Ok:
+                break;
+            case cb::rbac::PrivilegeAccess::Status::Fail:
+                return cb::engine_errc::no_access;
+            case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+                return cb::engine_errc::unknown_scope;
+            }
+        }
+    }
+
+    switch (cookie.testPrivilege(priv, sid, {}).getStatus()) {
+    case cb::rbac::PrivilegeAccess::Status::Ok:
+        return cb::engine_errc::success;
+    case cb::rbac::PrivilegeAccess::Status::Fail:
+        return cb::engine_errc::no_access;
+    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+        return cb::engine_errc::unknown_scope;
+    }
+    folly::assume_unreachable();
+}
+
+cb::engine_errc EventuallyPersistentEngine::testCollectionAccess(
+        CookieIface& cookie,
+        std::optional<cb::rbac::Privilege> systemCollectionPrivilege,
+        cb::rbac::Privilege priv,
+        CollectionID cid,
+        ScopeID sid,
+        Collections::Visibility visibility) const {
+    if (!cid.isDefaultCollection()) {
+        using Collections::Visibility;
+        if (systemCollectionPrivilege && visibility == Visibility::System) {
+            switch (cookie.testPrivilege(*systemCollectionPrivilege, sid, cid)
+                            .getStatus()) {
+            case cb::rbac::PrivilegeAccess::Status::Ok:
+                break;
+            case cb::rbac::PrivilegeAccess::Status::Fail:
+                return cb::engine_errc::no_access;
+            case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+                return cb::engine_errc::unknown_collection;
+            }
+        }
+    }
+
+    switch (cookie.testPrivilege(priv, sid, cid).getStatus()) {
+    case cb::rbac::PrivilegeAccess::Status::Ok:
+        return cb::engine_errc::success;
+    case cb::rbac::PrivilegeAccess::Status::Fail:
+        return cb::engine_errc::no_access;
+    case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
+        return cb::engine_errc::unknown_collection;
+    }
+    folly::assume_unreachable();
 }
 
 cb::engine_errc
@@ -5411,8 +5559,8 @@ EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         CookieIface& cookie,
         cb::rbac::Privilege priv,
-        std::optional<ScopeID> sid,
-        std::optional<CollectionID> cid) const {
+        ScopeID sid,
+        CollectionID cid) {
     try {
         // Upon failure check_privilege may set an error message in the
         // cookie about the missing privilege
@@ -5423,15 +5571,14 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         case cb::rbac::PrivilegeAccess::Status::Fail:
             return cb::engine_errc::no_access;
         case cb::rbac::PrivilegeAccess::Status::FailNoPrivileges:
-            return cid ? cb::engine_errc::unknown_collection
-                       : cb::engine_errc::unknown_scope;
+            return cb::engine_errc::unknown_collection;
         }
     } catch (const std::exception& e) {
         EP_LOG_ERR(
                 "EPE::checkPrivilege: received exception while checking "
                 "privilege for sid:{}: cid:{} {}",
-                sid ? sid->to_string() : "no-scope",
-                cid ? cid->to_string() : "no-collection",
+                sid.to_string(),
+                cid.to_string(),
                 e.what());
     }
     return cb::engine_errc::failed;
@@ -5481,7 +5628,11 @@ cb::engine_errc EventuallyPersistentEngine::handleObserve(
                  cb::UserDataView(key.to_string()),
                  vbucket);
 
-    auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
+    auto rv = checkCollectionAccess(cookie,
+                                    vbucket,
+                                    cb::rbac::Privilege::SystemCollectionLookup,
+                                    cb::rbac::Privilege::Read,
+                                    key.getCollectionID());
     if (rv != cb::engine_errc::success) {
         return rv;
     }
@@ -6510,7 +6661,11 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
 
     DocKey start_key = makeDocKey(cookie, request.getKey());
     auto privTestResult =
-            checkPrivilege(cookie, cb::rbac::Privilege::Read, start_key);
+            checkCollectionAccess(cookie,
+                                  request.getVBucket(),
+                                  cb::rbac::Privilege::SystemCollectionLookup,
+                                  cb::rbac::Privilege::Read,
+                                  start_key.getCollectionID());
     if (privTestResult != cb::engine_errc::success) {
         return privTestResult;
     }
@@ -6560,8 +6715,11 @@ void EventuallyPersistentEngine::scheduleDcpStep(CookieIface& cookie) {
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getRandomDocument(
         CookieIface& cookie, CollectionID cid) {
-    auto priv = checkPrivilege(cookie, cb::rbac::Privilege::Read, cid);
-    if (priv != cb::engine_errc::success) {
+    if (checkCollectionAccess(cookie,
+                              {},
+                              cb::rbac::Privilege::SystemCollectionLookup,
+                              cb::rbac::Privilege::Read,
+                              cid) != cb::engine_errc::success) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_access);
     }
     GetValue gv(kvBucket->getRandomKey(cid, cookie));
@@ -6946,8 +7104,12 @@ cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
     }
 
     if (collection) {
-        return checkPrivilege(
-                cookie, cb::rbac::Privilege::Read, collection.value());
+        return checkCollectionAccess(
+                cookie,
+                {},
+                cb::rbac::Privilege::SystemCollectionLookup,
+                cb::rbac::Privilege::Read,
+                *collection);
     }
 
     return checkForPrivilegeAtLeastInOneCollection(cookie,

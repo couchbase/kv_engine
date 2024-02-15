@@ -697,7 +697,9 @@ TEST(ManifestTest, to_json) {
                 std::chrono::seconds(0)}}}}};
 
     Collections::IsVisibleFunction isVisible =
-            [](ScopeID, std::optional<CollectionID>) -> bool { return true; };
+            [](ScopeID,
+               std::optional<CollectionID>,
+               Collections::Visibility) -> bool { return true; };
 
     for (auto& manifest : inputs) {
         CollectionsManifest cm(NoDefault{});

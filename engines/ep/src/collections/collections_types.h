@@ -29,6 +29,8 @@ struct DocKey;
 
 namespace Collections {
 
+enum class Visibility : bool { System, User };
+
 // The reserved name of the system owned, default collection.
 const char* const DefaultCollectionName = "_default";
 static std::string_view DefaultCollectionIdentifier(DefaultCollectionName);
@@ -223,7 +225,7 @@ using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
  * A function for determining if a collection is visible
  */
 using IsVisibleFunction =
-        std::function<bool(ScopeID, std::optional<CollectionID>)>;
+        std::function<bool(ScopeID, std::optional<CollectionID>, Visibility)>;
 
 /**
  * A data limit - optional
@@ -240,6 +242,49 @@ static const DataLimit NoDataLimit{};
 inline bool isSystemCollection(std::string_view name, CollectionID cid) {
     return !cid.isDefaultCollection() && !name.empty() && name.front() == '_';
 }
+
+inline Visibility getCollectionVisibility(std::string_view name,
+                                          CollectionID cid) {
+    return isSystemCollection(name, cid) ? Visibility::System
+                                         : Visibility::User;
+}
+
+/**
+ * A system scope - one which is created by Couchbase for some internal
+ * use will use the _ prefix. However the _default scope which is also
+ * created by Couchbase is not classed the same.
+ */
+inline bool isSystemScope(std::string_view name, ScopeID sid) {
+    return !sid.isDefaultScope() && !name.empty() && name.front() == '_';
+}
+
+inline Visibility getScopeVisibility(std::string_view name, ScopeID sid) {
+    return isSystemScope(name, sid) ? Visibility::System : Visibility::User;
+}
+
+inline auto format_as(Visibility visibility) {
+    switch (visibility) {
+    case Visibility::System:
+        return "System";
+    case Visibility::User:
+        return "User";
+    }
+    throw std::invalid_argument("format_as(Visibility): Invalid value: " +
+                                std::to_string(int(visibility)));
+}
+
+/**
+ * Data required for Dcp filtering.
+ */
+struct DcpFilterMeta {
+    DcpFilterMeta(Visibility collectionVisibility, ScopeID scopeId)
+        : collectionVisibility(collectionVisibility), scopeId(scopeId) {
+    }
+    // We need to know if the collection is a system collection
+    Visibility collectionVisibility{Visibility::User};
+    // We need to know the scope of the collection
+    ScopeID scopeId{ScopeID::Default};
+};
 
 namespace VB {
 enum class ManifestUpdateStatus {

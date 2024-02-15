@@ -259,7 +259,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
         return cb::EngineErrorGetScopeIDResult{current->getUid()};
     }
 
-    return {current->getUid(), scope.value()};
+    return {current->getUid(), *scope, isSystemScope(path, *scope)};
 }
 
 std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
@@ -302,8 +302,12 @@ Collections::Manager::getCollectionEntry(CollectionID cid) const {
 cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
         ScopeID sid) const {
     auto manifestLocked = currentManifest.rlock();
-    if (manifestLocked->findScope(sid) != manifestLocked->endScopes()) {
-        return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid(), sid};
+    const auto itr = manifestLocked->findScope(sid);
+    if (itr != manifestLocked->endScopes()) {
+        return cb::EngineErrorGetScopeIDResult{
+                manifestLocked->getUid(),
+                sid,
+                isSystemScope(itr->second.name, sid)};
     }
     // Returns unknown_scope + manifestUid
     return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid()};

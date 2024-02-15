@@ -433,26 +433,8 @@ Status McbpValidator::verify_header(Cookie& cookie,
     // privileges. Because the incoming "is_collection_command" operations only
     // include the collection, this code is doing a look-up of the collection
     // using the get_collection_meta.
-    // This code was extended by MB-51979 so that the "metered" state is also
-    // populated into the Cookie.
-    // This code though we try and avoid because without the if guards,
-    // unconditionally looking up the collection metadata introduced a perf
-    // regression (MB-39594).
-    // The if guards mean that we only do this lookup for collection buckets and
-    // collection operations and if any of the following are true:
-    // 1) The user has scope (or collection) privileges - thus we may need to
-    //    traverse the scope->collection privilege sets.
-    // 2) The the command is executed with a different user we don't have that
-    //    users privilege context yet (don't know if they do or don't have
-    //    scope or collection privileges MB-47904)
-    // 3) Serverless, some collection may have different metering behaviour, the
-    //    Cookie is given the metering state and decides after execution
-    //    completes how to handle the resource usage.
-    //
     if (connection.getBucket().isCollectionCapable() &&
-        cb::mcbp::is_collection_command(request.getClientOpcode()) &&
-        (cookie.getPrivilegeContext().hasScopePrivileges() ||
-         cookie.getEffectiveUser() || cb::serverless::isEnabled())) {
+        is_collection_command(request.getClientOpcode())) {
         auto status = setCurrentCollectionInfo(
                 cookie, cookie.getRequestKey().getCollectionID());
         if (status != Status::Success) {

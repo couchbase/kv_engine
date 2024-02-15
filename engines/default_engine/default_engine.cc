@@ -991,7 +991,7 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
         auto scope = dotCount ? path.substr(0, path.find(dot)) : path;
 
         if (scope.empty() || path == "_default") {
-            return {0, ScopeID::Default};
+            return {0, ScopeID::Default, false};
         }
         generate_unknown_collection_response(&cookie);
         // Return just the manifest-uid of 0 which sets error to unknown_scope

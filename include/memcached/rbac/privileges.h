@@ -133,6 +133,14 @@ enum class Privilege {
     /// global system configuration (Cluster topology)
     SystemSettings,
 
+    /// The `SystemCollectionLookup` privilege grants read access to the system
+    /// scopes and collections
+    SystemCollectionLookup,
+
+    /// The `SystemCollectionMutation` privilege grants write access to the
+    /// system scopes and collections
+    SystemCollectionMutation,
+
     /// The 'RangeScan' privilege allows the connection to create, continue
     /// and cancel RangeScan - effectively a bulk read of ranges of keys or
     /// keys/values

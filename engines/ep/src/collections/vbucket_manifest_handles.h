@@ -123,6 +123,14 @@ public:
         return manifest->getCollectionsForScope(identifier);
     }
 
+    Visibility getScopeVisibility(ScopeID sid) const {
+        if (sid.isDefaultScope()) {
+            // Shortcut the lookup, this is not a system scope
+            return Visibility::User;
+        }
+        return manifest->getScopeVisibility(sid);
+    }
+
     /**
      * @return true if the collection exists in the internal container
      */
@@ -237,6 +245,11 @@ public:
 
     /// @return the metering state of the collection, throw for unknown cid
     Metered isMetered(CollectionID cid) const;
+
+    /// @return in one lookup data that the VB::Filter needs
+    std::optional<DcpFilterMeta> getMetaForDcpFilter(CollectionID cid) const {
+        return manifest->getMetaForDcpFilter(cid);
+    }
 
     /**
      * Dump this VB::Manifest to std::cerr

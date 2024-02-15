@@ -750,7 +750,9 @@ void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
 
     uint8_t extlen = 8;
     if (getOp() == cb::mcbp::ClientOpcode::Append ||
-        getOp() == cb::mcbp::ClientOpcode::Prepend) {
+        getOp() == cb::mcbp::ClientOpcode::Appendq ||
+        getOp() == cb::mcbp::ClientOpcode::Prepend ||
+        getOp() == cb::mcbp::ClientOpcode::Prependq) {
         if (expiry.getValue() != 0) {
             throw std::invalid_argument(
                     "BinprotMutationCommand::encode: Expiry invalid with "
@@ -928,7 +930,9 @@ void BinprotHelloResponse::decode() {
 void BinprotIncrDecrCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, sizeof(payload));
     if (getOp() != cb::mcbp::ClientOpcode::Decrement &&
-        getOp() != cb::mcbp::ClientOpcode::Increment) {
+        getOp() != cb::mcbp::ClientOpcode::Decrementq &&
+        getOp() != cb::mcbp::ClientOpcode::Increment &&
+        getOp() != cb::mcbp::ClientOpcode::Incrementq) {
         throw std::invalid_argument(
                 "BinprotIncrDecrCommand::encode: Invalid opcode. Need "
                 "INCREMENT or DECREMENT");

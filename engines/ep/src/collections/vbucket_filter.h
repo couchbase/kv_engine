@@ -183,13 +183,21 @@ public:
         return streamId;
     }
 
-    using Container = ::std::unordered_map<CollectionID, ScopeID>;
+    // The filter maps from CollectionID to meta-data that is needed for future
+    // privilege checks. This is stored on construction to avoid relocking the
+    // VB::Manifest from a running DCP stream, which incurs a lock inversion
+    // with the stream container lock.
+    using Container = ::std::unordered_map<CollectionID, DcpFilterMeta>;
     Container::const_iterator begin() const {
         return filter.begin();
     }
 
     Container::const_iterator end() const {
         return filter.end();
+    }
+
+    Container::const_iterator find(CollectionID cid) const {
+        return filter.find(cid);
     }
 
     /**
@@ -317,11 +325,13 @@ protected:
     /**
      * Insert the collection, will toggle defaultAllowed if found
      */
-    void insertCollection(CollectionID cid, ScopeID sid);
+    void insertCollection(CollectionID cid, DcpFilterMeta filterData);
 
     Container filter;
 
     std::optional<ScopeID> scopeID;
+    Visibility filteredScopeVisibility{Visibility::User};
+
     // use an optional so we don't use any special values to mean unset
     std::optional<uint32_t> lastCheckedPrivilegeRevision;
     cb::mcbp::DcpStreamId streamId = {};

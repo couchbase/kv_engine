@@ -954,20 +954,51 @@ public:
             CookieIface& cookie, cb::rbac::Privilege privilege) const;
 
     /**
-     * Check the access for the given privilege for the bucket.scope.collection
+     * Check if the cookie holds the privilege for the requested collection
+     * id. If the collection is a system collection the caller must also
+     * hold the privilege specified in systemCollectionPrivilege
      */
-    cb::engine_errc checkPrivilege(CookieIface& cookie,
-                                   cb::rbac::Privilege priv,
-                                   std::optional<ScopeID> sid,
-                                   std::optional<CollectionID> cid) const;
+    cb::engine_errc checkCollectionAccess(
+            CookieIface& cookie,
+            std::optional<Vbid> vbid,
+            std::optional<cb::rbac::Privilege> systemCollectionPrivilege,
+            cb::rbac::Privilege priv,
+            CollectionID cid) const;
 
     /**
-     * Check the access for the given privilege for the collection. The function
-     * locates the scope of the collection
+     * Check if the cookie holds the privilege for the requested scope
+     * id. If the scope is a system collection the caller must also
+     * hold the privilege specified in systemScopePrivilege
      */
-    cb::engine_errc checkPrivilege(CookieIface& cookie,
-                                   cb::rbac::Privilege priv,
-                                   CollectionID) const;
+    cb::engine_errc testScopeAccess(
+            CookieIface& cookie,
+            std::optional<cb::rbac::Privilege> systemScopePrivilege,
+            cb::rbac::Privilege priv,
+            ScopeID sid,
+            Collections::Visibility visibility) const;
+
+    /**
+     * Check if the cookie holds the privilege for the requested collection
+     * id. If the collection is a system collection the caller must also
+     * hold the privilege specified in systemCollectionPrivilege
+     */
+    cb::engine_errc testCollectionAccess(
+            CookieIface& cookie,
+            std::optional<cb::rbac::Privilege> systemCollectionPrivilege,
+            cb::rbac::Privilege priv,
+            CollectionID cid,
+            ScopeID sid,
+            Collections::Visibility visibility) const;
+
+    /**
+     * Test the access for the given privilege for the bucket.scope.collection
+     * This differs from checkPrivilege in that the error case has no side
+     * effect, such as setting error extras/logging
+     */
+    cb::engine_errc testPrivilege(CookieIface& cookie,
+                                  cb::rbac::Privilege priv,
+                                  std::optional<ScopeID> sid,
+                                  std::optional<CollectionID> cid) const;
 
     /**
      * Checks if adding the specified memory size will keep memory usage below
@@ -979,16 +1010,6 @@ public:
      * otherwise no_memory / temp_failure.
      */
     cb::engine_errc checkMemoryForBGFetch(size_t pendingBytes);
-
-    /**
-     * Test the access for the given privilege for the bucket.scope.collection
-     * This differs from checkPrivilege in that the error case has no side
-     * effect, such as setting error extras/logging
-     */
-    cb::engine_errc testPrivilege(CookieIface& cookie,
-                                  cb::rbac::Privilege priv,
-                                  std::optional<ScopeID> sid,
-                                  std::optional<CollectionID> cid) const;
 
     cb::engine_errc doRangeScanStats(const BucketStatCollector& collector,
                                      std::string_view statKey);
@@ -1041,13 +1062,6 @@ protected:
     cb::engine_errc deleteVBucketInner(CookieIface& cookie,
                                        Vbid vbid,
                                        bool sync);
-
-    /**
-     * Check the access for the given privilege for the given key
-     */
-    cb::engine_errc checkPrivilege(CookieIface& cookie,
-                                   cb::rbac::Privilege priv,
-                                   DocKey key) const;
 
     void auditDocumentAccess(CookieIface& cookie,
                              cb::audit::document::Operation operation) const;
@@ -1467,6 +1481,18 @@ protected:
      */
     cb::engine_errc doGetAllVbSeqnosPrivilegeCheck(
             CookieIface& cookie, std::optional<CollectionID> collection);
+
+    /**
+     * Check the access for the given privilege for the
+     * bucket.scope.collection
+     *
+     * NOTE: The caller must check the appropriate System collection
+     * privilege if SID is represents a system collection.
+     */
+    static cb::engine_errc checkPrivilege(CookieIface& cookie,
+                                          cb::rbac::Privilege priv,
+                                          ScopeID sid,
+                                          CollectionID cid);
 
 private:
     void doEngineStatsCouchDB(const StatCollector& collector,

@@ -107,7 +107,7 @@
             "desc": "Command can't be executed in a config-only bucket",
             "attrs": [
                 "fetch-config",
-                "invalid-input"
+                "retry-now"
             ]
         },
         "e": {

@@ -89,10 +89,13 @@ struct EngineErrorGetScopeIDResult {
     }
 
     /// construct for successful get
-    EngineErrorGetScopeIDResult(uint64_t manifestId, ScopeID scopeId)
+    EngineErrorGetScopeIDResult(uint64_t manifestId,
+                                ScopeID scopeId,
+                                bool systemScope)
         : result(cb::engine_errc::success),
           manifestId(manifestId),
-          scopeId(scopeId) {
+          scopeId(scopeId),
+          systemScope(systemScope) {
     }
 
     uint64_t getManifestId() const {
@@ -107,9 +110,14 @@ struct EngineErrorGetScopeIDResult {
         return {manifestId, scopeId};
     }
 
+    bool isSystemScope() const {
+        return systemScope && !scopeId.isDefaultScope();
+    }
+
     engine_errc result;
     uint64_t manifestId{0};
     ScopeID scopeId{ScopeID::Default};
+    bool systemScope{false};
 };
 
 struct EngineErrorGetCollectionMetaResult {
