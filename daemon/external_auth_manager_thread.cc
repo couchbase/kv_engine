@@ -277,6 +277,17 @@ void ExternalAuthManagerThread::processResponseQueue() {
                         entry->opaque);
         } else {
             auto* task = iter->second.second;
+            auto* startSaslTask = dynamic_cast<StartSaslAuthTask*>(task);
+            auto responseTime =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now() -
+                            task->getStartTime());
+            if (startSaslTask) {
+                authorizationResponseTimes.add(responseTime);
+            } else {
+                authenticationResponseTimes.add(responseTime);
+            }
+
             requestMap.erase(iter);
             auto timeout =
                     task->getStartTime() + getExternalAuthRequestTimeout();

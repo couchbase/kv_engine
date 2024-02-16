@@ -37,6 +37,7 @@ enum class StatGroupId {
     CollectionsById,
     CollectionsDetails,
     TasksAll,
+    ExternalAuthTimings,
 
     // ep engine
     Dcpagg,

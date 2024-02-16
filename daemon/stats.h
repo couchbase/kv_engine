@@ -219,6 +219,9 @@ class Timings;
 void server_bucket_timing_stats(const BucketStatCollector& collector,
                                 const Timings& timings);
 
+// Add timing stats related to external authentication provider.
+void external_auth_timing_stats(const BucketStatCollector& collector);
+
 /**
  * Add stats needed for Prometheus to the given collector.
  *

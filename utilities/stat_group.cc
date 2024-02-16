@@ -109,6 +109,12 @@ StatsGroupManager::StatsGroupManager()
                 "Taskables",
                 true,
                 false},
+               {StatGroupId::ExternalAuthTimings,
+                "external-auth-timings",
+                "Histograms including external auth response times for various "
+                "server opcodes",
+                true,
+                false},
 
                {StatGroupId::Uuid,
                 "uuid",

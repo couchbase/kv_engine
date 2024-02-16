@@ -871,6 +871,15 @@ def stats_kvtimings(mc):
     if h:
         histograms(mc, h)
 
+@cmd
+def stats_external_auth(mc):
+    if output_json:
+        print('Json output not supported for external-auth-timings stats')
+        return
+    h = stats_perform(mc, 'external-auth-timings')
+    if h:
+        histograms(mc, h)
+
 def avg(s):
     return sum(s) / len(s)
 
@@ -1075,6 +1084,7 @@ def main():
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
     c.addCommand('tasks', stats_tasks, 'tasks [sort column]')
     c.addCommand('tasks-all', stats_tasks_all, 'tasks-all [sort column]')
+    c.addCommand('external-auth-timings', stats_external_auth, 'external-auth-timings')
     c.addCommand('workload', stats_workload, 'workload')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')

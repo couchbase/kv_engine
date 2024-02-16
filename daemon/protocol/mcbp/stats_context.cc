@@ -14,6 +14,7 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
+#include <daemon/external_auth_manager_thread.h>
 #include <daemon/front_end_thread.h>
 #include <daemon/mc_time.h>
 #include <daemon/mcaudit.h>
@@ -495,7 +496,6 @@ static cb::engine_errc stat_timings_executor(const std::string&,
     auto& bucket = cookie.getConnection().getBucket();
     bucket.statTimings.addStats(
             CBStatCollector(appendStatsFn, cookie).forBucket(bucket.name));
-
     return cb::engine_errc::success;
 }
 
@@ -621,6 +621,23 @@ static cb::engine_errc stat_tasks_all_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
+static cb::engine_errc stat_external_auth_timings_executor(const std::string&,
+                                                           Cookie& cookie) {
+    if (externalAuthManager->authenticationResponseTimes.getValueCount() > 0) {
+        append_stats(
+                "auth-external-authentication-durations",
+                externalAuthManager->authenticationResponseTimes.to_string(),
+                cookie);
+    }
+    if (externalAuthManager->authorizationResponseTimes.getValueCount() > 0) {
+        append_stats(
+                "auth-external-authorization-durations",
+                externalAuthManager->authorizationResponseTimes.to_string(),
+                cookie);
+    }
+    return cb::engine_errc::success;
+}
+
 static cb::engine_errc stat_runtimes_executor(const std::string& arg,
                                               Cookie& cookie) {
     if (arg == "@no bucket@") {
@@ -718,6 +735,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                 {StatGroupId::StatTimings, {true, stat_timings_executor}},
                 {StatGroupId::Threads, {true, stat_threads_executor}},
                 {StatGroupId::TasksAll, {true, stat_tasks_all_executor}},
+                {StatGroupId::ExternalAuthTimings,
+                 {true, stat_external_auth_timings_executor}},
                 {StatGroupId::Runtimes, {true, stat_runtimes_executor}},
                 {StatGroupId::Scheduler, {true, stat_scheduler_executor}}};
 

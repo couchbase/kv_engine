@@ -2424,6 +2424,20 @@
         "added": "8.0.0"
     },
     {
+        "key": "auth_external_authentication_duration",
+        "unit": "microseconds",
+        "type": "histogram",
+        "description": "Timing histogram for external authentication execution times",
+        "added": "8.0.0"
+    },
+    {
+        "key": "auth_external_authorization_duration",
+        "unit": "microseconds",
+        "type": "histogram",
+        "description": "Timing histogram for external authorization execution times",
+        "added": "8.0.0"
+    },
+    {
         "key": "get_hits",
         "description": "The number of successful get operations",
         "unit": "count",

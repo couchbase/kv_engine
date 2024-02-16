@@ -226,6 +226,19 @@ void server_bucket_timing_stats(const BucketStatCollector& collector,
     }
 }
 
+// Add timing stats related to external authentication provider.
+void external_auth_timing_stats(const BucketStatCollector& collector) {
+    using namespace cb::mcbp;
+    if (externalAuthManager->authorizationResponseTimes.getValueCount() > 0) {
+        collector.addStat(cb::stats::Key::auth_external_authorization_duration,
+                          externalAuthManager->authorizationResponseTimes);
+    }
+    if (externalAuthManager->authenticationResponseTimes.getValueCount() > 0) {
+        collector.addStat(cb::stats::Key::auth_external_authentication_duration,
+                          externalAuthManager->authenticationResponseTimes);
+    }
+}
+
 /// add global, aggregated and bucket specific stats
 cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket) {
@@ -304,6 +317,7 @@ cb::engine_errc server_prometheus_stats(
                 // collect only opcode timings and continue checking buckets
                 if (metricGroup != MetricGroup::Low) {
                     server_bucket_timing_stats(bucketC, bucket.timings);
+                    external_auth_timing_stats(bucketC);
                 }
                 return true;
             }

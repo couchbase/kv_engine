@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include "timings.h"
+
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>
@@ -81,6 +83,16 @@ public:
      * @param response
      */
     void responseReceived(const cb::mcbp::Response& response);
+
+    /**
+     * Response times for authentication requests.
+     */
+    Hdr1sfMicroSecHistogram authenticationResponseTimes;
+
+    /**
+     * Response times for authorization requests.
+     */
+    Hdr1sfMicroSecHistogram authorizationResponseTimes;
 
     /**
      * Request the authentication daemon to stop

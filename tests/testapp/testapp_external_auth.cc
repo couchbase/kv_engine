@@ -603,3 +603,43 @@ TEST_P(ExternalAuthSingleThreadTest, TestTimeOutRequestToAuthProvider) {
     }
     EXPECT_TRUE(found) << "Log message not found";
 }
+
+TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
+    auto conn = getConnection().clone();
+    auto& adminConnection = getAdminConnection();
+    adminConnection.selectBucket(bucketName);
+
+    // Initialise local counter from stats
+    int numOfDurations = 0;
+    try {
+        auto authorizationHist = getStat<nlohmann::json>(
+                adminConnection,
+                "external-auth-timings",
+                "auth-external-authorization-durations");
+        numOfDurations = authorizationHist["total"];
+    } catch (const nlohmann::json::type_error& e) {
+        // Histogram is undefined, keep counter at 0
+    }
+
+    for (int ii = 0; ii < 10; ++ii) {
+        BinprotSaslAuthCommand saslAuthCommand;
+        saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
+        saslAuthCommand.setMechanism("PlAiN");
+        conn->sendCommand(saslAuthCommand);
+
+        stepAuthProvider();
+        numOfDurations++;
+
+        // Now read out the response from the client
+        BinprotResponse response;
+        conn->recvResponse(response);
+        EXPECT_TRUE(response.isSuccess());
+
+        // Check if histogram has additional entry
+        auto authorizationHist = getStat<nlohmann::json>(
+                adminConnection,
+                "external-auth-timings",
+                "auth-external-authorization-durations");
+        EXPECT_EQ(numOfDurations, authorizationHist["total"]);
+    }
+}
