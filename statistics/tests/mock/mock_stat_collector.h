@@ -69,7 +69,9 @@ public:
 
     MOCK_METHOD(cb::engine_errc,
                 testPrivilegeForStat,
-                (std::optional<ScopeID> sid, std::optional<CollectionID> cid),
+                (std::optional<cb::rbac::Privilege>,
+                 std::optional<ScopeID> sid,
+                 std::optional<CollectionID> cid),
                 (const, override));
 
     MOCK_METHOD(bool, allowPrivilegedStats, (), (const, override));

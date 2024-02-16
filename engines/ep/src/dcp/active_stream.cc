@@ -123,7 +123,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     log(spdlog::level::info,
         "{} Creating {}stream with start seqno {} and end seqno {}; "
         "requested end seqno was {}, flags:{:x}, snapshot:{{{},{}}} "
-        "collections-filter-size:{} {}",
+        "{}, {}",
         logPrefix,
         type,
         st_seqno,
@@ -132,7 +132,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         flags,
         snap_start_seqno,
         snap_end_seqno,
-        filter.size(),
+        filter.summary(),
         sid);
 
     backfillItems.memory = 0;

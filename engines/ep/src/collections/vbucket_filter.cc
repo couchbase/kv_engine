@@ -585,6 +585,11 @@ void Filter::dump() const {
     std::cerr << *this << std::endl;
 }
 
+std::string Filter::summary() const {
+    return fmt::format(
+            "filter:{{{}, size:{}}}", to_string(filterType), filter.size());
+}
+
 std::string Filter::to_string(FilterType type) {
     switch (type) {
     case FilterType::Passthrough:

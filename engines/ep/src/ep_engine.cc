@@ -5014,10 +5014,13 @@ EventuallyPersistentEngine::parseKeyStatCollection(
                     cb::engine_errc::invalid_arguments};
         }
         // Collection's scope is needed for privilege check
-        auto [manifesUid, scope] =
-                kvBucket->getCollectionsManager().getScopeID(cid);
-        if (scope) {
-            return {manifesUid, scope.value(), cid};
+        auto [manifesUid, meta] =
+                kvBucket->getCollectionsManager().getCollectionEntry(cid);
+        if (meta) {
+            return {manifesUid,
+                    meta->sid,
+                    cid,
+                    Collections::isSystemCollection(meta->name, cid)};
         } else {
             return {cb::engine_errc::unknown_collection, manifesUid};
         }

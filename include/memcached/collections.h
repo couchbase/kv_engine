@@ -41,11 +41,13 @@ struct EngineErrorGetCollectionIDResult {
     /// construct for successful get
     EngineErrorGetCollectionIDResult(uint64_t manifestId,
                                      ScopeID scopeId,
-                                     CollectionID collectionId)
+                                     CollectionID collectionId,
+                                     bool isSystemCollection)
         : result(cb::engine_errc::success),
           manifestId(manifestId),
           scopeId(scopeId),
-          collectionId(collectionId) {
+          collectionId(collectionId),
+          isSystemCollection(isSystemCollection) {
     }
 
     uint64_t getManifestId() const {
@@ -68,6 +70,7 @@ struct EngineErrorGetCollectionIDResult {
     uint64_t manifestId{0};
     ScopeID scopeId{ScopeID::Default};
     CollectionID collectionId{CollectionID::Default};
+    bool isSystemCollection{false};
 };
 
 struct EngineErrorGetScopeIDResult {

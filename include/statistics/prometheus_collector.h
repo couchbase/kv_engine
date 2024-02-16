@@ -90,6 +90,7 @@ public:
     }
 
     cb::engine_errc testPrivilegeForStat(
+            std::optional<cb::rbac::Privilege> additionalPriv,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 

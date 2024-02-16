@@ -87,8 +87,11 @@ void LabelledStatCollector::addStat(const cb::stats::StatDef& k,
 }
 
 cb::engine_errc LabelledStatCollector::testPrivilegeForStat(
-        std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
-    return parent.testPrivilegeForStat(std::move(sid), std::move(cid));
+        std::optional<cb::rbac::Privilege> additionalPriv,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) const {
+    return parent.testPrivilegeForStat(
+            std::move(additionalPriv), std::move(sid), std::move(cid));
 }
 
 bool LabelledStatCollector::allowPrivilegedStats() const {

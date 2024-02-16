@@ -2056,3 +2056,211 @@ TEST_P(CollectionsTest,
             ClientOpcode::CollectionsGetScopeID, {}, "_system");
     execute(*admin, command, true, true, false, Status::Success);
 }
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionByIDStats_no_access) {
+    BinprotGenericCommand command(
+            ClientOpcode::Stat,
+            fmt::format("collections-byid {}", CollectionUid::systemCollection),
+            {});
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionByIDStats_with_euid_no_access) {
+    BinprotGenericCommand command(
+            ClientOpcode::Stat,
+            fmt::format("collections-byid {}", CollectionUid::systemCollection),
+            {});
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionByIDStats_access) {
+    // throw for failure
+    admin->stats(fmt::format("collections-byid {}",
+                             CollectionUid::systemCollection));
+}
+
+TEST_P(CollectionsTest,
+       ClientOpcode_CollectionByIDStats_with_euid_with_access) {
+    auto getFrameInfos = [this]() -> FrameInfoVector {
+        FrameInfoVector ret;
+        ret.emplace_back(
+                std::make_unique<cb::mcbp::request::ImpersonateUserFrameInfo>(
+                        euid));
+        ret.emplace_back(std::make_unique<
+                         cb::mcbp::request::
+                                 ImpersonateUserExtraPrivilegeFrameInfo>(
+                SystemCollectionLookup));
+        return ret;
+    };
+    // throw for failure
+    admin->stats(
+            fmt::format("collections-byid {}", CollectionUid::systemCollection),
+            getFrameInfos);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionStats_no_access) {
+    BinprotGenericCommand command(
+            ClientOpcode::Stat, "collections _system._system", {});
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionStats_with_euid_no_access) {
+    BinprotGenericCommand command(
+            ClientOpcode::Stat, "collections _system._system", {});
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionStats_access) {
+    // throw for failure
+    admin->stats("collections _system._system");
+}
+
+TEST_P(CollectionsTest, ClientOpcode_CollectionStats_with_euid_with_access) {
+    auto getFrameInfos = [this]() -> FrameInfoVector {
+        FrameInfoVector ret;
+        ret.emplace_back(
+                std::make_unique<cb::mcbp::request::ImpersonateUserFrameInfo>(
+                        euid));
+        ret.emplace_back(std::make_unique<
+                         cb::mcbp::request::
+                                 ImpersonateUserExtraPrivilegeFrameInfo>(
+                SystemCollectionLookup));
+        return ret;
+    };
+    // throw for failure
+    admin->stats("collections _system._system", getFrameInfos);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeByIDStats_no_access) {
+    BinprotGenericCommand command(
+            ClientOpcode::Stat,
+            fmt::format("scopes-byid {}", ScopeUid::systemScope),
+            {});
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeByIDStats_with_euid_no_access) {
+    BinprotGenericCommand command(
+            ClientOpcode::Stat,
+            fmt::format("scopes-byid {}", ScopeUid::systemScope),
+            {});
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeByIDStats_access) {
+    // throw for failure
+    admin->stats(fmt::format("scopes-byid {}", ScopeUid::systemScope));
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeByIDStats_with_euid_with_access) {
+    auto getFrameInfos = [this]() -> FrameInfoVector {
+        FrameInfoVector ret;
+        ret.emplace_back(
+                std::make_unique<cb::mcbp::request::ImpersonateUserFrameInfo>(
+                        euid));
+        ret.emplace_back(std::make_unique<
+                         cb::mcbp::request::
+                                 ImpersonateUserExtraPrivilegeFrameInfo>(
+                SystemCollectionLookup));
+        return ret;
+    };
+    // throw for failure
+    admin->stats(fmt::format("scopes-byid {}", ScopeUid::systemScope),
+                 getFrameInfos);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeStats_no_access) {
+    BinprotGenericCommand command(ClientOpcode::Stat, "scopes _system", {});
+    executeInSystemCollectionWithoutAccess(*user, command, false);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeStats_with_euid_no_access) {
+    BinprotGenericCommand command(ClientOpcode::Stat, "scopes _system", {});
+    executeInSystemCollectionWithoutAccess(*admin, command, true);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeStats_access) {
+    // throw for failure
+    admin->stats("scopes _system");
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeStats_with_euid_with_access) {
+    auto getFrameInfos = [this]() -> FrameInfoVector {
+        FrameInfoVector ret;
+        ret.emplace_back(
+                std::make_unique<cb::mcbp::request::ImpersonateUserFrameInfo>(
+                        euid));
+        ret.emplace_back(std::make_unique<
+                         cb::mcbp::request::
+                                 ImpersonateUserExtraPrivilegeFrameInfo>(
+                SystemCollectionLookup));
+        return ret;
+    };
+    // throw for failure
+    admin->stats("scopes _system", getFrameInfos);
+}
+
+// Run the top-level "collections" and test the visibility of returned data
+TEST_P(CollectionsTest, ClientOpcode_CollectionStats_check_visibility) {
+    // Build a stat key for system and normal collection
+    auto systemKey = fmt::format("{}:{}:name",
+                                 ScopeUid::systemScope,
+                                 CollectionUid::systemCollection);
+    auto userKey = fmt::format(
+            "{}:{}:name", ScopeUid::customer, CollectionUid::customer1);
+    auto stats = userConnection->stats("collections");
+    EXPECT_EQ(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+
+    stats = admin->stats("collections");
+    EXPECT_NE(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+}
+
+// Run the top-level "scopes" and test the visibility of returned data
+TEST_P(CollectionsTest, ClientOpcode_ScopeStats_check_visibility) {
+    // Build a stat key for system and normal collection
+    auto systemKey = fmt::format("{}:name", ScopeUid::systemScope);
+    auto userKey = fmt::format("{}:name", ScopeUid::customer);
+
+    auto stats = userConnection->stats("scopes");
+    EXPECT_EQ(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+
+    stats = admin->stats("scopes");
+    EXPECT_NE(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+}
+
+// Run the top-level "collections-details" and test the visibility of returned
+// data
+TEST_P(CollectionsTest, ClientOpcode_CollectionDetailsStats_check_visibility) {
+    // Build a stat key for system and normal collection
+    auto systemKey =
+            fmt::format("vb_0:{}:name", CollectionUid::systemCollection);
+    auto userKey = fmt::format("vb_0:{}:name", CollectionUid::customer1);
+    auto stats = userConnection->stats("collections-details 0"); // vb:0
+    EXPECT_EQ(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2) << "\n\n"
+                                                << userKey;
+
+    stats = admin->stats("collections-details 0"); // vb:0
+
+    EXPECT_NE(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+}
+
+TEST_P(CollectionsTest, ClientOpcode_ScopeDetailsStats_check_visibility) {
+    // Build a stat key for system and normal scope
+    auto systemKey = fmt::format("vb_0:{}:name:", ScopeUid::systemScope);
+    auto userKey = fmt::format("vb_0:{}:name:", ScopeUid::customer);
+
+    auto stats = userConnection->stats("scopes-details 0"); // vb:0
+    EXPECT_EQ(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+
+    stats = admin->stats("scopes-details 0"); // vb:0
+
+    EXPECT_NE(stats.find(systemKey), stats.end()) << stats.dump(2);
+    EXPECT_NE(stats.find(userKey), stats.end()) << stats.dump(2);
+}

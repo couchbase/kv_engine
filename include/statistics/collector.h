@@ -13,6 +13,7 @@
 
 #include "definitions.h"
 
+#include <memcached/rbac/privileges.h>
 #include <platform/bifurcated_counter.h>
 #include <platform/histogram.h>
 
@@ -374,6 +375,7 @@ public:
      * stat for the current bucket, scope, and collection.
      */
     virtual cb::engine_errc testPrivilegeForStat(
+            std::optional<cb::rbac::Privilege> additionalPriv,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const = 0;
 
