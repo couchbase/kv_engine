@@ -2433,6 +2433,21 @@ public:
                 });
         mock_set_privilege_context_revision(1);
     }
+
+    void setNoAccess() {
+        MockCookie::setCheckPrivilegeFunction(
+                [](const CookieIface&,
+                           cb::rbac::Privilege priv,
+                           std::optional<ScopeID> sid,
+                           std::optional<CollectionID> cid)
+                        -> cb::rbac::PrivilegeAccess {
+                    if (priv == cb::rbac::Privilege::SystemCollectionLookup) {
+                        return cb::rbac::PrivilegeAccessFail;
+                    }
+                    return cb::rbac::PrivilegeAccessOk;
+                });
+        mock_set_privilege_context_revision(1);
+    }
 };
 
 TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
@@ -2521,6 +2536,43 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, legacy_stream_closes) {
 
     // And no more
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+}
+
+// passthrough stream can only remain open when SystemCollectionLookup is
+// available
+TEST_P(CollectionsDcpCloseAfterLosingPrivs, passthrough_stream) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    createDcpObjects({{nullptr, 0}});
+    auto vb0Stream = producer->findStream(Vbid(0));
+    ASSERT_NE(nullptr, vb0Stream.get());
+
+    notifyAndStepToCheckpoint();
+    // SystemEvent createCollection
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(*producers,
+                                      cb::mcbp::ClientOpcode::DcpSystemEvent));
+    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+              producers->last_system_event);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(CollectionEntry::fruit.name, producers->last_key);
+
+    // Lose access.
+    setNoAccess();
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "green");
+
+    // Stream goes straight to end
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::LostPrivileges,
+              producers->last_end_status);
+
+    // And no more
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    // Done... loss of privs has closed stream
+    EXPECT_FALSE(vb0Stream->isActive());
 }
 
 TEST_P(CollectionsDcpParameterizedTest, no_seqno_advanced_from_memory) {
