@@ -190,7 +190,7 @@ public:
     public:
         // Allow default construction positioned at the start,
         // but nothing else.
-        Position() : ht_size(0), lock(0), hash_bucket(0) {}
+        Position() = default;
 
         bool operator==(const Position& other) const {
             return (ht_size == other.ht_size) &&
@@ -199,22 +199,23 @@ public:
         }
 
         bool operator!=(const Position& other) const {
-            return ! (*this == other);
+            return !(*this == other);
         }
 
     private:
-        Position(size_t ht_size_, size_t lock_, size_t hash_bucket_)
-            : ht_size(ht_size_), lock(lock_), hash_bucket(hash_bucket_) {
+        Position(size_t ht_size, size_t lock, size_t hash_bucket)
+            : ht_size(ht_size), lock(lock), hash_bucket(hash_bucket) {
         }
 
-        // Size of the hashtable when the position was created.
-        size_t ht_size;
-        // Lock ID we are up to.
-        size_t lock;
-        // hash bucket ID (under the given lock) we are up to.
-        size_t hash_bucket;
+        // Size of the hashtable when the position was created
+        uint32_t ht_size = 0;
+        // Mutex index that guards the hash bucket
+        uint32_t lock = 0;
+        // Hash bucket index
+        uint32_t hash_bucket = 0;
 
         friend class HashTable;
+        friend class HashBucketLock;
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
     };
 
@@ -447,15 +448,15 @@ public:
      */
     class HashBucketLock {
     public:
-        HashBucketLock()
-            : bucketNum(-1) {}
+        HashBucketLock() = default;
 
-        HashBucketLock(int bucketNum, std::mutex& mutex)
-            : bucketNum(bucketNum), htLock(mutex) {
+        HashBucketLock(const Position& position, std::mutex& mutex)
+            : position(position), htLock(mutex) {
         }
 
         HashBucketLock(HashBucketLock&& other)
-            : bucketNum(other.bucketNum), htLock(std::move(other.htLock)) {
+            : position(std::move(other.position)),
+              htLock(std::move(other.htLock)) {
         }
 
         // Cannot copy HashBucketLock.
@@ -463,13 +464,21 @@ public:
         HashBucketLock& operator=(const HashBucketLock& other) = delete;
 
         HashBucketLock& operator=(HashBucketLock&& other) {
-            bucketNum = other.bucketNum;
+            position = other.position;
             htLock = std::move(other.htLock);
             return *this;
         }
 
-        int getBucketNum() const {
-            return bucketNum;
+        bool isValid() const {
+            return position.has_value();
+        }
+
+        const Position& getPosition() const {
+            return *position;
+        }
+
+        size_t getBucketNum() const {
+            return position->hash_bucket;
         }
 
         const std::unique_lock<std::mutex>& getHTLock() const {
@@ -481,7 +490,7 @@ public:
         }
 
     private:
-        int bucketNum;
+        std::optional<Position> position;
         std::unique_lock<std::mutex> htLock;
     };
 
@@ -1376,10 +1385,11 @@ public:
      * it will be copied into a new allocate and the original freed, the
      * input is deleted on successful reallocation.
      *
+     * @param hbl Hash table bucket lock that must be held.
      * @param v The rvalue reference to the StoredValue to be reallocated.
      * @return true if v was found and reallocated
      */
-    bool reallocateStoredValue(StoredValue&& v);
+    bool reallocateStoredValue(const HashBucketLock& hbl, StoredValue&& v);
 
     /**
      * Dump a representation of the HashTable to stderr.
@@ -1437,35 +1447,81 @@ protected:
     inline void setActiveState(bool newv) { activeState = newv; }
 
     /**
+     * Gets the mutex index for the given bucket
+     *
+     * @param bucketNum bucket index
+     * @return mutex index
+     */
+    size_t getMutexForBucket(size_t bucketNum) const;
+
+    /**
+     * Gets the position for an item with the given hash
+     *
+     * @param hash item hash
+     * @return Position for the item
+     */
+    Position getPositionForHash(uint32_t hash) const;
+
+    /**
      * Get a lock holder holding a lock for the given bucket
      *
+     * @note Check that the HashTable has not been resized
      * @param bucket the bucket number to lock
-     * @return HashBucektLock which contains a lock and the hash bucket number
+     * @return HashBucketLock which contains a lock and the hash bucket position
      */
-    inline HashBucketLock getLockedBucket(int bucket) {
-        return {bucket, mutexes[mutexForBucket(bucket)]};
-    }
+    HashBucketLock getLockedBucket(size_t idx);
 
     /**
      * Get a lock holder holding a lock for the bucket for the given
      * hash.
      *
-     * @param h the input hash
-     * @return HashBucketLock which contains a lock and the hash bucket number
+     * @param hash item hash
+     * @return HashBucketLock which contains a lock and the hash bucket position
      */
-    inline HashBucketLock getLockedBucketForHash(int h) {
-        while (true) {
-            if (!isActive()) {
-                throw std::logic_error(
-                        "HashTable::getLockedBucket: "
-                        "Cannot call on a non-active object");
-            }
-            int bucket = getBucketForHash(h);
-            HashBucketLock rv(bucket, mutexes[mutexForBucket(bucket)]);
-            if (bucket == getBucketForHash(h)) {
-                return rv;
-            }
-        }
+    HashBucketLock getLockedBucketForHash(uint32_t hash);
+
+    /**
+     * Gets a reference to the bucket identified by the held HashBucketLock
+     *
+     * @param hbl lock holder for the bucket
+     * @return reference to a bucket
+     */
+    table_type::value_type& unlocked_getBucket(const HashBucketLock& hbl) {
+        Expects(hbl.isValid());
+        return unlocked_getBucket(hbl.getPosition());
+    }
+
+    /**
+     * Gets a reference to the bucket identified by the held HashBucketLock
+     *
+     * @param hbl lock holder for the bucket
+     * @return const reference to a bucket
+     */
+    const table_type::value_type& unlocked_getBucket(
+            const HashBucketLock& hbl) const {
+        Expects(hbl.isValid());
+        return unlocked_getBucket(hbl.getPosition());
+    }
+
+    /**
+     * Gets a reference to the bucket identified by the given position
+     *
+     * @param position position of the bucket
+     * @return reference to a bucket
+     */
+    table_type::value_type& unlocked_getBucket(const Position& position) {
+        return values[position.hash_bucket];
+    }
+
+    /**
+     * Gets a reference to the bucket identified by the given position
+     *
+     * @param position position of the bucket
+     * @return reference to a bucket
+     */
+    const table_type::value_type& unlocked_getBucket(
+            const Position& position) const {
+        return values[position.hash_bucket];
     }
 
     /**
@@ -1564,18 +1620,6 @@ protected:
      * stored at 4).
      */
     std::function<uint8_t()> getInitialMFU;
-
-    int getBucketForHash(int h) {
-        return abs(h % static_cast<int>(size));
-    }
-
-    inline size_t mutexForBucket(size_t bucket_num) {
-        if (!isActive()) {
-            throw std::logic_error("HashTable::mutexForBucket: Cannot call on a "
-                    "non-active object");
-        }
-        return bucket_num % mutexes.size();
-    }
 
     // Visitor class for use with getRandomKey. The class exists to allow
     // HashTable::getRandomKey to detect and deal with a concurrent resize
@@ -1683,6 +1727,8 @@ protected:
 };
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht);
+
+std::string to_string(const HashTable::Position& pos);
 
 /**
  * Base class for visiting a hash table.

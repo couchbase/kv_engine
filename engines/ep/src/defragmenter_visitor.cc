@@ -62,7 +62,7 @@ bool DefragmentVisitor::visit(const HashTable::HashBucketLock& lh,
 
     if (sv_age_threshold) {
         if (v.getAge() >= sv_age_threshold.value()) {
-            defragmentStoredValue(v);
+            defragmentStoredValue(lh, v);
         } else {
             v.incrementAge();
         }
@@ -97,8 +97,9 @@ void DefragmentVisitor::setCurrentVBucket(VBucket& vb) {
     currentVb = &vb;
 }
 
-void DefragmentVisitor::defragmentStoredValue(StoredValue& v) const {
-    if (currentVb->ht.reallocateStoredValue(std::forward<StoredValue>(v))) {
+void DefragmentVisitor::defragmentStoredValue(
+        const HashTable::HashBucketLock& lh, StoredValue& v) const {
+    if (currentVb->ht.reallocateStoredValue(lh, std::forward<StoredValue>(v))) {
         sv_defrag_count++;
     }
 }

@@ -53,8 +53,15 @@ std::string to_string(MutationStatus status) {
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
-    os << "{lock:" << pos.lock << " bucket:" << pos.hash_bucket << "/" << pos.ht_size << "}";
+    os << "{lock:" << pos.lock << ",bucket:" << pos.hash_bucket << '/'
+       << pos.ht_size << '}';
     return os;
+}
+
+std::string to_string(const HashTable::Position& pos) {
+    std::ostringstream oss;
+    oss << pos;
+    return oss.str();
 }
 
 HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
@@ -296,7 +303,8 @@ void HashTable::resize(size_t newSize) {
             values[i] = std::move(v->getNext());
 
             // And re-link it into the correct place in newValues.
-            int newBucket = getBucketForHash(v->getKey().hash());
+            const auto newBucket =
+                    getPositionForHash(v->getKey().hash()).hash_bucket;
             v->setNext(std::move(newValues[newBucket]));
             newValues[newBucket] = std::move(v);
         }
@@ -306,6 +314,38 @@ void HashTable::resize(size_t newSize) {
     values = std::move(newValues);
 
     stats.coreLocal.get()->memOverhead += memorySize();
+}
+
+size_t HashTable::getMutexForBucket(size_t bucketNum) const {
+    if (!isActive()) {
+        throw std::logic_error(
+                "HashTable::getMutexForBucket: "
+                "Cannot call on a non-active object");
+    }
+    return static_cast<uint32_t>(bucketNum) %
+           static_cast<uint32_t>(mutexes.size());
+}
+
+HashTable::Position HashTable::getPositionForHash(uint32_t hash) const {
+    const size_t currSize = getSize();
+    const size_t currBucket =
+            std::abs(static_cast<int>(hash) % static_cast<int>(currSize));
+    return {currSize, getMutexForBucket(currBucket), currBucket};
+}
+
+HashTable::HashBucketLock HashTable::getLockedBucket(size_t idx) {
+    Position position(getSize(), getMutexForBucket(idx), idx);
+    return {position, mutexes[position.lock]};
+}
+
+HashTable::HashBucketLock HashTable::getLockedBucketForHash(uint32_t hash) {
+    for (;;) {
+        const auto position = getPositionForHash(hash);
+        HashBucketLock hbl(position, mutexes[position.lock]);
+        if (position == getPositionForHash(hash)) {
+            return hbl;
+        }
+    }
 }
 
 HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
@@ -325,7 +365,7 @@ HashTable::UnlockedFindResult HashTable::unlocked_find(
     // and Pending items with the same key.
     StoredValue* foundCmt = nullptr;
     StoredValue* foundPend = nullptr;
-    for (StoredValue* v = values[hbl.getBucketNum()].get().get(); v;
+    for (StoredValue* v = unlocked_getBucket(hbl).get().get(); v;
          v = v->getNext().get().get()) {
         if (v->hasKey(key)) {
             if (v->isPending() || v->isPrepareCompleted()) {
@@ -373,7 +413,8 @@ void HashTable::RandomKeyVisitor::setup(size_t size) {
     }
 
     currentSize = size;
-    currentBucket = random % (currentSize);
+    currentBucket =
+            static_cast<uint32_t>(random) % static_cast<uint32_t>(currentSize);
     bucketsVisited = 0;
 }
 
@@ -496,7 +537,7 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
     const auto emptyProperties = valueStats.prologue(hbl, nullptr);
 
     // Create a new StoredValue and link it into the head of the bucket chain.
-    auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
+    auto v = (*valFact)(itm, std::move(unlocked_getBucket(hbl)));
 
     if (auto initialMFU = itm.getFreqCounterValue()) {
         v->setFreqCounterValue(*initialMFU);
@@ -508,8 +549,9 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
 
     valueStats.epilogue(hbl, emptyProperties, v.get().get());
 
-    values[hbl.getBucketNum()] = std::move(v);
-    return values[hbl.getBucketNum()].get().get();
+    auto& ret = unlocked_getBucket(hbl);
+    ret = std::move(v);
+    return ret.get().get();
 }
 
 HashTable::Statistics::StoredValueProperties::StoredValueProperties(
@@ -836,15 +878,16 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     auto releasedSv = unlocked_release(hbl, vToCopy);
 
     /* Copy the StoredValue and link it into the head of the bucket chain. */
-    auto newSv = valFact->copyStoredValue(
-            vToCopy, std::move(values[hbl.getBucketNum()]));
+    auto newSv = valFact->copyStoredValue(vToCopy,
+                                          std::move(unlocked_getBucket(hbl)));
 
     // Adding a new item into the HashTable; update stats.
     const auto emptyProperties = valueStats.prologue(hbl, nullptr);
     valueStats.epilogue(hbl, emptyProperties, newSv.get().get());
 
-    values[hbl.getBucketNum()] = std::move(newSv);
-    return {values[hbl.getBucketNum()].get().get(), std::move(releasedSv)};
+    auto& ret = unlocked_getBucket(hbl);
+    ret = std::move(newSv);
+    return {ret.get().get(), std::move(releasedSv)};
 }
 
 HashTable::DeleteResult HashTable::unlocked_softDelete(
@@ -1101,7 +1144,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
     // Remove the first (should only be one) StoredValue matching the given
     // pointer
-    auto released = hashChainRemove(values[hbl.getBucketNum()], valueToRelease);
+    auto released = hashChainRemove(unlocked_getBucket(hbl), valueToRelease);
 
     if (!released) {
         /* We shouldn't reach here, we must delete the StoredValue in the
@@ -1177,10 +1220,10 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
     return MutationStatus::NotFound;
 }
 
-bool HashTable::reallocateStoredValue(StoredValue&& sv) {
+bool HashTable::reallocateStoredValue(const HashBucketLock& hbl,
+                                      StoredValue&& sv) {
     // Search the chain and reallocate
-    for (StoredValue::UniquePtr* curr =
-                 &values[getBucketForHash(sv.getKey().hash())];
+    for (StoredValue::UniquePtr* curr = &unlocked_getBucket(hbl);
          curr->get().get();
          curr = &curr->get()->getNext()) {
         if (&sv == curr->get().get()) {
@@ -1241,24 +1284,28 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     VisitorTracker vt(&visitors);
     lh.unlock();
 
-    for (int l = 0; l < static_cast<int>(mutexes.size()); l++) {
-        for (int i = l; i < static_cast<int>(size); i+= mutexes.size()) {
+    size_t currSize = getSize();
+    for (size_t lock = 0; lock < mutexes.size(); ++lock) {
+        for (size_t bucket = lock; bucket < currSize;
+             bucket += mutexes.size()) {
             // (re)acquire mutex on each HashBucket, to minimise any impact
             // on front-end threads.
-            std::lock_guard<std::mutex> lh(mutexes[l]);
+            std::lock_guard<std::mutex> lh(mutexes[lock]);
 
             size_t depth = 0;
-            StoredValue* p = values[i].get().get();
+            StoredValue* p = values[bucket].get().get();
             if (p) {
                 // TODO: Perf: This check seems costly - do we think it's still
                 // worth keeping?
-                auto hashbucket = getBucketForHash(p->getKey().hash());
-                if (i != hashbucket) {
-                    throw std::logic_error("HashTable::visit: inconsistency "
+                auto hashbucket =
+                        getPositionForHash(p->getKey().hash()).hash_bucket;
+                if (bucket != hashbucket) {
+                    throw std::logic_error(
+                            "HashTable::visit: inconsistency "
                             "between StoredValue's calculated hashbucket "
                             "(which is " + std::to_string(hashbucket) +
                             ") and bucket it is located in (which is " +
-                            std::to_string(i) + ")");
+                            std::to_string(bucket) + ')');
                 }
             }
             size_t mem(0);
@@ -1267,7 +1314,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
                 mem += p->size();
                 p = p->getNext().get().get();
             }
-            visitor.visit(i, depth, mem);
+            visitor.visit(bucket, depth, mem);
         }
     }
 }
@@ -1322,12 +1369,16 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
             // around the HashBucket visit then we need to release it before
             // tearDownHashBucketVisit() is called.
             {
-                HashBucketLock lh(hash_bucket, mutexes[lock]);
+                const auto hbl = getLockedBucket(hash_bucket);
+                if (hbl.getPosition().lock != lock) {
+                    throw std::logic_error(
+                            "HashTable::pauseResumeVisit: wrong lock");
+                }
 
                 StoredValue* v = values[hash_bucket].get().get();
                 while (!paused && v) {
                     StoredValue* tmp = v->getNext().get().get();
-                    paused = !visitor.visit(lh, *v);
+                    paused = !visitor.visit(hbl, *v);
                     v = tmp;
                 }
             }
@@ -1388,8 +1439,7 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
         valueStats.epilogue(hbl, preProps, vptr);
     } else {
         // Remove the item from the hash table.
-        int bucket_num = getBucketForHash(vptr->getKey().hash());
-        auto removed = hashChainRemove(values[bucket_num], *vptr);
+        auto removed = hashChainRemove(unlocked_getBucket(hbl), *vptr);
         Expects(removed);
 
         if (removed->isResident()) {
@@ -1409,7 +1459,7 @@ std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
     if (!hbl.getHTLock()) {
         throw std::invalid_argument("HashTable::getRandomKey: htLock not held");
     }
-    for (StoredValue* v = values.at(hbl.getBucketNum()).get().get(); v;
+    for (StoredValue* v = unlocked_getBucket(hbl).get().get(); v;
          v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
             !v->isPending() && !v->isPrepareCompleted() &&

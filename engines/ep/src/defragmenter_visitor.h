@@ -58,7 +58,8 @@ public:
 
 private:
     /// Request to reallocate the StoredValue
-    void defragmentStoredValue(StoredValue& v) const;
+    void defragmentStoredValue(const HashTable::HashBucketLock& lh,
+                               StoredValue& v) const;
 
     /* Configuration parameters */
 

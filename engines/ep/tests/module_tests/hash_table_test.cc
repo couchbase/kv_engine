@@ -1239,12 +1239,13 @@ TEST_F(HashTableTest, reallocateStoredValue) {
 
     // Test we can reallocate every key
     for (int index = 0; index < 10; index++) {
-        StoredValue* v =
-                ht1.findForWrite(makeStoredDocKey(std::to_string(index)),
-                                 WantsDeleted::No)
-                        .storedValue;
+        auto htRes = ht1.findForWrite(makeStoredDocKey(std::to_string(index)),
+                                      WantsDeleted::No);
+        StoredValue* v = htRes.storedValue;
         ASSERT_NE(nullptr, v);
-        EXPECT_TRUE(ht1.reallocateStoredValue(std::forward<StoredValue>(*v)));
+        EXPECT_TRUE(ht1.reallocateStoredValue(htRes.lock,
+                                              std::forward<StoredValue>(*v)));
+        htRes = {};
         EXPECT_EQ(10, ht1.getNumItems());
         EXPECT_NE(v,
                   ht1.findForWrite(makeStoredDocKey(std::to_string(index)),
@@ -1252,13 +1253,15 @@ TEST_F(HashTableTest, reallocateStoredValue) {
                           .storedValue);
     }
     // Next request ht2 reallocate an sv stored in ht1, should return false
-    StoredValue* v2 = ht1.findForWrite(makeStoredDocKey(std::to_string(3)),
-                                       WantsDeleted::No)
-                              .storedValue;
-    EXPECT_FALSE(ht2.reallocateStoredValue(std::forward<StoredValue>(*v2)));
+    auto htRes = ht1.findForWrite(makeStoredDocKey(std::to_string(3)),
+                                  WantsDeleted::No);
+    StoredValue* v2 = htRes.storedValue;
+    EXPECT_FALSE(ht2.reallocateStoredValue(htRes.lock,
+                                           std::forward<StoredValue>(*v2)));
 
     // Check the empty hash-table returns false as well
-    EXPECT_FALSE(ht3.reallocateStoredValue(std::forward<StoredValue>(*v2)));
+    EXPECT_FALSE(ht3.reallocateStoredValue(htRes.lock,
+                                           std::forward<StoredValue>(*v2)));
 }
 
 // MB-33944: Test that calling HashTable::insertFromWarmup() doesn't fail

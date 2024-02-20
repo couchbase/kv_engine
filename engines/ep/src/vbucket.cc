@@ -2640,7 +2640,7 @@ std::unique_ptr<CompactionBGFetchItem> VBucket::processExpiredItem(
                         "VBucket::processExpiredItem: "
                         "Failed to delete seqno:" +
                         std::to_string(v->getBySeqno()) + " from bucket " +
-                        std::to_string(hbl.getBucketNum()));
+                        to_string(hbl.getPosition()));
             }
             incExpirationStat(source);
         } else if (v->isExpired(startTime) && !v->isDeleted()) {
@@ -3247,7 +3247,7 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
                     "deletedOnDiskCbk:callback: "
                     "Failed to delete key with seqno:" +
                     std::to_string(v->getBySeqno()) + "' from bucket " +
-                    std::to_string(res.lock.getBucketNum()));
+                    to_string(res.lock.getPosition()));
         }
 
         /**
