@@ -30,6 +30,10 @@ static const std::array<uint32_t, 30> prime_size_table{
          786433,   1572869,   3145721,   6291449,   12582917,  25165813,
          50331653, 100663291, 201326611, 402653189, 805306357, 1610612741}};
 
+static size_t hashToBucket(uint32_t hash, uint32_t tableSize) {
+    return hash % tableSize;
+}
+
 std::string to_string(MutationStatus status) {
     switch (status) {
     case MutationStatus::NotFound:
@@ -303,8 +307,7 @@ void HashTable::resize(size_t newSize) {
             values[i] = std::move(v->getNext());
 
             // And re-link it into the correct place in newValues.
-            const auto newBucket =
-                    getPositionForHash(v->getKey().hash()).hash_bucket;
+            const auto newBucket = hashToBucket(v->getKey().hash(), newSize);
             v->setNext(std::move(newValues[newBucket]));
             newValues[newBucket] = std::move(v);
         }
@@ -328,8 +331,7 @@ size_t HashTable::getMutexForBucket(size_t bucketNum) const {
 
 HashTable::Position HashTable::getPositionForHash(uint32_t hash) const {
     const size_t currSize = getSize();
-    const size_t currBucket =
-            std::abs(static_cast<int>(hash) % static_cast<int>(currSize));
+    const size_t currBucket = hashToBucket(hash, currSize);
     return {currSize, getMutexForBucket(currBucket), currBucket};
 }
 

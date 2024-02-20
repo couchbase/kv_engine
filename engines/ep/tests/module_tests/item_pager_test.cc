@@ -1116,7 +1116,7 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     }
 
     // 1) Write our document
-    auto key = makeStoredDocKey("key");
+    auto key = makeStoredDocKey("key1");
     store_item(vbid, key, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1180,7 +1180,9 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     // 6) Fill to just over HWM then run the pager
     // set the frequency counter of the stored items to the max value,
     // to make it very likely that the above test item will be evicted
-    // (as it is much "colder")
+    // (as it is much "colder"). Note that this is still dependent on
+    // the exact position in the hash-table, hence the key may need to
+    // be tweaked when changing the hash-table implementation.
     populateUntilAboveHighWaterMark(
             vbid, /* MFU */ std::numeric_limits<uint8_t>::max());
     // flush the vb, only items which are eligible for eviction are used to
