@@ -23,13 +23,12 @@
 #include <cstring>
 #include <utility>
 
-static std::array<const ssize_t, 31> prime_size_table{
+static const std::array<uint32_t, 30> prime_size_table{
         {3,        7,         13,        23,        47,        97,
          193,      383,       769,       1531,      3079,      6143,
          12289,    24571,     49157,     98299,     196613,    393209,
          786433,   1572869,   3145721,   6291449,   12582917,  25165813,
-         50331653, 100663291, 201326611, 402653189, 805306357, 1610612741,
-         -1}};
+         50331653, 100663291, 201326611, 402653189, 805306357, 1610612741}};
 
 std::string to_string(MutationStatus status) {
     switch (status) {
@@ -219,40 +218,35 @@ static size_t nearest(size_t n, size_t a, size_t b) {
     return (distance(n, a) < distance(b, n)) ? a : b;
 }
 
-static bool isCurrently(size_t size, ssize_t a, ssize_t b) {
-    auto current(static_cast<ssize_t>(size));
-    return (current == a || current == b);
-}
-
 void HashTable::resize() {
-    size_t ni = getNumInMemoryItems();
-    int i(0);
-    size_t new_size(0);
+    const size_t numItems = getNumInMemoryItems();
+    const size_t currSize = size;
+    size_t newSize;
 
     // Figure out where in the prime table we are.
-    auto target(static_cast<ssize_t>(ni));
-    for (i = 0; prime_size_table[i] > 0 && prime_size_table[i] < target; ++i) {
-        // Just looking...
-    }
+    const auto candidate =
+            std::find_if(prime_size_table.begin(),
+                         prime_size_table.end(),
+                         [numItems](auto prime) { return prime >= numItems; });
 
-    if (prime_size_table[i] == -1) {
+    if (candidate == prime_size_table.end()) {
         // We're at the end, take the biggest
-        new_size = prime_size_table[i-1];
-    } else if (prime_size_table[i] < static_cast<ssize_t>(initialSize)) {
+        newSize = prime_size_table.back();
+    } else if (*candidate < initialSize) {
         // Was going to be smaller than the initial size.
-        new_size = initialSize;
-    } else if (0 == i) {
-        new_size = prime_size_table[i];
-    }else if (isCurrently(size, prime_size_table[i-1], prime_size_table[i])) {
+        newSize = initialSize;
+    } else if (candidate == prime_size_table.begin()) {
+        newSize = *candidate;
+    } else if (currSize == *(candidate - 1) || currSize == *candidate) {
         // If one of the candidate sizes is the current size, maintain
         // the current size in order to remain stable.
-        new_size = size;
+        newSize = currSize;
     } else {
         // Somewhere in the middle, use the one we're closer to.
-        new_size = nearest(ni, prime_size_table[i-1], prime_size_table[i]);
+        newSize = nearest(numItems, *(candidate - 1), *candidate);
     }
 
-    resize(new_size);
+    resize(newSize);
 }
 
 void HashTable::resize(size_t newSize) {
