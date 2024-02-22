@@ -512,7 +512,7 @@ public:
     HashTable(const HashTable&) = delete;
     const HashTable& operator=(const HashTable&) = delete;
 
-    size_t memorySize() {
+    size_t memorySize() const {
         return sizeof(HashTable)
             + (size * sizeof(StoredValue*))
             + (mutexes.size() * sizeof(std::mutex));
@@ -521,12 +521,16 @@ public:
     /**
      * Get the number of hash table buckets this hash table has.
      */
-    size_t getSize() { return size; }
+    size_t getSize() const {
+        return size;
+    }
 
     /**
      * Get the number of locks in this hash table.
      */
-    size_t getNumLocks() { return mutexes.size(); }
+    size_t getNumLocks() const {
+        return mutexes.size();
+    }
 
     /**
      * Get the number of in-memory non-resident and resident items within
@@ -620,7 +624,9 @@ public:
     /**
      * Get the number of items whose values are ejected from this hash table.
      */
-    size_t getNumEjects() { return numEjects; }
+    size_t getNumEjects() const {
+        return numEjects;
+    }
 
     /**
      * Get the total item memory size in this hash table.
@@ -652,7 +658,9 @@ public:
     /**
      * Get the number of times this hash table has been resized.
      */
-    size_t getNumResizes() { return numResizes; }
+    size_t getNumResizes() const {
+        return numResizes;
+    }
 
     /**
      * Get the number of temp. items within this hash table.
