@@ -17,6 +17,7 @@
 #include "stored-value.h"
 
 #include <platform/corestore.h>
+#include <platform/non_blocking_mutex.h>
 #include <platform/non_negative_counter.h>
 
 #include <array>
@@ -1583,9 +1584,10 @@ protected:
     table_type values;
     // Mutable so that we can make dumpStoredValuesAsJson const
     mutable std::vector<std::mutex> mutexes;
+    // Ensures that the hash-table is not resized with visitors
+    cb::NonBlockingSharedMutex visitorMutex;
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
-    std::atomic<size_t>       visitors;
 
     Statistics valueStats;
 
@@ -1781,30 +1783,4 @@ public:
      * @param mem counted memory used by this hash table
      */
     virtual void visit(int bucket, int depth, size_t mem) = 0;
-};
-
-/**
- * Track the current number of hashtable visitors.
- *
- * This class is a pretty generic counter holder that increments on
- * entry and decrements on return providing RAII guarantees around an
- * atomic counter.
- */
-class VisitorTracker {
-public:
-
-    /**
-     * Mark a visitor as visiting.
-     *
-     * @param c the counter that should be incremented (and later
-     * decremented).
-     */
-    explicit VisitorTracker(std::atomic<size_t> *c) : counter(c) {
-        counter->fetch_add(1);
-    }
-    ~VisitorTracker() {
-        counter->fetch_sub(1);
-    }
-private:
-    std::atomic<size_t> *counter;
 };

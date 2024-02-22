@@ -138,7 +138,6 @@ HashTable::HashTable(EPStats& st,
       mutexes(locks),
       stats(st),
       valFact(std::move(svFactory)),
-      visitors(0),
       valueStats(stats, std::move(shouldTrackMfuCallback)),
       numEjects(0),
       numResizes(0),
@@ -150,7 +149,8 @@ HashTable::HashTable(EPStats& st,
 }
 
 HashTable::~HashTable() {
-    Expects(visitors == 0);
+    std::unique_lock lh(visitorMutex, std::try_to_lock);
+    Expects(lh.owns_lock());
 
     // Use unlocked clear for the destructor, avoids lock inversions on VBucket
     // delete
@@ -277,17 +277,16 @@ void HashTable::resize(size_t newSize) {
         return;
     }
 
-    TRACE_EVENT2(
-            "HashTable", "resize", "size", size.load(), "newSize", newSize);
-
-    MultiLockHolder mlh(mutexes);
-    if (visitors.load() > 0) {
-        // Do not allow a resize while any visitors are actually
-        // processing.  The next attempt will have to pick it up.  New
-        // visitors cannot start doing meaningful work (we own all
-        // locks at this point).
+    std::unique_lock visitorLH(visitorMutex, std::try_to_lock);
+    if (!visitorLH.owns_lock()) {
+        // Do not allow a resize while any visitors are currently
+        // processing. The next attempt will have to pick it up.
         return;
     }
+
+    TRACE_EVENT2(
+            "HashTable", "resize", "size", size.load(), "newSize", newSize);
+    MultiLockHolder mlh(mutexes);
 
     // Get a place for the new items.
     table_type newValues(newSize);
@@ -1269,9 +1268,13 @@ void HashTable::storeCompressedBuffer(const HashBucketLock& hbl,
 }
 
 void HashTable::visit(HashTableVisitor& visitor) {
-    HashTable::Position ht_pos;
-    while (ht_pos != endPosition()) {
-        ht_pos = pauseResumeVisit(visitor, ht_pos);
+    HashTable::Position currPos;
+    while (currPos != endPosition()) {
+        const auto nextPos = pauseResumeVisit(visitor, currPos);
+        if (nextPos == currPos) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        currPos = nextPos;
     }
 }
 
@@ -1279,12 +1282,10 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
     if (valueStats.getNumItems() == 0 || !isActive()) {
         return;
     }
-    // Acquire one (any) of the mutexes before incrementing {visitors}, this
-    // prevents any race between this visitor and the HashTable resizer.
-    // See comments in pauseResumeVisit() for further details.
-    std::unique_lock<std::mutex> lh(mutexes[0]);
-    VisitorTracker vt(&visitors);
-    lh.unlock();
+    std::shared_lock visitorLH(visitorMutex, std::defer_lock);
+    while (!visitorLH.try_lock()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 
     size_t currSize = getSize();
     for (size_t lock = 0; lock < mutexes.size(); ++lock) {
@@ -1336,15 +1337,14 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
     // each hash_bucket - see `lh` in the inner for() loop below. This means we
     // hold a given mutex for a large number of short durations, instead of just
     // one single, long duration.
-    // *However*, there is a potential race with this approach - the {size} of
-    // the HashTable may be changed (by the Resizer task) between us first
-    // reading it to calculate the starting hash_bucket, and then reading it
-    // inside the inner for() loop. To prevent this race, we explicitly acquire
-    // (any) mutex, increment {visitors} and then release the mutex. This
-    //avoids the race as if visitors >0 then Resizer will not attempt to resize.
-    std::unique_lock<std::mutex> lh(mutexes[0]);
-    VisitorTracker vt(&visitors);
-    lh.unlock();
+    // *However*, there is a potential race with this approach - the HashTable
+    // may be resized. When we fail to acquire a shared_lock the visit is
+    // paused, as the unique_lock holder (resizing task) is likely to block us
+    // for a long time.
+    std::shared_lock lh(visitorMutex, std::try_to_lock);
+    if (!lh.owns_lock()) {
+        return start_pos;
+    }
 
     // Start from the requested lock number if in range.
     size_t lock = (start_pos.lock < mutexes.size()) ? start_pos.lock : 0;
