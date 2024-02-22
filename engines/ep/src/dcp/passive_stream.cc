@@ -111,7 +111,7 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
     log(spdlog::level::level_enum::info,
         "({}) Attempting to add {}: opaque_:{}, start_seqno_:{}, "
         "end_seqno_:{}, vb_uuid:{}, snap_start_seqno_:{}, snap_end_seqno_:{}, "
-        "last_seqno:{}, stream_req_value:{}",
+        "last_seqno:{}, stream_req_value:{}, flags:{}, flagsDecoded:{}",
         vb_,
         type,
         opaque_,
@@ -121,7 +121,9 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
         snap_start_seqno_,
         snap_end_seqno_,
         last_seqno.load(),
-        stream_req_value.empty() ? "none" : stream_req_value);
+        stream_req_value.empty() ? "none" : stream_req_value,
+        flags_,
+        dcpAddStreamFlagsToString(flags_));
 }
 
 uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {

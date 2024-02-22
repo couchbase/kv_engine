@@ -57,6 +57,8 @@ enum dcp_marker_flag_t {
 
 std::string dcpMarkerFlagsToString(uint32_t dcpMarkerFlags);
 
+std::string dcpAddStreamFlagsToString(uint32_t flags);
+
 /*
  * IncludeValue is used to state whether an active stream needs to send the
  * value in the response.
