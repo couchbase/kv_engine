@@ -138,7 +138,7 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
 
 TEST_P(RbacTest, RangeScanCreate) {
     auto& admin = getAdminConnection();
-
+    admin.setAutoRetryTmpfail(true);
     admin.dropPrivilege(cb::rbac::Privilege::RangeScan);
     admin.setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                        cb::mcbp::Feature::XATTR,

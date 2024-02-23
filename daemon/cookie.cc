@@ -644,7 +644,6 @@ cb::mcbp::Status Cookie::validate() {
     case cb::mcbp::ClientOpcode::DcpOpen:
     case cb::mcbp::ClientOpcode::DcpAddStream:
     case cb::mcbp::ClientOpcode::DcpCloseStream:
-    case cb::mcbp::ClientOpcode::DcpStreamReq:
     case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
     case cb::mcbp::ClientOpcode::DcpStreamEnd:
     case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
@@ -739,11 +738,12 @@ cb::mcbp::Status Cookie::validate() {
     case cb::mcbp::ClientOpcode::AdjustTimeofday:
     case cb::mcbp::ClientOpcode::EwouldblockCtl:
     case cb::mcbp::ClientOpcode::GetErrorMap:
-    case cb::mcbp::ClientOpcode::RangeScanCreate:
     case cb::mcbp::ClientOpcode::RangeScanCancel:
     case cb::mcbp::ClientOpcode::Invalid:
         break;
 
+    case cb::mcbp::ClientOpcode::DcpStreamReq:
+    case cb::mcbp::ClientOpcode::RangeScanCreate:
     case cb::mcbp::ClientOpcode::RangeScanContinue:
     case cb::mcbp::ClientOpcode::Stat:
     case cb::mcbp::ClientOpcode::GetKeys:
