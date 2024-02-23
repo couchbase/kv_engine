@@ -23,12 +23,13 @@
 #include "kv_bucket.h"
 #include "tasks.h"
 #include "test_helpers.h"
-#include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_dcp_conn_map.h"
+#include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_function_helper.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "trace_helpers.h"
 #include "warmup.h"
+#include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
 
 #include <folly/portability/GMock.h>
@@ -1473,3 +1474,71 @@ INSTANTIATE_TEST_SUITE_P(
         [](const ::testing::TestParamInfo<std::string>& testInfo) {
             return testInfo.param;
         });
+
+TEST_F(StatTest, testConnAggStats) {
+    using namespace testing;
+    using namespace cb::stats;
+
+    std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
+    PrometheusStatCollector collector(statsMap);
+    auto bucketCollector = collector.forBucket("foo");
+    engine->getDcpConnMap().newProducer(*cookie, "foo_producer", 0);
+
+    auto mCookie = create_mock_cookie(engine.get());
+    engine->getDcpConnMap().newConsumer(*mCookie, "replication:foo_consumer");
+
+    auto rc = engine->doConnAggStats(bucketCollector, ":");
+    EXPECT_EQ(cb::engine_errc::success, rc) << "Failed to get conn agg stats.";
+
+    // Assert all the expected connAgg stats are added.
+    std::unordered_map<cb::stats::Key, std::string> expected = {
+            {Key::connagg_connection_count, "dcp_connection_count"},
+            {Key::connagg_backoff, "dcp_backoff"},
+            {Key::connagg_producer_count, "dcp_count"},
+            {Key::connagg_consumer_count, "dcp_count"},
+            {Key::connagg_activestream_count, "dcp_stream_count"},
+            {Key::connagg_passivestream_count, "dcp_stream_count"},
+            {Key::connagg_items_backfilled_disk, "dcp_items_backfilled"},
+            {Key::connagg_items_backfilled_memory, "dcp_items_backfilled"},
+            {Key::connagg_items_sent, "dcp_items_sent"},
+            {Key::connagg_items_remaining, "dcp_items_remaining"},
+            {Key::connagg_total_uncompressed_data_size,
+             "dcp_total_uncompressed_data_size_bytes"},
+            {Key::connagg_total_bytes, "dcp_total_data_size_bytes"},
+            {Key::connagg_ready_queue_bytes, "dcp_ready_queue_size_bytes"},
+            {Key::connagg_paused, "dcp_paused_count"},
+            {Key::connagg_unpaused, "dcp_unpaused_count"}};
+
+    for (const auto& [internalKey, externalKey] : expected) {
+        const auto& metricFamilyName =
+                collector.lookup(internalKey).metricFamily;
+        EXPECT_NE(statsMap.end(), statsMap.find(metricFamilyName));
+
+        const auto& metricFamily = statsMap[metricFamilyName];
+        EXPECT_EQ(externalKey, metricFamily.name);
+
+        if (internalKey == Key::connagg_connection_count) {
+            // One each for the producer and consumer.
+            EXPECT_EQ(2, metricFamily.metric.size());
+            for (const auto& metric : metricFamily.metric) {
+                // The raw value set in the metric.
+                EXPECT_EQ(1, metric.untyped.value);
+            }
+        }
+    }
+
+    std::unordered_set<std::string> expectedKeysSet;
+
+    for (const auto& [internalKey, externalKey] : expected) {
+        expectedKeysSet.insert(externalKey);
+    }
+
+    // Check only the metric families we expect are present in the statsMap.
+    // Essentially this makes sure, if a new metric family is added we also
+    // remember to include it here in the "expected" map.
+    for (const auto& [externalKey, v] : statsMap) {
+        EXPECT_NE(expectedKeysSet.end(), expectedKeysSet.find(externalKey));
+    }
+
+    destroy_mock_cookie(mCookie);
+}
