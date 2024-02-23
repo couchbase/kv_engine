@@ -16,6 +16,7 @@
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/terminal_color.h>
+#include <platform/timeutils.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <programs/parse_tls_option.h>
@@ -145,25 +146,6 @@ Options:
     exit(EXIT_FAILURE);
 }
 
-std::string calculateThroughput(size_t bytes, size_t sec) {
-    if (sec > 1) {
-        bytes /= sec;
-    }
-
-    std::vector<const char*> suffix = {"B/s", "kB/s", "MB/s", "GB/s"};
-    int ii = 0;
-
-    while (bytes > 10240) {
-        bytes /= 1024;
-        ++ii;
-        if (ii == 3) {
-            break;
-        }
-    }
-
-    return std::to_string(bytes) + suffix[ii];
-}
-
 /// The DcpConnection class is responsible for a single DCP connection to
 /// the server and may consist of a number of DCP streams.
 /// We may have multiple DCP connections to the same server.
@@ -281,7 +263,7 @@ public:
                 snapshots,
                 oso_snapshots,
                 total_bytes - mutation_bytes,
-                calculateThroughput(total_bytes, duration.count() / 1000));
+                cb::calculateThroughput(total_bytes, stop - start));
     }
 
 protected:
@@ -1023,7 +1005,7 @@ int main(int argc, char** argv) {
                 snapshots,
                 oso_snapshots,
                 total_bytes - mutation_bytes,
-                calculateThroughput(total_bytes, duration.count() / 1000));
+                cb::calculateThroughput(total_bytes, stop - start));
     }
 
     connections.clear();

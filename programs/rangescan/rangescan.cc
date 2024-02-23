@@ -21,6 +21,7 @@
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/terminal_color.h>
+#include <platform/timeutils.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <programs/parse_tls_option.h>
@@ -124,26 +125,6 @@ Options:
     exit(EXIT_FAILURE);
 }
 
-static std::string calculateThroughput(size_t bytes,
-                                       std::chrono::seconds seconds) {
-    if (seconds > std::chrono::seconds(1)) {
-        bytes /= seconds.count();
-    }
-
-    std::vector<const char*> suffix = {"B/s", "kB/s", "MB/s", "GB/s"};
-    int ii = 0;
-
-    while (bytes > 10240) {
-        bytes /= 1024;
-        ++ii;
-        if (ii == 3) {
-            break;
-        }
-    }
-
-    return std::to_string(bytes) + suffix.at(ii);
-}
-
 /// The RangeScanConnection class is responsible for a single connection and
 /// drives a RangeScan for each vbucket in the given vector of vbid.
 class RangeScanConnection {
@@ -236,9 +217,8 @@ public:
         result["total_bytes_rx"] = totalBytes;
         result["record_bytes_rx"] = recordBytes;
         result["overhead_bytes_rx"] = totalBytes - recordBytes;
-        result["throughput"] = calculateThroughput(
-                totalBytes,
-                std::chrono::duration_cast<std::chrono::seconds>(duration));
+        result["throughput"] =
+                cb::calculateThroughput(totalBytes, stop - start);
         result["continues"] = continueCount;
         return result;
     }
@@ -892,9 +872,8 @@ int main(int argc, char** argv) {
     result["total_duration_ms"] = duration.count();
     result["total_records"] = records;
     result["total_records_per_ms"] = float(records) / duration.count();
-    result["total_throughput"] = calculateThroughput(
-            total_bytes,
-            std::chrono::duration_cast<std::chrono::seconds>(duration));
+    result["total_throughput"] =
+            cb::calculateThroughput(total_bytes, stop - start);
     result["duration_ms"] = duration.count();
     std::cout << result.dump() << std::endl;
 
