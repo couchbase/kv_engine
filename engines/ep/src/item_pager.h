@@ -152,6 +152,11 @@ public:
         return std::chrono::milliseconds(25);
     }
 
+    /**
+     * The maximum expected duration for the visitor task.
+     */
+    std::chrono::microseconds maxExpectedVisitorDuration() const;
+
     void wakeUp() override;
 
     PageableMemInfo getPageableMemInfo() const override;
@@ -248,6 +253,11 @@ public:
         // 25ms - a "fair" timeslice for a task to take.
         return std::chrono::milliseconds(25);
     }
+
+    /**
+     * The maximum expected duration for the visitor task.
+     */
+    std::chrono::microseconds maxExpectedVisitorDuration() const;
 
 private:
     struct Config {
