@@ -140,6 +140,26 @@ void McProgramGetopt::assemble() {
     }
 }
 
+std::unique_ptr<MemcachedConnection>
+McProgramGetopt::createAuthenticatedConnection(std::string h,
+                                               in_port_t p,
+                                               sa_family_t f,
+                                               bool s) const {
+    auto ret = std::make_unique<MemcachedConnection>(std::move(h), p, f, s);
+    if (ssl_cert && ssl_key) {
+        ret->setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
+    }
+    ret->connect();
+    if (!user.empty()) {
+        ret->authenticate(user,
+                          password,
+                          sasl_mechanism.empty() ? ret->getSaslMechanisms()
+                                                 : sasl_mechanism);
+    }
+
+    return ret;
+}
+
 std::unique_ptr<MemcachedConnection> McProgramGetopt::getConnection() {
     if (connection) {
         auto ret = connection->clone(false);

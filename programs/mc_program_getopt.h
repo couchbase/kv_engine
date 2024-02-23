@@ -80,6 +80,19 @@ public:
     /// Print the common command line options to the output stream
     void usage(std::ostream&) const;
 
+    /**
+     * Sometimes one may want to fetch the cluster config from the node
+     * provided on the command line options and then connect to the other
+     * nodes in the cluster. In those cases this method would come in handy
+     * to connect to the provided host and authenticate with the options
+     * provided on the command line (SASL or via certificates.
+     */
+    [[nodiscard]] std::unique_ptr<MemcachedConnection>
+    createAuthenticatedConnection(std::string host,
+                                  in_port_t port,
+                                  sa_family_t family,
+                                  bool secure) const;
+
 protected:
     cb::getopt::CommandLineOptionsParser parser;
     std::unique_ptr<MemcachedConnection> connection;

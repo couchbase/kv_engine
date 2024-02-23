@@ -445,7 +445,7 @@ public:
      *
      * @param name the name of the bucket to select
      */
-    void selectBucket(const std::string& name);
+    void selectBucket(std::string_view name);
 
     /// Select the no bucket
     void unselectBucket() {

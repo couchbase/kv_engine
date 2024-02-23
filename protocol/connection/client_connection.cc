@@ -1323,14 +1323,13 @@ void MemcachedConnection::deleteBucket(const std::string& bucketName) {
     }
 }
 
-void MemcachedConnection::selectBucket(const std::string& bucketName) {
+void MemcachedConnection::selectBucket(std::string_view bucketName) {
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::SelectBucket,
-                                  bucketName);
+                                  std::string{bucketName});
     const auto response = execute(command);
     if (!response.isSuccess()) {
         throw ConnectionError(
-                std::string{"Select bucket [" + bucketName + "] failed"},
-                response);
+                fmt::format("Select bucket [{}] failed", bucketName), response);
     }
 }
 
