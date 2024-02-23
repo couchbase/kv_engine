@@ -1804,6 +1804,14 @@
     },
 /* Timing stats */
     {
+        "key": "task_duration",
+        "unit": "microseconds",
+        "type": "histogram",
+        "description": "Per-task histogram of time taken to run a task",
+        "cbstat": "{task}[{type}]",
+        "added": "7.6.2"
+    },
+    {
         "key": "cmd_duration",
         "unit": "microseconds",
         "type": "histogram",
