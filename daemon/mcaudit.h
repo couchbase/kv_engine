@@ -81,29 +81,6 @@ void audit_command_access_failed(Cookie& cookie);
  */
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet);
 
-/**
- * Send an audit event for the change in privilege debug
- *
- * @param c the connection object toggling privilege debug
- * @param enable if privilege debug is enabled or disabled
- */
-void audit_set_privilege_debug_mode(Cookie& cookie, bool enable);
-
-/**
- * Send an audit event for privilege debug allowing a command to pass
- *
- * @param c the connection object performing the operation
- * @param command the command being executed
- * @param bucket the bucket where the command is executed
- * @param privilege the privilege granted
- * @param context the current privilege context
- */
-void audit_privilege_debug(Cookie& cookie,
-                           const std::string& command,
-                           const std::string& bucket,
-                           const std::string& privilege,
-                           const std::string& context);
-
 namespace cb::audit {
 
 /**

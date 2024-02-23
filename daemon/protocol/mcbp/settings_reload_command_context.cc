@@ -201,7 +201,6 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
 }
 
 cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
-    const auto old_priv_debug = Settings::instance().isPrivilegeDebug();
     try {
         LOG_INFO("Reloading config file {}", get_config_file());
         const auto content =
@@ -233,13 +232,6 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
 
         // interfaces updated, time to do the rest of them
         Settings::instance().updateSettings(new_settings, true);
-
-        // We need to produce an audit trail if someone tried to enable /
-        // disable privilege debug mode
-        if (Settings::instance().isPrivilegeDebug() != old_priv_debug) {
-            audit_set_privilege_debug_mode(
-                    cookie, Settings::instance().isPrivilegeDebug());
-        }
         return cb::engine_errc::success;
     } catch (const std::bad_alloc&) {
         LOG_WARNING("{}: Failed reloading config file. not enough memory",

@@ -111,45 +111,6 @@
       }
     },
     {
-      "id": 20486,
-      "name": "privilege debug configured",
-      "description": "The state of the privilege debug mode changed",
-      "filtering_permitted": false,
-      "mandatory_fields": {
-        "enable": true,
-        "timestamp": "",
-        "real_userid": {
-          "domain": "",
-          "user": ""
-        },
-        "remote": { "ip": "", "port": 1 },
-        "local": { "ip": "", "port": 1 }
-      },
-      "optional_fields": {
-      }
-    },
-    {
-      "id": 20487,
-      "name": "privilege debug",
-      "description": "Access to a resource was granted due to privilege debug",
-      "filtering_permitted": false,
-      "mandatory_fields": {
-        "command": "",
-        "bucket": "",
-        "privilege": "",
-        "current_context": "",
-        "timestamp": "",
-        "real_userid": {
-          "domain": "",
-          "user": ""
-        },
-        "remote": { "ip": "", "port": 1 },
-        "local": { "ip": "", "port": 1 }
-      },
-      "optional_fields": {
-      }
-    },
-    {
       "id": 20488,
       "name": "document read",
       "description": "Document was read",

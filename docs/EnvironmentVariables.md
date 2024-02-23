@@ -41,15 +41,6 @@ simulate a memory allocation failure.
 This variable is used by a unit test to have the config library
 simulate a failure reading stuff from disk.
 
-## `COUCHBASE_ENABLE_PRIVILEGE_DEBUG`
-
-By setting this environment variable all privilege checks returns
-success. This mode should _NEVER EVER_ be used in production, and
-is only intended as a tool to be used during development of the
-correct roles. By enabling this you may start an application
-without any privileges, and then look in the logs to see which
-privileges it would need in order to perform the action successfully.
-
 ## `COUCHBASE_PACKET_DUMP`
 
 Some of the command line tools will generate a packet dump if this

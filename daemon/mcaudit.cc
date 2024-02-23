@@ -237,45 +237,6 @@ void audit_dcp_open(Cookie& cookie) {
     }
 }
 
-void audit_set_privilege_debug_mode(Cookie& cookie, bool enable) {
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, cookie)) {
-        return;
-    }
-    auto& c = cookie.getConnection();
-    auto root = create_memcached_audit_object(
-            MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, c, c.getUser(), {});
-    root["enable"] = enable;
-    do_audit(&cookie,
-             MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
-             root,
-             "Failed to send modifications in privilege debug state "
-             "audit event to audit daemon");
-}
-
-void audit_privilege_debug(Cookie& cookie,
-                           const std::string& command,
-                           const std::string& bucket,
-                           const std::string& privilege,
-                           const std::string& context) {
-    auto& c = cookie.getConnection();
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG,
-                   c,
-                   cookie.getEffectiveUser())) {
-        return;
-    }
-    auto root = create_memcached_audit_object(
-            MEMCACHED_AUDIT_PRIVILEGE_DEBUG, c, c.getUser(), {});
-    root["command"] = command;
-    root["bucket"] = bucket;
-    root["privilege"] = privilege;
-    root["context"] = context;
-
-    do_audit(&cookie,
-             MEMCACHED_AUDIT_PRIVILEGE_DEBUG,
-             root,
-             "Failed to send privilege debug audit event to audit daemon");
-}
-
 void audit_command_access_failed(Cookie& cookie) {
     if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, cookie)) {
         return;

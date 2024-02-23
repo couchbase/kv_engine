@@ -115,25 +115,6 @@ public:
     }
 
     /**
-     * If enabled we'll always return true from the privilege checks
-     *
-     * @return true if we're running in privilege debug mode.
-     */
-    bool isPrivilegeDebug() const {
-        return privilege_debug.load(std::memory_order_relaxed);
-    }
-
-    /**
-     * Set if privilege mode is enabled or not
-     * @param enable
-     */
-    void setPrivilegeDebug(bool enable) {
-        has.privilege_debug = true;
-        privilege_debug.store(enable, std::memory_order_relaxed);
-        notify_changed("privilege_debug");
-    }
-
-    /**
      * Get the number of frontend worker threads
      *
      * @return the configured amount of worker threads
@@ -1137,9 +1118,6 @@ protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{true};
 
-    /// Is privilege debug enabled or not
-    std::atomic_bool privilege_debug{false};
-
     /// is datatype json enabled?
     bool datatype_json = true;
 
@@ -1203,7 +1181,6 @@ public:
     struct {
         bool always_collect_trace_info = false;
         bool rbac_file = false;
-        bool privilege_debug = false;
         bool threads = false;
         bool interfaces = false;
         bool logger = false;

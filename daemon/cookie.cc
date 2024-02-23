@@ -924,20 +924,6 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     auto command = to_string(getRequest().getClientOpcode());
     auto json = getPrivilegeFailedErrorMessage(command, privilege, sid, cid);
 
-    if (Settings::instance().isPrivilegeDebug()) {
-        audit_privilege_debug(*this,
-                              command,
-                              connection.getBucket().name,
-                              to_string(privilege),
-                              json.dump());
-
-        LOG_INFO("{}: RBAC {} privilege debug: {}",
-                 connection.getId(),
-                 connection.getDescription(),
-                 json.dump());
-
-        return cb::rbac::PrivilegeAccessOk;
-    }
     audit_command_access_failed(*this);
     LOG_WARNING("{} RBAC {} missing privilege: {}",
                 connection.getId(),

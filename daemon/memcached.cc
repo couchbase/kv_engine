@@ -459,10 +459,6 @@ static void settings_init() {
     settings.setVerbose(0);
     settings.setNumWorkerThreads(get_number_of_worker_threads());
 
-    if (getenv("COUCHBASE_ENABLE_PRIVILEGE_DEBUG") != nullptr) {
-        settings.setPrivilegeDebug(true);
-    }
-
     settings.addChangeListener(
             "num_storage_threads", [](const std::string&, Settings& s) -> void {
                 auto val = ThreadPoolConfig::StorageThreadCount(

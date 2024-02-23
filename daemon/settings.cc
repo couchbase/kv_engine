@@ -108,7 +108,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "rbac_file"sv) {
             setRbacFile(value.get<std::string>());
         } else if (key == "privilege_debug"sv) {
-            setPrivilegeDebug(value.get<bool>());
+            if (value.get<bool>()) {
+                LOG_INFO_RAW(
+                        "Ignore privilege_debug=true; no longer supported");
+            }
         } else if (key == "audit_file"sv) {
             setAuditFile(value.get<std::string>());
         } else if (key == "deployment_model"sv) {
@@ -795,14 +798,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         if (changed) {
             notify_changed("breakpad");
-        }
-    }
-
-    if (other.has.privilege_debug) {
-        if (other.privilege_debug != privilege_debug) {
-            bool value = other.isPrivilegeDebug();
-            LOG_INFO("{} privilege debug", value ? "Enable" : "Disable");
-            setPrivilegeDebug(value);
         }
     }
 
