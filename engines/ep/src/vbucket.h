@@ -576,8 +576,6 @@ public:
      */
     std::vector<CookieIface*> prepareTransitionAwayFromActive();
 
-    size_t size();
-
     /**
      * Obtain the series of items to be flushed for this vBucket.
      *

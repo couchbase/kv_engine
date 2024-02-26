@@ -458,12 +458,6 @@ std::vector<CookieIface*> VBucket::prepareTransitionAwayFromActive() {
     return getActiveDM().prepareTransitionAwayFromActive();
 }
 
-size_t VBucket::size() {
-    HashTableDepthStatVisitor v;
-    ht.visitDepth(v);
-    return v.size;
-}
-
 ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     ItemsToFlush result;
 
