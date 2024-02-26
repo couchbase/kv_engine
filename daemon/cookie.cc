@@ -446,11 +446,8 @@ Cookie::Cookie(Connection& conn)
 }
 
 void Cookie::initialize(std::chrono::steady_clock::time_point now,
-                        const cb::mcbp::Header& header,
-                        bool tracing_enabled) {
+                        const cb::mcbp::Header& header) {
     reset();
-    setTracingEnabled(tracing_enabled ||
-                      Settings::instance().alwaysCollectTraceInfo());
     setPacket(header);
     start = now;
 }
@@ -812,9 +809,7 @@ void Cookie::setThrottled(bool val) {
         total_throttle_time +=
                 std::chrono::duration_cast<std::chrono::microseconds>(now -
                                                                       start);
-        if (tracingEnabled) {
-            tracer.record(cb::tracing::Code::Throttled, throttle_start, now);
-        }
+        tracer.record(cb::tracing::Code::Throttled, throttle_start, now);
     }
 }
 

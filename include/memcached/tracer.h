@@ -132,12 +132,6 @@ protected:
 class Traceable {
 public:
     virtual ~Traceable() = default;
-    bool isTracingEnabled() const {
-        return tracingEnabled;
-    }
-    void setTracingEnabled(bool enable) {
-        tracingEnabled = enable;
-    }
     Tracer& getTracer() {
         return tracer;
     }
@@ -146,7 +140,6 @@ public:
     }
 
 protected:
-    bool tracingEnabled = false;
     Tracer tracer;
 };
 
@@ -158,33 +151,23 @@ protected:
  * injected into the provided traceable object as part of object destruction (as
  * long as start() was at least called).
  *
- * Normally the span is only included if the client requested trace information,
- * but it is possible to force the inclusion of the trace span.
- *
  * To allow simplification of code which might or might not be executed in
  * a client-specific context it is possible to specify nullptr as the traceable
  * and this is a "noop".
  */
 class SpanStopwatch {
 public:
-    SpanStopwatch(Traceable& traceable, Code code, bool alwaysInclude = false)
-        : traceable(&traceable), code(code), alwaysInclude(alwaysInclude) {
+    SpanStopwatch(Traceable& traceable, Code code)
+        : traceable(&traceable), code(code) {
     }
-    SpanStopwatch(Traceable* traceable, Code code, bool alwaysInclude = false)
-        : traceable(traceable), code(code), alwaysInclude(alwaysInclude) {
+    SpanStopwatch(Traceable* traceable, Code code)
+        : traceable(traceable), code(code) {
     }
 
     ~SpanStopwatch() {
-        if (traceable && (alwaysInclude || traceable->isTracingEnabled())) {
+        if (traceable) {
             traceable->getTracer().record(code, startTime, stopTime);
         }
-    }
-
-    [[nodiscard]] bool isEnabled() const {
-        if (traceable) {
-            return (alwaysInclude || traceable->isTracingEnabled());
-        }
-        return false;
     }
 
     void start(Clock::time_point tp) {
@@ -200,7 +183,6 @@ private:
     Clock::time_point startTime;
     Clock::time_point stopTime;
     const Code code;
-    const bool alwaysInclude;
 };
 
 template <class Mutex>
@@ -215,15 +197,13 @@ public:
               Mutex& mutex_,
               Code wait,
               Code held,
-              Clock::duration threshold_ = Clock::duration::zero(),
-              bool force = false)
+              Clock::duration threshold_ = Clock::duration::zero())
         : traceable(traceable),
           mutex(mutex_),
           threshold(threshold_),
           wait(wait),
-          held(held),
-          force(force) {
-        if (traceable && (force || traceable->isTracingEnabled())) {
+          held(held) {
+        if (traceable) {
             start = Clock::now();
             mutex.lock();
             lockedAt = Clock::now();
@@ -234,11 +214,11 @@ public:
 
     ~MutexSpan() {
         mutex.unlock();
-        if (traceable && (force || traceable->isTracingEnabled())) {
+        if (traceable) {
             releasedAt = std::chrono::steady_clock::now();
             const auto waitTime = lockedAt - start;
             const auto heldTime = releasedAt - lockedAt;
-            if (force || waitTime > threshold || heldTime > threshold) {
+            if (waitTime > threshold || heldTime > threshold) {
                 auto tracer = traceable->getTracer();
                 tracer.record(wait, start, lockedAt);
                 tracer.record(held, lockedAt, releasedAt);
@@ -252,7 +232,6 @@ private:
     const Clock::duration threshold;
     const Code wait;
     const Code held;
-    const bool force;
     Clock::time_point start;
     Clock::time_point lockedAt;
     Clock::time_point releasedAt;

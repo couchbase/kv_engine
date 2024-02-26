@@ -125,7 +125,7 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
 
                 // Close the BackgroundWait span; and add a BackgroundLoad span
                 auto* traceable = fetched_item.cookie;
-                if (traceable && traceable->isTracingEnabled()) {
+                if (traceable) {
                     NonBucketAllocationGuard guard;
                     auto& tracer = traceable->getTracer();
                     tracer.record(cb::tracing::Code::BackgroundWait,

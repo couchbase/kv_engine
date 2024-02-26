@@ -606,10 +606,6 @@ bool Connection::processAllReadyCookies() {
 }
 
 void Connection::executeCommandPipeline() {
-    // We don't want to look up if this is a serverless deployment every
-    // time (as it can't change).
-    static const auto serverless = cb::serverless::isEnabled();
-
     numEvents = max_reqs_per_event;
     const auto maxActiveCommands =
             Settings::instance().getMaxConcurrentCommandsPerConnection();
@@ -641,8 +637,7 @@ void Connection::executeCommandPipeline() {
             auto& cookie = *cookies.back();
             // We always want to collect trace information if we're running
             // for a serverless configuration
-            cookie.initialize(
-                    now, getPacket(), serverless || isTracingEnabled());
+            cookie.initialize(now, getPacket());
             updateRecvBytes(cookie.getPacket().size());
 
             const auto status = cookie.validate();
@@ -1474,7 +1469,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     response.setOpaque(request.getOpaque());
     response.setCas(cookie.getCas());
 
-    const auto tracing = isTracingEnabled() && cookie.isTracingEnabled();
+    const auto tracing = isTracingEnabled();
     auto cutracing = isReportUnitUsage();
     size_t ru = 0;
     size_t wu = 0;

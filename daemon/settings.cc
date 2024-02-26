@@ -104,7 +104,11 @@ void Settings::reconfigure(const nlohmann::json& json) {
         using namespace std::string_view_literals;
 
         if (key == "always_collect_trace_info"sv) {
-            setAlwaysCollectTraceInfo(value.get<bool>());
+            if (!value.get<bool>()) {
+                LOG_INFO_RAW(
+                        "It is no longer possible to disable trace info. See "
+                        "MB-60932");
+            }
         } else if (key == "rbac_file"sv) {
             setRbacFile(value.get<std::string>());
         } else if (key == "privilege_debug"sv) {
@@ -564,19 +568,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      getEventFramework(),
                      other.getEventFramework());
             setEventFramework(other.getEventFramework());
-        }
-    }
-
-    if (other.has.always_collect_trace_info) {
-        if (other.alwaysCollectTraceInfo() != alwaysCollectTraceInfo()) {
-            if (other.alwaysCollectTraceInfo()) {
-                LOG_INFO_RAW("Always collect trace information");
-            } else {
-                LOG_INFO_RAW(
-                        "Only collect trace information if the client asks for "
-                        "it");
-            }
-            setAlwaysCollectTraceInfo(other.alwaysCollectTraceInfo());
         }
     }
 

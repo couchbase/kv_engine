@@ -24,12 +24,10 @@
 
 void SessionTracingRecordMutationSpan(benchmark::State& state) {
     auto* cookie = create_mock_cookie();
-    cookie_to_mock_cookie(cookie)->setTracingEnabled(true);
-
     while (state.KeepRunning()) {
         // Representative set of TRACE_BLOCKS for recording a mutation's work.
-        { TRACE_SCOPE(cookie, cb::tracing::Code::Request); }
-        { TRACE_SCOPE(cookie, cb::tracing::Code::Store); }
+        { TRACE_SCOPE(*cookie, cb::tracing::Code::Request); }
+        { TRACE_SCOPE(*cookie, cb::tracing::Code::Store); }
 
         cookie_to_mock_cookie(cookie)->getTracer().clear();
     }
@@ -40,8 +38,6 @@ void SessionTracingRecordMutationSpan(benchmark::State& state) {
 // macros.
 void SessionTracingScopeTimer(benchmark::State& state) {
     auto* cookie = create_mock_cookie();
-    cookie_to_mock_cookie(cookie)->setTracingEnabled(true);
-
     while (state.KeepRunning()) {
         // Representative set of scopes for recording a mutation's work.
         {
@@ -67,7 +63,6 @@ void SessionTracingEncode(benchmark::State& state) {
     // the value is, but want it runtime-calculated so we don't constant-fold
     // away the encoding below.
     auto& traceable = *cookie_to_mock_cookie(cookie);
-    traceable.setTracingEnabled(true);
     {
         ScopeTimer1<TracerStopwatch> timer(
                 TracerStopwatch(cookie, cb::tracing::Code::Request));

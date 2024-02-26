@@ -6034,7 +6034,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                         this] {
         auto endTime = std::chrono::steady_clock::now();
 
-        if (cookie.isTracingEnabled()) {
+        {
             NonBucketAllocationGuard guard;
             auto& tracer = cookie.getTracer();
             tracer.record(Code::SetWithMeta, startTime, endTime);

@@ -26,22 +26,12 @@
 class ScopedTracer {
 public:
     ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::Code code)
-        : traceable(traceable), code(code) {
-        if (traceable.isTracingEnabled()) {
-            start = cb::tracing::Clock::now();
-        }
-    }
-
-    ScopedTracer(cb::tracing::Traceable* traceable, cb::tracing::Code code)
-        : ScopedTracer(*traceable, code) {
+        : traceable(traceable), start(cb::tracing::Clock::now()), code(code) {
     }
 
     ~ScopedTracer() {
-        if (traceable.isTracingEnabled()) {
-            NonBucketAllocationGuard guard;
-            traceable.getTracer().record(
-                    code, start, cb::tracing::Clock::now());
-        }
+        NonBucketAllocationGuard guard;
+        traceable.getTracer().record(code, start, cb::tracing::Clock::now());
     }
 
 protected:
@@ -70,18 +60,11 @@ public:
     }
 
     ~TracerStopwatch() {
-        if (traceable && traceable->isTracingEnabled()) {
+        if (traceable) {
             NonBucketAllocationGuard guard;
             auto& tracer = traceable->getTracer();
             tracer.record(code, startTime, stopTime);
         }
-    }
-
-    bool isEnabled() const {
-        if (traceable) {
-            return traceable->isTracingEnabled();
-        }
-        return false;
     }
 
     void start(cb::tracing::Clock::time_point tp) {

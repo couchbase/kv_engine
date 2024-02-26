@@ -85,16 +85,6 @@ public:
      */
     void reconfigure(const nlohmann::json& json);
 
-    bool alwaysCollectTraceInfo() const {
-        return always_collect_trace_info.load(std::memory_order_consume);
-    }
-
-    void setAlwaysCollectTraceInfo(bool value) {
-        always_collect_trace_info.store(value, std::memory_order_release);
-        has.always_collect_trace_info = true;
-        notify_changed("always_collect_trace_info");
-    }
-
     /**
      * Get the name of the file containing the RBAC data
      *
@@ -1115,9 +1105,6 @@ protected:
     std::atomic<std::chrono::milliseconds> tcp_unauthenticated_user_timeout{
             std::chrono::seconds{5}};
 
-    /// Should the server always collect trace information for commands
-    std::atomic_bool always_collect_trace_info{true};
-
     /// is datatype json enabled?
     bool datatype_json = true;
 
@@ -1179,7 +1166,6 @@ public:
      * getter/setter pattern
      */
     struct {
-        bool always_collect_trace_info = false;
         bool rbac_file = false;
         bool threads = false;
         bool interfaces = false;
