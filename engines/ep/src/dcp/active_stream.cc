@@ -846,6 +846,12 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
     if (vb && takeoverStart != 0 && !vb->isTakeoverBackedUp() &&
         (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
         vb->setTakeoverBackedUpState(true);
+
+        log(spdlog::level::level_enum::info,
+            "{} ActiveStream::takeoverSend: Entered backup state - "
+            "last_sent_seqno:{}",
+            logPrefix,
+            lastSentSeqno.load());
     }
 
     if (!readyQ.empty()) {
