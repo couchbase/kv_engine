@@ -2384,14 +2384,6 @@ void ActiveStream::transitionState(StreamState newState) {
         return;
     }
 
-    auto logLevel = getTransitionStateLogLevel(state_, newState);
-    log(logLevel,
-        "{} ActiveStream::transitionState: "
-        "Transitioning from {} to {}",
-        logPrefix,
-        to_string(state_.load()),
-        to_string(newState));
-
     bool validTransition = false;
     switch (state_.load()) {
     case StreamState::Pending:
@@ -2443,6 +2435,8 @@ void ActiveStream::transitionState(StreamState newState) {
     StreamState oldState = state_.load();
     state_ = newState;
 
+    std::string extraInfo;
+
     switch (newState) {
     case StreamState::Backfilling: {
         auto producer = producerPtr.lock();
@@ -2477,6 +2471,12 @@ void ActiveStream::transitionState(StreamState newState) {
         }
         break;
     case StreamState::TakeoverSend: {
+        const auto vb = engine->getVBucket(vb_);
+        Expects(vb);
+        extraInfo = fmt::format(" - vb_state:{}, last_sent_seqno:{}",
+                                vb->toString(vb->getState()),
+                                lastSentSeqno.load());
+
         takeoverStart = ep_current_time();
 
         // Starting a new in-memory (takeover) snapshot which could contain
@@ -2493,10 +2493,25 @@ void ActiveStream::transitionState(StreamState newState) {
     case StreamState::Dead:
         removeCheckpointCursor();
         break;
-    case StreamState::TakeoverWait:
+    case StreamState::TakeoverWait: {
+        const auto vb = engine->getVBucket(vb_);
+        Expects(vb);
+        extraInfo = fmt::format(" - vb_state:{}, last_sent_seqno:{}",
+                                vb->toString(vb->getState()),
+                                lastSentSeqno.load());
+    } break;
     case StreamState::Pending:
         break;
     }
+
+    auto logLevel = getTransitionStateLogLevel(state_, newState);
+    log(logLevel,
+        "{} ActiveStream::transitionState: "
+        "Transitioning from {} to {}{}",
+        logPrefix,
+        to_string(state_.load()),
+        to_string(newState),
+        extraInfo);
 }
 
 size_t ActiveStream::getItemsRemaining() {
