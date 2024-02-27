@@ -53,30 +53,54 @@ bool VBCBAdaptor::run() {
     // in minidumps.
     cb::DebugVariable visitorName{cb::toCharArrayN<32>(label)};
     visitor->begin();
+    // Count of visits that returned Later since the last No/Now.
+    // No/Now indicate that progress has been made.
+    size_t numDeferred = 0;
 
     while (!vbucketsToVisit.empty()) {
         const auto vbid = vbucketsToVisit.front();
         VBucketPtr vb = store->getVBucket(vbid);
-        if (vb) {
-            currentvb = vbid.get();
-            // Also record the vbid.
-            cb::DebugVariable debugVbid{vbid.get()};
+        if (!vb) {
+            vbucketsToVisit.pop_front();
+            continue;
+        }
+        currentvb = vbid.get();
+        // Also record the vbid.
+        cb::DebugVariable debugVbid{vbid.get()};
 
-            using State = InterruptableVBucketVisitor::ExecutionState;
-            switch (visitor->shouldInterrupt()) {
-            case State::Continue:
-                break;
-            case State::Pause:
+        using State = InterruptableVBucketVisitor::ExecutionState;
+        switch (visitor->shouldInterrupt()) {
+        case State::Continue:
+            break;
+        case State::Pause:
+            snooze(0);
+            return true;
+        case State::Stop:
+            visitor->complete();
+            return false;
+        }
+
+        visitor->visitBucket(*vb);
+
+        switch (visitor->needsToRevisitLast()) {
+        case NeedsRevisit::No:
+            vbucketsToVisit.pop_front();
+            numDeferred = 0;
+            break;
+        case NeedsRevisit::YesNow:
+            numDeferred = 0;
+            break;
+        case NeedsRevisit::YesLater:
+            vbucketsToVisit.pop_front();
+            vbucketsToVisit.push_back(vbid);
+            if (++numDeferred >= vbucketsToVisit.size()) {
+                // If all visits have returned Later, no progress has been made.
+                // Snooze and re-attempt later, as we might be blocked.
                 snooze(0);
                 return true;
-            case State::Stop:
-                visitor->complete();
-                return false;
             }
-
-            visitor->visitBucket(*vb);
+            break;
         }
-        vbucketsToVisit.pop_front();
     }
 
     // Processed all vBuckets now, do not need to run again.

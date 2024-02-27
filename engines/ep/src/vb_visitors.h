@@ -120,6 +120,13 @@ public:
      *  pause or stop this visitor execution
      */
     virtual ExecutionState shouldInterrupt() = 0;
+
+    /**
+     * Tells the caller whether the current vBucket needs to be revisited.
+     */
+    virtual NeedsRevisit needsToRevisitLast() {
+        return NeedsRevisit::No;
+    }
 };
 
 /**
