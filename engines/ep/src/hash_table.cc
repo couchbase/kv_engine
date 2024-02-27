@@ -530,7 +530,7 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isResident = sv->isResident();
     isDeleted = sv->isDeleted();
     isTempItem = sv->isTempItem();
-    isSystemItem = sv->getKey().isInSystemCollection();
+    isSystemItem = sv->getKey().isInSystemEventCollection();
     isPreparedSyncWrite = sv->isPending() || sv->isPrepareCompleted();
     cid = sv->getKey().getCollectionID();
     shouldTrackMFU = shouldTrackMfuCallback(lh, *sv);

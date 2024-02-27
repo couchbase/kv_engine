@@ -50,7 +50,7 @@ public:
      */
     queued_item nextItem(CheckpointCursor* cursor, bool& isLastMutationItem) {
         std::lock_guard<std::mutex> lh(queueLock);
-        static StoredDocKey emptyKey("", CollectionID::System);
+        static StoredDocKey emptyKey("", CollectionID::SystemEvent);
         if (!cursor) {
             queued_item qi(
                     new Item(emptyKey, Vbid(0xffff), queue_op::empty, 0, 0));

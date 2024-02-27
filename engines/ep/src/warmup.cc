@@ -1027,7 +1027,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     epstore.getEPEngine().visitWarmupHook();
 
     // Don't attempt to load the system event documents.
-    if (i->getKey().isInSystemCollection()) {
+    if (i->getKey().isInSystemEventCollection()) {
         return;
     }
 

@@ -58,7 +58,7 @@ TEST_F(DocKeyTest, zeroLength) {
     DocKey key(data1.data(), 0, DocKeyEncodesCollectionId::No);
     EXPECT_EQ(0, key.size());
     EXPECT_EQ(CollectionID::Default, key.getCollectionID());
-    EXPECT_FALSE(key.isInSystemCollection());
+    EXPECT_FALSE(key.isInSystemEventCollection());
     EXPECT_TRUE(key.isInDefaultCollection());
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key.getEncoding());
 
@@ -69,7 +69,7 @@ TEST_F(DocKeyTest, zeroLength) {
     auto key2 = key.makeDocKeyWithoutCollectionID();
     EXPECT_EQ(0, key2.size());
     EXPECT_EQ(CollectionID::Default, key2.getCollectionID());
-    EXPECT_FALSE(key2.isInSystemCollection());
+    EXPECT_FALSE(key2.isInSystemEventCollection());
     EXPECT_TRUE(key2.isInDefaultCollection());
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key2.getEncoding());
 }
@@ -80,7 +80,7 @@ TEST_F(DocKeyTest, nullZeroLength) {
     DocKey key(nullptr, 0, DocKeyEncodesCollectionId::No);
     EXPECT_EQ(0, key.size());
     EXPECT_EQ(CollectionID::Default, key.getCollectionID());
-    EXPECT_FALSE(key.isInSystemCollection());
+    EXPECT_FALSE(key.isInSystemEventCollection());
     EXPECT_TRUE(key.isInDefaultCollection());
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key.getEncoding());
 
@@ -91,7 +91,7 @@ TEST_F(DocKeyTest, nullZeroLength) {
     auto key2 = key.makeDocKeyWithoutCollectionID();
     EXPECT_EQ(0, key2.size());
     EXPECT_EQ(CollectionID::Default, key2.getCollectionID());
-    EXPECT_FALSE(key2.isInSystemCollection());
+    EXPECT_FALSE(key2.isInSystemEventCollection());
     EXPECT_TRUE(key2.isInDefaultCollection());
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key2.getEncoding());
 }
@@ -104,7 +104,7 @@ void DocKeyTest::golden(cb::const_byte_buffer buffer,
     EXPECT_EQ(encoded, key.getCollectionID());
     if (encoded == CollectionID::Default) {
         EXPECT_TRUE(key.isInDefaultCollection());
-        EXPECT_FALSE(key.isInSystemCollection());
+        EXPECT_FALSE(key.isInSystemEventCollection());
     }
     EXPECT_EQ(DocKeyEncodesCollectionId::Yes, key.getEncoding());
 
@@ -117,7 +117,7 @@ void DocKeyTest::golden(cb::const_byte_buffer buffer,
     EXPECT_EQ(CollectionID::Default, key2.getCollectionID());
     if (encoded == CollectionID::Default) {
         EXPECT_TRUE(key2.isInDefaultCollection());
-        EXPECT_FALSE(key2.isInSystemCollection());
+        EXPECT_FALSE(key2.isInSystemEventCollection());
     }
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key2.getEncoding());
 }
@@ -135,7 +135,7 @@ void DocKeyTest::golden(cb::const_byte_buffer buffer) {
     DocKey key(buffer.data(), buffer.size(), DocKeyEncodesCollectionId::No);
     EXPECT_EQ(buffer.size(), key.size());
     EXPECT_EQ(CollectionID::Default, key.getCollectionID());
-    EXPECT_FALSE(key.isInSystemCollection());
+    EXPECT_FALSE(key.isInSystemEventCollection());
     EXPECT_TRUE(key.isInDefaultCollection());
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key.getEncoding());
 
@@ -146,7 +146,7 @@ void DocKeyTest::golden(cb::const_byte_buffer buffer) {
     auto key2 = key.makeDocKeyWithoutCollectionID();
     EXPECT_EQ(buffer.size(), key2.size());
     EXPECT_EQ(CollectionID::Default, key2.getCollectionID());
-    EXPECT_FALSE(key2.isInSystemCollection());
+    EXPECT_FALSE(key2.isInSystemEventCollection());
     EXPECT_TRUE(key2.isInDefaultCollection());
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key2.getEncoding());
 }
@@ -175,7 +175,7 @@ TEST_F(DocKeyTest, to_string) {
     std::array<uint8_t, 4> data2 = {{CollectionID::Default, 'k', 'e', 'y'}};
     std::array<uint8_t, 4> data3 = {{8, 'k', 'e', 'y'}};
     std::array<uint8_t, 6> data4 = {
-            {CollectionID::System, 0, 8, 'k', 'e', 'y'}};
+            {CollectionID::SystemEvent, 0, 8, 'k', 'e', 'y'}};
 
     DocKey key1(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
     DocKey key2(data2.data(), data2.size(), DocKeyEncodesCollectionId::Yes);

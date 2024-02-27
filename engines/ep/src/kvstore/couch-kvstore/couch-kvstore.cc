@@ -949,7 +949,7 @@ static int time_purge_hook(Db& d,
 
     // Define a helper function for updating the collection sizes
     auto maybeAccountForPurgedCollectionData = [&ctx, docKey, info] {
-        if (!docKey.isInSystemCollection()) {
+        if (!docKey.isInSystemEventCollection()) {
             auto itr = ctx.stats.collectionSizeUpdates.emplace(
                     docKey.getCollectionID(), 0);
             itr.first->second += info->getTotalSize();
@@ -975,7 +975,7 @@ static int time_purge_hook(Db& d,
 
             // Track nothing for the individual collection as the stats doc has
             // already been deleted.
-        } else if (!docKey.isInSystemCollection()) {
+        } else if (!docKey.isInSystemEventCollection()) {
             // item in a collection was dropped, track how many for item count
             // adjustment.
             if (!info->deleted) {
@@ -988,7 +988,7 @@ static int time_purge_hook(Db& d,
         ctx.purgedItemCtx->purgedItem(PurgedItemType::LogicalDelete,
                                       info->db_seq);
         return COUCHSTORE_COMPACT_DROP_ITEM;
-    } else if (docKey.isInSystemCollection()) {
+    } else if (docKey.isInSystemEventCollection()) {
         ctx.eraserContext->processSystemEvent(
                 docKey, SystemEvent(metadata->getFlags()));
     }
@@ -2878,7 +2878,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     }
 
     // Only do cache lookup for non-system events
-    if (!docKey.isInSystemCollection()) {
+    if (!docKey.isInSystemEventCollection()) {
         CacheLookup lookup(diskKey, byseqno, vbucketId);
 
         cl.callback(lookup);
@@ -2913,7 +2913,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     const bool keysOnly = sctx->valFilter == ValueFilter::KEYS_ONLY;
     const bool isSystemEvent =
-            makeDiskDocKey(docinfo->id).getDocKey().isInSystemCollection();
+            makeDiskDocKey(docinfo->id).getDocKey().isInSystemEventCollection();
     const bool forceValueFetch =
             KVStore::isDocumentPotentiallyCorruptedByMB52793(
                     docinfo->deleted, metadata->getDataType());

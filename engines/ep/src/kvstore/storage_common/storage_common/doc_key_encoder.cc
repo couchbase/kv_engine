@@ -22,7 +22,7 @@ std::string encodeDocKey(std::string_view key,
         auto leb128 = cb::mcbp::unsigned_leb128<uint64_t>(keyNamespace);
         ret.append(leb128.begin(), leb128.end());
 
-        if (keyNamespace == CollectionID::System) {
+        if (keyNamespace == CollectionID::SystemEvent) {
             if (key == "_collection") {
                 auto leb128 = cb::mcbp::unsigned_leb128<uint32_t>(
                         static_cast<uint32_t>(SystemEvent::Collection));

@@ -62,7 +62,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
     }
 
     auto outKey = key.getDocKey();
-    if (outKey.isInSystemCollection() || key.isPrepared()) {
+    if (outKey.isInSystemEventCollection() || key.isPrepared()) {
         // Skip system-event and durability-prepared keys
         return;
     }

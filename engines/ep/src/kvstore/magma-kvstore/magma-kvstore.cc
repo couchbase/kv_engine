@@ -1387,7 +1387,7 @@ GetValue MagmaKVStore::makeItem(Vbid vb,
             meta.isDeleted(), meta.getDatatype());
 
     const bool includeValue = filter != ValueFilter::KEYS_ONLY ||
-                              key.getDocKey().isInSystemCollection();
+                              key.getDocKey().isInSystemEventCollection();
 
     size_t nbytes = 0;
     // Only create the body for the value filter and when a valueSlice is given
@@ -2322,7 +2322,7 @@ ScanStatus MagmaKVStore::scanOne(
     }
 
     // system collections aren't in cache so we can skip that lookup
-    if (!lookup.getKey().getDocKey().isInSystemCollection()) {
+    if (!lookup.getKey().getDocKey().isInSystemEventCollection()) {
         ctx.getCacheCallback().callback(lookup);
         if (ctx.getCacheCallback().getStatus() ==
             cb::engine_errc::key_already_exists) {
@@ -3014,7 +3014,8 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 
         // Finally, visit the system namespace to ensure any events related to
         // the dropped collections are also purged
-        cb::mcbp::unsigned_leb128<CollectionIDType> sys(CollectionID::System);
+        cb::mcbp::unsigned_leb128<CollectionIDType> sys(
+                CollectionID::SystemEvent);
         Slice systemSlice(reinterpret_cast<const char*>(sys.data()),
                           sys.size());
         status = magma->CompactKVStore(

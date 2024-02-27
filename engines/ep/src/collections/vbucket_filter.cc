@@ -252,7 +252,7 @@ void Filter::insertCollection(CollectionID cid, DcpFilterMeta filterData) {
 
 bool Filter::checkAndUpdateSlow(Item& item) {
     bool allowed = false;
-    if (item.getKey().isInSystemCollection()) {
+    if (item.getKey().isInSystemEventCollection()) {
         item.decompressValue();
         allowed = checkAndUpdateSystemEvent(item);
     } else {
@@ -264,7 +264,7 @@ bool Filter::checkAndUpdateSlow(Item& item) {
 
 bool Filter::checkSlow(DocKey key) const {
     bool allowed = false;
-    if (key.isInSystemCollection() && !isLegacyFilter()) {
+    if (key.isInSystemEventCollection() && !isLegacyFilter()) {
         // For a collection filter, we could figure out from the entire DocKey
         // however we will just defer the decision to the more comprehensive
         // checkAndUpdate

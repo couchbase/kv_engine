@@ -5412,8 +5412,8 @@ TEST_P(CollectionsDcpPersistentOnly, getRangeCountingSystemEvents) {
     ASSERT_TRUE(kvstore);
 
     // under nexus a bug was noted in getRange KEYS_ONLY of the system namespace
-    auto start = StoredDocKey{{}, CollectionID::System};
-    auto end = StoredDocKey{"\xff", CollectionID::System};
+    auto start = StoredDocKey{{}, CollectionID::SystemEvent};
+    auto end = StoredDocKey{"\xff", CollectionID::SystemEvent};
     size_t count{0};
     kvstore->getRange(vbid,
                       DiskDocKey{start},

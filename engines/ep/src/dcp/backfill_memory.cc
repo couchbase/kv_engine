@@ -203,7 +203,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     while (static_cast<uint64_t>(rangeItr.curr()) <= endSeqno) {
         const auto& osv = *rangeItr;
         try {
-            if (!osv.getKey().isInSystemCollection()) {
+            if (!osv.getKey().isInSystemEventCollection()) {
                 if (evb->getManifest()
                             .lock(osv.getKey())
                             .isLogicallyDeleted(osv.getBySeqno())) {

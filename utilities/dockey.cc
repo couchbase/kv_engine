@@ -69,7 +69,7 @@ ScopeID::ScopeID(std::string_view id) {
 }
 
 bool CollectionID::isReserved(CollectionIDType value) {
-    return value >= System && value <= Reserved7;
+    return value >= SystemEvent && value <= Reserved7;
 }
 
 bool operator==(CollectionIDType lhs, const CollectionID& rhs) {
@@ -125,10 +125,10 @@ std::string DocKey::to_string() const {
 
     std::string_view remainingKey{reinterpret_cast<const char*>(key.data()),
                                   key.size()};
-    if (getCollectionID().isSystem()) {
+    if (getCollectionID().isSystemEventCollection()) {
         if (key.empty()) {
             // This case can occur if range scanning the system namespace
-            return "System with empty data";
+            return "SystemEvent with empty data";
         }
 
         // Get the hex value of the type of system event
@@ -137,7 +137,7 @@ std::string DocKey::to_string() const {
                         {key.data(), key.size()});
         if (!keyWithoutEvent.data()) {
             // This case can occur if range scanning the system namespace
-            return "System " + toPrintableString();
+            return "SystemEvent " + toPrintableString();
         }
 
         // Get the cid or sid of the system event is for
@@ -182,7 +182,7 @@ CollectionID DocKey::getCollectionID() const {
 }
 
 // Inspect the leb128 key prefixes without doing a full leb decode
-bool DocKey::isInSystemCollection() const {
+bool DocKey::isInSystemEventCollection() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         // Note: when encoding == Yes the size is 2 bytes at a minimum. This is
         // as mcbp_validators will fail 0-byte logical keys, thus we always have
@@ -190,7 +190,7 @@ bool DocKey::isInSystemCollection() const {
         // not needed. System keys additionally never have empty logical keys.
         // Finally we do not need to consider the Prepared namespace as system
         // events are never created in that way.
-        return data()[0] == CollectionID::System;
+        return data()[0] == CollectionID::SystemEvent;
     }
     return false;
 }

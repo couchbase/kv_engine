@@ -1001,7 +1001,7 @@ Visibility Manifest::getScopeVisibility(ScopeID sid) const {
 Manifest::container::const_iterator Manifest::getManifestEntry(
         const DocKey& key, AllowSystemKeys) const {
     CollectionID lookup = key.getCollectionID();
-    if (lookup == CollectionID::System) {
+    if (lookup == CollectionID::SystemEvent) {
         lookup = getCollectionIDFromKey(key);
     } // else we lookup with CID which if is System => fail
     return map.find(lookup);
@@ -1019,7 +1019,7 @@ Manifest::container::const_iterator Manifest::getManifestIterator(
 
 bool Manifest::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
     CollectionID lookup = key.getCollectionID();
-    if (lookup == CollectionID::System) {
+    if (lookup == CollectionID::SystemEvent) {
         // Check what the system event relates to (scope/collection).
         switch (SystemEventFactory::getSystemEventType(key).first) {
         case SystemEvent::Collection:

@@ -159,7 +159,7 @@ bool EphemeralVBucket::isEligibleForEviction(
         return false;
     }
 
-    if (v.getKey().isInSystemCollection()) {
+    if (v.getKey().isInSystemEventCollection()) {
         // The system event documents must not be paged-out
         return false;
     }
@@ -322,7 +322,7 @@ std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
 
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
                                              int64_t bySeqno) const {
-    if (key.isInSystemCollection() &&
+    if (key.isInSystemEventCollection() &&
         !SystemEventFactory::isModifyCollection(key)) {
         return false;
         // else Modify events can be dropped

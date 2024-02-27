@@ -32,7 +32,7 @@ namespace Collections::VB {
  */
 static std::pair<std::optional<SystemEvent>, std::optional<CollectionID>>
 getCollectionEventAndCollectionID(const DocKey& key) {
-    if (key.isInSystemCollection()) {
+    if (key.isInSystemEventCollection()) {
         auto [event, id] = SystemEventFactory::getTypeAndID(key);
         switch (event) {
         case SystemEvent::ModifyCollection:

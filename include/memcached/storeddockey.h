@@ -90,9 +90,9 @@ public:
     CollectionID getCollectionID() const;
 
     /**
-     * @return true if the key has a collection of CollectionID::System
+     * @return true if the key has a collection of CollectionID::SystemEvent
      */
-    bool isInSystemCollection() const;
+    bool isInSystemEventCollection() const;
 
     /**
      * @return true if the key has a collection of CollectionID::Default

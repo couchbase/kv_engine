@@ -1564,7 +1564,7 @@ queued_item CheckpointManager::createCheckpointMetaItem(uint64_t checkpointId,
     // whilst checkpoint starts should be inclusive. Checkpoint ends may share a
     // seqno with a preceding setVBucketState though.
     uint64_t seqno = lastBySeqno + 1;
-    StoredDocKey key(to_string(op), CollectionID::System);
+    StoredDocKey key(to_string(op), CollectionID::SystemEvent);
 
     return queued_item(new Item(key, vb.getId(), op, checkpointId, seqno));
 }

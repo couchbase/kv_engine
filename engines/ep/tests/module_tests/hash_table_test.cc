@@ -815,7 +815,7 @@ TEST_P(HashTableStatsTest, UncompressedMemorySizeTest) {
 }
 
 TEST_P(HashTableStatsTest, SystemEventItem) {
-    StoredDocKey key("key", CollectionID::System);
+    StoredDocKey key("key", CollectionID::SystemEvent);
     store(ht, key);
     EXPECT_EQ(1, ht.getNumSystemItems());
 
@@ -829,7 +829,7 @@ TEST_P(HashTableStatsTest, SystemEventItem) {
 // should not cause us to update the numDeletedItems stat because we do not
 // want to track system events in numDeletedItems
 TEST_P(HashTableStatsTest, DeletedSystemEventItem) {
-    StoredDocKey key("key", CollectionID::System);
+    StoredDocKey key("key", CollectionID::SystemEvent);
     store(ht, key);
     ASSERT_EQ(1, ht.getNumSystemItems());
     ASSERT_EQ(0, ht.getNumDeletedItems());

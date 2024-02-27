@@ -62,7 +62,7 @@ std::unique_ptr<Item> SystemEventFactory::makeScopeEvent(
     StoredDocKey key1{std::string_view{Collections::ScopeEventDebugTag},
                       CollectionID(ScopeIDType(sid))};
     StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Scope)}};
-    return make(StoredDocKey(key2, CollectionID::System),
+    return make(StoredDocKey(key2, CollectionID::SystemEvent),
                 SystemEvent::Scope,
                 data,
                 seqno);
@@ -81,7 +81,7 @@ StoredDocKey SystemEventFactory::makeCollectionEventKey(CollectionID cid,
     auto lebCid = cb::mcbp::unsigned_leb128<uint32_t>(uint32_t(cid));
     key.append(lebCid.begin(), lebCid.end());
     key.append(Collections::CollectionEventDebugTag);
-    return StoredDocKey(key, CollectionID::System);
+    return StoredDocKey(key, CollectionID::SystemEvent);
 }
 
 StoredDocKey SystemEventFactory::makeScopeEventKey(ScopeID sid) {
@@ -90,7 +90,7 @@ StoredDocKey SystemEventFactory::makeScopeEventKey(ScopeID sid) {
     StoredDocKey key1{Collections::ScopeEventDebugTag,
                       CollectionID(ScopeIDType(sid))};
     StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Scope)}};
-    return StoredDocKey(key2, CollectionID::System);
+    return StoredDocKey(key2, CollectionID::SystemEvent);
 }
 
 std::pair<DiskDocKey, DiskDocKey>

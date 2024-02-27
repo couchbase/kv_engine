@@ -20,8 +20,8 @@ CollectionID SerialisedDocKey::getCollectionID() const {
             .first;
 }
 
-bool SerialisedDocKey::isInSystemCollection() const {
-    return data()[0] == CollectionID::System;
+bool SerialisedDocKey::isInSystemEventCollection() const {
+    return data()[0] == CollectionID::SystemEvent;
 }
 
 bool SerialisedDocKey::isInDefaultCollection() const {

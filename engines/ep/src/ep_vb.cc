@@ -1238,8 +1238,8 @@ void EPVBucket::collectionsRolledBack(VBucketStateLockRef vbStateLock,
 }
 
 static size_t countSystemEvents(Vbid vbid, KVStoreIface& kvstore) {
-    auto start = StoredDocKey{{}, CollectionID::System};
-    auto end = StoredDocKey{"\xff", CollectionID::System};
+    auto start = StoredDocKey{{}, CollectionID::SystemEvent};
+    auto end = StoredDocKey{"\xff", CollectionID::SystemEvent};
     size_t count{0};
     kvstore.getRange(vbid,
                      DiskDocKey{start},

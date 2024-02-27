@@ -48,8 +48,8 @@ public:
         /// To allow KV to move legacy data into a collection, reserve 0
         Default = 0,
 
-        /// To weave system things into the users namespace, reserve 1
-        System = 1,
+        /// To weave events that KV generates into user data, reserve 1
+        SystemEvent = 1,
 
         /// Prefix for pending SyncWrites
         DurabilityPrepare = 2,
@@ -112,8 +112,8 @@ public:
         return value == Default;
     }
 
-    bool isSystem() const {
-        return value == System;
+    bool isSystemEventCollection() const {
+        return value == SystemEvent;
     }
 
     bool isDurabilityPrepare() const {
@@ -301,10 +301,10 @@ struct DocKeyInterface {
     }
 
     /**
-     * @return true if the key has a collection of CollectionID::System
+     * @return true if the key has a collection of CollectionID::SystemEvent
      */
-    bool isInSystemCollection() const {
-        return static_cast<const T*>(this)->isInSystemCollection();
+    bool isInSystemEventCollection() const {
+        return static_cast<const T*>(this)->isInSystemEventCollection();
     }
 
     /**
@@ -438,9 +438,9 @@ struct DocKey : DocKeyInterface<DocKey> {
     CollectionID getCollectionID() const;
 
     /**
-     * @return true if the DocKey has a collection of CollectionID::System
+     * @return true if the DocKey has a collection of CollectionID::SystemEvent
      */
-    bool isInSystemCollection() const;
+    bool isInSystemEventCollection() const;
 
     /**
      * @return true if the DocKey has a collection of CollectionID::Default

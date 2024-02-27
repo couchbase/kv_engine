@@ -379,7 +379,7 @@ bool Manifest::validName(std::string_view name) {
 
 bool Manifest::invalidCollectionID(CollectionID identifier) {
     // System cannot appear in a manifest
-    return identifier == CollectionID::System;
+    return identifier == CollectionID::SystemEvent;
 }
 
 nlohmann::json Manifest::to_json(

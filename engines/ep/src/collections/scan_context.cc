@@ -51,7 +51,7 @@ bool ScanContext::isLogicallyDeleted(const DocKey& key,
 
     // Need to process - extract the CollectionID of this key
     CollectionID cid;
-    if (key.isInSystemCollection()) {
+    if (key.isInSystemEventCollection()) {
         // For a system event key extract the type and id
         auto [event, id] = SystemEventFactory::getTypeAndID(key);
 

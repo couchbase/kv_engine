@@ -193,7 +193,7 @@ public:
 
     void queueCPStart() {
         queue_op checkpoint_op = queue_op::checkpoint_start;
-        StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
+        StoredDocKey key(to_string(checkpoint_op), CollectionID::SystemEvent);
         queued_item qi(new Item(key, vbid, checkpoint_op, 1, currentSeqno + 1));
         input.items.emplace_back(qi);
         input.ranges.push_back({{currentSeqno + 1, currentSeqno + 1}, {}, {}});
@@ -211,7 +211,7 @@ public:
         }
 
         queue_op checkpoint_op = queue_op::checkpoint_end;
-        StoredDocKey key(to_string(checkpoint_op), CollectionID::System);
+        StoredDocKey key(to_string(checkpoint_op), CollectionID::SystemEvent);
         queued_item qi(new Item(key, vbid, checkpoint_op, 1, currentSeqno + 1));
         input.items.emplace_back(qi);
     }

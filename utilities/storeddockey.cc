@@ -59,8 +59,8 @@ CollectionID StoredDocKeyT<Allocator>::getCollectionID() const {
 }
 
 template <template <class, class...> class Allocator>
-bool StoredDocKeyT<Allocator>::isInSystemCollection() const {
-    return data()[0] == CollectionID::System;
+bool StoredDocKeyT<Allocator>::isInSystemEventCollection() const {
+    return data()[0] == CollectionID::SystemEvent;
 }
 
 template <template <class, class...> class Allocator>

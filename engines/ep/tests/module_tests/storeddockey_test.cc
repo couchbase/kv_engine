@@ -58,10 +58,10 @@ TEST_P(StoredDocKeyTest, constructors) {
     EXPECT_NE(0, std::memcmp("key", key1.data(), sizeof("key")));
     // We expect to get back the CollectionID used in initialisation
     EXPECT_EQ(GetParam(), key1.getCollectionID());
-    if (GetParam() == CollectionID::System) {
-        EXPECT_TRUE(key1.isInSystemCollection());
+    if (GetParam() == CollectionID::SystemEvent) {
+        EXPECT_TRUE(key1.isInSystemEventCollection());
     } else {
-        EXPECT_FALSE(key1.isInSystemCollection());
+        EXPECT_FALSE(key1.isInSystemEventCollection());
     }
 
     // Test construction from a DocKey which is a view onto unsigned_leb128
@@ -87,10 +87,10 @@ TEST_P(StoredDocKeyTest, constructors) {
     // Expect we can get back the CollectionID
     EXPECT_EQ(GetParam(), key3.getCollectionID());
 
-    if (GetParam() == CollectionID::System) {
-        EXPECT_TRUE(key3.isInSystemCollection());
+    if (GetParam() == CollectionID::SystemEvent) {
+        EXPECT_TRUE(key3.isInSystemEventCollection());
     } else {
-        EXPECT_FALSE(key3.isInSystemCollection());
+        EXPECT_FALSE(key3.isInSystemEventCollection());
     }
 }
 
@@ -117,13 +117,13 @@ TEST(StoredDocKey, no_encoded_collectionId) {
     EXPECT_NE(docKey.data(), key3.data());
     EXPECT_NE(docKey.data()[0], key3.data()[0]);
     EXPECT_EQ(0, key3.getCollectionID());
-    EXPECT_FALSE(key3.isInSystemCollection());
+    EXPECT_FALSE(key3.isInSystemEventCollection());
 }
 
 TEST_P(StoredDocKeyTest, copy_constructor) {
     StoredDocKey key1("key1", GetParam());
-    if (GetParam() == CollectionID::System) {
-        EXPECT_TRUE(key1.isInSystemCollection());
+    if (GetParam() == CollectionID::SystemEvent) {
+        EXPECT_TRUE(key1.isInSystemEventCollection());
     } else if (GetParam() == CollectionID::Default) {
         EXPECT_TRUE(key1.isInDefaultCollection());
     }
@@ -136,8 +136,8 @@ TEST_P(StoredDocKeyTest, copy_constructor) {
     EXPECT_NE(key1.data(), key2.data()); // must be different pointers
     EXPECT_TRUE(std::memcmp(key1.data(), key2.data(), key1.size()) == 0);
     EXPECT_EQ(key1, key2);
-    if (GetParam() == CollectionID::System) {
-        EXPECT_TRUE(key2.isInSystemCollection());
+    if (GetParam() == CollectionID::SystemEvent) {
+        EXPECT_TRUE(key2.isInSystemEventCollection());
     } else if (GetParam() == CollectionID::Default) {
         EXPECT_TRUE(key2.isInDefaultCollection());
     }
@@ -335,7 +335,7 @@ TEST_P(StoredDocKeyTest, getObjectSize) {
 // Test params includes our labelled collections that have 'special meaning' and
 // one normal collection ID (100)
 static std::vector<CollectionID> allDocNamespaces = {
-        {CollectionID::Default, CollectionID::System, 100}};
+        {CollectionID::Default, CollectionID::SystemEvent, 100}};
 
 INSTANTIATE_TEST_SUITE_P(
         CollectionID,
@@ -348,11 +348,11 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(DocNamespace,
                          StoredDocKeyTest,
                          ::testing::Values(CollectionID::Default,
-                                           CollectionID::System,
+                                           CollectionID::SystemEvent,
                                            100));
 
 INSTANTIATE_TEST_SUITE_P(DocNamespace,
                          SerialisedDocKeyTest,
                          ::testing::Values(CollectionID::Default,
-                                           CollectionID::System,
+                                           CollectionID::SystemEvent,
                                            100));

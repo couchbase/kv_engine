@@ -1278,7 +1278,7 @@ void EPBucket::dropKey(VBucket& vb,
     }
 
     auto docKey = diskKey.getDocKey();
-    if (docKey.isInSystemCollection()) {
+    if (docKey.isInSystemEventCollection()) {
         // SystemEvents aren't in memory so return.
         return;
     }
@@ -1787,7 +1787,7 @@ public:
         }
 
         // Skip system keys, they aren't stored in the hashtable
-        if (val.item->getKey().isInSystemCollection()) {
+        if (val.item->getKey().isInSystemEventCollection()) {
             return;
         }
 
@@ -1942,7 +1942,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
         for (const auto& item : items) {
             if (item->getBySeqno() <= rollbackSeqno ||
                 item->isCheckPointMetaItem() ||
-                item->getKey().isInSystemCollection()) {
+                item->getKey().isInSystemEventCollection()) {
                 continue;
             }
 

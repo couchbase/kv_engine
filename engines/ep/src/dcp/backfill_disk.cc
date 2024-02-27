@@ -81,7 +81,7 @@ void CacheCallback::callback(CacheLookup& lookup) {
     // We don't need to read the value if the stream is KeyOnly AND this key
     // is not a SystemEvent (which requires the full payload for all streams)
     if (stream_->isKeyOnly() &&
-        !(lookup.getKey().getDocKey().isInSystemCollection())) {
+        !(lookup.getKey().getDocKey().isInSystemEventCollection())) {
         // Create an empty value to backfill with
         item = std::make_unique<Item>(
                 lookup.getKey().getDocKey(), /* docKey */

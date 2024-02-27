@@ -101,7 +101,7 @@ TEST_P(DiskDocKeyTestCombi, equalityOperators) {
 // Test params includes our labelled collections that have 'special meaning' and
 // one normal collection ID (100)
 static std::vector<CollectionID> allDocNamespaces = {
-        {CollectionID::Default, CollectionID::System, 100}};
+        {CollectionID::Default, CollectionID::SystemEvent, 100}};
 
 INSTANTIATE_TEST_SUITE_P(
         CollectionID,
@@ -114,5 +114,5 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(DocNamespace,
                          DiskDocKeyTest,
                          ::testing::Values(CollectionID::Default,
-                                           CollectionID::System,
+                                           CollectionID::SystemEvent,
                                            100));
