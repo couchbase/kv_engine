@@ -308,6 +308,55 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorIgnoresUnexpectedWakeups) {
     ASSERT_TRUE(wasHookExecuted);
 }
 
+TEST_F(VBAdaptorsTest, RevisitingVisitor) {
+    class RevisitingVisitor : public InterruptableVBucketVisitor {
+    public:
+        RevisitingVisitor(std::vector<Vbid>& visited) : visited(visited) {
+        }
+
+        ExecutionState shouldInterrupt() override {
+            return ExecutionState::Continue;
+        }
+
+        void visitBucket(VBucket& vb) override {
+            visited.push_back(vb.getId());
+        }
+
+        NeedsRevisit needsToRevisitLast() override {
+            switch (visited.size()) {
+            case 1:
+                return NeedsRevisit::YesLater;
+            case 2:
+                return NeedsRevisit::YesNow;
+            default:
+                return NeedsRevisit::No;
+            }
+        }
+
+        std::vector<Vbid>& visited;
+    };
+
+    setVBucketState(Vbid(0), vbucket_state_active);
+    setVBucketState(Vbid(1), vbucket_state_active);
+    setVBucketState(Vbid(2), vbucket_state_active);
+
+    std::vector<Vbid> visited;
+    auto visitor = std::make_unique<RevisitingVisitor>(visited);
+
+    // Create an adapter for our visitor. TaskId doesn't matter.
+    auto task = std::make_shared<VBCBAdaptor>(store,
+                                              TaskId::ItemPager,
+                                              std::move(visitor),
+                                              "",
+                                              /*shutdown*/ false);
+
+    // Should complete within 1 run().
+    EXPECT_FALSE(task->run());
+
+    EXPECT_THAT(visited,
+                ElementsAre(Vbid(0), Vbid(1), Vbid(1), Vbid(2), Vbid(0)));
+}
+
 class MockInterruptVisitor : public InterruptableVBucketVisitor {
 public:
     MOCK_METHOD0(shouldInterrupt, ExecutionState());

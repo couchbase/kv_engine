@@ -29,6 +29,17 @@ class HashTableVisitor;
 class HashTableDepthVisitor;
 
 /**
+ * Indicates whether the last visited vBucket needs to be revisited.
+ *
+ * Declared here to avoid circular dependency with vb_visitors.h
+ */
+enum class NeedsRevisit : uint8_t {
+    No, //!< Don't revisit
+    YesNow, //!< Revisit before other vBuckets
+    YesLater //!< Revisit after all other vBuckets currently in the queue
+};
+
+/**
  * Mutation types as returned by store commands.
  */
 enum class MutationStatus : uint16_t {
