@@ -626,17 +626,7 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
 
     couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
                                                           id.size, &docInfo);
-    if (errCode != COUCHSTORE_SUCCESS) {
-        if (filter != ValueFilter::KEYS_ONLY) {
-            // log error only if this is non-xdcr case
-            logger.warn(
-                    "CouchKVStore::getWithHeader: couchstore_docinfo_by_id "
-                    "error:{} [{}], {}",
-                    couchstore_strerror(errCode),
-                    couchkvstore_strerrno(db, errCode),
-                    vb);
-        }
-    } else {
+    if (errCode == COUCHSTORE_SUCCESS) {
         if (docInfo == nullptr) {
             throw std::logic_error("CouchKVStore::getWithHeader: "
                     "couchstore_docinfo_by_id returned success but docInfo "

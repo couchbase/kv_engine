@@ -818,11 +818,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
-        EXPECT_CALL(logger,
-                    mlog(Ge(spdlog::level::level_enum::warn),
-                         VCE(COUCHSTORE_ERROR_READ)))
-                .Times(1)
-                .RetiresOnSaturation();
 
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
