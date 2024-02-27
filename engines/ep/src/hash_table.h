@@ -695,14 +695,22 @@ public:
     }
 
     /**
+     * Compute the new size the hash-table should have based on the current
+     * number of items and size.
+     */
+    size_t getPreferredSize() const;
+
+    /**
      * Automatically resize to fit the current data.
      */
-    void resize();
+    NeedsRevisit resizeInOneStep() {
+        return resizeInOneStep(getPreferredSize());
+    }
 
     /**
      * Resize to the specified size.
      */
-    void resize(size_t to);
+    NeedsRevisit resizeInOneStep(size_t to);
 
     /**
      * Result of the findForRead() method.
@@ -1247,7 +1255,8 @@ public:
      *         HashTable::end() if all items were visited otherwise the
      *         position to resume from.
      */
-    Position pauseResumeVisit(HashTableVisitor& visitor, Position& start_pos);
+    Position pauseResumeVisit(HashTableVisitor& visitor,
+                              const Position& start_pos);
 
     /**
      * Return a position at the end of the hashtable. Has similar semantics

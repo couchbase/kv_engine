@@ -83,7 +83,7 @@ protected:
         const size_t ndocs = RUNNING_ON_VALGRIND ? 10 : 500000;
 
         /* Set the hashTable to a sensible size */
-        vbucket->ht.resize(ndocs);
+        vbucket->ht.resizeInOneStep(ndocs);
 
         /* Store items */
         char value[256];

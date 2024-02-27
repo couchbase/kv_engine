@@ -188,7 +188,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
 
     // Pre-size the VBucket's hashtable to a sensible size.
     auto* vb = engine->getKVBucket()->getVBucket(vbid).get();
-    vb->ht.resize(itemCount);
+    vb->ht.resizeInOneStep(itemCount);
 
     // Memory size before queuing.
     const size_t baseBytes = memoryTracker->getCurrentAlloc();
@@ -238,7 +238,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
 
     // Pre-size the VBucket's hashtable to a sensible size or things are going
     // to get slow for large numbers of items.
-    engine->getKVBucket()->getVBucket(vbid)->ht.resize(itemCount);
+    engine->getKVBucket()->getVBucket(vbid)->ht.resizeInOneStep(itemCount);
 
     std::string value(1, 'x');
     if (mode == FlushMode::Replace) {
@@ -276,7 +276,8 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
 
             // Pre-size the VBucket's hashtable to a sensible size or things are
             // going to get slow for large numbers of items.
-            engine->getKVBucket()->getVBucket(vbid)->ht.resize(itemCount);
+            engine->getKVBucket()->getVBucket(vbid)->ht.resizeInOneStep(
+                    itemCount);
         }
 
         for (int i = 0; i < itemCount; ++i) {

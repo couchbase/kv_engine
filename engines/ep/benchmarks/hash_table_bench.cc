@@ -34,7 +34,7 @@ public:
 
     void SetUp(benchmark::State& state) override {
         if (state.thread_index() == 0) {
-            ht.resize(numItems);
+            ht.resizeInOneStep(numItems);
         }
     }
 

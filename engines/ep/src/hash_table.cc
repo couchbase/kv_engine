@@ -229,10 +229,9 @@ static size_t nearest(size_t n, size_t a, size_t b) {
     return (distance(n, a) < distance(b, n)) ? a : b;
 }
 
-void HashTable::resize() {
+size_t HashTable::getPreferredSize() const {
     const size_t numItems = getNumInMemoryItems();
     const size_t currSize = size;
-    size_t newSize;
 
     // Figure out where in the prime table we are.
     const auto candidate =
@@ -242,50 +241,55 @@ void HashTable::resize() {
 
     if (candidate == prime_size_table.end()) {
         // We're at the end, take the biggest
-        newSize = prime_size_table.back();
+        return prime_size_table.back();
     } else if (*candidate < initialSize) {
         // Was going to be smaller than the initial size.
-        newSize = initialSize;
+        return initialSize;
     } else if (candidate == prime_size_table.begin()) {
-        newSize = *candidate;
+        return *candidate;
     } else if (currSize == *(candidate - 1) || currSize == *candidate) {
         // If one of the candidate sizes is the current size, maintain
         // the current size in order to remain stable.
-        newSize = currSize;
+        return currSize;
     } else {
         // Somewhere in the middle, use the one we're closer to.
-        newSize = nearest(numItems, *(candidate - 1), *candidate);
+        return nearest(numItems, *(candidate - 1), *candidate);
     }
-
-    resize(newSize);
 }
 
-void HashTable::resize(size_t newSize) {
+NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
     if (!isActive()) {
-        throw std::logic_error("HashTable::resize: Cannot call on a "
+        throw std::logic_error(
+                "HashTable::resizeInOneStep: Cannot call on a "
                 "non-active object");
     }
 
     // Due to the way hashing works, we can't fit anything larger than
     // an int.
-    if (newSize > static_cast<size_t>(std::numeric_limits<int>::max())) {
-        return;
+    if (newSize == 0 ||
+        newSize > static_cast<size_t>(std::numeric_limits<int>::max())) {
+        throw std::invalid_argument("HashTable::resizeInOneStep: newSize:" +
+                                    std::to_string(newSize));
     }
 
     // Don't resize to the same size, either.
     if (newSize == size) {
-        return;
+        return NeedsRevisit::No;
     }
 
     std::unique_lock visitorLH(visitorMutex, std::try_to_lock);
     if (!visitorLH.owns_lock()) {
         // Do not allow a resize while any visitors are currently
         // processing. The next attempt will have to pick it up.
-        return;
+        return NeedsRevisit::YesLater;
     }
 
-    TRACE_EVENT2(
-            "HashTable", "resize", "size", size.load(), "newSize", newSize);
+    TRACE_EVENT2("HashTable",
+                 "resizeInOneStep",
+                 "size",
+                 getSize(),
+                 "newSize",
+                 newSize);
     MultiLockHolder mlh(mutexes);
 
     // Get a place for the new items.
@@ -316,6 +320,8 @@ void HashTable::resize(size_t newSize) {
     values = std::move(newValues);
 
     stats.coreLocal.get()->memOverhead += memorySize();
+
+    return NeedsRevisit::No;
 }
 
 size_t HashTable::getMutexForBucket(size_t bucketNum) const {
@@ -1323,7 +1329,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
 }
 
 HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
-                                                Position& start_pos) {
+                                                const Position& start_pos) {
     if ((valueStats.getNumItems() + valueStats.getNumTempItems()) == 0 ||
         !isActive()) {
         // Nothing to visit

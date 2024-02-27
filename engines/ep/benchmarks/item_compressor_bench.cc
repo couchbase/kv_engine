@@ -79,7 +79,7 @@ protected:
         const size_t ndocs = 50000;
 
         /* Set the hashTable to a sensible size */
-        vbucket->ht.resize(ndocs);
+        vbucket->ht.resizeInOneStep(ndocs);
 
         /* Store items */
         std::string valueData(1024, 'a');

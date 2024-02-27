@@ -12,6 +12,7 @@
 #include "hash_table_test.h"
 #include "ep_time.h"
 #include "hash_table_stat_visitor.h"
+#include "htresizer.h"
 #include "item.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
@@ -237,17 +238,20 @@ TEST_F(HashTableTest, Resize) {
 
     verifyFound(h, keys);
 
-    h.resize(6143);
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep(6143));
     EXPECT_EQ(6143, h.getSize());
 
     verifyFound(h, keys);
 
-    h.resize(769);
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep(769));
     EXPECT_EQ(769, h.getSize());
 
     verifyFound(h, keys);
 
-    h.resize(static_cast<size_t>(std::numeric_limits<int>::max()) + 17);
+    EXPECT_THROW(
+            h.resizeInOneStep(
+                    static_cast<size_t>(std::numeric_limits<int>::max()) + 17),
+            std::invalid_argument);
     EXPECT_EQ(769, h.getSize());
 
     verifyFound(h, keys);
@@ -269,14 +273,14 @@ TEST_F(HashTableTest, ResizeStablity) {
 
     // Call resize(), should not yet resize (given chosen and previous size
     // include the current size)
-    h.resize();
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(h.getNumResizes(), 0);
     EXPECT_EQ(47, h.getSize());
 
     // Add another item, increasing to 98 - should be enough to resize.
     store(h, keys.at(97));
     ASSERT_EQ(98, count(h));
-    h.resize();
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(h.getNumResizes(), 1);
     EXPECT_EQ(97, h.getSize());
 
@@ -284,14 +288,14 @@ TEST_F(HashTableTest, ResizeStablity) {
     // at current size, even though previously 97 items did resize.
     ASSERT_TRUE(HashTableTest::del(h, keys.at(97)));
     ASSERT_EQ(97, count(h));
-    h.resize();
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(h.getNumResizes(), 1);
     EXPECT_EQ(97, h.getSize());
 
     // Remove another item; again we should not resize yet.
     ASSERT_TRUE(HashTableTest::del(h, keys.at(96)));
     ASSERT_EQ(96, count(h));
-    h.resize();
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(h.getNumResizes(), 1);
     EXPECT_EQ(97, h.getSize());
 
@@ -301,9 +305,42 @@ TEST_F(HashTableTest, ResizeStablity) {
         ASSERT_TRUE(HashTableTest::del(h, key));
     }
     ASSERT_EQ(47, count(h));
-    h.resize();
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(h.getNumResizes(), 2);
     EXPECT_EQ(47, h.getSize());
+}
+
+TEST_F(HashTableTest, ResizeDeferredByVisitor) {
+    class Visitor : public HashTableVisitor {
+    public:
+        Visitor(HashTable& ht) : ht(ht) {
+        }
+
+        bool visit(const HashTable::HashBucketLock&, StoredValue&) override {
+            EXPECT_EQ(7, ht.getPreferredSize());
+            EXPECT_EQ(NeedsRevisit::YesLater, ht.resizeInOneStep());
+            EXPECT_EQ(1, ht.getSize());
+            return true;
+        }
+
+        HashTable& ht;
+    };
+
+    HashTable ht(global_stats, makeFactory(), 1, 1, 0);
+    auto keys = generateKeys(8);
+    storeMany(ht, keys);
+
+    EXPECT_EQ(7, ht.getPreferredSize());
+    EXPECT_EQ(1, ht.getSize());
+
+    Visitor visitor(ht);
+    HashTable::Position position;
+    position = ht.pauseResumeVisit(visitor, position);
+    EXPECT_EQ(ht.endPosition(), position);
+
+    EXPECT_EQ(7, ht.getPreferredSize());
+    EXPECT_EQ(NeedsRevisit::No, ht.resizeInOneStep());
+    EXPECT_EQ(7, ht.getSize());
 }
 
 class AccessGenerator : public Generator<bool> {
@@ -328,7 +365,7 @@ public:
 private:
 
     void resize() {
-        ht.resize(size);
+        ht.resizeInOneStep(size);
         size = size == 1000 ? 3000 : 1000;
     }
 
@@ -341,7 +378,7 @@ TEST_F(HashTableTest, ConcurrentAccessResize) {
     HashTable h(global_stats, makeFactory(), 5, 3, 0);
 
     auto keys = generateKeys(2000);
-    h.resize(keys.size());
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep(keys.size()));
     storeMany(h, keys);
 
     verifyFound(h, keys);
@@ -361,7 +398,7 @@ TEST_F(HashTableTest, AutoResize) {
 
     verifyFound(h, keys);
 
-    h.resize();
+    EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(769, h.getSize());
     verifyFound(h, keys);
 }
@@ -1388,7 +1425,7 @@ public:
     void testResizeMB_49454() {
         auto keys = generateKeys(1000);
         storeMany(*this, keys);
-        resize();
+        EXPECT_EQ(NeedsRevisit::No, resizeInOneStep());
         auto size = getSize();
 
         // Get rid of many keys so the resize will shrink
@@ -1403,7 +1440,7 @@ public:
 
         // Ensure if resize is called after the visitor is constructed
         // getRandomKey does not generate any faults
-        resize();
+        EXPECT_EQ(NeedsRevisit::No, resizeInOneStep());
 
         // Table must now be smaller
         EXPECT_GT(size, getSize());
@@ -1418,7 +1455,7 @@ public:
     void testResizeLarger() {
         auto keys = generateKeys(100);
         storeMany(*this, keys);
-        resize();
+        EXPECT_EQ(NeedsRevisit::No, resizeInOneStep());
         auto size = getSize();
 
         // Initialise the visitor so it computes a start point very close to the
@@ -1431,7 +1468,7 @@ public:
 
         // Ensure if resize is called after the visitor is constructed
         // getRandomKey does not generate any faults
-        resize();
+        EXPECT_EQ(NeedsRevisit::No, resizeInOneStep());
 
         // Table must now be larger
         EXPECT_LT(size, getSize());

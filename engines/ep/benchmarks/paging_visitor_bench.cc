@@ -100,7 +100,7 @@ public:
         // longer. quotaMB * 1024 oversizes us a fair bit (~30-40%) due to
         // other overheads in the system (including things in the order of O(n)
         // like metadata) but it works well enough.
-        vBucket->ht.resize(quotaMB * 1024);
+        vBucket->ht.resizeInOneStep(quotaMB * 1024);
         Expects(vBucket->ht.getNumItems() == 0);
 
         // Uniform distribution over the range of counters values.

@@ -4514,10 +4514,10 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
     setVBucketStateAndRunPersistTask(vbid1, vbucket_state_active);
     const size_t htSize = 2;
     auto vb0 = store->getVBucket(vbid0);
-    vb0->ht.resize(htSize);
+    ASSERT_EQ(NeedsRevisit::No, vb0->ht.resizeInOneStep(htSize));
     ASSERT_EQ(htSize, vb0->ht.getSize());
     auto vb1 = store->getVBucket(vbid1);
-    vb1->ht.resize(htSize);
+    ASSERT_EQ(NeedsRevisit::No, vb1->ht.resizeInOneStep(htSize));
     ASSERT_EQ(htSize, vb1->ht.getSize());
 
     // Need the keys to chain to exercise the loops inside HashTable

@@ -24,11 +24,16 @@
  */
 class ResizingVisitor : public CappedDurationVBucketVisitor {
 public:
-    ResizingVisitor() { }
-
     void visitBucket(VBucket& vb) override {
-        vb.ht.resize();
+        needsRevisit = vb.ht.resizeInOneStep();
     }
+
+    NeedsRevisit needsToRevisitLast() override {
+        return needsRevisit;
+    }
+
+protected:
+    NeedsRevisit needsRevisit = NeedsRevisit::No;
 };
 
 HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
