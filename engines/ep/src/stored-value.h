@@ -240,17 +240,6 @@ public:
     }
 
     /**
-     * Compress the value part of stored value. If the compressed document
-     * ends up being bigger than the original, then the method leaves the
-     * document inflated
-     *
-     * return true, if the compression was successful or if the compressed
-     *        document ends up being bigger than the original
-     *        false, otherwise
-     */
-    bool compressValue();
-
-    /**
      * Replace the existing value with the given compressed buffer.
      *
      * @param deflated the input buffer holding compressed data

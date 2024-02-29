@@ -452,30 +452,6 @@ void StoredValue::clearLockedCas() {
     folly::assume_unreachable();
 }
 
-bool StoredValue::compressValue() {
-    if (!cb::mcbp::datatype::is_snappy(datatype)) {
-        // Attempt compression only if datatype indicates
-        // that the value is not compressed already
-        cb::compression::Buffer deflated;
-        if (cb::compression::deflateSnappy(
-                    {value->getData(), value->valueSize()}, deflated)) {
-            if (deflated.size() > value->valueSize()) {
-                // No point of keeping it compressed if the deflated length
-                // is greater than the original length
-                return true;
-            }
-            std::unique_ptr<Blob> data(
-                    Blob::New(deflated.data(), deflated.size()));
-            datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
-            replaceValue(std::move(data));
-        } else {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 void StoredValue::storeCompressedBuffer(std::string_view deflated) {
     std::unique_ptr<Blob> data(Blob::New(deflated.data(), deflated.size()));
     datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
