@@ -197,16 +197,8 @@ size_t ExecutorPool::calcNumNonIO(
         ThreadPoolConfig::NonIoThreadCount threadCount) const {
     switch (threadCount) {
     case ThreadPoolConfig::NonIoThreadCount::Default: {
-        // 1. compute: 50% of total threads.
-        // Historical note: This used to be a smaller coefficient, but since the
-        // introduction of SyncWrites we require NonIO tasks to run to complete
-        // them (both DCP ActiveStreamCheckpointProcessorTask and
-        // DurabilityCompletionTask) and hence we have increased the
-        // coefficient, based on empirical testing. We could likely increase
-        // further, however if there was a problem with other NonIO tasks
-        // consuming excessive CPU that could start to impact front-end
-        // threads, so let's increase this gradually...
-        size_t count = maxGlobalThreads * 0.5;
+        // 1. compute: 30% of total threads
+        size_t count = maxGlobalThreads * 0.3;
 
         // 2. adjust computed value to be within range
         return std::clamp(count, EP_MIN_NONIO_THREADS, EP_MAX_NONIO_THREADS);
