@@ -1483,7 +1483,7 @@
             }
         },
         "magma_data_compression_algo": {
-            "default": "Zstd",
+            "default": "LZ4",
             "descr": "Compression algorithm used by Magma to compress data blocks where documents are stored.",
             "dynamic": false,
             "type": "std::string",
