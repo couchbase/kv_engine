@@ -606,6 +606,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "ht_resize_algo": {
+            "default": "one_step",
+            "descr": "The algorithm to use for resizing HashTable objects. `one_step` locks the entire HashTable and resizes in one step. `incremental` takes multiple steps to complete, allowing most operations to proceed concurrently.",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "one_step",
+                    "incremental"
+                ]
+            }
+        },
         "ht_resize_interval": {
             "default": "1",
             "descr": "Interval in seconds to wait between HashtableResizerTask executions.",
