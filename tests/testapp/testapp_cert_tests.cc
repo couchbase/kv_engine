@@ -10,6 +10,7 @@
 
 #include "testapp.h"
 #include <evutil.h>
+#include <folly/io/async/AsyncSocketException.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 #include <platform/process_monitor.h>
@@ -319,7 +320,10 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store) {
     try {
         connection->setXerrorSupport(true);
         FAIL() << "Server should not accept client";
+    } catch (const folly::AsyncSocketException& ex) {
+        EXPECT_EQ(folly::AsyncSocketException::SSL_ERROR, ex.getType());
     } catch (const std::system_error&) {
+        // @todo remove me once we upgrade to Folly
     }
 }
 
