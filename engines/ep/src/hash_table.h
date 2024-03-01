@@ -522,7 +522,7 @@ public:
      * Get the number of hash table buckets this hash table has.
      */
     size_t getSize() const {
-        return size;
+        return size.load(std::memory_order_acquire);
     }
 
     /**
@@ -625,7 +625,7 @@ public:
      * Get the number of items whose values are ejected from this hash table.
      */
     size_t getNumEjects() const {
-        return numEjects;
+        return numEjects.load(std::memory_order_acquire);
     }
 
     /**
@@ -659,7 +659,7 @@ public:
      * Get the number of times this hash table has been resized.
      */
     size_t getNumResizes() const {
-        return numResizes;
+        return numResizes.load(std::memory_order_acquire);
     }
 
     /**
@@ -1238,7 +1238,7 @@ public:
      * Get the max deleted revision seqno seen so far.
      */
     uint64_t getMaxDeletedRevSeqno() const {
-        return maxDeletedRevSeqno.load();
+        return maxDeletedRevSeqno.load(std::memory_order_acquire);
     }
 
     /**
