@@ -20,6 +20,7 @@
 #include "stats.h"
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"
+#include "thread_gate.h"
 #include "threadtests.h"
 
 #include <boost/dynamic_bitset.hpp>
@@ -35,6 +36,8 @@
 #include <utility>
 
 EPStats global_stats;
+
+using ResizeAlgo = HashTable::ResizeAlgo;
 
 class Counter : public HashTableVisitor {
 public:
@@ -343,6 +346,99 @@ TEST_F(HashTableTest, ResizeDeferredByVisitor) {
     EXPECT_EQ(7, ht.getSize());
 }
 
+TEST_F(HashTableTest, IncrementalResize) {
+    HashTable ht(global_stats, makeFactory(), 7, 3, 0);
+
+    auto keys1 = generateKeys(16);
+    storeMany(ht, keys1);
+
+    EXPECT_EQ(7, ht.getSize());
+    EXPECT_EQ(13, ht.getPreferredSize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(13));
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    EXPECT_EQ(13, ht.getSize());
+
+    auto keys2 = generateKeys(32, 16);
+    storeMany(ht, keys2);
+
+    EXPECT_EQ(13, ht.getSize());
+    EXPECT_EQ(23, ht.getPreferredSize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(23, ht.getSize());
+
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(17));
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::Incremental, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(ResizeAlgo::None, ht.getResizeInProgress());
+    verifyFound(ht, keys1);
+    verifyFound(ht, keys2);
+    EXPECT_EQ(17, ht.getSize());
+}
+
 class AccessGenerator : public Generator<bool> {
 public:
     AccessGenerator(std::vector<StoredDocKey> k, HashTable& h)
@@ -401,6 +497,72 @@ TEST_F(HashTableTest, AutoResize) {
     EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(769, h.getSize());
     verifyFound(h, keys);
+}
+
+static void incrementallyResizeHT(HashTable& ht, size_t to) {
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(to));
+    for (size_t ii = 0; ii < ht.getNumLocks(); ++ii) {
+        EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    }
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+    EXPECT_EQ(to, ht.getSize());
+}
+
+static void testConcurrentAccessIncrementalResize(bool doDel) {
+    HashTable ht(global_stats, HashTableTest::makeFactory(), 1531, 17, 0);
+    auto keys = generateKeys(2000);
+    std::shuffle(keys.begin(), keys.end(), std::mt19937{});
+    storeMany(ht, keys);
+    verifyFound(ht, keys);
+
+    ThreadGate tg(3);
+    cb::RelaxedAtomic<bool> doAccess{true};
+
+    auto access = [&]() {
+        std::mt19937 gen(std::random_device{}());
+        tg.threadUp();
+        while (doAccess) {
+            const auto& key = keys[gen() % keys.size()];
+            if (gen() & 1) {
+                if (doDel) {
+                    HashTableTest::del(ht, key);
+                } else {
+                    auto res = ht.findForRead(key);
+                    ASSERT_TRUE(res.storedValue);
+                }
+            } else {
+                auto value = std::to_string(gen());
+                Item item(key, 0, 0, value.data(), value.size());
+                auto status = ht.set(item);
+                if (!doDel) {
+                    ASSERT_NE(MutationStatus::WasClean, status);
+                }
+            }
+        }
+    };
+    std::thread accessThread1(access);
+    std::thread accessThread2(access);
+
+    tg.threadUp();
+
+    incrementallyResizeHT(ht, 3079);
+    incrementallyResizeHT(ht, 1531);
+
+    doAccess = false;
+    accessThread1.join();
+    accessThread2.join();
+
+    if (!doDel) {
+        verifyFound(ht, keys);
+    }
+}
+
+TEST_F(HashTableTest, ConcurrentAccessIncrementalResizeGet) {
+    testConcurrentAccessIncrementalResize(false);
+}
+
+TEST_F(HashTableTest, ConcurrentAccessIncrementalResizeDel) {
+    testConcurrentAccessIncrementalResize(true);
 }
 
 TEST_F(HashTableTest, DepthCounting) {

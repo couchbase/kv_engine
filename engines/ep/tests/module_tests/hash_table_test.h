@@ -30,11 +30,11 @@ public:
      */
     static bool del(HashTable& ht, const DocKey& key);
 
-protected:
-    HashTableTest();
-
     static std::unique_ptr<AbstractStoredValueFactory> makeFactory(
             bool isOrdered = false);
+
+protected:
+    HashTableTest();
 
     const size_t defaultHtSize;
 };

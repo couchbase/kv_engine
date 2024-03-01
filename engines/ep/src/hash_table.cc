@@ -57,8 +57,11 @@ std::string to_string(MutationStatus status) {
 }
 
 std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
-    os << "{lock:" << pos.lock << ",bucket:" << pos.hash_bucket << '/'
-       << pos.ht_size << '}';
+    os << (pos.table == HashTable::WhichTable::Primary
+                   ? "{table:primary,lock:"
+                   : "{table:temporary,lock:")
+       << pos.lock << ",bucket:" << pos.hash_bucket << '/' << pos.ht_size
+       << '}';
     return os;
 }
 
@@ -134,8 +137,10 @@ HashTable::HashTable(EPStats& st,
                      std::function<uint8_t()> getInitialMFU,
                      ShouldTrackMFUCallback shouldTrackMfuCallback)
     : initialSize(initialSize),
-      size(initialSize),
+      valuesSize(initialSize),
+      values(initialSize),
       mutexes(locks),
+      resizingMutexes(locks),
       stats(st),
       valFact(std::move(svFactory)),
       valueStats(stats, std::move(shouldTrackMfuCallback)),
@@ -144,7 +149,6 @@ HashTable::HashTable(EPStats& st,
       maxDeletedRevSeqno(0),
       probabilisticCounter(freqCounterIncFactor),
       getInitialMFU(std::move(getInitialMFU)) {
-    values.resize(size);
     activeState = true;
 }
 
@@ -231,7 +235,7 @@ static size_t nearest(size_t n, size_t a, size_t b) {
 
 size_t HashTable::getPreferredSize() const {
     const size_t numItems = getNumInMemoryItems();
-    const size_t currSize = size;
+    const size_t currSize = getSize();
 
     // Figure out where in the prime table we are.
     const auto candidate =
@@ -273,7 +277,7 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
     }
 
     // Don't resize to the same size, either.
-    if (newSize == size) {
+    if (newSize == getSize()) {
         return NeedsRevisit::No;
     }
 
@@ -283,6 +287,10 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
         // processing. The next attempt will have to pick it up.
         return NeedsRevisit::YesLater;
     }
+    if (getResizeInProgress() != ResizeAlgo::None) {
+        return NeedsRevisit::No;
+    }
+    resizeInProgress = ResizeAlgo::OneStep;
 
     TRACE_EVENT2("HashTable",
                  "resizeInOneStep",
@@ -299,8 +307,8 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
     ++numResizes;
 
     // Set the new size so all the hashy stuff works.
-    size_t oldSize = size;
-    size.store(newSize);
+    size_t oldSize = getSize();
+    valuesSize.store(newSize);
 
     // Move existing records into the new space.
     for (size_t i = 0; i < oldSize; i++) {
@@ -321,7 +329,155 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
 
     stats.coreLocal.get()->memOverhead += memorySize();
 
+    resizeInProgress.store(ResizeAlgo::None, std::memory_order_release);
     return NeedsRevisit::No;
+}
+
+NeedsRevisit HashTable::beginIncrementalResize(size_t newSize) {
+    if (!isActive()) {
+        throw std::logic_error(
+                "HashTable::beginIncrementalResize: Cannot call on a "
+                "non-active object");
+    }
+
+    // Due to the way hashing works, we can't fit anything larger than
+    // an int.
+    if (newSize == 0 ||
+        newSize > static_cast<size_t>(std::numeric_limits<int>::max())) {
+        throw std::invalid_argument(
+                "HashTable::beginIncrementalResize: newSize:" +
+                std::to_string(newSize));
+    }
+
+    // Don't resize to the same size, either.
+    if (newSize == getSize()) {
+        return NeedsRevisit::No;
+    }
+
+    std::unique_lock visitorLH(visitorMutex, std::try_to_lock);
+    if (!visitorLH.owns_lock()) {
+        // Do not allow a resize while any visitors are currently
+        // processing. The next attempt will have to pick it up.
+        return NeedsRevisit::YesLater;
+    }
+    if (getResizeInProgress() != ResizeAlgo::None) {
+        return NeedsRevisit::No;
+    }
+    // memory_order_acquire to pair with memory_order_release
+    Expects(0 == locksMovedForResizing.load(std::memory_order_acquire));
+
+    resizingTemporaryValues = table_type(newSize);
+    ++numResizes;
+    nextSize.store(newSize);
+    // Other value updates should not overtake resize-in-progress indication
+    resizeInProgress.store(ResizeAlgo::Incremental, std::memory_order_release);
+    return NeedsRevisit::YesNow;
+}
+
+NeedsRevisit HashTable::continueIncrementalResize() {
+    if (!isActive()) {
+        throw std::logic_error(
+                "HashTable::continueResize: Cannot call on a "
+                "non-active object");
+    }
+
+    // Declared here to deallocate outside the critical section
+    table_type sortedByLock;
+
+    std::unique_lock visitorLH(visitorMutex, std::try_to_lock);
+    if (!visitorLH.owns_lock()) {
+        return NeedsRevisit::YesLater;
+    }
+    switch (getResizeInProgress()) {
+    case ResizeAlgo::None:
+        return NeedsRevisit::No;
+    case ResizeAlgo::OneStep:
+        return NeedsRevisit::No;
+    case ResizeAlgo::Incremental:
+        break;
+    }
+
+    // memory_order_relaxed as we are holding a unique lock
+    const size_t currSize = getSize();
+    const size_t nextSize = this->nextSize.load();
+    const size_t lock = locksMovedForResizing.load(std::memory_order_relaxed);
+    Expects(nextSize != 0);
+
+    TRACE_EVENT2(
+            "HashTable", "continueResize", "newSize", nextSize, "lock", lock);
+
+    if (lock == mutexes.size()) {
+        // All buckets moved. Acquire all locks and replace the Primary table
+        // with the ResizingTemporary where the items were moved to.
+
+        MultiLockHolder mlh1(mutexes);
+        MultiLockHolder mlh2(resizingMutexes);
+
+        values.swap(resizingTemporaryValues);
+
+        valuesSize.store(nextSize);
+        this->nextSize.store(0);
+        // All locks held, so we can relax the memory order
+        locksMovedForResizing.store(0, std::memory_order_release);
+        // Other value updates should not overtake resize-in-progress indication
+        resizeInProgress.store(ResizeAlgo::None, std::memory_order_release);
+
+        // Move to deallocate outside the critical section
+        resizingTemporaryValues.swap(sortedByLock);
+        return NeedsRevisit::No;
+    }
+
+    Expects(lock < mutexes.size());
+    sortedByLock.resize(mutexes.size());
+    std::lock_guard primaryLH(mutexes[lock]);
+
+    // Take items from the buckets of the Primary table that are under the
+    // current lock
+    for (size_t bucket = lock; bucket < currSize; bucket += mutexes.size()) {
+        auto& head = values[bucket];
+        while (head) {
+            // Unlink the front element from the hash chain
+            auto v = std::move(head);
+            head = std::move(v->getNext());
+
+            // Insert into sortedByLock
+            const auto newBucket = hashToBucket(v->getKey().hash(), nextSize);
+            auto& sortedHead = sortedByLock[getMutexForBucket(newBucket)];
+            v->setNext(std::move(sortedHead));
+            sortedHead = std::move(v);
+        }
+    }
+
+    // We sorted the items taken from the primary table according to which lock
+    // needs to be held to insert them into the temporary table. We will insert
+    // them one lock at a time, and keep holding the lock until all the
+    // corresponding items are moved, hence avoiding re-locking for each item.
+
+    // Insert back items into the ResizingTemporary table
+    for (size_t tempLock = 0; tempLock < sortedByLock.size(); ++tempLock) {
+        std::lock_guard tempLH(resizingMutexes[tempLock]);
+
+        auto& head = sortedByLock[tempLock];
+        while (head) {
+            // Unlink the front element from the hash chain
+            auto v = std::move(head);
+            head = std::move(v->getNext());
+
+            // Insert into temporary table
+            const auto newBucket = hashToBucket(v->getKey().hash(), nextSize);
+            Expects(getMutexForBucket(newBucket) == tempLock);
+            auto& nextHead = resizingTemporaryValues[newBucket];
+            v->setNext(std::move(nextHead));
+            nextHead = std::move(v);
+        }
+    }
+
+    // `locksMovedForResizing` determines which table we look in. This also
+    // determines which lock will be acquired. Hence, when updated, a thread may
+    // acquire a different lock from the one held here. We need to make sure
+    // that all previous writes are visible to that thread before the update.
+    locksMovedForResizing.store(lock + 1, std::memory_order_release);
+    return NeedsRevisit::YesNow;
 }
 
 size_t HashTable::getMutexForBucket(size_t bucketNum) const {
@@ -335,24 +491,57 @@ size_t HashTable::getMutexForBucket(size_t bucketNum) const {
 }
 
 HashTable::Position HashTable::getPositionForHash(uint32_t hash) const {
+    // memory_order_relaxed as the value needs to be checked under lock
     const size_t currSize = getSize();
-    const size_t currBucket = hashToBucket(hash, currSize);
-    return {currSize, getMutexForBucket(currBucket), currBucket};
+    const size_t primaryBucket = hashToBucket(hash, currSize);
+    const size_t primaryMutex = getMutexForBucket(primaryBucket);
+    // While size is mutated only when _all_ locks are held, locks moved may be
+    // mutated under a lock other than the one we computed. On some relaxed
+    // memory models this may mean that we compute the right bucket and mutex
+    // index, acquire a lock, but because it's different from the one held
+    // while updating the threshold, we don't see all the updates.
+    // On x86, load acquire and store release are implemented as normal reads
+    // and writes due to TSO.
+    if (primaryMutex >= locksMovedForResizing.load(std::memory_order_acquire)) {
+        return {WhichTable::Primary, currSize, primaryMutex, primaryBucket};
+    }
+    // Min 1 to avoid mod by 0. If actual value is 0 then we are not resizing.
+    const size_t nextSize = std::max(size_t(1), this->nextSize.load());
+    const size_t tempBucket = hashToBucket(hash, nextSize);
+    const size_t tempMutex = getMutexForBucket(tempBucket);
+    return {WhichTable::ResizingTemporary, nextSize, tempMutex, tempBucket};
 }
 
 HashTable::HashBucketLock HashTable::getLockedBucket(size_t idx) {
-    Position position(getSize(), getMutexForBucket(idx), idx);
+    Position position(
+            WhichTable::Primary, getSize(), getMutexForBucket(idx), idx);
     return {position, mutexes[position.lock]};
 }
 
 HashTable::HashBucketLock HashTable::getLockedBucketForHash(uint32_t hash) {
     for (;;) {
         const auto position = getPositionForHash(hash);
-        HashBucketLock hbl(position, mutexes[position.lock]);
+        HashBucketLock hbl(position,
+                           (position.table == WhichTable::Primary)
+                                   ? mutexes[position.lock]
+                                   : resizingMutexes[position.lock]);
         if (position == getPositionForHash(hash)) {
             return hbl;
         }
     }
+}
+
+const HashTable::table_type::value_type& HashTable::unlocked_getBucket(
+        const Position& position) const {
+    switch (position.table) {
+    case WhichTable::Primary:
+        return values[position.hash_bucket];
+    case WhichTable::ResizingTemporary:
+        return resizingTemporaryValues[position.hash_bucket];
+    }
+    throw std::logic_error(
+            "HashTable::unlocked_getBucket: invalid WhichTable:" +
+            std::to_string(int(position.table)));
 }
 
 HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
@@ -1289,7 +1478,7 @@ void HashTable::visitDepth(HashTableDepthVisitor &visitor) {
         return;
     }
     std::shared_lock visitorLH(visitorMutex, std::defer_lock);
-    while (!visitorLH.try_lock()) {
+    while (getResizeInProgress() != ResizeAlgo::None || !visitorLH.try_lock()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
@@ -1336,6 +1525,10 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
         return endPosition();
     }
 
+    if (getResizeInProgress() != ResizeAlgo::None) {
+        return start_pos;
+    }
+
     bool paused = false;
 
     // To attempt to minimize the impact the visitor has on normal frontend
@@ -1348,13 +1541,14 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
     // paused, as the unique_lock holder (resizing task) is likely to block us
     // for a long time.
     std::shared_lock lh(visitorMutex, std::try_to_lock);
-    if (!lh.owns_lock()) {
+    if (!lh.owns_lock() || getResizeInProgress() != ResizeAlgo::None) {
         return start_pos;
     }
 
     // Start from the requested lock number if in range.
     size_t lock = (start_pos.lock < mutexes.size()) ? start_pos.lock : 0;
     size_t hash_bucket = 0;
+    const size_t size = getSize();
 
     for (; isActive() && !paused && lock < mutexes.size(); lock++) {
 
@@ -1407,11 +1601,12 @@ HashTable::Position HashTable::pauseResumeVisit(HashTableVisitor& visitor,
     }
 
     // Return the *next* location that should be visited.
-    return {size, lock, hash_bucket};
+    return {WhichTable::Primary, size, lock, hash_bucket};
 }
 
 HashTable::Position HashTable::endPosition() const  {
-    return {size, mutexes.size(), size};
+    const auto size = getSize();
+    return {WhichTable::Primary, size, mutexes.size(), size};
 }
 
 bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,

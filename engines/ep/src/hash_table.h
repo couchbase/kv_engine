@@ -154,10 +154,14 @@ enum class DeletionDurability : uint8_t {};
  * bucket; then chaining is used (StoredValue::chain_next_or_replacement) to
  * handle any collisions.
  *
- * The HashTable can be resized if it grows too full - this is done by
- * acquiring all the ht_locks, and then allocating a new vector of buckets and
- * re-hashing all elements into the new table. While resizing is occuring all
- * other access to the HashTable is blocked.
+ * The HashTable can be resized if it grows too full - this is done in two ways:
+ * A) Acquiring all the ht_locks, and then allocating a new vector of buckets
+ *    and re-hashing all elements into the new table. While resizing is
+ *    occurring all other access to the HashTable is blocked.
+ * B) Acquiring one ht_lock at a time, and re-hashing the elements under that
+ *    lock into the temporary table. Other buckets remain unlocked and can be
+ *    accessed. When all buckets are moved to the temporary table, it becomes
+ *    the primary table and the old one is deallocated.
  *
  * Support for holding both Committed and Pending items requires that we
  * can represent having for each key, either:
@@ -192,6 +196,14 @@ public:
     using MFUHistogram =
             ArrayHistogram<uint64_t, std::numeric_limits<uint8_t>::max() + 1>;
 
+    enum class WhichTable {
+        /// The main table where items are stored.
+        Primary,
+        /// The temporary table where items are moved to during incremental
+        /// resizing. Will become the Primary at resize completion.
+        ResizingTemporary
+    };
+
     /**
      * Represents a position within the hashtable.
      *
@@ -205,9 +217,8 @@ public:
         Position() = default;
 
         bool operator==(const Position& other) const {
-            return (ht_size == other.ht_size) &&
-                   (lock == other.lock) &&
-                   (hash_bucket == other.hash_bucket);
+            return (table == other.table) && (ht_size == other.ht_size) &&
+                   (lock == other.lock) && (hash_bucket == other.hash_bucket);
         }
 
         bool operator!=(const Position& other) const {
@@ -215,10 +226,18 @@ public:
         }
 
     private:
-        Position(size_t ht_size, size_t lock, size_t hash_bucket)
-            : ht_size(ht_size), lock(lock), hash_bucket(hash_bucket) {
+        Position(WhichTable table,
+                 size_t ht_size,
+                 size_t lock,
+                 size_t hash_bucket)
+            : table(table),
+              ht_size(ht_size),
+              lock(lock),
+              hash_bucket(hash_bucket) {
         }
 
+        // Table containing the hash bucket
+        WhichTable table = WhichTable::Primary;
         // Size of the hashtable when the position was created
         uint32_t ht_size = 0;
         // Mutex index that guards the hash bucket
@@ -534,16 +553,16 @@ public:
     const HashTable& operator=(const HashTable&) = delete;
 
     size_t memorySize() const {
-        return sizeof(HashTable)
-            + (size * sizeof(StoredValue*))
-            + (mutexes.size() * sizeof(std::mutex));
+        return sizeof(HashTable) +
+               (getSize() * sizeof(table_type::value_type)) +
+               (mutexes.size() * 2 * sizeof(std::mutex));
     }
 
     /**
      * Get the number of hash table buckets this hash table has.
      */
     size_t getSize() const {
-        return size.load(std::memory_order_acquire);
+        return valuesSize;
     }
 
     /**
@@ -646,7 +665,7 @@ public:
      * Get the number of items whose values are ejected from this hash table.
      */
     size_t getNumEjects() const {
-        return numEjects.load(std::memory_order_acquire);
+        return numEjects;
     }
 
     /**
@@ -680,7 +699,7 @@ public:
      * Get the number of times this hash table has been resized.
      */
     size_t getNumResizes() const {
-        return numResizes.load(std::memory_order_acquire);
+        return numResizes;
     }
 
     /**
@@ -692,6 +711,24 @@ public:
 
     DatatypeCombo getDatatypeCounts() const {
         return valueStats.getDatatypeCounts();
+    }
+
+    enum class ResizeAlgo {
+        /// No resizing algorithm is currently used.
+        None,
+        /// Locks the entire HashTable and resizes in one step.
+        OneStep,
+        /// Locks one lock at a time and moves only the items under that lock,
+        /// taking multiple steps to complete.
+        Incremental
+    };
+
+    /**
+     * Gets the algorithm used by the resize in progress,
+     * or None if not resizing.
+     */
+    ResizeAlgo getResizeInProgress() const {
+        return resizeInProgress.load(std::memory_order_acquire);
     }
 
     /**
@@ -711,6 +748,26 @@ public:
      * Resize to the specified size.
      */
     NeedsRevisit resizeInOneStep(size_t to);
+
+    /**
+     * Initiates incremental resize to a size determined automatically.
+     * @see continueIncrementalResize()
+     */
+    NeedsRevisit beginIncrementalResize() {
+        return beginIncrementalResize(getPreferredSize());
+    }
+
+    /**
+     * Initiates incremental resize to the specified size.
+     * @see continueIncrementalResize()
+     */
+    NeedsRevisit beginIncrementalResize(size_t to);
+
+    /**
+     * Continues a previously initiated incremental resize.
+     * Needs to be called again until NeedsRevisit::No is returned.
+     */
+    NeedsRevisit continueIncrementalResize();
 
     /**
      * Result of the findForRead() method.
@@ -1531,7 +1588,8 @@ protected:
      * @return reference to a bucket
      */
     table_type::value_type& unlocked_getBucket(const Position& position) {
-        return values[position.hash_bucket];
+        return const_cast<table_type::value_type&>(
+                std::as_const(*this).unlocked_getBucket(position));
     }
 
     /**
@@ -1541,9 +1599,7 @@ protected:
      * @return reference to a bucket
      */
     const table_type::value_type& unlocked_getBucket(
-            const Position& position) const {
-        return values[position.hash_bucket];
-    }
+            const Position& position) const;
 
     /**
      * Result of the findInner() method.
@@ -1600,19 +1656,27 @@ protected:
 
     // The size of the hash table (number of buckets) - i.e. number of elements
     // in `values`
-    std::atomic<size_t> size;
+    cb::RelaxedAtomic<size_t> valuesSize;
     table_type values;
+    cb::RelaxedAtomic<size_t> nextSize{0};
+    table_type resizingTemporaryValues;
+    // The threshold which determines whether an item is located on the Primary
+    // or the ResizingTemporary table
+    std::atomic<size_t> locksMovedForResizing{0};
     // Mutable so that we can make dumpStoredValuesAsJson const
     mutable std::vector<std::mutex> mutexes;
+    mutable std::vector<std::mutex> resizingMutexes;
     // Ensures that the hash-table is not resized with visitors
     cb::NonBlockingSharedMutex visitorMutex;
+    std::atomic<ResizeAlgo> resizeInProgress{ResizeAlgo::None};
+
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;
 
     Statistics valueStats;
 
-    std::atomic<size_t> numEjects;
-    std::atomic<size_t>       numResizes;
+    cb::RelaxedAtomic<size_t> numEjects;
+    cb::RelaxedAtomic<size_t> numResizes;
 
     std::atomic<uint64_t> maxDeletedRevSeqno;
     bool                 activeState;

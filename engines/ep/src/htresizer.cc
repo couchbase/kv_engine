@@ -24,8 +24,25 @@
  */
 class ResizingVisitor : public CappedDurationVBucketVisitor {
 public:
+    ResizingVisitor(HashTable::ResizeAlgo algo) : resizeAlgoToUse(algo) {
+    }
+
     void visitBucket(VBucket& vb) override {
-        needsRevisit = vb.ht.resizeInOneStep();
+        switch (vb.ht.getResizeInProgress()) {
+        case HashTable::ResizeAlgo::None:
+            if (resizeAlgoToUse == HashTable::ResizeAlgo::Incremental) {
+                needsRevisit = vb.ht.beginIncrementalResize();
+            } else {
+                needsRevisit = vb.ht.resizeInOneStep();
+            }
+            break;
+        case HashTable::ResizeAlgo::OneStep:
+            needsRevisit = NeedsRevisit::No;
+            break;
+        case HashTable::ResizeAlgo::Incremental:
+            needsRevisit = vb.ht.continueIncrementalResize();
+            break;
+        }
     }
 
     NeedsRevisit needsToRevisitLast() override {
@@ -34,6 +51,8 @@ public:
 
 protected:
     NeedsRevisit needsRevisit = NeedsRevisit::No;
+
+    const HashTable::ResizeAlgo resizeAlgoToUse;
 };
 
 HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
@@ -43,13 +62,26 @@ HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
 
 bool HashtableResizerTask::run() {
     TRACE_EVENT0("ep-engine/task", "HashtableResizerTask");
-    auto pv = std::make_unique<ResizingVisitor>();
 
+    HashTable::ResizeAlgo resizeAlgoToUse;
+    if (engine->getConfiguration().getHtResizeAlgo() == "incremental") {
+        resizeAlgoToUse = HashTable::ResizeAlgo::Incremental;
+    } else {
+        resizeAlgoToUse = HashTable::ResizeAlgo::OneStep;
+    }
+
+    auto pv = std::make_unique<ResizingVisitor>(resizeAlgoToUse);
+
+    // OneStep:
     // [per-VBucket Task] While a Hashtable is resizing no user
     // requests can be performed (the resizing process needs to
     // acquire all HT locks). As such we are sensitive to the duration
     // of this task - we want to log anything which has a
     // non-negligible impact on frontend operations.
+    //
+    // Incremental:
+    // Most requests can be performed while resizing.
+    // We keep the same as a sanity check.
     const auto maxExpectedDurationForVisitorTask =
             std::chrono::milliseconds(100);
 
