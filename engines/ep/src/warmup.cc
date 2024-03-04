@@ -32,6 +32,7 @@
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>
+#include <platform/string_utilities.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
@@ -55,25 +56,6 @@ struct WarmupCookie {
     StatusCallback<GetValue>& cb;
     MutationLog& log;
 };
-
-void logWarmupStats(const EPStats& stats, const Warmup& warmup) {
-    std::chrono::duration<double, std::chrono::seconds::period> seconds =
-            warmup.getTime();
-    double keys_per_seconds = stats.warmedUpValues / seconds.count();
-    double megabytes = stats.getPreciseTotalMemoryUsed() / 1.0e6;
-    double megabytes_per_seconds = megabytes / seconds.count();
-    EP_LOG_INFO(
-            "Warmup({}) completed: {} keys and {} values loaded in {} ({} "
-            "keys/s), "
-            "mem_used now at {} MB ({} MB/s)",
-            warmup.getName(),
-            stats.warmedUpKeys,
-            stats.warmedUpValues,
-            cb::time2text(std::chrono::nanoseconds(warmup.getTime())),
-            keys_per_seconds,
-            megabytes,
-            megabytes_per_seconds);
-}
 
 //////////////////////////////////////////////////////////////////////////////
 //                                                                          //
@@ -1155,19 +1137,19 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
                 warmup.setOOMFailure();
                 stopLoading = true;
             } else {
-                ++stats.warmedUpKeys;
+                warmup.incrementKeys();
             }
             break;
         case WarmupState::State::LoadingData:
         case WarmupState::State::LoadingAccessLog:
             if (epstore.getItemEvictionPolicy() == EvictionPolicy::Full) {
-                ++stats.warmedUpKeys;
+                warmup.incrementKeys();
             }
-            ++stats.warmedUpValues;
+            warmup.incrementValues();
             break;
         default:
-            ++stats.warmedUpKeys;
-            ++stats.warmedUpValues;
+            warmup.incrementKeys();
+            warmup.incrementValues();
         }
     } else {
         stopLoading = true;
@@ -1315,6 +1297,24 @@ void Warmup::setup(size_t memoryThreshold, size_t itemsThreshold) {
 }
 
 Warmup::~Warmup() = default;
+
+void Warmup::incrementKeys() {
+    ++keys;
+    ++store.getEPEngine().getEpStats().warmedUpKeys;
+}
+
+void Warmup::incrementValues() {
+    ++values;
+    ++store.getEPEngine().getEpStats().warmedUpValues;
+}
+
+size_t Warmup::getKeys() const {
+    return keys;
+}
+
+size_t Warmup::getValues() const {
+    return values;
+}
 
 void Warmup::addToTaskSet(size_t taskId) {
     std::lock_guard<std::mutex> lh(taskSetMutex);
@@ -1984,7 +1984,7 @@ void Warmup::done() {
     if (setFinishedLoading()) {
         setWarmupTime();
         warmupDoneFunction();
-        logWarmupStats(store.getEPEngine().getEpStats(), *this);
+        logStats();
     }
 }
 
@@ -2246,4 +2246,29 @@ bool Warmup::hasLoadedMetaData() const {
         return true;
     }
     folly::assume_unreachable();
+}
+
+void Warmup::logStats() const {
+    const auto time = getTime();
+    std::chrono::duration<double, std::chrono::seconds::period> seconds = time;
+    double keysPerSecond =
+            seconds.count() > 0.0 ? getKeys() / seconds.count() : 0.0;
+    double valuesPerSecond =
+            seconds.count() > 0.0 ? getValues() / seconds.count() : 0.0;
+    const auto bytes = stats.getEstimatedTotalMemoryUsed();
+    const auto& stats = store.getEPEngine().getEpStats();
+    EP_LOG_INFO(
+            "Warmup({}) completed: {} keys (total:{}) and {} values (total:{}) "
+            "loaded in {} ({:.2f} keys/s {:.2f} values/s), mem_used now at {} "
+            "({})",
+            getName(),
+            getKeys(),
+            stats.warmedUpKeys,
+            getValues(),
+            stats.warmedUpValues,
+            cb::time2text(std::chrono::nanoseconds(time)),
+            keysPerSecond,
+            valuesPerSecond,
+            cb::size2human(bytes),
+            cb::calculateThroughput(bytes, time));
 }
