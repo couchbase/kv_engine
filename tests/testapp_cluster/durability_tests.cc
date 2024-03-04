@@ -62,7 +62,7 @@ protected:
             if (opcode == cb::mcbp::ClientOpcode::SubdocArrayInsert) {
                 cmd.setPath("foo.[0]");
             } else if (opcode != cb::mcbp::ClientOpcode::SubdocReplace) {
-                cmd.addPathFlags(SUBDOC_FLAG_MKDIR_P);
+                cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p);
                 cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
             }
         }
@@ -205,7 +205,7 @@ TEST_F(DurabilityTest, SubdocMultiMutation) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey("SubdocMultiMutation");
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
-                    SUBDOC_FLAG_MKDIR_P,
+                    cb::mcbp::subdoc::PathFlag::Mkdir_p,
                     "foo",
                     R"("value")");
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
@@ -225,7 +225,8 @@ TEST_F(DurabilityTest, SyncWriteReviveDeletedDocument) {
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::CreateAsDeleted);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    cb::mcbp::subdoc::PathFlag::XattrPath |
+                            cb::mcbp::subdoc::PathFlag::Mkdir_p,
                     "tnx.foo",
                     R"({})");
     auto conn = getConnection();
@@ -241,7 +242,7 @@ TEST_F(DurabilityTest, SyncWriteReviveDeletedDocument) {
     cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::ReviveDocument);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    cb::mcbp::subdoc::PathFlag::XattrPath,
                     "tnx.bar",
                     R"("This should succeed")");
     conn->sendCommand(cmd);
@@ -260,7 +261,8 @@ TEST_F(DurabilityTest, CreateAsDeletedLarge) {
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::CreateAsDeleted);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    cb::mcbp::subdoc::PathFlag::XattrPath |
+                            cb::mcbp::subdoc::PathFlag::Mkdir_p,
                     "tnx.foo",
                     "\"" + value + "\"");
     auto conn = getConnection();
@@ -278,7 +280,7 @@ TEST_F(DurabilityTest, CreateAsDeletedLarge) {
     cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::ReviveDocument);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    cb::mcbp::subdoc::PathFlag::XattrPath,
                     "tnx.bar",
                     R"("This should succeed")");
     conn->sendCommand(cmd);

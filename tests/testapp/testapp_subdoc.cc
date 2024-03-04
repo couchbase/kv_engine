@@ -27,6 +27,7 @@
 /*
  * testapp testcases for sub-document API - single path.
  */
+using cb::mcbp::subdoc::PathFlag;
 
 // Maximum depth for a document (and path) is 32. Create documents
 // that large and one bigger to test with.
@@ -133,9 +134,12 @@ void SubdocTestappTest::test_subdoc_fetch_array_simple(
     reconnect_to_server();
 
     // g). Check that incorrect flags (i.e. non-zero) is invalid.
-    EXPECT_SD_ERR(
-            BinprotSubdocCommand(cmd, "array", "[0]", "", SUBDOC_FLAG_MKDIR_P),
-            cb::mcbp::Status::Einval);
+    EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
+                                       "array",
+                                       "[0]",
+                                       "",
+                                       cb::mcbp::subdoc::PathFlag::Mkdir_p),
+                  cb::mcbp::Status::Einval);
     reconnect_to_server();
 
     delete_object("array");
@@ -443,8 +447,11 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
     // intermediate array paths are never automatically created).
     for (const auto& kv : key_vals) {
         auto key = "intermediate_array[0]." + kv.first;
-        EXPECT_SD_ERR(BinprotSubdocCommand(
-                              cmd, "dict", key, kv.second, SUBDOC_FLAG_MKDIR_P),
+        EXPECT_SD_ERR(BinprotSubdocCommand(cmd,
+                                           "dict",
+                                           key,
+                                           kv.second,
+                                           cb::mcbp::subdoc::PathFlag::Mkdir_p),
                       cb::mcbp::Status::SubdocPathEnoent);
     }
 
@@ -452,7 +459,11 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
     // succeed if the MKDIR_P flag is set.
     for (const auto& kv : key_vals) {
         auto key = "intermediate." + kv.first;
-        EXPECT_SD_OK(BinprotSubdocCommand(cmd, "dict", key, kv.second, SUBDOC_FLAG_MKDIR_P));
+        EXPECT_SD_OK(BinprotSubdocCommand(cmd,
+                                          "dict",
+                                          key,
+                                          kv.second,
+                                          cb::mcbp::subdoc::PathFlag::Mkdir_p));
         EXPECT_SD_GET("dict", key, kv.second);
     }
 
@@ -493,7 +504,7 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
                                  "dict",
                                  "new_int",
                                  "3",
-                                 SUBDOC_FLAG_NONE,
+                                 {},
                                  cb::mcbp::subdoc::doc_flag::None,
                                  cas),
             cb::mcbp::Status::Success,
@@ -508,7 +519,7 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
                                        "dict",
                                        "new_int2",
                                        "4",
-                                       SUBDOC_FLAG_NONE,
+                                       {},
                                        cb::mcbp::subdoc::doc_flag::None,
                                        cas),
                   cb::mcbp::Status::KeyEexists);
@@ -518,7 +529,7 @@ void SubdocTestappTest::test_subdoc_dict_add_simple(
                                        "dict",
                                        "new_int2",
                                        "4",
-                                       SUBDOC_FLAG_NONE,
+                                       {},
                                        cb::mcbp::subdoc::doc_flag::None,
                                        new_cas + 1),
                   cb::mcbp::Status::KeyEexists);
@@ -615,7 +626,7 @@ void SubdocTestappTest::test_subdoc_dict_add_cas(bool compress,
                                        "dict",
                                        "new_int4",
                                        "4",
-                                       SUBDOC_FLAG_NONE,
+                                       {},
                                        cb::mcbp::subdoc::doc_flag::None,
                                        new_cas),
                   cb::mcbp::Status::KeyEexists);
@@ -656,7 +667,7 @@ TEST_P(SubdocTestappTest, SubdocAddFlag_BucketStoreCas) {
                                        "AddCasTest",
                                        "element",
                                        "4",
-                                       SUBDOC_FLAG_NONE,
+                                       {},
                                        cb::mcbp::subdoc::doc_flag::Add,
                                        0),
                   cb::mcbp::Status::NotStored);
@@ -740,7 +751,7 @@ void SubdocTestappTest::test_subdoc_delete_simple(bool compress) {
                                            "dict",
                                            path,
                                            "",
-                                           SUBDOC_FLAG_NONE,
+                                           {},
                                            cb::mcbp::subdoc::doc_flag::None,
                                            cas + 1),
                       cb::mcbp::Status::KeyEexists);
@@ -949,7 +960,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
                                  "a",
                                  "",
                                  "3",
-                                 SUBDOC_FLAG_NONE,
+                                 {},
                                  cb::mcbp::subdoc::doc_flag::None,
                                  resp.getCas()));
     EXPECT_SD_GET("a", "[3]", "3"), validate_json_document("a", "[0,1,2,3]");
@@ -960,7 +971,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
                                  "a",
                                  "",
                                  "4",
-                                 SUBDOC_FLAG_NONE,
+                                 {},
                                  cb::mcbp::subdoc::doc_flag::None,
                                  resp.getCas()),
             cb::mcbp::Status::KeyEexists);
@@ -1000,7 +1011,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_Simple) {
                                  "d",
                                  "foo",
                                  "0",
-                                 SUBDOC_FLAG_MKDIR_P));
+                                 PathFlag::Mkdir_p));
     delete_object("d");
 }
 
@@ -1051,7 +1062,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
                                  "a",
                                  "",
                                  "3",
-                                 SUBDOC_FLAG_NONE,
+                                 PathFlag::None,
                                  cb::mcbp::subdoc::doc_flag::None,
                                  resp.getCas()));
     EXPECT_SD_GET("a", "[0]", "3");
@@ -1063,7 +1074,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
                                  "a",
                                  "",
                                  "4",
-                                 SUBDOC_FLAG_NONE,
+                                 PathFlag::None,
                                  cb::mcbp::subdoc::doc_flag::None,
                                  resp.getCas()),
             cb::mcbp::Status::KeyEexists,
@@ -1100,7 +1111,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushFirst_Simple) {
                                  "d",
                                  "foo",
                                  "0",
-                                 SUBDOC_FLAG_MKDIR_P));
+                                 PathFlag::Mkdir_p));
     delete_object("d");
 }
 
@@ -1261,7 +1272,7 @@ TEST_P(SubdocTestappTest, SubdocArrayInsert_Invalid) {
                                  "a",
                                  "[0]",
                                  "1",
-                                 SUBDOC_FLAG_MKDIR_P),
+                                 PathFlag::Mkdir_p),
             cb::mcbp::Status::Einval,
             "");
     reconnect_to_server();
@@ -1553,7 +1564,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Array) {
                                  "a",
                                  "",
                                  "0",
-                                 SUBDOC_FLAG_NONE,
+                                 PathFlag::None,
                                  cb::mcbp::subdoc::doc_flag::Mkdoc,
                                  0));
     EXPECT_SD_GET("a", "[0]", "0");
@@ -1564,7 +1575,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Array) {
                                  "a",
                                  "",
                                  "1",
-                                 SUBDOC_FLAG_NONE,
+                                 PathFlag::None,
                                  cb::mcbp::subdoc::doc_flag::Mkdoc,
                                  0));
     EXPECT_SD_GET("a", "[1]", "1");
@@ -1578,7 +1589,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Dict) {
                                       "a",
                                       "foo",
                                       "1",
-                                      SUBDOC_FLAG_NONE,
+                                      PathFlag::None,
                                       cb::mcbp::subdoc::doc_flag::Mkdoc,
                                       0));
     EXPECT_SD_GET("a", "foo", "1");
@@ -1588,7 +1599,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Dict) {
                                       "a",
                                       "bar",
                                       "2",
-                                      SUBDOC_FLAG_NONE,
+                                      PathFlag::None,
                                       cb::mcbp::subdoc::doc_flag::Mkdoc,
                                       0));
     EXPECT_SD_GET("a", "bar", "2");
@@ -1598,7 +1609,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Dict) {
                                       "a",
                                       "nested.path",
                                       "3",
-                                      SUBDOC_FLAG_NONE,
+                                      PathFlag::None,
                                       cb::mcbp::subdoc::doc_flag::Mkdoc,
                                       0));
     EXPECT_SD_GET("a", "nested.path", "3");
@@ -1612,7 +1623,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Counter) {
                                          "a",
                                          "counter.path",
                                          "42",
-                                         SUBDOC_FLAG_NONE,
+                                         PathFlag::None,
                                          cb::mcbp::subdoc::doc_flag::Mkdoc,
                                          0),
                     "42");
@@ -1621,7 +1632,7 @@ TEST_P(SubdocTestappTest, SubdocMkdoc_Counter) {
                                          "a",
                                          "counter.path",
                                          "42",
-                                         SUBDOC_FLAG_NONE,
+                                         PathFlag::None,
                                          cb::mcbp::subdoc::doc_flag::Mkdoc,
                                          0),
                     "84");
@@ -1694,7 +1705,7 @@ TEST_P(SubdocTestappTest, SubdocExpiry_DocflagUpsertSingle) {
                                  "doc_flag",
                                  "foo",
                                  "\"a\"",
-                                 SUBDOC_FLAG_NONE,
+                                 PathFlag::None,
                                  cb::mcbp::subdoc::doc_flag::Mkdoc);
     upsert1.setExpiry(expiryTime);
     EXPECT_SUBDOC_CMD(upsert1, cb::mcbp::Status::Success, "");
@@ -2110,7 +2121,7 @@ TEST_P(SubdocTestappTest, SubdocDurabilityTimeout) {
                                        "durability_timeout",
                                        "element",
                                        "4",
-                                       SUBDOC_FLAG_NONE,
+                                       PathFlag::None,
                                        cb::mcbp::subdoc::doc_flag::Mkdoc),
                   cb::mcbp::Status::SyncWriteAmbiguous);
 }

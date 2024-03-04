@@ -253,8 +253,11 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(SubdocDurabilityTest, SubdocDictAddMaybeSupported) {
-    BinprotSubdocCommand cmd(
-            ClientOpcode::SubdocDictAdd, name, "foo", "5", SUBDOC_FLAG_MKDIR_P);
+    BinprotSubdocCommand cmd(ClientOpcode::SubdocDictAdd,
+                             name,
+                             "foo",
+                             "5",
+                             cb::mcbp::subdoc::PathFlag::Mkdir_p);
     std::vector<uint8_t> payload;
     cmd.encode(payload);
     executeCommand(payload, getExpectedStatus());
@@ -324,7 +327,7 @@ TEST_P(SubdocDurabilityTest, SubdocMultiMutationMaybeSupported) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_MKDIR_P,
+                    cb::mcbp::subdoc::PathFlag::Mkdir_p,
                     "hello",
                     R"("world")");
     std::vector<uint8_t> payload;

@@ -30,7 +30,7 @@ public:
           doc("Document"),
           path("_sync.cas"),
           value("\"${Mutation.CAS}\""),
-          flags(SUBDOC_FLAG_XATTR_PATH),
+          flags(cb::mcbp::subdoc::PathFlag::XattrPath),
           docFlags(cb::mcbp::subdoc::doc_flag::None) {
     }
 
@@ -59,7 +59,7 @@ protected:
                 3 + doc.length() + path.length() + value.length() + extlen));
         req->header.setDatatype(cb::mcbp::Datatype::Raw);
 
-        req->extras.subdoc_flags = (flags);
+        req->extras.subdoc_flags = static_cast<uint8_t>(flags);
         req->extras.pathlen = ntohs(gsl::narrow<uint16_t>(path.length()));
 
         auto* ptr = blob.data() + sizeof(*req);
@@ -132,7 +132,7 @@ protected:
     const std::string doc;
     std::string path;
     std::string value;
-    uint8_t flags;
+    cb::mcbp::subdoc::PathFlag flags = cb::mcbp::subdoc::PathFlag::None;
     cb::mcbp::subdoc::doc_flag docFlags;
 };
 
@@ -156,14 +156,14 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";
-    flags = SUBDOC_FLAG_NONE;
+    flags = cb::mcbp::subdoc::PathFlag::None;
     EXPECT_EQ(cb::mcbp::Status::Success, validate())
             << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
 
     // XATTR keys must be < 16 characters (we've got standalone tests
     // to validate all of the checks for the xattr keys, this is just
     // to make sure that our validator calls it ;-)
-    flags = SUBDOC_FLAG_XATTR_PATH;
+    flags = cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate())
             << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
 
@@ -177,11 +177,11 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // Access Deleted should pass without XATTR flag
-    flags = SUBDOC_FLAG_NONE;
+    flags = cb::mcbp::subdoc::PathFlag::None;
     docFlags = cb::mcbp::subdoc::doc_flag::AccessDeleted;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    flags |= SUBDOC_FLAG_XATTR_PATH;
+    flags |= cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // Check that Add & Mkdoc can't be used together
@@ -190,16 +190,16 @@ TEST_P(SubdocXattrSingleTest, ValidateFlags) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
     docFlags = cb::mcbp::subdoc::doc_flag::AccessDeleted;
 
-    flags |= SUBDOC_FLAG_EXPAND_MACROS;
+    flags |= cb::mcbp::subdoc::PathFlag::ExpandMacros;
     if (allowMacroExpansion()) {
         EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
         // but it should fail if we don't have the XATTR_PATH
-        flags = SUBDOC_FLAG_EXPAND_MACROS;
+        flags = cb::mcbp::subdoc::PathFlag::ExpandMacros;
         EXPECT_EQ(cb::mcbp::Status::SubdocXattrInvalidFlagCombo, validate());
 
         // And it should also fail if we have Illegal macros
-        flags |= SUBDOC_FLAG_XATTR_PATH;
+        flags |= cb::mcbp::subdoc::PathFlag::XattrPath;
         EXPECT_EQ(cb::mcbp::Status::Success, validate());
         value = "${UnknownMacro}";
         EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownMacro, validate());
@@ -237,20 +237,20 @@ protected:
 
 TEST_P(SubdocXattrMultiLookupTest, XAttrMayBeFirst) {
     request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_XATTR_PATH,
+                       cb::mcbp::subdoc::PathFlag::XattrPath,
                        "_sync.cas"});
     request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_NONE,
+                       cb::mcbp::subdoc::PathFlag::None,
                        "meta.author"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(SubdocXattrMultiLookupTest, XAttrCantBeLast) {
     request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_NONE,
+                       cb::mcbp::subdoc::PathFlag::None,
                        "meta.author"});
     request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_XATTR_PATH,
+                       cb::mcbp::subdoc::PathFlag::XattrPath,
                        "_sync.cas"});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidXattrOrder, validate());
 }
@@ -260,41 +260,44 @@ TEST_P(SubdocXattrMultiLookupTest, XAttrKeyIsChecked) {
     // for the subdoc key.. just make sure that it is actually called..
     // Check that we can't insert a key > 16 chars
     request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_XATTR_PATH,
+                       cb::mcbp::subdoc::PathFlag::XattrPath,
                        "ThisIsASuperDuperLongPath"});
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate());
 }
 
 TEST_P(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
     request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_XATTR_PATH,
+                       cb::mcbp::subdoc::PathFlag::XattrPath,
                        "_sync.cas"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // We shouldn't be allowed to expand macros for a lookup command
-    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::ExpandMacros;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 
     // We shouldn't be allowed to expand macros for a lookup command
-    // and the SUBDOC_FLAG_EXPAND_MACROS must have SUBDOC_FLAG_XATTR_PATH
-    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
+    // and the PathFlag::ExpandMacros must have PathFlag::XattrPath
+    request[0].flags = cb::mcbp::subdoc::PathFlag::ExpandMacros |
+                       cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 
     // Let's try a valid access deleted flag
-    request[0].flags = SUBDOC_FLAG_NONE;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::None;
     request.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // We should be able to access deleted docs if both flags are set
-    request[0].flags = SUBDOC_FLAG_XATTR_PATH;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
     request.addLookup({cb::mcbp::ClientOpcode::SubdocGet,
-                       SUBDOC_FLAG_XATTR_PATH,
+                       cb::mcbp::subdoc::PathFlag::XattrPath,
                        "_sync"});
-    request.addLookup({cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""});
+    request.addLookup({cb::mcbp::ClientOpcode::Get,
+                       cb::mcbp::subdoc::PathFlag::None,
+                       ""});
     request.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
@@ -302,7 +305,7 @@ TEST_P(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
 TEST_P(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
     for (int ii = 0; ii < 10; ii++) {
         request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                           SUBDOC_FLAG_XATTR_PATH,
+                           cb::mcbp::subdoc::PathFlag::XattrPath,
                            "_sync.cas"});
     }
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
@@ -337,11 +340,11 @@ protected:
 
 TEST_P(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
+                         cb::mcbp::subdoc::PathFlag::XattrPath,
                          "_sync.cas",
                          R"({"foo" : "bar"})"});
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_NONE,
+                         cb::mcbp::subdoc::PathFlag::None,
                          "meta.author",
                          R"({"name" : "Bubba"})"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
@@ -349,11 +352,11 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrMayBeFirst) {
 
 TEST_P(SubdocXattrMultiMutationTest, XAttrCantBeLast) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_NONE,
+                         cb::mcbp::subdoc::PathFlag::None,
                          "meta.author",
                          R"({"name" : "Bubba"})"});
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
+                         cb::mcbp::subdoc::PathFlag::XattrPath,
                          "_sync.cas",
                          R"({"foo" : "bar"})"});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidXattrOrder, validate());
@@ -364,7 +367,7 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
     // for the subdoc key.. just make sure that it is actually called..
     // Check that we can't insert a key > 16 chars
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
+                         cb::mcbp::subdoc::PathFlag::XattrPath,
                          "ThisIsASuperDuperLongPath",
                          R"({"foo" : "bar"})"});
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate());
@@ -372,19 +375,21 @@ TEST_P(SubdocXattrMultiMutationTest, XAttrKeyIsChecked) {
 
 TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
+                         cb::mcbp::subdoc::PathFlag::XattrPath,
                          "_sync.cas",
                          "\"${Mutation.CAS}\""});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::ExpandMacros;
     EXPECT_EQ(cb::mcbp::Status::SubdocXattrInvalidFlagCombo, validate());
 
-    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::ExpandMacros |
+                       cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
-    request[0].flags = SUBDOC_FLAG_EXPAND_MACROS | SUBDOC_FLAG_XATTR_PATH;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::ExpandMacros |
+                       cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     request[0].value = "${UnknownMacro}";
@@ -392,19 +397,19 @@ TEST_P(SubdocXattrMultiMutationTest, XattrFlagsMakeSense) {
     request[0].value = "\"${Mutation.CAS}\"";
 
     // Let's try a valid access deleted flag
-    request[0].flags = SUBDOC_FLAG_NONE;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::None;
     request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // We should be able to access deleted docs if both flags are set
-    request[0].flags = SUBDOC_FLAG_XATTR_PATH;
+    request[0].flags = cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
     for (int ii = 0; ii < 10; ii++) {
         request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                             SUBDOC_FLAG_XATTR_PATH,
+                             cb::mcbp::subdoc::PathFlag::XattrPath,
                              "_sync.cas",
                              R"({"foo" : "bar"})"});
     }
@@ -413,11 +418,13 @@ TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
 
 TEST_P(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
+                         cb::mcbp::subdoc::PathFlag::XattrPath,
                          "_sync.cas",
                          R"({"foo" : "bar"})"});
-    request.addMutation(
-            {cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", ""});
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
+                         cb::mcbp::subdoc::PathFlag::None,
+                         "",
+                         ""});
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 

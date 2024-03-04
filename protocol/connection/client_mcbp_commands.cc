@@ -223,7 +223,7 @@ BinprotSubdocCommand::BinprotSubdocCommand(
         const std::string& key_,
         const std::string& path_,
         const std::string& value_,
-        protocol_binary_subdoc_flag pathFlags_,
+        cb::mcbp::subdoc::PathFlag pathFlags_,
         cb::mcbp::subdoc::doc_flag docFlags_,
         uint64_t cas_)
     : BinprotCommand() {
@@ -264,7 +264,7 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
 
     // Add extras: pathlen, flags, optional expiry
     append(buf, gsl::narrow<uint16_t>(path.size()));
-    buf.push_back(flags);
+    buf.push_back(static_cast<uint8_t>(flags));
 
     if (include_expiry) {
         // As expiry is optional (and immediately follows subdoc_flags,
@@ -295,7 +295,7 @@ BinprotSubdocCommand::BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_,
                            key_,
                            path_,
                            "",
-                           SUBDOC_FLAG_NONE,
+                           cb::mcbp::subdoc::PathFlag::None,
                            cb::mcbp::subdoc::doc_flag::None,
                            0) {
 }
@@ -304,15 +304,16 @@ BinprotSubdocCommand& BinprotSubdocCommand::setValue(std::string value_) {
     return *this;
 }
 BinprotSubdocCommand& BinprotSubdocCommand::addPathFlags(
-        protocol_binary_subdoc_flag flags_) {
-    static protocol_binary_subdoc_flag validFlags = SUBDOC_FLAG_XATTR_PATH |
-                                                    SUBDOC_FLAG_MKDIR_P |
-                                                    SUBDOC_FLAG_EXPAND_MACROS;
-    if ((flags_ & ~validFlags) == 0) {
+        cb::mcbp::subdoc::PathFlag flags_) {
+    static cb::mcbp::subdoc::PathFlag validFlags =
+            cb::mcbp::subdoc::PathFlag::XattrPath |
+            cb::mcbp::subdoc::PathFlag::Mkdir_p |
+            cb::mcbp::subdoc::PathFlag::ExpandMacros;
+    if ((flags_ & ~validFlags) == cb::mcbp::subdoc::PathFlag::None) {
         flags = flags | flags_;
     } else {
         throw std::invalid_argument("addPathFlags: flags_ (which is " +
-                                    std::to_string(flags_) +
+                                    std::to_string(static_cast<int>(flags_)) +
                                     ") is not a path flag");
     }
     return *this;
@@ -342,7 +343,7 @@ const std::string& BinprotSubdocCommand::getPath() const {
 const std::string& BinprotSubdocCommand::getValue() const {
     return value;
 }
-protocol_binary_subdoc_flag BinprotSubdocCommand::getFlags() const {
+cb::mcbp::subdoc::PathFlag BinprotSubdocCommand::getFlags() const {
     return flags;
 }
 
@@ -1064,11 +1065,10 @@ BinprotSubdocMultiMutationCommand::addMutation(
     return *this;
 }
 BinprotSubdocMultiMutationCommand&
-BinprotSubdocMultiMutationCommand::addMutation(
-        cb::mcbp::ClientOpcode opcode,
-        protocol_binary_subdoc_flag flags,
-        const std::string& path,
-        const std::string& value) {
+BinprotSubdocMultiMutationCommand::addMutation(cb::mcbp::ClientOpcode opcode,
+                                               cb::mcbp::subdoc::PathFlag flags,
+                                               const std::string& path,
+                                               const std::string& value) {
     specs.emplace_back(MutationSpecifier{opcode, flags, path, value});
     return *this;
 }
@@ -1227,19 +1227,19 @@ BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
         const std::string& path,
         cb::mcbp::ClientOpcode opcode,
-        protocol_binary_subdoc_flag flags) {
+        cb::mcbp::subdoc::PathFlag flags) {
     return addLookup({opcode, flags, path});
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGet(
-        const std::string& path, protocol_binary_subdoc_flag flags) {
+        const std::string& path, cb::mcbp::subdoc::PathFlag flags) {
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocGet, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addExists(
-        const std::string& path, protocol_binary_subdoc_flag flags) {
+        const std::string& path, cb::mcbp::subdoc::PathFlag flags) {
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocExists, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGetCount(
-        const std::string& path, protocol_binary_subdoc_flag flags) {
+        const std::string& path, cb::mcbp::subdoc::PathFlag flags) {
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocGetCount, flags);
 }
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addDocFlags(

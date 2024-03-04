@@ -78,11 +78,10 @@ protected:
         cmd.setKey(name);
         cmd.setVBucket(Vbid{0});
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        cb::mcbp::subdoc::PathFlag::XattrPath,
                         xattr_key,
                         xattr_value);
-        cmd.addMutation(
-                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+        cmd.addMutation(cb::mcbp::ClientOpcode::Set, {}, "", value);
         cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
         auto rsp = userConnection->execute(cmd);
         if (!rsp.isSuccess()) {
@@ -99,7 +98,7 @@ protected:
         cmd.setKey(name);
         cmd.setPath(std::string{key});
         if (xattr) {
-            cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+            cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         }
         userConnection->sendCommand(cmd);
         BinprotSubdocResponse resp;

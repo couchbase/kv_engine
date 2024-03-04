@@ -365,3 +365,42 @@ void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload) {
 }
 
 } // namespace cb::mcbp::response
+
+namespace cb::mcbp::subdoc {
+void to_json(nlohmann::json& json, const PathFlag& flag) {
+    if (flag == PathFlag::None) {
+        json = "None";
+        return;
+    }
+    auto array = nlohmann::json::array();
+    for (int ii = 0; ii < 8; ++ii) {
+        auto bit = static_cast<PathFlag>(uint8_t(1) << ii);
+        if ((flag & bit) == bit) {
+            switch (bit) {
+            case PathFlag::None:
+                break;
+            case PathFlag::Mkdir_p:
+                array.emplace_back("Mkdir_p");
+                break;
+            case PathFlag::ExpandMacros:
+                array.emplace_back("ExpandMacros");
+                break;
+            case PathFlag::XattrPath:
+                array.emplace_back("XattrPath");
+                break;
+            case PathFlag::Unused_0x02:
+            case PathFlag::Unused_0x08:
+            default:
+                array.emplace_back(fmt::format("unknown:{:#x}",
+                                               static_cast<unsigned int>(bit)));
+            }
+        }
+    }
+
+    if (array.size() == 1) {
+        json = array.front();
+    } else {
+        json = array;
+    }
+}
+} // namespace cb::mcbp::subdoc

@@ -33,7 +33,7 @@ using namespace std::string_literals;
 
 SubdocExecutionContext::OperationSpec::OperationSpec(
         SubdocCmdTraits traits_,
-        protocol_binary_subdoc_flag flags_,
+        cb::mcbp::subdoc::PathFlag flags_,
         std::string path_,
         std::string value_)
     : traits(traits_),
@@ -41,7 +41,7 @@ SubdocExecutionContext::OperationSpec::OperationSpec(
       path(std::move(path_)),
       value(std::move(value_)),
       status(cb::mcbp::Status::Einternal) {
-    if (flags & SUBDOC_FLAG_MKDIR_P) {
+    if (hasMkdirP(flags)) {
         traits.subdocCommand = Subdoc::Command(traits.subdocCommand |
                                                Subdoc::Command::FLAG_MKDIR_P);
     }
@@ -122,20 +122,20 @@ void SubdocExecutionContext::create_single_path_context(
     // value.
     auto path = value.substr(0, pathlen);
 
-    const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+    const bool xattr = hasXattrPath(flags);
     const SubdocExecutionContext::Phase phase =
             xattr ? SubdocExecutionContext::Phase::XATTR
                   : SubdocExecutionContext::Phase::Body;
     auto& ops = getOperations(phase);
 
-    if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+    if (hasExpandedMacros(flags)) {
         do_macro_expansion = true;
     }
 
     // If Mkdoc or Add is specified, this implies MKDIR_P, ensure that it's set
     // here
     if (impliesMkdir_p(doc_flags)) {
-        flags = flags | SUBDOC_FLAG_MKDIR_P;
+        flags = flags | cb::mcbp::subdoc::PathFlag::Mkdir_p;
     }
 
     // Decode as single path; add a single operation to the context.
@@ -182,7 +182,7 @@ void SubdocExecutionContext::create_multi_path_context(
     size_t offset = 0;
     while (offset < value.size()) {
         cb::mcbp::ClientOpcode binprot_cmd;
-        protocol_binary_subdoc_flag flags;
+        cb::mcbp::subdoc::PathFlag flags;
         size_t headerlen;
         std::string_view path;
         std::string_view spec_value;
@@ -192,7 +192,7 @@ void SubdocExecutionContext::create_multi_path_context(
                     value.data() + offset);
             headerlen = sizeof(*spec);
             binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
-            flags = protocol_binary_subdoc_flag(spec->flags);
+            flags = cb::mcbp::subdoc::PathFlag(spec->flags);
             path = {value.data() + offset + headerlen, htons(spec->pathlen)};
             spec_value = {value.data() + offset + headerlen + path.size(),
                           htonl(spec->valuelen)};
@@ -203,7 +203,7 @@ void SubdocExecutionContext::create_multi_path_context(
                     value.data() + offset);
             headerlen = sizeof(*spec);
             binprot_cmd = cb::mcbp::ClientOpcode(spec->opcode);
-            flags = protocol_binary_subdoc_flag(spec->flags);
+            flags = cb::mcbp::subdoc::PathFlag(spec->flags);
             path = {value.data() + offset + headerlen, htons(spec->pathlen)};
             spec_value = {nullptr, 0};
         }
@@ -218,11 +218,11 @@ void SubdocExecutionContext::create_multi_path_context(
                     cmdTraits.subdocCommand, path.data(), path.size());
         }
 
-        if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
+        if (hasExpandedMacros(flags)) {
             do_macro_expansion = true;
         }
 
-        const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+        const bool xattr = hasXattrPath(flags);
         const SubdocExecutionContext::Phase phase =
                 xattr ? SubdocExecutionContext::Phase::XATTR
                       : SubdocExecutionContext::Phase::Body;
@@ -231,7 +231,7 @@ void SubdocExecutionContext::create_multi_path_context(
 
         // Mkdoc and Add imply MKDIR_P, ensure that MKDIR_P is set
         if (impliesMkdir_p(doc_flags)) {
-            flags = flags | SUBDOC_FLAG_MKDIR_P;
+            flags = flags | cb::mcbp::subdoc::PathFlag::Mkdir_p;
         }
         if (cmdTraits.mcbpCommand == cb::mcbp::ClientOpcode::Delete) {
             do_delete_doc = true;
@@ -316,8 +316,7 @@ cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
 
         for (const auto& op :
              getOperations(SubdocExecutionContext::Phase::XATTR)) {
-            if ((op.flags & SUBDOC_FLAG_EXPAND_MACROS) ==
-                SUBDOC_FLAG_EXPAND_MACROS) {
+            if (hasExpandedMacros(op.flags)) {
                 size_t xattr_keylen;
                 is_valid_xattr_key({op.path.data(), op.path.size()},
                                    xattr_keylen);
@@ -762,7 +761,7 @@ cb::mcbp::Status SubdocExecutionContext::operate_one_path(
     op.set_code(spec.traits.subdocCommand);
     op.set_doc(view.data(), view.size());
 
-    if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
+    if (hasExpandedMacros(spec.flags)) {
         auto padded_macro = get_padded_macro(spec.value);
         if (padded_macro.empty()) {
             padded_macro = expand_virtual_macro(spec.value);

@@ -129,7 +129,7 @@ public:
         // Setup basic, correct header.
         request.setKey("multi_lookup");
         request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                           SUBDOC_FLAG_NONE,
+                           cb::mcbp::subdoc::PathFlag::None,
                            "[0]"});
     }
 
@@ -229,7 +229,9 @@ TEST_P(SubdocMultiLookupTest, NumPaths) {
     request.clearLookups();
     // Add maximum number of paths.
     BinprotSubdocMultiLookupCommand::LookupSpecifier spec{
-            cb::mcbp::ClientOpcode::SubdocExists, SUBDOC_FLAG_NONE, "[0]"};
+            cb::mcbp::ClientOpcode::SubdocExists,
+            cb::mcbp::subdoc::PathFlag::None,
+            "[0]"};
     for (unsigned int i = 0; i < 16; i++) {
         request.addLookup(spec);
     }
@@ -247,8 +249,9 @@ TEST_P(SubdocMultiLookupTest, NumPaths) {
 TEST_P(SubdocMultiLookupTest, ValidLocationOpcodes) {
     // Check that GET is supported.
     request.clearLookups();
-    request.addLookup(
-            {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "[0]"});
+    request.addLookup({cb::mcbp::ClientOpcode::SubdocGet,
+                       cb::mcbp::subdoc::PathFlag::None,
+                       "[0]"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }
@@ -265,7 +268,7 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationOpcodes) {
             (cmd == cb::mcbp::ClientOpcode::SubdocGetCount)) {
             continue;
         }
-        request.at(0) = {cmd, SUBDOC_FLAG_NONE, "[0]"};
+        request.at(0) = {cmd, cb::mcbp::subdoc::PathFlag::None, "[0]"};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
                 << "Failed for cmd:" << ::to_string(cb::mcbp::ClientOpcode(ii));
     }
@@ -294,10 +297,10 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationFlags) {
     for (auto& opcode : {cb::mcbp::ClientOpcode::SubdocExists,
                          cb::mcbp::ClientOpcode::SubdocGet}) {
         request.at(0).opcode = opcode;
-        request.at(0).flags = SUBDOC_FLAG_MKDIR_P;
+        request.at(0).flags = cb::mcbp::subdoc::PathFlag::Mkdir_p;
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request flags invalid", validate_error_context(request));
-        request.at(0).flags = SUBDOC_FLAG_NONE;
+        request.at(0).flags = cb::mcbp::subdoc::PathFlag::None;
 
         request.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -331,7 +334,7 @@ public:
         // Setup basic, correct header.
         request.setKey("multi_mutation");
         request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
-                             protocol_binary_subdoc_flag(0),
+                             cb::mcbp::subdoc::PathFlag(0),
                              "key",
                              "value"});
     }
@@ -366,10 +369,10 @@ protected:
     }
 
     /*
-     * Tests the request with both the pathFlag and docFlag specified. It does
-     * not test when both are used together
+     * Tests the request with both the cb::mcbp::subdoc::PathFlag and docFlag
+     * specified. It does not test when both are used together
      */
-    void testFlags(protocol_binary_subdoc_flag pathFlag,
+    void testFlags(cb::mcbp::subdoc::PathFlag pathFlag,
                    cb::mcbp::subdoc::doc_flag docFlag,
                    cb::mcbp::Status expected,
                    uint8_t spec) {
@@ -382,7 +385,7 @@ protected:
                     "",
                     validate_error_context(request, cb::mcbp::Status::Success));
         }
-        request.at(spec).flags = SUBDOC_FLAG_NONE;
+        request.at(spec).flags = cb::mcbp::subdoc::PathFlag::None;
 
         request.addDocFlag(docFlag);
         EXPECT_EQ(expected, validate(request));
@@ -398,10 +401,10 @@ protected:
     }
 
     /*
-     * Tests the request with both the pathFlag and docFlag specified. It does
-     * not test when both are used together
+     * Tests the request with both the cb::mcbp::subdoc::PathFlag and docFlag
+     * specified. It does not test when both are used together
      */
-    void testFlagCombo(protocol_binary_subdoc_flag pathFlag,
+    void testFlagCombo(cb::mcbp::subdoc::PathFlag pathFlag,
                        cb::mcbp::subdoc::doc_flag docFlag,
                        cb::mcbp::Status expected,
                        uint8_t spec) {
@@ -409,7 +412,7 @@ protected:
         EXPECT_EQ(expected, validate(request));
         request.addDocFlag(docFlag);
         EXPECT_EQ(expected, validate(request));
-        request.at(spec).flags = SUBDOC_FLAG_NONE;
+        request.at(spec).flags = cb::mcbp::subdoc::PathFlag::None;
         EXPECT_EQ(expected, validate(request));
     }
 
@@ -492,7 +495,7 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
     // Add maximum number of paths.
     BinprotSubdocMultiMutationCommand::MutationSpecifier spec{
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-            protocol_binary_subdoc_flag(0),
+            cb::mcbp::subdoc::PathFlag(0),
             "",
             "0"};
     for (unsigned int i = 0; i < 16; i++) {
@@ -511,14 +514,14 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
 
 TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
     // Only allowed empty flags or
-    // SUBDOC_FLAG_MKDIR_P/mcbp::subdoc::doc_flag::Mkdoc
+    // cb::mcbp::subdoc::PathFlag::Mkdir_p/mcbp::subdoc::doc_flag::Mkdoc
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
-    testFlagCombo(SUBDOC_FLAG_MKDIR_P,
+    testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
                   cb::mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
@@ -526,7 +529,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
 
 TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
-                         protocol_binary_subdoc_flag(0xff),
+                         cb::mcbp::subdoc::PathFlag(0xff),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -534,7 +537,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
 
     // Must have path.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictAdd,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -542,7 +545,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
 
     // Must have value.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictAdd,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "path",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -550,14 +553,15 @@ TEST_P(SubdocMultiMutationTest, InvalidDictAdd) {
 }
 
 TEST_P(SubdocMultiMutationTest, ValidDictUpsert) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P(0x01)/MKDOC(0x02)
+    // Only allowed empty flags or
+    // cb::mcbp::subdoc::PathFlag::Mkdir_p(0x01)/MKDOC(0x02)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
-    testFlagCombo(SUBDOC_FLAG_MKDIR_P,
+    testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
                   cb::mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
@@ -566,7 +570,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictUpsert) {
 TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
     // Only allowed empty flags SUBDOC_FLAG_{MKDIR_P (0x1), MKDOC (0x2)}
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                         protocol_binary_subdoc_flag(0xff),
+                         cb::mcbp::subdoc::PathFlag(0xff),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -574,7 +578,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
 
     // Must have path.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -582,7 +586,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
 
     // Must have value.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "path",
                      ""};
 
@@ -592,7 +596,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDictUpsert) {
 
 TEST_P(SubdocMultiMutationTest, ValidDelete) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDelete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          ""});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
@@ -602,7 +606,7 @@ TEST_P(SubdocMultiMutationTest, ValidDelete) {
 TEST_P(SubdocMultiMutationTest, InvalidDelete) {
     // Shouldn't have value.
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDelete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -610,14 +614,14 @@ TEST_P(SubdocMultiMutationTest, InvalidDelete) {
               validate_error_context(request));
 
     // Shouldn't have flags.
-    testFlags(SUBDOC_FLAG_MKDIR_P,
+    testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
               cb::mcbp::subdoc::doc_flag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
 
     // Must have path.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocDelete,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -626,7 +630,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDelete) {
 
 TEST_P(SubdocMultiMutationTest, ValidReplace) {
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "new_value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
@@ -636,7 +640,7 @@ TEST_P(SubdocMultiMutationTest, ValidReplace) {
 TEST_P(SubdocMultiMutationTest, InvalidReplace) {
     // Must have path.
     request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "",
                          "new_value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -644,7 +648,7 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
 
     // Must have value
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocReplace,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "path",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -652,40 +656,40 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
 
     // Shouldn't have flags.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocReplace,
-                     SUBDOC_FLAG_NONE,
+                     cb::mcbp::subdoc::PathFlag::None,
                      "path",
                      "new_value"};
-    testFlags(SUBDOC_FLAG_MKDIR_P,
+    testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
               cb::mcbp::subdoc::doc_flag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
 }
 
 TEST_P(SubdocMultiMutationTest, ValidArrayPushLast) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
-    testFlagCombo(SUBDOC_FLAG_MKDIR_P,
+    testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
                   cb::mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
     // Allowed empty path.
     request.at(1).path.clear();
-    testFlagCombo(SUBDOC_FLAG_MKDIR_P,
+    testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
                   cb::mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayPushLast) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                         protocol_binary_subdoc_flag(0xff),
+                         cb::mcbp::subdoc::PathFlag(0xff),
                          "",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -693,7 +697,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushLast) {
 
     // Must have value
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -701,30 +705,30 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushLast) {
 }
 
 TEST_P(SubdocMultiMutationTest, ValidArrayPushFirst) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
-    testFlagCombo(SUBDOC_FLAG_MKDIR_P,
+    testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
                   cb::mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
     // Allowed empty path.
     request.at(1).path.clear();
-    testFlagCombo(SUBDOC_FLAG_MKDIR_P,
+    testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
                   cb::mcbp::subdoc::doc_flag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayPushFirst) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                         protocol_binary_subdoc_flag(0xff),
+                         cb::mcbp::subdoc::PathFlag(0xff),
                          "",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -732,7 +736,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushFirst) {
 
     // Must have value
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -742,7 +746,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayPushFirst) {
 TEST_P(SubdocMultiMutationTest, ValidArrayInsert) {
     // Only allowed empty flags.
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
@@ -756,17 +760,17 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
     }
 
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                     SUBDOC_FLAG_NONE,
+                     cb::mcbp::subdoc::PathFlag::None,
                      "path",
                      "value"};
-    testFlags(SUBDOC_FLAG_MKDIR_P,
+    testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
               cb::mcbp::subdoc::doc_flag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
 
     // Must have path
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      "value"};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -774,7 +778,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
 
     // Must have value
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "path",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -782,22 +786,22 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
 }
 
 TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
-    testFlags(SUBDOC_FLAG_MKDIR_P,
+    testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
               cb::mcbp::subdoc::doc_flag::Mkdoc,
               cb::mcbp::Status::Success,
               1);
 
     // Allowed empty path.
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      "value"};
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
@@ -805,9 +809,9 @@ TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                         protocol_binary_subdoc_flag(0xff),
+                         cb::mcbp::subdoc::PathFlag(0xff),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -815,7 +819,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
 
     // Must have value
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "path",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -823,22 +827,22 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayAddUnique) {
 }
 
 TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocCounter,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
-    testFlags(SUBDOC_FLAG_MKDIR_P,
+    testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
               cb::mcbp::subdoc::doc_flag::Mkdoc,
               cb::mcbp::Status::Success,
               1);
 
     // Empty path invalid
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocCounter,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "",
                      "value"};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -846,9 +850,9 @@ TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
 }
 
 TEST_P(SubdocMultiMutationTest, InvalidArrayCounter) {
-    // Only allowed empty flags or SUBDOC_FLAG_MKDIR_P (0x1)
+    // Only allowed empty flags or cb::mcbp::subdoc::PathFlag::Mkdir_p (0x1)
     request.addMutation({cb::mcbp::ClientOpcode::SubdocCounter,
-                         protocol_binary_subdoc_flag(0xff),
+                         cb::mcbp::subdoc::PathFlag(0xff),
                          "path",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -856,7 +860,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayCounter) {
 
     // Must have value
     request.at(1) = {cb::mcbp::ClientOpcode::SubdocCounter,
-                     protocol_binary_subdoc_flag(0),
+                     cb::mcbp::subdoc::PathFlag(0),
                      "path",
                      ""};
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -886,7 +890,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
             break;
         }
 
-        request.at(0) = {cmd, protocol_binary_subdoc_flag(0), "[0]", {}};
+        request.at(0) = {cmd, cb::mcbp::subdoc::PathFlag(0), "[0]", {}};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
                 << "Failed for cmd:" << ::to_string(cb::mcbp::ClientOpcode(ii));
     }
@@ -895,7 +899,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
 TEST_P(SubdocMultiMutationTest, InvalidCas) {
     // Check that a non 0 CAS is rejected
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "path",
                          "value"});
     request.setCas(12234);
@@ -909,7 +913,7 @@ TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidValue) {
     request.clearMutations();
     // Shouldn't have value.
     request.addMutation({cb::mcbp::ClientOpcode::Delete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -921,7 +925,7 @@ TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidPath) {
     request.clearMutations();
     // Must not have path.
     request.addMutation({cb::mcbp::ClientOpcode::Delete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "_sync",
                          ""});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
@@ -932,8 +936,10 @@ TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidPath) {
 TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidXattrFlag) {
     request.clearMutations();
     // Can't use CMD_DELETE to delete Xattr
-    request.addMutation(
-            {cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_XATTR_PATH, "", ""});
+    request.addMutation({cb::mcbp::ClientOpcode::Delete,
+                         cb::mcbp::subdoc::PathFlag::XattrPath,
+                         "",
+                         ""});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
     EXPECT_EQ("Request flags invalid", validate_error_context(request));
 }
@@ -941,7 +947,7 @@ TEST_P(SubdocMultiMutationTest, WholeDocDeleteInvalidXattrFlag) {
 TEST_P(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
     request.clearMutations();
     request.addMutation({cb::mcbp::ClientOpcode::Delete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "",
                          ""});
     request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
@@ -954,7 +960,7 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
     // the same multi mutation is invalid
     // Note that the setup of this test adds an initial mutation
     request.addMutation({cb::mcbp::ClientOpcode::Delete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "",
                          ""});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));
@@ -965,11 +971,11 @@ TEST_P(SubdocMultiMutationTest, InvalidWholeDocDeleteMulti) {
     // Now try the delete first
     request.clearMutations();
     request.addMutation({cb::mcbp::ClientOpcode::Delete,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "",
                          ""});
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
-                         protocol_binary_subdoc_flag(0),
+                         cb::mcbp::subdoc::PathFlag(0),
                          "key",
                          "value"});
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request));

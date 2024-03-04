@@ -25,9 +25,8 @@ public:
         return ntohs(*reinterpret_cast<const uint16_t*>(extras.data()));
     }
 
-    protocol_binary_subdoc_flag getSubdocFlags() const {
-        return static_cast<protocol_binary_subdoc_flag>(
-                extras[sizeof(uint16_t)]);
+    subdoc::PathFlag getSubdocFlags() const {
+        return static_cast<subdoc::PathFlag>(extras[sizeof(uint16_t)]);
     }
 
     uint32_t getExpiry() const {

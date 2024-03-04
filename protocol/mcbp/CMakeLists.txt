@@ -24,9 +24,10 @@ add_library(mcbp STATIC
             request.cc
             response.cc
             header.cc
+            range_scan_continue_codec.cc
             sla.cc
             status.cc
-            range_scan_continue_codec.cc
+            subdoc_path_flag.cc
             )
 
 target_link_libraries(mcbp
@@ -57,7 +58,8 @@ cb_add_test_executable(mcbp_unit_tests
                mcbp_dump_parser_test.cc
                opcode_test.cc
                request_test.cc
-               sla_test.cc)
+               sla_test.cc
+               subdoc_path_flag_test.cc)
 kv_enable_pch(mcbp_unit_tests)
 target_link_libraries(mcbp_unit_tests
         PRIVATE

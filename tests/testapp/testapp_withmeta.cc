@@ -31,7 +31,7 @@ public:
         cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
         cmd.setPath("$document");
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
         auto resp = userConnection->execute(cmd);
@@ -286,7 +286,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
                         name,
                         "_sys.author",
                         {},
-                        SUBDOC_FLAG_XATTR_PATH,
+                        cb::mcbp::subdoc::PathFlag::XattrPath,
                         cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_TRUE(sresp.isSuccess()) << sresp.getStatus();
 }

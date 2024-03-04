@@ -76,7 +76,7 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-            SUBDOC_FLAG_MKDIR_P,
+            cb::mcbp::subdoc::PathFlag::Mkdir_p,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
     auto resp = userConnection->execute(cmd);
@@ -130,7 +130,7 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
 
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-            SUBDOC_FLAG_MKDIR_P,
+            cb::mcbp::subdoc::PathFlag::Mkdir_p,
             "cron_timers",
             R"({"callback_func": "NDtimerCallback", "payload": "doc_id_610"})");
     auto resp = userConnection->execute(cmd);
@@ -165,7 +165,7 @@ TEST_P(RegressionTest, MB_31070) {
 
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet("$document.exptime", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$document.exptime", cb::mcbp::subdoc::PathFlag::XattrPath);
 
     auto multiResp =
             BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
@@ -663,13 +663,10 @@ TEST_P(RegressionTest, MB55754) {
     cmd.setKey(name);
     cmd.setVBucket(Vbid{0});
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    cb::mcbp::subdoc::PathFlag::XattrPath,
                     "user",
                     R"({"Name":"John Doe"})");
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set,
-                    SUBDOC_FLAG_NONE,
-                    "",
-                    R"({"foo":"bar"})");
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, {}, "", R"({"foo":"bar"})");
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
     auto rsp = userConnection->execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());

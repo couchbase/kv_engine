@@ -1868,86 +1868,66 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocCounter_with_euid_with_access) {
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_no_access) {
     BinprotSubdocMultiLookupCommand command{
             key,
-            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
-             {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
+            {{ClientOpcode::SubdocGet, {}, "missing1"},
+             {ClientOpcode::SubdocGet, {}, "missing2"}},
             cb::mcbp::subdoc::doc_flag::None};
     executeInSystemCollectionWithoutAccess(*user, command, false);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_with_euid_no_access) {
     BinprotSubdocMultiLookupCommand command{
             key,
-            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
-             {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
+            {{ClientOpcode::SubdocGet, {}, "missing1"},
+             {ClientOpcode::SubdocGet, {}, "missing2"}},
             cb::mcbp::subdoc::doc_flag::None};
     executeInSystemCollectionWithoutAccess(*admin, command, true);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_access) {
     BinprotSubdocMultiLookupCommand command{
             key,
-            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
-             {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
+            {{ClientOpcode::SubdocGet, {}, "missing1"},
+             {ClientOpcode::SubdocGet, {}, "missing2"}},
             cb::mcbp::subdoc::doc_flag::None};
     execute(*admin, command, false, false, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_with_euid_with_access) {
     BinprotSubdocMultiLookupCommand command{
             key,
-            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
-             {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
+            {{ClientOpcode::SubdocGet, {}, "missing1"},
+             {ClientOpcode::SubdocGet, {}, "missing2"}},
             cb::mcbp::subdoc::doc_flag::None};
     execute(*admin, command, true, true, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_no_access) {
-    BinprotSubdocMultiMutationCommand command{key,
-                                              {{ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.bar",
-                                                "true"},
-                                               {ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.foo",
-                                                "true"}},
-                                              cb::mcbp::subdoc::doc_flag::None};
+    BinprotSubdocMultiMutationCommand command{
+            key,
+            {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
+             {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
+            cb::mcbp::subdoc::doc_flag::None};
     executeInSystemCollectionWithoutAccess(*user, command, false);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_with_euid_no_access) {
-    BinprotSubdocMultiMutationCommand command{key,
-                                              {{ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.bar",
-                                                "true"},
-                                               {ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.foo",
-                                                "true"}},
-                                              cb::mcbp::subdoc::doc_flag::None};
+    BinprotSubdocMultiMutationCommand command{
+            key,
+            {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
+             {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
+            cb::mcbp::subdoc::doc_flag::None};
     executeInSystemCollectionWithoutAccess(*admin, command, true);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_access) {
-    BinprotSubdocMultiMutationCommand command{key,
-                                              {{ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.bar",
-                                                "true"},
-                                               {ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.foo",
-                                                "true"}},
-                                              cb::mcbp::subdoc::doc_flag::None};
+    BinprotSubdocMultiMutationCommand command{
+            key,
+            {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
+             {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
+            cb::mcbp::subdoc::doc_flag::None};
     execute(*admin, command, false, false, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest,
        ClientOpcode_SubdocMultiMutation_with_euid_with_access) {
-    BinprotSubdocMultiMutationCommand command{key,
-                                              {{ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.bar",
-                                                "true"},
-                                               {ClientOpcode::SubdocDictUpsert,
-                                                SUBDOC_FLAG_NONE,
-                                                "foo.missing.foo",
-                                                "true"}},
-                                              cb::mcbp::subdoc::doc_flag::None};
+    BinprotSubdocMultiMutationCommand command{
+            key,
+            {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
+             {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
+            cb::mcbp::subdoc::doc_flag::None};
     execute(*admin, command, true, false, true, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocReplaceBodyWithXattr_no_access) {
@@ -1955,7 +1935,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocReplaceBodyWithXattr_no_access) {
                                  key,
                                  "v1",
                                  "",
-                                 SUBDOC_FLAG_XATTR_PATH};
+                                 cb::mcbp::subdoc::PathFlag::XattrPath};
     executeInSystemCollectionWithoutAccess(*user, command, false);
 }
 TEST_P(CollectionsTest,
@@ -1964,7 +1944,7 @@ TEST_P(CollectionsTest,
                                  key,
                                  "v1",
                                  "",
-                                 SUBDOC_FLAG_XATTR_PATH};
+                                 cb::mcbp::subdoc::PathFlag::XattrPath};
     executeInSystemCollectionWithoutAccess(*admin, command, true);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocReplaceBodyWithXattr_access) {
@@ -1972,7 +1952,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocReplaceBodyWithXattr_access) {
                                  key,
                                  "v1",
                                  "",
-                                 SUBDOC_FLAG_XATTR_PATH};
+                                 cb::mcbp::subdoc::PathFlag::XattrPath};
     execute(*admin, command, false, false, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest,
@@ -1981,7 +1961,7 @@ TEST_P(CollectionsTest,
                                  key,
                                  "v1",
                                  "",
-                                 SUBDOC_FLAG_XATTR_PATH};
+                                 cb::mcbp::subdoc::PathFlag::XattrPath};
     execute(*admin, command, true, false, true, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_CollectionsGetManifest_no_access) {

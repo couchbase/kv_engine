@@ -308,19 +308,19 @@ public:
                          const std::string& key,
                          const std::string& path,
                          const std::string& value,
-                         protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE,
+                         cb::mcbp::subdoc::PathFlag flags = {},
                          cb::mcbp::subdoc::doc_flag docFlags =
                                  cb::mcbp::subdoc::doc_flag::None,
                          uint64_t cas = 0);
 
     BinprotSubdocCommand& setPath(std::string path_);
     BinprotSubdocCommand& setValue(std::string value_);
-    BinprotSubdocCommand& addPathFlags(protocol_binary_subdoc_flag flags_);
+    BinprotSubdocCommand& addPathFlags(cb::mcbp::subdoc::PathFlag flags_);
     BinprotSubdocCommand& addDocFlags(cb::mcbp::subdoc::doc_flag flags_);
     BinprotSubdocCommand& setExpiry(uint32_t value_);
     const std::string& getPath() const;
     const std::string& getValue() const;
-    protocol_binary_subdoc_flag getFlags() const;
+    cb::mcbp::subdoc::PathFlag getFlags() const;
 
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -328,7 +328,7 @@ private:
     std::string path;
     std::string value;
     BinprotCommand::ExpiryValue expiry;
-    protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE;
+    cb::mcbp::subdoc::PathFlag flags = cb::mcbp::subdoc::PathFlag::None;
     cb::mcbp::subdoc::doc_flag doc_flags = cb::mcbp::subdoc::doc_flag::None;
 };
 
@@ -347,7 +347,7 @@ public:
 
     struct MutationSpecifier {
         cb::mcbp::ClientOpcode opcode;
-        protocol_binary_subdoc_flag flags;
+        cb::mcbp::subdoc::PathFlag flags;
         std::string path;
         std::string value;
     };
@@ -368,7 +368,7 @@ public:
 
     BinprotSubdocMultiMutationCommand& addMutation(
             cb::mcbp::ClientOpcode opcode,
-            protocol_binary_subdoc_flag flags,
+            cb::mcbp::subdoc::PathFlag flags,
             const std::string& path,
             const std::string& value);
 
@@ -419,7 +419,7 @@ public:
 
     struct LookupSpecifier {
         cb::mcbp::ClientOpcode opcode;
-        protocol_binary_subdoc_flag flags;
+        cb::mcbp::subdoc::PathFlag flags;
         std::string path;
     };
 
@@ -434,17 +434,14 @@ public:
     BinprotSubdocMultiLookupCommand& addLookup(
             const std::string& path,
             cb::mcbp::ClientOpcode opcode = cb::mcbp::ClientOpcode::SubdocGet,
-            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
+            cb::mcbp::subdoc::PathFlag flags = {});
 
     BinprotSubdocMultiLookupCommand& addGet(
-            const std::string& path,
-            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
+            const std::string& path, cb::mcbp::subdoc::PathFlag flags = {});
     BinprotSubdocMultiLookupCommand& addExists(
-            const std::string& path,
-            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
+            const std::string& path, cb::mcbp::subdoc::PathFlag flags = {});
     BinprotSubdocMultiLookupCommand& addGetCount(
-            const std::string& path,
-            protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
+            const std::string& path, cb::mcbp::subdoc::PathFlag flags = {});
     BinprotSubdocMultiLookupCommand& addDocFlags(
             cb::mcbp::subdoc::doc_flag docFlag);
 

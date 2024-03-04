@@ -212,7 +212,8 @@ protected:
         cmd.setKey(name);
         cmd.setPath(key);
         cmd.setValue(value);
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath |
+                         cb::mcbp::subdoc::PathFlag::Mkdir_p);
 
         conn.sendCommand(cmd);
 
@@ -227,7 +228,7 @@ protected:
         cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
         cmd.setPath(key);
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         conn.sendCommand(cmd);
 
         BinprotResponse resp;

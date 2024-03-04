@@ -19,7 +19,8 @@
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
     os << "[cmd:" << to_string(cb::mcbp::ClientOpcode(obj.getOp()))
        << " key:" << obj.getKey() << " path:" << obj.getPath()
-       << " value:" << obj.getValue() << " flags:" << obj.getFlags()
+       << " value:" << obj.getValue()
+       << " flags:" << static_cast<int>(obj.getFlags())
        << " cas:" << obj.getCas() << "]";
     return os;
 }

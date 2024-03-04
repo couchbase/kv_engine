@@ -25,11 +25,10 @@ protected:
         TestappXattrClientTest::SetUp();
     }
 
-    BinprotSubdocResponse subdoc_get(
-            const std::string& path,
-            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
-            cb::mcbp::subdoc::doc_flag docFlag =
-                    cb::mcbp::subdoc::doc_flag::None) {
+    BinprotSubdocResponse subdoc_get(const std::string& path,
+                                     cb::mcbp::subdoc::PathFlag flag = {},
+                                     cb::mcbp::subdoc::doc_flag docFlag =
+                                             cb::mcbp::subdoc::doc_flag::None) {
         return subdoc(cb::mcbp::ClientOpcode::SubdocGet,
                       name,
                       path,

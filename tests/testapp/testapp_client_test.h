@@ -158,7 +158,7 @@ protected:
             const std::string& key,
             const std::string& path,
             const std::string& value = {},
-            protocol_binary_subdoc_flag flag = SUBDOC_FLAG_NONE,
+            cb::mcbp::subdoc::PathFlag flag = {},
             cb::mcbp::subdoc::doc_flag docFlag =
                     cb::mcbp::subdoc::doc_flag::None,
             const std::optional<cb::durability::Requirements>& durReqs = {});

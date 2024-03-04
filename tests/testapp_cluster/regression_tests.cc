@@ -50,7 +50,7 @@ TEST_F(RegressionTest, MB51135) {
         cmd.setKey("MB51135");
         cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
-                        SUBDOC_FLAG_MKDIR_P,
+                        cb::mcbp::subdoc::PathFlag::Mkdir_p,
                         "MB51135",
                         R"({"entry":true})");
         conn->sendCommand(cmd);
@@ -64,7 +64,7 @@ TEST_F(RegressionTest, MB51135) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey("MB51135");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
-                        SUBDOC_FLAG_MKDIR_P,
+                        cb::mcbp::subdoc::PathFlag::Mkdir_p,
                         "MB51135.foo",
                         R"({"entry":true})");
         conn->sendCommand(cmd);
@@ -78,7 +78,7 @@ TEST_F(RegressionTest, MB51135) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey("MB51135");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        cb::mcbp::subdoc::PathFlag::XattrPath,
                         "MB51135",
                         R"({"object":false})");
         conn->sendCommand(cmd);
@@ -92,7 +92,7 @@ TEST_F(RegressionTest, MB51135) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey("MB51135");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        cb::mcbp::subdoc::PathFlag::XattrPath,
                         "_MB51135",
                         "{}");
         conn->sendCommand(cmd);

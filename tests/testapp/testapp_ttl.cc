@@ -64,7 +64,7 @@ time_t TtlTest::getTtl(std::string key) {
                              key,
                              R"($document.exptime)",
                              {},
-                             SUBDOC_FLAG_XATTR_PATH);
+                             cb::mcbp::subdoc::PathFlag::XattrPath);
     auto rsp = userConnection->execute(cmd);
     if (!rsp.isSuccess()) {
         throw std::runtime_error("TtlTest::getTtl: Failed to get exptime: " +

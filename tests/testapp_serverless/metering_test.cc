@@ -423,17 +423,14 @@ void MeteringTest::upsert(DocKey id,
             cmd.setVBucket(Vbid{0});
             if (ii == 0) {
                 cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                SUBDOC_FLAG_XATTR_PATH,
+                                cb::mcbp::subdoc::PathFlag::XattrPath,
                                 xattr_path,
                                 xattr_value);
-                cmd.addMutation(cb::mcbp::ClientOpcode::Set,
-                                SUBDOC_FLAG_NONE,
-                                "",
-                                value);
+                cmd.addMutation(cb::mcbp::ClientOpcode::Set, {}, "", value);
                 cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
             } else {
                 cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                SUBDOC_FLAG_XATTR_PATH,
+                                cb::mcbp::subdoc::PathFlag::XattrPath,
                                 second_xattr_path,
                                 second_xattr_value);
             }
@@ -2837,8 +2834,8 @@ TEST_P(MeteringTest, SubdocMultiLookupAllMiss) {
 
     auto rsp = conn->execute(BinprotSubdocMultiLookupCommand{
             std::string{id},
-            {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
-             {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
+            {{cb::mcbp::ClientOpcode::SubdocGet, {}, "missing1"},
+             {cb::mcbp::ClientOpcode::SubdocGet, {}, "missing2"}},
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
@@ -2862,8 +2859,8 @@ TEST_P(MeteringTest, SubdocMultiLookup) {
 
     auto rsp = conn->execute(BinprotSubdocMultiLookupCommand{
             std::string{id},
-            {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "array.[0]"},
-             {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "counter"}},
+            {{cb::mcbp::ClientOpcode::SubdocGet, {}, "array.[0]"},
+             {cb::mcbp::ClientOpcode::SubdocGet, {}, "counter"}},
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -2890,11 +2887,11 @@ TEST_P(MeteringTest, SubdocMultiMutationAllFailed) {
     auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
             std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
+              {},
               "foo.missing.bar",
               "true"},
              {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
+              {},
               "foo.missing.foo",
               "true"}},
             cb::mcbp::subdoc::doc_flag::None});
@@ -2921,14 +2918,8 @@ TEST_P(MeteringTest, SubdocMultiMutation) {
 
     auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
             std::string{id},
-            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
-              "foo",
-              "true"},
-             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
-              "bar",
-              "true"}},
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "foo", "true"},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "bar", "true"}},
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
@@ -2955,14 +2946,8 @@ TEST_P(MeteringTest, SubdocMultiMutation_Durability) {
 
     BinprotSubdocMultiMutationCommand cmd{
             std::string{id},
-            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
-              "foo",
-              "true"},
-             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
-              "bar",
-              "true"}},
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "foo", "true"},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "bar", "true"}},
             cb::mcbp::subdoc::doc_flag::None};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
@@ -2995,11 +2980,11 @@ TEST_P(MeteringTest, SubdocReplaceBodyWithXattr) {
     auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
             std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-              SUBDOC_FLAG_XATTR_PATH,
+              cb::mcbp::subdoc::PathFlag::XattrPath,
               "tnx.op.staged",
               {}},
              {cb::mcbp::ClientOpcode::SubdocDelete,
-              SUBDOC_FLAG_XATTR_PATH,
+              cb::mcbp::subdoc::PathFlag::XattrPath,
               "tnx.op.staged",
               {}}},
             cb::mcbp::subdoc::doc_flag::None});
@@ -3027,11 +3012,11 @@ TEST_P(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
     BinprotSubdocMultiMutationCommand cmd{
             std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-              SUBDOC_FLAG_XATTR_PATH,
+              cb::mcbp::subdoc::PathFlag::XattrPath,
               "tnx.op.staged",
               {}},
              {cb::mcbp::ClientOpcode::SubdocDelete,
-              SUBDOC_FLAG_XATTR_PATH,
+              cb::mcbp::subdoc::PathFlag::XattrPath,
               "tnx.op.staged",
               {}}},
             cb::mcbp::subdoc::doc_flag::None};

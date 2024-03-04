@@ -112,7 +112,7 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
         const std::string& key,
         const std::string& path,
         const std::string& value,
-        protocol_binary_subdoc_flag flag,
+        cb::mcbp::subdoc::PathFlag flag,
         cb::mcbp::subdoc::doc_flag docFlag,
         const std::optional<cb::durability::Requirements>& durReqs) {
     BinprotSubdocCommand cmd;
@@ -150,7 +150,8 @@ cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
                        name,
                        path,
                        value,
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                       cb::mcbp::subdoc::PathFlag::XattrPath |
+                               cb::mcbp::subdoc::PathFlag::Mkdir_p,
                        cb::mcbp::subdoc::doc_flag::Mkdoc);
     return resp.getStatus();
 }
@@ -267,10 +268,12 @@ void TestappXattrClientTest::runCreateXattr(std::string path,
     cmd.setPath(std::move(path));
     cmd.setValue(std::move(value));
     if (macro) {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS |
-                         SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath |
+                         cb::mcbp::subdoc::PathFlag::ExpandMacros |
+                         cb::mcbp::subdoc::PathFlag::Mkdir_p);
     } else {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath |
+                         cb::mcbp::subdoc::PathFlag::Mkdir_p);
     }
 
     auto resp = userConnection->execute(cmd);
@@ -286,10 +289,10 @@ BinprotSubdocResponse TestappXattrClientTest::runGetXattr(
     cmd.setKey(name);
     cmd.setPath(std::move(path));
     if (deleted) {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     } else {
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
     }
     userConnection->sendCommand(cmd);
 

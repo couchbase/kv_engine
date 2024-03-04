@@ -127,7 +127,8 @@ static BinprotSubdocCommand subdocInsertXattrPath(const std::string& key,
                                 key,
                                 path,
                                 "{}",
-                                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                                cb::mcbp::subdoc::PathFlag::XattrPath |
+                                        cb::mcbp::subdoc::PathFlag::Mkdir_p,
                                 cb::mcbp::subdoc::doc_flag::Mkdoc);
 }
 
@@ -151,7 +152,7 @@ void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,
     // connection only has xattr read, 1 entry comes back
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(fruit);
-    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$XTOC", cb::mcbp::subdoc::PathFlag::XattrPath);
     conn.sendCommand(cmd);
     BinprotSubdocMultiLookupResponse resp;
     resp.clear();

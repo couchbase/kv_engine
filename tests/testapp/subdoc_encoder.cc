@@ -30,7 +30,7 @@ std::vector<char> SubdocMultiLookupCmd::encode() const {
             char bytes[sizeof(protocol_binary_subdoc_multi_lookup_spec)];
         } encoded;
         encoded.spec.opcode = s.opcode;
-        encoded.spec.flags = s.flags;
+        encoded.spec.flags = static_cast<uint8_t>(s.flags);
         encoded.spec.pathlen = htons(gsl::narrow<uint16_t>(s.path.size()));
 
         std::copy(&encoded.bytes[0],
@@ -57,7 +57,7 @@ std::vector<char> SubdocMultiMutationCmd::encode() const {
             char bytes[sizeof(protocol_binary_subdoc_multi_mutation_spec)];
         } encoded;
         encoded.spec.opcode = s.opcode;
-        encoded.spec.flags = s.flags;
+        encoded.spec.flags = static_cast<uint8_t>(s.flags);
         encoded.spec.pathlen = htons(gsl::narrow<uint16_t>(s.path.size()));
         encoded.spec.valuelen = htonl(gsl::narrow<uint32_t>(s.value.size()));
 

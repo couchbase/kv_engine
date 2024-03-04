@@ -62,7 +62,7 @@ struct SubdocMultiLookupCmd : public SubdocMultiCmd {
 
     struct LookupSpec {
         cb::mcbp::ClientOpcode opcode;
-        protocol_binary_subdoc_flag flags;
+        cb::mcbp::subdoc::PathFlag flags;
         std::string path;
     };
     std::vector<LookupSpec> specs;
@@ -81,7 +81,7 @@ struct SubdocMultiMutationCmd : public SubdocMultiCmd {
 
     struct LookupSpec {
         cb::mcbp::ClientOpcode opcode;
-        protocol_binary_subdoc_flag flags;
+        cb::mcbp::subdoc::PathFlag flags;
         std::string path;
         std::string value;
     };

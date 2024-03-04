@@ -67,3 +67,7 @@ void to_json(nlohmann::json& json,
              const RangeScanContinueMetaResponse& payload);
 void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload);
 } // namespace cb::mcbp::response
+
+namespace cb::mcbp::subdoc {
+void to_json(nlohmann::json& josn, const PathFlag& flag);
+}

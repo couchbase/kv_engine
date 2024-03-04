@@ -488,8 +488,8 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
 
     cmd.addLookup("$document",
                   cb::mcbp::ClientOpcode::SubdocGet,
-                  SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+                  cb::mcbp::subdoc::PathFlag::XattrPath);
+    cmd.addLookup("", cb::mcbp::ClientOpcode::Get);
 
     // We can read it from the active vbucket
     auto rsp = conn->execute(cmd);

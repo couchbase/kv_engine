@@ -221,7 +221,7 @@ public:
     class OperationSpec {
     public:
         OperationSpec(SubdocCmdTraits traits_,
-                      protocol_binary_subdoc_flag flags_,
+                      cb::mcbp::subdoc::PathFlag flags_,
                       std::string path_,
                       std::string value_ = {});
 
@@ -232,7 +232,7 @@ public:
         SubdocCmdTraits traits;
 
         // The flags set for this individual Operation
-        protocol_binary_subdoc_flag flags;
+        cb::mcbp::subdoc::PathFlag flags;
 
         // Path to operate on.
         const std::string path;

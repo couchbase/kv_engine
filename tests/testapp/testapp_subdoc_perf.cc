@@ -260,7 +260,7 @@ TEST_P(SubdocPerfTest, Array_PushFirst_Multipath) {
     mutation.key = "list";
     for (size_t i = 0; i < iterations; i++) {
         mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                                  SUBDOC_FLAG_NONE,
+                                  {},
                                   "",
                                   std::to_string(i)});
 
@@ -288,10 +288,8 @@ TEST_P(SubdocPerfTest, Array_RemoveFirst_Multipath) {
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDelete,
-                                  SUBDOC_FLAG_NONE,
-                                  "[0]",
-                                  {}});
+        mutation.specs.push_back(
+                {cb::mcbp::ClientOpcode::SubdocDelete, {}, "[0]", {}});
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
@@ -317,10 +315,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceFirst_Multipath) {
     SubdocMultiMutationCmd mutation;
     mutation.key = "list";
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocReplace,
-                                  SUBDOC_FLAG_NONE,
-                                  "[0]",
-                                  "1"});
+        mutation.specs.push_back(
+                {cb::mcbp::ClientOpcode::SubdocReplace, {}, "[0]", "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
@@ -345,10 +341,8 @@ TEST_P(SubdocPerfTest, Array_ReplaceMiddle_Multipath) {
     mutation.key = "list";
     std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
     for (size_t i = 0; i < iterations; i++) {
-        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocReplace,
-                                  SUBDOC_FLAG_NONE,
-                                  path,
-                                  "1"});
+        mutation.specs.push_back(
+                {cb::mcbp::ClientOpcode::SubdocReplace, {}, path, "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
             expect_subdoc_cmd(mutation, cb::mcbp::Status::Success, {});
@@ -373,10 +367,8 @@ TEST_P(SubdocPerfTest, Dict_Add_Multipath) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
 
-        mutation.specs.push_back({cb::mcbp::ClientOpcode::SubdocDictAdd,
-                                  SUBDOC_FLAG_NONE,
-                                  key,
-                                  value});
+        mutation.specs.push_back(
+                {cb::mcbp::ClientOpcode::SubdocDictAdd, {}, key, value});
 
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.

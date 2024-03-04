@@ -81,18 +81,17 @@ static cb::mcbp::Status validate_macro(std::string_view value) {
 static inline cb::mcbp::Status validate_xattr_section(
         Cookie& cookie,
         bool mutator,
-        protocol_binary_subdoc_flag flags,
+        cb::mcbp::subdoc::PathFlag flags,
         std::string_view path,
         std::string_view value) {
-    if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
-        // XATTR flag isn't set... just bail out
-        if ((flags & SUBDOC_FLAG_EXPAND_MACROS)) {
+    if (!hasXattrPath(flags)) {
+        if (hasExpandedMacros(flags)) {
             cookie.setErrorContext(
                     "EXPAND_MACROS flag requires XATTR flag to be set");
             return cb::mcbp::Status::SubdocXattrInvalidFlagCombo;
-        } else {
-            return cb::mcbp::Status::Success;
         }
+        // XATTR flag isn't set... just bail out
+        return cb::mcbp::Status::Success;
     }
 
     if (!cookie.getConnection().selectedBucketIsXattrEnabled() ||
@@ -111,8 +110,8 @@ static inline cb::mcbp::Status validate_xattr_section(
         return cb::mcbp::Status::SubdocXattrCantModifyVattr;
     }
 
-    return (flags & SUBDOC_FLAG_EXPAND_MACROS) ? validate_macro(value)
-                                               : cb::mcbp::Status::Success;
+    return hasExpandedMacros(flags) ? validate_macro(value)
+                                    : cb::mcbp::Status::Success;
 }
 
 static cb::mcbp::Status subdoc_validator(Cookie& cookie,
@@ -163,7 +162,8 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
 
     // Check only valid flags are specified.
     const auto subdoc_flags = parser.getSubdocFlags();
-    if ((subdoc_flags & ~traits.valid_flags) != 0) {
+    if ((subdoc_flags & ~traits.valid_flags) !=
+        cb::mcbp::subdoc::PathFlag::None) {
         cookie.setErrorContext("Request flags invalid");
         return cb::mcbp::Status::Einval;
     }
@@ -187,7 +187,7 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
             return cb::mcbp::Status::Einval;
         }
 
-        if ((subdoc_flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
+        if (!hasXattrPath(subdoc_flags)) {
             cookie.setErrorContext(
                     "CreateAsDeleted does not support body path");
             return cb::mcbp::Status::Einval;
@@ -339,7 +339,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
     cb::mcbp::ClientOpcode opcode;
-    protocol_binary_subdoc_flag flags;
+    cb::mcbp::subdoc::PathFlag flags;
     size_t headerlen;
     size_t pathlen;
     size_t valuelen;
@@ -352,7 +352,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
             return cb::mcbp::Status::Einval;
         }
         opcode = cb::mcbp::ClientOpcode(spec->opcode);
-        flags = protocol_binary_subdoc_flag(spec->flags);
+        flags = cb::mcbp::subdoc::PathFlag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = ntohl(spec->valuelen);
 
@@ -369,7 +369,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
             return cb::mcbp::Status::Einval;
         }
         opcode = cb::mcbp::ClientOpcode(spec->opcode);
-        flags = protocol_binary_subdoc_flag(spec->flags);
+        flags = cb::mcbp::subdoc::PathFlag(spec->flags);
         pathlen = ntohs(spec->pathlen);
         valuelen = 0;
         if (headerlen + pathlen > blob.size()) {
@@ -378,7 +378,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         }
     }
 
-    xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
+    xattr = hasXattrPath(flags);
 
     SubdocCmdTraits op_traits = get_subdoc_cmd_traits(opcode);
 
@@ -396,7 +396,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
     }
 
     // Check only valid flags are specified.
-    if ((flags & ~op_traits.valid_flags) != 0) {
+    if ((flags & ~op_traits.valid_flags) != cb::mcbp::subdoc::PathFlag::None) {
         cookie.setErrorContext("Request flags invalid");
         return cb::mcbp::Status::Einval;
     }

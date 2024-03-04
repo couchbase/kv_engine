@@ -16,6 +16,7 @@
 #include <array>
 
 using namespace cb::mcbp;
+using namespace cb::mcbp::subdoc;
 
 BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
         std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
@@ -45,25 +46,23 @@ BinprotSubdocMultiMutationCommand XattrNoDocTest::makeSDKTxnMultiMutation()
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(
-            ClientOpcode::SubdocDictAdd, SUBDOC_FLAG_XATTR_PATH, "txn", "{}");
-    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
-                    "txn.id",
-                    "2");
+            ClientOpcode::SubdocDictAdd, PathFlag::XattrPath, "txn", "{}");
+    cmd.addMutation(
+            ClientOpcode::SubdocDictUpsert, PathFlag::XattrPath, "txn.id", "2");
     cmd.addMutation(ClientOpcode::SubdocArrayPushLast,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "txn.array",
                     "2");
     cmd.addMutation(ClientOpcode::SubdocArrayPushFirst,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "txn.array",
                     "0");
     cmd.addMutation(ClientOpcode::SubdocArrayAddUnique,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "txn.array",
                     "3");
     cmd.addMutation(ClientOpcode::SubdocCounter,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "txn.counter",
                     "1");
     return cmd;
@@ -92,24 +91,24 @@ protected:
                            name,
                            path,
                            "\"Smith\"",
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
                       name,
                       path + "[0]",
                       "\"Bart\"",
-                      SUBDOC_FLAG_XATTR_PATH);
+                      PathFlag::XattrPath);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayInsert,
                       name,
                       path + "[1]",
                       "\"Jones\"",
-                      SUBDOC_FLAG_XATTR_PATH);
+                      PathFlag::XattrPath);
         EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Bart\",\"Jones\",\"Smith\"]", resp.getValue());
     }
@@ -119,10 +118,10 @@ protected:
                            name,
                            path,
                            "\"Smith\"",
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
@@ -131,10 +130,10 @@ protected:
                       name,
                       path,
                       "\"Jones\"",
-                      SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                      PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
     }
@@ -144,10 +143,10 @@ protected:
                            name,
                            path,
                            "\"Smith\"",
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
@@ -156,10 +155,10 @@ protected:
                       name,
                       path,
                       "\"Jones\"",
-                      SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                      PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Jones\",\"Smith\"]", resp.getValue());
     }
@@ -169,10 +168,10 @@ protected:
                            name,
                            path,
                            "\"Smith\"",
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\"]", resp.getValue());
 
@@ -180,10 +179,10 @@ protected:
                       name,
                       path,
                       "\"Jones\"",
-                      SUBDOC_FLAG_XATTR_PATH);
+                      PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
 
@@ -191,10 +190,10 @@ protected:
                       name,
                       path,
                       "\"Jones\"",
-                      SUBDOC_FLAG_XATTR_PATH);
+                      PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
     }
@@ -204,10 +203,10 @@ protected:
                            name,
                            path,
                            "1",
-                           SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                           PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("1", resp.getValue());
 
@@ -215,10 +214,10 @@ protected:
                       name,
                       path,
                       "1",
-                      SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                      PathFlag::XattrPath | PathFlag::Mkdir_p);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        resp = subdoc_get(path, SUBDOC_FLAG_XATTR_PATH);
+        resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         EXPECT_EQ("2", resp.getValue());
     }
@@ -272,7 +271,7 @@ protected:
         EXPECT_EQ(value, doc.value);
 
         // Check the xattr was set correctly
-        auto resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
+        auto resp = subdoc_get(sysXattr, PathFlag::XattrPath);
         EXPECT_EQ(xattrVal, resp.getValue());
 
         // Check the datatype.
@@ -291,8 +290,8 @@ protected:
 
         BinprotSubdocMultiLookupCommand cmd;
         cmd.setKey(name);
-        cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-        cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        cmd.addGet("$XTOC", PathFlag::XattrPath);
+        cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
         userConnection->sendCommand(cmd);
 
@@ -370,10 +369,8 @@ TEST_P(XattrTest, GetXattrAndBody) {
 
     // Sanity checks and setup done lets try the multi-lookup
     auto multiResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
-              sysXattr},
-             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
+            {{cb::mcbp::ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
+             {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}});
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
@@ -386,10 +383,10 @@ TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     testBodyAndXattrCmd(cmd);
@@ -406,7 +403,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocDict) {
                        name,
                        "meta.deleted",
                        "true",
-                       SUBDOC_FLAG_XATTR_PATH,
+                       PathFlag::XattrPath,
                        cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -427,7 +424,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocArray) {
                        name,
                        "array",
                        "0",
-                       SUBDOC_FLAG_XATTR_PATH,
+                       PathFlag::XattrPath,
                        cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
@@ -447,7 +444,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocMultipathDict) {
 
     auto response =
             subdoc_multi_mutation({{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                    SUBDOC_FLAG_XATTR_PATH,
+                                    PathFlag::XattrPath,
                                     "meta.deleted",
                                     "true"}},
                                   cb::mcbp::subdoc::doc_flag::Mkdoc);
@@ -469,7 +466,7 @@ TEST_P(XattrTest, SetXattrNoValueNewDocMultipathArray) {
 
     auto response =
             subdoc_multi_mutation({{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                                    SUBDOC_FLAG_XATTR_PATH,
+                                    PathFlag::XattrPath,
                                     "meta.ids",
                                     "123"}},
                                   cb::mcbp::subdoc::doc_flag::Mkdoc);
@@ -490,10 +487,10 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
     cmd.setKey(name);
     cmd.setExpiry(3);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     testBodyAndXattrCmd(cmd);
@@ -503,7 +500,7 @@ TEST_P(XattrTest, SetXattrAndBodyNewDocWithExpiry) {
             4, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     auto getResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
+            {{cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Restore time.
@@ -517,20 +514,18 @@ TEST_P(XattrTest, SetXattrAndBodyExistingDoc) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    PathFlag::XattrPath | PathFlag::Mkdir_p,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
 
     testBodyAndXattrCmd(cmd);
 }
 
 TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
     // First test invalid path flags
-    std::array<protocol_binary_subdoc_flag, 3> badFlags = {
-            {SUBDOC_FLAG_MKDIR_P,
-             SUBDOC_FLAG_XATTR_PATH,
-             SUBDOC_FLAG_EXPAND_MACROS}};
+    std::array<PathFlag, 3> badFlags = {
+            {PathFlag::Mkdir_p, PathFlag::XattrPath, PathFlag::ExpandMacros}};
 
     for (const auto& flag : badFlags) {
         BinprotSubdocMultiMutationCommand cmd;
@@ -551,7 +546,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
     cmd.setKey(name);
 
     // Should not be able to set all XATTRs
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     userConnection->sendCommand(cmd);
@@ -564,7 +559,7 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
 TEST_P(XattrTest, SetBodyInMultiLookup) {
     // Check that we can't put a CMD_SET in a multi lookup
     auto multiResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, ""}});
+            {{cb::mcbp::ClientOpcode::Set, PathFlag::None, ""}});
 
     EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, multiResp.getStatus());
 }
@@ -575,7 +570,7 @@ TEST_P(XattrTest, GetBodyInMultiMutation) {
     cmd.setKey(name);
 
     // Should not be able to put a get in a multi multi-mutation
-    cmd.addMutation(cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Get, PathFlag::None, "", value);
     userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -592,10 +587,10 @@ TEST_P(XattrTest, AddBodyAndXattr) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
 
     userConnection->sendCommand(cmd);
@@ -615,10 +610,10 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
 
     userConnection->sendCommand(cmd);
@@ -640,10 +635,10 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
     cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
 
@@ -660,9 +655,9 @@ TEST_P(XattrTest, TestSeqnoMacroExpansion) {
                        name,
                        "_sync.seqno",
                        "\"${Mutation.seqno}\"",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    resp = subdoc_get("_sync.seqno", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.seqno", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("\"${Mutation.seqno}\"", resp.getValue());
 
@@ -675,10 +670,10 @@ TEST_P(XattrTest, TestSeqnoMacroExpansion) {
                   name,
                   "_sync.seqno",
                   "\"${Mutation.seqno}\"",
-                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+                  PathFlag::XattrPath | PathFlag::ExpandMacros);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    resp = subdoc_get("_sync.seqno", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.seqno", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_NE("\"${Mutation.seqno}\"", resp.getValue());
 }
@@ -695,10 +690,10 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
                        name,
                        "_sync.cas",
                        "\"${Mutation.CAS}\"",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
     EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
 
     // Let's update the body version..
@@ -706,11 +701,11 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
                   name,
                   "_sync.cas",
                   "\"If you don't know me by now\"",
-                  SUBDOC_FLAG_MKDIR_P);
+                  PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // The xattr version should have been unchanged...
-    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
     EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
 
     // And the body version should be what we set it to
@@ -722,12 +717,12 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
                   name,
                   "_sync.cas",
                   "\"${Mutation.CAS}\"",
-                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+                  PathFlag::XattrPath | PathFlag::ExpandMacros);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     /// Fetch the field and verify that it expanded the cas! (the expanded
     /// value is in _NETWORK BYTE ORDER_
-    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     const auto first_cas = resp.getCas();
     const auto cas_string = "\"" + cb::to_hex(htonll(resp.getCas())) + "\"";
@@ -742,7 +737,7 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
 
     // The macro should not have been expanded again...
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    resp = subdoc_get("_sync.cas", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
     EXPECT_EQ(cas_string, resp.getValue());
     EXPECT_NE(first_cas, resp.getCas());
 }
@@ -768,12 +763,12 @@ TEST_P(XattrTest, AddSystemXattrToDeletedItem) {
                        name,
                        "_sync.deleted",
                        "true",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                       PathFlag::XattrPath | PathFlag::Mkdir_p,
                        cb::mcbp::subdoc::doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get("_sync.deleted",
-                      SUBDOC_FLAG_XATTR_PATH,
+                      PathFlag::XattrPath,
                       cb::mcbp::subdoc::doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
@@ -788,12 +783,12 @@ TEST_P(XattrTest, AddUserXattrToDeletedItem) {
                        name,
                        "txn.deleted",
                        "true",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                       PathFlag::XattrPath | PathFlag::Mkdir_p,
                        doc_flag::Mkdoc | doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     resp = subdoc_get(
-            "txn.deleted", SUBDOC_FLAG_XATTR_PATH, doc_flag::AccessDeleted);
+            "txn.deleted", PathFlag::XattrPath, doc_flag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
 }
@@ -814,11 +809,11 @@ TEST_P(XattrTest, MB_22319) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "doc.readcount",
                     "1");
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "doc.author",
                     "\"jones\"");
 
@@ -839,7 +834,7 @@ TEST_P(XattrTest, Get_FullXattrSpec) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", R"({"author": "Bart","rev":0})"));
 
-    auto response = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    auto response = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
     EXPECT_EQ(R"({"author":"Bart","rev":0})"_json,
               nlohmann::json::parse(response.getValue()));
@@ -852,7 +847,7 @@ TEST_P(XattrTest, Get_PartialXattrSpec) {
     EXPECT_EQ(cb::mcbp::Status::Success,
               xattr_upsert("doc", R"({"author": "Bart","rev":0})"));
 
-    auto response = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
+    auto response = subdoc_get("doc.author", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
     EXPECT_EQ("\"Bart\"", response.getValue());
 }
@@ -866,7 +861,7 @@ TEST_P(XattrTest, Exists_FullXattrSpec) {
                        name,
                        "doc",
                        {},
-                       SUBDOC_FLAG_XATTR_PATH);
+                       PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // Create the xattr
@@ -878,7 +873,7 @@ TEST_P(XattrTest, Exists_FullXattrSpec) {
                   name,
                   "doc",
                   {},
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
@@ -892,7 +887,7 @@ TEST_P(XattrTest, Exists_PartialXattrSpec) {
                        name,
                        "doc",
                        {},
-                       SUBDOC_FLAG_XATTR_PATH);
+                       PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // Create the xattr
@@ -904,7 +899,7 @@ TEST_P(XattrTest, Exists_PartialXattrSpec) {
                   name,
                   "doc.author",
                   {},
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // But we don't have one named _sync
@@ -912,7 +907,7 @@ TEST_P(XattrTest, Exists_PartialXattrSpec) {
                   name,
                   "_sync.cas",
                   {},
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 }
 
@@ -927,7 +922,7 @@ TEST_P(XattrTest, DictAdd_FullXattrSpec) {
                        name,
                        "doc",
                        R"({"author": "Bart"})",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Adding it the first time should work, second time we should get EEXISTS
@@ -935,7 +930,7 @@ TEST_P(XattrTest, DictAdd_FullXattrSpec) {
                   name,
                   "doc",
                   R"({"author": "Bart"})",
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 }
 
@@ -948,7 +943,7 @@ TEST_P(XattrTest, DictAdd_PartialXattrSpec) {
                        name,
                        "doc.author",
                        "\"Bart\"",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Adding it the first time should work, second time we should get EEXISTS
@@ -956,7 +951,7 @@ TEST_P(XattrTest, DictAdd_PartialXattrSpec) {
                   name,
                   "doc.author",
                   "\"Bart\"",
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, resp.getStatus());
 }
 
@@ -970,7 +965,7 @@ TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
                        name,
                        "doc",
                        R"({"author": "Bart"})",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // We should be able to update it...
@@ -978,10 +973,10 @@ TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
                   name,
                   "doc",
                   R"({"author": "Jones"})",
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    resp = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("doc.author", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("\"Jones\"", resp.getValue());
 }
@@ -995,7 +990,7 @@ TEST_P(XattrTest, DictUpsert_PartialXattrSpec) {
                        name,
                        "doc",
                        R"({"author": "Bart"})",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // We should be able to update it...
@@ -1003,10 +998,10 @@ TEST_P(XattrTest, DictUpsert_PartialXattrSpec) {
                   name,
                   "doc.author",
                   "\"Jones\"",
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    resp = subdoc_get("doc.author", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("doc.author", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("\"Jones\"", resp.getValue());
 }
@@ -1019,17 +1014,17 @@ TEST_P(XattrTest, Delete_FullXattrSpec) {
                        name,
                        "doc",
                        R"({"author": "Bart"})",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDelete,
                   name,
                   "doc",
                   {},
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // THe entire stuff should be gone
-    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 }
 
@@ -1041,17 +1036,17 @@ TEST_P(XattrTest, Delete_PartialXattrSpec) {
                        name,
                        "doc",
                        R"({"author":"Bart","ref":0})",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDelete,
                   name,
                   "doc.ref",
                   {},
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // THe entire stuff should be gone
-    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"author\":\"Bart\"}", resp.getValue());
 }
@@ -1065,24 +1060,24 @@ TEST_P(XattrTest, Replace_FullXattrSpec) {
                        name,
                        "doc",
                        R"({"author":"Bart","ref":0})",
-                       SUBDOC_FLAG_XATTR_PATH);
+                       PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                   name,
                   "doc",
                   R"({"author": "Bart"})",
-                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                  PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocReplace,
                   name,
                   "doc",
                   R"({"author":"Bart","ref":0})",
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"author\":\"Bart\",\"ref\":0}", resp.getValue());
 }
@@ -1095,23 +1090,23 @@ TEST_P(XattrTest, Replace_PartialXattrSpec) {
                        name,
                        "doc.author",
                        "\"Bart\"",
-                       SUBDOC_FLAG_XATTR_PATH);
+                       PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                   name,
                   "doc",
                   R"({"author":"Bart","rev":0})",
-                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                  PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocReplace,
                   name,
                   "doc.author",
                   "\"Jones\"",
-                  SUBDOC_FLAG_XATTR_PATH);
+                  PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-    resp = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"author\":\"Jones\",\"rev\":0}", resp.getValue());
 }
@@ -1204,7 +1199,7 @@ TEST_P(XattrDisabledTest, VerifyNotEnabled) {
     cmd.setKey(name);
     cmd.setPath("_sync.deleted");
     cmd.setValue("true");
-    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addPathFlags(PathFlag::XattrPath | PathFlag::Mkdir_p);
     cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted |
                     cb::mcbp::subdoc::doc_flag::Mkdoc);
     userConnection->sendCommand(cmd);
@@ -1220,14 +1215,14 @@ TEST_P(XattrTest, MB_22691) {
                        name,
                        "integer_extra",
                        "1",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                   name,
                   "integer",
                   "2",
-                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                  PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus())
             << to_string(resp.getStatus());
 }
@@ -1245,12 +1240,10 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
 
     // Sanity checks and setup done lets try the multi-lookup
     auto multiResp = subdoc_multi_lookup(
-            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document"},
-             {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document.CAS"},
-             {ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
-              "$document.foobar"},
-             {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "_sync.eg"}});
+            {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document"},
+             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document.CAS"},
+             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document.foobar"},
+             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sync.eg"}});
     auto& results = multiResp.getResults();
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
@@ -1324,9 +1317,9 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
     // Sanity checks and setup done lets try the multi-lookup
     auto multiResp = subdoc_multi_lookup(
             {{cb::mcbp::ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
+              PathFlag::XattrPath,
               "$document.deleted"},
-             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
+             {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}});
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ("false", multiResp.getResults()[0].value);
@@ -1337,10 +1330,10 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                    PathFlag::XattrPath | PathFlag::Mkdir_p,
                     "$document.CAS",
                     "foo");
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
 
     userConnection->sendCommand(cmd);
 
@@ -1353,7 +1346,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
 TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
     auto multiResp =
             subdoc_multi_lookup({{cb::mcbp::ClientOpcode::SubdocGet,
-                                  SUBDOC_FLAG_XATTR_PATH,
+                                  PathFlag::XattrPath,
                                   "$documents"}}); // should be $document
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
@@ -1365,8 +1358,8 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
     verify_xtoc_user_system_xattr();
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+    cmd.addGet("$XTOC", PathFlag::XattrPath);
+    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
     BinprotSubdocMultiLookupResponse multiResp;
 
@@ -1384,8 +1377,8 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPriv) {
     verify_xtoc_user_system_xattr();
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+    cmd.addGet("$XTOC", PathFlag::XattrPath);
+    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
     BinprotSubdocMultiLookupResponse multiResp;
 
@@ -1410,7 +1403,7 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
 
     EXPECT_EQ(doc.value, document.value);
 
-    auto resp = subdoc_get("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    auto resp = subdoc_get("$XTOC", PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("[]", resp.getValue());
 }
@@ -1439,9 +1432,9 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
                        name,
                        "userXattr",
                        R"({"a":1})",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("userXattr", PathFlag::XattrPath);
     EXPECT_EQ(R"({"a":1})", resp.getValue());
 
     // Compute the expected value checksum
@@ -1451,7 +1444,7 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
     // Get and verify the actual value checksum
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(document.info.id);
-    cmd.addGet("$document.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$document.value_crc32c", PathFlag::XattrPath);
     const auto multiResp =
             BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1464,7 +1457,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
     // sets the correct value checksum into the given user XAttr
 
     // Store the macro and verify that it is not expanded without the
-    // SUBDOC_FLAG_EXPAND_MACROS flag.
+    // PathFlag::ExpandMacros flag.
     // Note: as the document will contain an XAttr, we prove also that the
     // checksum computed by the server takes in input only the document
     // value (XAttrs excluded).
@@ -1472,9 +1465,9 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
                        name,
                        "_sync.value_crc32c",
                        "\"${Mutation.value_crc32c}\"",
-                       SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+                       PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.value_crc32c", PathFlag::XattrPath);
     EXPECT_EQ("\"${Mutation.value_crc32c}\"", resp.getValue());
 
     // Now change the user xattr to macro expansion
@@ -1482,7 +1475,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
                   name,
                   "_sync.value_crc32c",
                   "\"${Mutation.value_crc32c}\"",
-                  SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS);
+                  PathFlag::XattrPath | PathFlag::ExpandMacros);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Compute the expected value_crc32c
@@ -1492,13 +1485,13 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
 
     // Fetch the xattr and verify that the macro expanded to the
     // expected body checksum
-    resp = subdoc_get("_sync.value_crc32c", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync.value_crc32c", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ(expectedValueCrc32c, resp.getValue());
 
     // Repeat the check fetching the entire '_sync' path. Differently from the
     // check above, this check exposed issues in macro padding.
-    resp = subdoc_get("_sync", SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get("_sync", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"value_crc32c\":" + expectedValueCrc32c + "}",
               resp.getValue());
@@ -1509,10 +1502,8 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     auto multiResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
-              sysXattr},
-             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            {{cb::mcbp::ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
+             {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1529,10 +1520,8 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
 
     // Attempt to request both the body and a non-existent XATTR.
     auto multiResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
-              sysXattr},
-             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            {{cb::mcbp::ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
+             {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
@@ -1554,10 +1543,8 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
     userConnection->remove(name, Vbid(0));
 
     auto multiResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
-              sysXattr},
-             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            {{cb::mcbp::ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
+             {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
@@ -1578,10 +1565,8 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     auto multiResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
-              sysXattr},
-             {cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            {{cb::mcbp::ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
+             {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1600,12 +1585,10 @@ TEST_P(XattrTest, MB_35388_VATTR_Vbucket) {
 
     // Sanity checks and setup done lets try the multi-lookup
     auto multiResp = subdoc_multi_lookup({
-            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$vbucket"},
-            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$vbucket.HLC"},
-            {ClientOpcode::SubdocGet,
-             SUBDOC_FLAG_XATTR_PATH,
-             "$vbucket.HLC.now"},
-            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "_sync.eg"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$vbucket"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$vbucket.HLC"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$vbucket.HLC.now"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sync.eg"},
     });
     auto& results = multiResp.getResults();
 
@@ -1637,9 +1620,9 @@ TEST_P(XattrTest, MB_35388_VATTR_Document_Vbucket) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     auto multiResp = subdoc_multi_lookup({
-            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document"},
-            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$vbucket"},
-            {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "_sync.eg"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$vbucket"},
+            {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sync.eg"},
     });
     auto& results = multiResp.getResults();
 
@@ -1663,13 +1646,13 @@ TEST_P(XattrTest, MB_35388_VbucketHlcNowIsValid) {
 
     auto multiResp = subdoc_multi_lookup({
             {cb::mcbp::ClientOpcode::SubdocGet,
-             SUBDOC_FLAG_XATTR_PATH,
+             PathFlag::XattrPath,
              "$document.last_modified"},
             {cb::mcbp::ClientOpcode::SubdocGet,
-             SUBDOC_FLAG_XATTR_PATH,
+             PathFlag::XattrPath,
              "$vbucket.HLC.mode"},
             {cb::mcbp::ClientOpcode::SubdocGet,
-             SUBDOC_FLAG_XATTR_PATH,
+             PathFlag::XattrPath,
              "$vbucket.HLC.now"},
     });
     auto& results = multiResp.getResults();
@@ -1702,9 +1685,9 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
 
     // Lookup two XATTRs - one which exists and one which doesn't.
     auto multiResp = subdoc_multi_lookup(
-            {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, sysXattr},
+            {{ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
              {ClientOpcode::SubdocGet,
-              SUBDOC_FLAG_XATTR_PATH,
+              PathFlag::XattrPath,
               "_sync.non_existant"}},
             cb::mcbp::subdoc::doc_flag::AccessDeleted);
 
@@ -1724,10 +1707,10 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", "");
+    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
     userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1741,22 +1724,22 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
     EXPECT_EQ(1, meta.deleted);
 
     auto resp = subdoc_get(sysXattr,
-                           SUBDOC_FLAG_XATTR_PATH,
+                           PathFlag::XattrPath,
                            cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ(xattrVal, resp.getValue());
 
     // Check we can't access the deleted document
-    resp = subdoc_get(sysXattr, SUBDOC_FLAG_XATTR_PATH);
+    resp = subdoc_get(sysXattr, PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 
     auto getResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}});
+            {{cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, getResp.getStatus());
 
     // Worth noting the difference in the way it fails if AccessDeleted is set.
     getResp = subdoc_multi_lookup(
-            {{cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""}},
+            {{cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               getResp.getStatus());
@@ -1769,10 +1752,10 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "userXattr",
                     "66");
-    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", "");
+    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
     userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1785,19 +1768,19 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
     // Should also be marked as deleted
     EXPECT_EQ(1, meta.deleted);
 
-    auto resp = subdoc_get("userXattr", SUBDOC_FLAG_XATTR_PATH);
+    auto resp = subdoc_get("userXattr", PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 
     // The delete should delete user Xattrs as well as the body, leaving only
     // system Xattrs
     resp = subdoc_get("userXattr",
-                      SUBDOC_FLAG_XATTR_PATH,
+                      PathFlag::XattrPath,
                       cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, resp.getStatus());
 
     // System Xattr should still be there so lets check it
     resp = subdoc_get(sysXattr,
-                      SUBDOC_FLAG_XATTR_PATH,
+                      PathFlag::XattrPath,
                       cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ(xattrVal, resp.getValue());
@@ -1807,13 +1790,11 @@ TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     "userXattr",
                     "66");
-    cmd.addMutation(cb::mcbp::ClientOpcode::Set,
-                    SUBDOC_FLAG_NONE,
-                    "",
-                    "{\"Field\": 88}");
+    cmd.addMutation(
+            cb::mcbp::ClientOpcode::Set, PathFlag::None, "", "{\"Field\": 88}");
     userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1821,7 +1802,7 @@ TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
     cmd.clearMutations();
-    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", "");
+    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
     userConnection->sendCommand(cmd);
     userConnection->recvResponse(multiResp);
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
@@ -1834,10 +1815,10 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                    SUBDOC_FLAG_XATTR_PATH,
+                    PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, "", "");
+    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
     userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiMutationResponse multiResp;
@@ -1886,7 +1867,7 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
     cmd.setKey("mb25928");
     cmd.setPath("user.long_string");
     cmd.setValue(value);
-    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addPathFlags(PathFlag::XattrPath | PathFlag::Mkdir_p);
     cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
     const auto resp = userConnection->execute(cmd);
@@ -1918,7 +1899,7 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
     cmd.setKey("mb25928");
     cmd.setPath("_system.long_string");
     cmd.setValue(value);
-    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addPathFlags(PathFlag::XattrPath | PathFlag::Mkdir_p);
     cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
     const auto resp = userConnection->execute(cmd);
@@ -1948,7 +1929,7 @@ TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
     cmd.setKey("mb25928");
     cmd.setPath("_system.long_string");
     cmd.setValue(value);
-    cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+    cmd.addPathFlags(PathFlag::XattrPath | PathFlag::Mkdir_p);
     cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
 
     const auto resp = userConnection->execute(cmd);
@@ -1991,11 +1972,11 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(name);
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "tnx",
                         "{\"id\":666}");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_MKDIR_P,
+                        PathFlag::Mkdir_p,
                         "value",
                         R"("value")");
         ASSERT_EQ(cb::mcbp::Status::Success,
@@ -2005,11 +1986,11 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
     // Problem 1 : The order of the virtual xattr and key matters:
     {
         auto resp = subdoc_multi_lookup(
-                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"},
+                {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "tnx"},
                  {ClientOpcode::SubdocGet,
-                  SUBDOC_FLAG_XATTR_PATH,
+                  PathFlag::XattrPath,
                   "$document.CAS"},
-                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "value"}});
+                 {ClientOpcode::SubdocGet, PathFlag::None, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
@@ -2025,10 +2006,10 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
     {
         auto resp = subdoc_multi_lookup(
                 {{ClientOpcode::SubdocGet,
-                  SUBDOC_FLAG_XATTR_PATH,
+                  PathFlag::XattrPath,
                   "$document.CAS"},
-                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"},
-                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "value"}});
+                 {ClientOpcode::SubdocGet, PathFlag::XattrPath, "tnx"},
+                 {ClientOpcode::SubdocGet, PathFlag::None, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
@@ -2044,9 +2025,9 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
     // Problem 2 : Requesting XTOC with another xattr fails to populate XTOC
     {
         auto resp = subdoc_multi_lookup(
-                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$XTOC"},
-                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"},
-                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "value"}});
+                {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "$XTOC"},
+                 {ClientOpcode::SubdocGet, PathFlag::XattrPath, "tnx"},
+                 {ClientOpcode::SubdocGet, PathFlag::None, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
@@ -2067,9 +2048,8 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
     // Fetch the original $documents values
     nlohmann::json original;
     {
-        auto resp = subdoc_multi_lookup({{ClientOpcode::SubdocGet,
-                                          SUBDOC_FLAG_XATTR_PATH,
-                                          "$document"}});
+        auto resp = subdoc_multi_lookup(
+                {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         auto& results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
@@ -2081,20 +2061,20 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(name);
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS |
-                                SUBDOC_FLAG_MKDIR_P,
+                        PathFlag::XattrPath | PathFlag::ExpandMacros |
+                                PathFlag::Mkdir_p,
                         "tnx.CAS",
                         "\"${$document.CAS}\"");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                        PathFlag::XattrPath | PathFlag::ExpandMacros,
                         "tnx.exptime",
                         "\"${$document.exptime}\"");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                        PathFlag::XattrPath | PathFlag::ExpandMacros,
                         "tnx.revid",
                         "\"${$document.revid}\"");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                        PathFlag::XattrPath | PathFlag::ExpandMacros,
                         "tnx.doc",
                         "\"${$document}\"");
         userConnection->sendCommand(cmd);
@@ -2112,8 +2092,8 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
     nlohmann::json tnx;
     {
         auto resp = subdoc_multi_lookup(
-                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "$document"},
-                 {ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx"}});
+                {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document"},
+                 {ClientOpcode::SubdocGet, PathFlag::XattrPath, "tnx"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
         auto& results = resp.getResults();
@@ -2147,12 +2127,12 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
         cmd.setKey(name);
         cmd.addMutation(
                 cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P,
+                PathFlag::XattrPath | PathFlag::Mkdir_p,
                 "tnx.op.staged",
                 R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})");
         cmd.addMutation(
                 cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                SUBDOC_FLAG_NONE,
+                PathFlag::None,
                 "couchbase",
                 R"({"version": "mad-hatter", "next_version": "cheshire-cat"})");
         userConnection->sendCommand(cmd);
@@ -2166,9 +2146,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
     // Verify that the body is as expected:
     {
         auto resp = subdoc_multi_lookup({
-                {ClientOpcode::SubdocGet,
-                 SUBDOC_FLAG_NONE,
-                 "couchbase.version"},
+                {ClientOpcode::SubdocGet, PathFlag::None, "couchbase.version"},
         });
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         auto& results = resp.getResults();
@@ -2181,11 +2159,11 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(name);
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "tnx.op.staged",
                         {});
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDelete,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "tnx.op.staged",
                         {});
         userConnection->sendCommand(cmd);
@@ -2199,9 +2177,9 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
     // Verify that things looks like we expect them to
     {
         auto resp = subdoc_multi_lookup(
-                {{ClientOpcode::SubdocGet, SUBDOC_FLAG_XATTR_PATH, "tnx.op"},
+                {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "tnx.op"},
                  {ClientOpcode::SubdocGet,
-                  SUBDOC_FLAG_NONE,
+                  PathFlag::None,
                   "couchbase.version"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
         auto& results = resp.getResults();
@@ -2218,7 +2196,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_WithoutXattrFlag) {
             name,
             "tnx.op.staged",
             {},
-            SUBDOC_FLAG_NONE,
+            PathFlag::None,
             cb::mcbp::subdoc::doc_flag::None,
             0});
     ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
@@ -2231,8 +2209,8 @@ TEST_P(XattrTest, MB54776) {
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+    cmd.addGet("$XTOC", PathFlag::XattrPath);
+    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
     {
         BinprotSubdocMultiLookupResponse multiResp(
@@ -2262,8 +2240,8 @@ TEST_P(XattrTest, MB57864) {
     {
         BinprotSubdocMultiLookupCommand lcmd;
         lcmd.setKey(name);
-        lcmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        lcmd.addGet("$XTOC", PathFlag::XattrPath);
+        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
@@ -2284,15 +2262,14 @@ TEST_P(XattrTest, MB57864) {
         cmd.setKey(name);
         cmd.setVBucket(Vbid{0});
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "user",
                         R"({"MB57864":"user"})");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "_system",
                         R"({"MB57864":"_system"})");
-        cmd.addMutation(
-                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+        cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
         cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
         auto rsp = userConnection->execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
@@ -2303,10 +2280,10 @@ TEST_P(XattrTest, MB57864) {
     {
         BinprotSubdocMultiLookupCommand lcmd;
         lcmd.setKey(name);
-        lcmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("user", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("_system", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        lcmd.addGet("$XTOC", PathFlag::XattrPath);
+        lcmd.addGet("user", PathFlag::XattrPath);
+        lcmd.addGet("_system", PathFlag::XattrPath);
+        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
@@ -2331,11 +2308,11 @@ TEST_P(XattrTest, MB57864) {
         cmd.setKey(name);
         cmd.setVBucket(Vbid{0});
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "user2",
                         "true");
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDelete,
-                        SUBDOC_FLAG_XATTR_PATH,
+                        PathFlag::XattrPath,
                         "_system",
                         {});
         auto rsp = userConnection->execute(cmd);
@@ -2347,11 +2324,11 @@ TEST_P(XattrTest, MB57864) {
     {
         BinprotSubdocMultiLookupCommand lcmd;
         lcmd.setKey(name);
-        lcmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("user", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("user2", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("_system", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        lcmd.addGet("$XTOC", PathFlag::XattrPath);
+        lcmd.addGet("user", PathFlag::XattrPath);
+        lcmd.addGet("user2", PathFlag::XattrPath);
+        lcmd.addGet("_system", PathFlag::XattrPath);
+        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure,
@@ -2392,45 +2369,45 @@ TEST_P(XattrTest, MB57864_macro_expansion) {
         switch (mode) {
         case Expansion::User:
             mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             PathFlag::XattrPath | PathFlag::ExpandMacros,
                              "user.cas",
                              R"("${Mutation.CAS}")");
 
             mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             SUBDOC_FLAG_XATTR_PATH,
+                             PathFlag::XattrPath,
                              "_system.cas",
                              R"("${Mutation.CAS}")");
 
             break;
         case Expansion::System:
             mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             SUBDOC_FLAG_XATTR_PATH,
+                             PathFlag::XattrPath,
                              "user.cas",
                              R"("${Mutation.CAS}")");
 
             mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             PathFlag::XattrPath | PathFlag::ExpandMacros,
                              "_system.cas",
                              R"("${Mutation.CAS}")");
             break;
         case Expansion::Both:
             mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             PathFlag::XattrPath | PathFlag::ExpandMacros,
                              "user.cas",
                              R"("${Mutation.CAS}")");
 
             mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             PathFlag::XattrPath | PathFlag::ExpandMacros,
                              "_system.cas",
                              R"("${Mutation.CAS}")");
             break;
         }
         mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                         SUBDOC_FLAG_XATTR_PATH,
+                         PathFlag::XattrPath,
                          "never.cas",
                          R"("${Mutation.CAS}")");
         mcmd.addMutation(
-                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+                cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
         mcmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
         auto mrsp = userConnection->execute(mcmd);
         ASSERT_EQ(cb::mcbp::Status::Success, mrsp.getStatus())
@@ -2440,9 +2417,9 @@ TEST_P(XattrTest, MB57864_macro_expansion) {
 
         BinprotSubdocMultiLookupCommand lcmd;
         lcmd.setKey(name);
-        lcmd.addGet("user.cas", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("_system.cas", SUBDOC_FLAG_XATTR_PATH);
-        lcmd.addGet("never.cas", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("user.cas", PathFlag::XattrPath);
+        lcmd.addGet("_system.cas", PathFlag::XattrPath);
+        lcmd.addGet("never.cas", PathFlag::XattrPath);
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());

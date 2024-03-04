@@ -421,11 +421,8 @@ TEST_P(AuditTest, AuditSubdocLookup) {
     conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     conn.store("doc", Vbid(0), "{\"foo\": 1}");
-    BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocGet,
-                             "doc",
-                             "foo",
-                             "",
-                             SUBDOC_FLAG_NONE);
+    BinprotSubdocCommand cmd(
+            cb::mcbp::ClientOpcode::SubdocGet, "doc", "foo", "", {});
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
 
     // Cleanup document; this also gives us a sentinel audit event to know that
@@ -451,7 +448,7 @@ TEST_P(AuditTest, AuditSubdocMutation) {
                              "doc",
                              "foo",
                              "\"bar\"",
-                             SUBDOC_FLAG_NONE,
+                             {},
                              cb::mcbp::subdoc::doc_flag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
 
@@ -475,14 +472,8 @@ TEST_P(AuditTest, AuditSubdocMultiMutation) {
     conn.selectBucket(bucketName);
     BinprotSubdocMultiMutationCommand cmd(
             "doc",
-            {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
-              "foo",
-              "\"bar\""},
-             {cb::mcbp::ClientOpcode::SubdocDictUpsert,
-              SUBDOC_FLAG_NONE,
-              "foo2",
-              "\"baz\""}},
+            {{cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "foo", "\"bar\""},
+             {cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "foo2", "\"baz\""}},
             cb::mcbp::subdoc::doc_flag::Mkdoc);
 
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
@@ -508,7 +499,7 @@ TEST_P(AuditTest, AuditSubdocMultiMutationDelete) {
 
     BinprotSubdocMultiMutationCommand cmd(
             "doc",
-            {{cb::mcbp::ClientOpcode::Delete, SUBDOC_FLAG_NONE, {}, {}}},
+            {{cb::mcbp::ClientOpcode::Delete, {}, {}, {}}},
             cb::mcbp::subdoc::doc_flag::None);
 
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());

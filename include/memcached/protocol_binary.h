@@ -235,46 +235,49 @@ static_assert(sizeof(SetBucketDataLimitExceededPayload) == sizeof(uint16_t),
               "Unexpected struct size");
 } // namespace cb::mcbp::request
 
-/**
- * Definitions of sub-document path flags (this is a bitmap)
- */
-typedef enum : uint8_t {
-    /** No flags set */
-    SUBDOC_FLAG_NONE = 0x0,
-
-    /** (Mutation) Should non-existent intermediate paths be created? */
-    SUBDOC_FLAG_MKDIR_P = 0x01,
-
-    /**
-     * 0x02 is unused
-     */
-
-    /**
-     * If set, the path refers to an Extended Attribute (XATTR).
-     * If clear, the path refers to a path inside the document body.
-     */
-    SUBDOC_FLAG_XATTR_PATH = 0x04,
-
-    /**
-     * 0x08 is unused
-     */
-
-    /**
-     * Expand macro values inside extended attributes. The request is
-     * invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being
-     * set.
-     */
-    SUBDOC_FLAG_EXPAND_MACROS = 0x10,
-
-} protocol_binary_subdoc_flag;
-
-inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
-                                             protocol_binary_subdoc_flag b) {
-    return protocol_binary_subdoc_flag(static_cast<uint8_t>(a) |
-                                       static_cast<uint8_t>(b));
-}
-
 namespace cb::mcbp::subdoc {
+
+/// Definitions of sub-document path flags (this is a bitmap)
+enum class PathFlag : uint8_t {
+    /// No flags set
+    None = 0x0,
+    /// (Mutation) Should non-existent intermediate paths be created?
+    Mkdir_p = 0x01,
+    /// 0x02 is unused
+    Unused_0x02 = 0x02,
+    /// If set, the path refers to an Extended Attribute (XATTR).
+    /// If clear, the path refers to a path inside the document body.
+    XattrPath = 0x04,
+    /// 0x08 is unused
+    Unused_0x08 = 0x08,
+    /// Expand macro values inside extended attributes. The request is
+    /// invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being set.
+    ExpandMacros = 0x10,
+};
+std::string format_as(PathFlag flag);
+
+inline PathFlag operator|(PathFlag a, PathFlag b) {
+    return PathFlag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+}
+inline PathFlag& operator|=(PathFlag& a, PathFlag b) {
+    a = a | b;
+    return a;
+}
+constexpr PathFlag operator&(PathFlag a, PathFlag b) {
+    return PathFlag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
+}
+constexpr PathFlag operator~(PathFlag a) {
+    return PathFlag(~static_cast<uint8_t>(a));
+}
+inline bool hasExpandedMacros(PathFlag flag) {
+    return (flag & PathFlag::ExpandMacros) == PathFlag::ExpandMacros;
+}
+inline bool hasXattrPath(PathFlag flag) {
+    return (flag & PathFlag::XattrPath) == PathFlag::XattrPath;
+}
+inline bool hasMkdirP(PathFlag flag) {
+    return (flag & PathFlag::Mkdir_p) == PathFlag::Mkdir_p;
+}
 
 /**
  * Definitions of sub-document doc flags (this is a bitmap).

@@ -408,7 +408,8 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.setValue("\"Trond Norbye\"");
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_MKDIR_P);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath |
+                         cb::mcbp::subdoc::PathFlag::Mkdir_p);
         const auto resp = userConnection->execute(cmd);
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
     }
@@ -422,7 +423,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.setOp(cb::mcbp::ClientOpcode::SubdocGet);
         cmd.setKey(name);
         cmd.setPath("meta.author");
-        cmd.addPathFlags(SUBDOC_FLAG_XATTR_PATH);
+        cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         userConnection->sendCommand(cmd);
 
         BinprotSubdocResponse resp;
@@ -444,7 +445,7 @@ TEST_P(ArithmeticXattrOnTest, MB25402) {
     // Verify that the expiry time is still
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
-    cmd.addGet("$document", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addGet("$document", cb::mcbp::subdoc::PathFlag::XattrPath);
     userConnection->sendCommand(cmd);
 
     BinprotSubdocMultiLookupResponse multiResp;
