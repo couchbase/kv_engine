@@ -101,8 +101,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(4);
-        request.message.header.request.setBodylen(4);
+        request.setExtlen(4);
+        request.setBodylen(4);
     }
 
 protected:
@@ -117,24 +117,24 @@ TEST_P(DcpAddStreamValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(8);
+    request.setKeylen(4);
+    request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpAddStreamValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -156,24 +156,24 @@ TEST_P(DcpCloseStreamValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(4);
+    request.setKeylen(4);
+    request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpCloseStreamValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -197,24 +197,24 @@ TEST_P(DcpGetFailoverLogValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(4);
+    request.setKeylen(4);
+    request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpGetFailoverLogValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -229,8 +229,8 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(48);
-        request.message.header.request.setBodylen(48);
+        request.setExtlen(48);
+        request.setBodylen(48);
     }
     bool isCollectionsEnabled() const {
         return GetParam();
@@ -251,19 +251,19 @@ TEST_P(DcpStreamReqValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(54);
+    request.setKeylen(4);
+    request.setBodylen(54);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -325,7 +325,7 @@ TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
 }
 
 TEST_P(DcpStreamReqValidatorTest, MessageValue) {
-    request.message.header.request.setBodylen(48 + 20);
+    request.setBodylen(48 + 20);
     // Only valid when collections enabled
     if (isCollectionsEnabled()) {
         EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
@@ -342,8 +342,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(4);
-        request.message.header.request.setBodylen(4);
+        request.setExtlen(4);
+        request.setBodylen(4);
     }
 
 protected:
@@ -358,24 +358,24 @@ TEST_P(DcpStreamEndValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(8);
+    request.setKeylen(4);
+    request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpStreamEndValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -391,8 +391,8 @@ public:
 
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(20);
-        request.message.header.request.setBodylen(20);
+        request.setExtlen(20);
+        request.setBodylen(20);
     }
 
 protected:
@@ -417,8 +417,8 @@ TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 
     // V2.0
-    request.message.header.request.setExtlen(1);
-    request.message.header.request.setBodylen(37);
+    request.setExtlen(1);
+    request.setBodylen(37);
     cb::mcbp::request::DcpSnapshotMarkerV2xPayload extras{
             cb::mcbp::request::DcpSnapshotMarkerV2xVersion::Zero};
     builder.setExtras(extras.getBuffer());
@@ -426,36 +426,36 @@ TEST_P(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(22);
+    request.setExtlen(22);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(32);
-    request.message.header.request.setBodylen(52);
+    request.setKeylen(32);
+    request.setBodylen(52);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidBodylen) {
-    request.message.header.request.setBodylen(100);
+    request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
     cb::mcbp::request::DcpSnapshotMarkerV2xPayload extras{
             cb::mcbp::request::DcpSnapshotMarkerV2xVersion::Zero};
     builder.setExtras(extras.getBuffer());
-    request.message.header.request.setExtlen(1);
-    request.message.header.request.setBodylen(40);
+    request.setExtlen(1);
+    request.setBodylen(40);
     EXPECT_EQ("valuelen not expected:36", validate_error_context());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSnapshotMarkerValidatorTest, InvalidV2Version) {
     // Valid V2.0 size
-    request.message.header.request.setExtlen(1);
-    request.message.header.request.setBodylen(37);
+    request.setExtlen(1);
+    request.setBodylen(37);
     uint8_t brokenVersion = 101;
     builder.setExtras({&brokenVersion, 1});
     EXPECT_EQ("Unsupported dcp snapshot version:101", validate_error_context());
@@ -506,15 +506,15 @@ TEST_P(DcpMutationValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(21);
-    request.message.header.request.setBodylen(23);
+    request.setExtlen(21);
+    request.setBodylen(23);
     EXPECT_EQ("Request must include extras of length 31",
               validate_error_context());
 }
 
 TEST_P(DcpMutationValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(0);
-    request.message.header.request.setBodylen(31);
+    request.setKeylen(0);
+    request.setBodylen(31);
     EXPECT_EQ("Request must include key", validate_error_context());
 }
 
@@ -696,7 +696,6 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        std::copy(request.bytes, request.bytes + sizeof(request.bytes), blob);
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpExpiration,
                                        static_cast<void*>(blob));
     }
@@ -707,19 +706,19 @@ TEST_P(DcpExpirationValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpExpirationValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(7);
+    request.setExtlen(5);
+    request.setBodylen(7);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpExpirationValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(GetParam() ? 1 : 0);
-    request.message.header.request.setBodylen(19);
+    request.setKeylen(GetParam() ? 1 : 0);
+    request.setBodylen(19);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpExpirationValidatorTest, WithValue) {
-    request.message.header.request.setBodylen(100);
+    request.setBodylen(100);
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate());
 }
 
@@ -732,10 +731,10 @@ public:
     void SetUp() override {
         ValidatorTest::SetUp();
         memset(&request, 0, sizeof(request));
-        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.setExtlen(1);
-        request.message.header.request.setBodylen(1);
-        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
+        request.setMagic(cb::mcbp::Magic::ClientRequest);
+        request.setExtlen(1);
+        request.setBodylen(1);
+        request.setDatatype(cb::mcbp::Datatype::Raw);
 
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
         cb::mcbp::request::DcpSetVBucketState extras;
@@ -767,24 +766,24 @@ TEST_P(DcpSetVbucketStateValidatorTest, LegalValues) {
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(5);
+    request.setKeylen(4);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpSetVbucketStateValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -817,24 +816,24 @@ TEST_P(DcpNoopValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(4);
+    request.setKeylen(4);
+    request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpNoopValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -845,8 +844,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(4);
-        request.message.header.request.setBodylen(4);
+        request.setExtlen(4);
+        request.setBodylen(4);
     }
 
 protected:
@@ -862,24 +861,24 @@ TEST_P(DcpBufferAckValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(5);
+    request.setExtlen(5);
+    request.setBodylen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(4);
-    request.message.header.request.setBodylen(8);
+    request.setKeylen(4);
+    request.setBodylen(8);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpBufferAckValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(12);
+    request.setBodylen(12);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
@@ -890,8 +889,8 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setKeylen(4);
-        request.message.header.request.setBodylen(8);
+        request.setKeylen(4);
+        request.setBodylen(8);
     }
 
 protected:
@@ -906,24 +905,24 @@ TEST_P(DcpControlValidatorTest, CorrectMessage) {
 }
 
 TEST_P(DcpControlValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
-    request.message.header.request.setBodylen(13);
+    request.setExtlen(5);
+    request.setBodylen(13);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidKeylen) {
-    request.message.header.request.setKeylen(0);
-    request.message.header.request.setBodylen(4);
+    request.setKeylen(0);
+    request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(DcpControlValidatorTest, InvalidBody) {
-    request.message.header.request.setBodylen(4);
+    request.setBodylen(4);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

@@ -11,12 +11,7 @@
 
 #include <memcached/protocol_binary.h>
 
-/* Validate the specified response header against the expected cmd and status.
- */
-void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
-                                   cb::mcbp::ClientOpcode cmd,
-                                   cb::mcbp::Status status);
-
+/// Validate the specified response header against the expected cmd and status.
 void mcbp_validate_response_header(cb::mcbp::Response& response,
                                    cb::mcbp::ClientOpcode cmd,
                                    cb::mcbp::Status status);

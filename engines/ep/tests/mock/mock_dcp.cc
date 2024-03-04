@@ -445,7 +445,7 @@ cb::engine_errc MockDcpMessageProducers::commit(uint32_t opaque,
     last_prepared_seqno = prepare_seqno;
     last_commit_seqno = commit_seqno;
     last_key.assign(key.to_string());
-    last_packet_size = sizeof(protocol_binary_request_header) +
+    last_packet_size = sizeof(cb::mcbp::Request) +
                        sizeof(cb::mcbp::request::DcpCommitPayload);
     if (!isCollectionsSupported) {
         last_packet_size += key.makeDocKeyWithoutCollectionID().size();
@@ -475,7 +475,7 @@ cb::engine_errc MockDcpMessageProducers::abort(uint32_t opaque,
     last_key = std::string{reinterpret_cast<const char*>(k2.data()), k2.size()};
     last_byseqno = abort_seqno;
     last_collection_id = key.getCollectionID();
-    last_packet_size = sizeof(protocol_binary_request_header) +
+    last_packet_size = sizeof(cb::mcbp::Request) +
                        sizeof(cb::mcbp::request::DcpAbortPayload);
     if (!isCollectionsSupported) {
         last_packet_size += key.makeDocKeyWithoutCollectionID().size();

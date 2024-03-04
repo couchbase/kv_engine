@@ -26,8 +26,7 @@ namespace mcbp::test {
 class DropPrivilegeValidatorTest : public ::testing::WithParamInterface<bool>,
                                    public ValidatorTest {
 public:
-    DropPrivilegeValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    DropPrivilegeValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -79,8 +78,7 @@ class GetClusterConfigValidatorTest
     : public ::testing::WithParamInterface<bool>,
       public ValidatorTest {
 public:
-    GetClusterConfigValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    GetClusterConfigValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
 protected:
@@ -126,8 +124,7 @@ class SetClusterConfigValidatorTest
     : public ::testing::WithParamInterface<bool>,
       public ValidatorTest {
 public:
-    SetClusterConfigValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    SetClusterConfigValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -208,7 +205,7 @@ class StartStopPersistenceValidatorTest
       public ValidatorTest {
 public:
     StartStopPersistenceValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+        : ValidatorTest(GetParam()), req(request) {
     }
 
 protected:
@@ -266,7 +263,7 @@ class EnableDisableTrafficValidatorTest
       public ValidatorTest {
 public:
     EnableDisableTrafficValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+        : ValidatorTest(GetParam()), req(request) {
     }
 
 protected:
@@ -322,8 +319,7 @@ TEST_P(EnableDisableTrafficValidatorTest, InvalidBodylen) {
 class ScrubValidatorTest : public ::testing::WithParamInterface<bool>,
                            public ValidatorTest {
 public:
-    ScrubValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    ScrubValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
 protected:
@@ -368,8 +364,7 @@ TEST_P(ScrubValidatorTest, InvalidBodylen) {
 class GetKeysValidatorTest : public ::testing::WithParamInterface<bool>,
                              public ValidatorTest {
 public:
-    GetKeysValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    GetKeysValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -425,8 +420,7 @@ TEST_P(GetKeysValidatorTest, InvalidBodylen) {
 class SetParamValidatorTest : public ::testing::WithParamInterface<bool>,
                               public ValidatorTest {
 public:
-    SetParamValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    SetParamValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -478,8 +472,7 @@ TEST_P(SetParamValidatorTest, InvalidBodylen) {
 class GetReplicaValidatorTest : public ::testing::WithParamInterface<bool>,
                                 public ValidatorTest {
 public:
-    GetReplicaValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    GetReplicaValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -531,8 +524,7 @@ TEST_P(GetReplicaValidatorTest, InvalidBodylen) {
 class ReturnMetaValidatorTest : public ::testing::WithParamInterface<bool>,
                                 public ValidatorTest {
 public:
-    ReturnMetaValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    ReturnMetaValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -543,7 +535,8 @@ public:
         payload.setExpiration(0);
         payload.setFlags(0xdeadbeef);
         payload.setMutationType(ReturnMetaType::Set);
-        auto* ptr = reinterpret_cast<ReturnMetaPayload*>(request.bytes + 24);
+        auto* ptr =
+                reinterpret_cast<ReturnMetaPayload*>(blob + sizeof(request));
         memcpy(ptr, &payload, sizeof(payload));
         req.setExtlen(sizeof(payload));
         req.setKeylen(2);
@@ -572,7 +565,7 @@ TEST_P(ReturnMetaValidatorTest, InvalidExtlen) {
 TEST_P(ReturnMetaValidatorTest, Extras) {
     using cb::mcbp::request::ReturnMetaPayload;
     using cb::mcbp::request::ReturnMetaType;
-    auto* ptr = reinterpret_cast<ReturnMetaPayload*>(request.bytes + 24);
+    auto* ptr = reinterpret_cast<ReturnMetaPayload*>(blob + sizeof(request));
     ptr->setMutationType(ReturnMetaType::Add);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
     ptr->setMutationType(ReturnMetaType::Set);
@@ -617,8 +610,7 @@ class SeqnoPersistenceValidatorTest
     : public ::testing::WithParamInterface<bool>,
       public ValidatorTest {
 public:
-    SeqnoPersistenceValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    SeqnoPersistenceValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     void SetUp() override {
@@ -669,8 +661,7 @@ TEST_P(SeqnoPersistenceValidatorTest, InvalidBodylen) {
 class CompactDbValidatorTest : public ::testing::WithParamInterface<bool>,
                                public ValidatorTest {
 public:
-    CompactDbValidatorTest()
-        : ValidatorTest(GetParam()), req(request.message.header.request) {
+    CompactDbValidatorTest() : ValidatorTest(GetParam()), req(request) {
     }
 
     class MockPayload : public cb::mcbp::request::CompactDbPayload {
@@ -690,8 +681,7 @@ public:
     }
 
     MockPayload& getPayload() {
-        return *reinterpret_cast<MockPayload*>(request.bytes +
-                                               sizeof(request.bytes));
+        return *reinterpret_cast<MockPayload*>(blob + sizeof(request));
     }
 
 protected:

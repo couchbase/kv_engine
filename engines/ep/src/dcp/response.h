@@ -661,7 +661,7 @@ public:
     }
 
     uint32_t getMessageSize() const override {
-        return sizeof(protocol_binary_request_header) +
+        return sizeof(cb::mcbp::Request) +
                sizeof(cb::mcbp::request::DcpSeqnoAcknowledgedPayload);
     }
 
@@ -717,7 +717,7 @@ public:
     }
 
     static constexpr uint32_t commitBaseMsgBytes =
-            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpCommitPayload);
 
     uint32_t getMessageSize() const override;
@@ -784,7 +784,7 @@ public:
     }
 
     static constexpr uint32_t abortBaseMsgBytes =
-            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
 
     uint32_t getMessageSize() const override;
@@ -811,7 +811,7 @@ public:
                            uint64_t abortSeqno);
 
     static constexpr uint32_t abortBaseMsgBytes =
-            sizeof(protocol_binary_request_header) +
+            sizeof(cb::mcbp::Request) +
             sizeof(cb::mcbp::request::DcpAbortPayload);
 
 protected:
@@ -831,9 +831,9 @@ public:
     }
     // baseMsgBytes is the unpadded size of the
     // protocol_binary_request_dcp_system_event::body struct
-    static const uint32_t baseMsgBytes =
-            sizeof(protocol_binary_request_header) + sizeof(uint64_t) +
-            sizeof(uint32_t) + sizeof(uint8_t);
+    static const uint32_t baseMsgBytes = sizeof(cb::mcbp::Request) +
+                                         sizeof(uint64_t) + sizeof(uint32_t) +
+                                         sizeof(uint8_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
     virtual std::string_view getKey() const = 0;
     virtual std::string_view getEventData() const = 0;

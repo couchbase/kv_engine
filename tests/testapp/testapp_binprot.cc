@@ -17,13 +17,6 @@ static void mcbp_validate_response_header(const cb::mcbp::Response& response,
                                           cb::mcbp::Status status,
                                           bool mutation_seqno_enabled);
 
-void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
-                                   cb::mcbp::ClientOpcode cmd,
-                                   cb::mcbp::Status status) {
-    mcbp_validate_response_header(
-            response->message.header.response, cmd, status);
-}
-
 void mcbp_validate_response_header(cb::mcbp::Response& response,
                                    cb::mcbp::ClientOpcode cmd,
                                    cb::mcbp::Status status) {

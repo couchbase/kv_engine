@@ -41,9 +41,9 @@ static void recv_subdoc_response(const BinprotSubdocCommand& cmd,
         return;
     }
 
-    protocol_binary_response_no_extras tempResponse;
+    cb::mcbp::Response tempResponse;
     memcpy(&tempResponse, buf.data(), sizeof tempResponse);
-    mcbp_validate_response_header(&tempResponse, cmd.getOp(), err);
+    mcbp_validate_response_header(tempResponse, cmd.getOp(), err);
     // safe_recv_packet does ntohl already!
     resp.assign(std::move(buf));
 }
@@ -53,23 +53,19 @@ uint64_t recv_subdoc_response(
         cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiLookupResult>& expected_results) {
     union {
-        protocol_binary_response_subdocument response;
+        cb::mcbp::Response response;
         char bytes[1024];
     } receive;
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
     mcbp_validate_response_header(
-            (protocol_binary_response_no_extras*)&receive.response,
-            expected_cmd,
-            expected_status);
+            receive.response, expected_cmd, expected_status);
 
     // Decode body and check against expected_results
-    const auto& header = receive.response.message.header;
-    const char* val_ptr =
-            receive.bytes + sizeof(header) + header.response.getExtlen();
-    const size_t vallen =
-            header.response.getBodylen() + header.response.getExtlen();
+    auto& header = receive.response;
+    const char* val_ptr = receive.bytes + sizeof(header) + header.getExtlen();
+    const size_t vallen = header.getBodylen() + header.getExtlen();
 
     size_t offset = 0;
     for (unsigned int ii = 0; ii < expected_results.size(); ii++) {
@@ -105,7 +101,7 @@ uint64_t recv_subdoc_response(
         offset += result_header_len + result_len;
     }
 
-    return header.response.getCas();
+    return header.getCas();
 }
 
 // Allow GTest to print out std::vectors as part of EXPECT/ ASSERT error
@@ -139,33 +135,31 @@ uint64_t recv_subdoc_response(
         cb::mcbp::Status expected_status,
         const std::vector<SubdocMultiMutationResult>& expected_results) {
     union {
-        protocol_binary_response_subdocument response;
+        cb::mcbp::Response response;
         char bytes[1024];
     } receive;
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
     mcbp_validate_response_header(
-            (protocol_binary_response_no_extras*)&receive.response,
+            *reinterpret_cast<cb::mcbp::Response*>(&receive.response),
             expected_cmd,
             expected_status);
 
     // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
 
     // Decode body and check against expected_results
-    const auto& header = receive.response.message.header;
-    const char* val_ptr =
-            receive.bytes + sizeof(header) + header.response.getExtlen();
-    const size_t vallen =
-            header.response.getBodylen() - header.response.getExtlen();
+    const auto& header = receive.response;
+    const char* val_ptr = receive.bytes + sizeof(header) + header.getExtlen();
+    const size_t vallen = header.getBodylen() - header.getExtlen();
     std::string value(val_ptr, val_ptr + vallen);
 
     if (expected_status == cb::mcbp::Status::Success) {
         if (enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) >
             0) {
-            EXPECT_EQ(16, header.response.getExtlen());
+            EXPECT_EQ(16, header.getExtlen());
         } else {
-            EXPECT_EQ(0u, header.response.getExtlen());
+            EXPECT_EQ(0u, header.getExtlen());
         }
 
         for (const auto& result : expected_results) {
@@ -220,7 +214,7 @@ uint64_t recv_subdoc_response(
         }
     }
 
-    return header.response.getCas();
+    return header.getCas();
 }
 
 ::testing::AssertionResult SubdocTestappTest::subdoc_verify_cmd(

@@ -648,8 +648,8 @@ TEST_P(AllWithMetaTest, nmvb) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, callEngine(GetParam(), swm));
 
     // update the VB in the packet to the pending one
-    auto packet = reinterpret_cast<protocol_binary_request_header*>(swm.data());
-    packet->request.setVBucket(Vbid(vbid.get() + 2));
+    auto* packet = reinterpret_cast<cb::mcbp::Request*>(swm.data());
+    packet->setVBucket(Vbid(vbid.get() + 2));
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(Vbid(vbid.get() + 2),
                                      vbucket_state_pending));

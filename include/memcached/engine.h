@@ -86,7 +86,6 @@ class CancellationToken;
 struct DocKey;
 struct ServerBucketIface;
 struct ServerCoreIface;
-union protocol_binary_request_header;
 
 struct ServerApi {
     ServerCoreIface* core = nullptr;

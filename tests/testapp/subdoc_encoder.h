@@ -50,8 +50,7 @@ protected:
     std::vector<char> encode_common() const;
 
     // Fill in the header for this command.
-    void populate_header(protocol_binary_request_header& header,
-                         size_t bodylen) const;
+    void populate_header(cb::mcbp::Request& header, size_t bodylen) const;
     cb::mcbp::subdoc::doc_flag doc_flags;
 };
 

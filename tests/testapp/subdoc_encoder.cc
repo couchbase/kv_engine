@@ -40,8 +40,7 @@ std::vector<char> SubdocMultiLookupCmd::encode() const {
     }
 
     // Populate the header.
-    auto* header =
-            reinterpret_cast<protocol_binary_request_header*>(request.data());
+    auto* header = reinterpret_cast<cb::mcbp::Request*>(request.data());
     populate_header(*header, request.size() - sizeof(*header));
 
     return request;
@@ -70,8 +69,7 @@ std::vector<char> SubdocMultiMutationCmd::encode() const {
     }
 
     // Populate the header.
-    auto* header =
-            reinterpret_cast<protocol_binary_request_header*>(request.data());
+    auto* header = reinterpret_cast<cb::mcbp::Request*>(request.data());
 
     populate_header(*header, request.size() - sizeof(*header));
 
@@ -83,7 +81,7 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
 
     // Reserve space for the header and setup pointer to it (we fill in the
     // details once the rest of the packet is encoded).
-    request.resize(sizeof(protocol_binary_request_header));
+    request.resize(sizeof(cb::mcbp::Request));
 
     // Expiry (optional) is encoded in extras. Only include if non-zero or
     // if explicit encoding of zero was requested.
@@ -125,18 +123,18 @@ void SubdocMultiCmd::addDocFlag(cb::mcbp::subdoc::doc_flag flags_) {
     }
 }
 
-void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
+void SubdocMultiCmd::populate_header(cb::mcbp::Request& header,
                                      size_t bodylen) const {
-    header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-    header.request.setOpcode(command);
-    header.request.setKeylen(gsl::narrow<uint16_t>(key.size()));
-    header.request.setExtlen(((expiry != 0 || encode_zero_expiry_on_wire)
-                                      ? sizeof(uint32_t)
-                                      : 0) +
-                             (!isNone(doc_flags) ? sizeof(doc_flags) : 0));
-    header.request.setDatatype(cb::mcbp::Datatype::Raw);
+    header.setMagic(cb::mcbp::Magic::ClientRequest);
+    header.setOpcode(command);
+    header.setKeylen(gsl::narrow<uint16_t>(key.size()));
+    header.setExtlen(((expiry != 0 || encode_zero_expiry_on_wire)
+                              ? sizeof(uint32_t)
+                              : 0) +
+                     (!isNone(doc_flags) ? sizeof(doc_flags) : 0));
+    header.setDatatype(cb::mcbp::Datatype::Raw);
     /* TODO: vbucket */
-    header.request.setBodylen(gsl::narrow<uint32_t>(bodylen));
-    header.request.setOpaque(0xdeadbeef);
-    header.request.setCas(cas);
+    header.setBodylen(gsl::narrow<uint32_t>(bodylen));
+    header.setOpaque(0xdeadbeef);
+    header.setCas(cas);
 }

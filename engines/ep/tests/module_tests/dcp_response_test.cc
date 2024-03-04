@@ -20,11 +20,11 @@ TEST(DcpResponseTest, DcpCommit_getMessageSize) {
     std::string key("key"); // tests will see 'key\0'
     auto sdkey = makeStoredDocKey(key, CollectionID{0x5555});
     cb::mcbp::unsigned_leb128<CollectionIDType> lebEncoded(0x5555);
-    auto collectionAwareSize = sizeof(protocol_binary_request_header) +
+    auto collectionAwareSize = sizeof(cb::mcbp::Request) +
                                sizeof(cb::mcbp::request::DcpCommitPayload) +
                                key.size() + lebEncoded.size();
 
-    auto collectionUnAwareSize = sizeof(protocol_binary_request_header) +
+    auto collectionUnAwareSize = sizeof(cb::mcbp::Request) +
                                  sizeof(cb::mcbp::request::DcpCommitPayload) +
                                  key.size();
 
@@ -67,11 +67,11 @@ TEST(DcpResponseTest, DcpAbort_getMessageSize) {
     std::string key("key"); // tests will see 'key\0'
     auto sdkey = makeStoredDocKey(key, CollectionID{0x5555});
     cb::mcbp::unsigned_leb128<CollectionIDType> lebEncoded(0x5555);
-    auto collectionAwareSize = sizeof(protocol_binary_request_header) +
+    auto collectionAwareSize = sizeof(cb::mcbp::Request) +
                                sizeof(cb::mcbp::request::DcpAbortPayload) +
                                key.size() + lebEncoded.size();
 
-    auto collectionUnAwareSize = sizeof(protocol_binary_request_header) +
+    auto collectionUnAwareSize = sizeof(cb::mcbp::Request) +
                                  sizeof(cb::mcbp::request::DcpAbortPayload) +
                                  key.size();
 

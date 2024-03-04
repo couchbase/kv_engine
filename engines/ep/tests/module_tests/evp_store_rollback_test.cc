@@ -970,11 +970,10 @@ public:
     // build a rollback response command
     std::vector<char> getRollbackResponse(uint32_t opaque,
                                           uint64_t rollbackSeq) const {
-        std::vector<char> msg(sizeof(protocol_binary_response_header) +
-                              sizeof(uint64_t));
+        std::vector<char> msg(sizeof(cb::mcbp::Response) + sizeof(uint64_t));
         cb::mcbp::ResponseBuilder builder(
                 {reinterpret_cast<uint8_t*>(msg.data()),
-                 sizeof(protocol_binary_response_header) + sizeof(uint64_t)});
+                 sizeof(cb::mcbp::Response) + sizeof(uint64_t)});
 
         builder.setMagic(cb::mcbp::Magic::ClientResponse);
         builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);

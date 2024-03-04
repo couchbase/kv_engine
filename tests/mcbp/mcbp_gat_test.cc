@@ -24,9 +24,9 @@ class GATValidatorTest
 public:
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(4);
-        request.message.header.request.setKeylen(10);
-        request.message.header.request.setBodylen(14);
+        request.setExtlen(4);
+        request.setKeylen(10);
+        request.setBodylen(14);
     }
 
     GATValidatorTest() : ValidatorTest(std::get<1>(GetParam())) {
@@ -45,22 +45,22 @@ TEST_P(GATValidatorTest, CorrectMessage) {
 }
 
 TEST_P(GATValidatorTest, InvalidExtlen) {
-    request.message.header.request.setExtlen(5);
+    request.setExtlen(5);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, NoKey) {
-    request.message.header.request.setKeylen(0);
+    request.setKeylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(GATValidatorTest, InvalidCas) {
-    request.message.header.request.setCas(1);
+    request.setCas(1);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

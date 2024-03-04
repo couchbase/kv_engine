@@ -4356,7 +4356,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
                                        0));
 
     auto ackBytes = consumer->getFlowControl().getFreedBytes();
-    EXPECT_EQ(sizeof(protocol_binary_request_header) +
+    EXPECT_EQ(sizeof(cb::mcbp::Request) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value),
               ackBytes);
@@ -4378,7 +4378,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
                                 cb::durability::Level::Majority));
 
     // Add +2 as producer/consumer account for an extra 2 bytes (MB-46634)
-    ackBytes += sizeof(protocol_binary_request_header) +
+    ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpPreparePayload) + key.size() + 2;
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
@@ -4422,10 +4422,10 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Marker and Commit acked
-    ackBytes += sizeof(protocol_binary_request_header) +
+    ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
-    ackBytes += sizeof(protocol_binary_request_header) +
+    ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpCommitPayload) + key.size();
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 }
@@ -4442,7 +4442,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
                                        0));
 
     auto ackBytes = consumer->getFlowControl().getFreedBytes();
-    EXPECT_EQ(sizeof(protocol_binary_request_header) +
+    EXPECT_EQ(sizeof(cb::mcbp::Request) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value),
               ackBytes);
@@ -4464,7 +4464,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
                                 cb::durability::Level::Majority));
 
     // Add +2 as producer/consumer account for an extra 2 bytes (MB-46634)
-    ackBytes += sizeof(protocol_binary_request_header) +
+    ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpPreparePayload) + key.size() + 2;
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
@@ -4509,10 +4509,10 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Marker and Commit bytes acked
-    ackBytes += sizeof(protocol_binary_request_header) +
+    ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
-    ackBytes += sizeof(protocol_binary_request_header) +
+    ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpAbortPayload) + key.size();
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 }

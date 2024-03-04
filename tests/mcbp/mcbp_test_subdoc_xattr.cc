@@ -47,25 +47,22 @@ protected:
         auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
         protocol_binary_request_subdocument* req;
         const size_t extlen = !isNone(docFlags) ? 1 : 0;
-        std::vector<uint8_t> blob(sizeof(req->bytes) + doc.length() +
-                                  path.length() + value.length() + extlen);
+        std::vector<uint8_t> blob(sizeof(*req) + doc.length() + path.length() +
+                                  value.length() + extlen);
         req = reinterpret_cast<protocol_binary_request_subdocument*>(
             blob.data());
 
-        req->message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        req->message.header.request.setExtlen(
-                gsl::narrow_cast<uint8_t>(3 + extlen));
-        req->message.header.request.setKeylen(
-                gsl::narrow<uint16_t>(doc.length()));
-        req->message.header.request.setBodylen(gsl::narrow<uint32_t>(
+        req->header.setMagic(cb::mcbp::Magic::ClientRequest);
+        req->header.setExtlen(gsl::narrow_cast<uint8_t>(3 + extlen));
+        req->header.setKeylen(gsl::narrow<uint16_t>(doc.length()));
+        req->header.setBodylen(gsl::narrow<uint32_t>(
                 3 + doc.length() + path.length() + value.length() + extlen));
-        req->message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
+        req->header.setDatatype(cb::mcbp::Datatype::Raw);
 
-        req->message.extras.subdoc_flags = (flags);
-        req->message.extras.pathlen =
-                ntohs(gsl::narrow<uint16_t>(path.length()));
+        req->extras.subdoc_flags = (flags);
+        req->extras.pathlen = ntohs(gsl::narrow<uint16_t>(path.length()));
 
-        auto* ptr = blob.data() + sizeof(req->bytes);
+        auto* ptr = blob.data() + sizeof(*req);
         if (extlen) {
             memcpy(ptr, &docFlags, sizeof(docFlags));
             ptr += sizeof(docFlags);

@@ -25,9 +25,9 @@ FrontEndThread thread;
 class McbpValidatorBench : public ::benchmark::Fixture {
 public:
     void SetUp(benchmark::State& st) override {
-        memset(request.bytes, 0, sizeof(request));
-        request.message.header.request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.message.header.request.setDatatype(cb::mcbp::Datatype::Raw);
+        memset(&request, 0, sizeof(request));
+        request.setMagic(cb::mcbp::Magic::ClientRequest);
+        request.setDatatype(cb::mcbp::Datatype::Raw);
     }
 
     McbpValidatorBench() : connection(thread) {
@@ -38,15 +38,15 @@ protected:
     McbpMockConnection connection;
 
     union {
-        protocol_binary_request_no_extras request;
+        cb::mcbp::Request request;
         uint8_t blob[4096];
     };
 };
 
 BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
-    request.message.header.request.setExtlen(0);
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(10);
+    request.setExtlen(0);
+    request.setKeylen(10);
+    request.setBodylen(10);
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
@@ -60,9 +60,9 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
-    request.message.header.request.setExtlen(8);
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(20);
+    request.setExtlen(8);
+    request.setKeylen(10);
+    request.setBodylen(20);
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
@@ -76,9 +76,9 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
 }
 
 BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
-    request.message.header.request.setExtlen(8);
-    request.message.header.request.setKeylen(10);
-    request.message.header.request.setBodylen(20);
+    request.setExtlen(8);
+    request.setKeylen(10);
+    request.setBodylen(20);
 
     void* packet = static_cast<void*>(&request);
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);

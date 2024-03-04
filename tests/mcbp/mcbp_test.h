@@ -53,7 +53,7 @@ protected:
     McbpMockConnection connection;
 
     // backing store which may be used for the request
-    protocol_binary_request_no_extras &request;
+    cb::mcbp::Request& request;
     uint8_t blob[4096] = {0};
 
     bool collectionsEnabled{false};

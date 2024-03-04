@@ -25,9 +25,9 @@ public:
     }
     void SetUp() override {
         ValidatorTest::SetUp();
-        request.message.header.request.setExtlen(24);
-        request.message.header.request.setKeylen(10);
-        request.message.header.request.setBodylen(512);
+        request.setExtlen(24);
+        request.setKeylen(10);
+        request.setBodylen(512);
     }
 
 protected:
@@ -42,19 +42,19 @@ TEST_P(MutationWithMetaTest, CorrectMessage) {
     // body will just get smaller (but we don't test that anyway)
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.message.header.request.setExtlen(26);
+    request.setExtlen(26);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.message.header.request.setExtlen(28);
+    request.setExtlen(28);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
-    request.message.header.request.setExtlen(30);
+    request.setExtlen(30);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidExtlen) {
     for (int ii = 0; ii < 256; ++ii) {
-        request.message.header.request.setExtlen(ii);
+        request.setExtlen(ii);
 
         switch (ii) {
         case 24:
@@ -70,12 +70,12 @@ TEST_P(MutationWithMetaTest, InvalidExtlen) {
 }
 
 TEST_P(MutationWithMetaTest, NoKey) {
-    request.message.header.request.setKeylen(0);
+    request.setKeylen(0);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
 TEST_P(MutationWithMetaTest, InvalidDatatype) {
-    request.message.header.request.setDatatype(cb::mcbp::Datatype(0xff));
+    request.setDatatype(cb::mcbp::Datatype(0xff));
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

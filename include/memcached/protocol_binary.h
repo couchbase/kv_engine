@@ -47,52 +47,13 @@ enum class Level : uint8_t;
 #include <mcbp/protocol/status.h>
 #include <memcached/range_scan_id.h>
 
-// For backward compatibility with old sources
-
-/**
- * Definition of the header structure for a request packet.
- * See section 2
- */
-union protocol_binary_request_header {
-    cb::mcbp::Request request;
-    uint8_t bytes[24];
-};
-
-/**
- * Definition of the header structure for a response packet.
- * See section 2
- */
-union protocol_binary_response_header {
-    cb::mcbp::Response response;
-    uint8_t bytes[24];
-};
-
-/**
- * Definition of a request-packet containing no extras
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header)];
-} protocol_binary_request_no_extras;
-
-/**
- * Definition of a response-packet containing no extras
- */
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_response_header)];
-} protocol_binary_response_no_extras;
+#pragma pack(1)
 
 /**
  * Definition of the packet used by set, add and replace
  * See section 4
  */
 namespace cb::mcbp::request {
-#pragma pack(1)
 class MutationPayload {
 public:
     /// The memcached core keep the flags stored in network byte order
@@ -157,26 +118,6 @@ private:
     uint32_t expiration = 0;
 };
 static_assert(sizeof(ArithmeticPayload) == 20, "Unexpected struct size");
-
-class DeprecatedSetClusterConfigPayload {
-public:
-    int32_t getRevision() const {
-        return ntohl(revision);
-    }
-
-    void setRevision(int32_t rev) {
-        revision = htonl(rev);
-    }
-
-    cb::const_byte_buffer getBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
-    }
-
-protected:
-    int32_t revision{};
-};
-static_assert(sizeof(DeprecatedSetClusterConfigPayload) == 4,
-              "Unexpected struct size");
 
 class SetClusterConfigPayload {
 public:
@@ -292,8 +233,6 @@ protected:
 };
 static_assert(sizeof(SetBucketDataLimitExceededPayload) == sizeof(uint16_t),
               "Unexpected struct size");
-
-#pragma pack()
 } // namespace cb::mcbp::request
 
 /**
@@ -411,7 +350,7 @@ static constexpr uint8_t extrasDocFlagMask = 0b11000000;
  *
  * The path, which is always required, is in the Body, after the Key.
  *
- *   Header:                        24 @0: <protocol_binary_request_header>
+ *   Header:                        24 @0: <cb::mcbp::Request>
  *   Extras:
  *     Sub-document pathlen          2 @24: <variable>
  *     Sub-document flags            1 @26: <protocol_binary_subdoc_flag>
@@ -427,31 +366,20 @@ static constexpr uint8_t extrasDocFlagMask = 0b11000000;
  *     Value to insert/replace
  *               vallen-keylen-pathlen @27+keylen+pathlen: [variable]
  */
-typedef union {
+struct protocol_binary_request_subdocument {
+    cb::mcbp::Request header;
     struct {
-        protocol_binary_request_header header;
-        struct {
-            uint16_t pathlen; // Length in bytes of the sub-doc path.
-            uint8_t subdoc_flags; // See protocol_binary_subdoc_flag
-            /* uint32_t expiry     (optional for mutations only - present
-                                    if extlen == 7 or extlen == 8) */
-            /* uint8_t doc_flags   (optional - present if extlen == 4 or
-                                    extlen == 8)  Note these are the
-                                    subdocument doc flags not the flag
-                                    \section in the document. */
-        } extras;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 3];
-} protocol_binary_request_subdocument;
-
-/** Definition of the packet used by SUBDOCUMENT responses.
- */
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_response_header)];
-} protocol_binary_response_subdocument;
+        uint16_t pathlen; // Length in bytes of the sub-doc path.
+        uint8_t subdoc_flags; // See protocol_binary_subdoc_flag
+        /* uint32_t expiry     (optional for mutations only - present
+                                if extlen == 7 or extlen == 8) */
+        /* uint8_t doc_flags   (optional - present if extlen == 4 or
+                                extlen == 8)  Note these are the
+                                subdocument doc flags not the flag
+                                \section in the document. */
+    } extras;
+};
+static_assert(sizeof(protocol_binary_request_subdocument) == 27);
 
 /**
  * Definition of the request packets used by SUBDOCUMENT multi-path commands.
@@ -473,7 +401,7 @@ typedef union {
  * single multi-path command.
  *
  *  SUBDOC_MULTI_LOOKUP:
- *    Header:                24 @0:  <protocol_binary_request_header>
+ *    Header:                24 @0:  <cb::mcbp::Request>
  *    Extras:            0 or 1 @24: (optional) doc_flags. Note these are
  *                                   the subdocument doc flags not the flag
  *                                   section in the document.
@@ -489,20 +417,18 @@ typedef union {
  */
 static const int PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS = 16;
 
-typedef struct {
+struct protocol_binary_subdoc_multi_lookup_spec {
     cb::mcbp::ClientOpcode opcode;
     uint8_t flags;
     uint16_t pathlen;
     /* uint8_t path[pathlen] */
-} protocol_binary_subdoc_multi_lookup_spec;
-
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_subdocument_multi_lookup;
+};
+static_assert(sizeof(protocol_binary_subdoc_multi_lookup_spec) == 4);
 
 /*
  *
  * SUBDOC_MULTI_MUTATION
- *    Header:                24 @0:  <protocol_binary_request_header>
+ *    Header:                24 @0:  <cb::mcbp::Request>
  *    Extras:            0 OR 4 @24: (optional) expiration
  *                       0 OR 1 @24: (optional) doc_flags. Note these are
  *                                   the subdocument doc flags not the
@@ -519,17 +445,15 @@ typedef protocol_binary_request_no_extras
  *                      pathlen @8         : Path
  *                       vallen @8+pathlen : Value
  */
-typedef struct {
+struct protocol_binary_subdoc_multi_mutation_spec {
     cb::mcbp::ClientOpcode opcode;
     uint8_t flags;
     uint16_t pathlen;
     uint32_t valuelen;
     /* uint8_t path[pathlen] */
     /* uint8_t value[valuelen]  */
-} protocol_binary_subdoc_multi_mutation_spec;
-
-typedef protocol_binary_request_no_extras
-        protocol_binary_request_subdocument_multi_mutation;
+};
+static_assert(sizeof(protocol_binary_subdoc_multi_mutation_spec) == 8);
 
 /**
  * Definition of the response packets used by SUBDOCUMENT multi-path
@@ -543,11 +467,6 @@ typedef protocol_binary_request_no_extras
  *                            4 @2 : resultlen
  *                    resultlen @6 : result
  */
-typedef struct {
-    protocol_binary_request_header header;
-    /* Variable-length 1..PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS */
-    protocol_binary_subdoc_multi_lookup_spec body[1];
-} protocol_binary_response_subdoc_multi_lookup;
 
 /**
  * SUBDOC_MULTI_MUTATION response
@@ -585,18 +504,12 @@ typedef struct {
  * (Note: On failure the multi_mutation_result_spec only includes the
  *        first two fields).
  */
-typedef union {
-    struct {
-        protocol_binary_response_header header;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_response_header)];
-} protocol_binary_response_subdoc_multi_mutation;
 
 /* DCP related stuff */
 
 namespace cb::mcbp {
 namespace request {
-#pragma pack(1)
+
 class DcpOpenPayload {
 public:
     uint32_t getSeqno() const {
@@ -1278,7 +1191,6 @@ protected:
 };
 static_assert(sizeof(DcpSeqnoAdvancedPayload) == 8, "Unexpected struct size");
 
-#pragma pack()
 } // namespace request
 } // namespace cb::mcbp
 
@@ -1302,7 +1214,6 @@ enum class version : uint8_t { version0 = 0, version1 = 1, version2 = 2 };
 } // namespace mcbp::systemevent
 
 namespace cb::mcbp::request {
-#pragma pack(1)
 
 class DcpSystemEventPayload {
 public:
@@ -1578,7 +1489,6 @@ protected:
     uint32_t param_type = 0;
 };
 static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
-#pragma pack()
 } // namespace cb::mcbp::request
 
 /**
@@ -1623,7 +1533,7 @@ static_assert(sizeof(SetParamPayload) == 4, "Unexpected size");
 #define GET_META_ITEM_DELETED_FLAG 0x01
 
 namespace cb::mcbp::request {
-#pragma pack(1)
+
 class SetWithMetaPayload {
 public:
     uint32_t getFlags() const {
@@ -1718,19 +1628,11 @@ protected:
     uint64_t cas = 0;
 };
 static_assert(sizeof(DelWithMetaPayload) == 24, "Unexpected struct size");
-#pragma pack()
 } // namespace cb::mcbp::request
-
-/**
- * The physical layout for a CMD_GET_META command returns the meta-data
- * section for an item:
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_get_meta;
 
 /**
  * Structure holding getMeta command response fields
  */
-#pragma pack(1)
 
 struct GetMetaResponse {
     uint32_t deleted;
@@ -1759,8 +1661,6 @@ struct GetMetaResponse {
     }
 };
 
-#pragma pack()
-
 static_assert(sizeof(GetMetaResponse) == 21, "Incorrect compiler padding");
 
 /* Meta data versions for GET_META */
@@ -1773,8 +1673,6 @@ enum class GetMetaVersion : uint8_t {
  * The physical layout for the CMD_RETURN_META
  */
 namespace cb::mcbp::request {
-
-#pragma pack(1)
 
 enum class ReturnMetaType : uint32_t { Set = 1, Add = 2, Del = 3 };
 
@@ -1883,7 +1781,6 @@ protected:
     Vbid db_file_id = Vbid{0};
     uint32_t align_pad3 = 0;
 };
-#pragma pack()
 static_assert(sizeof(CompactDbPayload) == 24, "Unexpected struct size");
 } // namespace cb::mcbp::request
 
@@ -1894,21 +1791,6 @@ enum class ObserveKeyState : uint8_t {
     NotFound = 0x80,
     LogicalDeleted = 0x81
 };
-
-/**
- * The physical layout for the PROTOCOL_BINARY_CMD_AUDIT_PUT
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint32_t id;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
-} protocol_binary_request_audit_put;
-
-typedef protocol_binary_response_no_extras protocol_binary_response_audit_put;
 
 /**
  * The PROTOCOL_BINARY_CMD_OBSERVE_SEQNO command is used by the
@@ -1935,15 +1817,6 @@ typedef protocol_binary_response_no_extras protocol_binary_response_audit_put;
  *       wants to observe. The vbucket uuid is of type uint64_t.
  *
  */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-        struct {
-            uint64_t uuid;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
-} protocol_binary_request_observe_seqno;
 
 /**
  * Definition of the response packet for the observe_seqno command.
@@ -1976,8 +1849,6 @@ typedef union {
  *
  *       The other fields are the same as that mentioned in the normal case.
  */
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_observe_seqno;
 
 /**
  * Definition of the request packet for the command
@@ -1994,55 +1865,18 @@ typedef protocol_binary_response_no_extras
  *       vBucket high seqno number.
  *
  */
-typedef union {
+struct protocol_binary_request_get_all_vb_seqnos {
+    cb::mcbp::Request header;
     struct {
-        protocol_binary_request_header header;
-        struct {
-            RequestedVBState state;
-            CollectionIDType cid;
-        } body;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header) +
-                  sizeof(RequestedVBState) + sizeof(CollectionIDType)];
-} protocol_binary_request_get_all_vb_seqnos;
-
-/**
- * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
- * response.
- *
- * The body contains a "list" of "vbucket id - seqno pairs" for all
- * active and replica buckets on the node in network byte order.
- *
- *
- *    Byte/     0       |       1       |       2       |       3       |
- *       /              |               |               |               |
- *      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
- *      +---------------+---------------+---------------+---------------+
- *     0| VBID          | VBID          | SEQNO         | SEQNO         |
- *      +---------------+---------------+---------------+---------------+
- *     4| SEQNO         | SEQNO         | VBID          | VBID          |
- *      +---------------+---------------+---------------+---------------+
- *     4| SEQNO         | SEQNO         |
- *      +---------------+---------------+
- */
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_get_all_vb_seqnos;
-
-/**
- * Message format for PROTOCOL_BINARY_CMD_GET_KEYS
- *
- * The extras field may contain a 32 bit integer specifying the number
- * of keys to fetch. If no value specified 1000 keys is transmitted.
- *
- * Key is mandatory and specifies the starting key
- *
- * Get keys is used to fetch a sequence of keys from the server starting
- * at the specified key.
- */
-typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
+        RequestedVBState state;
+        CollectionIDType cid;
+    } body;
+};
+static_assert(sizeof(protocol_binary_request_get_all_vb_seqnos) ==
+              sizeof(cb::mcbp::Request) + sizeof(RequestedVBState) +
+                      sizeof(CollectionIDType));
 
 namespace cb::mcbp::request {
-#pragma pack(1)
 
 class AdjustTimePayload {
 public:
@@ -2145,24 +1979,7 @@ protected:
     uint16_t version = 0;
 };
 static_assert(sizeof(GetErrmapPayload) == 2, "Unexpected struct size");
-#pragma pack()
 } // namespace cb::mcbp::request
-
-/**
- * Message format for PROTOCOL_BINARY_CMD_COLLECTIONS_SET_MANIFEST
- *
- * The body contains a JSON collections manifest.
- * No key and no extras
- */
-typedef union {
-    struct {
-        protocol_binary_request_header header;
-    } message;
-    uint8_t bytes[sizeof(protocol_binary_request_header)];
-} protocol_binary_collections_set_manifest;
-
-typedef protocol_binary_response_no_extras
-        protocol_binary_response_collections_set_manifest;
 
 /**
  * @}
@@ -2174,25 +1991,19 @@ inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
 }
 
 namespace cb::mcbp::subdoc {
-inline constexpr cb::mcbp::subdoc::doc_flag operator|(
-        cb::mcbp::subdoc::doc_flag a, cb::mcbp::subdoc::doc_flag b) {
-    return cb::mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) |
-                                      static_cast<uint8_t>(b));
+constexpr doc_flag operator|(doc_flag a, doc_flag b) {
+    return doc_flag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
 }
 
-inline constexpr cb::mcbp::subdoc::doc_flag operator&(
-        cb::mcbp::subdoc::doc_flag a, cb::mcbp::subdoc::doc_flag b) {
-    return cb::mcbp::subdoc::doc_flag(static_cast<uint8_t>(a) &
-                                      static_cast<uint8_t>(b));
+constexpr doc_flag operator&(doc_flag a, doc_flag b) {
+    return doc_flag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
 }
 
-inline constexpr cb::mcbp::subdoc::doc_flag operator~(
-        cb::mcbp::subdoc::doc_flag a) {
-    return cb::mcbp::subdoc::doc_flag(~static_cast<uint8_t>(a));
+constexpr doc_flag operator~(doc_flag a) {
+    return doc_flag(~static_cast<uint8_t>(a));
 }
 
-inline std::string to_string(cb::mcbp::subdoc::doc_flag a) {
-    using cb::mcbp::subdoc::doc_flag;
+inline std::string to_string(doc_flag a) {
     switch (a) {
     case doc_flag::None:
         return "None";
@@ -2212,40 +2023,34 @@ inline std::string to_string(cb::mcbp::subdoc::doc_flag a) {
     return std::to_string(static_cast<uint8_t>(a));
 }
 
-inline bool hasAccessDeleted(cb::mcbp::subdoc::doc_flag a) {
-    return (a & cb::mcbp::subdoc::doc_flag::AccessDeleted) !=
-           cb::mcbp::subdoc::doc_flag::None;
+inline bool hasAccessDeleted(doc_flag a) {
+    return (a & doc_flag::AccessDeleted) != doc_flag::None;
 }
 
-inline bool hasReplicaRead(cb::mcbp::subdoc::doc_flag a) {
-    return (a & cb::mcbp::subdoc::doc_flag::ReplicaRead) !=
-           cb::mcbp::subdoc::doc_flag::None;
+inline bool hasReplicaRead(doc_flag a) {
+    return (a & doc_flag::ReplicaRead) != doc_flag::None;
 }
 
-inline bool hasMkdoc(cb::mcbp::subdoc::doc_flag a) {
-    return (a & cb::mcbp::subdoc::doc_flag::Mkdoc) !=
-           cb::mcbp::subdoc::doc_flag::None;
+inline bool hasMkdoc(doc_flag a) {
+    return (a & doc_flag::Mkdoc) != doc_flag::None;
 }
 
-inline bool hasAdd(cb::mcbp::subdoc::doc_flag a) {
-    return (a & cb::mcbp::subdoc::doc_flag::Add) !=
-           cb::mcbp::subdoc::doc_flag::None;
+inline bool hasAdd(doc_flag a) {
+    return (a & doc_flag::Add) != doc_flag::None;
 }
 
-inline bool hasReviveDocument(cb::mcbp::subdoc::doc_flag a) {
-    return (a & cb::mcbp::subdoc::doc_flag::ReviveDocument) ==
-           cb::mcbp::subdoc::doc_flag::ReviveDocument;
+inline bool hasReviveDocument(doc_flag a) {
+    return (a & doc_flag::ReviveDocument) == doc_flag::ReviveDocument;
 }
 
-inline bool hasCreateAsDeleted(cb::mcbp::subdoc::doc_flag a) {
-    return (a & cb::mcbp::subdoc::doc_flag::CreateAsDeleted) !=
-           cb::mcbp::subdoc::doc_flag::None;
+inline bool hasCreateAsDeleted(doc_flag a) {
+    return (a & doc_flag::CreateAsDeleted) != doc_flag::None;
 }
 
-inline bool isNone(cb::mcbp::subdoc::doc_flag a) {
-    return a == cb::mcbp::subdoc::doc_flag::None;
+inline bool isNone(doc_flag a) {
+    return a == doc_flag::None;
 }
-inline bool impliesMkdir_p(cb::mcbp::subdoc::doc_flag a) {
+inline bool impliesMkdir_p(doc_flag a) {
     return hasAdd(a) || hasMkdoc(a);
 }
 } // namespace cb::mcbp::subdoc
@@ -2259,7 +2064,6 @@ constexpr uint64_t Locked = 0xffff'ffff'ffff'ffff;
 } // namespace cb::mcbp::cas
 
 namespace cb::mcbp::request {
-#pragma pack(1)
 
 // Payload for get_collection_id opcode 0xbb, data stored in network byte order
 class GetCollectionIDPayload {
@@ -2286,6 +2090,8 @@ protected:
     uint64_t manifestId{0};
     uint32_t collectionId{0};
 };
+static_assert(sizeof(GetCollectionIDPayload) == 12,
+              "Incorrect compiler padding");
 
 // Payload for get_scope_id opcode 0xbc, data stored in network byte order
 class GetScopeIDPayload {
@@ -2310,6 +2116,7 @@ protected:
     uint64_t manifestId{0};
     uint32_t scopeId{0};
 };
+static_assert(sizeof(GetScopeIDPayload) == 12, "Incorrect compiler padding");
 
 // Payload for get_rando_key opcode 0xb6, data stored in network byte order
 class GetRandomKeyPayload {
@@ -2330,6 +2137,7 @@ public:
 protected:
     CollectionIDType collectionId{0};
 };
+static_assert(sizeof(GetRandomKeyPayload) == 4, "Incorrect compiler padding");
 
 // Payload for range_scan_continue opcode 0xdb, data in network byte order
 class RangeScanContinuePayload {
@@ -2371,13 +2179,12 @@ protected:
     uint32_t timeLimit{0};
     uint32_t byteLimit{0};
 };
+static_assert(sizeof(RangeScanContinuePayload) == 28,
+              "Incorrect compiler padding");
 
-#pragma pack()
 } // namespace cb::mcbp::request
 
 namespace cb::mcbp::response {
-
-#pragma pack(1)
 
 class RangeScanContinueMetaResponse {
 public:
@@ -2423,9 +2230,9 @@ protected:
     uint8_t datatype{0};
 };
 
-#pragma pack()
-
 static_assert(sizeof(RangeScanContinueMetaResponse) == 25,
               "Incorrect compiler padding");
 
 } // namespace cb::mcbp::response
+
+#pragma pack()
