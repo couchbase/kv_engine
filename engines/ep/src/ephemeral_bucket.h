@@ -175,11 +175,6 @@ public:
         return nullptr;
     }
 
-    bool isWarmupComplete() override {
-        // Nothing to do for warmup, so return true to allow DCP consumers to be
-        // made
-        return true;
-    }
 
     bool hasPrimaryWarmupLoadedMetaData() override {
         // Nothing to do for warmup, so return true to allow DCP consumers to be

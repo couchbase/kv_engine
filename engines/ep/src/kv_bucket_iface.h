@@ -708,12 +708,7 @@ public:
     /**
      * Has warmup loaded enough data to serve ops?
      */
-    virtual bool isWarmupLoadingData() = 0;
-
-    /**
-     * All aspects of warmup have finished - loading data + any background tasks
-     */
-    virtual bool isWarmupComplete() = 0;
+    virtual bool isWarmupLoadingData() const = 0;
 
     /**
      * Has primary warmup loaded all metadata? E.g. the vbucket's and collection
@@ -815,7 +810,7 @@ public:
     virtual bool isExpPagerEnabled() = 0;
 
     /// Check if there were any out-of-memory errors during warmup
-    virtual bool isWarmupOOMFailure() = 0;
+    virtual bool isWarmupOOMFailure() const = 0;
 
     /// Check if any of the vbucket set state failed during warmup
     virtual bool hasWarmupSetVbucketStateFailed() const = 0;

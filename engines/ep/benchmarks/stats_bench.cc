@@ -248,10 +248,11 @@ public:
     void SetUp(const benchmark::State& state) override {
         EngineFixture::SetUp(state);
         // Warmup the Engine
-        static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
-        static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
+        auto& epBucket = *static_cast<EPBucket*>(engine->getKVBucket());
+        epBucket.initializeWarmupTask();
+        epBucket.startWarmupTask();
         auto& readerQueue = *executorPool->getLpTaskQ()[READER_TASK_IDX];
-        while (!engine->getKVBucket()->isWarmupComplete()) {
+        while (!epBucket.isPrimaryWarmupComplete()) {
             CheckedExecutor executor(executorPool, readerQueue);
             // Run the tasks
             executor.runCurrentTask();

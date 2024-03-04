@@ -187,7 +187,7 @@ void STParamMagmaBucketTest::setupForImplicitCompactionTest(
     replaceMagmaKVStore();
     // Make sure the makeCompactionContextCallback function is set in the new
     // MagmaKVStore
-    getEPBucket().warmupCompleted();
+    getEPBucket().primaryWarmupCompleted();
 
     setVBucketStateAndRunPersistTask(
             vbid,

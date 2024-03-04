@@ -2253,11 +2253,14 @@ const Warmup* EPBucket::getSecondaryWarmup() const {
     return secondaryWarmupTask.get();
 }
 
-bool EPBucket::isWarmupLoadingData() {
+bool EPBucket::isWarmupLoadingData() const {
+    // This function only needs to check Primary warmup as this controls things
+    // like enableTraffic and isDegraded. In both of those cases the Secondary
+    // warmup could be loading data, but it doesn't change the outcome of this
     return warmupTask && !warmupTask->isFinishedLoading();
 }
 
-bool EPBucket::isWarmupComplete() {
+bool EPBucket::isPrimaryWarmupComplete() const {
     return warmupTask && warmupTask->isComplete();
 }
 
@@ -2280,7 +2283,7 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
     return cb::engine_errc::success;
 }
 
-bool EPBucket::isWarmupOOMFailure() {
+bool EPBucket::isWarmupOOMFailure() const {
     return (warmupTask && warmupTask->hasOOMFailure()) ||
            (secondaryWarmupTask && secondaryWarmupTask->hasOOMFailure());
 }
@@ -2302,7 +2305,7 @@ void EPBucket::initializeWarmupTask() {
         warmupTask = std::make_unique<Warmup>(
                 *this,
                 config,
-                [this]() { warmupCompleted(); },
+                [this]() { primaryWarmupCompleted(); },
                 config.getWarmupMinMemoryThreshold(),
                 config.getWarmupMinItemsThreshold(),
                 "Primary");
@@ -2313,14 +2316,14 @@ void EPBucket::startWarmupTask() {
     if (warmupTask) {
         warmupTask->start();
     } else {
-        // No warmup, immediately online the bucket.
-        warmupCompleted();
+        // No warm-up, immediately online the bucket.
+        primaryWarmupCompleted();
     }
 }
 
-void EPBucket::warmupCompleted() {
-    // warmupCompleted is a one-shot function that will create the secondary
-    // warmup object - there should be no second call once created.
+void EPBucket::primaryWarmupCompleted() {
+    // primaryWarmupCompleted is a one-shot function that will create the
+    // secondary warmup object - there should be no second call once created.
     Expects(!secondaryWarmupTask);
 
     if (!engine.getConfiguration().getAlogPath().empty()) {

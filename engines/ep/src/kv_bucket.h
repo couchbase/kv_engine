@@ -641,9 +641,8 @@ public:
 
     bool isExpPagerEnabled() override;
 
-    bool isWarmupLoadingData() override;
-    bool isWarmupComplete() override;
-    bool isWarmupOOMFailure() override;
+    bool isWarmupLoadingData() const override;
+    bool isWarmupOOMFailure() const override;
     cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
                                   CookieIface& cookie) const override;
 

@@ -261,9 +261,18 @@ public:
      */
     const Warmup* getSecondaryWarmup() const;
 
-    bool isWarmupLoadingData() override;
+    /**
+     * @return true if Primary warm-up has yet to signal finished loading. Note
+     *         that Secondary warm-up has no input on this function.
+     */
+    bool isWarmupLoadingData() const override;
 
-    bool isWarmupComplete() override;
+    /**
+     * @return true if Primary warmup has finished loading and reached the Done
+     * state. Based on the configuration this does not mean that anything has
+     * been loaded.
+     */
+    bool isPrimaryWarmupComplete() const;
 
     bool hasPrimaryWarmupLoadedMetaData() override;
 
@@ -273,7 +282,7 @@ public:
     cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
                                   CookieIface& cookie) const override;
 
-    bool isWarmupOOMFailure() override;
+    bool isWarmupOOMFailure() const override;
 
     bool hasWarmupSetVbucketStateFailed() const override;
 
@@ -298,7 +307,13 @@ public:
      */
     void startWarmupTask();
 
-    void warmupCompleted();
+    /**
+     * Function will execute all final parts of Primary warm-up completion. This
+     * includes if configured the creation and scheduling of Secondary warm-up.
+     * This function should only be called once by Primary warm-up as it has
+     * side effects that should only be executed once.
+     */
+    void primaryWarmupCompleted();
 
     /**
      * Construct a compaction context.
