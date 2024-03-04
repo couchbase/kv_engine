@@ -50,34 +50,37 @@ static gsl::not_null<DcpIface*> requireDcpIface(EngineIface* engine) {
     return dynamic_cast<DcpIface*>(engine);
 }
 
-static void dcp_step(EngineIface* h,
+static void dcp_step(EngineIface* engine,
                      CookieIface* cookie,
                      MockDcpMessageProducers& producers) {
-    auto dcp = requireDcpIface(h);
+    auto dcp = requireDcpIface(engine);
     cb::engine_errc err = dcp->step(*cookie, false, producers);
-    check(err == cb::engine_errc::success ||
-                  err == cb::engine_errc::would_block,
-          "Expected success or engine_ewouldblock");
+
     if (err == cb::engine_errc::would_block) {
         // Preserve last_opaque, as that is sometimes needed by the other
         // side of the connection to respond to the message.
         auto last_opaque = producers.last_opaque;
         producers.clear_dcp_data();
         producers.last_opaque = last_opaque;
+    } else {
+        checkeq(cb::engine_errc::success,
+                err,
+                "Expected success or engine_ewouldblock");
     }
 }
 
-static void dcpHandleResponse(EngineIface* h,
+static void dcpHandleResponse(EngineIface* engine,
                               CookieIface* cookie,
                               const cb::mcbp::Response& response,
                               MockDcpMessageProducers& producers) {
-    auto dcp = requireDcpIface(h);
+    auto dcp = requireDcpIface(engine);
     auto erroCode = dcp->response_handler(*cookie, response);
-    check(erroCode == cb::engine_errc::success ||
-                  erroCode == cb::engine_errc::would_block,
-          "Expected 'success' or 'engine_ewouldblock'");
     if (erroCode == cb::engine_errc::would_block) {
         producers.clear_dcp_data();
+    } else {
+        checkeq(cb::engine_errc::success,
+                erroCode,
+                "Expected 'success' or 'engine_ewouldblock'");
     }
 }
 
