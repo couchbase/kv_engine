@@ -70,4 +70,5 @@ void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload);
 
 namespace cb::mcbp::subdoc {
 void to_json(nlohmann::json& josn, const PathFlag& flag);
+void to_json(nlohmann::json& josn, const DocFlag& flag);
 }

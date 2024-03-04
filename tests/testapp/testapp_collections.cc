@@ -1870,7 +1870,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_no_access) {
             key,
             {{ClientOpcode::SubdocGet, {}, "missing1"},
              {ClientOpcode::SubdocGet, {}, "missing2"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     executeInSystemCollectionWithoutAccess(*user, command, false);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_with_euid_no_access) {
@@ -1878,7 +1878,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_with_euid_no_access) {
             key,
             {{ClientOpcode::SubdocGet, {}, "missing1"},
              {ClientOpcode::SubdocGet, {}, "missing2"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     executeInSystemCollectionWithoutAccess(*admin, command, true);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_access) {
@@ -1886,7 +1886,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_access) {
             key,
             {{ClientOpcode::SubdocGet, {}, "missing1"},
              {ClientOpcode::SubdocGet, {}, "missing2"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     execute(*admin, command, false, false, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_with_euid_with_access) {
@@ -1894,7 +1894,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiLookup_with_euid_with_access) {
             key,
             {{ClientOpcode::SubdocGet, {}, "missing1"},
              {ClientOpcode::SubdocGet, {}, "missing2"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     execute(*admin, command, true, true, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_no_access) {
@@ -1902,7 +1902,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_no_access) {
             key,
             {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
              {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     executeInSystemCollectionWithoutAccess(*user, command, false);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_with_euid_no_access) {
@@ -1910,7 +1910,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_with_euid_no_access) {
             key,
             {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
              {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     executeInSystemCollectionWithoutAccess(*admin, command, true);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_access) {
@@ -1918,7 +1918,7 @@ TEST_P(CollectionsTest, ClientOpcode_SubdocMultiMutation_access) {
             key,
             {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
              {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     execute(*admin, command, false, false, false, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest,
@@ -1927,7 +1927,7 @@ TEST_P(CollectionsTest,
             key,
             {{ClientOpcode::SubdocDictUpsert, {}, "foo.missing.bar", "true"},
              {ClientOpcode::SubdocDictUpsert, {}, "foo.missing.foo", "true"}},
-            cb::mcbp::subdoc::doc_flag::None};
+            cb::mcbp::subdoc::DocFlag::None};
     execute(*admin, command, true, false, true, Status::KeyEnoent);
 }
 TEST_P(CollectionsTest, ClientOpcode_SubdocReplaceBodyWithXattr_no_access) {

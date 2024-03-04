@@ -27,3 +27,16 @@ TEST(PathFlags, format_as) {
             R"(["Mkdir_p","unknown:0x2","XattrPath","unknown:0x8","ExpandMacros","unknown:0x20","unknown:0x40","unknown:0x80"])",
             fmt::format("{}", flag));
 }
+
+TEST(DocFlag, format_as) {
+    DocFlag flag = DocFlag::None;
+    EXPECT_EQ(R"("None")", fmt::format("{}", flag));
+    flag |= DocFlag::Mkdoc;
+    EXPECT_EQ(R"("Mkdoc")", fmt::format("{}", flag));
+    flag |= DocFlag::Add;
+    EXPECT_EQ(R"(["Mkdoc","Add"])", fmt::format("{}", flag));
+    flag = static_cast<DocFlag>(0xff);
+    EXPECT_EQ(
+            R"(["Mkdoc","Add","AccessDeleted","CreateAsDeleted","ReviveDocument","ReplicaRead","unknown:0x40","unknown:0x80"])",
+            fmt::format("{}", flag));
+}

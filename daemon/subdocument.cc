@@ -230,7 +230,7 @@ protected:
     const uint32_t expiration;
 
     /// The doc_flags provided by the client (should be const)
-    const doc_flag doc_flags;
+    const DocFlag doc_flags;
 
 private:
     /// Construct and send a response to a single-path request back to the
@@ -296,7 +296,7 @@ private:
         return parser.getExpiry();
     }
 
-    static doc_flag getDocFlags(Cookie& cookie, const SubdocCmdTraits& traits) {
+    static DocFlag getDocFlags(Cookie& cookie, const SubdocCmdTraits& traits) {
         if (traits.path == SubdocPath::SINGLE) {
             cb::mcbp::request::SubdocPayloadParser parser(
                     cookie.getRequest().getExtdata());

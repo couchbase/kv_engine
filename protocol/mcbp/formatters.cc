@@ -17,4 +17,9 @@ std::string format_as(PathFlag flag) {
     nlohmann::json value = flag;
     return value.dump();
 }
+
+std::string format_as(DocFlag flag) {
+    nlohmann::json value = flag;
+    return value.dump();
+}
 } // namespace cb::mcbp::subdoc

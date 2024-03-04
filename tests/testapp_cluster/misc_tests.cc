@@ -66,7 +66,7 @@ protected:
         EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
 
         // Add ReplicaRead, and we should get it!
-        cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::ReplicaRead);
+        cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::ReplicaRead);
         rsp = replica->execute(cmd);
         EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
@@ -75,7 +75,7 @@ protected:
         EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
 
         // But we can't mix that with access deleted
-        cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+        cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
         rsp = replica->execute(cmd);
         EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus())
                 << rsp.getDataString();
@@ -509,7 +509,7 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
 
     // Add ReplicaRead, and we should get it!
-    cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::ReplicaRead);
+    cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::ReplicaRead);
     rsp = replica->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     const auto [replica_meta, replica_value] = getResultPair(rsp);
@@ -521,7 +521,7 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
 
     // But we can't mix that with access deleted
-    cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+    cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
     rsp = replica->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataString();
 }

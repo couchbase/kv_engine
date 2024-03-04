@@ -15,6 +15,7 @@ add_library(mcbp STATIC
             dump.cc
             ewb_encode.cc
             feature.cc
+            formatters.cc
             frameinfo.cc
             gdb_dump_parser.cc
             json_utilities.cc
@@ -27,7 +28,6 @@ add_library(mcbp STATIC
             range_scan_continue_codec.cc
             sla.cc
             status.cc
-            subdoc_path_flag.cc
             )
 
 target_link_libraries(mcbp
@@ -53,13 +53,13 @@ add_sanitizers(mcbp_info)
 
 cb_add_test_executable(mcbp_unit_tests
                feature_test.cc
+               formatters_test.cc
                framebuilder_test.cc
                magic_test.cc
                mcbp_dump_parser_test.cc
                opcode_test.cc
                request_test.cc
-               sla_test.cc
-               subdoc_path_flag_test.cc)
+               sla_test.cc)
 kv_enable_pch(mcbp_unit_tests)
 target_link_libraries(mcbp_unit_tests
         PRIVATE

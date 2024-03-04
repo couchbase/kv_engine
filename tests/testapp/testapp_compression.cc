@@ -82,7 +82,7 @@ protected:
                         xattr_key,
                         xattr_value);
         cmd.addMutation(cb::mcbp::ClientOpcode::Set, {}, "", value);
-        cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
         auto rsp = userConnection->execute(cmd);
         if (!rsp.isSuccess()) {
             throw ConnectionError("Failed to upsert document", rsp);

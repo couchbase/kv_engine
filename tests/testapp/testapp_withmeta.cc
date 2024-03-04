@@ -32,7 +32,7 @@ public:
         cmd.setKey(name);
         cmd.setPath("$document");
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
-        cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::None);
+        cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::None);
 
         auto resp = userConnection->execute(cmd);
 
@@ -287,7 +287,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
                         "_sys.author",
                         {},
                         cb::mcbp::subdoc::PathFlag::XattrPath,
-                        cb::mcbp::subdoc::doc_flag::AccessDeleted);
+                        cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_TRUE(sresp.isSuccess()) << sresp.getStatus();
 }
 

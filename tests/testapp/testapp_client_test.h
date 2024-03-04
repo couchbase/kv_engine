@@ -159,8 +159,7 @@ protected:
             const std::string& path,
             const std::string& value = {},
             cb::mcbp::subdoc::PathFlag flag = {},
-            cb::mcbp::subdoc::doc_flag docFlag =
-                    cb::mcbp::subdoc::doc_flag::None,
+            cb::mcbp::subdoc::DocFlag docFlag = cb::mcbp::subdoc::DocFlag::None,
             const std::optional<cb::durability::Requirements>& durReqs = {});
 
     /// Perform the specified subdoc multi-mutation command; returning the

@@ -109,7 +109,7 @@ static void subdoc_print_command(Connection& c,
  * Definitions
  */
 void SubdocExecutionContext::create_single_path_context(
-        cb::mcbp::subdoc::doc_flag doc_flags) {
+        cb::mcbp::subdoc::DocFlag doc_flags) {
     const auto& request = cookie.getRequest();
     const auto extras = request.getExtdata();
     cb::mcbp::request::SubdocPayloadParser parser(extras);
@@ -172,7 +172,7 @@ void SubdocExecutionContext::create_single_path_context(
 }
 
 void SubdocExecutionContext::create_multi_path_context(
-        cb::mcbp::subdoc::doc_flag doc_flags) {
+        cb::mcbp::subdoc::DocFlag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
     const auto& request = cookie.getRequest();
     const auto valbuf = request.getValue();
@@ -260,7 +260,7 @@ SubdocExecutionContext::SubdocExecutionContext(
         Cookie& cookie_,
         const SubdocCmdTraits& traits_,
         Vbid vbucket_,
-        cb::mcbp::subdoc::doc_flag doc_flags)
+        cb::mcbp::subdoc::DocFlag doc_flags)
     : cookie(cookie_),
       connection(cookie_.getConnection()),
       traits(traits_),

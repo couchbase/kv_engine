@@ -73,7 +73,7 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 
-    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
             cb::mcbp::subdoc::PathFlag::Mkdir_p,
@@ -126,7 +126,7 @@ TEST_P(RegressionTest, MB_26828_SetIsFixed) {
                                                /*unused*/ {},
                                                sequence);
 
-    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
 
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocArrayPushLast,
@@ -667,7 +667,7 @@ TEST_P(RegressionTest, MB55754) {
                     "user",
                     R"({"Name":"John Doe"})");
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, {}, "", R"({"foo":"bar"})");
-    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+    cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
     auto rsp = userConnection->execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 

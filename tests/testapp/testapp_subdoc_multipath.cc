@@ -557,7 +557,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
 // Test that you can create a document with the Add doc flag
 TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlag) {
     SubdocMultiMutationCmd mutation;
-    mutation.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    mutation.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
     mutation.key = "AddDocTest";
     mutation.specs.push_back(
             {cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "test", "56"});
@@ -572,7 +572,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
     store_document("AddDocExistsTest", "[1,2,3,4]");
 
     SubdocMultiMutationCmd mutation;
-    mutation.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    mutation.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
     mutation.key = "AddDocExistsTest";
     mutation.specs.push_back(
             {cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "test", "56"});
@@ -590,7 +590,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagEEXists) {
 // An Addd doesn't make sense with a cas, check that it's rejected
 TEST_P(SubdocTestappTest, SubdocMultiMutation_AddDocFlagInavlidCas) {
     SubdocMultiMutationCmd mutation;
-    mutation.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    mutation.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
     mutation.key = "AddDocCas";
     mutation.cas = 123456;
     mutation.specs.push_back(

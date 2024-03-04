@@ -89,7 +89,7 @@ public:
     SubdocExecutionContext(Cookie& cookie_,
                            const SubdocCmdTraits& traits_,
                            Vbid vbucket_,
-                           cb::mcbp::subdoc::doc_flag doc_flags);
+                           cb::mcbp::subdoc::DocFlag doc_flags);
 
     cb::engine_errc pre_link_document(item_info& info);
 
@@ -462,9 +462,9 @@ protected:
 
     std::string_view expand_virtual_document_macro(std::string_view macro);
 
-    void create_single_path_context(cb::mcbp::subdoc::doc_flag doc_flags);
+    void create_single_path_context(cb::mcbp::subdoc::DocFlag doc_flags);
 
-    void create_multi_path_context(cb::mcbp::subdoc::doc_flag doc_flags);
+    void create_multi_path_context(cb::mcbp::subdoc::DocFlag doc_flags);
 
     using MacroPair = std::pair<std::string_view, std::string>;
     std::vector<MacroPair> paddedMacros;

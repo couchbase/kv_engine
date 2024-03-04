@@ -302,18 +302,18 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationFlags) {
         EXPECT_EQ("Request flags invalid", validate_error_context(request));
         request.at(0).flags = cb::mcbp::subdoc::PathFlag::None;
 
-        request.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        request.addDocFlags(cb::mcbp::subdoc::DocFlag::Mkdoc);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request document flags invalid",
                   validate_error_context(request));
         request.clearDocFlags();
 
-        request.addDocFlags(cb::mcbp::subdoc::doc_flag::Add);
+        request.addDocFlags(cb::mcbp::subdoc::DocFlag::Add);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request document flags invalid",
                   validate_error_context(request));
 
-        request.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        request.addDocFlags(cb::mcbp::subdoc::DocFlag::Mkdoc);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request must not contain both add and mkdoc flags",
                   validate_error_context(request));
@@ -373,7 +373,7 @@ protected:
      * specified. It does not test when both are used together
      */
     void testFlags(cb::mcbp::subdoc::PathFlag pathFlag,
-                   cb::mcbp::subdoc::doc_flag docFlag,
+                   cb::mcbp::subdoc::DocFlag docFlag,
                    cb::mcbp::Status expected,
                    uint8_t spec) {
         request.at(spec).flags = pathFlag;
@@ -405,7 +405,7 @@ protected:
      * specified. It does not test when both are used together
      */
     void testFlagCombo(cb::mcbp::subdoc::PathFlag pathFlag,
-                       cb::mcbp::subdoc::doc_flag docFlag,
+                       cb::mcbp::subdoc::DocFlag docFlag,
                        cb::mcbp::Status expected,
                        uint8_t spec) {
         request.at(spec).flags = pathFlag;
@@ -514,7 +514,7 @@ TEST_P(SubdocMultiMutationTest, NumPaths) {
 
 TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
     // Only allowed empty flags or
-    // cb::mcbp::subdoc::PathFlag::Mkdir_p/mcbp::subdoc::doc_flag::Mkdoc
+    // cb::mcbp::subdoc::PathFlag::Mkdir_p/mcbp::subdoc::DocFlag::Mkdoc
     request.addMutation({cb::mcbp::ClientOpcode::SubdocDictAdd,
                          cb::mcbp::subdoc::PathFlag(0),
                          "path",
@@ -522,7 +522,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictAdd) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
     testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                  cb::mcbp::subdoc::doc_flag::Mkdoc,
+                  cb::mcbp::subdoc::DocFlag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
 }
@@ -562,7 +562,7 @@ TEST_P(SubdocMultiMutationTest, ValidDictUpsert) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
     testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                  cb::mcbp::subdoc::doc_flag::Mkdoc,
+                  cb::mcbp::subdoc::DocFlag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
 }
@@ -615,7 +615,7 @@ TEST_P(SubdocMultiMutationTest, InvalidDelete) {
 
     // Shouldn't have flags.
     testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-              cb::mcbp::subdoc::doc_flag::Mkdoc,
+              cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
 
@@ -660,7 +660,7 @@ TEST_P(SubdocMultiMutationTest, InvalidReplace) {
                      "path",
                      "new_value"};
     testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-              cb::mcbp::subdoc::doc_flag::Mkdoc,
+              cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
 }
@@ -675,13 +675,13 @@ TEST_P(SubdocMultiMutationTest, ValidArrayPushLast) {
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                  cb::mcbp::subdoc::doc_flag::Mkdoc,
+                  cb::mcbp::subdoc::DocFlag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
     // Allowed empty path.
     request.at(1).path.clear();
     testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                  cb::mcbp::subdoc::doc_flag::Mkdoc,
+                  cb::mcbp::subdoc::DocFlag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
 }
@@ -714,13 +714,13 @@ TEST_P(SubdocMultiMutationTest, ValidArrayPushFirst) {
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                  cb::mcbp::subdoc::doc_flag::Mkdoc,
+                  cb::mcbp::subdoc::DocFlag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
     // Allowed empty path.
     request.at(1).path.clear();
     testFlagCombo(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                  cb::mcbp::subdoc::doc_flag::Mkdoc,
+                  cb::mcbp::subdoc::DocFlag::Mkdoc,
                   cb::mcbp::Status::Success,
                   1);
 }
@@ -764,7 +764,7 @@ TEST_P(SubdocMultiMutationTest, InvalidArrayInsert) {
                      "path",
                      "value"};
     testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-              cb::mcbp::subdoc::doc_flag::Mkdoc,
+              cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Einval,
               1);
 
@@ -795,7 +795,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayAddUnique) {
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-              cb::mcbp::subdoc::doc_flag::Mkdoc,
+              cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Success,
               1);
 
@@ -836,7 +836,7 @@ TEST_P(SubdocMultiMutationTest, ValidArrayCounter) {
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 
     testFlags(cb::mcbp::subdoc::PathFlag::Mkdir_p,
-              cb::mcbp::subdoc::doc_flag::Mkdoc,
+              cb::mcbp::subdoc::DocFlag::Mkdoc,
               cb::mcbp::Status::Success,
               1);
 
@@ -903,7 +903,7 @@ TEST_P(SubdocMultiMutationTest, InvalidCas) {
                          "path",
                          "value"});
     request.setCas(12234);
-    request.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+    request.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
     EXPECT_EQ("Request with add flag must have CAS 0",
               validate_error_context(request));
@@ -950,7 +950,7 @@ TEST_P(SubdocMultiMutationTest, ValidWholeDocDeleteFlags) {
                          cb::mcbp::subdoc::PathFlag(0),
                          "",
                          ""});
-    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlag(cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate(request));
     EXPECT_EQ("", validate_error_context(request, cb::mcbp::Status::Success));
 }

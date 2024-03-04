@@ -113,7 +113,7 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
         const std::string& path,
         const std::string& value,
         cb::mcbp::subdoc::PathFlag flag,
-        cb::mcbp::subdoc::doc_flag docFlag,
+        cb::mcbp::subdoc::DocFlag docFlag,
         const std::optional<cb::durability::Requirements>& durReqs) {
     BinprotSubdocCommand cmd;
     cmd.setOp(opcode);
@@ -152,7 +152,7 @@ cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
                        value,
                        cb::mcbp::subdoc::PathFlag::XattrPath |
                                cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                       cb::mcbp::subdoc::doc_flag::Mkdoc);
+                       cb::mcbp::subdoc::DocFlag::Mkdoc);
     return resp.getStatus();
 }
 
@@ -290,7 +290,7 @@ BinprotSubdocResponse TestappXattrClientTest::runGetXattr(
     cmd.setPath(std::move(path));
     if (deleted) {
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
-        cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+        cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
     } else {
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
     }

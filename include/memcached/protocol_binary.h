@@ -279,10 +279,8 @@ inline bool hasMkdirP(PathFlag flag) {
     return (flag & PathFlag::Mkdir_p) == PathFlag::Mkdir_p;
 }
 
-/**
- * Definitions of sub-document doc flags (this is a bitmap).
- */
-enum class doc_flag : uint8_t {
+/// Definitions of sub-document doc flags (this is a bitmap).
+enum class DocFlag : uint8_t {
     None = 0x0,
 
     /**
@@ -331,68 +329,53 @@ enum class doc_flag : uint8_t {
      */
     ReplicaRead = 0x20,
 };
+std::string format_as(DocFlag flag);
 
+constexpr DocFlag operator|(DocFlag a, DocFlag b) {
+    return DocFlag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+}
+inline DocFlag& operator|=(DocFlag& a, DocFlag b) {
+    a = a | b;
+    return a;
+}
+constexpr DocFlag operator&(DocFlag a, DocFlag b) {
+    return DocFlag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
+}
+constexpr DocFlag operator~(DocFlag a) {
+    return DocFlag(~static_cast<uint8_t>(a));
+}
 /**
  * Used for validation at parsing the doc-flags.
  * The value depends on how many bits the doc_flag enum is actually using and
  * must change accordingly.
  */
-static constexpr uint8_t extrasDocFlagMask = 0b11000000;
+static constexpr DocFlag extrasDocFlagMask =
+        ~(DocFlag::Mkdoc | DocFlag::Add | DocFlag::AccessDeleted |
+          DocFlag::CreateAsDeleted | DocFlag::ReviveDocument |
+          DocFlag::ReplicaRead);
 
-constexpr doc_flag operator|(doc_flag a, doc_flag b) {
-    return doc_flag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+inline bool hasAccessDeleted(DocFlag a) {
+    return (a & DocFlag::AccessDeleted) != DocFlag::None;
 }
-
-constexpr doc_flag operator&(doc_flag a, doc_flag b) {
-    return doc_flag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
+inline bool hasReplicaRead(DocFlag a) {
+    return (a & DocFlag::ReplicaRead) != DocFlag::None;
 }
-
-constexpr doc_flag operator~(doc_flag a) {
-    return doc_flag(~static_cast<uint8_t>(a));
+inline bool hasMkdoc(DocFlag a) {
+    return (a & DocFlag::Mkdoc) != DocFlag::None;
 }
-
-inline std::string to_string(doc_flag a) {
-    switch (a) {
-    case doc_flag::None:
-        return "None";
-    case doc_flag::Mkdoc:
-        return "Mkdoc";
-    case doc_flag::AccessDeleted:
-        return "AccessDeleted";
-    case doc_flag::Add:
-        return "Add";
-    case doc_flag::CreateAsDeleted:
-        return "CreateAsDeleted";
-    case doc_flag::ReviveDocument:
-        return "ReviveDocument";
-    case doc_flag::ReplicaRead:
-        return "ReplicaRead";
-    }
-    return std::to_string(static_cast<uint8_t>(a));
+inline bool hasAdd(DocFlag a) {
+    return (a & DocFlag::Add) != DocFlag::None;
 }
-
-inline bool hasAccessDeleted(doc_flag a) {
-    return (a & doc_flag::AccessDeleted) != doc_flag::None;
+inline bool hasReviveDocument(DocFlag a) {
+    return (a & DocFlag::ReviveDocument) == DocFlag::ReviveDocument;
 }
-inline bool hasReplicaRead(doc_flag a) {
-    return (a & doc_flag::ReplicaRead) != doc_flag::None;
+inline bool hasCreateAsDeleted(DocFlag a) {
+    return (a & DocFlag::CreateAsDeleted) != DocFlag::None;
 }
-inline bool hasMkdoc(doc_flag a) {
-    return (a & doc_flag::Mkdoc) != doc_flag::None;
+inline bool isNone(DocFlag a) {
+    return a == DocFlag::None;
 }
-inline bool hasAdd(doc_flag a) {
-    return (a & doc_flag::Add) != doc_flag::None;
-}
-inline bool hasReviveDocument(doc_flag a) {
-    return (a & doc_flag::ReviveDocument) == doc_flag::ReviveDocument;
-}
-inline bool hasCreateAsDeleted(doc_flag a) {
-    return (a & doc_flag::CreateAsDeleted) != doc_flag::None;
-}
-inline bool isNone(doc_flag a) {
-    return a == doc_flag::None;
-}
-inline bool impliesMkdir_p(doc_flag a) {
+inline bool impliesMkdir_p(DocFlag a) {
     return hasAdd(a) || hasMkdoc(a);
 }
 

@@ -403,4 +403,49 @@ void to_json(nlohmann::json& json, const PathFlag& flag) {
         json = array;
     }
 }
+
+void to_json(nlohmann::json& json, const DocFlag& flag) {
+    if (flag == DocFlag::None) {
+        json = "None";
+        return;
+    }
+    auto array = nlohmann::json::array();
+    for (int ii = 0; ii < 8; ++ii) {
+        auto bit = static_cast<DocFlag>(uint8_t(1) << ii);
+        if ((flag & bit) == bit) {
+            switch (bit) {
+            case DocFlag::None:
+                break;
+            case DocFlag::Mkdoc:
+                array.emplace_back("Mkdoc");
+                break;
+            case DocFlag::Add:
+                array.emplace_back("Add");
+                break;
+            case DocFlag::AccessDeleted:
+                array.emplace_back("AccessDeleted");
+                break;
+            case DocFlag::CreateAsDeleted:
+                array.emplace_back("CreateAsDeleted");
+                break;
+            case DocFlag::ReviveDocument:
+                array.emplace_back("ReviveDocument");
+                break;
+            case DocFlag::ReplicaRead:
+                array.emplace_back("ReplicaRead");
+                break;
+            default:
+                array.emplace_back(fmt::format("unknown:{:#x}",
+                                               static_cast<unsigned int>(bit)));
+            }
+        }
+    }
+
+    if (array.size() == 1) {
+        json = array.front();
+    } else {
+        json = array;
+    }
+}
+
 } // namespace cb::mcbp::subdoc

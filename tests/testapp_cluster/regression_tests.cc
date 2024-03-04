@@ -48,7 +48,7 @@ TEST_F(RegressionTest, MB51135) {
     {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey("MB51135");
-        cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+        cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictAdd,
                         cb::mcbp::subdoc::PathFlag::Mkdir_p,
                         "MB51135",

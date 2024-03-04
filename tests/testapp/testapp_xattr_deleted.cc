@@ -22,14 +22,14 @@ using namespace cb::mcbp::subdoc;
 using namespace cb::mcbp;
 
 // Negative test: The subdoc operation returns Einval as
-// doc_flag::CreateAsDeleted requires one of doc_flag::Mkdoc/Add.
+// DocFlag::CreateAsDeleted requires one of DocFlag::Mkdoc/Add.
 void XattrNoDocTest::testRequiresMkdocOrAdd() {
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
                        "txn.deleted",
                        "true",
                        PathFlag::XattrPath | PathFlag::Mkdir_p,
-                       doc_flag::CreateAsDeleted,
+                       DocFlag::CreateAsDeleted,
                        durReqs);
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
@@ -51,7 +51,7 @@ void XattrNoDocTest::testRequiresXattrPath() {
                        "txn.deleted",
                        "true",
                        PathFlag::Mkdir_p,
-                       doc_flag::Mkdoc | doc_flag::CreateAsDeleted);
+                       DocFlag::Mkdoc | DocFlag::CreateAsDeleted);
     EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
@@ -76,13 +76,13 @@ void XattrNoDocTest::testSinglePathDictAdd() {
                        "txn.deleted",
                        "true",
                        PathFlag::XattrPath | PathFlag::Mkdir_p,
-                       doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+                       DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
                        durReqs);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     // Check that the User XATTR is present.
     resp = subdoc_get(
-            "txn.deleted", PathFlag::XattrPath, doc_flag::AccessDeleted);
+            "txn.deleted", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("true", resp.getValue());
 
@@ -90,7 +90,7 @@ void XattrNoDocTest::testSinglePathDictAdd() {
     // not existing with normal subdoc operations.
     auto lookup = subdoc_multi_lookup(
             {{cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
-            cb::mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               lookup.getStatus());
 
@@ -123,14 +123,14 @@ void XattrNoDocTest::testMultipathDictAdd() {
               PathFlag::XattrPath,
               "txn",
               "\"foo\""}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     // Check the last path was created correctly.
-    resp = subdoc_get("txn", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("txn", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("\"foo\"", resp.getValue());
 
@@ -138,7 +138,7 @@ void XattrNoDocTest::testMultipathDictAdd() {
     // not existing with normal subdoc operations.
     auto lookup = subdoc_multi_lookup(
             {{cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
-            cb::mcbp::subdoc::doc_flag::AccessDeleted);
+            cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               lookup.getStatus());
 
@@ -168,13 +168,13 @@ void XattrNoDocTest::testMultipathDictUpsert() {
               PathFlag::XattrPath,
               "txn",
               "\"bar\""}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
-    resp = subdoc_get("txn", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("txn", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("\"bar\"", resp.getValue());
 }
@@ -198,13 +198,13 @@ void XattrNoDocTest::testMultipathArrayPushLast() {
               PathFlag::XattrPath,
               "array",
               "1"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
-    resp = subdoc_get("array", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("[1]", resp.getValue());
 }
@@ -228,13 +228,13 @@ void XattrNoDocTest::testMultipathArrayPushFirst() {
               PathFlag::XattrPath,
               "array",
               "2"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
-    resp = subdoc_get("array", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("[2]", resp.getValue());
 }
@@ -247,10 +247,10 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayPushFirst) {
     testMultipathArrayPushFirst();
 }
 
-// @todo MB-39545: This test fails because doc_flag::Mkdoc is invalid with
+// @todo MB-39545: This test fails because DocFlag::Mkdoc is invalid with
 //  ArrayInsert (the test fails at validation for ArrayInsert with "Invalid
 //  arguments").
-//  By changing to doc_flag::Add (valid for ArrayInsert) the test gets to the
+//  By changing to DocFlag::Add (valid for ArrayInsert) the test gets to the
 //  execution of ArrayInsert but is fails with SubdocMultiPathFailure.
 //  Specific and simple (single-path) tests on ArrayInsert suggests that we may
 //  have some existing issue in that area that we should address in a dedicated
@@ -266,13 +266,13 @@ TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
               PathFlag::XattrPath,
               "array.[0]",
               "1"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
-    resp = subdoc_get("array", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("[0,1]", resp.getValue());
 }
@@ -288,13 +288,13 @@ void XattrNoDocTest::testMultipathArrayAddUnique() {
               PathFlag::XattrPath,
               "array",
               "4"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
-    resp = subdoc_get("array", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("[4]", resp.getValue());
 }
@@ -318,14 +318,14 @@ void XattrNoDocTest::testMultipathCounter() {
               PathFlag::XattrPath,
               "counter",
               "5"}},
-            doc_flag::Mkdoc | doc_flag::CreateAsDeleted,
+            DocFlag::Mkdoc | DocFlag::CreateAsDeleted,
             durReqs);
 
     auto resp = subdocMultiMutation(cmd);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
 
     // Check the last path was created correctly.
-    resp = subdoc_get("counter", PathFlag::XattrPath, doc_flag::AccessDeleted);
+    resp = subdoc_get("counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("5", resp.getValue());
 }
@@ -363,8 +363,8 @@ void XattrNoDocTest::testMultipathCombo() {
     }
 
     auto cmd = makeSDKTxnMultiMutation();
-    cmd.addDocFlag(doc_flag::Mkdoc);
-    cmd.addDocFlag(doc_flag::CreateAsDeleted);
+    cmd.addDocFlag(DocFlag::Mkdoc);
+    cmd.addDocFlag(DocFlag::CreateAsDeleted);
 
     if (durReqs) {
         cmd.setDurabilityReqs(*durReqs);
@@ -378,7 +378,7 @@ void XattrNoDocTest::testMultipathCombo() {
 
     // Check the last path was created correctly.
     auto resp2 = subdoc_get(
-            "txn.counter", PathFlag::XattrPath, doc_flag::AccessDeleted);
+            "txn.counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp2.getStatus());
     EXPECT_EQ("1", resp2.getValue());
 }
@@ -402,9 +402,9 @@ void XattrNoDocTest::testMultipathAccessDeletedCreateAsDeleted() {
 
     auto cmd = makeSDKTxnMultiMutation();
 
-    cmd.addDocFlag(doc_flag::Add);
-    cmd.addDocFlag(doc_flag::AccessDeleted);
-    cmd.addDocFlag(doc_flag::CreateAsDeleted);
+    cmd.addDocFlag(DocFlag::Add);
+    cmd.addDocFlag(DocFlag::AccessDeleted);
+    cmd.addDocFlag(DocFlag::CreateAsDeleted);
 
     if (durReqs) {
         cmd.setDurabilityReqs(*durReqs);
@@ -417,7 +417,7 @@ void XattrNoDocTest::testMultipathAccessDeletedCreateAsDeleted() {
 
     // Check the last path was created correctly.
     resp = subdoc_get(
-            "txn.counter", PathFlag::XattrPath, doc_flag::AccessDeleted);
+            "txn.counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("1", resp.getValue());
 }
@@ -435,9 +435,9 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
     {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(name);
-        cmd.addDocFlag(doc_flag::Add);
-        cmd.addDocFlag(doc_flag::AccessDeleted);
-        cmd.addDocFlag(doc_flag::CreateAsDeleted);
+        cmd.addDocFlag(DocFlag::Add);
+        cmd.addDocFlag(DocFlag::AccessDeleted);
+        cmd.addDocFlag(DocFlag::CreateAsDeleted);
         cmd.addMutation(
                 cb::mcbp::ClientOpcode::SubdocDictUpsert,
                 PathFlag::XattrPath | PathFlag::Mkdir_p,
@@ -459,8 +459,8 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setCas(cas);
         cmd.setKey(name);
-        cmd.addDocFlag(doc_flag::AccessDeleted);
-        cmd.addDocFlag(doc_flag::ReviveDocument);
+        cmd.addDocFlag(DocFlag::AccessDeleted);
+        cmd.addDocFlag(DocFlag::ReviveDocument);
         cmd.addMutation(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
                         PathFlag::XattrPath,
                         "tnx.op.staged",
@@ -496,7 +496,7 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
 TEST_P(XattrNoDocTest, ReviveRequireDeletedDocument) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
-    cmd.addDocFlag(doc_flag::Add);
+    cmd.addDocFlag(DocFlag::Add);
     cmd.addMutation(
             cb::mcbp::ClientOpcode::SubdocDictUpsert,
             PathFlag::XattrPath | PathFlag::Mkdir_p,
@@ -510,8 +510,8 @@ TEST_P(XattrNoDocTest, ReviveRequireDeletedDocument) {
 
     cmd = {};
     cmd.setKey(name);
-    cmd.addDocFlag(doc_flag::AccessDeleted);
-    cmd.addDocFlag(doc_flag::ReviveDocument);
+    cmd.addDocFlag(DocFlag::AccessDeleted);
+    cmd.addDocFlag(DocFlag::ReviveDocument);
     cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
                     PathFlag::XattrPath,
                     "tnx.bubba",

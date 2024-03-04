@@ -449,7 +449,7 @@ TEST_P(AuditTest, AuditSubdocMutation) {
                              "foo",
                              "\"bar\"",
                              {},
-                             cb::mcbp::subdoc::doc_flag::Mkdoc);
+                             cb::mcbp::subdoc::DocFlag::Mkdoc);
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
 
     // Cleanup document; this also gives us a sentinel audit event to know that
@@ -474,7 +474,7 @@ TEST_P(AuditTest, AuditSubdocMultiMutation) {
             "doc",
             {{cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "foo", "\"bar\""},
              {cb::mcbp::ClientOpcode::SubdocDictUpsert, {}, "foo2", "\"baz\""}},
-            cb::mcbp::subdoc::doc_flag::Mkdoc);
+            cb::mcbp::subdoc::DocFlag::Mkdoc);
 
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
 
@@ -500,7 +500,7 @@ TEST_P(AuditTest, AuditSubdocMultiMutationDelete) {
     BinprotSubdocMultiMutationCommand cmd(
             "doc",
             {{cb::mcbp::ClientOpcode::Delete, {}, {}, {}}},
-            cb::mcbp::subdoc::doc_flag::None);
+            cb::mcbp::subdoc::DocFlag::None);
 
     ASSERT_EQ(cb::mcbp::Status::Success, conn.execute(cmd).getStatus());
 

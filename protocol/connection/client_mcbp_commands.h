@@ -309,14 +309,14 @@ public:
                          const std::string& path,
                          const std::string& value,
                          cb::mcbp::subdoc::PathFlag flags = {},
-                         cb::mcbp::subdoc::doc_flag docFlags =
-                                 cb::mcbp::subdoc::doc_flag::None,
+                         cb::mcbp::subdoc::DocFlag docFlags =
+                                 cb::mcbp::subdoc::DocFlag::None,
                          uint64_t cas = 0);
 
     BinprotSubdocCommand& setPath(std::string path_);
     BinprotSubdocCommand& setValue(std::string value_);
     BinprotSubdocCommand& addPathFlags(cb::mcbp::subdoc::PathFlag flags_);
-    BinprotSubdocCommand& addDocFlags(cb::mcbp::subdoc::doc_flag flags_);
+    BinprotSubdocCommand& addDocFlags(cb::mcbp::subdoc::DocFlag flags_);
     BinprotSubdocCommand& setExpiry(uint32_t value_);
     const std::string& getPath() const;
     const std::string& getValue() const;
@@ -329,7 +329,7 @@ private:
     std::string value;
     BinprotCommand::ExpiryValue expiry;
     cb::mcbp::subdoc::PathFlag flags = cb::mcbp::subdoc::PathFlag::None;
-    cb::mcbp::subdoc::doc_flag doc_flags = cb::mcbp::subdoc::doc_flag::None;
+    cb::mcbp::subdoc::DocFlag doc_flags = cb::mcbp::subdoc::DocFlag::None;
 };
 
 class BinprotSubdocResponse : public BinprotResponse {
@@ -355,13 +355,13 @@ public:
     BinprotSubdocMultiMutationCommand(
             std::string key,
             std::vector<MutationSpecifier> specs,
-            cb::mcbp::subdoc::doc_flag docFlags,
+            cb::mcbp::subdoc::DocFlag docFlags,
             const std::optional<cb::durability::Requirements>& durReqs = {});
 
     void encode(std::vector<uint8_t>& buf) const override;
 
     BinprotSubdocMultiMutationCommand& addDocFlag(
-            cb::mcbp::subdoc::doc_flag docFlag);
+            cb::mcbp::subdoc::DocFlag docFlag);
 
     BinprotSubdocMultiMutationCommand& addMutation(
             const MutationSpecifier& spec);
@@ -392,7 +392,7 @@ public:
 protected:
     std::vector<MutationSpecifier> specs;
     ExpiryValue expiry;
-    cb::mcbp::subdoc::doc_flag docFlags;
+    cb::mcbp::subdoc::DocFlag docFlags;
 };
 
 class BinprotSubdocMultiMutationResponse : public BinprotResponse {
@@ -425,7 +425,7 @@ public:
 
     BinprotSubdocMultiLookupCommand(std::string key,
                                     std::vector<LookupSpecifier> specs,
-                                    cb::mcbp::subdoc::doc_flag docFlags);
+                                    cb::mcbp::subdoc::DocFlag docFlags);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
@@ -443,7 +443,7 @@ public:
     BinprotSubdocMultiLookupCommand& addGetCount(
             const std::string& path, cb::mcbp::subdoc::PathFlag flags = {});
     BinprotSubdocMultiLookupCommand& addDocFlags(
-            cb::mcbp::subdoc::doc_flag docFlag);
+            cb::mcbp::subdoc::DocFlag docFlag);
 
     void clearLookups();
 
@@ -460,7 +460,7 @@ public:
 protected:
     std::vector<LookupSpecifier> specs;
     ExpiryValue expiry;
-    cb::mcbp::subdoc::doc_flag docFlags;
+    cb::mcbp::subdoc::DocFlag docFlags;
 };
 
 class BinprotSubdocMultiLookupResponse : public BinprotResponse {

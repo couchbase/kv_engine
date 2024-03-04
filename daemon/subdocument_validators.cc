@@ -40,7 +40,7 @@ static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
     return cb::mcbp::Status::Success;
 }
 
-static inline bool validMutationSemantics(cb::mcbp::subdoc::doc_flag a) {
+static inline bool validMutationSemantics(cb::mcbp::subdoc::DocFlag a) {
     // Can't have both the Add flag and Mkdoc flag set as this doesn't mean
     // anything at the moment.
     return !(hasAdd(a) && hasMkdoc(a));
@@ -176,7 +176,7 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
 
     const auto doc_flags = parser.getDocFlag();
     if ((doc_flags & ~traits.valid_doc_flags) !=
-        cb::mcbp::subdoc::doc_flag::None) {
+        cb::mcbp::subdoc::DocFlag::None) {
         cookie.setErrorContext("Request document flags invalid");
         return cb::mcbp::Status::Einval;
     }
@@ -334,7 +334,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
         const SubdocMultiCmdTraits traits,
         size_t& spec_len,
         bool& xattr,
-        cb::mcbp::subdoc::doc_flag doc_flags,
+        cb::mcbp::subdoc::DocFlag doc_flags,
         bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
     // depending on LOOKUP/MUTATION.
@@ -408,7 +408,7 @@ static cb::mcbp::Status is_valid_multipath_spec(
     }
 
     if ((doc_flags & ~op_traits.valid_doc_flags) !=
-        cb::mcbp::subdoc::doc_flag::None) {
+        cb::mcbp::subdoc::DocFlag::None) {
         cookie.setErrorContext("Request document flags invalid");
         return cb::mcbp::Status::Einval;
     }
