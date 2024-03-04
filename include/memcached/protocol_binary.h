@@ -268,6 +268,12 @@ typedef enum : uint8_t {
 
 } protocol_binary_subdoc_flag;
 
+inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
+                                             protocol_binary_subdoc_flag b) {
+    return protocol_binary_subdoc_flag(static_cast<uint8_t>(a) |
+                                       static_cast<uint8_t>(b));
+}
+
 namespace cb::mcbp::subdoc {
 
 /**
@@ -329,6 +335,63 @@ enum class doc_flag : uint8_t {
  * must change accordingly.
  */
 static constexpr uint8_t extrasDocFlagMask = 0b11000000;
+
+constexpr doc_flag operator|(doc_flag a, doc_flag b) {
+    return doc_flag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
+}
+
+constexpr doc_flag operator&(doc_flag a, doc_flag b) {
+    return doc_flag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
+}
+
+constexpr doc_flag operator~(doc_flag a) {
+    return doc_flag(~static_cast<uint8_t>(a));
+}
+
+inline std::string to_string(doc_flag a) {
+    switch (a) {
+    case doc_flag::None:
+        return "None";
+    case doc_flag::Mkdoc:
+        return "Mkdoc";
+    case doc_flag::AccessDeleted:
+        return "AccessDeleted";
+    case doc_flag::Add:
+        return "Add";
+    case doc_flag::CreateAsDeleted:
+        return "CreateAsDeleted";
+    case doc_flag::ReviveDocument:
+        return "ReviveDocument";
+    case doc_flag::ReplicaRead:
+        return "ReplicaRead";
+    }
+    return std::to_string(static_cast<uint8_t>(a));
+}
+
+inline bool hasAccessDeleted(doc_flag a) {
+    return (a & doc_flag::AccessDeleted) != doc_flag::None;
+}
+inline bool hasReplicaRead(doc_flag a) {
+    return (a & doc_flag::ReplicaRead) != doc_flag::None;
+}
+inline bool hasMkdoc(doc_flag a) {
+    return (a & doc_flag::Mkdoc) != doc_flag::None;
+}
+inline bool hasAdd(doc_flag a) {
+    return (a & doc_flag::Add) != doc_flag::None;
+}
+inline bool hasReviveDocument(doc_flag a) {
+    return (a & doc_flag::ReviveDocument) == doc_flag::ReviveDocument;
+}
+inline bool hasCreateAsDeleted(doc_flag a) {
+    return (a & doc_flag::CreateAsDeleted) != doc_flag::None;
+}
+inline bool isNone(doc_flag a) {
+    return a == doc_flag::None;
+}
+inline bool impliesMkdir_p(doc_flag a) {
+    return hasAdd(a) || hasMkdoc(a);
+}
 
 } // namespace cb::mcbp::subdoc
 
@@ -1971,76 +2034,6 @@ static_assert(sizeof(GetErrmapPayload) == 2, "Unexpected struct size");
 /**
  * @}
  */
-inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
-                                             protocol_binary_subdoc_flag b) {
-    return protocol_binary_subdoc_flag(static_cast<uint8_t>(a) |
-                                       static_cast<uint8_t>(b));
-}
-
-namespace cb::mcbp::subdoc {
-constexpr doc_flag operator|(doc_flag a, doc_flag b) {
-    return doc_flag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
-}
-
-constexpr doc_flag operator&(doc_flag a, doc_flag b) {
-    return doc_flag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
-}
-
-constexpr doc_flag operator~(doc_flag a) {
-    return doc_flag(~static_cast<uint8_t>(a));
-}
-
-inline std::string to_string(doc_flag a) {
-    switch (a) {
-    case doc_flag::None:
-        return "None";
-    case doc_flag::Mkdoc:
-        return "Mkdoc";
-    case doc_flag::AccessDeleted:
-        return "AccessDeleted";
-    case doc_flag::Add:
-        return "Add";
-    case doc_flag::CreateAsDeleted:
-        return "CreateAsDeleted";
-    case doc_flag::ReviveDocument:
-        return "ReviveDocument";
-    case doc_flag::ReplicaRead:
-        return "ReplicaRead";
-    }
-    return std::to_string(static_cast<uint8_t>(a));
-}
-
-inline bool hasAccessDeleted(doc_flag a) {
-    return (a & doc_flag::AccessDeleted) != doc_flag::None;
-}
-
-inline bool hasReplicaRead(doc_flag a) {
-    return (a & doc_flag::ReplicaRead) != doc_flag::None;
-}
-
-inline bool hasMkdoc(doc_flag a) {
-    return (a & doc_flag::Mkdoc) != doc_flag::None;
-}
-
-inline bool hasAdd(doc_flag a) {
-    return (a & doc_flag::Add) != doc_flag::None;
-}
-
-inline bool hasReviveDocument(doc_flag a) {
-    return (a & doc_flag::ReviveDocument) == doc_flag::ReviveDocument;
-}
-
-inline bool hasCreateAsDeleted(doc_flag a) {
-    return (a & doc_flag::CreateAsDeleted) != doc_flag::None;
-}
-
-inline bool isNone(doc_flag a) {
-    return a == doc_flag::None;
-}
-inline bool impliesMkdir_p(doc_flag a) {
-    return hasAdd(a) || hasMkdoc(a);
-}
-} // namespace cb::mcbp::subdoc
 
 namespace cb::mcbp::cas {
 /// The special value used as a wildcard and match all CAS values
