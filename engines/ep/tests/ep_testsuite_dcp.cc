@@ -3074,7 +3074,7 @@ static void simulateProdRespToDcpControlBlockingNegotiation(
     dcpHandleResponse(engine, cookie, resp, producers);
 }
 
-static uint32_t add_stream_for_consumer(EngineIface* h,
+static uint32_t add_stream_for_consumer(EngineIface* engine,
                                         CookieIface* cookie,
                                         uint32_t opaque,
                                         Vbid vbucket,
@@ -3084,7 +3084,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                                         uint64_t exp_snap_end) {
     using cb::mcbp::ClientOpcode;
 
-    auto dcp = requireDcpIface(h);
+    auto dcp = requireDcpIface(engine);
     checkeq(cb::engine_errc::success,
             dcp->add_stream(*cookie, opaque, vbucket, flags),
             "Add stream request failed");
@@ -3092,24 +3092,23 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     MockDcpMessageProducers producers;
 
     auto dcpStepAndExpectControlMsg =
-            [&h, cookie, opaque, &producers](std::string controlKey) {
-                dcp_step(h, cookie, producers);
+            [&engine, cookie, opaque, &producers](
+                    const std::string& controlKey) {
+                dcp_step(engine, cookie, producers);
                 checkeq(cb::mcbp::ClientOpcode::DcpControl,
                         producers.last_op,
                         "Unexpected last_op");
-                checkeq(std::move(controlKey),
-                        producers.last_key,
-                        "Unexpected key");
+                checkeq(controlKey, producers.last_key, "Unexpected key");
                 checkne(opaque, producers.last_opaque, "Unexpected opaque");
             };
 
-    if (get_bool_stat(h, "ep_dcp_consumer_flow_control_enabled")) {
+    if (get_bool_stat(engine, "ep_dcp_consumer_flow_control_enabled")) {
         dcpStepAndExpectControlMsg("connection_buffer_size"s);
     }
 
-    if (get_bool_stat(h, "ep_dcp_enable_noop")) {
+    if (get_bool_stat(engine, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
-        dcp_step(h, cookie, producers);
+        dcp_step(engine, cookie, producers);
         checkeq(ClientOpcode::GetErrorMap,
                 producers.last_op,
                 "Unexpected last_op");
@@ -3123,7 +3122,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         resp.setMagic(cb::mcbp::Magic::ClientResponse);
         resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
         resp.setStatus(cb::mcbp::Status::Success);
-        dcpHandleResponse(h, cookie, resp, producers);
+        dcpHandleResponse(engine, cookie, resp, producers);
 
         // Check that the enable noop message is sent
         dcpStepAndExpectControlMsg("enable_noop"s);
@@ -3136,7 +3135,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         resp.setOpaque(producers.last_opaque);
         resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
         resp.setStatus(cb::mcbp::Status::Success);
-        dcpHandleResponse(h, cookie, resp, producers);
+        dcpHandleResponse(engine, cookie, resp, producers);
     }
 
     dcpStepAndExpectControlMsg("set_priority"s);
@@ -3145,19 +3144,19 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
     dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
     dcpStepAndExpectControlMsg("enable_sync_writes"s);
-    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg("consumer_name"s);
     dcpStepAndExpectControlMsg("include_deleted_user_xattrs"s);
-    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg("v7_dcp_status_codes"s);
-    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg(
             std::string{DcpControlKeys::FlatBuffersSystemEvents});
-    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg(std::string(DcpControlKeys::ChangeStreams));
-    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
 
-    dcp_step(h, cookie, producers);
+    dcp_step(engine, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
     checkeq(ClientOpcode::DcpStreamReq,
             producers.last_op,
@@ -3176,44 +3175,32 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                 "Unexpected snap end");
     }
 
-    size_t bodylen = 0;
-    if (response == cb::mcbp::Status::Success) {
-        bodylen = 16;
-    } else if (response == cb::mcbp::Status::Rollback) {
-        bodylen = 8;
-    }
-
-    size_t headerlen = sizeof(protocol_binary_response_header);
-    size_t pkt_len = headerlen + bodylen;
-
-    auto* pkt =
-        (protocol_binary_response_header*)cb_malloc(pkt_len);
-    memset(pkt->bytes, '\0', pkt_len);
-    pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt->response.setStatus(response);
-    pkt->response.setOpaque(producers.last_opaque);
+    std::vector<uint8_t> pkt(sizeof(cb::mcbp::Response) + sizeof(uint64_t) * 2);
+    cb::mcbp::ResponseBuilder builder(pkt);
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(response);
+    builder.setOpaque(producers.last_opaque);
 
     if (response == cb::mcbp::Status::Rollback) {
-        bodylen = sizeof(uint64_t);
         uint64_t rollbackSeqno = 0;
-        memcpy(pkt->bytes + headerlen, &rollbackSeqno, bodylen);
-    }
-
-    pkt->response.setBodylen(bodylen);
-
-    if (response == cb::mcbp::Status::Success) {
-        uint64_t vb_uuid = htonll(123456789);
-        uint64_t by_seqno = 0;
-        memcpy(pkt->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
-        memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+        builder.setValue({reinterpret_cast<const uint8_t*>(&rollbackSeqno),
+                          sizeof(rollbackSeqno)});
+    } else if (response == cb::mcbp::Status::Success) {
+        struct {
+            uint64_t vb_uuid = htonll(123456789);
+            uint64_t by_seqno = 0;
+        } payload;
+        static_assert(sizeof(payload) == (sizeof(uint64_t) * 2),
+                      "Unexpected struct size");
+        builder.setValue(
+                {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
     }
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected success");
-    dcp_step(h, cookie, producers);
-    cb_free(pkt);
+    dcp_step(engine, cookie, producers);
 
     if (response == cb::mcbp::Status::Rollback) {
         return stream_opaque;
@@ -3221,26 +3208,26 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
     if (producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq) {
         checkne(opaque, producers.last_opaque, "Unexpected opaque");
-        verify_curr_items(h, 0, "Wrong amount of items");
+        verify_curr_items(engine, 0, "Wrong amount of items");
 
-        auto* pkt =
-            (protocol_binary_response_header*)cb_malloc(pkt_len);
-        memset(pkt->bytes, '\0', 40);
-        pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
-        pkt->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-        pkt->response.setStatus(cb::mcbp::Status::Success);
-        pkt->response.setOpaque(producers.last_opaque);
-        pkt->response.setBodylen(16);
+        builder.setMagic(cb::mcbp::Magic::ClientResponse);
+        builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+        builder.setStatus(cb::mcbp::Status::Success);
+        builder.setOpaque(producers.last_opaque);
 
-        uint64_t vb_uuid = htonll(123456789);
-        uint64_t by_seqno = 0;
-        memcpy(pkt->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
-        memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+        struct {
+            uint64_t vb_uuid = htonll(123456789);
+            uint64_t by_seqno = 0;
+        } payload;
+        static_assert(sizeof(payload) == (sizeof(uint64_t) * 2),
+                      "Unexpected struct size");
+        builder.setValue(
+                {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
 
         checkeq(cb::engine_errc::success,
-                dcp->response_handler(*cookie, pkt->response),
+                dcp->response_handler(*cookie, *builder.getFrame()),
                 "Expected success");
-        dcp_step(h, cookie, producers);
+        dcp_step(engine, cookie, producers);
 
         checkeq(cb::mcbp::ClientOpcode::DcpAddStream,
                 producers.last_op,
@@ -3251,7 +3238,6 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
         checkeq(stream_opaque,
                 producers.last_stream_opaque,
                 "Unexpected stream opaque");
-        cb_free(pkt);
     } else {
         checkeq(cb::mcbp::ClientOpcode::DcpAddStream,
                 producers.last_op,
@@ -3263,8 +3249,8 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     }
 
     if (response == cb::mcbp::Status::Success) {
-        uint64_t uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-        uint64_t seq = get_ull_stat(h, "vb_0:0:seq", "failovers");
+        uint64_t uuid = get_ull_stat(engine, "vb_0:0:id", "failovers");
+        uint64_t seq = get_ull_stat(engine, "vb_0:0:seq", "failovers");
         checkeq(uint64_t{123456789}, uuid, "Unexpected UUID");
         checkeq(uint64_t{0}, seq, "Unexpected seqno");
     }
@@ -3919,32 +3905,32 @@ static void drainDcpControl(EngineIface* engine,
     } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
 }
 
-static enum test_result test_chk_manager_rollback(EngineIface* h) {
-    if (!isWarmupEnabled(h)) {
+static test_result test_chk_manager_rollback(EngineIface* engine) {
+    if (!isWarmupEnabled(engine)) {
         return SKIPPED;
     }
 
     Vbid vbid = Vbid(0);
     const int num_items = 40;
-    stop_persistence(h);
-    write_items(h, num_items);
+    stop_persistence(engine);
+    write_items(engine, num_items);
 
-    start_persistence(h);
-    wait_for_flusher_to_settle(h);
-    verify_curr_items(h, num_items, "Wrong amount of items");
+    start_persistence(engine);
+    wait_for_flusher_to_settle(engine);
+    verify_curr_items(engine, num_items, "Wrong amount of items");
 
-    testHarness->reload_engine(&h,
+    testHarness->reload_engine(&engine,
 
                                testHarness->get_current_testcase()->cfg,
                                true,
                                false);
 
-    wait_for_warmup_complete(h);
-    stop_persistence(h);
+    wait_for_warmup_complete(engine);
+    stop_persistence(engine);
 
     for (int j = 0; j < num_items / 2; ++j) {
         checkeq(cb::engine_errc::success,
-                store(h,
+                store(engine,
                       nullptr,
                       StoreSemantics::Set,
                       fmt::format("key{}", j + num_items),
@@ -3952,18 +3938,18 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
                 "Failed to store a value");
     }
 
-    start_persistence(h);
-    wait_for_flusher_to_settle(h);
-    verify_curr_items(h, 60, "Wrong amount of items");
-    set_vbucket_state(h, vbid, vbucket_state_replica);
+    start_persistence(engine);
+    wait_for_flusher_to_settle(engine);
+    verify_curr_items(engine, 60, "Wrong amount of items");
+    set_vbucket_state(engine, vbid, vbucket_state_replica);
 
     // Create rollback stream
-    auto* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(engine);
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    auto dcp = requireDcpIface(h);
+    auto dcp = requireDcpIface(engine);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie,
@@ -3980,65 +3966,62 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
 
     // When drainDcpControl stops producers.last_XXXX contains the value
     // for the first non-control message
-    drainDcpControl(h, cookie, producers);
+    drainDcpControl(engine, cookie, producers);
 
     uint32_t stream_opaque = producers.last_opaque;
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(producers.last_opaque != opaque);
 
     uint64_t rollbackSeqno = htonll(40);
-    auto* pkt =
-        (protocol_binary_response_header*)cb_malloc(32);
-    memset(pkt->bytes, '\0', 32);
-    pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt->response.setStatus(cb::mcbp::Status::Rollback);
-    pkt->response.setOpaque(stream_opaque);
-    pkt->response.setBodylen(8);
-    memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
+    std::vector<uint8_t> pkt(sizeof(cb::mcbp::Response) + 2 * sizeof(uint64_t));
+    cb::mcbp::ResponseBuilder builder(pkt);
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(cb::mcbp::Status::Rollback);
+    builder.setOpaque(stream_opaque);
+    builder.setValue({reinterpret_cast<const uint8_t*>(&rollbackSeqno),
+                      sizeof(uint64_t)});
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected success");
 
     do {
-        dcp_step(h, cookie, producers);
+        dcp_step(engine, cookie, producers);
         std::this_thread::sleep_for(std::chrono::microseconds(100));
     } while (producers.last_op != cb::mcbp::ClientOpcode::DcpStreamReq);
 
     stream_opaque = producers.last_opaque;
-    cb_free(pkt);
 
     // Send success
 
-    uint64_t vb_uuid = htonll(123456789);
-    uint64_t by_seqno = 0;
-    pkt = (protocol_binary_response_header*)cb_malloc(40);
-    memset(pkt->bytes, '\0', 40);
-    pkt->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt->response.setStatus(cb::mcbp::Status::Success);
-    pkt->response.setOpaque(stream_opaque);
-    pkt->response.setBodylen(16);
-    memcpy(pkt->bytes + 24, &vb_uuid, sizeof(uint64_t));
-    memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
+    struct {
+        uint64_t vb_uuid = htonll(123456789);
+        uint64_t by_seqno = 0;
+    } payload;
+    static_assert(sizeof(payload) == 2 * sizeof(uint64_t),
+                  "Unexpected struct size");
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(cb::mcbp::Status::Success);
+    builder.setOpaque(stream_opaque);
+    builder.setValue({reinterpret_cast<uint8_t*>(&payload), sizeof(payload)});
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected success");
-    dcp_step(h, cookie, producers);
-    cb_free(pkt);
+    dcp_step(engine, cookie, producers);
 
-    int items = get_int_stat(h, "curr_items_tot");
-    int seqno = get_int_stat(h, "vb_0:high_seqno", "vbucket-seqno");
+    int items = get_int_stat(engine, "curr_items_tot");
+    int seqno = get_int_stat(engine, "vb_0:high_seqno", "vbucket-seqno");
 
     checkeq(40, items, "Got invalid amount of items");
     checkeq(40, seqno, "Seqno should be 40 after rollback");
     checkeq(num_items / 2,
-            get_int_stat(h, "vb_replica_rollback_item_count"),
+            get_int_stat(engine, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
     checkeq(num_items / 2,
-            get_int_stat(h, "rollback_item_count"),
+            get_int_stat(engine, "rollback_item_count"),
             "Aggr rollback count does not match");
 
     testHarness->destroy_cookie(cookie);
@@ -4046,25 +4029,25 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
+static test_result test_fullrollback_for_consumer(EngineIface* engine) {
     const int num_items = 11;
-    write_items(h, num_items);
+    write_items(engine, num_items);
 
-    wait_for_flusher_to_settle(h);
+    wait_for_flusher_to_settle(engine);
     checkeq(num_items,
-            get_int_stat(h, "curr_items"),
+            get_int_stat(engine, "curr_items"),
             "Item count should've been 10");
 
-    auto* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(engine);
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
     const char *name = "unittest";
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check(set_vbucket_state(engine, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    auto dcp = requireDcpIface(h);
+    auto dcp = requireDcpIface(engine);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie,
@@ -4082,70 +4065,64 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     // drainDcpControl keeps on consuming the messages via DCP step
     // and when it returns the producers.last_XXX contains the first
     // non-DCP-Control message
-    drainDcpControl(h, cookie, producers);
+    drainDcpControl(engine, cookie, producers);
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(producers.last_opaque != opaque);
 
-    uint32_t headerlen = sizeof(protocol_binary_response_header);
-    uint32_t bodylen = sizeof(uint64_t);
+    std::vector<uint8_t> blob(sizeof(cb::mcbp::Response) +
+                              2 * sizeof(uint64_t));
     uint64_t rollbackSeqno = htonll(5);
-    auto *pkt1 =
-        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
-    memset(pkt1->bytes, '\0', headerlen + bodylen);
-    pkt1->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt1->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt1->response.setStatus(cb::mcbp::Status::Rollback);
-    pkt1->response.setBodylen(bodylen);
-    pkt1->response.setOpaque(producers.last_opaque);
-    memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
+    cb::mcbp::ResponseBuilder builder(blob);
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(cb::mcbp::Status::Rollback);
+    builder.setOpaque(producers.last_opaque);
+    builder.setValue({reinterpret_cast<const uint8_t*>(&rollbackSeqno),
+                      sizeof(rollbackSeqno)});
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt1->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected Success after Rollback");
-    wait_for_stat_to_be(h, "ep_rollback_count", 1);
-    dcp_step(h, cookie, producers);
+    wait_for_stat_to_be(engine, "ep_rollback_count", 1);
+    dcp_step(engine, cookie, producers);
 
     opaque++;
 
     cb_assert(producers.last_opaque != opaque);
 
-    bodylen = 2 *sizeof(uint64_t);
-    auto* pkt2 =
-        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
-    memset(pkt2->bytes, '\0', headerlen + bodylen);
-    pkt2->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt2->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt2->response.setStatus(cb::mcbp::Status::Success);
-    pkt2->response.setOpaque(producers.last_opaque);
-    pkt2->response.setBodylen(bodylen);
-    uint64_t vb_uuid = htonll(123456789);
-    uint64_t by_seqno = 0;
-    memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
-    memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(cb::mcbp::Status::Success);
+    builder.setOpaque(producers.last_opaque);
+    struct {
+        uint64_t vb_uuid = htonll(123456789);
+        uint64_t by_seqno = 0;
+    } payload;
+    static_assert(sizeof(payload) == 2 * sizeof(uint64_t),
+                  "Unexpected struct size");
+    builder.setValue(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt2->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected success");
 
-    dcp_step(h, cookie, producers);
+    dcp_step(engine, cookie, producers);
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpAddStream);
 
-    cb_free(pkt1);
-    cb_free(pkt2);
-
     //Verify that all items have been removed from consumer
-    wait_for_flusher_to_settle(h);
+    wait_for_flusher_to_settle(engine);
     checkeq(0,
-            get_int_stat(h, "vb_replica_curr_items"),
+            get_int_stat(engine, "vb_replica_curr_items"),
             "Item count should've been 0");
     checkeq(1,
-            get_int_stat(h, "ep_rollback_count"),
+            get_int_stat(engine, "ep_rollback_count"),
             "Rollback count expected to be 1");
     checkeq(num_items,
-            get_int_stat(h, "vb_replica_rollback_item_count"),
+            get_int_stat(engine, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
     checkeq(num_items,
-            get_int_stat(h, "rollback_item_count"),
+            get_int_stat(engine, "rollback_item_count"),
             "Aggr rollback count does not match");
 
     testHarness->destroy_cookie(cookie);
@@ -4153,42 +4130,42 @@ static enum test_result test_fullrollback_for_consumer(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
-    stop_persistence(h);
+static test_result test_partialrollback_for_consumer(EngineIface* engine) {
+    stop_persistence(engine);
 
     const int numInitialItems = 100;
-    write_items(h, numInitialItems, 0, "key_");
+    write_items(engine, numInitialItems, 0, "key_");
 
-    start_persistence(h);
-    wait_for_flusher_to_settle(h);
+    start_persistence(engine);
+    wait_for_flusher_to_settle(engine);
     checkeq(100,
-            get_int_stat(h, "curr_items"),
+            get_int_stat(engine, "curr_items"),
             "Item count should've been 100");
 
-    stop_persistence(h);
+    stop_persistence(engine);
 
     /* Write items from 90 to 109 */
     const int numUpdateAndWrites = 20, updateStartSeqno = 90;
-    write_items(h, numUpdateAndWrites, updateStartSeqno, "key_");
-    start_persistence(h);
-    wait_for_flusher_to_settle(h);
+    write_items(engine, numUpdateAndWrites, updateStartSeqno, "key_");
+    start_persistence(engine);
+    wait_for_flusher_to_settle(engine);
 
     const int expItems = std::max((numUpdateAndWrites + updateStartSeqno),
                                   numInitialItems);
     checkeq(expItems,
-            get_int_stat(h, "curr_items"),
+            get_int_stat(engine, "curr_items"),
             "Item count should've been 110");
 
-    check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
+    check(set_vbucket_state(engine, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    auto* cookie = testHarness->create_cookie(h);
+    auto* cookie = testHarness->create_cookie(engine);
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
     const char *name = "unittest";
 
     // Open consumer connection
-    auto dcp = requireDcpIface(h);
+    auto dcp = requireDcpIface(engine);
     MockDcpMessageProducers producers;
     checkeq(cb::engine_errc::success,
             dcp->open(*cookie,
@@ -4206,79 +4183,75 @@ static enum test_result test_partialrollback_for_consumer(EngineIface* h) {
     // drainDcpControl keeps on consuming the messages via DCP step
     // and when it returns the producers.last_XXX contains the first
     // non-DCP-Control message
-    drainDcpControl(h, cookie, producers);
+    drainDcpControl(engine, cookie, producers);
     cb_assert(producers.last_op == cb::mcbp::ClientOpcode::DcpStreamReq);
     cb_assert(producers.last_opaque != opaque);
 
-    uint32_t headerlen = sizeof(protocol_binary_response_header);
-    uint32_t bodylen = sizeof(uint64_t);
+    std::vector<uint8_t> blob(sizeof(cb::mcbp::Response) +
+                              2 * sizeof(uint64_t));
+
     uint64_t rollbackSeqno = 100;
-    auto *pkt1 =
-        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
-    memset(pkt1->bytes, '\0', headerlen + bodylen);
-    pkt1->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt1->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt1->response.setStatus(cb::mcbp::Status::Rollback);
-    pkt1->response.setBodylen(bodylen);
-    pkt1->response.setOpaque(producers.last_opaque);
+    cb::mcbp::ResponseBuilder builder(blob);
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(cb::mcbp::Status::Rollback);
+    builder.setOpaque(producers.last_opaque);
     uint64_t rollbackPt = htonll(rollbackSeqno);
-    memcpy(pkt1->bytes + headerlen, &rollbackPt, bodylen);
+    builder.setValue({reinterpret_cast<const uint8_t*>(&rollbackPt),
+                      sizeof(rollbackPt)});
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt1->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected Success after Rollback");
-    wait_for_stat_to_be(h, "ep_rollback_count", 1);
-    dcp_step(h, cookie, producers);
+    wait_for_stat_to_be(engine, "ep_rollback_count", 1);
+    dcp_step(engine, cookie, producers);
     opaque++;
 
-    bodylen = 2 * sizeof(uint64_t);
-    auto* pkt2 =
-        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
-    memset(pkt2->bytes, '\0', headerlen + bodylen);
-    pkt2->response.setMagic(cb::mcbp::Magic::ClientResponse);
-    pkt2->response.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
-    pkt2->response.setStatus(cb::mcbp::Status::Success);
-    pkt2->response.setOpaque(producers.last_opaque);
-    pkt2->response.setBodylen(bodylen);
-    uint64_t vb_uuid = htonll(123456789);
-    uint64_t by_seqno = 0;
-    memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
-    memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
+    builder.setMagic(cb::mcbp::Magic::ClientResponse);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpStreamReq);
+    builder.setStatus(cb::mcbp::Status::Success);
+    builder.setOpaque(producers.last_opaque);
+
+    struct {
+        uint64_t vb_uuid = htonll(123456789);
+        uint64_t by_seqno = 0;
+    } payload;
+    static_assert(sizeof(payload) == 2 * sizeof(uint64_t),
+                  "Unexpected struct size");
+    builder.setValue(
+            {reinterpret_cast<const uint8_t*>(&payload), sizeof(payload)});
 
     checkeq(cb::engine_errc::success,
-            dcp->response_handler(*cookie, pkt2->response),
+            dcp->response_handler(*cookie, *builder.getFrame()),
             "Expected success");
-    dcp_step(h, cookie, producers);
-
-    cb_free(pkt1);
-    cb_free(pkt2);
+    dcp_step(engine, cookie, producers);
 
     //?Verify that 10 items plus 10 updates have been removed from consumer
-    wait_for_flusher_to_settle(h);
+    wait_for_flusher_to_settle(engine);
     checkeq(1,
-            get_int_stat(h, "ep_rollback_count"),
+            get_int_stat(engine, "ep_rollback_count"),
             "Rollback count expected to be 1");
 
-    if (isPersistentBucket(h)) {
+    if (isPersistentBucket(engine)) {
         checkeq(rollbackSeqno,
-                get_ull_stat(h, "vb_replica_curr_items"),
+                get_ull_stat(engine, "vb_replica_curr_items"),
                 "Item count should've been 100");
         checkeq(numUpdateAndWrites,
-                get_int_stat(h, "vb_replica_rollback_item_count"),
+                get_int_stat(engine, "vb_replica_rollback_item_count"),
                 "Replica rollback count does not match");
         checkeq(numUpdateAndWrites,
-                get_int_stat(h, "rollback_item_count"),
+                get_int_stat(engine, "rollback_item_count"),
                 "Aggr rollback count does not match");
     } else {
         /* We always rollback to 0 in 'Ephemeral Buckets' */
         checkeq(0,
-                get_int_stat(h, "vb_replica_curr_items"),
+                get_int_stat(engine, "vb_replica_curr_items"),
                 "Item count should've been 0");
         checkeq(numInitialItems + numUpdateAndWrites,
-                get_int_stat(h, "vb_replica_rollback_item_count"),
+                get_int_stat(engine, "vb_replica_rollback_item_count"),
                 "Replica rollback count does not match");
         checkeq(numInitialItems + numUpdateAndWrites,
-                get_int_stat(h, "rollback_item_count"),
+                get_int_stat(engine, "rollback_item_count"),
                 "Aggr rollback count does not match");
     }
 
