@@ -236,19 +236,6 @@ static_assert(sizeof(SetBucketDataLimitExceededPayload) == sizeof(uint16_t),
 } // namespace cb::mcbp::request
 
 /**
- * Definitions for extended (flexible) metadata
- *
- * @1: Flex Code to identify the number of extended metadata fields
- * @2: Size of the Flex Code, set to 1 byte
- * @3: Current size of extended metadata
- */
-typedef enum {
-    FLEX_META_CODE = 0x01,
-    FLEX_DATA_OFFSET = 1,
-    EXT_META_LEN = 1
-} protocol_binary_flexmeta;
-
-/**
  * Definitions of sub-document path flags (this is a bitmap)
  */
 typedef enum : uint8_t {

@@ -24,6 +24,19 @@
 #include <memory>
 #include <type_traits>
 
+/**
+ * Definitions for extended (flexible) metadata
+ *
+ * @1: Flex Code to identify the number of extended metadata fields
+ * @2: Size of the Flex Code, set to 1 byte
+ * @3: Current size of extended metadata
+ */
+typedef enum {
+    FLEX_META_CODE = 0x01,
+    FLEX_DATA_OFFSET = 1,
+    EXT_META_LEN = 1
+} protocol_binary_flexmeta;
+
 // Bitwise masks for manipulating the flexCode variable inside MetaDataV1
 const uint8_t flexCodeMask = 0x7F;
 const uint8_t deleteSourceMask = 0x80;
