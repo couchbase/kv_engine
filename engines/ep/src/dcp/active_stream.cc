@@ -1115,7 +1115,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
 
     if (itemsForCursor.ranges.empty()) {
         Expects(result.items.empty());
-        log(spdlog::level::level_enum::warn,
+        log(spdlog::level::level_enum::debug,
             "{} ActiveStream::getOutstandingItems: no data from checkpoints"
             "- type:{}, {}, ranges:{}, HCS:{}, MVS:{}, items:{}",
             logPrefix,
