@@ -11,6 +11,109 @@
 #include <mcbp/protocol/json_utilities.h>
 #include <platform/uuid.h>
 
+namespace cb::mcbp {
+void to_json(nlohmann::json& json, const DcpOpenFlag& flags) {
+    if (flags == DcpOpenFlag::None) {
+        json = "None";
+        return;
+    }
+    auto array = nlohmann::json::array();
+    for (int ii = 0; ii < 32; ++ii) {
+        auto bit = static_cast<DcpOpenFlag>(uint8_t(1) << ii);
+        if ((flags & bit) == bit) {
+            switch (bit) {
+            case DcpOpenFlag::None:
+                break;
+            case DcpOpenFlag::Producer:
+                array.emplace_back("Producer");
+                break;
+            case DcpOpenFlag::IncludeXattrs:
+                array.emplace_back("IncludeXattrs");
+                break;
+            case DcpOpenFlag::NoValue:
+                array.emplace_back("NoValue");
+                break;
+            case DcpOpenFlag::IncludeDeleteTimes:
+                array.emplace_back("IncludeDeleteTimes");
+                break;
+            case DcpOpenFlag::NoValueWithUnderlyingDatatype:
+                array.emplace_back("NoValueWithUnderlyingDatatype");
+                break;
+            case DcpOpenFlag::PiTR:
+                array.emplace_back("PiTR");
+                break;
+            case DcpOpenFlag::IncludeDeletedUserXattrs:
+                array.emplace_back("IncludeDeletedUserXattrs");
+                break;
+
+            case DcpOpenFlag::Unused:
+            case DcpOpenFlag::Invalid:
+            default:
+                array.emplace_back(fmt::format("unknown:{:#x}",
+                                               static_cast<unsigned int>(bit)));
+            }
+        }
+    }
+
+    if (array.size() == 1) {
+        json = array.front();
+    } else {
+        json = array;
+    }
+}
+
+void to_json(nlohmann::json& json, const DcpAddStreamFlag& flags) {
+    if (flags == DcpAddStreamFlag::None) {
+        json = "None";
+        return;
+    }
+    auto array = nlohmann::json::array();
+    for (int ii = 0; ii < 32; ++ii) {
+        auto bit = static_cast<DcpAddStreamFlag>(uint8_t(1) << ii);
+        if ((flags & bit) == bit) {
+            switch (bit) {
+            case DcpAddStreamFlag::None:
+                break;
+            case DcpAddStreamFlag::TakeOver:
+                array.push_back("Takeover");
+                break;
+            case DcpAddStreamFlag::DiskOnly:
+                array.push_back("DiskOnly");
+                break;
+            case DcpAddStreamFlag::ToLatest:
+                array.push_back("ToLatest");
+                break;
+            case DcpAddStreamFlag::NoValue:
+                array.push_back("NoValue");
+                break;
+            case DcpAddStreamFlag::ActiveVbOnly:
+                array.push_back("ActiveVbOnly");
+                break;
+            case DcpAddStreamFlag::StrictVbUuid:
+                array.push_back("StrictVbUuid");
+                break;
+            case DcpAddStreamFlag::FromLatest:
+                array.push_back("FromLatest");
+                break;
+            case DcpAddStreamFlag::IgnorePurgedTombstones:
+                array.push_back("IgnorePurgedTombstones");
+                break;
+            default:
+                array.emplace_back(fmt::format("unknown:{:#x}",
+                                               static_cast<unsigned int>(bit)));
+            }
+        }
+    }
+
+    if (array.size() == 1) {
+        json = array.front();
+    } else {
+        json = array;
+    }
+}
+
+} // namespace cb::mcbp
+
 namespace cb::mcbp::request {
 
 void to_json(nlohmann::json& json, const MutationPayload& payload) {
@@ -46,92 +149,17 @@ void to_json(nlohmann::json& json,
 }
 
 void to_json(nlohmann::json& json, const DcpOpenPayload& payload) {
-    auto flags = payload.getFlags();
-    auto array = nlohmann::json::array();
-    array.push_back("raw: " + cb::to_hex(flags));
-    if ((flags & DcpOpenPayload::Producer) == DcpOpenPayload::Producer) {
-        array.push_back("Producer");
-    }
-
-    if ((flags & DcpOpenPayload::IncludeXattrs) ==
-        DcpOpenPayload::IncludeXattrs) {
-        array.push_back("IncludeXattrs");
-    }
-
-    if ((flags & DcpOpenPayload::NoValue) == DcpOpenPayload::NoValue) {
-        array.push_back("NoValue");
-    }
-    if ((flags & DcpOpenPayload::IncludeDeleteTimes) ==
-        DcpOpenPayload::IncludeDeleteTimes) {
-        array.push_back("IncludeDeleteTimes");
-    }
-    if ((flags & DcpOpenPayload::NoValueWithUnderlyingDatatype) ==
-        DcpOpenPayload::NoValueWithUnderlyingDatatype) {
-        array.push_back("NoValueWithUnderlyingDatatype");
-    }
-    if ((flags & DcpOpenPayload::PiTR) == DcpOpenPayload::PiTR) {
-        array.push_back("PiTR");
-    }
-    if ((flags & DcpOpenPayload::IncludeDeletedUserXattrs) ==
-        DcpOpenPayload::IncludeDeletedUserXattrs) {
-        array.push_back("IncludeDeletedUserXattrs");
-    }
-
-    json = {{"seqno", payload.getSeqno()}, {"flags", std::move(array)}};
-}
-
-static nlohmann::json decodeAddStreamFlags(uint32_t flags) {
-    auto array = nlohmann::json::array();
-    array.push_back("raw: " + cb::to_hex(flags));
-    if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ==
-        DCP_ADD_STREAM_FLAG_TAKEOVER) {
-        array.push_back("Takeover");
-    }
-
-    if ((flags & DCP_ADD_STREAM_FLAG_DISKONLY) ==
-        DCP_ADD_STREAM_FLAG_DISKONLY) {
-        array.push_back("Diskonly");
-    }
-    if ((flags & DCP_ADD_STREAM_FLAG_TO_LATEST) ==
-        DCP_ADD_STREAM_FLAG_TO_LATEST) {
-        array.push_back("ToLatest");
-    }
-    if ((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ==
-        DCP_ADD_STREAM_FLAG_NO_VALUE) {
-        array.push_back("NoValue");
-    }
-    if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) ==
-        DCP_ADD_STREAM_ACTIVE_VB_ONLY) {
-        array.push_back("ActiveVbOnly");
-    }
-
-    if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) ==
-        DCP_ADD_STREAM_ACTIVE_VB_ONLY) {
-        array.push_back("ActiveVbOnly");
-    }
-    if ((flags & DCP_ADD_STREAM_STRICT_VBUUID) ==
-        DCP_ADD_STREAM_STRICT_VBUUID) {
-        array.push_back("StrictVbUuid");
-    }
-    if ((flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) ==
-        DCP_ADD_STREAM_FLAG_FROM_LATEST) {
-        array.push_back("FromLatest");
-    }
-
-    if ((flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) ==
-        DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
-        array.push_back("IgnorePurgedTombstones");
-    }
-    return array;
+    json = {{"seqno", payload.getSeqno()},
+            {"flags", static_cast<DcpOpenFlag>(payload.getFlags())}};
 }
 
 void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload) {
-    json = {{"flags", decodeAddStreamFlags(payload.getFlags())}};
+    json = {{"flags", static_cast<DcpAddStreamFlag>(payload.getFlags())}};
 }
 
 void to_json(nlohmann::json& json, const DcpStreamReqPayload& payload) {
     json = {
-            {"flags", decodeAddStreamFlags(payload.getFlags())},
+            {"flags", static_cast<DcpAddStreamFlag>(payload.getFlags())},
             {"start_seqno", std::to_string(payload.getStartSeqno())},
             {"end_seqno", std::to_string(payload.getEndSeqno())},
             {"vbucket_uuid", std::to_string(payload.getVbucketUuid())},

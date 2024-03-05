@@ -544,6 +544,153 @@ static_assert(sizeof(protocol_binary_subdoc_multi_mutation_spec) == 8);
 /* DCP related stuff */
 
 namespace cb::mcbp {
+
+/// DcpOpenFlag is a bitmask where the following values are used:
+enum class DcpOpenFlag : uint32_t {
+    /// No flags set
+    None = 0x0,
+    /**
+     * If set a Producer connection should be opened, if clear a Consumer
+     * connection should be opened.
+     */
+    Producer = 1,
+    /// Invalid - should not be set (Previously the Notifier flag)
+    Invalid = 2,
+    /**
+     * Indicate that the server include the documents' XATTRs
+     * within mutation and deletion bodies.
+     */
+    IncludeXattrs = 4,
+    /**
+     * Indicate that the server should strip off the values (note,
+     * if you add INCLUDE_XATTR those will be present)
+     */
+    NoValue = 8,
+    Unused = 16,
+    /**
+     * Request that DCP delete message include the time the a delete was
+     * persisted. This only applies to deletes being backfilled from storage,
+     * in-memory deletes will have a delete time of 0
+     */
+    IncludeDeleteTimes = 32,
+    /**
+     * Indicates that the server should strip off the values, but return the
+     * datatype of the underlying document (note, if you add
+     * INCLUDE_XATTR those will be present).
+     * Note this differs from DCP_OPEN_NO_VALUE in that the datatype field will
+     * contain the underlying datatype of the document; not the datatype of the
+     * transmitted payload.
+     * This flag can be used to obtain the full, original datatype for a
+     * document without the user's value. Not valid to specify with
+     * DCP_OPEN_NO_VALUE.
+     */
+    NoValueWithUnderlyingDatatype = 64,
+    /// Requst PiTR for the connection (only legal for Producers)
+    PiTR = 128,
+    /**
+     * Indicates that the server includes the document UserXattrs within
+     * deletion values.
+     */
+    IncludeDeletedUserXattrs = 256,
+};
+std::string format_as(DcpOpenFlag flag);
+
+constexpr DcpOpenFlag operator|(DcpOpenFlag a, DcpOpenFlag b) {
+    return DcpOpenFlag(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
+}
+inline DcpOpenFlag& operator|=(DcpOpenFlag& a, DcpOpenFlag b) {
+    a = a | b;
+    return a;
+}
+constexpr DcpOpenFlag operator&(DcpOpenFlag a, DcpOpenFlag b) {
+    return DcpOpenFlag(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
+}
+constexpr DcpOpenFlag operator~(DcpOpenFlag a) {
+    return DcpOpenFlag(~static_cast<uint32_t>(a));
+}
+
+/// DcpAddStreamFlag is a bitmask where the following values are used:
+enum class DcpAddStreamFlag : uint32_t {
+    None = 0,
+    TakeOver = 1,
+    DiskOnly = 2,
+    /**
+     * Request that the server sets the end-seqno (ignoring any client input)
+     * The end-seqno is set to the current high-seqno of the requested vbucket.
+     */
+    ToLatest = 4,
+    /**
+     * This flag is not used anymore, and should NOT be
+     * set. It is replaced by DCP_OPEN_NO_VALUE.
+     */
+    NoValue = 8,
+    /**
+     * Indicate the server to add stream only if the vbucket
+     * is active.
+     * If the vbucket is not active, the stream request fails with
+     * error cb::engine_errc::not_my_vbucket
+     */
+    ActiveVbOnly = 16,
+    /**
+     * Indicate the server to check for vb_uuid match even at start_seqno 0
+     * before adding the stream successfully. If the flag is set and there is a
+     * vb_uuid mismatch at start_seqno 0, then the server returns
+     * cb::engine_errc::rollback error.
+     */
+    StrictVbUuid = 32,
+    /**
+     * Request that the server sets the start-seqno to the vbucket high-seqno.
+     * The client is stating they have no DCP history and are not resuming, thus
+     * the input snapshot start/end and UUID are ignored. Only supported for
+     * stream_request (produce from latest)
+     */
+    FromLatest = 64,
+    /**
+     * Request that the server skips rolling back if the client is behind the
+     * purge seqno, but the request is otherwise valid and satifiable (i.e. no
+     * other rollback checks such as UUID mismatch fail). The client could end
+     * up missing purged tombstones (and hence could end up never being told
+     * about a document deletion). The intent of this flag is to allow clients
+     * who ignore deletes to avoid rollbacks to zero which are sorely due to
+     * them being behind the purge seqno.
+     */
+    IgnorePurgedTombstones = 128
+};
+std::string format_as(DcpAddStreamFlag flag);
+
+constexpr DcpAddStreamFlag operator|(DcpAddStreamFlag a, DcpAddStreamFlag b) {
+    return DcpAddStreamFlag(static_cast<uint32_t>(a) |
+                            static_cast<uint32_t>(b));
+}
+inline DcpAddStreamFlag& operator|=(DcpAddStreamFlag& a, DcpAddStreamFlag b) {
+    a = a | b;
+    return a;
+}
+constexpr DcpAddStreamFlag operator&(DcpAddStreamFlag a, DcpAddStreamFlag b) {
+    return DcpAddStreamFlag(static_cast<uint32_t>(a) &
+                            static_cast<uint32_t>(b));
+}
+constexpr DcpAddStreamFlag operator~(DcpAddStreamFlag a) {
+    return DcpAddStreamFlag(~static_cast<uint32_t>(a));
+}
+// Deprecated old #defines defined until the code is updated
+#define DCP_ADD_STREAM_FLAG_TAKEOVER \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::TakeOver)
+#define DCP_ADD_STREAM_FLAG_DISKONLY \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::DiskOnly)
+#define DCP_ADD_STREAM_FLAG_TO_LATEST \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ToLatest)
+#define DCP_ADD_STREAM_FLAG_NO_VALUE \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::NoValue)
+#define DCP_ADD_STREAM_ACTIVE_VB_ONLY \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ActiveVbOnly)
+#define DCP_ADD_STREAM_STRICT_VBUUID \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::StrictVbUuid)
+#define DCP_ADD_STREAM_FLAG_FROM_LATEST \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::FromLatest)
+#define DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES \
+    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones)
+
 namespace request {
 
 class DcpOpenPayload {
@@ -561,54 +708,20 @@ public:
         DcpOpenPayload::flags = htonl(flags);
     }
 
-    // Flags is a bitmask where the following values are used:
-
-    /**
-     * If set a Producer connection should be opened, if clear a Consumer
-     * connection should be opened.
-     */
-    static const uint32_t Producer = 1;
-    /// Invalid - should not be set (Previously the Notifier flag)
-    static const uint32_t Invalid = 2;
-    /**
-     * Indicate that the server include the documents' XATTRs
-     * within mutation and deletion bodies.
-     */
-    static const uint32_t IncludeXattrs = 4;
-    /**
-     * Indicate that the server should strip off the values (note,
-     * if you add INCLUDE_XATTR those will be present)
-     */
-    static const uint32_t NoValue = 8;
-    static const uint32_t Unused = 16;
-    /**
-     * Request that DCP delete message include the time the a delete was
-     * persisted. This only applies to deletes being backfilled from storage,
-     * in-memory deletes will have a delete time of 0
-     */
-    static const uint32_t IncludeDeleteTimes = 32;
-
-    /**
-     * Indicates that the server should strip off the values, but return the
-     * datatype of the underlying document (note, if you add
-     * INCLUDE_XATTR those will be present).
-     * Note this differs from DCP_OPEN_NO_VALUE in that the datatype field will
-     * contain the underlying datatype of the document; not the datatype of the
-     * transmitted payload.
-     * This flag can be used to obtain the full, original datatype for a
-     * document without the user's value. Not valid to specify with
-     * DCP_OPEN_NO_VALUE.
-     */
-    static const uint32_t NoValueWithUnderlyingDatatype = 64;
-
-    /// Requst PiTR for the connection (only legal for Producers)
-    static const uint32_t PiTR = 128;
-
-    /**
-     * Indicates that the server includes the document UserXattrs within
-     * deletion values.
-     */
-    static const uint32_t IncludeDeletedUserXattrs = 256;
+    /// Deprecated values while we migrate over to the enum class
+    static const uint32_t Producer =
+            static_cast<uint32_t>(DcpOpenFlag::Producer);
+    static const uint32_t IncludeXattrs =
+            static_cast<uint32_t>(DcpOpenFlag::IncludeXattrs);
+    static const uint32_t NoValue = static_cast<uint32_t>(DcpOpenFlag::NoValue);
+    static const uint32_t Unused = static_cast<uint32_t>(DcpOpenFlag::Unused);
+    static const uint32_t IncludeDeleteTimes =
+            static_cast<uint32_t>(DcpOpenFlag::IncludeDeleteTimes);
+    static const uint32_t NoValueWithUnderlyingDatatype =
+            static_cast<uint32_t>(DcpOpenFlag::NoValueWithUnderlyingDatatype);
+    static const uint32_t PiTR = static_cast<uint32_t>(DcpOpenFlag::PiTR);
+    static const uint32_t IncludeDeletedUserXattrs =
+            static_cast<uint32_t>(DcpOpenFlag::IncludeDeletedUserXattrs);
 
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
@@ -656,55 +769,6 @@ public:
     }
 
 protected:
-/*
- * The following flags are defined
- */
-#define DCP_ADD_STREAM_FLAG_TAKEOVER 1
-#define DCP_ADD_STREAM_FLAG_DISKONLY 2
-/**
- * Request that the server sets the end-seqno (ignoring any client input)
- * The end-seqno is set to the current high-seqno of the requested vbucket.
- */
-#define DCP_ADD_STREAM_FLAG_TO_LATEST 4
-/**
- * This flag is not used anymore, and should NOT be
- * set. It is replaced by DCP_OPEN_NO_VALUE.
- */
-#define DCP_ADD_STREAM_FLAG_NO_VALUE 8
-/**
- * Indicate the server to add stream only if the vbucket
- * is active.
- * If the vbucket is not active, the stream request fails with
- * error cb::engine_errc::not_my_vbucket
- */
-#define DCP_ADD_STREAM_ACTIVE_VB_ONLY 16
-/**
- * Indicate the server to check for vb_uuid match even at start_seqno 0 before
- * adding the stream successfully.
- * If the flag is set and there is a vb_uuid mismatch at start_seqno 0, then
- * the server returns cb::engine_errc::rollback error.
- */
-#define DCP_ADD_STREAM_STRICT_VBUUID 32
-
-/**
- * Request that the server sets the start-seqno to the vbucket high-seqno. The
- * client is stating they have no DCP history and are not resuming, thus the
- * input snapshot start/end and UUID are ignored.
- * Only supported for stream_request (produce from latest)
- */
-#define DCP_ADD_STREAM_FLAG_FROM_LATEST 64
-
-/**
- * Request that the server skips rolling back if the client is behind the purge
- * seqno, but the request is otherwise valid and satifiable (i.e. no other
- * rollback checks such as UUID mismatch fail).
- * The client could end up missing purged tombstones (and hence could end up
- * never being told about a document deletion).
- * The intent of this flag is to allow clients who ignore deletes to avoid
- * rollbacks to zero which are sorely due to them being behind the purge seqno.
- */
-#define DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES 128
-
     uint32_t flags = 0;
 };
 

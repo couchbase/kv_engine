@@ -14,6 +14,11 @@
 #include "platform/string_hex.h"
 #include <nlohmann/json.hpp>
 
+namespace cb::mcbp {
+void to_json(nlohmann::json& json, const DcpOpenFlag& flags);
+void to_json(nlohmann::json& json, const DcpAddStreamFlag& flags);
+}
+
 namespace cb::mcbp::request {
 
 void to_json(nlohmann::json& json, const MutationPayload& payload);

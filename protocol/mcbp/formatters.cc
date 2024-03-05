@@ -12,14 +12,28 @@
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 
-namespace cb::mcbp::subdoc {
-std::string format_as(PathFlag flag) {
+template <typename T>
+std::string flag2string(T flag) {
     nlohmann::json value = flag;
     return value.dump();
 }
 
-std::string format_as(DocFlag flag) {
-    nlohmann::json value = flag;
-    return value.dump();
+namespace cb::mcbp {
+std::string format_as(DcpOpenFlag flag) {
+    return flag2string(flag);
 }
-} // namespace cb::mcbp::subdoc
+
+std::string format_as(DcpAddStreamFlag flag) {
+    return flag2string(flag);
+}
+
+namespace subdoc {
+std::string format_as(PathFlag flag) {
+    return flag2string(flag);
+}
+
+std::string format_as(DocFlag flag) {
+    return flag2string(flag);
+}
+} // namespace subdoc
+} // namespace cb::mcbp
