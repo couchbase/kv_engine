@@ -36,8 +36,7 @@ import sys
 parser = argparse.ArgumentParser(
     prog='docker_repro_env.py',
     description='Builds a Docker image with GDB matching the environment described in a couchbase.log.')
-parser.add_argument('logfile', nargs='?',
-                    type=argparse.FileType('r'), default=sys.stdin)
+parser.add_argument('logfile', type=argparse.FileType('r'))
 parser.parse_args()
 
 SEPARATOR = '=' * 78 + '\n'
@@ -126,6 +125,9 @@ def select_docker_image(os_info):
     if 'Ubuntu' in os_info:
         version_id = get_version_id(os_info)
         return 'ubuntu', version_id
+    if 'Red Hat Enterprise Linux 8' in os_info:
+        version_id = get_version_id(os_info)
+        return 'redhat/ubi8', version_id
 
     dbg(f'Unknown OS\n++++{os_info}++++')
     dbg('Docker image to use [e.g. ubuntu]: ', end='')
@@ -320,18 +322,36 @@ def main(logfile):
     dbg(f'Build number resolves to {package_base_url}')
 
     platform_alts = get_platform_alternative_names(platform)
-    # Filter packages to ones matching the target platform
-    available_pkgs = list(pkg for pkg in available_pkgs
-                          if any((plt in pkg for plt in platform_alts)))
-    available_pkgs = list(pkg for pkg in available_pkgs
-                          if pkg.endswith(get_pkg_manager_ext(pkg_manager)))
-    available_pkgs = list(pkg for pkg in available_pkgs
+    # Filter packages to ones matching the target platform (x86-64/AArch64).
+    platform_compat_pkgs = list(pkg for pkg in available_pkgs
+                                if any((plt in pkg for plt in platform_alts)))
+    # Filter packages compartible with the package manager (.deb, .rpm).
+    pkg_manager_compat_pkgs = list(
+        pkg for pkg in platform_compat_pkgs
+        if pkg.endswith(get_pkg_manager_ext(pkg_manager)))
+    # Try to find a generic package that we can run.
+    available_pkgs = list(pkg for pkg in pkg_manager_compat_pkgs
                           if '-linux' in pkg and '-enterprise' in pkg)
 
-    server_pkg_name = next(pkg for pkg in available_pkgs
-                           if 'dbg' not in pkg and 'debug' not in pkg)
-    symbols_pkg_name = next(pkg for pkg in available_pkgs
-                            if 'dbg' in pkg or 'debug' in pkg)
+    try:
+        server_pkg_name = next(pkg for pkg in available_pkgs
+                               if 'dbg' not in pkg and 'debug' not in pkg)
+        symbols_pkg_name = next(pkg for pkg in available_pkgs
+                                if 'dbg' in pkg or 'debug' in pkg)
+    except StopIteration:
+        dbg('++++Package autoselect failed++++')
+        options = dict(enumerate(pkg_manager_compat_pkgs))
+        for index, name in options.items():
+            option = f'{index + 1}.'
+            dbg(f'{option:<3} {name}')
+        dbg(
+            'Server package to use [e.g. 1]: ',
+            end='')
+        server_pkg_name = options[int(input().strip())]
+        dbg(
+            'Server symbols package to use [e.g. 2]: ',
+            end='')
+        symbols_pkg_name = options[int(input().strip())]
 
     dbg(f'Using packages {server_pkg_name} and {symbols_pkg_name}')
 
