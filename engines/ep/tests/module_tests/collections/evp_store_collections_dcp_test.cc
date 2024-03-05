@@ -62,7 +62,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     consumer->disableFlatBuffersSystemEvents();
 
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     // Create meat with uid 4 as if it came from manifest uid cafef00d
     std::string collection = "meat";
@@ -164,8 +165,10 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     consumer->disableFlatBuffersSystemEvents();
     ASSERT_EQ(cb::engine_errc::success,
               consumer->closeStream(/*opaque*/ 0, replicaVB, {}));
-    ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, replicaVB, /*flags*/ 0));
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            consumer->addStream(
+                    /*opaque*/ 0, replicaVB, cb::mcbp::DcpAddStreamFlag::None));
 
     // We shouldn't have tried to create a filtered producer
     EXPECT_EQ("", producers->last_collection_filter);
@@ -226,7 +229,8 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
 
     // When we add a stream back we should send the latest manifest uid
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque, replicaVB, 0));
+              consumer->addStream(
+                      opaque, replicaVB, cb::mcbp::DcpAddStreamFlag::None));
 
     while (consumer->step(false, *producers) == cb::engine_errc::success) {
         handleProducerResponseIfStepBlocked(*consumer, *producers);
@@ -324,7 +328,8 @@ TEST_F(CollectionsDcpTest, failover_after_drop_collection) {
     // Some required setup
     consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieP, "test_consumer");
-    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid0, 0));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(0, vbid0, cb::mcbp::DcpAddStreamFlag::None));
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieC, IncludeDeleteTime::No);
 
@@ -334,7 +339,7 @@ TEST_F(CollectionsDcpTest, failover_after_drop_collection) {
     // 4 - i.e. dropped collection is now back in play.
     EXPECT_EQ(5, vb0->getHighSeqno());
     EXPECT_EQ(cb::engine_errc::rollback,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid1,
                                       vb0->getHighSeqno(), // start_seqno
@@ -1296,7 +1301,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid,
                                       startSeq,
@@ -1941,7 +1946,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
-                      0,
+                      cb::mcbp::DcpAddStreamFlag::None,
                       1, // opaque
                       vbid,
                       4, // start_seqno
@@ -2007,7 +2012,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     // Filter on fruit collection (this will request from seqno:0 to LATEST)
     createDcpObjects({{R"({"collections":["9"]})"}},
                      OutOfOrderSnapshots::No,
-                     DCP_ADD_STREAM_FLAG_TO_LATEST);
+                     cb::mcbp::DcpAddStreamFlag::ToLatest);
 
     // Expect to see items up to the last one in fruit, then a streamEnd.
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
@@ -2052,7 +2057,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009_deny_sync_writes) {
     uint64_t rollbackSeqno;
     EXPECT_EQ(cb::engine_errc::not_supported,
               producer->streamRequest(
-                      0,
+                      cb::mcbp::DcpAddStreamFlag::None,
                       1, // opaque
                       vbid,
                       0, // start_seqno
@@ -2285,7 +2290,7 @@ TEST_P(CollectionsDcpParameterizedTest, empty_filter_stream_closes) {
 
     uint64_t rollbackSeqno;
     try {
-        producer->streamRequest(0, // flags
+        producer->streamRequest({}, // flags
                                 1, // opaque
                                 vbid,
                                 0, // start_seqno
@@ -2388,7 +2393,10 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     // Clear everything from CP manager so DCP backfills
     store->getVBucket(replicaVB)->checkpointManager->clear();
     producers->consumer = nullptr; // effectively stops faux 'replication'
-    createDcpStream({std::string{}}, replicaVB, cb::engine_errc::success, 0);
+    createDcpStream({std::string{}},
+                    replicaVB,
+                    cb::engine_errc::success,
+                    cb::mcbp::DcpAddStreamFlag::None);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*from-memory... false backfill*/);
@@ -2986,7 +2994,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     // filter only CollectionEntry::dairy
     createDcpObjects({{R"({"collections":["c"]})"}},
                      OutOfOrderSnapshots::No,
-                     DCP_ADD_STREAM_FLAG_DISKONLY);
+                     cb::mcbp::DcpAddStreamFlag::DiskOnly);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
@@ -3018,7 +3026,10 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_EQ(4, vb->getHighSeqno());
 
     ensureDcpWillBackfill();
-    createDcpObjects("", OutOfOrderSnapshots::No, 0, true);
+    createDcpObjects("",
+                     OutOfOrderSnapshots::No,
+                     cb::mcbp::DcpAddStreamFlag::None,
+                     true);
     store_item(
             vbid, StoredDocKey{"dairy::two", CollectionEntry::dairy}, "dairy");
     store_item(vbid, StoredDocKey{"meat::two", CollectionEntry::meat}, "beef");
@@ -3706,7 +3717,8 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
 
     // Now drive changes as a replica, and drop fruit
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     std::string collection = "fruit";
     CollectionID cid = CollectionEntry::fruit.getId();
@@ -3834,7 +3846,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
     createDcpObjects(
-            {""}, OutOfOrderSnapshots::No, 0, true /*sync replication*/, 5);
+            {""}, OutOfOrderSnapshots::No, {}, true /*sync replication*/, 5);
     {
         auto key = StoredDocKey{"d", CollectionEntry::defaultC};
         auto item = makePendingItem(key, "value");
@@ -3895,7 +3907,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
     createDcpObjects({{R"({"collections":["9"]})"}},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      false /*sync replication*/,
                      5);
     {
@@ -3943,7 +3955,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
     setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     createDcpObjects(
-            {""}, OutOfOrderSnapshots::No, 0, false /*sync replication*/);
+            {""}, OutOfOrderSnapshots::No, {}, false /*sync replication*/);
     {
         auto key = StoredDocKey{"d", CollectionEntry::defaultC};
         auto item = makePendingItem(key, "value");
@@ -4107,7 +4119,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     // 1.5. Now Create a sync replication stream (0 -> +inf), after we've
     // registered our cursor write a few more docs to memory
-    createDcpObjects("", OutOfOrderSnapshots::No, 0, true);
+    createDcpObjects("", OutOfOrderSnapshots::No, {}, true);
     store_item(vbid, makeStoredDocKey("setOne"), "value");
 
     // 1.6. Ensure we backfill receiving all the documents written before the
@@ -4179,7 +4191,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
-                      DCP_ADD_STREAM_FLAG_TAKEOVER,
+                      cb::mcbp::DcpAddStreamFlag::TakeOver,
                       1, // opaque
                       vbid,
                       takoverStreamStart, // start_seqno
@@ -4274,10 +4286,10 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
             *engine, cookieC2, "test_consumer2");
     mockConnMap.addConn(cookieC2, consumerTwo);
     consumerTwo->enableFlatBuffersSystemEvents();
-    ASSERT_EQ(cb::engine_errc::success,
-              consumerTwo->addStream(/*opaque*/ 0,
-                                     fruitVbid,
-                                     /*flags*/ 0));
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            consumerTwo->addStream(
+                    /*opaque*/ 0, fruitVbid, cb::mcbp::DcpAddStreamFlag::None));
 
     auto replicProducer = createDcpProducer(cookieP2, IncludeDeleteTime::No);
     mockConnMap.addConn(cookieP2, replicProducer);
@@ -4288,7 +4300,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     ASSERT_EQ(cb::engine_errc::success,
               replicProducer->streamRequest(
-                      0,
+                      {},
                       1, // opaque
                       replicaVB,
                       0, // start_seqno
@@ -4583,7 +4595,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid,
                                       0,
@@ -4649,7 +4661,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
 
     rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid,
                                       0,
@@ -4702,7 +4714,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              producer2->streamRequest(0, // flags
+              producer2->streamRequest({}, // flags
                                        1, // opaque
                                        replicaVB,
                                        0,
@@ -5309,7 +5321,7 @@ void CollectionsDcpPersistentOnly::defaultCollectionLegacySeqnos(
                                        IncludeDeleteTime::Yes,
                                        FlatBuffersEvents::Yes},
                      DcpStreamRequestConfig{vbid,
-                                            0, // flags
+                                            {}, // flags
                                             1, // opaque
                                             0, // from 0
                                             ~0ull, // no end
@@ -5586,7 +5598,7 @@ TEST_P(CollectionsDcpPersistentOnlyWithMagmaSyncAlways, ModifyAndDrop) {
     ensureDcpWillBackfill();
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::No);

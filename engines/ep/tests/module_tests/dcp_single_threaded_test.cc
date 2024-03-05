@@ -54,7 +54,7 @@ protected:
                                         uint64_t snapEnd = ~0,
                                         uint64_t vbUUID = 0) {
         StreamRequestResult result;
-        result.status = producer.streamRequest(/*flags*/ 0,
+        result.status = producer.streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                                /*opaque*/ 0,
                                                vbid,
                                                startSeqno,
@@ -153,8 +153,10 @@ void STDcpTest::testDeleteVBucketClosesConnections(vbucket_state_t state,
     } else if (state == vbucket_state_replica) {
         auto* consumer = connMap.newConsumer(*cookie, "test_consumer");
         // Add passive stream
-        ASSERT_EQ(cb::engine_errc::success,
-                  consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+        ASSERT_EQ(
+                cb::engine_errc::success,
+                consumer->addStream(
+                        0 /*opaque*/, vbid, cb::mcbp::DcpAddStreamFlag::None));
         handler = consumer;
     } else {
         FAIL();
@@ -208,7 +210,8 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
 
     // Add passive stream
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+              consumer->addStream(
+                      0 /*opaque*/, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     // Get the checkpointManager
     auto& manager =
@@ -246,7 +249,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
      * a disk snapshot.
      */
     uint64_t rollbackSeqno = 0;
-    auto err = producer->streamRequest(0 /*flags*/,
+    auto err = producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                        0 /*opaque*/,
                                        vbid,
                                        0 /*start_seqno*/,
@@ -326,7 +329,8 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
 
     // Add passive stream
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+              consumer->addStream(
+                      0 /*opaque*/, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     // Get the checkpointManager
     auto& manager =
@@ -391,7 +395,8 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
 
     // Add our stream and accept to mimic real scenario and ensure it is alive
     ASSERT_EQ(cb::engine_errc::success,
-              consumer1->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+              consumer1->addStream(
+                      0 /*opaque*/, vbid, cb::mcbp::DcpAddStreamFlag::None));
     MockPassiveStream* stream1 = static_cast<MockPassiveStream*>(
             (consumer1->getVbucketStream(vbid)).get());
     stream1->acceptStream(cb::mcbp::Status::Success, 0 /*opaque*/);
@@ -415,7 +420,8 @@ TEST_P(STDcpTest, AckCorrectPassiveStream) {
     mockConnMap.addConn(cookie2, consumer2);
     consumer2->enableSyncReplication();
     ASSERT_EQ(cb::engine_errc::success,
-              consumer2->addStream(1 /*opaque*/, vbid, 0 /*flags*/));
+              consumer2->addStream(
+                      1 /*opaque*/, vbid, cb::mcbp::DcpAddStreamFlag::None));
     MockPassiveStream* stream2 = static_cast<MockPassiveStream*>(
             (consumer2->getVbucketStream(vbid)).get());
     stream2->acceptStream(cb::mcbp::Status::Success, 1 /*opaque*/);
@@ -591,9 +597,8 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
 
     // Passive stream
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
     MockPassiveStream* stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream->isActive());
@@ -777,9 +782,8 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
     connMap.addConn(cookie, consumer);
 
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     /* Set the passive to dead state. Note that we want to set the stream to
        dead state but not erase it from the streams map in the consumer
@@ -791,9 +795,8 @@ TEST_P(STDcpTest, test_consumer_add_stream) {
 
     /* Add a passive stream on the same vb */
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     /* Expected the newly added stream to be in active state */
     stream = static_cast<MockPassiveStream*>(
@@ -825,9 +828,8 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     connMap.addConn(cookie, consumer);
 
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     MockPassiveStream* stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
@@ -881,9 +883,8 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
     connMap.addConn(cookie, consumer);
 
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     MockPassiveStream* stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
@@ -948,9 +949,8 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
 
     /* Passive stream */
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
     MockPassiveStream* stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     ASSERT_TRUE(stream->isActive());

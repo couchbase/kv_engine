@@ -402,7 +402,7 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
                                                  Vbid vbid) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
-              producer.streamRequest(0, // flags
+              producer.streamRequest({}, // flags
                                      1, // opaque
                                      vbid,
                                      0, // start_seqno
@@ -785,7 +785,7 @@ TEST_P(STParameterizedBucketTest,
     store_item(vbid, makeStoredDocKey("key1"), "value");
 
     uint64_t rollbackSeqno;
-    auto result = producer->streamRequest(0,
+    auto result = producer->streamRequest({},
                                           0,
                                           Vbid{0},
                                           0,
@@ -846,7 +846,7 @@ TEST_P(STParameterizedBucketTest,
         mockCookie->lock();
 
         uint64_t unused;
-        auto result = producer->streamRequest(0,
+        auto result = producer->streamRequest({},
                                               0,
                                               vbid1,
                                               0,
@@ -924,7 +924,7 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
         producer->createCheckpointProcessorTask();
         uint64_t rollbackSeqno;
         EXPECT_EQ(cb::engine_errc::disconnect,
-                  producer->streamRequest(/*flags*/ 0,
+                  producer->streamRequest(/*flags*/ {},
                                           /*opaque*/ 0,
                                           vbid,
                                           /*st_seqno*/ 0,
@@ -1046,7 +1046,7 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
 
     uint64_t rollbackSeqno;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(/*flags*/ 0,
+              producer->streamRequest(/*flags*/ {},
                                       /*opaque*/ 0,
                                       vbid,
                                       /*st_seqno*/ 0,
@@ -1244,7 +1244,7 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     producer->scheduleCheckpointProcessorTask();
 
     // Create a Mock Active Stream
-    auto mock_stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+    auto mock_stream = producer->mockActiveStreamRequest(/*flags*/ {},
                                                          /*opaque*/ 0,
                                                          *vb,
                                                          /*st_seqno*/ 1,
@@ -1353,7 +1353,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
         Vbid vbid = Vbid(id);
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         auto vb = store->getVBucket(vbid);
-        stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+        stream = producer->mockActiveStreamRequest(/*flags*/ {},
                                                    /*opaque*/ 0,
                                                    *vb,
                                                    /*st_seqno*/ 0,
@@ -1522,7 +1522,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
 
     // Create first stream
     auto vb = store->getVBucket(vbid);
-    auto stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+    auto stream = producer->mockActiveStreamRequest(/*flags*/ {},
                                                     /*opaque*/ 0,
                                                     *vb,
                                                     /*st_seqno*/ 0,
@@ -1572,7 +1572,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     store_item(vbid, key3, "value");
 
     // Re-create the new stream
-    stream = producer->mockActiveStreamRequest(/*flags*/ 0,
+    stream = producer->mockActiveStreamRequest(/*flags*/ {},
                                                /*opaque*/ 0,
                                                *vb,
                                                /*st_seqno*/ 0,
@@ -1808,7 +1808,7 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
             std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
                     static_cast<EventuallyPersistentEngine*>(engine.get()),
                     producer,
-                    /*flags*/ 0,
+                    cb::mcbp::DcpAddStreamFlag::None,
                     /*opaque*/ 0,
                     *vb,
                     /*st_seqno*/ 0,
@@ -2044,7 +2044,7 @@ TEST_P(STParamPersistentBucketTest,
             std::make_shared<MockActiveStreamWithOverloadedRegisterCursor>(
                     static_cast<EventuallyPersistentEngine*>(engine.get()),
                     producer,
-                    /*flags*/ 0,
+                    cb::mcbp::DcpAddStreamFlag::None,
                     /*opaque*/ 0,
                     *vb,
                     /*st_seqno*/ 0,
@@ -2150,7 +2150,7 @@ TEST_P(STParamPersistentBucketTest, test_mb22451) {
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
-            /*flags*/ 0,
+            cb::mcbp::DcpAddStreamFlag::None,
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
@@ -2264,7 +2264,7 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
 
         uint64_t rollbackSeqno;
         auto err = producer->streamRequest(
-                /*flags*/ 0,
+                /*flags*/ {},
                 /*opaque*/ 0,
                 /*vbucket*/ vbid,
                 /*start_seqno*/ 0,
@@ -2333,7 +2333,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     EXPECT_EQ(cb::engine_errc::success,
               engine.get()->stream_req(
                       *cookie,
-                      /*flags*/ 0,
+                      /*flags*/ {},
                       /*opaque*/ 0,
                       /*vbucket*/ vbid,
                       /*start_seqno*/ 0,
@@ -2362,7 +2362,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
 
     // Add the stream
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ {}));
 
     // 1. Add the first message, a snapshot marker to ensure that the
     //    vbucket goes to the backfill state
@@ -2457,7 +2457,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
 
     // Add the stream
     EXPECT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ {}));
 
     // 1. Add the first message, a snapshot marker.
     consumer->snapshotMarker(/*opaque*/ 1,
@@ -2706,7 +2706,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     // the engine_interface.
     EXPECT_EQ(cb::engine_errc::success,
               engine->stream_req(*cookie,
-                                 /*flags*/ 0,
+                                 /*flags*/ {},
                                  /*opaque*/ 0,
                                  /*vbucket*/ vbid,
                                  /*start_seqno*/ 0,
@@ -2877,7 +2877,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     int opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque, vbid, /*flags*/ 0));
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
 
     std::string key = "key";
     std::string body = "body";
@@ -3157,7 +3157,7 @@ public:
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
         // 2. Mock active stream
-        producer->mockActiveStreamRequest(0, // flags
+        producer->mockActiveStreamRequest({}, // flags
                                           1, // opaque
                                           *vb,
                                           0, // start_seqno
@@ -3209,7 +3209,7 @@ public:
         producer->closeStream(1, Vbid(0));
         auto vb = store->getVBuckets().getBucket(vbid);
         ASSERT_NE(nullptr, vb.get());
-        producer->mockActiveStreamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER,
+        producer->mockActiveStreamRequest(cb::mcbp::DcpAddStreamFlag::TakeOver,
                                           1, // opaque
                                           *vb,
                                           3, // start_seqno
@@ -3364,7 +3364,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
             *engine, cookie, "MB_29040_sanitise_input");
     int opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque, vbid, /*flags*/ 0));
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
 
     // MB-37374: Since 6.6, the validation covered in this test is enforce only
     // for producers that don't enable IncludeDeletedUserXattrs. So we need to
@@ -3449,7 +3449,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
             *engine, cookie, "MB_31141_sanitise_input");
     int opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque, vbid, /*flags*/ 0));
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
 
     std::string body = "value";
 
@@ -3521,7 +3521,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
 
     MockDcpMessageProducers producers;
 
-    producer->mockActiveStreamRequest(0, // flags
+    producer->mockActiveStreamRequest({}, // flags
                                       1, // opaque
                                       *vb,
                                       0, // start_seqno
@@ -3661,10 +3661,10 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // 4) Stream request picking up where we left off.
-    const uint32_t flags =
+    const auto flags =
             ignorePurgedTombstones
-                    ? DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES
-                    : 0;
+                    ? cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones
+                    : cb::mcbp::DcpAddStreamFlag::None;
     uint64_t rollbackSeqno = 0;
     EXPECT_EQ(cb::engine_errc::success,
               producer->streamRequest(flags,
@@ -3755,7 +3755,7 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER, // flags
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::TakeOver,
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -3865,7 +3865,7 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -3985,7 +3985,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -4065,7 +4065,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     uint64_t rollbackSeqno = 0;
     ASSERT_NE(nullptr, vb.get());
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -4419,7 +4419,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0,
                                   vbid,
-                                  /*flags*/ 0));
+                                  /*flags*/ {}));
 
     consumer->snapshotMarker(/*opaque*/ 1,
                              /*vbucket*/ vbid,
@@ -5376,7 +5376,7 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
             *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     MockDcpMessageProducers producers;
-    producer->mockActiveStreamRequest(0, // flags
+    producer->mockActiveStreamRequest({}, // flags
                                       1, // opaque
                                       *vb,
                                       0, // start_seqno
@@ -6040,7 +6040,7 @@ TEST_P(STParameterizedBucketTest, DcpStartFromLatestSeqno) {
 
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(DCP_ADD_STREAM_FLAG_FROM_LATEST,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::FromLatest,
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -6102,7 +6102,8 @@ TEST_P(STParameterizedBucketTest, DcpRollbackIgnorePurgedSeqnos) {
     // previously received only the first mutation, disconnected and wants to
     // continue from where it left off.
     uint64_t rollbackSeqno;
-    auto streamRequest = [&](uint32_t flags, uint64_t uuid) -> cb::engine_errc {
+    auto streamRequest = [&](cb::mcbp::DcpAddStreamFlag flags,
+                             uint64_t uuid) -> cb::engine_errc {
         rollbackSeqno = std::numeric_limits<uint64_t>::max();
         return producer->streamRequest(flags,
                                        1,
@@ -6120,20 +6121,20 @@ TEST_P(STParameterizedBucketTest, DcpRollbackIgnorePurgedSeqnos) {
     // Sanity check - should get a rollback with default flags if we attempt
     // to start from non-zero
     const auto latestUuid = vb->failovers->getLatestUUID();
-    ASSERT_EQ(cb::engine_errc::rollback, streamRequest(0, latestUuid));
+    ASSERT_EQ(cb::engine_errc::rollback, streamRequest({}, latestUuid));
     ASSERT_EQ(0, rollbackSeqno);
 
     // Test - rollback due to other reasons (UUID mismatch) should still occur
     // even when IgnorePurgedTombstones flag is set.
     EXPECT_EQ(cb::engine_errc::rollback,
-              streamRequest(DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES,
+              streamRequest(cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones,
                             latestUuid + 1));
     EXPECT_EQ(0, rollbackSeqno);
 
     // Test - StreamRequest with ignore purged tombstones flag should succeed
     //        without rollback if just behind purgeSeqno (UUID correct).
     EXPECT_EQ(cb::engine_errc::success,
-              streamRequest(DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES,
+              streamRequest(cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones,
                             latestUuid));
 
     destroy_mock_cookie(cookie);

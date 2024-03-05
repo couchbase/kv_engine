@@ -237,7 +237,7 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
         EventuallyPersistentEngine& e,
         std::shared_ptr<DcpConsumer> consumer,
         const std::string& name,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         Vbid vb,
         uint64_t start_seqno,
@@ -264,9 +264,13 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
 
 cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                        Vbid vbucket,
-                                       uint32_t flags) {
-    TRACE_EVENT2(
-            "DcpConsumer", "addStream", "vbid", vbucket.get(), "flags", flags);
+                                       cb::mcbp::DcpAddStreamFlag flags) {
+    TRACE_EVENT2("DcpConsumer",
+                 "addStream",
+                 "vbid",
+                 vbucket.get(),
+                 "flags",
+                 static_cast<uint32_t>(flags));
 
     lastMessageTime = ep_uptime_now();
     if (doDisconnect()) {

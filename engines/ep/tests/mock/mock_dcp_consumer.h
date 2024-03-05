@@ -76,7 +76,7 @@ public:
             EventuallyPersistentEngine& e,
             std::shared_ptr<DcpConsumer> consumer,
             const std::string& name,
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             Vbid vb,
             uint64_t start_seqno,

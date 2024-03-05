@@ -172,7 +172,7 @@ public:
     cb::engine_errc add_stream(CookieIface&,
                                uint32_t,
                                Vbid,
-                               uint32_t) override {
+                               cb::mcbp::DcpAddStreamFlag) override {
         return cb::engine_errc::no_bucket;
     }
 
@@ -184,7 +184,7 @@ public:
     }
 
     cb::engine_errc stream_req(CookieIface&,
-                               uint32_t,
+                               cb::mcbp::DcpAddStreamFlag,
                                uint32_t,
                                Vbid,
                                uint64_t,

@@ -941,7 +941,7 @@ static void perf_dcp_client(EngineIface* h,
     // sentinel document to know when to finish.
     uint64_t rollback = 0;
     checkeq(dcp.stream_req(*cookie,
-                           0,
+                           cb::mcbp::DcpAddStreamFlag::None,
                            streamOpaque,
                            vbid,
                            0,
@@ -1224,7 +1224,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     uint64_t rollbackSeqno = 0;
     checkeq(cb::engine_errc::success,
             dcp.stream_req(*activeCookie,
-                           0 /*flags*/,
+                           cb::mcbp::DcpAddStreamFlag::None,
                            opaque,
                            vbid,
                            0 /*startSeqno*/,
@@ -1250,7 +1250,10 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                      "test_consumer"),
             "dcp.open failed");
     checkeq(cb::engine_errc::success,
-            dcp.add_stream(*passiveCookie, opaque, vbid, 0 /*flags*/),
+            dcp.add_stream(*passiveCookie,
+                           opaque,
+                           vbid,
+                           cb::mcbp::DcpAddStreamFlag::None),
             "dcp.add_stream failed");
 
     std::vector<hrtime_t> timings;

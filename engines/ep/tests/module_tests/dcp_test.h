@@ -42,7 +42,7 @@ protected:
 
     // Setup a DCP producer and attach a stream and cursor to it.
     void setup_dcp_stream(
-            int flags = 0,
+            cb::mcbp::DcpAddStreamFlag flags = {},
             IncludeValue includeVal = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             std::vector<std::pair<std::string, std::string>> controls = {});

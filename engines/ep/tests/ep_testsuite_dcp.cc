@@ -119,7 +119,6 @@ class DcpStreamCtx {
 public:
     DcpStreamCtx()
         : vbucket(0),
-          flags(0),
           vb_uuid(0),
           exp_mutations(0),
           exp_deletions(0),
@@ -143,7 +142,7 @@ public:
     /* Vbucket Id */
     Vbid vbucket;
     /* Stream flags */
-    uint32_t flags;
+    cb::mcbp::DcpAddStreamFlag flags = cb::mcbp::DcpAddStreamFlag::None;
     /* Vbucket UUID */
     uint64_t vb_uuid;
     /* Sequence number range */
@@ -712,7 +711,7 @@ void TestDcpConsumer::run(bool openConn) {
                 }
             }
 
-            if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+            if (isFlagSet(ctx.flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
                 checkeq(size_t{1},
                         stats.num_set_vbucket_pending,
                         "Didn't receive pending set state");
@@ -831,10 +830,10 @@ cb::engine_errc TestDcpConsumer::openStreams() {
             return rv;
         }
 
-        if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+        if (isFlagSet(ctx.flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
             ctx.seqno.end  = std::numeric_limits<uint64_t>::max();
-        } else if (ctx.flags & DCP_ADD_STREAM_FLAG_TO_LATEST ||
-                   ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        } else if (isFlagSet(ctx.flags, cb::mcbp::DcpAddStreamFlag::ToLatest) ||
+                   isFlagSet(ctx.flags, cb::mcbp::DcpAddStreamFlag::DiskOnly)) {
             std::string high_seqno("vb_" + std::to_string(ctx.vbucket.get()) +
                                    ":high_seqno");
             ctx.seqno.end =
@@ -844,7 +843,7 @@ cb::engine_errc TestDcpConsumer::openStreams() {
         std::stringstream stats_flags;
         stats_flags << "eq_dcpq:" << name.c_str() << ":stream_"
                     << ctx.vbucket.get() << "_flags";
-        checkeq(ctx.flags,
+        checkeq(static_cast<uint32_t>(ctx.flags),
                 (uint32_t)get_int_stat(h, stats_flags.str().c_str(), "dcp"),
                 "Flags didn't match");
 
@@ -886,7 +885,7 @@ cb::engine_errc TestDcpConsumer::openStreams() {
                         h, stats_snap_seqno.str().c_str(), "dcp"),
                 "snap start seqno didn't match");
 
-        if ((ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) &&
+        if (isFlagSet(ctx.flags, cb::mcbp::DcpAddStreamFlag::TakeOver) &&
             !ctx.skip_estimate_check) {
             const auto est =
                     get_int_stat(h, "vb_0:num_checkpoint_items", "checkpoint");
@@ -897,7 +896,7 @@ cb::engine_errc TestDcpConsumer::openStreams() {
                     h, "estimate", est, stats_takeover.str().c_str());
         }
 
-        if (ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        if (isFlagSet(ctx.flags, cb::mcbp::DcpAddStreamFlag::DiskOnly)) {
             /* Wait for backfill to start */
             std::string stats_backfill_read_bytes("eq_dcpq:" + name +
                                                   ":backfill_buffer_bytes_read");
@@ -1161,7 +1160,7 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                                         CookieIface* cookie,
                                         uint32_t opaque,
                                         Vbid vbucket,
-                                        uint32_t flags,
+                                        cb::mcbp::DcpAddStreamFlag flags,
                                         cb::mcbp::Status response,
                                         uint64_t exp_snap_start = 0,
                                         uint64_t exp_snap_end = 0);
@@ -1209,7 +1208,7 @@ extern "C" {
                                 cookie,
                                 opaque++,
                                 Vbid(0),
-                                0,
+                                {},
                                 cb::mcbp::Status::Success);
 
         uint32_t stream_opaque =
@@ -1521,7 +1520,7 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
                 "Failed dcp consumer open connection.");
 
         checkeq(cb::engine_errc::success,
-                dcp->add_stream(*cookie[i], 0, Vbid(i), 0),
+                dcp->add_stream(*cookie[i], 0, Vbid(i), {}),
                 "Failed to set up stream");
 
         checkBufferSize(i + 1);
@@ -2083,7 +2082,7 @@ static enum test_result test_dcp_producer_deleted_item_backfill(
     ctx.seqno = {0, deletions};
     ctx.exp_deletions = deletions;
     ctx.expected_values = deletions;
-    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.flags |= cb::mcbp::DcpAddStreamFlag::DiskOnly;
     ctx.exp_markers = 1;
 
     TestDcpConsumer tdc("unittest", cookie, h);
@@ -2140,7 +2139,7 @@ static test_result testDcpProducerExpiredItemBackfill(
         ctx.exp_deletions = expiries;
     }
 
-    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.flags |= cb::mcbp::DcpAddStreamFlag::DiskOnly;
     ctx.exp_markers = 1;
 
     auto* cookie = testHarness->create_cookie(h);
@@ -2238,7 +2237,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.flags = cb::mcbp::DcpAddStreamFlag::DiskOnly;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
     ctx.exp_mutations = 300;
@@ -2421,7 +2420,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     // Only stream from disk to ensure that we only ever get a single snapshot.
     // If we got unlucky we could see 2 snapshots due to creation of a second
     // checkpoint if we were streaming from the checkpoint manager.
-    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.flags |= cb::mcbp::DcpAddStreamFlag::DiskOnly;
 
     tdc.addStreamCtx(ctx);
     tdc.run(false);
@@ -2463,7 +2462,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                             cookie,
                             opaque++,
                             vbid,
-                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            cb::mcbp::DcpAddStreamFlag::TakeOver,
                             cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
@@ -2539,7 +2538,7 @@ static enum test_result test_dcp_producer_stream_latest(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_TO_LATEST;
+    ctx.flags = cb::mcbp::DcpAddStreamFlag::ToLatest;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {200, 205};
     ctx.snapshot = {200, 200};
@@ -2646,7 +2645,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
     dcp_stream_to_replica(
@@ -2830,7 +2829,7 @@ static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h) {
 
     checkeq(cb::engine_errc::not_my_vbucket,
             dcp->stream_req(*cookie1,
-                            0,
+                            {},
                             0,
                             req_vbucket,
                             0,
@@ -2931,7 +2930,7 @@ static test_result test_dcp_takeover(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
+    ctx.flags = cb::mcbp::DcpAddStreamFlag::TakeOver;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
     ctx.seqno = {0, 1000};
     ctx.exp_mutations = 20;
@@ -2968,7 +2967,7 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     Vbid vbucket = Vbid(0);
-    uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
+    auto flags = cb::mcbp::DcpAddStreamFlag::TakeOver;
     uint64_t start_seqno = 10;
     uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
     uint64_t vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
@@ -3075,7 +3074,7 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
                                         CookieIface* cookie,
                                         uint32_t opaque,
                                         Vbid vbucket,
-                                        uint32_t flags,
+                                        cb::mcbp::DcpAddStreamFlag flags,
                                         cb::mcbp::Status response,
                                         uint64_t exp_snap_start,
                                         uint64_t exp_snap_end) {
@@ -3279,7 +3278,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
             "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -3347,7 +3346,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                             cookie,
                             opaque++,
                             Vbid(0),
-                            0,
+                            {},
                             cb::mcbp::Status::Success,
                             snap_start,
                             snap_end);
@@ -3408,7 +3407,7 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                             cookie,
                             opaque++,
                             Vbid(0),
-                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            cb::mcbp::DcpAddStreamFlag::TakeOver,
                             cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
@@ -3557,7 +3556,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
                             cookie,
                             opaque++,
                             Vbid(0),
-                            DCP_ADD_STREAM_FLAG_TAKEOVER,
+                            cb::mcbp::DcpAddStreamFlag::TakeOver,
                             cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
@@ -3639,7 +3638,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
     // Set up a passive stream
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -3740,7 +3739,7 @@ static enum test_result test_dcp_add_stream(EngineIface* h) {
             "Consumer flow ctl unacked bytes not starting from 0");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     testHarness->destroy_cookie(cookie);
 
@@ -3777,7 +3776,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     testHarness->time_travel(30);
     checkeq(0,
@@ -3850,7 +3849,7 @@ static enum test_result test_rollback_to_zero(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Rollback);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Rollback);
 
     wait_for_flusher_to_settle(h);
     wait_for_rollback_to_finish(h);
@@ -3951,7 +3950,7 @@ static test_result test_chk_manager_rollback(EngineIface* engine) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie, ++opaque, vbid, 0),
+            dcp->add_stream(*cookie, ++opaque, vbid, {}),
             "Add stream request failed");
 
     // When drainDcpControl stops producers.last_XXXX contains the value
@@ -4048,7 +4047,7 @@ static test_result test_fullrollback_for_consumer(EngineIface* engine) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie, opaque, Vbid(0), 0),
+            dcp->add_stream(*cookie, opaque, Vbid(0), {}),
             "Add stream request failed");
 
     // drainDcpControl keeps on consuming the messages via DCP step
@@ -4165,7 +4164,7 @@ static test_result test_partialrollback_for_consumer(EngineIface* engine) {
             "Failed dcp Consumer open connection.");
 
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie, opaque, Vbid(0), 0),
+            dcp->add_stream(*cookie, opaque, Vbid(0), {}),
             "Add stream request failed");
 
     // drainDcpControl keeps on consuming the messages via DCP step
@@ -4424,12 +4423,12 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
 
     /* Send add stream to consumer */
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie, ++opaque, vbucket, 0),
+            dcp->add_stream(*cookie, ++opaque, vbucket, {}),
             "Add stream request failed");
 
     /* Send add stream to consumer twice and expect failure */
     checkeq(cb::engine_errc::key_already_exists,
-            dcp->add_stream(*cookie, ++opaque, Vbid(0), 0),
+            dcp->add_stream(*cookie, ++opaque, Vbid(0), {}),
             "Stream exists for this vbucket");
 
     /* Try adding another stream for the vbucket in another consumer conn */
@@ -4448,7 +4447,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
 
     /* Send add stream */
     checkeq(cb::engine_errc::key_already_exists,
-            dcp->add_stream(*cookie1, ++opaque1, vbucket, 0),
+            dcp->add_stream(*cookie1, ++opaque1, vbucket, {}),
             "Stream exists for this vbucket");
 
     /* Just check that we can add passive stream for another vbucket in this
@@ -4458,7 +4457,7 @@ static enum test_result test_dcp_add_stream_exists(EngineIface* h) {
                     h, Vbid(vbucket.get() + 1), vbucket_state_replica),
             "Failed to set vbucket state.");
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie1, ++opaque1, Vbid(vbucket.get() + 1), 0),
+            dcp->add_stream(*cookie1, ++opaque1, Vbid(vbucket.get() + 1), {}),
             "Add stream request failed in the second conn");
     testHarness->destroy_cookie(cookie);
     testHarness->destroy_cookie(cookie1);
@@ -4487,7 +4486,7 @@ static enum test_result test_dcp_add_stream_nmvb(EngineIface* h) {
     // Send add stream to consumer for vbucket that doesn't exist
     opaque++;
     checkeq(cb::engine_errc::not_my_vbucket,
-            dcp->add_stream(*cookie, opaque, Vbid(1), 0),
+            dcp->add_stream(*cookie, opaque, Vbid(1), {}),
             "Add stream expected not my vbucket");
     testHarness->destroy_cookie(cookie);
 
@@ -4514,7 +4513,7 @@ static enum test_result test_dcp_add_stream_prod_exists(EngineIface* h) {
             "Failed dcp consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::KeyEexists);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::KeyEexists);
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -4538,7 +4537,7 @@ static enum test_result test_dcp_add_stream_prod_nmvb(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::NotMyVbucket);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::NotMyVbucket);
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -4585,7 +4584,7 @@ static enum test_result test_dcp_close_stream(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -4621,7 +4620,7 @@ static enum test_result test_dcp_consumer_end_stream(EngineIface* h) {
             "Failed dcp producer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, vbucket, 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, vbucket, {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -4671,7 +4670,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
             "Consumer flow ctl unacked bytes not starting from 0");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     std::string key("key");
     uint32_t dataLen = 100;
@@ -4818,7 +4817,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(cb::engine_errc::success,
@@ -4909,7 +4908,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     int exp_unacked_bytes = dcp_snapshot_marker_base_msg_bytes;
     checkeq(cb::engine_errc::success,
@@ -4991,7 +4990,7 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Write backfill elements on to replica, flag (0x02) */
     dcp_stream_to_replica(
@@ -5050,7 +5049,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
     // backfill items 1 to 100
     dcp_stream_to_replica(h, cookie, opaque, Vbid(0), 0x02, 1, items, 1, items);
     wait_for_flusher_to_settle(h);
@@ -5081,7 +5080,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     // A second batch could fail if MB-34173 is not fixed, I say could because
     // the corruption of the snapshot range may not yield a failure...
@@ -5124,7 +5123,7 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h) {
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
     dcp_stream_to_replica(
@@ -5175,7 +5174,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
     dcp_stream_to_replica(
@@ -5278,7 +5277,7 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
     dcp_stream_to_replica(
@@ -5404,7 +5403,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint64_t startSeqno = 1;
     /* Send DCP mutations with in memory flag (0x01) */
@@ -5550,7 +5549,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint64_t startSeqno = 1;
     /* Send DCP mutations with in memory flag (0x01) */
@@ -5686,7 +5685,7 @@ static test_result test_dcp_replica_stream_expiries(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     testHarness->time_travel(expiryTime + 100);
 
@@ -5907,7 +5906,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(
-            h, consumerCookie, opaque, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, consumerCookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Now make a seqnoPersistence call that will cause a high priority
        vbucket entry to be queued */
@@ -6165,7 +6164,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             cb::engine_errc::success,
             "Failed to open DCP consumer connection!");
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -6291,7 +6290,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
             cb::engine_errc::success,
             "Failed to open DCP consumer connection!");
     add_stream_for_consumer(
-            h, cookie1, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie1, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -6345,7 +6344,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
             cb::engine_errc::success,
             "Failed to open DCP consumer connection!");
     add_stream_for_consumer(
-            h, cookie2, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie2, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     opaqueStr.assign("eq_dcpq:" + name + ":stream_0_opaque");
     stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -6427,7 +6426,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
             cb::engine_errc::success,
             "Failed to open DCP consumer connection!");
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -6491,7 +6490,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
             cb::engine_errc::success,
             "Failed to open DCP consumer connection!");
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -6588,7 +6587,7 @@ static enum test_result test_dcp_early_termination(EngineIface* h) {
         uint64_t rollback = 0;
         checkeq(cb::engine_errc::success,
                 dcp->stream_req(*cookie,
-                                DCP_ADD_STREAM_FLAG_DISKONLY,
+                                cb::mcbp::DcpAddStreamFlag::DiskOnly,
                                 ++opaque,
                                 Vbid(i),
                                 0,
@@ -6647,7 +6646,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
     uint64_t uuid = get_ull_stat(h, "vb_0:1:id", "failovers");
 
     typedef struct dcp_params {
-        uint32_t flags;
+        cb::mcbp::DcpAddStreamFlag flags;
         uint64_t vb_uuid;
         uint64_t start_seqno;
         uint64_t snap_start_seqno;
@@ -6658,12 +6657,12 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
 
     dcp_params_t params[] = {
             /* Do not expect rollback when start_seqno is 0 and vb_uuid match */
-            {0, uuid, 0, 0, 0, 0, cb::engine_errc::success},
+            {{}, uuid, 0, 0, 0, 0, cb::engine_errc::success},
             /* Do not expect rollback when start_seqno is 0 and vb_uuid == 0 */
-            {0, 0x0, 0, 0, 0, 0, cb::engine_errc::success},
+            {{}, 0x0, 0, 0, 0, 0, cb::engine_errc::success},
             /* Expect rollback when start_seqno is 0 and vb_uuid mismatch with
              'STRICT_VBUUID' flag set */
-            {DCP_ADD_STREAM_STRICT_VBUUID,
+            {cb::mcbp::DcpAddStreamFlag::StrictVbUuid,
              0xBAD,
              0,
              0,
@@ -6672,12 +6671,12 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
              cb::engine_errc::rollback},
             /* Don't expect rollback when start_seqno is 0 and vb_uuid mismatch
              with 'STRICT_VBUUID' flag not set */
-            {0, 0xBAD, 0, 0, 0, 0, cb::engine_errc::success},
+            {{}, 0xBAD, 0, 0, 0, 0, cb::engine_errc::success},
             /* Don't expect rollback when you already have all items in the
                snapshot
                (that is, start == snap_end) and upper >= snap_end */
-            {0, uuid, high_seqno, 0, high_seqno, 0, cb::engine_errc::success},
-            {0,
+            {{}, uuid, high_seqno, 0, high_seqno, 0, cb::engine_errc::success},
+            {{},
              uuid,
              high_seqno - 1,
              0,
@@ -6686,14 +6685,14 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
              cb::engine_errc::success},
             /* Do not expect rollback when you have no items in the snapshot
              (that is, start == snap_start) and upper >= snap_end */
-            {0,
+            {{},
              uuid,
              high_seqno - 10,
              high_seqno - 10,
              high_seqno,
              0,
              cb::engine_errc::success},
-            {0,
+            {{},
              uuid,
              high_seqno - 10,
              high_seqno - 10,
@@ -6703,22 +6702,22 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
             /* Do not expect rollback when you are in middle of a snapshot (that
                is,
                snap_start < start < snap_end) and upper >= snap_end */
-            {0, uuid, 10, 0, high_seqno, 0, cb::engine_errc::success},
-            {0, uuid, 10, 0, high_seqno - 1, 0, cb::engine_errc::success},
+            {{}, uuid, 10, 0, high_seqno, 0, cb::engine_errc::success},
+            {{}, uuid, 10, 0, high_seqno - 1, 0, cb::engine_errc::success},
             /* Expect rollback when you are in middle of a snapshot (that is,
                snap_start < start < snap_end) and upper < snap_end. Rollback to
                snap_start if snap_start < upper */
-            {0, uuid, 20, 10, high_seqno + 1, 10, cb::engine_errc::rollback},
+            {{}, uuid, 20, 10, high_seqno + 1, 10, cb::engine_errc::rollback},
             /* Expect rollback when upper < snap_start_seqno. Rollback to upper
              */
-            {0,
+            {{},
              uuid,
              high_seqno + 20,
              high_seqno + 10,
              high_seqno + 30,
              high_seqno,
              cb::engine_errc::rollback},
-            {0,
+            {{},
              uuid,
              high_seqno + 10,
              high_seqno + 10,
@@ -6726,11 +6725,11 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
              high_seqno,
              cb::engine_errc::rollback},
             /* vb_uuid not found in failover table, rollback to zero */
-            {0, 0xBAD, 10, 0, high_seqno, 0, cb::engine_errc::rollback},
+            {{}, 0xBAD, 10, 0, high_seqno, 0, cb::engine_errc::rollback},
 
             /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_TO_LATEST
                set - expect rollback */
-            {DCP_ADD_STREAM_FLAG_TO_LATEST,
+            {cb::mcbp::DcpAddStreamFlag::ToLatest,
              uuid,
              high_seqno + 1,
              high_seqno + 1,
@@ -6740,7 +6739,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
 
             /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_DISKONLY
                set - expect rollback */
-            {DCP_ADD_STREAM_FLAG_DISKONLY,
+            {cb::mcbp::DcpAddStreamFlag::DiskOnly,
              uuid,
              high_seqno + 1,
              high_seqno + 1,
@@ -6823,7 +6822,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
             "Failed DCP Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque = get_int_stat(
             h, ("eq_dcpq:" + name + ":stream_0_opaque").c_str(), "dcp");
@@ -7053,7 +7052,7 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -7132,7 +7131,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                       R"({"consumer_name":"replica1"})"),
             "Failed to open DCP consumer connection!");
     add_stream_for_consumer(
-            h, cookie, opaque++, rep_vb_num, 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, rep_vb_num, {}, cb::mcbp::Status::Success);
 
     std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
     uint32_t stream_opaque = get_int_stat(h, opaqueStr.c_str(), "dcp");
@@ -7402,7 +7401,7 @@ static enum test_result test_mb19153(EngineIface* h) {
     uint64_t rollback = 0;
     checkeq(cb::engine_errc::success,
             dcp->stream_req(*cookie,
-                            0,
+                            {},
                             opaque,
                             Vbid(0),
                             start,
@@ -7466,7 +7465,7 @@ static enum test_result test_mb19982(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     std::thread thread([h, iterations]() {
         for (int ii = 0; ii < iterations; ii++) {
@@ -7588,7 +7587,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
             "Failed to open a DCP Consumer");
 
     opaque = add_stream_for_consumer(
-            h, cookie, opaque, vb, 0, cb::mcbp::Status::Success);
+            h, cookie, opaque, vb, {}, cb::mcbp::Status::Success);
 
     // 3) Send a single 'disk' snapshot with two items.
     //    a) prepare(key)
@@ -7639,7 +7638,8 @@ static enum test_result test_MB_34634(EngineIface* h) {
     // 4.1) takeover stream, switch pending -> active
     opaque = 0xDDDD0000;
     checkeq(cb::engine_errc::success,
-            dcp->add_stream(*cookie, opaque, vb, DCP_ADD_STREAM_FLAG_TAKEOVER),
+            dcp->add_stream(
+                    *cookie, opaque, vb, cb::mcbp::DcpAddStreamFlag::TakeOver),
             "Add stream request failed");
 
     dcp_step(h, cookie, producers);
@@ -7719,7 +7719,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
             "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(
-            h, cookie, opaque++, Vbid(0), 0, cb::mcbp::Status::Success);
+            h, cookie, opaque++, Vbid(0), {}, cb::mcbp::Status::Success);
 
     uint32_t stream_opaque =
             get_int_stat(h, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -7806,7 +7806,7 @@ static enum test_result testDcpOsoBackfill(EngineIface* h) {
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-    ctx.flags |= DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.flags |= cb::mcbp::DcpAddStreamFlag::DiskOnly;
     ctx.exp_oso_markers = 2;
     ctx.exp_mutations = items;
     auto* cookie = testHarness->create_cookie(h);

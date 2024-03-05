@@ -485,7 +485,7 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
-            /*flags*/ 0,
+            /*flags*/ cb::mcbp::DcpAddStreamFlag::None,
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
@@ -633,7 +633,7 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
-            /*flags*/ 0,
+            cb::mcbp::DcpAddStreamFlag::None,
             /*opaque*/ 0,
             vb,
             /*st_seqno*/ 0,

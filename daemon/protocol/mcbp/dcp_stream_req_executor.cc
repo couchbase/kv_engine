@@ -39,7 +39,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
         const auto& payload =
                 request.getCommandSpecifics<DcpStreamReqPayload>();
 
-        uint32_t flags = payload.getFlags();
+        auto flags = payload.getFlags();
         uint64_t start_seqno = payload.getStartSeqno();
         uint64_t end_seqno = payload.getEndSeqno();
         uint64_t vbucket_uuid = payload.getVbucketUuid();

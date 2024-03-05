@@ -111,7 +111,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     // but sync-writes are not)
     uint64_t rollbackSeqno{0};
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -209,7 +209,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
 
     uint64_t rollbackSeqno{0};
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       streamSeqno, // start_seqno
@@ -262,7 +262,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
 
     uint64_t rollbackSeqno{0};
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       streamSeqno, // start_seqno
@@ -332,7 +332,7 @@ TEST_F(CollectionsDcpStreamsTest,
     uint64_t rollbackSeqno{0};
     // stream fruit (collection 9)
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       streamSeqno, // start_seqno
@@ -392,7 +392,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
 
     uint64_t rollbackSeqno{0};
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       streamSeqno, // start_seqno
@@ -467,7 +467,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
 
     uint64_t rollbackSeqno{0};
     EXPECT_EQ(cb::engine_errc::rollback,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       streamSeqno, // start_seqno
@@ -482,7 +482,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
 
     streamSeqno = rollbackSeqno;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       streamSeqno, // start_seqno
@@ -843,7 +843,7 @@ TEST_F(CollectionsDcpStreamsTest,
     // stream or opaque miss match
     consumer->enableV7DcpStatus();
     const uint32_t opaque = 1;
-    consumer->addStream(opaque, replicaVB, 0);
+    consumer->addStream(opaque, replicaVB, cb::mcbp::DcpAddStreamFlag::None);
 
     // create a disk snapshot of range {1 ... 3}
     uint64_t snapStart = 1;

@@ -83,7 +83,7 @@ void CollectionsDcpTest::createDcpStream(
         std::optional<std::string_view> collections,
         Vbid id,
         cb::engine_errc expectedError,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint64_t streamEndSeqno) {
     createDcpStream(DcpStreamRequestConfig{id,
                                            flags,
@@ -121,10 +121,10 @@ void CollectionsDcpTest::createDcpConsumer(
     mockConnMap.addConn(cookieC, consumer);
 
     store->setVBucketState(replicaVB, vbucket_state_replica);
-    ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  replicaVB,
-                                  /*flags*/ 0));
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            consumer->addStream(
+                    /*opaque*/ 0, replicaVB, cb::mcbp::DcpAddStreamFlag::None));
 }
 
 void CollectionsDcpTest::createDcpObjects(
@@ -176,7 +176,7 @@ std::string CollectionsDcpTest::makeStreamRequestValue(
 void CollectionsDcpTest::createDcpObjects(
         std::optional<std::string_view> collections,
         OutOfOrderSnapshots outOfOrderSnapshots,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         bool enableSyncRep,
         uint64_t streamEndSeqno,
         ChangeStreams changeStreams) {

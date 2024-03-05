@@ -21,6 +21,9 @@
 #include <utility>
 
 class MockDcpProducer;
+namespace cb::mcbp {
+enum class DcpAddStreamFlag : uint32_t;
+}
 
 /**
  * Class aims to contain all possible DcpStreamRequest options
@@ -28,7 +31,7 @@ class MockDcpProducer;
 class DcpStreamRequestConfig {
 public:
     DcpStreamRequestConfig(Vbid vbid,
-                           uint32_t flags,
+                           cb::mcbp::DcpAddStreamFlag flags,
                            uint32_t opaque,
                            uint64_t start,
                            uint64_t end,
@@ -45,7 +48,7 @@ public:
 private:
     Vbid getVbucket() const;
     uint32_t getOpaque() const;
-    uint32_t getFlags() const;
+    cb::mcbp::DcpAddStreamFlag getFlags() const;
     uint64_t getStart() const;
     uint64_t getEnd() const;
     uint64_t getSnapshotStart() const;
@@ -55,7 +58,7 @@ private:
     cb::engine_errc getExpectedError() const;
 
     Vbid vbid;
-    uint32_t flags;
+    cb::mcbp::DcpAddStreamFlag flags;
     uint32_t opaque;
     std::pair<uint64_t, uint64_t> range;
     snapshot_range_t snapshot;

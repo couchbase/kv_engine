@@ -33,7 +33,9 @@
  */
 
 TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
     store_item(vbid, "key", "value1");
     store_item(vbid, "key", "value2");
 
@@ -45,7 +47,9 @@ TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
 }
 
 TEST_P(EphemeralStreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
     auto evb = std::shared_ptr<EphemeralVBucket>(
             std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
 

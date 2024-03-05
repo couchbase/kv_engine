@@ -1271,10 +1271,11 @@ cb::engine_errc EventuallyPersistentEngine::open(CookieIface& cookie,
             cookie, opaque, seqno, flags, conName, value);
 }
 
-cb::engine_errc EventuallyPersistentEngine::add_stream(CookieIface& cookie,
-                                                       uint32_t opaque,
-                                                       Vbid vbucket,
-                                                       uint32_t flags) {
+cb::engine_errc EventuallyPersistentEngine::add_stream(
+        CookieIface& cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        cb::mcbp::DcpAddStreamFlag flags) {
     return acquireEngine(this)->dcpAddStream(cookie, opaque, vbucket, flags);
 }
 
@@ -1290,7 +1291,7 @@ cb::engine_errc EventuallyPersistentEngine::close_stream(
 
 cb::engine_errc EventuallyPersistentEngine::stream_req(
         CookieIface& cookie,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t startSeqno,
@@ -6792,10 +6793,11 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EventuallyPersistentEngine::dcpAddStream(CookieIface& cookie,
-                                                         uint32_t opaque,
-                                                         Vbid vbucket,
-                                                         uint32_t flags) {
+cb::engine_errc EventuallyPersistentEngine::dcpAddStream(
+        CookieIface& cookie,
+        uint32_t opaque,
+        Vbid vbucket,
+        cb::mcbp::DcpAddStreamFlag flags) {
     return dcpConnMap_->addPassiveStream(
             getConnHandler(cookie), opaque, vbucket, flags);
 }

@@ -34,7 +34,7 @@ cb::engine_errc MockDcpMessageProducers::get_failover_log(uint32_t opaque,
 cb::engine_errc MockDcpMessageProducers::stream_req(
         uint32_t opaque,
         Vbid vbucket,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint64_t vbucket_uuid,
@@ -45,7 +45,7 @@ cb::engine_errc MockDcpMessageProducers::stream_req(
     last_op = cb::mcbp::ClientOpcode::DcpStreamReq;
     last_opaque = opaque;
     last_vbucket = vbucket;
-    last_flags = flags;
+    last_flags = static_cast<uint32_t>(flags);
     last_start_seqno = start_seqno;
     last_end_seqno = end_seqno;
     last_vbucket_uuid = vbucket_uuid;

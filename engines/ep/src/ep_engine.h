@@ -314,13 +314,13 @@ public:
     cb::engine_errc add_stream(CookieIface& cookie,
                                uint32_t opaque,
                                Vbid vbucket,
-                               uint32_t flags) override;
+                               cb::mcbp::DcpAddStreamFlag flags) override;
     cb::engine_errc close_stream(CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  cb::mcbp::DcpStreamId sid) override;
     cb::engine_errc stream_req(CookieIface& cookie,
-                               uint32_t flags,
+                               cb::mcbp::DcpAddStreamFlag flags,
                                uint32_t opaque,
                                Vbid vbucket,
                                uint64_t start_seqno,
@@ -558,7 +558,7 @@ public:
     cb::engine_errc dcpAddStream(CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
-                                 uint32_t flags);
+                                 cb::mcbp::DcpAddStreamFlag flags);
 
     cb::EngineErrorMetadataPair getMetaInner(CookieIface& cookie,
                                              const DocKey& key,

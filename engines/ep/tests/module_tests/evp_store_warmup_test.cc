@@ -504,7 +504,7 @@ TEST_F(WarmupTest, MB_32577) {
     // create a stream to send the delete request so we can send vbucket on the
     // consumer
     EXPECT_EQ(cb::engine_errc::success,
-              engine->add_stream(*cookie, 0, vbid, 0));
+              engine->add_stream(*cookie, 0, vbid, {}));
 
     // create snapshot so we can delete the document
     EXPECT_EQ(cb::engine_errc::success,

@@ -36,7 +36,7 @@ const std::string passiveStreamLoggingPrefix =
 PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              std::shared_ptr<DcpConsumer> c,
                              const std::string& name,
-                             uint32_t flags,
+                             cb::mcbp::DcpAddStreamFlag flags,
                              uint32_t opaque,
                              Vbid vb,
                              uint64_t st_seqno,
@@ -104,14 +104,14 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                                                  snap_end_seqno_,
                                                  stream_req_value));
 
-    const char* type = (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER)
+    const char* type = isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::TakeOver)
                                ? "takeover stream"
                                : "stream";
 
     log(spdlog::level::level_enum::info,
         "({}) Attempting to add {}: opaque_:{}, start_seqno_:{}, "
         "end_seqno_:{}, vb_uuid:{}, snap_start_seqno_:{}, snap_end_seqno_:{}, "
-        "last_seqno:{}, stream_req_value:{}, flags:{}, flagsDecoded:{}",
+        "last_seqno:{}, stream_req_value:{}, flags:{}",
         vb_,
         type,
         opaque_,
@@ -122,8 +122,7 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
         snap_end_seqno_,
         last_seqno.load(),
         stream_req_value.empty() ? "none" : stream_req_value,
-        flags_,
-        static_cast<cb::mcbp::DcpAddStreamFlag>(flags_));
+        flags_);
 }
 
 uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {

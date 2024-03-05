@@ -161,19 +161,19 @@ public:
                                                          vbucket_state_active));
 
         auto vb0 = engine->getVBucket(Vbid(0));
-        activeStream =
-                std::make_shared<MockActiveStream>(engine.get(),
-                                                   producer,
-                                                   0,
-                                                   /*opaque*/ 0,
-                                                   *vb0,
-                                                   /*st_seqno*/ 0,
-                                                   /*en_seqno*/ ~0,
-                                                   /*vb_uuid*/ 0xabcd,
-                                                   /*snap_start_seqno*/ 0,
-                                                   /*snap_end_seqno*/ ~0,
-                                                   IncludeValue::No,
-                                                   IncludeXattrs::No);
+        activeStream = std::make_shared<MockActiveStream>(
+                engine.get(),
+                producer,
+                cb::mcbp::DcpAddStreamFlag::None,
+                /*opaque*/ 0,
+                *vb0,
+                /*st_seqno*/ 0,
+                /*en_seqno*/ ~0,
+                /*vb_uuid*/ 0xabcd,
+                /*snap_start_seqno*/ 0,
+                /*snap_end_seqno*/ ~0,
+                IncludeValue::No,
+                IncludeXattrs::No);
 
         activeStream->public_registerCursor(
                 *vb0->checkpointManager, producer->getName(), 0);

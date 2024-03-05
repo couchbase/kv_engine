@@ -27,6 +27,7 @@ enum class Level : uint8_t;
 namespace cb::mcbp {
 class Response;
 enum class DcpOpenFlag : uint32_t;
+enum class DcpAddStreamFlag : uint32_t;
 }
 
 namespace mcbp::systemevent {
@@ -54,7 +55,7 @@ struct DcpMessageProducersIface {
     [[nodiscard]] virtual cb::engine_errc stream_req(
             uint32_t opaque,
             Vbid vbucket,
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint64_t start_seqno,
             uint64_t end_seqno,
             uint64_t vbucket_uuid,
@@ -438,10 +439,11 @@ struct DcpIface {
      * @return cb::engine_errc::success if the DCP stream was successfully
      * opened, otherwise error code indicating reason for the failure.
      */
-    [[nodiscard]] virtual cb::engine_errc add_stream(CookieIface& cookie,
-                                                     uint32_t opaque,
-                                                     Vbid vbucket,
-                                                     uint32_t flags) = 0;
+    [[nodiscard]] virtual cb::engine_errc add_stream(
+            CookieIface& cookie,
+            uint32_t opaque,
+            Vbid vbucket,
+            cb::mcbp::DcpAddStreamFlag flags) = 0;
 
     /**
      * Called from the memcached core to close a vBucket stream to the set of
@@ -466,7 +468,7 @@ struct DcpIface {
      */
     [[nodiscard]] virtual cb::engine_errc stream_req(
             CookieIface& cookie,
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,

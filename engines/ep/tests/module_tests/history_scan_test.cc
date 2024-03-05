@@ -148,7 +148,7 @@ TEST_P(HistoryScanTest, basic_unique) {
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -188,7 +188,7 @@ TEST_P(HistoryScanTest, basic_duplicates) {
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::Yes,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -231,7 +231,7 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_unique_keys) {
                      // the "last received seqno" as input. So here start=1 will
                      // result in the backfill sending inclusive of 2.
                      DcpStreamRequestConfig{vbid,
-                                            0, // flags
+                                            {}, // flags
                                             1, // opaque
                                             1, // 1 results in backfill from 2
                                             ~0ull, // no end
@@ -279,7 +279,7 @@ TEST_P(HistoryScanTest, basic_duplicates_and_deletes) {
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::Yes,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -322,7 +322,7 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_duplicate_keys) {
 
     createDcpObjects(DcpProducerConfig{},
                      DcpStreamRequestConfig{vbid,
-                                            0, // flags
+                                            {}, // flags
                                             1, // opaque
                                             2, // last received seqno
                                             ~0ull,
@@ -402,7 +402,7 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -484,7 +484,7 @@ TEST_P(HistoryScanTest, OSOThenHistory) {
     // Filter on vegetable collection (this will request from seqno:0)
     createDcpObjects({{R"({"collections":["a"]})"}},
                      OutOfOrderSnapshots::Yes,
-                     0,
+                     {},
                      false,
                      ~0ull,
                      ChangeStreams::Yes);
@@ -592,7 +592,7 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
 
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::Yes,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -655,7 +655,7 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_MB_55590) {
 
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -701,7 +701,7 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_CursorDrop) {
 
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true,
                      ~0ull,
                      ChangeStreams::Yes);
@@ -823,7 +823,7 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
     ensureDcpWillBackfill();
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -929,7 +929,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
     ensureDcpWillBackfill();
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -975,7 +975,7 @@ TEST_P(HistoryScanTestSingleEvictionMode, HistoryScanFailMarkDiskSnapshot) {
     auto stream =
             std::make_shared<MockActiveStream>(engine.get(),
                                                producer,
-                                               DCP_ADD_STREAM_FLAG_DISKONLY,
+                                               DcpAddStreamFlag::DiskOnly,
                                                0,
                                                *vb,
                                                0,
@@ -1013,7 +1013,7 @@ TEST_P(HistoryScanTest, MB_56565) {
     flush_vbucket_to_disk(vbid, 1);
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::Yes,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);

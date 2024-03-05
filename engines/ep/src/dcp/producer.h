@@ -82,7 +82,7 @@ public:
     void cancelCheckpointCreatorTask();
 
     cb::engine_errc streamRequest(
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,
@@ -423,7 +423,7 @@ public:
 protected:
     class StreamRequestInfo {
     public:
-        StreamRequestInfo(uint32_t flags,
+        StreamRequestInfo(cb::mcbp::DcpAddStreamFlag flags,
                           uint64_t vbucket_uuid,
                           uint64_t high_seqno,
                           uint64_t start_seqno,
@@ -439,7 +439,7 @@ protected:
               snap_end_seqno{snap_end_seqno} {
         }
 
-        const uint32_t flags;
+        const cb::mcbp::DcpAddStreamFlag flags;
         uint64_t vbucket_uuid;
         uint64_t high_seqno;
         uint64_t start_seqno;

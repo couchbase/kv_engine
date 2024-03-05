@@ -113,7 +113,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
-            /*flags*/ 0,
+            cb::mcbp::DcpAddStreamFlag::None,
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
@@ -174,7 +174,7 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
     auto mock_stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),
             producer,
-            /*flags*/ 0,
+            /*flags*/ cb::mcbp::DcpAddStreamFlag::None,
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
@@ -314,7 +314,7 @@ TEST_F(SingleThreadedEPBucketTest, DcpConsumerTaskYields) {
 
     // Create Consumer and Stream
     auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
-    EXPECT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid, 0));
+    EXPECT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid, {}));
 
     // Force the stream to backoff on acking back bytes
     auto& config = engine->getConfiguration();
@@ -468,7 +468,8 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
            DCP_ADD_STREAM_ACTIVE_VB_ONLY flag */
         uint64_t rollbackSeqno;
         auto err = producer->streamRequest(/*flags*/
-                                           DCP_ADD_STREAM_ACTIVE_VB_ONLY,
+                                           cb::mcbp::DcpAddStreamFlag::
+                                                   ActiveVbOnly,
                                            /*opaque*/ 0,
                                            /*vbucket*/ vbid,
                                            /*start_seqno*/ 0,
@@ -565,7 +566,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     auto vb = store->getVBuckets().getBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
     auto mockStream = producer->mockActiveStreamRequest(
-            DCP_ADD_STREAM_FLAG_TAKEOVER, // flags
+            cb::mcbp::DcpAddStreamFlag::TakeOver,
             1, // opaque
             *vb,
             0, // start_seqno
@@ -714,7 +715,7 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),
             producer,
-            DCP_ADD_STREAM_FLAG_DISKONLY /* flags */,
+            cb::mcbp::DcpAddStreamFlag::DiskOnly,
             0 /* opaque */,
             *vb);
 
@@ -838,7 +839,7 @@ TEST_F(SingleThreadedEPBucketTest,
 
     int opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque, vbid, /*flags*/ 0));
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
     ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,

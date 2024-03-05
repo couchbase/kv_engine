@@ -18,7 +18,7 @@
 MockActiveStream::MockActiveStream(
         EventuallyPersistentEngine* e,
         std::shared_ptr<MockDcpProducer> p,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         VBucket& vb,
         uint64_t st_seqno,

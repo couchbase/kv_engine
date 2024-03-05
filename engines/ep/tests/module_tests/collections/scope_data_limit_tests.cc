@@ -60,7 +60,8 @@ TEST_P(CollectionsDcpParameterizedTest,
     consumer->disableFlatBuffersSystemEvents();
 
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(/*opaque*/ 2,
@@ -158,8 +159,10 @@ TEST_P(CollectionsDcpParameterizedTest,
     ASSERT_EQ(cb::engine_errc::success,
               consumer->closeStream(/*opaque*/ 0, replicaVB, {}));
 
-    ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 1, replicaVB, /*flags*/ 0));
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            consumer->addStream(
+                    /*opaque*/ 1, replicaVB, cb::mcbp::DcpAddStreamFlag::None));
 
     // Now drive the replica vbucket with the shop1/fruit setup
     ASSERT_EQ(cb::engine_errc::success,
@@ -245,7 +248,8 @@ TEST_P(CollectionsDcpParameterizedTest, active_updates_limit) {
     consumer->disableFlatBuffersSystemEvents();
 
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
     // Now drive the replica vbucket with the shop1/fruit setup
     ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(/*opaque*/ 2,

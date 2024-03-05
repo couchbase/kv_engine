@@ -118,7 +118,7 @@ bool DcpConnMap::isPassiveStreamConnected(Vbid vbucket) {
 cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
                                              uint32_t opaque,
                                              Vbid vbucket,
-                                             uint32_t flags) {
+                                             cb::mcbp::DcpAddStreamFlag flags) {
     // Check if a stream (passive) for the vbucket is already present
     if (isPassiveStreamConnected(vbucket)) {
         EP_LOG_WARN(

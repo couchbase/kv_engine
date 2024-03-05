@@ -87,7 +87,9 @@ void StreamTest::TearDown() {
  * isKeyOnly.
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyTrue) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status)
             << "stream request did not return cb::engine_errc::success";
 
@@ -259,7 +261,7 @@ TEST_P(StreamTest, VerifyProducerStats) {
     nlohmann::json meta = {
             {"topology", nlohmann::json::array({{"active", "replica"}})}};
     vb->setState(vbucket_state_active, &meta);
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,
                      IncludeXattrs::No,
                      {{"enable_sync_writes", "true"},
@@ -376,7 +378,9 @@ TEST_P(StreamTest, VerifyProducerStats) {
  * isKeyOnly.
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::Yes,
+                     IncludeXattrs::No);
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status)
             << "stream request did not return cb::engine_errc::success";
 
@@ -393,7 +397,9 @@ TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeValue) {
  * isKeyOnly.
  */
 TEST_P(StreamTest, test_streamIsKeyOnlyFalseBecauseOfIncludeXattrs) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::Yes);
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status)
             << "stream request did not return cb::engine_errc::success";
 
@@ -416,7 +422,9 @@ TEST_P(StreamTest, test_keyOnlyMessageSize) {
             item->getKey().makeDocKeyWithoutCollectionID().size();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -443,8 +451,9 @@ TEST_P(StreamTest, test_keyOnlyMessageSizeUnderlyingDatatype) {
             item->getKey().makeDocKeyWithoutCollectionID().size();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::NoWithUnderlyingDatatype,
+                     IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -472,7 +481,9 @@ TEST_P(StreamTest, test_keyValueAndXattrsMessageSize) {
             item->getNBytes();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -499,7 +510,9 @@ TEST_P(StreamTest, test_keyAndValueMessageSize) {
             item->getNBytes();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::Yes,
+                     IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -530,7 +543,9 @@ TEST_P(StreamTest, test_keyAndValueExcludingXattrsMessageSize) {
             item->getNBytes() - sz;
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::Yes,
+                     IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -558,7 +573,9 @@ TEST_P(StreamTest,
             item->getNBytes();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(0, IncludeValue::Yes, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::Yes,
+                     IncludeXattrs::No);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -587,7 +604,9 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueDataMessageSize) {
             item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -618,8 +637,9 @@ TEST_P(StreamTest, test_keyAndValueExcludingValueWithDatatype) {
             item->getKey().makeDocKeyWithoutCollectionID().size() + sz;
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::NoWithUnderlyingDatatype,
+                     IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -649,8 +669,9 @@ TEST_P(StreamTest, test_keyAndValueWithoutXattrExcludingValueWithDatatype) {
             item->getKey().makeDocKeyWithoutCollectionID().size();
     queued_item qi(std::move(item));
 
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::NoWithUnderlyingDatatype,
+                     IncludeXattrs::Yes);
     std::unique_ptr<DcpResponse> dcpResponse =
             stream->public_makeResponseFromItem(qi,
                                                 SendCommitSyncWriteAs::Commit);
@@ -1012,7 +1033,7 @@ TEST_P(StreamTest, CursorDroppingBasicInMemoryState) {
 
 TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
     /* Set up a DCP stream */
-    setup_dcp_stream(DCP_ADD_STREAM_FLAG_TAKEOVER);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::TakeOver);
 
     /* Transition stream to takeoverSend state and expect cursor dropping call
        to fail */
@@ -1032,7 +1053,9 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
 }
 
 TEST_P(StreamTest, RollbackDueToPurge) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
 
     /* Store 4 items */
     const int numItems = 4;
@@ -1083,7 +1106,9 @@ TEST_P(StreamTest, RollbackDueToPurge) {
  * (cb::engine_errc::not_my_vbucket).
  */
 TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
     ASSERT_EQ(cb::engine_errc::success,
               engine->getKVBucket()->setVBucketState(
                       vbid, vbucket_state_dead, {}, TransferVB::Yes));
@@ -1281,7 +1306,9 @@ MATCHER_P(HasOperation, op, "") {
  * (In the case of MB-38356 the first stream incorrectly lost it's cursor).
  */
 TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
-    setup_dcp_stream(0, IncludeValue::No, IncludeXattrs::No);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::No,
+                     IncludeXattrs::No);
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
 
     // Second request to same vbid should fail.
@@ -1574,8 +1601,6 @@ void SingleThreadedActiveStreamTest::TearDown() {
 
 void SingleThreadedActiveStreamTest::setupProducer(
         const std::vector<std::pair<std::string, std::string>>& controls) {
-    uint32_t flags = 0;
-
     // We don't set the startTask flag here because we will create the task
     // manually. We do this because the producer actually creates the task on
     // StreamRequest which we do not do because we want a MockActiveStream.
@@ -1594,8 +1619,12 @@ void SingleThreadedActiveStreamTest::setupProducer(
 
     auto vb = engine->getVBucket(vbid);
 
-    stream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, flags, 0 /*opaque*/, *vb);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb);
 
     stream->setActive();
 }
@@ -1620,7 +1649,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
         std::optional<std::string_view> jsonFilter) {
     if (enforceProducerFlags) {
         stream = producer->mockActiveStreamRequest(
-                0 /*flags*/,
+                {} /*flags*/,
                 0 /*opaque*/,
                 vb,
                 0 /*st_seqno*/,
@@ -1633,7 +1662,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 producer->public_getIncludeDeletedUserXattrs(),
                 jsonFilter);
     } else {
-        stream = producer->mockActiveStreamRequest(0 /*flags*/,
+        stream = producer->mockActiveStreamRequest({} /*flags*/,
                                                    0 /*opaque*/,
                                                    vb,
                                                    0 /*st_seqno*/,
@@ -1673,7 +1702,7 @@ void SingleThreadedPassiveStreamTest::setupConsumer() {
     consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+              consumer->addStream(0 /*opaque*/, vbid, {} /*flags*/));
 
     if (enableSyncReplication) {
         consumer->enableSyncReplication();
@@ -2151,13 +2180,13 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     auto stream1 =
             std::make_shared<MockActiveStream>(engine.get(),
                                                producer,
-                                               0,
+                                               cb::mcbp::DcpAddStreamFlag::None,
                                                0 /*opaque*/,
                                                *engine->getVBucket(Vbid{1}));
     auto stream2 =
             std::make_shared<MockActiveStream>(engine.get(),
                                                producer,
-                                               0,
+                                               cb::mcbp::DcpAddStreamFlag::None,
                                                0 /*opaque*/,
                                                *engine->getVBucket(Vbid{2}));
     stream1->setActive();
@@ -2337,7 +2366,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_53100_Check_Monotonicity) {
     auto newStream = std::make_shared<MockActiveStream>(
             engine.get(),
             producer,
-            0,
+            cb::mcbp::DcpAddStreamFlag::None,
             1 /*opaque*/,
             vb,
             keyASeqno,
@@ -2389,7 +2418,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     producer->createCheckpointProcessorTask();
     uint64_t rollbackSeqno = -1;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0,
+              producer->streamRequest({},
                                       2,
                                       vb.getId(),
                                       1,
@@ -2440,7 +2469,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
     // add new stream
     uint32_t opaque = 999;
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque /*opaque*/, vbid, 0 /*flags*/));
+              consumer->addStream(opaque /*opaque*/, vbid, {} /*flags*/));
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
 
@@ -2458,7 +2487,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
 
     // re-add stream for teardown to close
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque /*opaque*/, vbid, 0 /*flags*/));
+              consumer->addStream(opaque /*opaque*/, vbid, {} /*flags*/));
 }
 
 // This test covers a "race" where the streamEnd code would use the return value
@@ -3171,7 +3200,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     cm.createNewCheckpoint();
 
     stream = producer->mockActiveStreamRequest(
-            0,
+            {},
             /*opaque*/ 0,
             vb,
             /*st_seqno*/ 2,
@@ -3276,7 +3305,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     producer->createCheckpointProcessorTask();
 
-    stream = producer->mockActiveStreamRequest(0,
+    stream = producer->mockActiveStreamRequest({},
                                                /*opaque*/ 0,
                                                vb,
                                                /*st_seqno*/ 0,
@@ -3390,7 +3419,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 
     // Re-create producer now we have items only on disk. We want to stream up
     // to seqno 1 (our only item) to test that we get the StreamEnd message.
-    stream = producer->mockActiveStreamRequest(0 /*flags*/,
+    stream = producer->mockActiveStreamRequest({} /*flags*/,
                                                0 /*opaque*/,
                                                *vb,
                                                0 /*st_seqno*/,
@@ -3479,7 +3508,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 TEST_P(SingleThreadedActiveStreamTest,
        RaceBetweenNotifyAndProcessingExistingItems) {
     auto vb = engine->getVBucket(vbid);
-    stream = producer->mockActiveStreamRequest(0,
+    stream = producer->mockActiveStreamRequest({},
                                                /*opaque*/ 0,
                                                *vb,
                                                /*st_seqno*/ 0,
@@ -4197,7 +4226,7 @@ TEST_P(SingleThreadedActiveStreamTest, SnapshotForCheckpointWithExpelledItems) {
     ASSERT_EQ(checkpoint.getNumberOfElements(), 4);
 
     // Simulate client reconnecting at seqno:3.
-    stream = producer->mockActiveStreamRequest(0 /*flags*/,
+    stream = producer->mockActiveStreamRequest({} /*flags*/,
                                                0 /*opaque*/,
                                                vb,
                                                3 /*st_seqno*/,
@@ -4329,7 +4358,7 @@ protected:
         ASSERT_EQ(6, stats.itemsRemovedFromCheckpoints);
 
         // Re-create the stream now we have items only on disk.
-        stream = producer->mockActiveStreamRequest(0 /*flags*/,
+        stream = producer->mockActiveStreamRequest({} /*flags*/,
                                                    0 /*opaque*/,
                                                    *vb,
                                                    0 /*st_seqno*/,
@@ -4937,7 +4966,7 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     auto activeStream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0, 0, vb);
+            engine.get(), producer, cb::mcbp::DcpAddStreamFlag::None, 0, vb);
     activeStream->setActive();
     ASSERT_TRUE(activeStream->isBackfilling());
     auto& readyQ = activeStream->public_readyQ();
@@ -5029,7 +5058,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     auto activeStream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0, 0, vb);
+            engine.get(), producer, cb::mcbp::DcpAddStreamFlag::None, 0, vb);
     activeStream->setActive();
     ASSERT_TRUE(activeStream->isInMemory());
     auto& readyQ = activeStream->public_readyQ();
@@ -5132,7 +5161,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
     producer->scheduleCheckpointProcessorTask();
 
     auto activeStream =
-            producer->mockActiveStreamRequest(0, 0, vb, 0, ~0, 0xabcd, 0, ~0);
+            producer->mockActiveStreamRequest({}, 0, vb, 0, ~0, 0xabcd, 0, ~0);
 
     ASSERT_TRUE(activeStream->isInMemory());
     auto& readyQ = activeStream->public_readyQ();
@@ -5308,7 +5337,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     newProd->createCheckpointProcessorTask();
     // StreamReq from the client on the same vbucket -> This stream has the same
     // name as the one that is transitioning to dead in threadCrash
-    auto newStream = newProd->mockActiveStreamRequest(0 /*flags*/,
+    auto newStream = newProd->mockActiveStreamRequest({} /*flags*/,
                                                       0 /*opaque*/,
                                                       vb,
                                                       0 /*st_seqno*/,
@@ -5603,7 +5632,19 @@ TEST_P(SingleThreadedActiveStreamTest,
     };
     try {
         stream = producer->mockActiveStreamRequest(
-                0, 0, vb, 0, ~0, 0x0, 0, ~0, {}, {}, {}, {}, [&](auto& stream) {
+                {},
+                0,
+                vb,
+                0,
+                ~0,
+                0x0,
+                0,
+                ~0,
+                {},
+                {},
+                {},
+                {},
+                [&](auto& stream) {
                     stream.scheduleBackfillRegisterCursorHook =
                             throwExceptionFn;
                 });
@@ -5829,7 +5870,7 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
         ASSERT_EQ(newVal, config.getBackfillMemThreshold());
         ASSERT_FLOAT_EQ(newVal / 100.0f, store->getBackfillMemoryThreshold());
         uint64_t rollbackSeqno = -1;
-        auto ret = producer->streamRequest(0,
+        auto ret = producer->streamRequest({},
                                            2,
                                            vbid,
                                            0,
@@ -6742,7 +6783,7 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     // Open a stream directly in a in-memory state
     const auto highSeqno = vb.getHighSeqno();
     stream = producer->mockActiveStreamRequest(
-            0 /*flags*/,
+            {} /*flags*/,
             0 /*opaque*/,
             vb,
             highSeqno /*start_seqno*/,

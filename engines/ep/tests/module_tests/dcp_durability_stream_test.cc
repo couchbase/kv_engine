@@ -510,8 +510,12 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     ASSERT_EQ(2, ckptMgr.getNumItems());
 
     // Create our new stream to plant our checkpoint cursor at the abort
-    stream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb);
 
     stream->setActive();
     stream->transitionStateToBackfilling();
@@ -644,8 +648,12 @@ TEST_P(DurabilityActiveStreamTest, RemoveCorrectQueuedAckAtStreamSetDead) {
     stream.reset();
     removeCheckpoint(*vb);
 
-    stream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
@@ -744,16 +752,17 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForReconnectWindow) {
     const auto key = makeStoredDocKey("key");
 
     // Disconnect and resume from our prepare
-    stream = std::make_shared<MockActiveStream>(engine.get(),
-                                                producer,
-                                                0 /*flags*/,
-                                                0 /*opaque*/,
-                                                *vb,
-                                                1 /*st_seqno*/,
-                                                ~0 /*en_seqno*/,
-                                                0x0 /*vb_uuid*/,
-                                                1 /*snap_start_seqno*/,
-                                                ~1 /*snap_end_seqno*/);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb,
+                                               1 /*st_seqno*/,
+                                               ~0 /*en_seqno*/,
+                                               0x0 /*vb_uuid*/,
+                                               1 /*snap_start_seqno*/,
+                                               ~1 /*snap_end_seqno*/);
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -799,8 +808,12 @@ TEST_P(DurabilityActiveStreamTest, SendSetInsteadOfCommitForNewVB) {
     const auto key = makeStoredDocKey("key");
 
     // Disconnect and resume from our prepare
-    stream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb);
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -913,8 +926,12 @@ TEST_P(DurabilityActiveStreamTest,
     flushVBucketToDiskIfPersistent(vbid, 2);
     removeCheckpoint(*vb);
 
-    stream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
@@ -975,8 +992,12 @@ TEST_P(DurabilityActiveStreamTest,
     stream.reset();
     removeCheckpoint(*vb);
 
-    stream = std::make_shared<MockActiveStream>(
-            engine.get(), producer, 0 /*flags*/, 0 /*opaque*/, *vb);
+    stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               cb::mcbp::DcpAddStreamFlag::None,
+                                               0 /*opaque*/,
+                                               *vb);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     stream->setActive();
@@ -1139,7 +1160,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     consumer->enableSyncReplication();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -1180,7 +1201,7 @@ TEST_P(DurabilityPassiveStreamTest, SendSeqnoAckOnStreamAcceptance) {
 
     consumer->closeAllStreams();
     uint32_t opaque = 0;
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -1237,7 +1258,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
     consumer->enableSyncReplication();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -1478,7 +1499,7 @@ TEST_P(DurabilityPassiveStreamTest,
 
     consumer->closeAllStreams();
     uint32_t opaque = 0;
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -1665,7 +1686,7 @@ void DurabilityPassiveStreamTest::
     // window for ignoring DCPAborts.
     consumer->closeAllStreams();
     uint32_t opaque = 0;
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -2232,7 +2253,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
     // Fake disconnect and reconnect, importantly, this sets up the valid window
     // for replacing the old prepare.
     consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -2355,7 +2376,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
     // Fake disconnect and reconnect, importantly, this sets up the valid window
     // for replacing the old prepare.
     consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -2535,7 +2556,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
     // deduped. Importantly, this sets up the valid window for replacing the old
     // prepare.
     consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -2706,7 +2727,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
     // Fake disconnect and reconnect, importantly, this sets up the valid window
     // for replacing the old prepare.
     consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -2736,7 +2757,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
 
     // Now disconnect again.
     consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -3436,7 +3457,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
 
     // 2) Disconnect and reconnect (sets allowedDuplicatePrepareSeqnos to {1}).
     consumer->closeAllStreams();
-    consumer->addStream(opaque, vbid, 0 /*flags*/);
+    consumer->addStream(opaque, vbid, {} /*flags*/);
     stream = static_cast<MockPassiveStream*>(
             (consumer->getVbucketStream(vbid)).get());
     stream->acceptStream(cb::mcbp::Status::Success, opaque);
@@ -5673,7 +5694,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
 
     // Create NON sync repl DCP stream
     stream = producer->mockActiveStreamRequest(
-            /* flags */ 0,
+            /* flags */ {},
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
@@ -5790,7 +5811,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
 
     // Create NON sync repl DCP stream
     auto stream = producer->mockActiveStreamRequest(
-            /* flags */ 0,
+            /* flags */ {},
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,
@@ -5888,7 +5909,7 @@ void DurabilityActiveStreamTest::
 
     // Create NON sync repl DCP stream
     auto stream = producer->mockActiveStreamRequest(
-            /* flags */ 0,
+            /* flags */ {},
             /*opaque*/ 0,
             *vb,
             /*st_seqno*/ 0,

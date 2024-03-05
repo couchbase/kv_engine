@@ -121,7 +121,8 @@ public:
 
         void destroy();
 
-        std::pair<cb::engine_errc, uint64_t> doStreamRequest(int flags = 0);
+        std::pair<cb::engine_errc, uint64_t> doStreamRequest(
+                cb::mcbp::DcpAddStreamFlag flags = {});
         std::unique_ptr<DcpResponse> getNextProducerMsg(ActiveStream* stream);
 
         void transferMessage();
@@ -376,8 +377,8 @@ public:
      * @param completeFinalSnapshot true if the test should transfer the
      *        entirety of the memory snapshot (seq 4 to 6)
      */
-    void testBackfillAndInMemoryDuplicatePrepares(uint32_t flags,
-                                                  bool completeFinalSnapshot);
+    void testBackfillAndInMemoryDuplicatePrepares(
+            cb::mcbp::DcpAddStreamFlag flags, bool completeFinalSnapshot);
 };
 
 void DCPLoopbackTestHelper::DcpRoute::destroy() {
@@ -570,7 +571,8 @@ void DCPLoopbackStreamTest::DcpRoute::closeStreamAtConsumer() {
 }
 
 std::pair<cb::engine_errc, uint64_t>
-DCPLoopbackTestHelper::DcpRoute::doStreamRequest(int flags) {
+DCPLoopbackTestHelper::DcpRoute::doStreamRequest(
+        cb::mcbp::DcpAddStreamFlag flags) {
     // Do the add_stream
     EXPECT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, flags));
@@ -665,7 +667,8 @@ void DCPLoopbackStreamTest::takeoverTest(
     //     by creating the Producer with the Consumer's flags
     auto route0_1 = createDcpRoute(Node0, Node1, enableExpiryOutput);
     EXPECT_EQ(cb::engine_errc::success,
-              route0_1.doStreamRequest(DCP_ADD_STREAM_FLAG_TAKEOVER).first);
+              route0_1.doStreamRequest(cb::mcbp::DcpAddStreamFlag::TakeOver)
+                      .first);
     auto* producerStream = static_cast<ActiveStream*>(
             route0_1.producer->findStream(vbid).get());
     ASSERT_TRUE(producerStream);
@@ -751,7 +754,7 @@ TEST_P(DCPLoopbackStreamTest, TakeoverWithExpiry) {
 }
 
 void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
-        uint32_t flags, bool completeFinalSnapshot) {
+        cb::mcbp::DcpAddStreamFlag flags, bool completeFinalSnapshot) {
     // First checkpoint 1..2: PRE(a), CMT(a)
     EXPECT_EQ(cb::engine_errc::sync_write_pending, storePrepare("a"));
     EXPECT_EQ(cb::engine_errc::success, storeCommit("a"));
@@ -803,7 +806,9 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     flushNodeIfPersistent(Node1);
 
     // Transfer 2 more messages (SNAP_MARKER, PRE)
-    int takeover = flags & DCP_ADD_STREAM_FLAG_TAKEOVER ? MARKER_FLAG_ACK : 0;
+    int takeover = isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)
+                           ? MARKER_FLAG_ACK
+                           : 0;
     route0_1.transferSnapshotMarker(
             4, 6, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
@@ -858,26 +863,26 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
 
 TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePrepares_partialSnapshot) {
-    testBackfillAndInMemoryDuplicatePrepares(0, false);
+    testBackfillAndInMemoryDuplicatePrepares({}, false);
 }
 
 TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePreparesTakeover_partialSnapshot) {
     // Variant with takeover stream, which has a different memory-based state.
-    testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER,
-                                             false);
+    testBackfillAndInMemoryDuplicatePrepares(
+            cb::mcbp::DcpAddStreamFlag::TakeOver, false);
 }
 
 TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePrepares_completeSnapshot) {
-    testBackfillAndInMemoryDuplicatePrepares(0, true);
+    testBackfillAndInMemoryDuplicatePrepares({}, true);
 }
 
 TEST_P(DCPLoopbackStreamTest,
        BackfillAndInMemoryDuplicatePreparesTakeover_completeSnapshot) {
     // Variant with takeover stream, which has a different memory-based state.
-    testBackfillAndInMemoryDuplicatePrepares(DCP_ADD_STREAM_FLAG_TAKEOVER,
-                                             true);
+    testBackfillAndInMemoryDuplicatePrepares(
+            cb::mcbp::DcpAddStreamFlag::TakeOver, true);
 }
 
 /*

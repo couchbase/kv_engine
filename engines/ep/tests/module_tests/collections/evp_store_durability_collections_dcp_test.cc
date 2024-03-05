@@ -41,7 +41,7 @@ void CollectionsSyncWriteParamTest::SetUp() {
 
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       0, // start_seqno
@@ -389,7 +389,7 @@ TEST_P(CollectionsSyncWriteParamTest,
 
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       1, // opaque
                                       vbid,
                                       4, // start_seqno

@@ -43,7 +43,7 @@ public:
             std::optional<std::string_view> collections,
             Vbid id = Vbid(0),
             cb::engine_errc expectedError = cb::engine_errc::success,
-            uint32_t flags = 0,
+            cb::mcbp::DcpAddStreamFlag flags = {},
             uint64_t streamEndSeqno = ~0ull);
 
     void createDcpStream(const DcpStreamRequestConfig& config);
@@ -53,7 +53,7 @@ public:
     void createDcpObjects(
             std::optional<std::string_view> collections,
             OutOfOrderSnapshots outOfOrderSnapshots = OutOfOrderSnapshots::No,
-            uint32_t flags = 0,
+            cb::mcbp::DcpAddStreamFlag flags = {},
             bool enableSyncRep = false,
             uint64_t streamEndSeqno = ~0ull,
             ChangeStreams changeStreams = ChangeStreams::No);

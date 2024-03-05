@@ -34,7 +34,7 @@ const char* to_string(Stream::Snapshot type) {
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
 
 Stream::Stream(std::string name,
-               uint32_t flags,
+               cb::mcbp::DcpAddStreamFlag flags,
                uint32_t opaque,
                Vbid vb,
                uint64_t start_seqno,
@@ -101,7 +101,7 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     try {
         std::lock_guard<std::mutex> lh(streamMutex);
 
-        add_casted_stat("flags", flags_, add_stat, c);
+        add_casted_stat("flags", static_cast<uint32_t>(flags_), add_stat, c);
         add_casted_stat("opaque", opaque_, add_stat, c);
         add_casted_stat("start_seqno", start_seqno_, add_stat, c);
         add_casted_stat("end_seqno", end_seqno_, add_stat, c);

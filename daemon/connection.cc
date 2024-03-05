@@ -1651,7 +1651,7 @@ cb::engine_errc Connection::get_failover_log(uint32_t opaque, Vbid vbucket) {
 
 cb::engine_errc Connection::stream_req(uint32_t opaque,
                                        Vbid vbucket,
-                                       uint32_t flags,
+                                       cb::mcbp::DcpAddStreamFlag flags,
                                        uint64_t start_seqno,
                                        uint64_t end_seqno,
                                        uint64_t vbucket_uuid,
@@ -1674,7 +1674,7 @@ cb::engine_errc Connection::stream_req(uint32_t opaque,
     builder.setVBucket(vbucket);
 
     DcpStreamReqPayload payload;
-    payload.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(flags));
+    payload.setFlags(flags);
     payload.setStartSeqno(start_seqno);
     payload.setEndSeqno(end_seqno);
     payload.setVbucketUuid(vbucket_uuid);

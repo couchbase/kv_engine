@@ -158,7 +158,7 @@ TEST_P(CollectionsLegacyDcpTest,
     cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
     createDcpObjects(
-            {}, OutOfOrderSnapshots::No, DCP_ADD_STREAM_FLAG_TO_LATEST);
+            {}, OutOfOrderSnapshots::No, cb::mcbp::DcpAddStreamFlag::ToLatest);
 
     // Snapshot must not be past the high-seqno of the default collection.
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
@@ -247,20 +247,20 @@ TEST_P(CollectionsLegacyDcpTest,
     // Create a mock stream as we can inject drop of default collection in
     // between the stream request being successful and the stream setting up
     // the backfill
-    auto mockStream = producer->mockActiveStreamRequest(
-            /* flags */ 0,
-            /*opaque*/ 0,
-            *vb,
-            /*st_seqno*/ 0,
-            /*en_seqno*/ ~0,
-            /*vb_uuid*/ 0xabcd,
-            /*snap_start_seqno*/ 0,
-            /*snap_end_seqno*/ ~0,
-            IncludeValue::Yes,
-            IncludeXattrs::Yes,
-            IncludeDeletedUserXattrs::No,
-            {},
-            dropDefault);
+    auto mockStream =
+            producer->mockActiveStreamRequest(cb::mcbp::DcpAddStreamFlag::None,
+                                              /*opaque*/ 0,
+                                              *vb,
+                                              /*st_seqno*/ 0,
+                                              /*en_seqno*/ ~0,
+                                              /*vb_uuid*/ 0xabcd,
+                                              /*snap_start_seqno*/ 0,
+                                              /*snap_end_seqno*/ ~0,
+                                              IncludeValue::Yes,
+                                              IncludeXattrs::Yes,
+                                              IncludeDeletedUserXattrs::No,
+                                              {},
+                                              dropDefault);
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
@@ -287,7 +287,8 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_is_ok) {
     cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, true /*sync replication*/);
+    createDcpObjects(
+            {}, OutOfOrderSnapshots::No, {}, true /*sync replication*/);
 
     // end stream reason
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
@@ -351,7 +352,8 @@ TEST_P(CollectionsLegacyDcpTest, sync_replication_stream_ends) {
     cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, true /*sync replication*/);
+    createDcpObjects(
+            {}, OutOfOrderSnapshots::No, {}, true /*sync replication*/);
 
     // This isn't pretty, but a legacy stream can't be given a more descriptive
     // end stream reason. We would log the issue with warnings
@@ -388,7 +390,7 @@ TEST_P(CollectionsLegacyDcpTest,
     cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
@@ -424,7 +426,7 @@ TEST_P(CollectionsLegacyDcpTest,
     cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
     // Stream does nothing yet, and is now in-memory. The scheduled backfill
     // finds no default collection data exists and ends early
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
@@ -438,7 +440,7 @@ TEST_P(CollectionsLegacyDcpTest,
     uint64_t rollbackSeqno;
     EXPECT_EQ(
             cb::engine_errc::success,
-            producer->streamRequest(0,
+            producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                     1, // opaque
                                     vbid,
                                     0, // start_seqno
@@ -497,7 +499,7 @@ TEST_P(CollectionsLegacyDcpTest,
     /// and the next notifyAndStepToCheckpoint will drive the next backfill
     runBackfill();
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
@@ -522,7 +524,8 @@ TEST_P(CollectionsLegacyDcpTest,
     // Make cookie look like a non-collection client
     cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, true /*sync replication*/);
+    createDcpObjects(
+            {}, OutOfOrderSnapshots::No, {}, true /*sync replication*/);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
@@ -579,7 +582,7 @@ TEST_P(CollectionsLegacyDcpTest,
     cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
     createDcpObjects({},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      false /*sync replication*/,
                      keyd1Seqno);
 
@@ -604,7 +607,8 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_no_items_in_memory_only) {
     ASSERT_TRUE(store_items(
             5, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, vb->getHighSeqno());
+    createDcpObjects(
+            {}, OutOfOrderSnapshots::No, {}, false, vb->getHighSeqno());
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
@@ -619,7 +623,7 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_one_items_in_memory_only) {
             5, vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value"));
 
     createDcpObjects(
-            {}, OutOfOrderSnapshots::No, 0, false, vb->getHighSeqno() / 2);
+            {}, OutOfOrderSnapshots::No, {}, false, vb->getHighSeqno() / 2);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(2, producers->last_snap_end_seqno);
@@ -650,7 +654,8 @@ TEST_P(CollectionsLegacyDcpTest,
                                 "value");
     EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, vb->getHighSeqno());
+    createDcpObjects(
+            {}, OutOfOrderSnapshots::No, {}, false, vb->getHighSeqno());
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd);
     EXPECT_EQ(producers->last_end_status, cb::mcbp::DcpStreamEndStatus::Ok);
 }
@@ -686,7 +691,7 @@ TEST_P(CollectionsLegacyDcpTest,
 
     createDcpObjects({},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      false /*sync replication*/,
                      highSeqno);
     setCollections(cookie, cm.remove(CollectionEntry::defaultC));
@@ -704,7 +709,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_end_in_memory_stream) {
     auto highSeqno = vb->getHighSeqno();
     createDcpObjects({},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      false /*sync replication*/,
                      highSeqno);
 
@@ -736,7 +741,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
 
     createDcpObjects(
-            {}, OutOfOrderSnapshots::No, 0, false /*sync replication*/, 4);
+            {}, OutOfOrderSnapshots::No, {}, false /*sync replication*/, 4);
 
     store_item(vbid, StoredDocKey{"d", CollectionEntry::defaultC}, "value");
     auto highSeqno = vb->getHighSeqno();
@@ -770,7 +775,7 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     store_item(vbid, StoredDocKey{"f", CollectionEntry::fruit}, "value");
     createDcpObjects(
-            {}, OutOfOrderSnapshots::No, 0, true /*sync replication*/, 5);
+            {}, OutOfOrderSnapshots::No, {}, true /*sync replication*/, 5);
     {
         auto key = StoredDocKey{"d", CollectionEntry::defaultC};
         auto item = makePendingItem(key, "value");
@@ -845,7 +850,7 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_tombstone_purged) {
                              .lock(CollectionID::Default)
                              .getPersistedHighSeqno();
     ASSERT_EQ(5, highSeqno);
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
 
     // Stream ends, nothing to see here
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
@@ -887,7 +892,7 @@ TEST_P(CollectionsLegacyDcpTest, DefaultCollectionStoresOnlyTombstones) {
                                    .lock(CollectionID::Default)
                                    .getPersistedHighSeqno();
     ASSERT_EQ(3, highSeqno);
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
 
     // Run the backfill task
     runBackfill();
@@ -959,7 +964,7 @@ TEST_P(CollectionsLegacyDcpTest,
         ASSERT_EQ(1, defaultStats.getItemCount());
         ASSERT_EQ(5, highSeqno);
     }
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
@@ -1017,7 +1022,7 @@ TEST_P(CollectionsLegacyDcpTest,
         ASSERT_EQ(1, defaultStats.getItemCount());
         ASSERT_EQ(4, highSeqno);
     }
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
@@ -1067,7 +1072,7 @@ TEST_P(CollectionsLegacyDcpTest,
         ASSERT_EQ(0, defaultStats.getItemCount());
         ASSERT_EQ(3, highSeqno);
     }
-    createDcpObjects({}, OutOfOrderSnapshots::No, 0, false, highSeqno);
+    createDcpObjects({}, OutOfOrderSnapshots::No, {}, false, highSeqno);
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpStreamEnd, false);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
 }

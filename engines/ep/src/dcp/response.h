@@ -150,7 +150,7 @@ class StreamRequest : public DcpResponse {
 public:
     StreamRequest(Vbid vbucket,
                   uint32_t opaque,
-                  uint32_t flags,
+                  cb::mcbp::DcpAddStreamFlag flags,
                   uint64_t startSeqno,
                   uint64_t endSeqno,
                   uint64_t vbucketUUID,
@@ -175,7 +175,7 @@ public:
         return vbucket_;
     }
 
-    uint32_t getFlags() {
+    auto getFlags() const {
         return flags_;
     }
 
@@ -218,7 +218,7 @@ private:
     uint64_t vbucketUUID_;
     uint64_t snapStartSeqno_;
     uint64_t snapEndSeqno_;
-    uint32_t flags_;
+    cb::mcbp::DcpAddStreamFlag flags_;
     Vbid vbucket_;
     std::string requestValue_;
 };

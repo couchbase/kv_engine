@@ -428,7 +428,7 @@ cb::engine_errc MockEngine::open(CookieIface& cookie,
 cb::engine_errc MockEngine::add_stream(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
-                                       uint32_t flags) {
+                                       cb::mcbp::DcpAddStreamFlag flags) {
     auto engine_fn = [this, &cookie, opaque, vbucket, flags]() {
         return the_engine_dcp->add_stream(cookie, opaque, vbucket, flags);
     };
@@ -444,7 +444,7 @@ cb::engine_errc MockEngine::close_stream(CookieIface& cookie,
 }
 
 cb::engine_errc MockEngine::stream_req(CookieIface& cookie,
-                                       uint32_t flags,
+                                       cb::mcbp::DcpAddStreamFlag flags,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint64_t start_seqno,

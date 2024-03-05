@@ -123,7 +123,7 @@ public:
 
     virtual cb::engine_errc addStream(uint32_t opaque,
                                       Vbid vbucket,
-                                      uint32_t flags);
+                                      cb::mcbp::DcpAddStreamFlag flags);
 
     virtual cb::engine_errc closeStream(uint32_t opaque,
                                         Vbid vbucket,
@@ -190,7 +190,7 @@ public:
                                             Vbid vbucket,
                                             vbucket_state_t state);
 
-    virtual cb::engine_errc streamRequest(uint32_t flags,
+    virtual cb::engine_errc streamRequest(cb::mcbp::DcpAddStreamFlag flags,
                                           uint32_t opaque,
                                           Vbid vbucket,
                                           uint64_t start_seqno,

@@ -94,7 +94,9 @@ TEST_P(CollectionsOSODcpTest, basic) {
     store_item(vbid, makeStoredDocKey("c"), "y");
     flush_vbucket_to_disk(vbid, 4);
 
-    std::array<uint32_t, 2> flags = {{0, DCP_ADD_STREAM_FLAG_DISKONLY}};
+    std::array<cb::mcbp::DcpAddStreamFlag, 2> flags = {
+            {cb::mcbp::DcpAddStreamFlag::None,
+             cb::mcbp::DcpAddStreamFlag::DiskOnly}};
 
     for (auto flag : flags) {
         // Reset so we have to stream from backfill
@@ -139,7 +141,7 @@ TEST_P(CollectionsOSODcpTest, basic) {
         EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
                   producers->last_oso_snapshot_flags);
 
-        if (flag == DCP_ADD_STREAM_FLAG_DISKONLY) {
+        if (flag == cb::mcbp::DcpAddStreamFlag::DiskOnly) {
             EXPECT_EQ(cb::engine_errc::success,
                       producer->stepWithBorderGuard(*producers));
             EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
@@ -152,7 +154,9 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
     store_item(vbid, makeStoredDocKey("c"), "y");
     flush_vbucket_to_disk(vbid, 1);
 
-    std::array<uint32_t, 2> flags = {{0, DCP_ADD_STREAM_FLAG_DISKONLY}};
+    std::array<cb::mcbp::DcpAddStreamFlag, 2> flags = {
+            {cb::mcbp::DcpAddStreamFlag::None,
+             cb::mcbp::DcpAddStreamFlag::DiskOnly}};
 
     for (auto flag : flags) {
         // Reset so we have to stream from backfill
@@ -196,7 +200,7 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
         EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
                   producers->last_oso_snapshot_flags);
 
-        if (flag == DCP_ADD_STREAM_FLAG_DISKONLY) {
+        if (flag == cb::mcbp::DcpAddStreamFlag::DiskOnly) {
             EXPECT_EQ(cb::engine_errc::success,
                       producer->stepWithBorderGuard(*producers));
             EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
@@ -225,7 +229,7 @@ TEST_P(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
     // set up stream, registers cursor
     createDcpObjects({{R"({"collections":["0"]})"}},
                      OutOfOrderSnapshots::Yes,
-                     0 /*flags*/);
+                     cb::mcbp::DcpAddStreamFlag::None);
 
     auto& cm = *store->getVBucket(vbid)->checkpointManager;
     auto initialCursors = cm.getNumCursors();
@@ -800,7 +804,7 @@ TEST_P(CollectionsOSODcpTest, fallbackToSeqnoIfOsoDisabled) {
 
     // Filter on default collection (this will request from seqno:0)
     createDcpObjects(
-            {{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes, 0);
+            {{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes, {});
 
     // We have a single filter, expect the backfill to be OSO
     runBackfill();
@@ -925,7 +929,7 @@ protected:
                    ClientOpcode::DcpSnapshotMarker}}) {
             createDcpObjects(makeStreamRequestValue({collection}),
                              OutOfOrderSnapshots::Yes,
-                             0);
+                             {});
             runBackfill();
             runBackfill();
 
@@ -1045,7 +1049,7 @@ TEST_P(CollectionsOSOMultiTest, multi) {
     nlohmann::json filter = {{"collections",
                               {collections.at(1).to_string(false),
                                collections.at(2).to_string(false)}}};
-    createDcpObjects(filter.dump(), OutOfOrderSnapshots::Yes, 0);
+    createDcpObjects(filter.dump(), OutOfOrderSnapshots::Yes, {});
 
     runBackfill();
 

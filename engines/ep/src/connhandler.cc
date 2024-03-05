@@ -71,7 +71,9 @@ ConnHandler::~ConnHandler() {
     engine_.releaseCookie(*cookie);
 }
 
-cb::engine_errc ConnHandler::addStream(uint32_t opaque, Vbid, uint32_t flags) {
+cb::engine_errc ConnHandler::addStream(uint32_t,
+                                       Vbid,
+                                       cb::mcbp::DcpAddStreamFlag) {
     logger->warn(
             "Disconnecting - This connection doesn't "
             "support the dcp add stream API");
@@ -184,7 +186,7 @@ cb::engine_errc ConnHandler::setVBucketState(uint32_t opaque,
 }
 
 cb::engine_errc ConnHandler::streamRequest(
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,

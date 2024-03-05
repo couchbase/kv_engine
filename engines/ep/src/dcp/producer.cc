@@ -295,7 +295,7 @@ void DcpProducer::cancelCheckpointCreatorTask() {
 }
 
 cb::engine_errc DcpProducer::streamRequest(
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -412,7 +412,7 @@ DcpProducer::checkConditionsForStreamRequest(
     }
 
     req.high_seqno = vb->getHighSeqno();
-    if (req.flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::FromLatest)) {
         req.start_seqno = req.snap_start_seqno = req.snap_end_seqno =
                 req.high_seqno;
         if (req.vbucket_uuid == 0) {
@@ -432,7 +432,7 @@ DcpProducer::checkConditionsForStreamRequest(
         }
     }
 
-    if ((req.flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::ActiveVbOnly) &&
         (vb->getState() != vbucket_state_active)) {
         logger->info(
                 "({}) Stream request failed because "
@@ -555,7 +555,8 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
     const Vbid vbucket = vb.getId();
 
     auto purgeSeqno = vb.getPurgeSeqno();
-    if (req.flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
+    if (isFlagSet(req.flags,
+                  cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones)) {
         // If the client does not care about purged tombstones, we issue
         // the request as-if the purgeSeqno is zero.
         purgeSeqno = 0;
@@ -568,7 +569,7 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
             req.snap_start_seqno,
             req.snap_end_seqno,
             purgeSeqno,
-            req.flags & DCP_ADD_STREAM_STRICT_VBUUID,
+            isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::StrictVbUuid),
             getHighSeqnoOfCollections(filter, vb));
 
     if (needsRollback) {
@@ -597,7 +598,7 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
         const Collections::VB::Filter& filter) {
     const Vbid vbucket = vb.getId();
 
-    if (req.flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::ToLatest)) {
         if (filter.isPassThroughFilter()) {
             req.end_seqno = req.high_seqno;
         } else {
@@ -622,7 +623,7 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
         }
     }
 
-    if (req.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+    if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::DiskOnly)) {
         req.end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
     } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
         logger->warn("DCP connections with PiTR enabled must enable DISKONLY");

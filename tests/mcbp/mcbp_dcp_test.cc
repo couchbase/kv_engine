@@ -276,16 +276,21 @@ TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
         bool valid;
     };
     const std::array<FlagInfo, 32> flagInfo = {{
-            {DCP_ADD_STREAM_FLAG_TAKEOVER, true},
-            {DCP_ADD_STREAM_FLAG_DISKONLY, true},
-            {DCP_ADD_STREAM_FLAG_FROM_LATEST, true},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::TakeOver), true},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::DiskOnly), true},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ToLatest), true},
             // DCP_ADD_STREAM_FLAG_NO_VALUE is not used anymore, and is hence
             // considered invalid.
-            {DCP_ADD_STREAM_FLAG_NO_VALUE, false},
-            {DCP_ADD_STREAM_ACTIVE_VB_ONLY, true},
-            {DCP_ADD_STREAM_STRICT_VBUUID, true},
-            {DCP_ADD_STREAM_FLAG_FROM_LATEST, true},
-            {DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES, true},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::NoValue), false},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ActiveVbOnly),
+             true},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::StrictVbUuid),
+             true},
+            {static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::FromLatest),
+             true},
+            {static_cast<uint32_t>(
+                     cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones),
+             true},
             // 0x100 is the first of the undefined flags.
             {0x100, false},
             {0x200, false},

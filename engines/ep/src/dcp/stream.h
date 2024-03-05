@@ -24,6 +24,10 @@
 #include <queue>
 #include <string>
 
+namespace cb::mcbp {
+enum class DcpAddStreamFlag : uint32_t;
+}
+
 class CheckpointCursor;
 class CookieIface;
 class DcpResponse;
@@ -46,7 +50,7 @@ public:
     };
 
     Stream(std::string name,
-           uint32_t flags,
+           cb::mcbp::DcpAddStreamFlag flags,
            uint32_t opaque,
            Vbid vb,
            uint64_t start_seqno,
@@ -57,7 +61,7 @@ public:
 
     virtual ~Stream();
 
-    uint32_t getFlags() const {
+    cb::mcbp::DcpAddStreamFlag getFlags() const {
         return flags_;
     }
 
@@ -131,7 +135,7 @@ protected:
     std::unique_ptr<DcpResponse> popFromReadyQ();
 
     std::string name_;
-    const uint32_t flags_;
+    const cb::mcbp::DcpAddStreamFlag flags_;
     const uint32_t opaque_;
     const Vbid vb_;
     uint64_t start_seqno_;

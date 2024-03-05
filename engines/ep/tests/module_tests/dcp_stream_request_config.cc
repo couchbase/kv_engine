@@ -16,7 +16,7 @@
 
 DcpStreamRequestConfig::DcpStreamRequestConfig(
         Vbid vbid,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint32_t opaque,
         uint64_t start,
         uint64_t end,
@@ -39,7 +39,7 @@ Vbid DcpStreamRequestConfig::getVbucket() const {
     return vbid;
 }
 
-uint32_t DcpStreamRequestConfig::getFlags() const {
+cb::mcbp::DcpAddStreamFlag DcpStreamRequestConfig::getFlags() const {
     return flags;
 }
 

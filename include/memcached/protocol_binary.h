@@ -676,23 +676,9 @@ constexpr DcpAddStreamFlag operator&(DcpAddStreamFlag a, DcpAddStreamFlag b) {
 constexpr DcpAddStreamFlag operator~(DcpAddStreamFlag a) {
     return DcpAddStreamFlag(~static_cast<uint32_t>(a));
 }
-// Deprecated old #defines defined until the code is updated
-#define DCP_ADD_STREAM_FLAG_TAKEOVER \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::TakeOver)
-#define DCP_ADD_STREAM_FLAG_DISKONLY \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::DiskOnly)
-#define DCP_ADD_STREAM_FLAG_TO_LATEST \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ToLatest)
-#define DCP_ADD_STREAM_FLAG_NO_VALUE \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::NoValue)
-#define DCP_ADD_STREAM_ACTIVE_VB_ONLY \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::ActiveVbOnly)
-#define DCP_ADD_STREAM_STRICT_VBUUID \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::StrictVbUuid)
-#define DCP_ADD_STREAM_FLAG_FROM_LATEST \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::FromLatest)
-#define DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES \
-    static_cast<uint32_t>(cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones)
+inline bool isFlagSet(DcpAddStreamFlag mask, DcpAddStreamFlag flag) {
+    return (mask & flag) == flag;
+}
 
 namespace request {
 
@@ -744,8 +730,8 @@ static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 namespace request {
 class DcpAddStreamPayload {
 public:
-    uint32_t getFlags() const {
-        return ntohl(flags);
+    DcpAddStreamFlag getFlags() const {
+        return static_cast<DcpAddStreamFlag>(ntohl(flags));
     }
     void setFlags(DcpAddStreamFlag flag) {
         flags = htonl(static_cast<uint32_t>(flag));
@@ -762,8 +748,8 @@ static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 
 class DcpStreamReqPayload {
 public:
-    uint32_t getFlags() const {
-        return ntohl(flags);
+    DcpAddStreamFlag getFlags() const {
+        return static_cast<DcpAddStreamFlag>(ntohl(flags));
     }
     void setFlags(DcpAddStreamFlag value) {
         flags = htonl(static_cast<uint32_t>(value));

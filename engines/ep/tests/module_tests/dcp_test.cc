@@ -129,14 +129,12 @@ void DCPTest::create_dcp_producer(
 }
 
 void DCPTest::setup_dcp_stream(
-        int flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         IncludeValue includeVal,
         IncludeXattrs includeXattrs,
         std::vector<std::pair<std::string, std::string>> controls) {
-    // @todo we should clean up this code.. the setup_dcp_stream
-    //       mixed open flags and stream flags
     auto open_flags = cb::mcbp::DcpOpenFlag::None;
-    if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+    if (isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)) {
         open_flags = cb::mcbp::DcpOpenFlag::Producer;
     }
     create_dcp_producer(open_flags, includeVal, includeXattrs, controls);
@@ -174,7 +172,7 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
                                                       uint64_t snapEnd,
                                                       uint64_t vbUUID) {
     DCPTest::StreamRequestResult result;
-    result.status = producer.streamRequest(/*flags*/ 0,
+    result.status = producer.streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                            /*opaque*/ 0,
                                            vbid,
                                            startSeqno,
@@ -367,7 +365,8 @@ TEST_P(CompressionStreamTest, compression_not_enabled) {
                                       isXattr());
 
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
-    setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
+    setup_dcp_stream(
+            cb::mcbp::DcpAddStreamFlag::None, includeValue, IncludeXattrs::Yes);
 
     /**
      * Ensure that compression is disabled
@@ -482,7 +481,8 @@ TEST_P(CompressionStreamTest, connection_snappy_enabled) {
     cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
-    setup_dcp_stream(0, includeValue, IncludeXattrs::Yes);
+    setup_dcp_stream(
+            cb::mcbp::DcpAddStreamFlag::None, includeValue, IncludeXattrs::Yes);
 
     EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
     MockDcpMessageProducers producers;
@@ -554,7 +554,7 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
     auto includeValue = isXattr() ? IncludeValue::No : IncludeValue::Yes;
 
     // Setup the producer/stream and request force_value_compression
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      includeValue,
                      IncludeXattrs::Yes,
                      {{"force_value_compression", "true"}});
@@ -601,8 +601,9 @@ TEST_P(CompressionStreamTest, force_value_compression_enabled) {
 
 TEST_P(CompressionStreamTest,
        NoWithUnderlyingDatatype_CompressionDisabled_ItemCompressed) {
-    setup_dcp_stream(
-            0, IncludeValue::NoWithUnderlyingDatatype, IncludeXattrs::Yes);
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
+                     IncludeValue::NoWithUnderlyingDatatype,
+                     IncludeXattrs::Yes);
     ASSERT_FALSE(producer->isCompressionEnabled());
     ASSERT_EQ(IncludeValue::NoWithUnderlyingDatatype,
               stream->public_getIncludeValue());
@@ -651,7 +652,7 @@ TEST_P(CompressionStreamTest,
        NoWithUnderlyingDatatype_CompressionEnabled_ItemCompressed) {
     // Enable the snappy and passive compression on the connection.
     cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::NoWithUnderlyingDatatype,
                      IncludeXattrs::Yes,
                      {{"force_value_compression", "true"}});
@@ -748,7 +749,7 @@ TEST_P(CompressionStreamTest, CompressionEnabled_NoValue) {
     cookie->setDatatypeSupport(PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
     // Note: Whatever input, we want to stream a size-0 value
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,
                      IncludeXattrs::No,
                      {{"force_value_compression", "true"}});
@@ -1216,7 +1217,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     // changed.
     const std::chrono::steady_clock::time_point initMsgTime(1234s);
     consumer->setLastMessageTime(initMsgTime);
-    consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0);
+    consumer->addStream(/*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None);
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for addStream";
     consumer->setLastMessageTime(initMsgTime);
@@ -1684,7 +1685,7 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
 
     // Create a stream
     uint64_t rollbackSeqno;
-    producer->streamRequest(0 /*flags*/,
+    producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                             0 /*opaque*/,
                             Vbid(0),
                             0 /*startSeqno*/,
@@ -1726,7 +1727,7 @@ TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(/*flags*/ 0,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       opaque,
                                       vbid,
                                       /*start_seqno*/ 0,
@@ -1760,9 +1761,8 @@ TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
 
     /* Add passive stream */
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(/*opaque*/ 0,
-                                  vbid,
-                                  /*flags*/ 0));
+              consumer->addStream(
+                      /*opaque*/ 0, vbid, cb::mcbp::DcpAddStreamFlag::None));
 
     destroy_mock_cookie(dummyMockCookie);
 
@@ -1787,7 +1787,7 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
     DcpConsumer* consumerA =
             connMap.newConsumer(*cookieA, "test_consumerA", "test_consumerA");
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
-    consumerA->addStream(0xdead, vbid, 0);
+    consumerA->addStream(0xdead, vbid, {});
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
     // destroys the first consumer, leaving a weakptr in the vbConn map
     EXPECT_TRUE(connMap.removeConn(cookieA));
@@ -1796,7 +1796,7 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
     DcpConsumer* consumerB =
             connMap.newConsumer(*cookieB, "test_consumerB", "test_consumerB");
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
-    consumerB->addStream(0xbeef, vbid, 0);
+    consumerB->addStream(0xbeef, vbid, {});
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
 
     // Here the ConnHandler added to connMap.vbConns in addStream should be
@@ -1835,7 +1835,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     uint64_t rollbackSeqno = 0;
 
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest({}, // flags
                                       0xdead,
                                       vbid,
                                       0, // start_seqno
@@ -1870,7 +1870,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     // add a stream for the same VB as before
-    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0xbeef, vbid, 0));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0xbeef, vbid, {}));
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
     // End the stream. This should remove the Consumer ConnHandler from vbConns
@@ -1903,7 +1903,6 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
  */
 TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
     auto* cookie = create_mock_cookie(engine.get());
-    const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     auto* producer = connMap.newProducer(
             *cookie, "producer", cb::mcbp::DcpOpenFlag::None);
@@ -1916,7 +1915,7 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(flags,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       opaque,
                                       vbid,
                                       0, // start_seqno
@@ -1953,7 +1952,6 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
 TEST_F(DcpConnMapTest,
        AvoidLockInversionInSetVBucketStateAndConnMapDisconnect) {
     auto* cookie = create_mock_cookie(engine.get());
-    const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     auto* producer = connMap.newProducer(
             *cookie, "producer", cb::mcbp::DcpOpenFlag::None);
@@ -1966,7 +1964,7 @@ TEST_F(DcpConnMapTest,
 
     uint64_t rollbackSeqno = 0;
     ASSERT_EQ(cb::engine_errc::success,
-              producer->streamRequest(flags,
+              producer->streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                       opaque,
                                       vbid,
                                       0, // start_seqno
@@ -2105,7 +2103,6 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     auto* cookie = create_mock_cookie(engine.get());
     const std::string connName = "producer";
-    const uint32_t flags = 0;
     auto* producer =
             connMap.newProducer(*cookie, connName, cb::mcbp::DcpOpenFlag::None);
 
@@ -2115,11 +2112,10 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     producer->control(opaque, "enable_sync_writes", "true");
     producer->control(opaque, "consumer_name", "consumer");
 
-    const auto streamRequest =
-            [this, flags, opaque](DcpProducer& producer) -> void {
+    const auto streamRequest = [this, opaque](DcpProducer& producer) -> void {
         uint64_t rollbackSeqno = 0;
         ASSERT_EQ(cb::engine_errc::success,
-                  producer.streamRequest(flags,
+                  producer.streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                          opaque,
                                          vbid,
                                          0, // start_seqno
@@ -2370,7 +2366,7 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     uint32_t opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
-                      0, // flags
+                      {}, // flags
                       opaque,
                       vbid,
                       0, // start_seqno
@@ -2389,7 +2385,7 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
     producer->closeStream(opaque, vbid);
     ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
-                      0, // flags
+                      {}, // flags
                       opaque,
                       vbid,
                       0, // start_seqno
@@ -2695,7 +2691,8 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
 
     // Setup the stream
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->addStream(opaque, vbid, 0 /*flags*/));
+              consumer->addStream(
+                      opaque, vbid, cb::mcbp::DcpAddStreamFlag::None));
     opaque += 1;
     ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,

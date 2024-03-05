@@ -78,21 +78,21 @@ public:
         vb->updateFromManifest(
                 folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 makeManifest(cm));
-        stream =
-                std::make_shared<MockActiveStream>(engine.get(),
-                                                   producer,
-                                                   0,
-                                                   0 /*opaque*/,
-                                                   *vb,
-                                                   0,
-                                                   ~0,
-                                                   0,
-                                                   0,
-                                                   0,
-                                                   IncludeValue::Yes,
-                                                   IncludeXattrs::Yes,
-                                                   IncludeDeletedUserXattrs::No,
-                                                   R"({"collections":["9"]})");
+        stream = std::make_shared<MockActiveStream>(
+                engine.get(),
+                producer,
+                cb::mcbp::DcpAddStreamFlag::None,
+                0 /*opaque*/,
+                *vb,
+                0,
+                ~0,
+                0,
+                0,
+                0,
+                IncludeValue::Yes,
+                IncludeXattrs::Yes,
+                IncludeDeletedUserXattrs::No,
+                R"({"collections":["9"]})");
 
         // Always queue an initial checkpoint_start item for making the final
         // SnapshotMarker's flags easily predictable.

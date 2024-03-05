@@ -24,6 +24,7 @@
 
 namespace cb::mcbp {
 enum class DcpOpenFlag : uint32_t;
+enum class DcpAddStreamFlag : uint32_t;
 }
 
 class CheckpointCursor;
@@ -126,7 +127,7 @@ public:
     cb::engine_errc addPassiveStream(ConnHandler& conn,
                                      uint32_t opaque,
                                      Vbid vbucket,
-                                     uint32_t flags);
+                                     cb::mcbp::DcpAddStreamFlag flags);
 
     /* Use this only for any quick direct stats from DcpConnMap. To collect
        individual conn stats from conn lists please use ConnStatBuilder */

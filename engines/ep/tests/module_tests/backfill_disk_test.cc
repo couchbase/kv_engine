@@ -72,21 +72,21 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
                                               cb::mcbp::DcpOpenFlag::None,
                                               false /*startTask*/);
 
-    auto stream =
-            std::make_shared<MockActiveStream>(engine.get(),
-                                               producer,
-                                               DCP_ADD_STREAM_FLAG_DISKONLY,
-                                               0,
-                                               *engine->getVBucket(vbid),
-                                               0,
-                                               1,
-                                               0,
-                                               0,
-                                               0,
-                                               IncludeValue::Yes,
-                                               IncludeXattrs::Yes,
-                                               IncludeDeletedUserXattrs::No,
-                                               std::string{});
+    auto stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            cb::mcbp::DcpAddStreamFlag::DiskOnly,
+            0,
+            *engine->getVBucket(vbid),
+            0,
+            1,
+            0,
+            0,
+            0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeletedUserXattrs::No,
+            std::string{});
     stream->setActive();
     ASSERT_TRUE(stream->isBackfilling());
 
@@ -145,7 +145,7 @@ void DCPBackfillDiskTest::backfillGetDriver(
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),
             producer,
-            0, /* flags */
+            cb::mcbp::DcpAddStreamFlag::None, /* flags */
             0, /* opaque */
             vb, /* vbucket */
             0, /* start seqNo */
@@ -225,7 +225,7 @@ void DCPBackfillDiskTest::testDiskBackfillHoldsVBStateLock() {
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),
             producer,
-            0, /* flags */
+            cb::mcbp::DcpAddStreamFlag::None,
             0, /* opaque */
             vb, /* vbucket */
             0, /* start seqNo */
@@ -327,7 +327,7 @@ TEST_F(DCPBackfillDiskTest,
     auto stream =
             std::make_shared<MockActiveStream>(engine.get(),
                                                producer,
-                                               0,
+                                               cb::mcbp::DcpAddStreamFlag::None,
                                                0,
                                                *vbucket,
                                                0,

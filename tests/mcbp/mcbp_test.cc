@@ -2385,7 +2385,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpAddStream) {
     // 256 is not a defined flag
     extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(256));
     builder.setExtras(extras.getBuffer());
-    EXPECT_EQ("Request contains invalid flags",
+    EXPECT_EQ("Request contains invalid flags: \"unknown:0x100\"",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 }
 

@@ -166,7 +166,7 @@ cb::engine_errc bucket_observe(
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,
-                             uint32_t flags);
+                             cb::mcbp::DcpAddStreamFlag flags);
 
 /**
  * Calls the underlying engine DCP buffer-acknowledgement
@@ -433,7 +433,7 @@ cb::engine_errc dcpStreamEnd(Cookie& cookie,
  * @return cb::engine_errc
  */
 cb::engine_errc dcpStreamReq(Cookie& cookie,
-                             uint32_t flags,
+                             cb::mcbp::DcpAddStreamFlag flags,
                              uint32_t opaque,
                              Vbid vbid,
                              uint64_t startSeqno,

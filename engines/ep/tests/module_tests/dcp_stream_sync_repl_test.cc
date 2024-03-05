@@ -354,7 +354,7 @@ void DcpStreamSyncReplTest::testPendingItemWithSyncReplica(
     // Setup: add a pending SyncWrite / Delete, store it and setup a DCP
     // stream to it.
     auto pending = storePending(docState, "key2", "XXX");
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
@@ -406,7 +406,7 @@ void DcpStreamSyncReplTest::testPendingAndMutationWithSyncReplica(
         DocumentState docState) {
     auto mutation = store_item(vbid, "normal", "XXX");
     auto pending = storePending(docState, "pending", "YYY");
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
@@ -476,7 +476,7 @@ void DcpStreamSyncReplTest::testMutationAndPending2SnapshotsWithSyncReplica(
     /// Force a new checkpoint to avid de-duplication
     vb0->checkpointManager->createNewCheckpoint();
     auto pending = storePending(docState, "pending", "YYY");
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
@@ -548,7 +548,7 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
     removeCheckpoint();
 
     // Create sync repl DCP stream
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
@@ -639,7 +639,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     EXPECT_EQ(2, vb0->getPersistenceSeqno());
 
     // Create sync repl DCP stream
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
@@ -733,7 +733,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
     removeCheckpoint();
 
     // Create sync repl DCP stream
-    setup_dcp_stream(0,
+    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::Yes,
                      IncludeXattrs::Yes,
                      {{"enable_sync_writes", "true"},
@@ -804,12 +804,12 @@ TEST_P(DcpStreamSyncReplPersistentTest,
 
 TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
     setup_dcp_stream(
-            0 /*flags*/,
+            {} /*flags*/,
             IncludeValue::Yes,
             IncludeXattrs::Yes,
             {{"enable_sync_writes", "true"}, {"consumer_name", "replica1"}});
 
-    stream = producer->mockActiveStreamRequest(0,
+    stream = producer->mockActiveStreamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                                /*opaque*/ 0,
                                                *vb0,
                                                /*st_seqno*/ 0,

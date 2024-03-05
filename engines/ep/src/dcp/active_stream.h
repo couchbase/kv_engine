@@ -102,7 +102,7 @@ public:
     ActiveStream(EventuallyPersistentEngine* e,
                  std::shared_ptr<DcpProducer> p,
                  const std::string& name,
-                 uint32_t flags,
+                 cb::mcbp::DcpAddStreamFlag flags,
                  uint32_t opaque,
                  VBucket& vbucket,
                  uint64_t st_seqno,

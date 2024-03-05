@@ -26,7 +26,7 @@ public:
     MockActiveStream(
             EventuallyPersistentEngine* e,
             std::shared_ptr<MockDcpProducer> p,
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             VBucket& vb,
             uint64_t st_seqno = std::numeric_limits<uint64_t>::min(),
@@ -202,7 +202,7 @@ public:
     MockActiveStreamWithOverloadedRegisterCursor(
             EventuallyPersistentEngine* e,
             std::shared_ptr<MockDcpProducer> p,
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             VBucket& vb,
             uint64_t st_seqno,
@@ -270,7 +270,7 @@ public:
     MockPassiveStream(EventuallyPersistentEngine& e,
                       std::shared_ptr<DcpConsumer> consumer,
                       const std::string& name,
-                      uint32_t flags,
+                      cb::mcbp::DcpAddStreamFlag flags,
                       uint32_t opaque,
                       Vbid vb,
                       uint64_t start_seqno,

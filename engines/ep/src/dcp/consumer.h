@@ -121,7 +121,7 @@ public:
             EventuallyPersistentEngine& e,
             std::shared_ptr<DcpConsumer> consumer,
             const std::string& name,
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             Vbid vb,
             uint64_t start_seqno,
@@ -134,7 +134,7 @@ public:
 
     cb::engine_errc addStream(uint32_t opaque,
                               Vbid vbucket,
-                              uint32_t flags) override;
+                              cb::mcbp::DcpAddStreamFlag flags) override;
 
     cb::engine_errc closeStream(uint32_t opaque,
                                 Vbid vbucket,

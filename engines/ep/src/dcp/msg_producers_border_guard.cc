@@ -28,7 +28,7 @@ cb::engine_errc DcpMsgProducersBorderGuard::get_failover_log(uint32_t opaque,
 cb::engine_errc DcpMsgProducersBorderGuard::stream_req(
         uint32_t opaque,
         Vbid vbucket,
-        uint32_t flags,
+        cb::mcbp::DcpAddStreamFlag flags,
         uint64_t start_seqno,
         uint64_t end_seqno,
         uint64_t vbucket_uuid,

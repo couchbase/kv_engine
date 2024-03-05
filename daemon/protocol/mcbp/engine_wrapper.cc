@@ -556,7 +556,7 @@ cb::engine_errc bucket_observe(
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,
-                             uint32_t flags) {
+                             cb::mcbp::DcpAddStreamFlag flags) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->add_stream(cookie, opaque, vbid, flags);
@@ -876,7 +876,7 @@ cb::engine_errc dcpStreamEnd(Cookie& cookie,
 }
 
 cb::engine_errc dcpStreamReq(Cookie& cookie,
-                             uint32_t flags,
+                             cb::mcbp::DcpAddStreamFlag flags,
                              uint32_t opaque,
                              Vbid vbucket,
                              uint64_t startSeqno,

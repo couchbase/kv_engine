@@ -20,6 +20,10 @@
 #include <memcached/engine_error.h>
 #include <platform/non_negative_counter.h>
 
+namespace cb::mcbp {
+enum class DcpAddStreamFlag : uint32_t;
+}
+
 class AbortSyncWriteConsumer;
 class BucketLogger;
 class CommitSyncWriteConsumer;
@@ -45,7 +49,7 @@ public:
     PassiveStream(EventuallyPersistentEngine* e,
                   std::shared_ptr<DcpConsumer> consumer,
                   const std::string& name,
-                  uint32_t flags,
+                  cb::mcbp::DcpAddStreamFlag flags,
                   uint32_t opaque,
                   Vbid vb,
                   uint64_t start_seqno,

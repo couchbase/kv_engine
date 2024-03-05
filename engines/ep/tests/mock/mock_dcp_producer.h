@@ -165,7 +165,7 @@ public:
      * Place a mock active stream into the producer
      */
     std::shared_ptr<MockActiveStream> mockActiveStreamRequest(
-            uint32_t flags,
+            cb::mcbp::DcpAddStreamFlag flags,
             uint32_t opaque,
             VBucket& vb,
             uint64_t start_seqno,

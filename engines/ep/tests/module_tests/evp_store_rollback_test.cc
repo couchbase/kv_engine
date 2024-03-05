@@ -787,7 +787,7 @@ TEST_P(RollbackTest, MB21784) {
             *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     uint64_t rollbackSeqno;
-    auto err = producer->streamRequest(/*flags*/ 0,
+    auto err = producer->streamRequest(/*flags*/ {},
                                        /*opaque*/ 0,
                                        /*vbucket*/ vbid,
                                        /*start_seqno*/ 0,
@@ -989,7 +989,7 @@ public:
         bool called;
         uint32_t opaque;
         Vbid vbucket;
-        uint32_t flags;
+        cb::mcbp::DcpAddStreamFlag flags;
         uint64_t start_seqno;
         uint64_t end_seqno;
         uint64_t vbucket_uuid;
@@ -1002,7 +1002,7 @@ public:
         cb::engine_errc stream_req(
                 uint32_t opaque,
                 Vbid vbucket,
-                uint32_t flags,
+                cb::mcbp::DcpAddStreamFlag flags,
                 uint64_t start_seqno,
                 uint64_t end_seqno,
                 uint64_t vbucket_uuid,
@@ -1050,7 +1050,7 @@ public:
     }
 
     uint64_t addStream(int nitems) {
-        consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0);
+        consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ {});
         // Step consumer to retrieve the first stream request.
         uint64_t vbUUID = vb->failovers->getLatestEntry().vb_uuid;
         stepForStreamRequest(nitems, vbUUID);
@@ -2387,7 +2387,7 @@ TEST_P(RollbackDcpTest, RollbackUnpersistedAbortDoesNotLoadOlderPrepare) {
     // reloaded, it will be done as part of loadPreparedSyncWrite
 
     store->setVBucketState(vbid, vbStateAtRollback);
-    consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0);
+    consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ {});
 
     auto key = makeStoredDocKey("key");
     // persist a prepare and commit (both are flushed immediately)
@@ -2481,7 +2481,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
               producer->streamRequest(
-                      /*flags*/ 0,
+                      /*flags*/ {},
                       /*opaque*/ 0,
                       /*vbucket*/ vbid,
                       /*start_seqno*/ 0,

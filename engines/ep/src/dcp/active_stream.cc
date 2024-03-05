@@ -38,7 +38,7 @@ ActiveStream::OutstandingItemsResult::~OutstandingItemsResult() = default;
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            std::shared_ptr<DcpProducer> p,
                            const std::string& n,
-                           uint32_t flags,
+                           cb::mcbp::DcpAddStreamFlag flags,
                            uint32_t opaque,
                            VBucket& vbucket,
                            uint64_t st_seqno,
@@ -122,7 +122,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     log(spdlog::level::info,
         "{} Creating {}stream with start seqno {} and end seqno {}; "
-        "requested end seqno was {}, flags:{:x}, snapshot:{{{},{}}} "
+        "requested end seqno was {}, flags:{}, snapshot:{{{},{}}} "
         "{}, {}",
         logPrefix,
         type,
@@ -2719,15 +2719,16 @@ void ActiveStream::queueSeqnoAdvanced() {
 }
 
 bool ActiveStream::isDiskOnly() const {
-    return flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
+    return isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::DiskOnly);
 }
 
 bool ActiveStream::isTakeoverStream() const {
-    return flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER;
+    return isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::TakeOver);
 }
 
 bool ActiveStream::isIgnoringPurgedTombstones() const {
-    return flags_ & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES;
+    return isFlagSet(flags_,
+                     cb::mcbp::DcpAddStreamFlag::IgnorePurgedTombstones);
 }
 
 bool ActiveStream::isSeqnoAdvancedEnabled() const {

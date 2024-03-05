@@ -46,7 +46,7 @@ TEST_P(HistoryDcpTest, SeqnoAdvanceSnapshot) {
                      // the "last received seqno" as input. So here start=1 will
                      // result in the backfill sending inclusive of 2.
                      DcpStreamRequestConfig{vbid,
-                                            0, // flags
+                                            {}, // flags
                                             1, // opaque
                                             0, // start from beginning
                                             ~0ull, // no end
@@ -85,7 +85,7 @@ TEST_P(HistoryDcpTest, ManyModifications) {
 
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::Yes,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
@@ -142,7 +142,7 @@ TEST_P(HistoryDcpTest, ManyModifications) {
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
-                     0,
+                     {},
                      true, // sync-repl enabled
                      ~0ull,
                      ChangeStreams::Yes);
