@@ -111,10 +111,10 @@ TEST_P(SecondaryWarmupTest, GoldenPath) {
     ASSERT_TRUE(secondary);
 
     const auto* primary = epBucket.getPrimaryWarmup();
-    // secondary should of cloned the estimated item count, which is initialised
+    // secondary should of cloned the estimated key count, which is initialised
     // in a warm-up step that is skipped by Secondary.
-    EXPECT_EQ(primary->getEstimatedItemCount(),
-              secondary->getEstimatedItemCount());
+    EXPECT_EQ(primary->getEstimatedKeyCount(),
+              secondary->getEstimatedKeyCount());
 
     // Some other checks, primary is done, secondary is not.
     EXPECT_EQ("complete", primary->getThreadStatState());

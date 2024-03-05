@@ -112,6 +112,24 @@ TEST_P(AccessLogTest, WarmupWithAcceessLog) {
     // Post-warmup should pass the same check as pre-warmup.
     // MB-59262 fails here as key1/key3 are resident and key2/key4 are not
     check();
+
+    // Check  the estimated key/valueitem count.
+    const auto* primary = getEPBucket().getPrimaryWarmup();
+    // secondary should of cloned the estimated item count, which is initialised
+    // in a warm-up step that is skipped by Secondary.
+    EXPECT_EQ(4, primary->getEstimatedKeyCount());
+    EXPECT_EQ(4, primary->getEstimatedValueCount());
+
+    // 2 of 4 values are loaded
+    EXPECT_EQ(2, engine->getEpStats().warmedUpValues);
+
+    // For keys, value vs full eviction differ. All the keys were loaded in
+    // value mode.
+    if (fullEviction()) {
+        EXPECT_EQ(2, engine->getEpStats().warmedUpKeys); // 50% (2/4)
+    } else {
+        EXPECT_EQ(4, engine->getEpStats().warmedUpKeys); // 100% (4/4)
+    }
 }
 
 class MutationLogApplyTest : public SingleThreadedKVBucketTest {

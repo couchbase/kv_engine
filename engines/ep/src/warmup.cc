@@ -1280,7 +1280,7 @@ Warmup::Warmup(Warmup& warmup,
       warmupDoneFunction([]() { /* no done callback needed*/ }),
       shardVbStates(std::move(warmup.shardVbStates)),
       shardVbIds(std::move(warmup.shardVbIds)),
-      estimatedItemCount(warmup.getEstimatedItemCount()),
+      estimatedKeyCount(warmup.getEstimatedKeyCount()),
       name(std::move(name)) {
     setup(memoryThreshold, itemsThreshold);
     // Jump into the state machine at CheckForAccessLog to begin loading data.
@@ -1326,12 +1326,16 @@ void Warmup::removeFromTaskSet(size_t taskId) {
     taskSet.erase(taskId);
 }
 
-void Warmup::setEstimatedWarmupCount(size_t to) {
-    estimatedWarmupCount.store(to);
+size_t Warmup::getEstimatedValueCount() const {
+    return estimatedValueCount.load();
 }
 
-size_t Warmup::getEstimatedItemCount() const {
-    return estimatedItemCount.load();
+void Warmup::setEstimatedValueCount(size_t to) {
+    estimatedValueCount.store(to);
+}
+
+size_t Warmup::getEstimatedKeyCount() const {
+    return estimatedKeyCount.load();
 }
 
 void Warmup::start() {
@@ -1625,7 +1629,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
 void Warmup::scheduleEstimateDatabaseItemCount() {
     threadtask_count = 0;
     estimateTime.store(std::chrono::steady_clock::duration::zero());
-    estimatedItemCount = 0;
+    estimatedKeyCount = 0;
     for (size_t shard = 0; shard < getNumShards(); shard++) {
         ExTask task = std::make_shared<WarmupEstimateDatabaseItemCount>(
                 store, shard, this);
@@ -1647,7 +1651,9 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
         item_count += epVb.getNumTotalItems();
     }
 
-    estimatedItemCount.fetch_add(item_count);
+    // Start off by adding each shard's total item count. A healthy warmup and
+    // this would represent 100%
+    estimatedKeyCount.fetch_add(item_count);
     estimateTime.fetch_add(std::chrono::steady_clock::now() - st);
 
     if (++threadtask_count == getNumShards()) {
@@ -1803,6 +1809,21 @@ void Warmup::scheduleCheckForAccessLog() {
 }
 
 void Warmup::checkForAccessLog() {
+    // As all warm-ups will progress though this step, set the estimate now.
+    // From here on LoadingAccessLog, LoadingKVPairs or LoadingData can all be
+    // reached and all can load values (each can reach 100% or transition to
+    // Done at some lesser value).
+    if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
+        // Value Eviction. Warmup will now only proceed to load a value for each
+        // resident key. Thus warmedUpKeys now represents 100% (and a healthy
+        // warmup this will be all keys).
+        setEstimatedValueCount(store.getEPEngine().getEpStats().warmedUpKeys);
+    } else {
+        // For this full eviction path set the estimate to  be the estimated
+        // keys.
+        setEstimatedValueCount(getEstimatedKeyCount());
+    }
+
     size_t accesslogs = 0;
     if (config.isAccessScannerEnabled()) {
         accessLog.resize(getNumShards());
@@ -1951,12 +1972,6 @@ Warmup::WarmupAccessLogState Warmup::doWarmup(
 }
 
 void Warmup::scheduleLoadingKVPairs() {
-    // We reach here only if keyDump didn't return SUCCESS or if
-    // in case of Full Eviction. Either way, set estimated value
-    // count equal to the estimated item count, as very likely no
-    // keys have been warmed up at this point.
-    setEstimatedWarmupCount(estimatedItemCount);
-
     auto createTask = [this](size_t shardId) -> ExTask {
         return std::make_shared<WarmupLoadingKVPairs>(
                 store, shardId, *this, threadtask_count);
@@ -1965,9 +1980,6 @@ void Warmup::scheduleLoadingKVPairs() {
 }
 
 void Warmup::scheduleLoadingData() {
-    auto estimatedCount = store.getEPEngine().getEpStats().warmedUpKeys;
-    setEstimatedWarmupCount(estimatedCount);
-
     auto createTask = [this](size_t shardId) -> ExTask {
         return std::make_shared<WarmupLoadingData>(
                 store, shardId, *this, threadtask_count);
@@ -2092,7 +2104,7 @@ void Warmup::addStats(const StatCollector& collector) const {
                 duration_cast<std::chrono::microseconds>(md_time).count());
     }
 
-    size_t itemCount = estimatedItemCount.load();
+    size_t itemCount = estimatedKeyCount.load();
     if (itemCount == std::numeric_limits<size_t>::max()) {
         collector.addStat(Key::ep_warmup_estimated_key_count, "unknown");
     } else {
@@ -2109,7 +2121,7 @@ void Warmup::addStats(const StatCollector& collector) const {
         collector.addStat(Key::ep_warmup_access_log, "corrupt");
     }
 
-    size_t warmupCount = estimatedWarmupCount.load();
+    size_t warmupCount = estimatedValueCount.load();
     if (warmupCount == std::numeric_limits<size_t>::max()) {
         collector.addStat(Key::ep_warmup_estimated_value_count, "unknown");
     } else {
@@ -2211,17 +2223,17 @@ bool Warmup::hasReachedThreshold() const {
     }
     if (store.getItemEvictionPolicy() == EvictionPolicy::Full &&
         stats.warmedUpValues >=
-                (getEstimatedItemCount() * maxItemsScaleFactor)) {
+                (getEstimatedKeyCount() * maxItemsScaleFactor)) {
         // In case of FULL EVICTION, warmed up keys always matches the number
         // of warmed up values, therefore for honoring the min_item threshold
-        // in this scenario, we can consider warmup's estimated item count.
+        // in this scenario, we can consider warmup's estimated key count.
         EP_LOG_INFO(
                 "Warmup({}) Enough number of items loaded to enable traffic "
                 "(full eviction): warmedUpValues({}) >= (warmup est items({})"
                 " * warmupNumReadCap({}))",
                 getName(),
                 uint64_t(stats.warmedUpValues.load()),
-                uint64_t(getEstimatedItemCount()),
+                uint64_t(getEstimatedKeyCount()),
                 maxItemsScaleFactor);
         return true;
     }
