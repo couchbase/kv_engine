@@ -121,8 +121,8 @@ std::unique_ptr<MemcachedConnection> createConnection(
 }
 
 void setupDcpConnection(MemcachedConnection& connection) {
-    auto rsp = connection.execute(BinprotDcpOpenCommand{
-            "dcpdrain", cb::mcbp::request::DcpOpenPayload::Producer});
+    auto rsp = connection.execute(
+            BinprotDcpOpenCommand{"dcpdrain", cb::mcbp::DcpOpenFlag::Producer});
     if (!rsp.isSuccess()) {
         std::cerr << "Failed to open DCP stream: " << to_string(rsp.getStatus())
                   << std::endl
@@ -132,7 +132,7 @@ void setupDcpConnection(MemcachedConnection& connection) {
 
     // we're only going to use a single  vbucket
     BinprotDcpStreamRequestCommand streamRequestCommand;
-    streamRequestCommand.setDcpFlags(0);
+    streamRequestCommand.setDcpFlags({});
     streamRequestCommand.setDcpReserved(0);
     streamRequestCommand.setDcpStartSeqno(0);
     streamRequestCommand.setDcpEndSeqno(0xffffffff);

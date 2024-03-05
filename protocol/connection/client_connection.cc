@@ -1954,7 +1954,7 @@ Document MemcachedConnection::getRandomKey(Vbid vbucket) {
 
 void MemcachedConnection::dcpOpenProducer(std::string_view nm) {
     BinprotDcpOpenCommand open{std::string{nm},
-                               cb::mcbp::request::DcpOpenPayload::Producer};
+                               cb::mcbp::DcpOpenFlag::Producer};
     const auto response = BinprotResponse(execute(open));
     if (!response.isSuccess()) {
         throw ConnectionError("Failed dcpOpenProducer", response);
@@ -1981,7 +1981,7 @@ void MemcachedConnection::dcpControl(std::string_view key,
 }
 
 void MemcachedConnection::dcpStreamRequest(Vbid vbid,
-                                           uint32_t flags,
+                                           cb::mcbp::DcpAddStreamFlag flags,
                                            uint64_t startSeq,
                                            uint64_t endSeq,
                                            uint64_t vbUuid,
@@ -1996,7 +1996,7 @@ void MemcachedConnection::dcpStreamRequest(Vbid vbid,
 }
 
 void MemcachedConnection::dcpStreamRequest(Vbid vbid,
-                                           uint32_t flags,
+                                           cb::mcbp::DcpAddStreamFlag flags,
                                            uint64_t startSeq,
                                            uint64_t endSeq,
                                            uint64_t vbUuid,
@@ -2011,7 +2011,8 @@ void MemcachedConnection::dcpStreamRequest(Vbid vbid,
     }
 }
 
-void MemcachedConnection::dcpAddStream(Vbid vbid, uint32_t flags) {
+void MemcachedConnection::dcpAddStream(Vbid vbid,
+                                       cb::mcbp::DcpAddStreamFlag flags) {
     sendCommand(BinprotDcpAddStreamCommand{flags, vbid});
 }
 

@@ -269,7 +269,7 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
     conn->selectBucket(bucket->getName());
 
     auto rsp = conn->execute(BinprotDcpOpenCommand{
-            "my-dcp-stream", cb::mcbp::request::DcpOpenPayload::Producer});
+            "my-dcp-stream", cb::mcbp::DcpOpenFlag::Producer});
     ASSERT_TRUE(rsp.isSuccess())
             << "Failed to dcp open: " << rsp.getDataString();
 

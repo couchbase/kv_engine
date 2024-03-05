@@ -12,6 +12,7 @@
 
 #include "dcp_packet_filter.h"
 
+#include <memcached/protocol_binary.h>
 #include <memory>
 #include <vector>
 
@@ -28,7 +29,7 @@ struct ReplicationConfig {
     ReplicationConfig(size_t producer,
                       size_t consumer,
                       bool syncRepl = true,
-                      uint32_t dcpOpenFlags = 0)
+                      cb::mcbp::DcpOpenFlag dcpOpenFlags = {})
         : producer(producer),
           consumer(consumer),
           syncRepl(syncRepl),
@@ -45,7 +46,7 @@ struct ReplicationConfig {
     // be used to mimic legacy connections.
     bool syncRepl;
 
-    uint32_t dcpOpenFlags;
+    cb::mcbp::DcpOpenFlag dcpOpenFlags = cb::mcbp::DcpOpenFlag::None;
 };
 
 /**

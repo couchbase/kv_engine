@@ -68,7 +68,7 @@ DcpPipe::DcpPipe(event_base* base,
 
 void DcpPipe::addStreams(const std::vector<size_t>& vbuckets) {
     for (const auto& vb : vbuckets) {
-        BinprotDcpAddStreamCommand cmd(0);
+        BinprotDcpAddStreamCommand cmd(cb::mcbp::DcpAddStreamFlag::None);
         cmd.setVBucket(Vbid(vb));
         std::vector<uint8_t> buf;
         cmd.encode(buf);

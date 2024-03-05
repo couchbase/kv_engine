@@ -41,7 +41,7 @@ protected:
         connection->selectBucket(bucketName);
 
         const auto rsp = connection->execute(BinprotDcpOpenCommand{
-                getTestName(), cb::mcbp::request::DcpOpenPayload::Producer});
+                getTestName(), cb::mcbp::DcpOpenFlag::Producer});
         EXPECT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                      << rsp.getDataView();
         return connection;
@@ -116,9 +116,8 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
     conn.authenticate("Luke");
     conn.selectBucket(bucketName);
     conn.setUnorderedExecutionMode(ExecutionMode::Unordered);
-    conn.sendCommand(
-            BinprotDcpOpenCommand{"UnorderedExecutionNotSupported",
-                                  cb::mcbp::request::DcpOpenPayload::Producer});
+    conn.sendCommand(BinprotDcpOpenCommand{"UnorderedExecutionNotSupported",
+                                           cb::mcbp::DcpOpenFlag::Producer});
 
     BinprotResponse rsp;
     conn.recvResponse(rsp);
@@ -154,7 +153,7 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
 TEST_P(DcpTest, CantDcpOpenTwice) {
     const auto conn = createProducerConnection();
     const auto rsp = conn->execute(BinprotDcpOpenCommand{
-            "CantDcpOpenTwice", cb::mcbp::request::DcpOpenPayload::Producer});
+            "CantDcpOpenTwice", cb::mcbp::DcpOpenFlag::Producer});
     ASSERT_FALSE(rsp.isSuccess());
     const auto json = nlohmann::json::parse(rsp.getDataString());
     EXPECT_EQ("The connection is already opened as a DCP connection",

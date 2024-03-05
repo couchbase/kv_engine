@@ -704,8 +704,8 @@ public:
     uint32_t getFlags() const {
         return ntohl(flags);
     }
-    void setFlags(uint32_t flags) {
-        DcpOpenPayload::flags = htonl(flags);
+    void setFlags(DcpOpenFlag value) {
+        flags = htonl(static_cast<uint32_t>(value));
     }
 
     /// Deprecated values while we migrate over to the enum class
@@ -760,10 +760,9 @@ public:
     uint32_t getFlags() const {
         return ntohl(flags);
     }
-    void setFlags(uint32_t flags) {
-        DcpAddStreamPayload::flags = htonl(flags);
+    void setFlags(DcpAddStreamFlag flag) {
+        flags = htonl(static_cast<uint32_t>(flag));
     }
-
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
@@ -779,8 +778,8 @@ public:
     uint32_t getFlags() const {
         return ntohl(flags);
     }
-    void setFlags(uint32_t flags) {
-        DcpStreamReqPayload::flags = htonl(flags);
+    void setFlags(DcpAddStreamFlag value) {
+        flags = htonl(static_cast<uint32_t>(value));
     }
     uint32_t getReserved() const {
         return ntohl(reserved);

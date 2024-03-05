@@ -167,7 +167,7 @@ public:
 
     void enterMessagePump(std::string_view streamRequestValue,
                           const std::optional<nlohmann::json>& streamIdConfig,
-                          uint32_t streamRequestFlags) {
+                          cb::mcbp::DcpAddStreamFlag streamRequestFlags) {
         if (vbuckets.empty()) {
             return;
         }
@@ -591,7 +591,8 @@ int main(int argc, char** argv) {
     bool enableCollections{true};
     std::string streamRequestFileName;
     std::string streamIdFileName;
-    uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_TO_LATEST;
+    cb::mcbp::DcpAddStreamFlag streamRequestFlags =
+            cb::mcbp::DcpAddStreamFlag::ToLatest;
     size_t num_connections = 1;
     bool enableFlatbufferSysEvents{false};
     bool enableChangeStreams{false};
@@ -745,7 +746,8 @@ int main(int argc, char** argv) {
             streamIdFileName = optarg;
             break;
         case Options::StreamRequestFlags:
-            streamRequestFlags = strtoul(optarg);
+            streamRequestFlags =
+                    static_cast<cb::mcbp::DcpAddStreamFlag>(strtoul(optarg));
             break;
         case Options::EnableFlatbufferSysEvents:
             enableFlatbufferSysEvents = true;
@@ -876,8 +878,7 @@ int main(int argc, char** argv) {
 
                 std::string nm = name + "_" + std::to_string(idx++);
                 auto rsp = c.execute(BinprotDcpOpenCommand{
-                        std::move(nm),
-                        cb::mcbp::request::DcpOpenPayload::Producer});
+                        std::move(nm), cb::mcbp::DcpOpenFlag::Producer});
                 if (!rsp.isSuccess()) {
                     std::cerr << "Failed to open DCP stream: "
                               << to_string(rsp.getStatus()) << std::endl

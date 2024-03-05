@@ -76,18 +76,19 @@ TEST_P(DcpOpenValidatorTest, Value) {
 
 TEST_P(DcpOpenValidatorTest, Pitr) {
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
+    using cb::mcbp::DcpOpenFlag;
     using cb::mcbp::request::DcpOpenPayload;
     DcpOpenPayload payload;
 
     // It is not allowed for consumers to use PiTR
-    payload.setFlags(DcpOpenPayload::PiTR);
+    payload.setFlags(cb::mcbp::DcpOpenFlag::PiTR);
     builder.setExtras(
             {reinterpret_cast<const char*>(&payload), sizeof(payload)});
     EXPECT_EQ(cb::mcbp::Status::Einval, validate())
             << "Consumer can't use PiTR";
 
     // Producers should be able to use PiTR
-    payload.setFlags(DcpOpenPayload::PiTR | DcpOpenPayload::Producer);
+    payload.setFlags(DcpOpenFlag::PiTR | DcpOpenFlag::Producer);
     builder.setExtras(
             {reinterpret_cast<const char*>(&payload), sizeof(payload)});
     EXPECT_EQ(cb::mcbp::Status::NotSupported, validate())
@@ -313,7 +314,7 @@ TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
     }};
 
     for (const auto& info : flagInfo) {
-        extras.setFlags(info.flag);
+        extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(info.flag));
         builder.setExtras(extras.getBuffer());
         // "Valid" flags actually return 'NotSupported' as validation runs
         // against a memcache bucket which doesn't support DCP.

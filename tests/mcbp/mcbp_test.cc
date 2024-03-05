@@ -2368,7 +2368,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
     using cb::mcbp::request::DcpOpenPayload;
     auto* payload = reinterpret_cast<DcpOpenPayload*>(
             const_cast<uint8_t*>(extras.data()));
-    payload->setFlags(DcpOpenPayload::Unused);
+    payload->setFlags(cb::mcbp::DcpOpenFlag::Unused);
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 }
@@ -2377,13 +2377,13 @@ TEST_P(CommandSpecificErrorContextTest, DcpAddStream) {
     // DCP_ADD_STREAM_FLAG_NO_VALUE is no longer used
     cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
     cb::mcbp::request::DcpAddStreamPayload extras;
-    extras.setFlags(DCP_ADD_STREAM_FLAG_NO_VALUE);
+    extras.setFlags(cb::mcbp::DcpAddStreamFlag::NoValue);
     builder.setExtras(extras.getBuffer());
     EXPECT_EQ("DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 
     // 256 is not a defined flag
-    extras.setFlags(256);
+    extras.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(256));
     builder.setExtras(extras.getBuffer());
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));

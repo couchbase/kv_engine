@@ -1674,7 +1674,7 @@ cb::engine_errc Connection::stream_req(uint32_t opaque,
     builder.setVBucket(vbucket);
 
     DcpStreamReqPayload payload;
-    payload.setFlags(flags);
+    payload.setFlags(static_cast<cb::mcbp::DcpAddStreamFlag>(flags));
     payload.setStartSeqno(start_seqno);
     payload.setEndSeqno(end_seqno);
     payload.setVbucketUuid(vbucket_uuid);

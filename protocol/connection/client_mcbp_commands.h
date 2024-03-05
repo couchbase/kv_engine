@@ -790,9 +790,10 @@ public:
      * DCP Open
      *
      * @param name the name of the DCP stream to create
-     * @param flags_ the open flags
+     * @param flags the open flags
      */
-    explicit BinprotDcpOpenCommand(std::string name, uint32_t flags_ = 0);
+    explicit BinprotDcpOpenCommand(std::string name,
+                                   cb::mcbp::DcpOpenFlag flags = {});
 
     void setConsumerName(std::string name);
 
@@ -828,15 +829,15 @@ public:
      * Set an arbitrary flag value. This may be used in order to test
      * the sanity checks on the server
      *
-     * @param flags the raw 32 bit flag section to inject
+     * @param flag the flag section to inject
      * @return this
      */
-    BinprotDcpOpenCommand& setFlags(uint32_t flags);
+    BinprotDcpOpenCommand& setFlags(cb::mcbp::DcpOpenFlag flag);
 
     void encode(std::vector<uint8_t>& buf) const override;
 
 private:
-    uint32_t flags;
+    cb::mcbp::DcpOpenFlag flags;
     nlohmann::json payload;
 };
 
@@ -844,14 +845,14 @@ class BinprotDcpStreamRequestCommand : public BinprotGenericCommand {
 public:
     BinprotDcpStreamRequestCommand();
     BinprotDcpStreamRequestCommand(Vbid vbid,
-                                   uint32_t flags,
+                                   cb::mcbp::DcpAddStreamFlag flags,
                                    uint64_t startSeq,
                                    uint64_t endSeq,
                                    uint64_t vbUuid,
                                    uint64_t snapStart,
                                    uint64_t snapEnd);
     BinprotDcpStreamRequestCommand(Vbid vbid,
-                                   uint32_t flags,
+                                   cb::mcbp::DcpAddStreamFlag flags,
                                    uint64_t startSeq,
                                    uint64_t endSeq,
                                    uint64_t vbUuid,
@@ -859,7 +860,8 @@ public:
                                    uint64_t snapEnd,
                                    const nlohmann::json& value);
 
-    BinprotDcpStreamRequestCommand& setDcpFlags(uint32_t value);
+    BinprotDcpStreamRequestCommand& setDcpFlags(
+            cb::mcbp::DcpAddStreamFlag value);
 
     BinprotDcpStreamRequestCommand& setDcpReserved(uint32_t value);
 
@@ -881,22 +883,17 @@ public:
 
 private:
     // The byteorder is fixed when we append the members to the packet
-    uint32_t dcp_flags;
-    uint32_t dcp_reserved;
-    uint64_t dcp_start_seqno;
-    uint64_t dcp_end_seqno;
-    uint64_t dcp_vbucket_uuid;
-    uint64_t dcp_snap_start_seqno;
-    uint64_t dcp_snap_end_seqno;
+    cb::mcbp::request::DcpStreamReqPayload meta;
 };
 
 class BinprotDcpAddStreamCommand : public BinprotGenericCommand {
 public:
-    explicit BinprotDcpAddStreamCommand(uint32_t flags, Vbid vb = Vbid{0});
+    explicit BinprotDcpAddStreamCommand(cb::mcbp::DcpAddStreamFlag flags,
+                                        Vbid vb = Vbid{0});
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
-    uint32_t flags;
+    cb::mcbp::request::DcpAddStreamPayload meta;
 };
 
 class BinprotDcpControlCommand : public BinprotGenericCommand {

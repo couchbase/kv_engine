@@ -43,7 +43,7 @@ TEST_F(UpgradeTest, ExpiryOpcodeDoesntEnableDeleteV2) {
 
     // Set up replication from node 0 to node 1 with flags==0, specifically so
     // includeDeleteTime is disabled.
-    bucket->setupReplication({{0, 1, false, 0}, {0, 2, false, 0}});
+    bucket->setupReplication({{0, 1, false}, {0, 2, false}});
 
     // store and delete a document on the active
     auto conn = bucket->getConnection(Vbid(0));

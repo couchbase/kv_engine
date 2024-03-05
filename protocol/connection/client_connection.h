@@ -956,14 +956,14 @@ public:
     void dcpOpenConsumer(std::string_view name);
     void dcpControl(std::string_view key, std::string_view value);
     void dcpStreamRequest(Vbid vbid,
-                          uint32_t flags,
+                          cb::mcbp::DcpAddStreamFlag flags,
                           uint64_t startSeq,
                           uint64_t endSeq,
                           uint64_t vbUuid,
                           uint64_t snapStart,
                           uint64_t snapEnd);
     void dcpStreamRequest(Vbid vbid,
-                          uint32_t flags,
+                          cb::mcbp::DcpAddStreamFlag flags,
                           uint64_t startSeq,
                           uint64_t endSeq,
                           uint64_t vbUuid,
@@ -972,7 +972,7 @@ public:
                           const nlohmann::json& value);
 
     /* following dcp functions are for working with a consumer */
-    void dcpAddStream(Vbid vbid, uint32_t flags = 0);
+    void dcpAddStream(Vbid vbid, cb::mcbp::DcpAddStreamFlag flags = {});
 
     /**
      * Send a success response for a DcpStreamRequest

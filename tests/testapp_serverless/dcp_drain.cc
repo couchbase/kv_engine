@@ -171,7 +171,7 @@ void DcpDrain::selectBucket() {
 
 void DcpDrain::openDcp() {
     const auto rsp = connection->execute(BinprotDcpOpenCommand{
-            "MeterDcpName", cb::mcbp::request::DcpOpenPayload::Producer});
+            "MeterDcpName", cb::mcbp::DcpOpenFlag::Producer});
     if (!rsp.isSuccess()) {
         throw std::runtime_error(
                 "DcpDrain::openDcp: " + ::to_string(rsp.getStatus()) + " " +
@@ -207,7 +207,7 @@ void DcpDrain::setControlMessages() {
 
 void DcpDrain::sendStreamRequest() {
     BinprotDcpStreamRequestCommand cmd;
-    cmd.setDcpFlags(DCP_ADD_STREAM_FLAG_TO_LATEST);
+    cmd.setDcpFlags(cb::mcbp::DcpAddStreamFlag::ToLatest);
     cmd.setDcpReserved(0);
     cmd.setDcpStartSeqno(0);
     cmd.setDcpEndSeqno(~0);
