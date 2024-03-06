@@ -27,9 +27,9 @@ public:
         config_string += generateBackendConfig(std::get<0>(GetParam()));
         config_string += ";item_eviction_policy=full_eviction";
 #ifdef EP_USE_MAGMA
-        config_string += ";" + magmaRollbackConfig + ";";
+        config_string += ";" + magmaRollbackConfig;
 #endif
-        config_string += "warmup_min_memory_threshold=0;";
+        config_string += ";warmup_min_memory_threshold=0;";
         config_string += "warmup_min_items_threshold=0;";
         config_string += "data_traffic_enabled=false;";
         // Set chunk to 0, this means 1 runNextTask = 1 key.
