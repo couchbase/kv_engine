@@ -140,7 +140,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
         Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
-        uint32_t flags,
+        DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> timestamp,

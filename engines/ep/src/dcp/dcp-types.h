@@ -46,16 +46,11 @@ enum ProcessUnackedBytesResult {
     stop_processing
 };
 
-enum dcp_marker_flag_t {
-    MARKER_FLAG_MEMORY = 0x01,
-    MARKER_FLAG_DISK = 0x02,
-    MARKER_FLAG_CHK = 0x04,
-    MARKER_FLAG_ACK = 0x08,
-    MARKER_FLAG_HISTORY = 0x10,
-    MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS = 0x20
-};
+namespace cb::mcbp::request {
+enum class DcpSnapshotMarkerFlag : uint32_t;
+}
 
-std::string dcpMarkerFlagsToString(uint32_t dcpMarkerFlags);
+using cb::mcbp::request::DcpSnapshotMarkerFlag;
 
 /*
  * IncludeValue is used to state whether an active stream needs to send the

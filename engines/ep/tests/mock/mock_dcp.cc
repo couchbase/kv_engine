@@ -45,7 +45,6 @@ cb::engine_errc MockDcpMessageProducers::stream_req(
     last_op = cb::mcbp::ClientOpcode::DcpStreamReq;
     last_opaque = opaque;
     last_vbucket = vbucket;
-    last_flags = static_cast<uint32_t>(flags);
     last_start_seqno = start_seqno;
     last_end_seqno = end_seqno;
     last_vbucket_uuid = vbucket_uuid;
@@ -115,7 +114,7 @@ cb::engine_errc MockDcpMessageProducers::marker(
         Vbid vbucket,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
-        uint32_t flags,
+        cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> timestamp,
@@ -136,7 +135,7 @@ cb::engine_errc MockDcpMessageProducers::marker(
 
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;
-    last_flags = flags;
+    last_snapshot_marker_flags = flags;
     if (sid) {
         last_packet_size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
         last_stream_id = sid;
@@ -543,7 +542,7 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_nru = 0;
     last_vbucket = Vbid(0);
     last_opaque = 0;
-    last_flags = 0;
+    last_snapshot_marker_flags = {};
     last_stream_opaque = 0;
     last_locktime = 0;
     last_cas = 0;

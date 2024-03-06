@@ -1757,15 +1757,16 @@ cb::engine_errc Connection::stream_end(uint32_t opaque,
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 
-cb::engine_errc Connection::marker(uint32_t opaque,
-                                   Vbid vbucket,
-                                   uint64_t start_seqno,
-                                   uint64_t end_seqno,
-                                   uint32_t flags,
-                                   std::optional<uint64_t> hcs,
-                                   std::optional<uint64_t> mvs,
-                                   std::optional<uint64_t> timestamp,
-                                   cb::mcbp::DcpStreamId sid) {
+cb::engine_errc Connection::marker(
+        uint32_t opaque,
+        Vbid vbucket,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        cb::mcbp::request::DcpSnapshotMarkerFlag flags,
+        std::optional<uint64_t> hcs,
+        std::optional<uint64_t> mvs,
+        std::optional<uint64_t> timestamp,
+        cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;

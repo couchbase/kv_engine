@@ -104,7 +104,9 @@ protected:
     void makeAndProcessSnapshotMarker(
             uint32_t opaque,
             uint64_t seqno,
-            uint64_t snapshotMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            cb::mcbp::request::DcpSnapshotMarkerFlag snapshotMarkerFlags =
+                    cb::mcbp::request::DcpSnapshotMarkerFlag::Memory |
+                    cb::mcbp::request::DcpSnapshotMarkerFlag::Checkpoint,
             const std::optional<uint64_t>& hcs = 0);
 
     /**
@@ -127,7 +129,9 @@ protected:
             uint64_t cas,
             uint64_t seqno,
             cb::durability::Level level = cb::durability::Level::Majority,
-            uint64_t snapshotMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            cb::mcbp::request::DcpSnapshotMarkerFlag snapshotMarkerFlags =
+                    cb::mcbp::request::DcpSnapshotMarkerFlag::Memory |
+                    cb::mcbp::request::DcpSnapshotMarkerFlag::Checkpoint,
             std::optional<uint64_t> hcs = 0);
 
     queued_item makeAndReceiveCommittedItem(
@@ -315,8 +319,9 @@ protected:
 
     /**
      * Test that at snapshot transition (ie, ActiveStream streaming an alternate
-     * sequence of Disk/Memory checkpoints) the MARKER_FLAG_CHK is always set in
-     * the SnapshotMarker sent to Replica.
+     * sequence of Disk/Memory checkpoints) the
+     * cb::mcbp::request::DcpSnapshotMarkerFlag::Checkpoint is always set in the
+     * SnapshotMarker sent to Replica.
      */
     void testCheckpointMarkerAlwaysSetAtSnapTransition();
 

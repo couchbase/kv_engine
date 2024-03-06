@@ -224,7 +224,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              vbid,
                              0 /*start_seqno*/,
                              1 /*end_seqno*/,
-                             MARKER_FLAG_DISK,
+                             DcpSnapshotMarkerFlag::Disk,
                              0 /*HCS*/,
                              {} /*maxVisibleSeqno*/);
 
@@ -293,7 +293,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              vbid,
                              0 /*start_seqno*/,
                              0 /*end_seqno*/,
-                             0 /*flags*/,
+                             {} /*flags*/,
                              {} /*HCS*/,
                              {} /*maxVisibleSeqno*/);
 
@@ -343,7 +343,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              vbid,
                              0 /*start_seqno*/,
                              1 /*end_seqno*/,
-                             MARKER_FLAG_DISK,
+                             DcpSnapshotMarkerFlag::Disk,
                              0 /*HCS*/,
                              {} /*maxVisibleSeqno*/);
 
@@ -354,7 +354,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              vbid,
                              2 /*start_seqno*/,
                              2 /*end_seqno*/,
-                             0 /*flags*/,
+                             {} /*flags*/,
                              {} /*HCS*/,
                              {} /*maxVisibleSeqno*/);
 
@@ -609,7 +609,7 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
                                        vbid,
                                        snapStart,
                                        snapEnd,
-                                       /* in-memory snapshot */ 0x1,
+                                       DcpSnapshotMarkerFlag::Memory,
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
@@ -961,7 +961,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        vbid,
                                        snapStart,
                                        snapEnd,
-                                       /* in-memory snapshot */ 0x1,
+                                       DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeq*/));
 

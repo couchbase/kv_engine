@@ -105,8 +105,8 @@ protected:
  */
 class SingleThreadedCheckpointTest : public SingleThreadedKVBucketTest {
 public:
-    void closeReplicaCheckpointOnMemorySnapshotEnd(bool highMem,
-                                                   uint32_t snapshotType);
+    void closeReplicaCheckpointOnMemorySnapshotEnd(
+            bool highMem, DcpSnapshotMarkerFlag snapshotType);
 
     /**
      * Tests that the cursor distance is computed correctly when the cursor is

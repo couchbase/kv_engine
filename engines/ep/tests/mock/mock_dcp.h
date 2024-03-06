@@ -58,7 +58,7 @@ public:
                            Vbid vbucket,
                            uint64_t start_seqno,
                            uint64_t end_seqno,
-                           uint32_t flags,
+                           cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                            std::optional<uint64_t> high_completed_seqno,
                            std::optional<uint64_t> maxVisibleSeqno,
                            std::optional<uint64_t> timestamp,
@@ -163,7 +163,7 @@ public:
     uint8_t last_nru;
     Vbid last_vbucket;
     uint32_t last_opaque;
-    uint32_t last_flags;
+    DcpSnapshotMarkerFlag last_snapshot_marker_flags;
     uint32_t last_stream_opaque;
     uint32_t last_locktime;
     uint32_t last_packet_size{0};

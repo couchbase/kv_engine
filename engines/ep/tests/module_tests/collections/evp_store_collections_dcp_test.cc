@@ -86,7 +86,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                        vbid,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
-                                       /*flags*/ 0,
+                                       /*flags*/ {},
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
@@ -201,7 +201,7 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
                                        /*vbucket*/ replicaVB,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
-                                       /*flags*/ 0,
+                                       /*flags*/ {},
                                        /*highCompletedSeqno*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
@@ -2737,7 +2737,8 @@ void MB48010CollectionsDCPParamTest::SetUp() {
         runCheckpointProcessor();
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                       cb::engine_errc::success);
-        ASSERT_TRUE(MARKER_FLAG_DISK & producers->last_flags);
+        ASSERT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                              DcpSnapshotMarkerFlag::Disk));
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                       cb::engine_errc::success);
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
@@ -3732,7 +3733,7 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
                                        vbid,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
-                                       /*flags*/ 0,
+                                       /*flags*/ {},
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
@@ -4013,7 +4014,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(5, producers->last_snap_end_seqno);
-    EXPECT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Checkpoint));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("setOne0", producers->last_key);
     EXPECT_EQ(1, producers->last_byseqno);
@@ -4041,7 +4043,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(6, producers->last_snap_start_seqno);
     EXPECT_EQ(10, producers->last_snap_end_seqno);
-    EXPECT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Checkpoint));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("setTwo0", producers->last_key);
     EXPECT_EQ(6, producers->last_byseqno);
@@ -4066,7 +4069,8 @@ TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(11, producers->last_snap_start_seqno);
     EXPECT_EQ(11, producers->last_snap_end_seqno);
-    EXPECT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Checkpoint));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("final0", producers->last_key);
     EXPECT_EQ(11, producers->last_byseqno);
@@ -4129,7 +4133,8 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                                   false);
     }
-    ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Checkpoint));
     ASSERT_EQ(0, producers->last_snap_start_seqno);
     ASSERT_EQ(3, producers->last_snap_end_seqno);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
@@ -4144,31 +4149,36 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
         CB_SCOPED_TRACE("");
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     }
-    ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Checkpoint));
     ASSERT_EQ(4, producers->last_snap_start_seqno);
     ASSERT_EQ(4, producers->last_snap_end_seqno);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     ASSERT_EQ(4, producers->last_byseqno);
 
     // 1.8. Add one more item to the default collection, this should be added
-    // to the last checkpoint, thus replicated without a MARKER_FLAG_CHK
+    // to the last checkpoint, thus replicated without a
+    // DcpSnapshotMarkerFlag::Checkpoint
     store_item(vbid, makeStoredDocKey("setTwo"), "value");
     {
         CB_SCOPED_TRACE("");
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     }
-    ASSERT_FALSE(MARKER_FLAG_CHK & producers->last_flags);
+    EXPECT_FALSE(isFlagSet(producers->last_snapshot_marker_flags,
+                           DcpSnapshotMarkerFlag::Checkpoint));
     ASSERT_EQ(5, producers->last_snap_start_seqno);
     ASSERT_EQ(5, producers->last_snap_end_seqno);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     ASSERT_EQ(5, producers->last_byseqno);
 
     // 1.9. Add one more item to the fruit collection, this should be added
-    // to the last checkpoint, thus replicated without a MARKER_FLAG_CHK
+    // to the last checkpoint, thus replicated without a
+    // DcpSnapshotMarkerFlag::Checkpoint
     store_item(
             vbid, makeStoredDocKey("lemon", CollectionEntry::fruit), "value");
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
-    ASSERT_FALSE(MARKER_FLAG_CHK & producers->last_flags);
+    ASSERT_FALSE(isFlagSet(producers->last_snapshot_marker_flags,
+                           DcpSnapshotMarkerFlag::Checkpoint));
     ASSERT_EQ(6, producers->last_snap_start_seqno);
     ASSERT_EQ(6, producers->last_snap_end_seqno);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);

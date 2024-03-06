@@ -851,7 +851,8 @@ TEST_P(DcpStreamSyncReplPersistentTest, ProducerAllowsSeqnoAckLEQToLastSent) {
 
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto& snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+              snapMarker.getFlags());
 
     resp = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());

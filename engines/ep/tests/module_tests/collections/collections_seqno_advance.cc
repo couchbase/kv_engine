@@ -234,7 +234,9 @@ public:
             : vbid(vbid), myCollection(myCollection) {
         }
 
-        void snapshot(uint64_t start, uint64_t end, uint32_t flags) {
+        void snapshot(uint64_t start,
+                      uint64_t end,
+                      DcpSnapshotMarkerFlag flags) {
             responses.push_front(
                     std::make_unique<SnapshotMarker>(0 /*opaque*/,
                                                      vbid,
@@ -334,7 +336,8 @@ void CollectionsSeqnoAdvanced::generateExpectedResponses() {
         // the CHK flag is set too in the marker
         expected.snapshot(0,
                           myHighCollectionSeqno.value(),
-                          MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+                          DcpSnapshotMarkerFlag::Memory |
+                                  DcpSnapshotMarkerFlag::Checkpoint);
     }
 }
 

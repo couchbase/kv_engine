@@ -264,7 +264,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(DcpConsumerAckTest, Basic) {
     const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -305,7 +305,7 @@ TEST_P(DcpConsumerAckTest, Basic) {
 
 TEST_P(DcpConsumerAckTest, DeleteWithValue) {
     const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -359,7 +359,7 @@ TEST_P(DcpConsumerAckTest, DeleteWithCompressibleValue) {
     generateDocumentValue(getVeryCompressibleValue());
 
     const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {
@@ -422,7 +422,7 @@ TEST_P(DcpConsumerAckTest, DeleteWithManyCompressibleXattrs) {
     generateDocumentValue(getSmallValue(), xattrKey, 10);
 
     const auto markerBytes = conn->dcpSnapshotMarkerV2(
-            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, 0 /*flags*/);
+            1 /*opaque */, seqno /*start*/, seqno + 2 /*end*/, {} /*flags*/);
 
     auto& bucket = mcd_env->getTestBucket();
     if (testOutOfMem()) {

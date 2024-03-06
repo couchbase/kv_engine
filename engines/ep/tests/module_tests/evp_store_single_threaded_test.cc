@@ -365,11 +365,11 @@ void SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
         EXPECT_EQ(expectedOp, producers.last_op);
         if (expectedOp == cb::mcbp::ClientOpcode::DcpSnapshotMarker) {
             if (fromMemory && !diskSnapshotFromMemory) {
-                EXPECT_EQ(MARKER_FLAG_MEMORY,
-                          producers.last_flags & MARKER_FLAG_MEMORY);
+                EXPECT_TRUE(isFlagSet(producers.last_snapshot_marker_flags,
+                                      DcpSnapshotMarkerFlag::Memory));
             } else {
-                EXPECT_EQ(MARKER_FLAG_DISK,
-                          producers.last_flags & MARKER_FLAG_DISK);
+                EXPECT_TRUE(isFlagSet(producers.last_snapshot_marker_flags,
+                                      DcpSnapshotMarkerFlag::Disk));
             }
         }
     } else {
@@ -1099,11 +1099,12 @@ cb::engine_errc STParameterizedBucketTest::addItem(Item& itm,
     return rc;
 }
 
-cb::engine_errc STParameterizedBucketTest::snapshot(DcpConsumer& consumer,
-                                                    uint32_t opaque,
-                                                    uint64_t start,
-                                                    uint64_t end,
-                                                    uint32_t flags) {
+cb::engine_errc STParameterizedBucketTest::snapshot(
+        DcpConsumer& consumer,
+        uint32_t opaque,
+        uint64_t start,
+        uint64_t end,
+        DcpSnapshotMarkerFlag flags) {
     return consumer.snapshotMarker(opaque, vbid, start, end, flags, 0, end);
 }
 
@@ -2366,13 +2367,14 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
 
     // 1. Add the first message, a snapshot marker to ensure that the
     //    vbucket goes to the backfill state
-    consumer->snapshotMarker(/*opaque*/ 1,
-                             vbid,
-                             /*startseq*/ 0,
-                             /*endseq*/ 2,
-                             /*flags*/ MARKER_FLAG_DISK,
-                             /*HCS*/ 0,
-                             /*maxVisibleSeqno*/ {});
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            vbid,
+            /*startseq*/ 0,
+            /*endseq*/ 2,
+            /*flags*/ DcpSnapshotMarkerFlag::Disk,
+            /*HCS*/ 0,
+            /*maxVisibleSeqno*/ {});
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
@@ -2464,7 +2466,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
                              vbid,
                              /*startseq*/ 0,
                              /*endseq*/ 2,
-                             /*flags*/ 0,
+                             /*flags*/ {},
                              /*HCS*/ {},
                              /*maxVisibleSeqno*/ {});
     // 2. Now add two deletions, one without deleteTime, one with
@@ -2906,7 +2908,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        vbid,
                                        bySeqno,
                                        bySeqno,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
     EXPECT_EQ(cb::engine_errc::success,
@@ -2939,7 +2941,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        vbid,
                                        bySeqno,
                                        bySeqno,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
     EXPECT_EQ(cb::engine_errc::success,
@@ -3384,7 +3386,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
                                        vbid,
                                        bySeqno,
                                        bySeqno,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
@@ -3460,7 +3462,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                        vbid,
                                        bySeqno,
                                        bySeqno,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
@@ -4421,13 +4423,14 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
                                   vbid,
                                   /*flags*/ {}));
 
-    consumer->snapshotMarker(/*opaque*/ 1,
-                             /*vbucket*/ vbid,
-                             /*start_seqno*/ 1,
-                             /*end_seqno*/ 1,
-                             /*flags set to MARKER_FLAG_MEMORY*/ 0x5,
-                             {},
-                             {});
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            /*vbucket*/ vbid,
+            /*start_seqno*/ 1,
+            /*end_seqno*/ 1,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
+            {});
 
     // Store value with an xattr
     auto key = makeStoredDocKey("k1");
@@ -4461,13 +4464,14 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
     }
 
     // now delete the key
-    consumer->snapshotMarker(/*opaque*/ 1,
-                             /*vbucket*/ vbid,
-                             /*start_seqno*/ 2,
-                             /*end_seqno*/ 2,
-                             /*flags*/ 5,
-                             {},
-                             {});
+    consumer->snapshotMarker(
+            /*opaque*/ 1,
+            /*vbucket*/ vbid,
+            /*start_seqno*/ 2,
+            /*end_seqno*/ 2,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
+            {});
 
     // With MB-41255 this would error with 'would block' (for value eviction)
     EXPECT_EQ(cb::engine_errc::success,

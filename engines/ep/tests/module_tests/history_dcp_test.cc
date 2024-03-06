@@ -72,8 +72,10 @@ TEST_P(HistoryDcpTest, SeqnoAdvanceSnapshot) {
 
     notifyAndStepToCheckpoint();
 
-    EXPECT_TRUE(producers->last_flags & MARKER_FLAG_HISTORY);
-    EXPECT_FALSE(producers->last_flags & MARKER_FLAG_DISK);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::History));
+    EXPECT_FALSE(isFlagSet(producers->last_snapshot_marker_flags,
+                           DcpSnapshotMarkerFlag::Disk));
     stepAndExpect(ClientOpcode::DcpSeqnoAdvanced);
     EXPECT_EQ(2, producers->last_byseqno);
 }
@@ -96,8 +98,10 @@ TEST_P(HistoryDcpTest, ManyModifications) {
     setCollections(cookie, cm);
 
     notifyAndStepToCheckpoint();
-    EXPECT_TRUE(producers->last_flags & MARKER_FLAG_HISTORY);
-    EXPECT_FALSE(producers->last_flags & MARKER_FLAG_DISK);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::History));
+    EXPECT_FALSE(isFlagSet(producers->last_snapshot_marker_flags,
+                           DcpSnapshotMarkerFlag::Disk));
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::CreateCollection);
@@ -113,7 +117,8 @@ TEST_P(HistoryDcpTest, ManyModifications) {
 
     // Validate the in-memory DCP stream.
     notifyAndStepToCheckpoint();
-    EXPECT_TRUE(producers->last_flags & MARKER_FLAG_HISTORY);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::History));
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
@@ -149,9 +154,10 @@ TEST_P(HistoryDcpTest, ManyModifications) {
 
     runBackfill();
     stepAndExpect(ClientOpcode::DcpSnapshotMarker);
-    EXPECT_TRUE(producers->last_flags &
-                (MARKER_FLAG_HISTORY | MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                 MARKER_FLAG_DISK));
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::History |
+                                  DcpSnapshotMarkerFlag::MayContainDuplicates |
+                                  DcpSnapshotMarkerFlag::Disk));
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_system_event, id::CreateCollection);

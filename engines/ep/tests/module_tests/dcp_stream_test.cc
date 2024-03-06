@@ -1170,7 +1170,8 @@ TEST_P(StreamTest, ProcessItemsSingleCheckpointStart) {
     ASSERT_EQ(2, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
     auto& snapMarker = dynamic_cast<SnapshotMarker&>(*readyQ.front());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+              snapMarker.getFlags());
 
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.back()->getEvent());
 }
@@ -1242,7 +1243,7 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     // set.
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
     auto& snapMarker1 = dynamic_cast<SnapshotMarker&>(*readyQ.front());
-    EXPECT_EQ(MARKER_FLAG_MEMORY, snapMarker1.getFlags());
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory, snapMarker1.getFlags());
     // Don't care about startSeqno for this snapshot...
     EXPECT_EQ(10, snapMarker1.getEndSeqno());
 
@@ -1253,7 +1254,8 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
     stream->public_nextQueuedItem(*producer);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
     auto& snapMarker2 = dynamic_cast<SnapshotMarker&>(*readyQ.front());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker2.getFlags());
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+              snapMarker2.getFlags());
     EXPECT_EQ(11, snapMarker2.getStartSeqno());
     EXPECT_EQ(11, snapMarker2.getEndSeqno());
 
@@ -1975,8 +1977,9 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
 
     auto& marker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_CHK);
-    EXPECT_TRUE(marker.getFlags() & MARKER_FLAG_DISK);
+    EXPECT_TRUE(
+            isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Checkpoint));
+    EXPECT_TRUE(isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk));
     EXPECT_FALSE(marker.getHighCompletedSeqno());
 
     producer->cancelCheckpointCreatorTask();
@@ -2514,15 +2517,16 @@ void SingleThreadedPassiveStreamTest::
     setVBucketStateAndRunPersistTask(vbid, initialState);
 
     // receive snapshot
-    SnapshotMarker marker(0 /*opaque*/,
-                          vbid,
-                          1 /*snapStart*/,
-                          100 /*snapEnd*/,
-                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                          0 /*HCS*/,
-                          {} /*maxVisibleSeqno*/,
-                          {}, // timestamp
-                          {} /*streamId*/);
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            1 /*snapStart*/,
+            100 /*snapEnd*/,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            0 /*HCS*/,
+            {} /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
 
     stream->processMarker(&marker);
 
@@ -2560,7 +2564,8 @@ TEST_P(SingleThreadedPassiveStreamTest,
 
 /**
  * Note: this test does not cover any issue, it just shows what happens at
- * Replica if the Active misses to set the MARKER_FLAG_CHK in SnapshotMarker.
+ * Replica if the Active misses to set the
+ * DcpSnapshotMarkerFlag::Checkpoint in SnapshotMarker.
  */
 TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
     auto vb = engine->getVBucket(vbid);
@@ -2575,7 +2580,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
             [this, opaque, &ckptMgr](
                     uint64_t snapStart,
                     uint64_t snapEnd,
-                    uint32_t flags,
+                    DcpSnapshotMarkerFlag flags,
                     size_t expectedNumCheckpoint,
                     CheckpointType expectedOpenCkptType) -> void {
         cb::mcbp::DcpStreamId streamId{};
@@ -2614,7 +2619,8 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         CB_SCOPED_TRACE("");
         receiveSnapshot(1 /*snapStart*/,
                         1 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                        DcpSnapshotMarkerFlag::Memory |
+                                DcpSnapshotMarkerFlag::Checkpoint,
                         initalNumberOfCheckpoints + 1 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
@@ -2624,36 +2630,39 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         CB_SCOPED_TRACE("");
         receiveSnapshot(2 /*snapStart*/,
                         2 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                        DcpSnapshotMarkerFlag::Memory,
                         initalNumberOfCheckpoints + 1 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
 
-    // Disk + we miss the MARKER_FLAG_CHK, still not merged
+    // Disk + we miss the DcpSnapshotMarkerFlag::Checkpoint,
+    // still not merged
     {
         CB_SCOPED_TRACE("");
         receiveSnapshot(3 /*snapStart*/,
                         3 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_DISK,
+                        DcpSnapshotMarkerFlag::Disk,
                         initalNumberOfCheckpoints + 2 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
     {
         CB_SCOPED_TRACE("");
-        receiveSnapshot(4 /*snapStart*/,
-                        4 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                        initalNumberOfCheckpoints + 3 /*expectedNumCheckpoint*/,
-                        CheckpointType::Disk /*expectedOpenCkptType*/);
+        receiveSnapshot(
+                4 /*snapStart*/,
+                4 /*snapEnd*/,
+                DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+                initalNumberOfCheckpoints + 3 /*expectedNumCheckpoint*/,
+                CheckpointType::Disk /*expectedOpenCkptType*/);
     }
 
-    // From Disk to Disk + we miss the MARKER_FLAG_CHK, still not merged
+    // From Disk to Disk + we miss the
+    // DcpSnapshotMarkerFlag::Checkpoint, still not merged
     {
         CB_SCOPED_TRACE("");
         receiveSnapshot(5 /*snapStart*/,
                         5 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_DISK,
+                        DcpSnapshotMarkerFlag::Disk,
                         initalNumberOfCheckpoints + 4 /*expectedNumCheckpoint*/,
                         CheckpointType::Disk /*expectedOpenCkptType*/);
     }
@@ -2663,7 +2672,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         CB_SCOPED_TRACE("");
         receiveSnapshot(6 /*snapStart*/,
                         6 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                        DcpSnapshotMarkerFlag::Memory,
                         initalNumberOfCheckpoints + 5 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
@@ -2672,7 +2681,8 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
         CB_SCOPED_TRACE("");
         receiveSnapshot(7 /*snapStart*/,
                         7 /*snapEnd*/,
-                        dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                        DcpSnapshotMarkerFlag::Memory |
+                                DcpSnapshotMarkerFlag::Checkpoint,
                         initalNumberOfCheckpoints + 6 /*expectedNumCheckpoint*/,
                         CheckpointType::Memory /*expectedOpenCkptType*/);
     }
@@ -2694,7 +2704,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                                        vbid,
                                        1 /*startSeqno*/,
                                        1 /*endSeqno*/,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
@@ -2781,7 +2791,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                        vbid,
                                        1 /*startSeqno*/,
                                        initialEndSeqno,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
@@ -2862,7 +2872,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                            vbid,
                                            newStartSeqno,
                                            newStartSeqno + 10 /*endSeqno*/,
-                                           MARKER_FLAG_CHK,
+                                           DcpSnapshotMarkerFlag::Checkpoint,
                                            {} /*HCS*/,
                                            {} /*maxVisibleSeqno*/));
         nextSeqno = newStartSeqno;
@@ -2929,7 +2939,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                                        vbid,
                                        bySeqno,
                                        bySeqno,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
@@ -3073,7 +3083,7 @@ TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
                           vbid,
                           1 /*snapStart*/,
                           snapEnd,
-                          dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                          DcpSnapshotMarkerFlag::Memory,
                           0 /*HCS*/,
                           visibleSnapEnd,
                           {}, // timestamp
@@ -4553,14 +4563,16 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     const uint32_t opaque = 1;
     const uint64_t snapStart = 1;
     const uint64_t snapEnd = 2;
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       snapStart,
-                                       snapEnd,
-                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                                       {} /*HCS*/,
-                                       {} /*maxVisibleSeqno*/));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     snapStart,
+                                     snapEnd,
+                                     DcpSnapshotMarkerFlag::Disk |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {} /*HCS*/,
+                                     {} /*maxVisibleSeqno*/));
     ASSERT_EQ(1, ckptList.size());
     ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
     ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
@@ -4616,24 +4628,24 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     auto openId = manager.getOpenCheckpointId();
 
     // Simulate a possible behaviour in pre-6.5: Producer may send a SnapMarker
-    // and miss to set the MARKER_FLAG_CHK, eg MB-32862
+    // and miss to set the DcpSnapshotMarkerFlag::Checkpoint,
+    // eg MB-32862
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
                                        3 /*snapStart*/,
                                        3 /*snapEnd*/,
-                                       MARKER_FLAG_MEMORY,
+                                       DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
     // 6.6.1 PassiveStream is resilient to any Active misbehaviour with regard
-    // to MARKER_FLAG_CHK. Even if Active missed to set the flag, Replica closes
-    // the checkpoint and creates a new one for queueing the new Memory
-    // snapshot.
-    // This is an important step in the test. Essentially here we verify that
-    // the fix eliminates one of the preconditions for hitting the issue:
-    // snapshots cannot be merged into the same checkpoint if the merge involves
-    // Disk snapshots.
+    // to DcpSnapshotMarkerFlag::Checkpoint. Even if Active
+    // missed to set the flag, Replica closes the checkpoint and creates a new
+    // one for queueing the new Memory snapshot. This is an important step in
+    // the test. Essentially here we verify that the fix eliminates one of the
+    // preconditions for hitting the issue: snapshots cannot be merged into the
+    // same checkpoint if the merge involves Disk snapshots.
     ASSERT_EQ(1, ckptList.size());
     ASSERT_GT(manager.getOpenCheckpointId(), openId);
     openId = manager.getOpenCheckpointId();
@@ -4674,8 +4686,9 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(2, ckptList.back()->getNumItems());
     ASSERT_EQ(3, manager.getHighSeqno());
 
-    // Another SnapMarker with no MARKER_FLAG_CHK
-    // Note: This is not due to any pre-6.5 bug, this is legal also in 6.6.x and
+    // Another SnapMarker with no
+    // DcpSnapshotMarkerFlag::Checkpoint Note: This is not
+    // due to any pre-6.5 bug, this is legal also in 6.6.x and
     //  7.x. The active may generate multiple Memory snapshots from the same
     //  physical checkpoint. Those snapshots may contain duplicates of the same
     //  key.
@@ -4684,7 +4697,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                        vbid,
                                        4 /*snapStart*/,
                                        4 /*snapEnd*/,
-                                       MARKER_FLAG_MEMORY,
+                                       DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
     // The new snapshot will be queued into the existing checkpoint.
@@ -4766,14 +4779,16 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
 
     const uint64_t opaque = 1;
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       1, // start
-                                       2, // end
-                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     1, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {}));
 
     const auto key = makeStoredDocKey("key");
     EXPECT_EQ(cb::engine_errc::success,
@@ -4840,14 +4855,16 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(2, snapInfo.start);
     EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
 
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       3, // start
-                                       4, // end
-                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     3, // start
+                                     4, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {}));
 
     // No mutation in the new empty checkpoint, snapshot info is from the
     // previous checkpoint.
@@ -4913,14 +4930,16 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
     ASSERT_EQ(0, vbstate.state.lastSnapEnd);
 
     const uint64_t opaque = 1;
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       1, // start
-                                       2, // end
-                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     1, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {}));
     ASSERT_EQ(0, underlying.getLastPersistedSeqno(vbid));
     vbstate = underlying.getPersistedVBucketState(vbid);
     ASSERT_EQ(0, vbstate.state.lastSnapStart);
@@ -5014,14 +5033,16 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
     EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
 
     const uint64_t opaque = 1;
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       1, // start
-                                       2, // end
-                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     1, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {}));
 
     const auto key = makeStoredDocKey("key");
     EXPECT_EQ(cb::engine_errc::success,
@@ -5140,14 +5161,16 @@ TEST_P(SingleThreadedPassiveStreamTest,
     EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
 
     const uint64_t opaque = 1;
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       1, // start
-                                       2, // end
-                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     1, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Disk |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {}));
 
     // Open an outbound stream from replica.
     auto producer =
@@ -5445,7 +5468,8 @@ TEST_P(SingleThreadedActiveStreamTest,
     ASSERT_EQ(3, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
     auto& snapMarker = dynamic_cast<SnapshotMarker&>(*readyQ.front());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, snapMarker.getFlags());
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+              snapMarker.getFlags());
     EXPECT_EQ(2, snapMarker.getStartSeqno());
     EXPECT_EQ(3, snapMarker.getEndSeqno());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.back()->getEvent());
@@ -5935,15 +5959,16 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
     const std::string value("value");
 
     // Receive initial disk snapshot. Expect inserts for items in this snapshot.
-    SnapshotMarker marker(0 /*opaque*/,
-                          vbid,
-                          0 /*snapStart*/,
-                          3 /*snapEnd*/,
-                          dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                          0 /*HCS*/,
-                          {} /*maxVisibleSeqno*/,
-                          {}, // timestamp
-                          {} /*streamId*/);
+    SnapshotMarker marker(
+            0 /*opaque*/,
+            vbid,
+            0 /*snapStart*/,
+            3 /*snapEnd*/,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
+            0 /*HCS*/,
+            {} /*maxVisibleSeqno*/,
+            {}, // timestamp
+            {} /*streamId*/);
 
     stream->processMarker(&marker);
     auto vb = engine->getVBucket(vbid);
@@ -5993,7 +6018,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             vbid,
             4 /*snapStart*/,
             6 /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {}, // timestamp
@@ -6046,7 +6071,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                   vbid,
                                   1 /*snapStart*/,
                                   3 /*snapEnd*/,
-                                  dcp_marker_flag_t::MARKER_FLAG_DISK,
+                                  DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(1) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {}, // timestamp
@@ -6171,7 +6196,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
                                   vbid,
                                   1 /*snapStart*/,
                                   3 /*snapEnd*/,
-                                  dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                                  DcpSnapshotMarkerFlag::Memory,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {}, // timestamp
@@ -6321,7 +6346,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
                                   vbid,
                                   1 /*snapStart*/,
                                   4 /*snapEnd*/,
-                                  dcp_marker_flag_t::MARKER_FLAG_DISK,
+                                  DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {}, // timestamp
@@ -6385,7 +6410,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                                   vbid,
                                   1 /*snapStart*/,
                                   6 /*snapEnd*/,
-                                  dcp_marker_flag_t::MARKER_FLAG_DISK,
+                                  DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
                                   {}, // timestamp
@@ -6538,8 +6563,9 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    const uint32_t expectedMarkerFlags =
-            MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY;
+    const auto expectedMarkerFlags = DcpSnapshotMarkerFlag::Memory |
+                                     DcpSnapshotMarkerFlag::Checkpoint |
+                                     DcpSnapshotMarkerFlag::History;
     EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(0, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
@@ -6626,8 +6652,10 @@ TEST_P(CDCActiveStreamTest, MarkerHistoryFlagClearIfCheckpointNotHistorical) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    // Core of the test: MARKER_FLAG_HISTORY isn't set in the marker
-    const uint32_t expectedMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK;
+    // Core of the test: DcpSnapshotMarkerFlag::History isn't
+    // set in the marker
+    const auto expectedMarkerFlags =
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint;
     EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(initHighSeqno + 1, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
@@ -6691,8 +6719,11 @@ void CDCActiveStreamTest::testResilientToRetentionConfigChanges(
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    // Core test: MARKER_FLAG_HISTORY is set in the marker
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+    // Core test: DcpSnapshotMarkerFlag::History is set in
+    // the marker
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory |
+                      DcpSnapshotMarkerFlag::Checkpoint |
+                      DcpSnapshotMarkerFlag::History,
               marker->getFlags());
     EXPECT_EQ(initHighSeqno + 1, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
@@ -6742,8 +6773,10 @@ void CDCActiveStreamTest::testResilientToRetentionConfigChanges(
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    // Core test: MARKER_FLAG_HISTORY isn't set in the marker
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    // Core test: DcpSnapshotMarkerFlag::History isn't set in
+    // the marker
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+              marker->getFlags());
     EXPECT_EQ(initHighSeqno + 2, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 2, marker->getEndSeqno());
     // Mutation
@@ -6820,8 +6853,10 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    // MARKER_FLAG_HISTORY is set in the marker
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+    // DcpSnapshotMarkerFlag::History is set in the marker
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory |
+                      DcpSnapshotMarkerFlag::Checkpoint |
+                      DcpSnapshotMarkerFlag::History,
               marker->getFlags());
     resp = stream->public_nextQueuedItem(*producer);
     ASSERT_TRUE(resp);
@@ -6845,12 +6880,15 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    // Core of the test: MARKER_FLAG_HISTORY is set in the marker
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+    // Core of the test: DcpSnapshotMarkerFlag::History is
+    // set in the marker
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Memory |
+                      DcpSnapshotMarkerFlag::Checkpoint |
+                      DcpSnapshotMarkerFlag::History,
               marker->getFlags());
     // Verify the string representation of marker's flags
-    EXPECT_EQ("[MEMORY,CHK,HISTORY]",
-              dcpMarkerFlagsToString(marker->getFlags()));
+    EXPECT_EQ(R"(["Memory","Checkpoint","History"])",
+              format_as(marker->getFlags()));
     // SeqnoAdvance in place of SysEvent(modify), as flatbuffers sys-events are
     // disabled
     resp = stream->public_nextQueuedItem(*producer);
@@ -6956,9 +6994,10 @@ TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
     EXPECT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    const uint32_t expectedMarkerFlags = MARKER_FLAG_DISK | MARKER_FLAG_CHK |
-                                         MARKER_FLAG_HISTORY |
-                                         MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS;
+    const auto expectedMarkerFlags =
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint |
+            DcpSnapshotMarkerFlag::History |
+            DcpSnapshotMarkerFlag::MayContainDuplicates;
     EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(initHighSeqno + 1, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 4, marker->getEndSeqno());
@@ -6992,9 +7031,9 @@ void CDCPassiveStreamTest::SetUp() {
 void CDCPassiveStreamTest::createHistoricalCollection(CheckpointType snapType,
                                                       uint64_t snapStart,
                                                       uint64_t snapEnd) {
-    const uint8_t snapSource = snapType == CheckpointType::Memory
-                                       ? MARKER_FLAG_MEMORY
-                                       : MARKER_FLAG_DISK;
+    const auto snapSource = snapType == CheckpointType::Memory
+                                    ? DcpSnapshotMarkerFlag::Memory
+                                    : DcpSnapshotMarkerFlag::Disk;
 
     const uint32_t opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
@@ -7003,7 +7042,8 @@ void CDCPassiveStreamTest::createHistoricalCollection(CheckpointType snapType,
                       vbid,
                       snapStart,
                       snapEnd,
-                      snapSource | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+                      snapSource | DcpSnapshotMarkerFlag::Checkpoint |
+                              DcpSnapshotMarkerFlag::History,
                       {0},
                       {}));
 
@@ -7076,16 +7116,17 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     const uint32_t opaque = 1;
-    SnapshotMarker snapshotMarker(
-            opaque,
-            vbid,
-            initialHighSeqno + 1 /*start*/,
-            initialHighSeqno + 3 /*end*/,
-            MARKER_FLAG_CHK | MARKER_FLAG_DISK | MARKER_FLAG_HISTORY,
-            std::optional<uint64_t>(0), /*HCS*/
-            {}, /*maxVisibleSeqno*/
-            {}, /*timestamp*/
-            {} /*streamId*/);
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  initialHighSeqno + 1 /*start*/,
+                                  initialHighSeqno + 3 /*end*/,
+                                  DcpSnapshotMarkerFlag::Checkpoint |
+                                          DcpSnapshotMarkerFlag::Disk |
+                                          DcpSnapshotMarkerFlag::History,
+                                  std::optional<uint64_t>(0), /*HCS*/
+                                  {}, /*maxVisibleSeqno*/
+                                  {}, /*timestamp*/
+                                  {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     ASSERT_EQ(2, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -7176,15 +7217,16 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
 
     // Replica receives a Snap{Memory}.
     const uint32_t opaque = 1;
-    SnapshotMarker snapshotMarker(opaque,
-                                  vbid,
-                                  1 /*start*/,
-                                  1 /*end*/,
-                                  MARKER_FLAG_CHK | MARKER_FLAG_MEMORY,
-                                  std::optional<uint64_t>(0), /*HCS*/
-                                  {}, /*maxVisibleSeqno*/
-                                  {}, /*timestamp*/
-                                  {} /*streamId*/);
+    SnapshotMarker snapshotMarker(
+            opaque,
+            vbid,
+            1 /*start*/,
+            1 /*end*/,
+            DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Memory,
+            std::optional<uint64_t>(0), /*HCS*/
+            {}, /*maxVisibleSeqno*/
+            {}, /*timestamp*/
+            {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     ASSERT_EQ(cb::engine_errc::success,
               stream->messageReceived(makeMutationConsumerMessage(
@@ -7289,15 +7331,17 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
     const auto initialId = manager.getOpenCheckpointId();
 
     const uint64_t opaque = 1;
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       2, // start
-                                       2, // end
-                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK |
-                                               MARKER_FLAG_HISTORY,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     2, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint |
+                                             DcpSnapshotMarkerFlag::History,
+                                     {},
+                                     {}));
     // We never reuse a checkpoint.
     // Note that at this point the open checkpoint is empty as it stores only
     // the checkpoint_start meta-item
@@ -7334,15 +7378,17 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
         ASSERT_TRUE(list.back()->modifiedByExpel());
     }
 
-    EXPECT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(opaque,
-                                       vbid,
-                                       3, // start
-                                       3, // end
-                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK |
-                                               MARKER_FLAG_HISTORY,
-                                       {},
-                                       {}));
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     3, // start
+                                     3, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint |
+                                             DcpSnapshotMarkerFlag::History,
+                                     {},
+                                     {}));
     // Again, we can never reuse a checkpoint. That applies to touched-by-expel
     // checkpoints too.
     EXPECT_EQ(1, manager.getNumCheckpoints());
@@ -7392,7 +7438,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
                                   vbid,
                                   seqno,
                                   seqno,
-                                  MARKER_FLAG_MEMORY,
+                                  DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
                                   {},
                                   {},
@@ -7497,7 +7543,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
                                   vbid,
                                   seqno,
                                   seqno,
-                                  MARKER_FLAG_MEMORY,
+                                  DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
                                   {},
                                   {},

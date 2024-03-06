@@ -210,7 +210,8 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_is_empty) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(4, producers->last_snap_end_seqno);
-    EXPECT_EQ(MARKER_FLAG_MEMORY, producers->last_flags & MARKER_FLAG_MEMORY);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Memory));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("one", producers->last_key);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
@@ -460,7 +461,8 @@ TEST_P(CollectionsLegacyDcpTest,
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(highSeqno, producers->last_snap_end_seqno);
-    EXPECT_EQ(MARKER_FLAG_MEMORY, producers->last_flags & MARKER_FLAG_MEMORY);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Memory));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("d2", producers->last_key);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
@@ -530,7 +532,8 @@ TEST_P(CollectionsLegacyDcpTest,
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(1, producers->last_snap_end_seqno);
-    EXPECT_EQ(MARKER_FLAG_DISK, producers->last_flags & MARKER_FLAG_DISK);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Disk));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpPrepare);
     EXPECT_EQ("d1", producers->last_key);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
@@ -589,7 +592,8 @@ TEST_P(CollectionsLegacyDcpTest,
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(keyd1Seqno, producers->last_snap_end_seqno);
-    EXPECT_EQ(MARKER_FLAG_DISK, producers->last_flags & MARKER_FLAG_DISK);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Disk));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("d1", producers->last_key);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
@@ -627,7 +631,8 @@ TEST_P(CollectionsLegacyDcpTest, default_collection_one_items_in_memory_only) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(2, producers->last_snap_end_seqno);
-    EXPECT_EQ(MARKER_FLAG_MEMORY, producers->last_flags & MARKER_FLAG_MEMORY);
+    EXPECT_TRUE(isFlagSet(producers->last_snapshot_marker_flags,
+                          DcpSnapshotMarkerFlag::Memory));
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ("d", producers->last_key);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);

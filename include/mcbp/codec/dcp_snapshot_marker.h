@@ -33,12 +33,14 @@ class Request;
 class DcpSnapshotMarker {
 public:
     DcpSnapshotMarker() = default;
-    DcpSnapshotMarker(uint64_t start_seqno, uint64_t end_seqno, uint32_t flags)
+    DcpSnapshotMarker(uint64_t start_seqno,
+                      uint64_t end_seqno,
+                      request::DcpSnapshotMarkerFlag flags)
         : startSeqno(start_seqno), endSeqno(end_seqno), flags(flags) {
     }
     DcpSnapshotMarker(uint64_t start_seqno,
                       uint64_t end_seqno,
-                      uint32_t flags,
+                      request::DcpSnapshotMarkerFlag flags,
                       std::optional<uint64_t> hcs,
                       std::optional<uint64_t> mvs,
                       std::optional<uint64_t> timestamp)
@@ -56,7 +58,7 @@ public:
     uint64_t getEndSeqno() const {
         return endSeqno;
     }
-    uint32_t getFlags() const {
+    [[nodiscard]] auto getFlags() const {
         return flags;
     }
     std::optional<uint64_t> getHighCompletedSeqno() const {
@@ -75,7 +77,7 @@ public:
     void setEndSeqno(uint64_t value) {
         endSeqno = value;
     }
-    void setFlags(uint32_t value) {
+    void setFlags(request::DcpSnapshotMarkerFlag value) {
         flags = value;
     }
     void setHighCompletedSeqno(uint64_t value) {
@@ -110,7 +112,7 @@ public:
 protected:
     uint64_t startSeqno = 0;
     uint64_t endSeqno = 0;
-    uint32_t flags = 0;
+    request::DcpSnapshotMarkerFlag flags = request::DcpSnapshotMarkerFlag::None;
     std::optional<uint64_t> highCompletedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
     std::optional<uint64_t> timestamp;

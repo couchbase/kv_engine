@@ -381,7 +381,7 @@ public:
                    Vbid vbucket,
                    uint64_t start_seqno,
                    uint64_t end_seqno,
-                   uint32_t flags,
+                   cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                    std::optional<uint64_t> highCompletedSeqno,
                    std::optional<uint64_t> maxVisibleSeqno,
                    std::optional<uint64_t> timestamp,
@@ -408,7 +408,7 @@ public:
         return end_seqno_;
     }
 
-    uint32_t getFlags() const {
+    [[nodiscard]] cb::mcbp::request::DcpSnapshotMarkerFlag getFlags() const {
         return flags_;
     }
 
@@ -435,7 +435,7 @@ private:
     Vbid vbucket_;
     uint64_t start_seqno_;
     uint64_t end_seqno_;
-    uint32_t flags_;
+    cb::mcbp::request::DcpSnapshotMarkerFlag flags_;
     std::optional<uint64_t> highCompletedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
     std::optional<uint64_t> timestamp;

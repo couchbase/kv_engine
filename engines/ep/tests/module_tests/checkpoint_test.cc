@@ -991,7 +991,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
     uint64_t snapshotStart = 1;
     const uint64_t snapshotEnd = 10;
 
-    uint32_t flags = dcp_marker_flag_t::MARKER_FLAG_DISK;
+    auto flags = DcpSnapshotMarkerFlag::Disk;
 
     // 1) the consumer receives the snapshot-marker
     SnapshotMarker snapshotMarker(0 /* opaque */,
@@ -1033,7 +1033,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    vbid,
                                    snapshotEnd + 1,
                                    snapshotEnd + 2,
-                                   dcp_marker_flag_t::MARKER_FLAG_CHK,
+                                   DcpSnapshotMarkerFlag::Checkpoint,
                                    {} /*HCS*/,
                                    {} /*maxVisibleSeqno*/,
                                    {}, // timestamp
@@ -1064,7 +1064,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
  * to confirm the behaviour matches regardless of the mem_used
  */
 void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
-        bool highMemUsed, uint32_t flags) {
+        bool highMemUsed, DcpSnapshotMarkerFlag flags) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* ckptMgr =
@@ -1122,7 +1122,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     //     2) we carry on with processing a second disk-snapshot, which
     //         involves checkpoints
     int openCheckpointSize = snapshotEnd - snapshotStart;
-    if (flags & dcp_marker_flag_t::MARKER_FLAG_DISK) {
+    if (isFlagSet(flags, DcpSnapshotMarkerFlag::Disk)) {
         // Just process the first half of mutations as vbSeqno-0
         // disk-snapshot
         const uint64_t diskSnapshotEnd = (snapshotEnd - snapshotStart) / 2;
@@ -1160,7 +1160,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
     // 2) the consumer receives the mutations until (snapshotEnd -1)
     processMutations(*passiveStream, snapshotStart, snapshotEnd - 1);
 
-    if (flags & dcp_marker_flag_t::MARKER_FLAG_DISK) {
+    if (isFlagSet(flags, DcpSnapshotMarkerFlag::Disk)) {
         // checkpoint contains intial backfill and second snapshot
         openCheckpointSize = snapshotEnd - 1;
     }
@@ -1205,28 +1205,28 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
 // above + the test is now legally failing due to changes in the checkpoint-list
 TEST_F(SingleThreadedCheckpointTest,
        DISABLED_CloseReplicaCheckpointOnMemorySnapshotEnd_HighMemDisk) {
-    closeReplicaCheckpointOnMemorySnapshotEnd(
-            true, dcp_marker_flag_t::MARKER_FLAG_DISK);
+    closeReplicaCheckpointOnMemorySnapshotEnd(true,
+                                              DcpSnapshotMarkerFlag::Disk);
 }
 
 // MB-42780: Test disabled as already marked as "could validly be removed now"
 // above + the test is now legally failing due to changes in the checkpoint-list
 TEST_F(SingleThreadedCheckpointTest,
        DISABLED_CloseReplicaCheckpointOnMemorySnapshotEnd_Disk) {
-    closeReplicaCheckpointOnMemorySnapshotEnd(
-            false, dcp_marker_flag_t::MARKER_FLAG_DISK);
+    closeReplicaCheckpointOnMemorySnapshotEnd(false,
+                                              DcpSnapshotMarkerFlag::Disk);
 }
 
 TEST_F(SingleThreadedCheckpointTest,
        CloseReplicaCheckpointOnMemorySnapshotEnd_HighMem) {
-    closeReplicaCheckpointOnMemorySnapshotEnd(
-            true, dcp_marker_flag_t::MARKER_FLAG_MEMORY);
+    closeReplicaCheckpointOnMemorySnapshotEnd(true,
+                                              DcpSnapshotMarkerFlag::Memory);
 }
 
 TEST_F(SingleThreadedCheckpointTest,
        CloseReplicaCheckpointOnMemorySnapshotEnd) {
-    closeReplicaCheckpointOnMemorySnapshotEnd(
-            false, dcp_marker_flag_t::MARKER_FLAG_MEMORY);
+    closeReplicaCheckpointOnMemorySnapshotEnd(false,
+                                              DcpSnapshotMarkerFlag::Memory);
 }
 
 TEST_F(SingleThreadedCheckpointTest, CheckpointMaxSize_AutoSetup) {
@@ -1934,7 +1934,7 @@ void SingleThreadedCheckpointTest::
                                   vbid,
                                   1, // start
                                   2, // end
-                                  MARKER_FLAG_DISK,
+                                  DcpSnapshotMarkerFlag::Disk,
                                   0,
                                   {},
                                   {},

@@ -16,9 +16,8 @@
 namespace cb::mcbp {
 
 nlohmann::json DcpSnapshotMarker::to_json() const {
-    auto ret = nlohmann::json{{"start", startSeqno},
-                              {"end", endSeqno},
-                              {"flags", cb::to_hex(flags)}};
+    auto ret = nlohmann::json{
+            {"start", startSeqno}, {"end", endSeqno}, {"flags", flags}};
     if (highCompletedSeqno) {
         ret["high_completed_seqno"] = *highCompletedSeqno;
     }
@@ -65,7 +64,7 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
 
     // HighCompletedSeqno is always present in V2.0 but should only be accessed
     // when the flags have disk set.
-    if (marker.getFlags() & uint32_t(DcpSnapshotMarkerFlag::Disk)) {
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
         marker.setHighCompletedSeqno(payload2_0->getHighCompletedSeqno());
     }
     return marker;
@@ -128,7 +127,7 @@ void DcpSnapshotMarker::encode(
     using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
 
     if (highCompletedSeqno || timestamp) {
-        Expects(flags & uint32_t(DcpSnapshotMarkerFlag::Disk));
+        Expects(isFlagSet(flags, DcpSnapshotMarkerFlag::Disk));
     }
 
     if (timestamp) {

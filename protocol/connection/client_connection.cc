@@ -2043,10 +2043,11 @@ void MemcachedConnection::dcpStreamRequestResponse(
     sendCommand(rsp);
 }
 
-size_t MemcachedConnection::dcpSnapshotMarkerV2(uint32_t opaque,
-                                                uint64_t start,
-                                                uint64_t end,
-                                                uint32_t flags) {
+size_t MemcachedConnection::dcpSnapshotMarkerV2(
+        uint32_t opaque,
+        uint64_t start,
+        uint64_t end,
+        cb::mcbp::request::DcpSnapshotMarkerFlag flags) {
     const auto size = sizeof(cb::mcbp::Request) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);

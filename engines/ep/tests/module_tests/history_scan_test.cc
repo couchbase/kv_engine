@@ -63,7 +63,7 @@ public:
     void validateSnapshot(Vbid vbucket,
                           uint64_t snap_start_seqno,
                           uint64_t snap_end_seqno,
-                          uint32_t flags,
+                          DcpSnapshotMarkerFlag flags,
                           std::optional<uint64_t> highCompletedSeqno,
                           std::optional<uint64_t> maxVisibleSeqno,
                           std::optional<uint64_t> timestamp,
@@ -75,7 +75,7 @@ void HistoryScanTest::validateSnapshot(
         Vbid vbucket,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
-        uint32_t flags,
+        DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> timestamp,
@@ -85,7 +85,7 @@ void HistoryScanTest::validateSnapshot(
     EXPECT_EQ(producers->last_vbucket, vbucket);
     EXPECT_EQ(producers->last_snap_start_seqno, snap_start_seqno);
     EXPECT_EQ(producers->last_snap_end_seqno, snap_end_seqno);
-    EXPECT_EQ(producers->last_flags, flags);
+    EXPECT_EQ(producers->last_snapshot_marker_flags, flags);
     EXPECT_EQ(producers->last_stream_id, sid);
     EXPECT_EQ(producers->last_high_completed_seqno, highCompletedSeqno);
     EXPECT_EQ(producers->last_max_visible_seqno, maxVisibleSeqno);
@@ -158,9 +158,10 @@ TEST_P(HistoryScanTest, basic_unique) {
     validateSnapshot(vbid,
                      0,
                      2,
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      2 /*mvs*/,
                      {},
@@ -197,9 +198,10 @@ TEST_P(HistoryScanTest, basic_duplicates) {
     validateSnapshot(vbid,
                      0,
                      3,
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      3 /*mvs*/,
                      {},
@@ -246,9 +248,10 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_unique_keys) {
     validateSnapshot(vbid,
                      1, // snap start
                      3, // snap end
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      3 /*mvs*/,
                      {},
@@ -288,9 +291,10 @@ TEST_P(HistoryScanTest, basic_duplicates_and_deletes) {
     validateSnapshot(vbid,
                      0,
                      4,
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      4 /*mvs*/,
                      {},
@@ -353,9 +357,10 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_duplicate_keys) {
     validateSnapshot(vbid,
                      2,
                      4,
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      4 /*mvs*/,
                      {},
@@ -426,15 +431,16 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
 
     // Two back to back disk snapshots are generated.
     // Both snapshots state they encompass the entire disk range.
-    validateSnapshot(vbid,
-                     0,
-                     5,
-                     MARKER_FLAG_CHK | MARKER_FLAG_DISK,
-                     0 /*hcs*/,
-                     5 /*mvs*/,
-                     {},
-                     {},
-                     items1);
+    validateSnapshot(
+            vbid,
+            0,
+            5,
+            DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Disk,
+            0 /*hcs*/,
+            5 /*mvs*/,
+            {},
+            {},
+            items1);
 
     EXPECT_EQ(items1.back().getBySeqno(), vbR->getHighSeqno());
     EXPECT_EQ(0, vbR->checkpointManager->getSnapshotInfo().range.getStart());
@@ -446,9 +452,10 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
     validateSnapshot(vbid,
                      0,
                      5,
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      5 /*mvs*/,
                      {},
@@ -496,7 +503,7 @@ TEST_P(HistoryScanTest, OSOThenHistory) {
     runBackfill();
 
     // see comment in CollectionsOSODcpTest.basic
-    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, 0, 0, highSeqno);
+    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, {}, 0, highSeqno);
 
     // Manually step the producer and inspect all callbacks
     stepAndExpect(ClientOpcode::DcpOsoSnapshot);
@@ -533,9 +540,10 @@ TEST_P(HistoryScanTest, OSOThenHistory) {
     EXPECT_EQ(vbid, producers->last_vbucket);
     EXPECT_EQ(0, producers->last_snap_start_seqno);
     EXPECT_EQ(vb->getPersistenceSeqno(), producers->last_snap_end_seqno);
-    EXPECT_EQ(MARKER_FLAG_DISK | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY |
-                      MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS,
-              producers->last_flags);
+    EXPECT_EQ(DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint |
+                      DcpSnapshotMarkerFlag::History |
+                      DcpSnapshotMarkerFlag::MayContainDuplicates,
+              producers->last_snapshot_marker_flags);
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
@@ -601,9 +609,10 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
     validateSnapshot(vbid,
                      0,
                      items.back().getBySeqno(),
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
                      {},
@@ -672,9 +681,10 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_MB_55590) {
     validateSnapshot(vbid,
                      0,
                      items.back().getBySeqno(),
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
                      {},
@@ -836,9 +846,10 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
     validateSnapshot(vbid,
                      0,
                      items.back().getBySeqno(),
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
                      {},
@@ -938,9 +949,10 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
     validateSnapshot(vbid,
                      0,
                      items.back().getBySeqno(),
-                     MARKER_FLAG_HISTORY |
-                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
-                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     DcpSnapshotMarkerFlag::History |
+                             DcpSnapshotMarkerFlag::MayContainDuplicates |
+                             DcpSnapshotMarkerFlag::Checkpoint |
+                             DcpSnapshotMarkerFlag::Disk,
                      6 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
                      {},

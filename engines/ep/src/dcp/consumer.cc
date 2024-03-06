@@ -794,7 +794,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
-        uint32_t flags,
+        cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> max_visible_seqno) {
     lastMessageTime = ep_uptime_now();

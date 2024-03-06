@@ -20,6 +20,10 @@
 #include <spdlog/common.h>
 #include <optional>
 
+namespace cb::mcbp::request {
+enum class DcpSnapshotMarkerFlag : uint32_t;
+}
+
 class BackfillManager;
 class Configuration;
 class CheckpointManager;
@@ -691,7 +695,7 @@ protected:
 
     /**
      * Should the next snapshot marker have the 'checkpoint' flag
-     * (MARKER_FLAG_CHK) set?
+     * (cb::mcbp::request::DcpSnapshotMarkerFlag::Checkpoint) set?
      * See comments in processItems() for usage of this variable.
      */
     bool nextSnapshotIsCheckpoint = false;
@@ -856,7 +860,8 @@ private:
      * @param meta Information on the snapshot being processed
      * @return
      */
-    uint32_t getMarkerFlags(const OutstandingItemsResult& meta) const;
+    cb::mcbp::request::DcpSnapshotMarkerFlag getMarkerFlags(
+            const OutstandingItemsResult& meta) const;
 
     //! Number of times a backfill is paused.
     cb::RelaxedAtomic<uint64_t> numBackfillPauses{0};

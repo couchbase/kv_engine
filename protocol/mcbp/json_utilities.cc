@@ -171,40 +171,53 @@ void to_json(nlohmann::json& json, const DcpStreamEndPayload& payload) {
     json = {{"status", to_string(payload.getStatus())}};
 }
 
-nlohmann::json decodeSnapshotFlags(uint32_t flags) {
+void to_json(nlohmann::json& json, const DcpSnapshotMarkerFlag& flags) {
+    if (flags == DcpSnapshotMarkerFlag::None) {
+        json = "None";
+        return;
+    }
     auto array = nlohmann::json::array();
-    array.push_back("raw: " + cb::to_hex(flags));
-    if ((flags & uint32_t(DcpSnapshotMarkerFlag::Memory)) ==
-        uint32_t(DcpSnapshotMarkerFlag::Memory)) {
-        array.push_back("Memory");
+    for (int ii = 0; ii < 32; ++ii) {
+        auto bit = static_cast<DcpSnapshotMarkerFlag>(uint8_t(1) << ii);
+        if ((flags & bit) == bit) {
+            switch (bit) {
+            case DcpSnapshotMarkerFlag::None:
+                break;
+            case DcpSnapshotMarkerFlag::Memory:
+                array.emplace_back("Memory");
+                break;
+            case DcpSnapshotMarkerFlag::Disk:
+                array.emplace_back("Disk");
+                break;
+            case DcpSnapshotMarkerFlag::Checkpoint:
+                array.emplace_back("Checkpoint");
+                break;
+            case DcpSnapshotMarkerFlag::Acknowledge:
+                array.emplace_back("Acknowledge");
+                break;
+            case DcpSnapshotMarkerFlag::History:
+                array.emplace_back("History");
+                break;
+            case DcpSnapshotMarkerFlag::MayContainDuplicates:
+                array.emplace_back("MayContainDuplicates");
+                break;
+            default:
+                array.emplace_back(fmt::format("unknown:{:#x}",
+                                               static_cast<unsigned int>(bit)));
+            }
+        }
     }
-    if ((flags & uint32_t(DcpSnapshotMarkerFlag::Disk)) ==
-        uint32_t(DcpSnapshotMarkerFlag::Disk)) {
-        array.push_back("Disk");
-    }
-    if ((flags & uint32_t(DcpSnapshotMarkerFlag::Checkpoint)) ==
-        uint32_t(DcpSnapshotMarkerFlag::Checkpoint)) {
-        array.push_back("Checkpoint");
-    }
-    if ((flags & uint32_t(DcpSnapshotMarkerFlag::Acknowledge)) ==
-        uint32_t(DcpSnapshotMarkerFlag::Acknowledge)) {
-        array.push_back("Acknowledge");
-    }
-    if ((flags & uint32_t(DcpSnapshotMarkerFlag::History)) ==
-        uint32_t(DcpSnapshotMarkerFlag::History)) {
-        array.push_back("History");
-    }
-    if ((flags & uint32_t(DcpSnapshotMarkerFlag::MayContainDuplicates)) ==
-        uint32_t(DcpSnapshotMarkerFlag::MayContainDuplicates)) {
-        array.push_back("MayContainDuplicates");
-    }
-    return array;
-}
 
+    if (array.size() == 1) {
+        json = array.front();
+    } else {
+        json = array;
+    }
+}
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerV1Payload& payload) {
     json = {{"start_seqno", std::to_string(payload.getStartSeqno())},
             {"end_seqno", std::to_string(payload.getEndSeqno())},
-            {"flags", decodeSnapshotFlags(payload.getFlags())}
+            {"flags", payload.getFlags()}
 
     };
 }

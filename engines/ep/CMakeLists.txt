@@ -295,7 +295,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/backfill_memory.cc
             src/dcp/backfill_to_stream.cc
             src/dcp/consumer.cc
-            src/dcp/dcp-types.cc
             src/dcp/dcpconnmap.cc
             src/dcp/flow-control.cc
             src/dcp/flow-control-manager.cc

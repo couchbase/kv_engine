@@ -23,6 +23,7 @@
 
 #include <executor/fake_executorpool.h>
 #include <libcouchstore/couch_db.h>
+#include <memcached/protocol_binary.h>
 #include <memcached/storeddockey_fwd.h>
 #include <nlohmann/json.hpp>
 
@@ -716,12 +717,14 @@ public:
 
     // A set of basic helper functions to reduce the size of tests which are
     // driving a DCPConsumer
-    cb::engine_errc snapshot(DcpConsumer& consumer,
-                             uint32_t opaque,
-                             uint64_t start,
-                             uint64_t end,
-                             uint32_t flags = MARKER_FLAG_MEMORY |
-                                              MARKER_FLAG_CHK);
+    cb::engine_errc snapshot(
+            DcpConsumer& consumer,
+            uint32_t opaque,
+            uint64_t start,
+            uint64_t end,
+            cb::mcbp::request::DcpSnapshotMarkerFlag flags =
+                    cb::mcbp::request::DcpSnapshotMarkerFlag::Memory |
+                    cb::mcbp::request::DcpSnapshotMarkerFlag::Checkpoint);
     cb::engine_errc mutation(DcpConsumer& consumer,
                              uint32_t opaque,
                              const DocKey& key,

@@ -28,6 +28,9 @@ namespace cb::mcbp {
 class Response;
 enum class DcpOpenFlag : uint32_t;
 enum class DcpAddStreamFlag : uint32_t;
+namespace request {
+enum class DcpSnapshotMarkerFlag : uint32_t;
+}
 }
 
 namespace mcbp::systemevent {
@@ -118,7 +121,7 @@ struct DcpMessageProducersIface {
             Vbid vbucket,
             uint64_t start_seqno,
             uint64_t end_seqno,
-            uint32_t flags,
+            cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> highCompletedSeqno,
             std::optional<uint64_t> maxVisibleSeqno,
             std::optional<uint64_t> timestamp,
@@ -507,7 +510,7 @@ struct DcpIface {
             Vbid vbucket,
             uint64_t start_seqno,
             uint64_t end_seqno,
-            uint32_t flags,
+            cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) = 0;
 

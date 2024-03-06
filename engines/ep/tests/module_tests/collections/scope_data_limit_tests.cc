@@ -68,7 +68,7 @@ TEST_P(CollectionsDcpParameterizedTest,
                                        vbid,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 2,
-                                       /*flags*/ 0,
+                                       /*flags*/ {},
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
@@ -170,7 +170,7 @@ TEST_P(CollectionsDcpParameterizedTest,
                                        replicaVB,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 2,
-                                       /*flags*/ 0,
+                                       /*flags*/ {},
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 
@@ -256,7 +256,7 @@ TEST_P(CollectionsDcpParameterizedTest, active_updates_limit) {
                                        vbid,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 2,
-                                       /*flags*/ 0,
+                                       /*flags*/ {},
                                        /*HCS*/ {},
                                        /*maxVisibleSeqno*/ {}));
 

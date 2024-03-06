@@ -388,14 +388,15 @@ cb::engine_errc dcpSetVbucketState(Cookie& cookie,
  *
  * @return cb::engine_errc
  */
-cb::engine_errc dcpSnapshotMarker(Cookie& cookie,
-                                  uint32_t opaque,
-                                  Vbid vbid,
-                                  uint64_t startSeqno,
-                                  uint64_t endSeqno,
-                                  uint32_t flags,
-                                  std::optional<uint64_t> highCompletedSeqno,
-                                  std::optional<uint64_t> maxVisibleSeqno);
+cb::engine_errc dcpSnapshotMarker(
+        Cookie& cookie,
+        uint32_t opaque,
+        Vbid vbid,
+        uint64_t startSeqno,
+        uint64_t endSeqno,
+        cb::mcbp::request::DcpSnapshotMarkerFlag flags,
+        std::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> maxVisibleSeqno);
 
 /**
  * Calls the underlying engine DCP stream-end

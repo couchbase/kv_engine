@@ -849,8 +849,8 @@ TEST_F(CollectionsDcpStreamsTest,
     uint64_t snapStart = 1;
     uint64_t snapEnd = 3;
     // set flags for disk snapshot and checkpoint range
-    uint32_t flags = dcp_marker_flag_t::MARKER_FLAG_DISK |
-                     dcp_marker_flag_t::MARKER_FLAG_CHK;
+    auto flags =
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint;
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(
                       opaque, replicaVB, snapStart, snapEnd, flags, {}, {}));
@@ -906,8 +906,7 @@ TEST_F(CollectionsDcpStreamsTest,
     snapStart = seqno;
     snapEnd = snapStart + 1;
     // set flags for memory snapshot and checkpoint range
-    flags = dcp_marker_flag_t::MARKER_FLAG_MEMORY |
-            dcp_marker_flag_t::MARKER_FLAG_CHK;
+    flags = DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint;
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(
                       opaque, replicaVB, snapStart, snapEnd, flags, {}, {}));

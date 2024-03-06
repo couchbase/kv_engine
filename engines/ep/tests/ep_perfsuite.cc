@@ -1006,7 +1006,8 @@ static void perf_dcp_client(EngineIface* h,
                 break;
 
             case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-                if (producers.last_flags & 8) {
+                if (isFlagSet(producers.last_snapshot_marker_flags,
+                              DcpSnapshotMarkerFlag::Acknowledge)) {
                     pending_marker_ack = true;
                     marker_end = producers.last_snap_end_seqno;
                 }
@@ -1266,14 +1267,15 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     for (size_t seqno = 1; seqno <= numItems; seqno++) {
         // 1) snapshot-marker
         checkeq(cb::engine_errc::success,
-                dcp.snapshot_marker(*passiveCookie,
-                                    opaque,
-                                    vbid,
-                                    seqno /*snapStart*/,
-                                    seqno /*snapEnd*/,
-                                    dcp_marker_flag_t::MARKER_FLAG_MEMORY,
-                                    {} /*HCS*/,
-                                    {} /*maxVisibleSeqno*/),
+                dcp.snapshot_marker(
+                        *passiveCookie,
+                        opaque,
+                        vbid,
+                        seqno /*snapStart*/,
+                        seqno /*snapEnd*/,
+                        cb::mcbp::request::DcpSnapshotMarkerFlag::Memory,
+                        {} /*HCS*/,
+                        {} /*maxVisibleSeqno*/),
                 "dcp.snapshot_marker failed");
 
         auto begin = std::chrono::steady_clock::now();

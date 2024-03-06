@@ -489,7 +489,7 @@ cb::engine_errc MockEngine::snapshot_marker(
         Vbid vbucket,
         uint64_t start_seqno,
         uint64_t end_seqno,
-        uint32_t flags,
+        cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> max_visible_seqno) {
     return the_engine_dcp->snapshot_marker(cookie,

@@ -27,6 +27,12 @@ std::string format_as(DcpAddStreamFlag flag) {
     return flag2string(flag);
 }
 
+namespace request {
+std::string format_as(DcpSnapshotMarkerFlag flag) {
+    return flag2string(flag);
+}
+} // namespace request
+
 namespace subdoc {
 std::string format_as(PathFlag flag) {
     return flag2string(flag);

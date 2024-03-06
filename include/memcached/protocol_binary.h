@@ -774,6 +774,18 @@ protected:
 };
 static_assert(sizeof(DcpStreamEndPayload) == 4, "Unexpected struct size");
 
+enum class DcpSnapshotMarkerFlag : uint32_t {
+    None = 0x00,
+    Memory = 0x01,
+    Disk = 0x02,
+    Checkpoint = 0x04,
+    Acknowledge = 0x08,
+    History = 0x10,
+    MayContainDuplicates = 0x20
+};
+std::string format_as(DcpSnapshotMarkerFlag flag);
+DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpSnapshotMarkerFlag);
+
 class DcpSnapshotMarkerV1Payload {
 public:
     uint64_t getStartSeqno() const {
@@ -788,11 +800,11 @@ public:
     void setEndSeqno(uint64_t end_seqno) {
         DcpSnapshotMarkerV1Payload::end_seqno = htonll(end_seqno);
     }
-    uint32_t getFlags() const {
-        return ntohl(flags);
+    DcpSnapshotMarkerFlag getFlags() const {
+        return static_cast<DcpSnapshotMarkerFlag>(ntohl(flags));
     }
-    void setFlags(uint32_t flags) {
-        DcpSnapshotMarkerV1Payload::flags = htonl(flags);
+    void setFlags(DcpSnapshotMarkerFlag value) {
+        flags = htonl(static_cast<uint32_t>(value));
     }
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
@@ -805,15 +817,6 @@ protected:
 };
 static_assert(sizeof(DcpSnapshotMarkerV1Payload) == 20,
               "Unexpected struct size");
-
-enum class DcpSnapshotMarkerFlag : uint32_t {
-    Memory = 0x01,
-    Disk = 0x02,
-    Checkpoint = 0x04,
-    Acknowledge = 0x08,
-    History = 0x10,
-    MayContainDuplicates = 0x20
-};
 
 enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, One = 1 };
 

@@ -990,7 +990,7 @@ public:
     size_t dcpSnapshotMarkerV2(uint32_t opaque,
                                uint64_t start,
                                uint64_t end,
-                               uint32_t flags);
+                               cb::mcbp::request::DcpSnapshotMarkerFlag flags);
     size_t dcpMutation(const Document& doc,
                        uint32_t opaque,
                        uint64_t seqno,

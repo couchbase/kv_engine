@@ -136,7 +136,7 @@ public:
 
         void transferSnapshotMarker(uint64_t expectedStart,
                                     uint64_t expectedEnd,
-                                    uint32_t expectedFlags);
+                                    DcpSnapshotMarkerFlag expectedFlags);
 
         void transferResponseMessage();
 
@@ -534,7 +534,9 @@ void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
 }
 
 void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
-        uint64_t expectedStart, uint64_t expectedEnd, uint32_t expectedFlags) {
+        uint64_t expectedStart,
+        uint64_t expectedEnd,
+        DcpSnapshotMarkerFlag expectedFlags) {
     auto streams = getStreams();
     auto msg = getNextProducerMsg(streams.first);
     ASSERT_TRUE(msg);
@@ -799,18 +801,24 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // (SNAP_MARKER, CMT, SET), (SNAP_MARKER, PRE), with a flush after the
     // first 4. No prepare is sent at seqno 1 as we do not send completed
     // prepares when backfilling.
-    route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_CHK | MARKER_FLAG_DISK);
+    route0_1.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Disk);
     route0_1.transferMutation(makeStoredDocKey("a"), 2);
     route0_1.transferMutation(makeStoredDocKey("b"), 3);
 
     flushNodeIfPersistent(Node1);
 
     // Transfer 2 more messages (SNAP_MARKER, PRE)
-    int takeover = isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)
-                           ? MARKER_FLAG_ACK
-                           : 0;
-    route0_1.transferSnapshotMarker(
-            4, 6, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
+    const auto takeover = isFlagSet(flags, cb::mcbp::DcpAddStreamFlag::TakeOver)
+                                  ? DcpSnapshotMarkerFlag::Acknowledge
+                                  : DcpSnapshotMarkerFlag::None;
+    route0_1.transferSnapshotMarker(4,
+                                    6,
+                                    DcpSnapshotMarkerFlag::Checkpoint |
+                                            DcpSnapshotMarkerFlag::Memory |
+                                            takeover);
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
     ASSERT_TRUE(replicaVB);
     // If only the snapshot marker has been received, but no mutations we're in
@@ -900,7 +908,10 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // Setup: Create DCP connections; and stream the first 2 items (SNAP, 1:PRE)
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
-    route0_1.transferSnapshotMarker(0, 1, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            0,
+            1,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     //     2:CMT(a)
@@ -949,7 +960,10 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // Test: Transfer next 2 messages from Producer to Consumer which
     // should be from backfill (after cursor dropping):
     // SNAP_MARKER (disk), 2:CMT
-    route0_1.transferSnapshotMarker(2, 3, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            2,
+            3,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint);
     // Note: This was originally a Commit but because it has come from disk
     // it's sent as a Mutation (as backfill in general doesn't know if consumer
     // received the prior prepare so must send as Mutation).
@@ -958,7 +972,10 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
 
     // Transfer 2 memory messages - should be:
     // SNAP_MARKER (mem), 4:PRE
-    route0_1.transferSnapshotMarker(4, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            4,
+            5,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     // Flush through the snapshots, mem->disk->mem requires 3 flushes
@@ -1020,10 +1037,16 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     EXPECT_EQ(cb::engine_errc::success, storeSet(k2));
     flushVBucketToDiskIfPersistent(vbid, 2);
     // These go everywhere...
-    route0_1.transferSnapshotMarker(0, 2, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            0,
+            2,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route0_1.transferMutation(k1, 1);
     route0_1.transferMutation(k2, 2);
-    route0_2.transferSnapshotMarker(0, 2, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_2.transferSnapshotMarker(
+            0,
+            2,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route0_2.transferMutation(k1, 1);
     route0_2.transferMutation(k2, 2);
 
@@ -1033,7 +1056,7 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // And replicate the snapshot to replica on Node1
-    route0_1.transferSnapshotMarker(3, 4, MARKER_FLAG_MEMORY);
+    route0_1.transferSnapshotMarker(3, 4, DcpSnapshotMarkerFlag::Memory);
     route0_1.transferMutation(k3, 3);
     route0_1.transferMutation(k4, 4);
     flushNodeIfPersistent(Node1);
@@ -1049,7 +1072,10 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // And replicate a partial snapshot to the replica on Node1
-    route0_1.transferSnapshotMarker(5, 6, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            5,
+            6,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route0_1.transferMutation(k5, 5);
     // k3@6 doesn't transfer
     flushNodeIfPersistent(Node1);
@@ -1070,7 +1096,9 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
     // always set the marker.start to be the first seqno the ActiveStream pushes
     // to the readyQueue regardless of what the stream-request start-seqno was.
     route0_2_new.transferSnapshotMarker(
-            2, 6, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+            2,
+            6,
+            DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint);
     route0_2_new.transferMutation(k4, 4); // transfer k4
     flushNodeIfPersistent(Node2);
     route0_2_new.transferMutation(k5, 5); // transfer k5
@@ -1102,12 +1130,18 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
 
     // The new node joins successfully and builds a replica from 0
     EXPECT_EQ(cb::engine_errc::success, route1_3.doStreamRequest().first);
-    route1_3.transferSnapshotMarker(0, 4, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route1_3.transferSnapshotMarker(
+            0,
+            4,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route1_3.transferMutation(k1, 1);
     route1_3.transferMutation(k2, 2);
     route1_3.transferMutation(k3, 3);
     route1_3.transferMutation(k4, 4);
-    route1_3.transferSnapshotMarker(5, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route1_3.transferSnapshotMarker(
+            5,
+            5,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route1_3.transferMutation(k5, 5);
 }
 
@@ -1121,7 +1155,10 @@ TEST_P(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
 
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
-    route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
 
     auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
     ASSERT_TRUE(replicaVB);
@@ -1146,8 +1183,10 @@ TEST_P(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
  * up throwing an exception in the Flusher when we next persist anything.
  */
 TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
-    // We need a new checkpoint (MARKER_FLAG_CHK set) when the active node
-    // generates markers - reduce checkpoint_max_size to simplify this.
+    // We need a new checkpoint
+    // (DcpSnapshotMarkerFlag::Checkpoint set) when the
+    // active node generates markers - reduce checkpoint_max_size to simplify
+    // this.
     engines[Node0]->getCheckpointConfig().setCheckpointMaxSize(2048);
 
     // Setup - fill up the initial checkpoint, with items, so when we
@@ -1179,16 +1218,19 @@ TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
     auto route0_1 = createDcpRoute(Node0, Node1);
     ASSERT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
     route0_1.transferSnapshotMarker(
-            0, numItemsClosed, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+            0,
+            numItemsClosed,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     for (size_t i = 0; i < numItemsClosed; i++) {
         route0_1.transferMessage(DcpResponse::Event::Mutation);
     }
 
     // Test - transfer the snapshot marker (but no mutations), then close stream
     // and promote to active; and try to accept a new mutation.
-    route0_1.transferSnapshotMarker(numItemsClosed + 1,
-                                    numItemsClosed + 3,
-                                    MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            numItemsClosed + 1,
+            numItemsClosed + 3,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
 
     route0_1.closeStreamAtConsumer();
     engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
@@ -1213,7 +1255,10 @@ TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
 
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
-    route0_1.transferSnapshotMarker(0, 1, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    route0_1.transferSnapshotMarker(
+            0,
+            1,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint);
     route0_1.transferMutation(k1, 1);
 
     flushNodeIfPersistent(Node1);
@@ -1231,7 +1276,7 @@ TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
     }
 
     EXPECT_EQ(cb::engine_errc::success, del(k1));
-    route0_1.transferSnapshotMarker(2, 2, MARKER_FLAG_MEMORY);
+    route0_1.transferSnapshotMarker(2, 2, DcpSnapshotMarkerFlag::Memory);
     // Must not fail, with MB-41255 this would error with 'would block'
     route0_1.transferDeletion(k1, 2);
 }

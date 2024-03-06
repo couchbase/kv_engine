@@ -381,7 +381,8 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                        vbid,
                                        1 /*start*/,
                                        durReqs ? 5 : 2 /*end*/,
-                                       MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                                       DcpSnapshotMarkerFlag::Checkpoint |
+                                               DcpSnapshotMarkerFlag::Disk,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
@@ -429,14 +430,16 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
     // Note: In the NormalDel test replica receives 2 DELs in a row, so by logic
     // the second one must be in a second snapshot.
     if (!durReqs) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  consumer->snapshotMarker(opaque,
-                                           vbid,
-                                           3 /*start*/,
-                                           5 /*end*/,
-                                           MARKER_FLAG_CHK | MARKER_FLAG_MEMORY,
-                                           {} /*HCS*/,
-                                           {} /*maxVisibleSeqno*/));
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                consumer->snapshotMarker(opaque,
+                                         vbid,
+                                         3 /*start*/,
+                                         5 /*end*/,
+                                         DcpSnapshotMarkerFlag::Checkpoint |
+                                                 DcpSnapshotMarkerFlag::Memory,
+                                         {} /*HCS*/,
+                                         {} /*maxVisibleSeqno*/));
     }
 
     // Receive DEL:4 while there is a range-read in place (eg, TombstonePurger

@@ -532,11 +532,13 @@ void TestDcpConsumer::run(bool openConn) {
                 if (stats.exp_disk_snapshot &&
                     stats.num_snapshot_markers == 0) {
                     checkeq(uint32_t{1},
-                            producers.last_flags,
+                            static_cast<uint32_t>(
+                                    producers.last_snapshot_marker_flags),
                             "Expected disk snapshot");
                 }
 
-                if (producers.last_flags & 8) {
+                if (isFlagSet(producers.last_snapshot_marker_flags,
+                              DcpSnapshotMarkerFlag::Acknowledge)) {
                     stats.pending_marker_ack = true;
                     stats.marker_end = producers.last_snap_end_seqno;
                 }
@@ -947,7 +949,7 @@ static void dcp_stream_to_replica(EngineIface* h,
                                   CookieIface* cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
-                                  uint32_t flags,
+                                  DcpSnapshotMarkerFlag flags,
                                   uint64_t start,
                                   uint64_t end,
                                   uint64_t snap_start_seqno,
@@ -984,7 +986,7 @@ static void dcp_stream_to_replica(EngineIface* h,
                               datatype,
                               cas,
                               vbucket,
-                              flags,
+                              static_cast<uint32_t>(flags),
                               i, // by seqno
                               revSeqno,
                               exprtime,
@@ -1044,7 +1046,8 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                 bytes_read += producers.last_packet_size;
                 break;
             case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-                if (producers.last_flags & 8) {
+                if (isFlagSet(producers.last_snapshot_marker_flags,
+                              DcpSnapshotMarkerFlag::Acknowledge)) {
                     pending_marker_ack = true;
                     marker_end = producers.last_snap_end_seqno;
                 }
@@ -1059,9 +1062,8 @@ static void dcp_stream_from_producer_conn(EngineIface* h,
                         "Unexpected DCP operation: " +
                         to_string(producers.last_op) + " last_byseqno: " +
                         std::to_string(producers.last_byseqno.load()) +
-                        " last_key: " + producers.last_key + " last_value: " +
-                        producers.last_value + " last_flags: " +
-                        std::to_string(producers.last_flags));
+                        " last_key: " + producers.last_key +
+                        " last_value: " + producers.last_value);
                 check(false, err_string.c_str());
             }
             if (producers.last_byseqno >= end) {
@@ -1087,7 +1089,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
                                            CookieIface* cookie,
                                            uint32_t opaque,
                                            Vbid vbucket,
-                                           uint32_t flags,
+                                           DcpSnapshotMarkerFlag flags,
                                            uint64_t start,
                                            uint64_t end,
                                            uint64_t snap_start_seqno,
@@ -1225,7 +1227,7 @@ extern "C" {
                                               Vbid(0),
                                               ctx->items + i,
                                               ctx->items + i,
-                                              2,
+                                              DcpSnapshotMarkerFlag::Disk,
                                               0 /*HCS*/,
                                               {} /*maxVisibleSeqno*/),
                     "snapshot marker failed");
@@ -1341,7 +1343,8 @@ static void dcp_waiting_step(EngineIface* h,
                 bytes_read += producers.last_packet_size;
                 break;
             case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-                if (producers.last_flags & 8) {
+                if (isFlagSet(producers.last_snapshot_marker_flags,
+                              DcpSnapshotMarkerFlag::Acknowledge)) {
                     pending_marker_ack = true;
                     marker_end = producers.last_snap_end_seqno;
                 }
@@ -2475,7 +2478,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                                  vbid,
                                  0,
                                  1,
-                                 0,
+                                 {},
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
@@ -2648,8 +2651,15 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(
-            h, cookie, opaque, Vbid(0), 0x01, 1, num_items, 0, num_items);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          DcpSnapshotMarkerFlag::Memory,
+                          1,
+                          num_items,
+                          0,
+                          num_items);
 
     /* Send 10 more DCP mutations with checkpoint creation flag (0x04) */
     uint64_t start = num_items;
@@ -2657,7 +2667,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 10,
                           start,
@@ -2676,7 +2686,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 10,
                           start,
@@ -3288,7 +3298,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                                  Vbid(0),
                                  0,
                                  10,
-                                 2,
+                                 DcpSnapshotMarkerFlag::Disk,
                                  0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
@@ -3383,7 +3393,7 @@ static enum test_result test_dcp_crash_reconnect_partial(EngineIface* h) {
     return test_dcp_reconnect(h, false, true);
 }
 
-static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
+static test_result test_dcp_consumer_takeover(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     uint32_t opaque = 0xFFFF0000;
     const char *name = "unittest";
@@ -3419,7 +3429,8 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                                  Vbid(0),
                                  1,
                                  5,
-                                 10,
+                                 DcpSnapshotMarkerFlag::Disk |
+                                         DcpSnapshotMarkerFlag::Acknowledge,
                                  0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "snapshot marker failed");
@@ -3452,7 +3463,8 @@ static enum test_result test_dcp_consumer_takeover(EngineIface* h) {
                                  Vbid(0),
                                  6,
                                  10,
-                                 10,
+                                 DcpSnapshotMarkerFlag::Disk |
+                                         DcpSnapshotMarkerFlag::Acknowledge,
                                  0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "snapshot marker failed");
@@ -3570,7 +3582,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
                                  Vbid(0),
                                  startSeqno,
                                  startSeqno + snapshotNumItems,
-                                 0 /*flags*/,
+                                 {} /*flags*/,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
@@ -3650,7 +3662,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
                                  Vbid(0),
                                  0,
                                  5,
-                                 0,
+                                 {},
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
@@ -3790,7 +3802,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
                                  Vbid(0),
                                  0,
                                  20,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -4691,7 +4703,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                                  Vbid(0),
                                  10,
                                  10,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
@@ -4737,7 +4749,8 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                                  Vbid(0),
                                  bySeqno,
                                  bySeqno + 5,
-                                 300,
+                                 DcpSnapshotMarkerFlag::Acknowledge |
+                                         DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
@@ -4826,7 +4839,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                                  Vbid(0),
                                  10,
                                  10,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
@@ -4917,7 +4930,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                                  Vbid(0),
                                  10,
                                  10,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker");
@@ -4993,8 +5006,15 @@ static enum test_result test_dcp_replica_stream_backfill(EngineIface* h) {
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Write backfill elements on to replica, flag (0x02) */
-    dcp_stream_to_replica(
-            h, cookie, opaque, Vbid(0), 0x02, 1, num_items, 0, num_items);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          DcpSnapshotMarkerFlag::Disk,
+                          1,
+                          num_items,
+                          0,
+                          num_items);
 
     /* Stream in mutations from replica */
     wait_for_flusher_to_settle(h);
@@ -5051,7 +5071,15 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
     opaque = add_stream_for_consumer(
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
     // backfill items 1 to 100
-    dcp_stream_to_replica(h, cookie, opaque, Vbid(0), 0x02, 1, items, 1, items);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          DcpSnapshotMarkerFlag::Disk,
+                          1,
+                          items,
+                          1,
+                          items);
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "vb_0:high_seqno", items, "vbucket-seqno");
 
@@ -5088,7 +5116,7 @@ static enum test_result test_dcp_replica_stream_backfill_MB_34173(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x02,
+                          DcpSnapshotMarkerFlag::Disk,
                           items + 1,
                           items + 10,
                           items + 1,
@@ -5126,8 +5154,15 @@ static enum test_result test_dcp_replica_stream_in_memory(EngineIface* h) {
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(
-            h, cookie, opaque, Vbid(0), 0x01, 1, num_items, 0, num_items);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          DcpSnapshotMarkerFlag::Memory,
+                          1,
+                          num_items,
+                          0,
+                          num_items);
 
     /* Stream in memory mutations from replica */
     wait_for_flusher_to_settle(h);
@@ -5177,8 +5212,15 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(
-            h, cookie, opaque, Vbid(0), 0x01, 1, num_items, 0, num_items);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          DcpSnapshotMarkerFlag::Memory,
+                          1,
+                          num_items,
+                          0,
+                          num_items);
 
     /* Send 100 more DCP mutations with checkpoint creation flag (0x04) */
     uint64_t start = num_items;
@@ -5186,7 +5228,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5205,7 +5247,7 @@ static enum test_result test_dcp_replica_stream_all(EngineIface* h) {
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5280,8 +5322,15 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
             h, cookie, opaque, Vbid(0), {}, cb::mcbp::Status::Success);
 
     /* Send DCP mutations with in memory flag (0x01) */
-    dcp_stream_to_replica(
-            h, cookie, opaque, Vbid(0), 0x01, 1, num_items, 0, num_items);
+    dcp_stream_to_replica(h,
+                          cookie,
+                          opaque,
+                          Vbid(0),
+                          DcpSnapshotMarkerFlag::Memory,
+                          1,
+                          num_items,
+                          0,
+                          num_items);
 
     /* Send 100 more DCP mutations with checkpoint creation flag (0x04) */
     uint64_t start = num_items;
@@ -5289,7 +5338,7 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5308,7 +5357,7 @@ static enum test_result test_dcp_replica_stream_all_collection_enabled(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5411,7 +5460,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x01,
+                          DcpSnapshotMarkerFlag::Memory,
                           1 + startSeqno,
                           num_items + startSeqno,
                           0,
@@ -5426,7 +5475,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5451,7 +5500,7 @@ static enum test_result test_dcp_replica_stream_one_collection_on_disk(
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5557,7 +5606,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x01,
+                          DcpSnapshotMarkerFlag::Memory,
                           1 + startSeqno,
                           num_items + startSeqno,
                           0,
@@ -5572,7 +5621,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5597,7 +5646,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5609,7 +5658,7 @@ static enum test_result test_dcp_replica_stream_one_collection(EngineIface* h) {
                           cookie,
                           opaque,
                           Vbid(0),
-                          0x04,
+                          DcpSnapshotMarkerFlag::Checkpoint,
                           start + 1,
                           start + 100,
                           start,
@@ -5694,7 +5743,7 @@ static test_result test_dcp_replica_stream_expiries(
                                    cookie,
                                    opaque,
                                    Vbid(0),
-                                   0x02,
+                                   DcpSnapshotMarkerFlag::Disk,
                                    1,
                                    num_items,
                                    0,
@@ -5939,7 +5988,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
                                consumerCookie,
                                opaque,
                                Vbid(0),
-                               /*MARKER_FLAG_DISK*/ 0x02,
+                               DcpSnapshotMarkerFlag::Disk,
                                /*start*/ 1,
                                /*end*/ num_items,
                                /*snap_start_seqno*/ 1,
@@ -6174,7 +6223,8 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                                  Vbid(0),
                                  5,
                                  10,
-                                 300,
+                                 DcpSnapshotMarkerFlag::Acknowledge |
+                                         DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -6300,7 +6350,8 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                  Vbid(0),
                                  1,
                                  10,
-                                 300,
+                                 DcpSnapshotMarkerFlag::Acknowledge |
+                                         DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -6355,7 +6406,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                  Vbid(0),
                                  5,
                                  10,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::out_of_range,
@@ -6368,7 +6419,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                  Vbid(0),
                                  5,
                                  15,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -6500,7 +6551,8 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                                  Vbid(0),
                                  1,
                                  10,
-                                 300,
+                                 DcpSnapshotMarkerFlag::Acknowledge |
+                                         DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -6532,7 +6584,9 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                                  Vbid(0),
                                  11,
                                  8,
-                                 300,
+                                 DcpSnapshotMarkerFlag::MayContainDuplicates |
+                                         DcpSnapshotMarkerFlag::Acknowledge |
+                                         DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::invalid_arguments,
@@ -6833,7 +6887,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                                  Vbid(0),
                                  /*start*/ 0,
                                  /*end*/ 2,
-                                 /*flags*/ 2,
+                                 DcpSnapshotMarkerFlag::Disk,
                                  /*HCS*/ 0,
                                  /*maxVisibleSeqno*/ {}),
             "snapshot marker failed");
@@ -6877,7 +6931,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                                  Vbid(0),
                                  /*start*/ 3,
                                  /*end*/ 3,
-                                 /*flags*/ 2,
+                                 DcpSnapshotMarkerFlag::Disk,
                                  /*HCS*/ 0,
                                  /*maxVisibleSeqno*/ {}),
             "Snapshot marker failed");
@@ -7065,7 +7119,7 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
     const uint64_t seqno = 1;
     checkeq(cb::engine_errc::success,
             dcp->snapshot_marker(
-                    *cookie, stream_opaque, Vbid(0), seqno, seqno, 0, {}, {}),
+                    *cookie, stream_opaque, Vbid(0), seqno, seqno, {}, {}, {}),
             "Failed to send snapshot marker");
     const DocKey docKey("key", DocKeyEncodesCollectionId::No);
     const std::string value = "value";
@@ -7142,7 +7196,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                                  rep_vb_num,
                                  0,
                                  10,
-                                 1,
+                                 DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send snapshot marker!");
@@ -7483,7 +7537,8 @@ static enum test_result test_mb19982(EngineIface* h) {
                                  Vbid(0),
                                  num_items + 1,
                                  num_items * 2,
-                                 MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                 DcpSnapshotMarkerFlag::Disk |
+                                         DcpSnapshotMarkerFlag::Checkpoint,
                                  0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -7599,7 +7654,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                  vb,
                                  0, // start-seq
                                  2, // end-seq
-                                 MARKER_FLAG_DISK,
+                                 DcpSnapshotMarkerFlag::Disk,
                                  0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "snapshot_marker returned an error");
@@ -7729,7 +7784,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
                                  Vbid(0),
                                  1,
                                  num_items,
-                                 MARKER_FLAG_CHK,
+                                 DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             cb::engine_errc::success,
@@ -7764,7 +7819,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
                                  Vbid(0),
                                  num_items + 1,
                                  num_items + 1,
-                                 MARKER_FLAG_CHK,
+                                 DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "Failed to send second snapshot marker");

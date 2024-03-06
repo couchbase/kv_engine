@@ -338,7 +338,7 @@ TEST_F(SingleThreadedEPBucketTest, DcpConsumerTaskYields) {
     for (size_t seqno = 1; seqno <= numItems; ++seqno) {
         EXPECT_EQ(cb::engine_errc::success,
                   consumer->snapshotMarker(
-                          opaque, vbid, seqno, seqno, 0, {}, {}));
+                          opaque, vbid, seqno, seqno, {}, {}, {}));
 
         EXPECT_EQ(cb::engine_errc::success,
                   consumer->mutation(
@@ -845,7 +845,7 @@ TEST_F(SingleThreadedEPBucketTest,
                                        vbid,
                                        1,
                                        10,
-                                       MARKER_FLAG_CHK,
+                                       DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
     ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
@@ -924,7 +924,7 @@ TEST_F(SingleThreadedEPBucketTest,
                                            vbid,
                                            11,
                                            11,
-                                           MARKER_FLAG_CHK,
+                                           DcpSnapshotMarkerFlag::Checkpoint,
                                            {} /*HCS*/,
                                            {} /*maxVisibleSeqno*/));
     };

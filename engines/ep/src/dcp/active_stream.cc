@@ -396,12 +396,13 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
 
-        auto flags = MARKER_FLAG_DISK | MARKER_FLAG_CHK;
+        auto flags =
+                DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint;
 
         if (snapshotType == SnapshotType::History ||
             snapshotType == SnapshotType::HistoryFollowingNoHistory) {
-            flags |= (MARKER_FLAG_HISTORY |
-                      MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS);
+            flags |= (DcpSnapshotMarkerFlag::History |
+                      DcpSnapshotMarkerFlag::MayContainDuplicates);
         }
 
         if (snapshotType == SnapshotType::NoHistoryPrecedingHistory) {
@@ -420,13 +421,12 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         } else {
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-                "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
-                "mvs:{}, lastBackfilledSeqno:{}",
+                "start:{}, end:{}, flags:{}, hcs:{}, mvs:{}, "
+                "lastBackfilledSeqno:{}",
                 logPrefix,
                 startSeqno,
                 endSeqno,
                 flags,
-                dcpMarkerFlagsToString(flags),
                 to_string_or_none(hcsToSend),
                 to_string_or_none(mvsToSend),
                 lastBackfilledSeqno);
@@ -598,14 +598,12 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
             // There is a marker, move it to the readyQ
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::backfillReceived(seqno:{}): Sending pending "
-                "disk snapshot with start:{}, end:{}, flags:0x{:x}, "
-                "flagsDecoded:{}, hcs:{}, mvs:{}",
+                "disk snapshot with start:{}, end:{}, flags:{}, hcs:{}, mvs:{}",
                 logPrefix,
                 *resp->getBySeqno(),
                 pendingDiskMarker->getStartSeqno(),
                 pendingDiskMarker->getEndSeqno(),
                 pendingDiskMarker->getFlags(),
-                dcpMarkerFlagsToString(pendingDiskMarker->getFlags()),
                 to_string_or_none(pendingDiskMarker->getHighCompletedSeqno()),
                 to_string_or_none(pendingDiskMarker->getMaxVisibleSeqno()));
 
@@ -1386,16 +1384,15 @@ void ActiveStream::processItemsInner(
     // prepend the snapshot_marker; followed by the mutations it contains.
     //
     // 2. For each checkpoint_start item we need to create a snapshot with
-    // the MARKER_FLAG_CHK set - so the destination knows this represents
-    // a consistent point and should create it's own checkpoint on this
-    // boundary.
-    // However, a snapshot marker must contain at least 1
+    // the DcpSnapshotMarkerFlag::Checkpoint set - so the destination knows this
+    // represents a consistent point and should create it's own checkpoint on
+    // this boundary. However, a snapshot marker must contain at least 1
     // (non-snapshot_start) item, but if the last item in `items` is a
     // checkpoint_marker then it is not possible to create a valid snapshot
     // (yet). We must instead defer calling snapshot() until we have at
     // least one item - i.e on a later call to processItems.
-    // Therefore we record the pending MARKER_FLAG_CHK as part of the
-    // object's state in nextSnapshotIsCheckpoint. When we subsequently
+    // Therefore we record the pending DcpSnapshotMarkerFlag::Checkpoint as part
+    // of the object's state in nextSnapshotIsCheckpoint. When we subsequently
     // receive at least one more mutation (and hence can enqueue a
     // SnapshotMarker), we can use nextSnapshotIsCheckpoint to snapshot
     // it correctly.
@@ -1688,7 +1685,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         auto flags = getMarkerFlags(meta);
         if (isTakeoverSend()) {
             waitForSnapshot++;
-            flags |= MARKER_FLAG_ACK;
+            flags |= DcpSnapshotMarkerFlag::Acknowledge;
         }
 
         // If the stream supports SyncRep then send the HCS for CktpType::disk
@@ -2814,19 +2811,19 @@ uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start,
     return start;
 }
 
-uint32_t ActiveStream::getMarkerFlags(
+DcpSnapshotMarkerFlag ActiveStream::getMarkerFlags(
         const OutstandingItemsResult& meta) const {
-    uint32_t flags = isDiskCheckpointType(meta.checkpointType)
-                             ? MARKER_FLAG_DISK
-                             : MARKER_FLAG_MEMORY;
+    auto flags = isDiskCheckpointType(meta.checkpointType)
+                         ? DcpSnapshotMarkerFlag::Disk
+                         : DcpSnapshotMarkerFlag::Memory;
 
     if (changeStreamsEnabled &&
         (meta.historical == CheckpointHistorical::Yes)) {
-        flags |= MARKER_FLAG_HISTORY;
+        flags |= DcpSnapshotMarkerFlag::History;
     }
 
     if (nextSnapshotIsCheckpoint) {
-        flags |= MARKER_FLAG_CHK;
+        flags |= DcpSnapshotMarkerFlag::Checkpoint;
     }
 
     return flags;

@@ -88,3 +88,27 @@ TEST(DcpAddStreamFlag, format_as) {
             "\"unknown:0x80000000\"]",
             fmt::format("{}", flag));
 }
+
+TEST(DcpSnapshotMarkerFlag, format_as) {
+    using request::DcpSnapshotMarkerFlag;
+    DcpSnapshotMarkerFlag flag = DcpSnapshotMarkerFlag::None;
+    EXPECT_EQ(R"("None")", fmt::format("{}", flag));
+    EXPECT_EQ(R"("None")", fmt::format("{}", flag));
+    flag |= DcpSnapshotMarkerFlag::Memory;
+    EXPECT_EQ(R"("Memory")", fmt::format("{}", flag));
+    flag |= DcpSnapshotMarkerFlag::Acknowledge;
+    EXPECT_EQ(R"(["Memory","Acknowledge"])", fmt::format("{}", flag));
+    flag = static_cast<DcpSnapshotMarkerFlag>(0xfffffffff);
+    EXPECT_EQ(
+            "[\"Memory\",\"Disk\",\"Checkpoint\",\"Acknowledge\",\"History\","
+            "\"MayContainDuplicates\",\"unknown:0x40\",\"unknown:0x80\","
+            "\"unknown:0x100\",\"unknown:0x200\",\"unknown:0x400\",\"unknown:"
+            "0x800\",\"unknown:0x1000\",\"unknown:0x2000\",\"unknown:0x4000\","
+            "\"unknown:0x8000\",\"unknown:0x10000\",\"unknown:0x20000\","
+            "\"unknown:0x40000\",\"unknown:0x80000\",\"unknown:0x100000\","
+            "\"unknown:0x200000\",\"unknown:0x400000\",\"unknown:0x800000\","
+            "\"unknown:0x1000000\",\"unknown:0x2000000\",\"unknown:0x4000000\","
+            "\"unknown:0x8000000\",\"unknown:0x10000000\",\"unknown:"
+            "0x20000000\",\"unknown:0x40000000\",\"unknown:0x80000000\"]",
+            fmt::format("{}", flag));
+}

@@ -1397,7 +1397,7 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
             vbid,
             prepareSeqno /*snapStart*/,
             prepareSeqno /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {}, // timestamp
@@ -1437,7 +1437,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             vbid,
             commitSeqno /*snapStart*/,
             commitSeqno /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {}, // timestamp
@@ -1486,7 +1486,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
             vbid,
             abortSeqno /*snapStart*/,
             abortSeqno /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {}, // timestamp
@@ -1528,7 +1528,7 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
             vbid,
             delSeqno /*snapStart*/,
             delSeqno /*snapEnd*/,
-            dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
             {}, // timestamp

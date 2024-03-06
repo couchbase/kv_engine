@@ -879,12 +879,12 @@ cb::engine_errc PassiveStream::processDropScope(
 // Helper function to avoid a Monotonic violation (same end-seqno) for the
 // !HISTORY->HISTORY snapshot
 static bool mustAssignEndSeqno(SnapshotMarker* marker, uint64_t endSeqno) {
-    if (marker->getFlags() & MARKER_FLAG_MEMORY) {
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Memory)) {
         // Always assign and catch monotonic violations
         return true;
     }
 
-    if (marker->getFlags() & MARKER_FLAG_HISTORY &&
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::History) &&
         marker->getEndSeqno() == endSeqno) {
         // HISTORY disk snapshot marker can follow !HISTORY disk and they have
         // the same end-seqno. Skip the assignment and avoid the monotonic
@@ -918,17 +918,20 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         cur_snapshot_end.store(marker->getEndSeqno());
     }
     const auto prevSnapType = cur_snapshot_type.load();
-    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK)
-                                    ? Snapshot::Disk
-                                    : Snapshot::Memory);
+    cur_snapshot_type.store(
+            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)
+                    ? Snapshot::Disk
+                    : Snapshot::Memory);
 
-    auto checkpointType = marker->getFlags() & MARKER_FLAG_DISK
-                                  ? CheckpointType::Disk
-                                  : CheckpointType::Memory;
+    auto checkpointType =
+            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)
+                    ? CheckpointType::Disk
+                    : CheckpointType::Memory;
 
-    const auto historical = marker->getFlags() & MARKER_FLAG_HISTORY
-                                    ? CheckpointHistorical::Yes
-                                    : CheckpointHistorical::No;
+    const auto historical =
+            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::History)
+                    ? CheckpointHistorical::Yes
+                    : CheckpointHistorical::No;
 
     // Check whether the snapshot can be considered as an initial disk
     // checkpoint for the replica.
@@ -944,26 +947,25 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     // SyncWrites to have completed yet). If SyncReplication is
     // supported then use the value from the marker.
     const std::optional<uint64_t> hcs =
-            (marker->getFlags() & MARKER_FLAG_DISK) && !supportsSyncReplication
+            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+                            !supportsSyncReplication
                     ? 0
                     : marker->getHighCompletedSeqno();
 
-    if (marker->getFlags() & MARKER_FLAG_DISK && !hcs) {
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) && !hcs) {
         const auto msg = fmt::format(
                 "PassiveStream::processMarker: stream:{} {}, flags:{}, "
-                "flagsDecoded:{}, snapStart:{}, snapEnd:{}, HCS:{} - "
-                "missing HCS",
+                "snapStart:{}, snapEnd:{}, HCS:{} - missing HCS",
                 name_,
                 vb_,
                 marker->getFlags(),
-                dcpMarkerFlagsToString(marker->getFlags()),
                 marker->getStartSeqno(),
                 marker->getEndSeqno(),
                 to_string_or_none(hcs));
         throw std::logic_error(msg);
     }
 
-    if (marker->getFlags() & MARKER_FLAG_DISK) {
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)) {
         // A replica could receive a duplicate DCP prepare during a disk
         // snapshot if it had previously received an uncompleted prepare.
         // We can receive a disk snapshot when we either:
@@ -1012,7 +1014,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     } else {
         // Case: receiving any type of snapshot (Disk/Memory).
 
-        if (marker->getFlags() & MARKER_FLAG_CHK) {
+        if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Checkpoint)) {
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
                                    hcs,
@@ -1024,9 +1026,11 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             // the same checkpoint. The only exception is for when replica
             // receives multiple Memory checkpoints in a row.
             // Since 6.5.0 the Active behaves correctly with regard to that
-            // (ie, the Active always sets the MARKER_FLAG_CHK in a snapshot
-            // transition tha involves Disk snapshots), but older Producers
-            // may still miss the MARKER_FLAG_CHK.
+            // (ie, the Active always sets the
+            // DcpSnapshotMarkerFlag::Checkpoint in a
+            // snapshot transition tha involves Disk snapshots), but older
+            // Producers may still miss the
+            // DcpSnapshotMarkerFlag::Checkpoint.
             if (prevSnapType == Snapshot::Memory &&
                 cur_snapshot_type == Snapshot::Memory) {
                 ckptMgr.extendOpenCheckpoint(cur_snapshot_end.load(),
@@ -1042,7 +1046,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         }
     }
 
-    if (marker->getFlags() & MARKER_FLAG_ACK) {
+    if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Acknowledge)) {
         cur_snapshot_ack = true;
     }
 }
