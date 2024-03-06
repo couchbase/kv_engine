@@ -39,36 +39,3 @@ std::string dcpMarkerFlagsToString(uint32_t dcpMarkerFlags) {
     s.append("]");
     return s;
 }
-
-std::string dcpAddStreamFlagsToString(uint32_t flags) {
-    std::string s = "[";
-    if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-        s.append("TAKEOVER,");
-    }
-    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        s.append("DISKONLY,");
-    }
-    if (flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
-        s.append("TO_LATEST,");
-    }
-    if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
-        s.append("NO_VALUE,");
-    }
-    if (flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) {
-        s.append("ACTIVE_VB_ONLY,");
-    }
-    if (flags & DCP_ADD_STREAM_STRICT_VBUUID) {
-        s.append("STRICT_VBUUID,");
-    }
-    if (flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
-        s.append("FROM_LATEST,");
-    }
-    if (flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
-        s.append("IGNORE_PURGED_TOMBSTONES,");
-    }
-    if (s.size() > 1) {
-        s.pop_back();
-    }
-    s.append("]");
-    return s;
-}
