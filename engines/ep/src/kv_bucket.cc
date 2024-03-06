@@ -1353,6 +1353,7 @@ void KVBucket::appendAggregatedVBucketStats(
         stateCol.addStat(Key::vb_ht_item_memory, visitor.getItemMemory());
         stateCol.addStat(Key::vb_ht_item_memory_uncompressed,
                          visitor.getUncompressedItemMemory());
+        stateCol.addStat(Key::vb_ht_max_size, visitor.getHtMaxSize());
         stateCol.addStat(Key::vb_bloom_filter_memory,
                          visitor.getBloomFilterMemory());
         stateCol.addStat(Key::vb_ops_create, visitor.getOpsCreate());

@@ -3144,6 +3144,16 @@
         "added": "7.1.0"
     },
     {
+        "key": "vb_ht_max_size",
+        "unit": "none",
+        "cbstat": "vb_{state}_ht_max_size",
+        "prometheus": {
+            "family": "vb_ht_max_size"
+        },
+        "description": "The maximum HashTable size (number of slots) across all vbuckets",
+        "added": "8.0.0"
+    },
+    {
         "key": "vb_bloom_filter_memory",
         "unit": "bytes",
         "cbstat": "vb_{state}_bloom_filter_memory",
