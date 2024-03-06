@@ -395,6 +395,25 @@ TEST(ManifestTest, validation) {
                 {"name": "_system_scope", "uid": "8",
                   "collections": [{"name": "c1", "uid": "8"}]
                 }]})",
+
+            // Invalid flush_uid values
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "flush_uid":1}]}]})",
+
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "flush_uid":"one"}]}]})",
+
+            // flush_uid greater than manifest makes no sense
+            R"({"uid" : "100",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "flush_uid":"200"}]}]})",
+
+            // manifest 0 cannot flush
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "flush_uid":"0"}]}]})",
     };
 
     std::vector<std::string> validManifests = {
@@ -549,6 +568,14 @@ TEST(ManifestTest, validation) {
                 {"name": "_default", "uid": "0", "collections": []},
                 {"name":"_scope", "uid":"8",
                 "collections":[{"name":"_system","uid":"8"}]}]})",
+
+            // flush_uid can be equal or lower than the manifest
+            R"({"uid" : "1f",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "flush_uid":"1e"}]}]})",
+            R"({"uid" : "100",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "flush_uid":"100"}]}]})",
     };
 
     for (auto& manifest : invalidJson) {

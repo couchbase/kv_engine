@@ -60,6 +60,8 @@ static constexpr nlohmann::json::value_t MeteredType =
 static constexpr char const* HistoryKey = "history";
 static constexpr nlohmann::json::value_t HistoryType =
         nlohmann::json::value_t::boolean;
+static constexpr char const* FlushUidKey = "flush_uid";
+
 
 /**
  * Get json sub-object from the json object for key and check the type.
@@ -134,7 +136,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                 std::string(ScopesKey), scope, nlohmann::json::value_t::object);
 
         auto name = getJsonObject(scope, NameKey, NameType);
-        auto uid = getJsonObject(scope, UidKey, UidType);
+        auto scopeUid = getJsonObject(scope, UidKey, UidType);
 
         auto nameValue = name.get<std::string>();
         if (!validName(nameValue)) {
@@ -142,7 +144,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
         }
 
         // Construction of ScopeID checks for invalid values
-        ScopeID sidValue{uid.get<std::string>()};
+        ScopeID sidValue{scopeUid.get<std::string>()};
 
         // 1) Default scope has an expected name.
         // 2) Scope identifiers must be unique.
@@ -254,13 +256,40 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                         nameValue));
             }
 
+            ManifestUid flushUid;
+            auto flushUidJson = cb::getOptionalJsonObject(collection, FlushUidKey, UidType);
+            if (flushUidJson) {
+                // Cannot have a flush_uid key in the epoch manifest
+                if (uid.load() == 0) {
+                    throwInvalid(fmt::format(
+                        "collection cid:{} {} flush_uid:{} key is not expected "
+                        "manifest with uid:0",
+                        cidValue,
+                        cnameValue,
+                        flushUid));
+                }
+                flushUid = makeManifestUid(flushUidJson->get<std::string>());
+            }
+
+            // The flush_uid cannot be from the future
+            if (flushUid.load() > uid.load()) {
+                 throwInvalid(fmt::format(
+                        "collection cid:{} {} flush_uid:{} greater than "
+                        "manifest:{}",
+                        cidValue,
+                        cnameValue,
+                        flushUid,
+                        uid));
+            }
+
             enableDefaultCollection(cidValue);
             scopeCollections.emplace_back(sidValue,
                                           cidValue,
                                           cnameValue,
                                           maxTtl,
                                           meteredState,
-                                          collectionCanDeduplicate);
+                                          collectionCanDeduplicate
+                                          /*todo pass flush_uid*/);
         }
 
         // Check for limits - only support for data_size
