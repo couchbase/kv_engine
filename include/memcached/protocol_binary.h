@@ -12,6 +12,7 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <memcached/vbucket.h>
+#include <platform/define_enum_class_bitmask_functions.h>
 #include <platform/socket.h>
 
 #ifndef WIN32
@@ -256,27 +257,16 @@ enum class PathFlag : uint8_t {
 };
 std::string format_as(PathFlag flag);
 
-inline PathFlag operator|(PathFlag a, PathFlag b) {
-    return PathFlag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
-}
-inline PathFlag& operator|=(PathFlag& a, PathFlag b) {
-    a = a | b;
-    return a;
-}
-constexpr PathFlag operator&(PathFlag a, PathFlag b) {
-    return PathFlag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
-}
-constexpr PathFlag operator~(PathFlag a) {
-    return PathFlag(~static_cast<uint8_t>(a));
-}
+DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(PathFlag);
+
 inline bool hasExpandedMacros(PathFlag flag) {
-    return (flag & PathFlag::ExpandMacros) == PathFlag::ExpandMacros;
+    return isFlagSet(flag, PathFlag::ExpandMacros);
 }
 inline bool hasXattrPath(PathFlag flag) {
-    return (flag & PathFlag::XattrPath) == PathFlag::XattrPath;
+    return isFlagSet(flag, PathFlag::XattrPath);
 }
 inline bool hasMkdirP(PathFlag flag) {
-    return (flag & PathFlag::Mkdir_p) == PathFlag::Mkdir_p;
+    return isFlagSet(flag, PathFlag::Mkdir_p);
 }
 
 /// Definitions of sub-document doc flags (this is a bitmap).
@@ -331,23 +321,12 @@ enum class DocFlag : uint8_t {
 };
 std::string format_as(DocFlag flag);
 
-constexpr DocFlag operator|(DocFlag a, DocFlag b) {
-    return DocFlag(static_cast<uint8_t>(a) | static_cast<uint8_t>(b));
-}
-inline DocFlag& operator|=(DocFlag& a, DocFlag b) {
-    a = a | b;
-    return a;
-}
-constexpr DocFlag operator&(DocFlag a, DocFlag b) {
-    return DocFlag(static_cast<uint8_t>(a) & static_cast<uint8_t>(b));
-}
-constexpr DocFlag operator~(DocFlag a) {
-    return DocFlag(~static_cast<uint8_t>(a));
-}
+DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DocFlag);
+
 /**
  * Used for validation at parsing the doc-flags.
- * The value depends on how many bits the doc_flag enum is actually using and
- * must change accordingly.
+ * The value depends on how many bits the doc_flag enum is actually
+ * using and must change accordingly.
  */
 static constexpr DocFlag extrasDocFlagMask =
         ~(DocFlag::Mkdoc | DocFlag::Add | DocFlag::AccessDeleted |
@@ -355,22 +334,22 @@ static constexpr DocFlag extrasDocFlagMask =
           DocFlag::ReplicaRead);
 
 inline bool hasAccessDeleted(DocFlag a) {
-    return (a & DocFlag::AccessDeleted) != DocFlag::None;
+    return isFlagSet(a, DocFlag::AccessDeleted);
 }
 inline bool hasReplicaRead(DocFlag a) {
-    return (a & DocFlag::ReplicaRead) != DocFlag::None;
+    return isFlagSet(a, DocFlag::ReplicaRead);
 }
 inline bool hasMkdoc(DocFlag a) {
-    return (a & DocFlag::Mkdoc) != DocFlag::None;
+    return isFlagSet(a, DocFlag::Mkdoc);
 }
 inline bool hasAdd(DocFlag a) {
-    return (a & DocFlag::Add) != DocFlag::None;
+    return isFlagSet(a, DocFlag::Add);
 }
 inline bool hasReviveDocument(DocFlag a) {
-    return (a & DocFlag::ReviveDocument) == DocFlag::ReviveDocument;
+    return isFlagSet(a, DocFlag::ReviveDocument);
 }
 inline bool hasCreateAsDeleted(DocFlag a) {
-    return (a & DocFlag::CreateAsDeleted) != DocFlag::None;
+    return isFlagSet(a, DocFlag::CreateAsDeleted);
 }
 inline bool isNone(DocFlag a) {
     return a == DocFlag::None;
@@ -595,22 +574,7 @@ enum class DcpOpenFlag : uint32_t {
 };
 std::string format_as(DcpOpenFlag flag);
 
-constexpr DcpOpenFlag operator|(DcpOpenFlag a, DcpOpenFlag b) {
-    return DcpOpenFlag(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
-}
-inline DcpOpenFlag& operator|=(DcpOpenFlag& a, DcpOpenFlag b) {
-    a = a | b;
-    return a;
-}
-constexpr DcpOpenFlag operator&(DcpOpenFlag a, DcpOpenFlag b) {
-    return DcpOpenFlag(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
-}
-constexpr DcpOpenFlag operator~(DcpOpenFlag a) {
-    return DcpOpenFlag(~static_cast<uint32_t>(a));
-}
-inline bool isFlagSet(DcpOpenFlag mask, DcpOpenFlag flag) {
-    return (mask & flag) == flag;
-}
+DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpOpenFlag);
 
 /// DcpAddStreamFlag is a bitmask where the following values are used:
 enum class DcpAddStreamFlag : uint32_t {
@@ -660,25 +624,7 @@ enum class DcpAddStreamFlag : uint32_t {
     IgnorePurgedTombstones = 128
 };
 std::string format_as(DcpAddStreamFlag flag);
-
-constexpr DcpAddStreamFlag operator|(DcpAddStreamFlag a, DcpAddStreamFlag b) {
-    return DcpAddStreamFlag(static_cast<uint32_t>(a) |
-                            static_cast<uint32_t>(b));
-}
-inline DcpAddStreamFlag& operator|=(DcpAddStreamFlag& a, DcpAddStreamFlag b) {
-    a = a | b;
-    return a;
-}
-constexpr DcpAddStreamFlag operator&(DcpAddStreamFlag a, DcpAddStreamFlag b) {
-    return DcpAddStreamFlag(static_cast<uint32_t>(a) &
-                            static_cast<uint32_t>(b));
-}
-constexpr DcpAddStreamFlag operator~(DcpAddStreamFlag a) {
-    return DcpAddStreamFlag(~static_cast<uint32_t>(a));
-}
-inline bool isFlagSet(DcpAddStreamFlag mask, DcpAddStreamFlag flag) {
-    return (mask & flag) == flag;
-}
+DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpAddStreamFlag);
 
 namespace request {
 

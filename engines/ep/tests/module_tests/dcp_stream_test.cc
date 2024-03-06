@@ -3751,8 +3751,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     // Check that we are testing a valid configuration: here we want to test
     // only configurations that trigger user-xattr pruning in deletes.
-    ASSERT_FALSE(
-            cb::mcbp::isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs));
+    ASSERT_FALSE(isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs));
 
     auto& vb = *engine->getVBucket(vbid);
     recreateProducerAndStream(vb, flags);
