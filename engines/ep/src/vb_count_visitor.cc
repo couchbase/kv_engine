@@ -29,6 +29,7 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
         htUncompressedItemMemory += vb.ht.getUncompressedItemMemory();
         htCacheSize += vb.ht.getCacheSize();
         htMaxSize = std::max(htMaxSize, vb.ht.getSize());
+        htSizeSum += vb.ht.getSize();
 
         numEjects += vb.ht.getNumEjects();
         numExpiredItems += vb.numExpiredItems;
