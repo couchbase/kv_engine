@@ -74,8 +74,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                                   cid,
                                                   collection,
                                                   {/*no ttl*/},
-                                                  Collections::Metered::Yes,
-                                                  CanDeduplicate::Yes}};
+                                                  CanDeduplicate::Yes,
+                                                  Collections::Metered::Yes}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     Collections::DropEventData dropEventData{manifestUid, sid, cid, false};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
@@ -180,8 +180,8 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
                                                   cid,
                                                   collection,
                                                   {/*no ttl*/},
-                                                  Collections::Metered::Yes,
-                                                  CanDeduplicate::Yes}};
+                                                  CanDeduplicate::Yes,
+                                                  Collections::Metered::Yes}};
     Collections::CreateEventDcpData eventDcpData{createEventData};
 
     VBucketPtr vb = store->getVBucket(replicaVB);

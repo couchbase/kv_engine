@@ -1426,8 +1426,8 @@ CreateEventData Manifest::getCreateEventData(const Collection& collection) {
              collection.collectionId(),
              collection.name()->str(),
              maxTtl,
-             Collections::getMetered(collection.metered()),
-             getCanDeduplicateFromHistory(collection.history())}};
+             getCanDeduplicateFromHistory(collection.history()),
+             Collections::getMetered(collection.metered())}};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(

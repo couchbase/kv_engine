@@ -122,15 +122,14 @@ std::vector<Collections::KVStore::OpenCollection> decodeOpenCollections(
                     CollectionID(entry->collectionId()).to_string() +
                     " in stored data");
         }
-        rv.emplace_back(
-                entry->startSeqno(),
-                Collections::CollectionMetaData{
-                        entry->scopeId(),
-                        entry->collectionId(),
-                        entry->name()->str(),
-                        maxTtl,
-                        Collections::getMetered(entry->metered()),
-                        getCanDeduplicateFromHistory(entry->history())});
+        rv.emplace_back(entry->startSeqno(),
+                        Collections::CollectionMetaData{
+                                entry->scopeId(),
+                                entry->collectionId(),
+                                entry->name()->str(),
+                                maxTtl,
+                                getCanDeduplicateFromHistory(entry->history()),
+                                Collections::getMetered(entry->metered())});
     }
     return rv;
 }

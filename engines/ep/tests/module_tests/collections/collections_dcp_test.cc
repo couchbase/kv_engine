@@ -419,8 +419,8 @@ void CollectionsDcpTest::createCollectionOnConsumer(
                                                   entry.getId(),
                                                   entry.name,
                                                   {/*no ttl*/},
-                                                  Collections::Metered::Yes,
-                                                  CanDeduplicate::Yes}};
+                                                  CanDeduplicate::Yes,
+                                                  Collections::Metered::Yes}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     // Call the consumer function for handling DCP events
     EXPECT_EQ(cb::engine_errc::success,

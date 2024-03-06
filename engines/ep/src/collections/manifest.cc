@@ -287,8 +287,8 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                                           cidValue,
                                           cnameValue,
                                           maxTtl,
-                                          meteredState,
-                                          collectionCanDeduplicate
+                                          collectionCanDeduplicate,
+                                          meteredState
                                           /*todo pass flush_uid*/);
         }
 
@@ -552,8 +552,8 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
                     cid,
                     collection->name()->str(),
                     maxTtl,
-                    collection->metered() ? Metered::Yes : Metered::No,
-                    getCanDeduplicateFromHistory(collection->history()));
+                    getCanDeduplicateFromHistory(collection->history()),
+                    collection->metered() ? Metered::Yes : Metered::No);
         }
 
         std::optional<size_t> dataSize;

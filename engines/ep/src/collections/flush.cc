@@ -418,9 +418,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 entry->ttlValid()
                                         ? std::chrono::seconds{entry->maxTtl()}
                                         : cb::NoExpiryLimit,
-                                Collections::getMetered(entry->metered()),
-                                getCanDeduplicateFromHistory(
-                                        entry->history())});
+                                getCanDeduplicateFromHistory(entry->history()),
+                                Collections::getMetered(entry->metered())});
 
                 exclusiveInsertCollection(
                         entry->collectionId(),

@@ -125,22 +125,22 @@ struct CollectionMetaData {
                        CollectionID cid,
                        std::string_view name,
                        cb::ExpiryLimit maxTtl,
-                       Metered metered,
-                       CanDeduplicate canDeduplicate)
+                       CanDeduplicate canDeduplicate,
+                       Metered metered)
         : sid(sid),
           cid(cid),
           name(name),
           maxTtl(maxTtl),
-          metered(metered),
-          canDeduplicate(canDeduplicate) {
+          canDeduplicate(canDeduplicate),
+          metered(metered) {
     }
 
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{DefaultCollectionName}; // The collection's name
     cb::ExpiryLimit maxTtl{}; // The collection's maxTTL
-    Metered metered{Metered::No};
     CanDeduplicate canDeduplicate{CanDeduplicate::Yes};
+    Metered metered{Metered::No};
 
     bool operator==(const CollectionMetaData& other) const {
         return compareImmutableProperties(other) &&
