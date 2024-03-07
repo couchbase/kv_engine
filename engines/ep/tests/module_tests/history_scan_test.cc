@@ -961,8 +961,12 @@ TEST_P(HistoryScanTestSingleEvictionMode, HistoryScanFailMarkDiskSnapshot) {
     flushAndRemoveCheckpoints(vbid);
 
     // Create producer now we have items only on disk.
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
     ASSERT_EQ(cb::engine_errc::success,
               producer->control(0, DcpControlKeys::ChangeStreams, "true"));
 

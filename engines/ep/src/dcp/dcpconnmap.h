@@ -22,6 +22,10 @@
 #include <list>
 #include <string>
 
+namespace cb::mcbp {
+enum class DcpOpenFlag : uint32_t;
+}
+
 class CheckpointCursor;
 class DcpProducer;
 class DcpConsumer;
@@ -42,7 +46,7 @@ public:
      */
     DcpProducer* newProducer(CookieIface& cookie,
                              const std::string& name,
-                             uint32_t flags);
+                             cb::mcbp::DcpOpenFlag flags);
 
     /**
      * Create a new consumer and add it in the list of DCP Connections

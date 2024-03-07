@@ -245,7 +245,7 @@ public:
     cb::engine_errc open(CookieIface& cookie,
                          uint32_t opaque,
                          uint32_t seqno,
-                         uint32_t flags,
+                         cb::mcbp::DcpOpenFlag flags,
                          std::string_view name,
                          std::string_view value) override;
     cb::engine_errc add_stream(CookieIface& cookie,
@@ -1400,7 +1400,7 @@ cb::engine_errc EWB_Engine::step(CookieIface& cookie,
 cb::engine_errc EWB_Engine::open(CookieIface& cookie,
                                  uint32_t opaque,
                                  uint32_t seqno,
-                                 uint32_t flags,
+                                 cb::mcbp::DcpOpenFlag flags,
                                  std::string_view name,
                                  std::string_view value) {
     if (!real_engine_dcp) {

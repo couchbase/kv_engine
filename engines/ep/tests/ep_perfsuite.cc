@@ -918,7 +918,7 @@ static void perf_dcp_client(EngineIface* h,
     checkeq(dcp.open(*cookie,
                      ++streamOpaque,
                      0,
-                     cb::mcbp::request::DcpOpenPayload::Producer,
+                     cb::mcbp::DcpOpenFlag::Producer,
                      name),
             cb::engine_errc::success,
             "Failed dcp producer open connection");
@@ -1217,7 +1217,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
             dcp.open(*activeCookie,
                      opaque,
                      0 /*seqno*/,
-                     cb::mcbp::request::DcpOpenPayload::Producer /*flags*/,
+                     cb::mcbp::DcpOpenFlag::Producer,
                      "test_producer"),
             "dcp.open failed");
 
@@ -1246,7 +1246,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
             dcp.open(*passiveCookie,
                      opaque,
                      0 /*seqno*/,
-                     0 /*flags*/,
+                     {} /*flags*/,
                      "test_consumer"),
             "dcp.open failed");
     checkeq(cb::engine_errc::success,

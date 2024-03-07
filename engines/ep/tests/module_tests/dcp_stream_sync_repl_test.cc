@@ -183,7 +183,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
               engine->dcpOpen(*producerCookie,
                               0 /*opaque*/,
                               0 /*seqno*/,
-                              cb::mcbp::request::DcpOpenPayload::Producer,
+                              cb::mcbp::DcpOpenFlag::Producer,
                               "producer",
                               {}));
 
@@ -218,7 +218,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
               engine->dcpOpen(*producerCookie,
                               0 /*opaque*/,
                               0 /*seqno*/,
-                              cb::mcbp::request::DcpOpenPayload::Producer,
+                              cb::mcbp::DcpOpenFlag::Producer,
                               "producer",
                               {}));
 

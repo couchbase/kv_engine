@@ -63,15 +63,15 @@ bool DcpProducerConfig::useDeleteTimes() const {
 
 std::shared_ptr<MockDcpProducer> DcpProducerConfig::createDcpProducer(
         EventuallyPersistentEngine& engine, CookieIface* cookie) const {
-    int flags{0};
-    using cb::mcbp::request::DcpOpenPayload;
+    using cb::mcbp::DcpOpenFlag;
+    auto flags{DcpOpenFlag::None};
 
     if (useXattrs()) {
-        flags |= DcpOpenPayload::IncludeXattrs;
+        flags |= DcpOpenFlag::IncludeXattrs;
     }
 
     if (useDeleteTimes()) {
-        flags |= DcpOpenPayload::IncludeDeleteTimes;
+        flags |= DcpOpenFlag::IncludeDeleteTimes;
     }
 
     auto newProducer = std::make_shared<MockDcpProducer>(

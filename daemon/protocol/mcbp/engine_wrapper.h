@@ -33,6 +33,10 @@
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 
+namespace cb::mcbp {
+enum class DcpOpenFlag : uint32_t;
+}
+
 cb::engine_errc bucket_unknown_command(Cookie& cookie,
                                        const AddResponseFn& response);
 
@@ -352,7 +356,7 @@ cb::engine_errc dcpNoop(Cookie& cookie, uint32_t opaque);
 cb::engine_errc dcpOpen(Cookie& cookie,
                         uint32_t opaque,
                         uint32_t seqno,
-                        uint32_t flags,
+                        cb::mcbp::DcpOpenFlag flags,
                         std::string_view name,
                         std::string_view value);
 

@@ -160,12 +160,12 @@ void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
 }
 
 /// Decode IncludeValue from DCP producer flags.
-static IncludeValue toIncludeValue(uint32_t flags) {
-    using cb::mcbp::request::DcpOpenPayload;
-    if ((flags & DcpOpenPayload::NoValue) != 0) {
+static IncludeValue toIncludeValue(cb::mcbp::DcpOpenFlag flags) {
+    using namespace cb::mcbp;
+    if (isFlagSet(flags, DcpOpenFlag::NoValue)) {
         return IncludeValue::No;
     }
-    if ((flags & DcpOpenPayload::NoValueWithUnderlyingDatatype) != 0) {
+    if (isFlagSet(flags, DcpOpenFlag::NoValueWithUnderlyingDatatype)) {
         return IncludeValue::NoWithUnderlyingDatatype;
     }
     return IncludeValue::Yes;
@@ -174,7 +174,7 @@ static IncludeValue toIncludeValue(uint32_t flags) {
 DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                          CookieIface* cookie,
                          const std::string& name,
-                         uint32_t flags,
+                         cb::mcbp::DcpOpenFlag flags,
                          bool startTask)
     : ConnHandler(e, cookie, name),
       sendStreamEndOnClientStreamClose(false),
@@ -192,16 +192,14 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       totalBytesSent(0),
       totalUncompressedDataSize(0),
       includeValue(toIncludeValue(flags)),
-      includeXattrs(
-              ((flags & cb::mcbp::request::DcpOpenPayload::IncludeXattrs) != 0)
-                      ? IncludeXattrs::Yes
-                      : IncludeXattrs::No),
-      pitrEnabled((flags & cb::mcbp::request::DcpOpenPayload::PiTR) != 0
+      includeXattrs(isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeXattrs)
+                            ? IncludeXattrs::Yes
+                            : IncludeXattrs::No),
+      pitrEnabled(isFlagSet(flags, cb::mcbp::DcpOpenFlag::PiTR)
                           ? PointInTimeEnabled::Yes
                           : PointInTimeEnabled::No),
       includeDeleteTime(
-              ((flags &
-                cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes) != 0)
+              isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeleteTimes)
                       ? IncludeDeleteTime::Yes
                       : IncludeDeleteTime::No),
       createChkPtProcessorTsk(startTask),
@@ -259,8 +257,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     }
 
     includeDeletedUserXattrs =
-            ((flags &
-              cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs) != 0)
+            isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
 }

@@ -183,8 +183,8 @@ public:
         EXPECT_TRUE(engines[producerNode])
                 << "createDcpProducer: No engine for Node" << producerNode;
 
-        int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs |
-                    cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
+        auto flags = cb::mcbp::DcpOpenFlag::IncludeXattrs |
+                     cb::mcbp::DcpOpenFlag::IncludeDeleteTimes;
         auto producer = std::make_shared<MockDcpProducer>(
                 *engines[producerNode],
                 create_mock_cookie(engine.get()),

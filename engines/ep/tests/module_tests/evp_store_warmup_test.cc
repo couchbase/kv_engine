@@ -430,7 +430,7 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
 TEST_F(WarmupTest, MB_32577) {
     std::string keyName("key");
     std::string value("value");
-    uint32_t zeroFlags{0};
+    cb::mcbp::DcpOpenFlag zeroFlags = cb::mcbp::DcpOpenFlag::None;
 
     // create an active vbucket
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -479,9 +479,9 @@ TEST_F(WarmupTest, MB_32577) {
     // Try and set a DCP connection, this should return
     // cb::engine_errc::temporary_failure as were in warm up but without the fix
     // for MB-32577 this will return cb::engine_errc::success
-    EXPECT_EQ(
-            cb::engine_errc::temporary_failure,
-            engine->open(*cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              engine->open(
+                      *cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer", {}));
 
     // The core will block all DCP commands for non-DCP connections
 
@@ -497,9 +497,9 @@ TEST_F(WarmupTest, MB_32577) {
 
     // Try and set a DCP connection, this should return cb::engine_errc::success
     // as we have now warmed up.
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            engine->open(*cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer"));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->open(
+                      *cookie, 0, 0 /*seqno*/, zeroFlags, "test_consumer", {}));
 
     // create a stream to send the delete request so we can send vbucket on the
     // consumer
@@ -513,7 +513,7 @@ TEST_F(WarmupTest, MB_32577) {
                                       vbid,
                                       /*start_seqno*/ 1,
                                       /*end_seqno*/ 100,
-                                      zeroFlags,
+                                      {}, // flags
                                       /*HCS*/ {},
                                       /*maxVisibleSeqno*/ {}));
 
@@ -2949,7 +2949,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
               engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              0 /*flags - consumer*/,
+                              {} /*flags - consumer*/,
                               "consumer",
                               {}));
 
@@ -2982,7 +2982,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
               engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              0 /*flags - consumer*/,
+                              {} /*flags - consumer*/,
                               "consumer",
                               {}));
 
@@ -3016,7 +3016,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
               engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              0 /*flags - consumer*/,
+                              {} /*flags - consumer*/,
                               "consumer",
                               {}));
 }

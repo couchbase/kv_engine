@@ -163,7 +163,7 @@ public:
     cb::engine_errc open(CookieIface&,
                          uint32_t,
                          uint32_t,
-                         uint32_t,
+                         cb::mcbp::DcpOpenFlag,
                          std::string_view,
                          std::string_view) override {
         return cb::engine_errc::no_bucket;

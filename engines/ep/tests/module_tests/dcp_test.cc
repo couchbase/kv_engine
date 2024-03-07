@@ -89,19 +89,18 @@ void DCPTest::TearDown() {
 }
 
 void DCPTest::create_dcp_producer(
-        int flags,
+        cb::mcbp::DcpOpenFlag flags,
         IncludeValue includeVal,
         IncludeXattrs includeXattrs,
         std::vector<std::pair<std::string, std::string>> controls) {
     if (includeVal == IncludeValue::No) {
-        flags |= cb::mcbp::request::DcpOpenPayload::NoValue;
+        flags |= cb::mcbp::DcpOpenFlag::NoValue;
     }
     if (includeVal == IncludeValue::NoWithUnderlyingDatatype) {
-        flags |= cb::mcbp::request::DcpOpenPayload::
-                NoValueWithUnderlyingDatatype;
+        flags |= cb::mcbp::DcpOpenFlag::NoValueWithUnderlyingDatatype;
     }
     if (includeXattrs == IncludeXattrs::Yes) {
-        flags |= cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
+        flags |= cb::mcbp::DcpOpenFlag::IncludeXattrs;
     }
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
@@ -134,7 +133,13 @@ void DCPTest::setup_dcp_stream(
         IncludeValue includeVal,
         IncludeXattrs includeXattrs,
         std::vector<std::pair<std::string, std::string>> controls) {
-    create_dcp_producer(flags, includeVal, includeXattrs, controls);
+    // @todo we should clean up this code.. the setup_dcp_stream
+    //       mixed open flags and stream flags
+    auto open_flags = cb::mcbp::DcpOpenFlag::None;
+    if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+        open_flags = cb::mcbp::DcpOpenFlag::Producer;
+    }
+    create_dcp_producer(open_flags, includeVal, includeXattrs, controls);
 
     vb0 = engine->getVBucket(vbid);
     ASSERT_NE(nullptr, vb0.get());
@@ -880,10 +885,8 @@ TEST_P(ConnectionTest, test_mb19955) {
     engine->getConfiguration().setConnectionManagerInterval(2);
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     // "1" is not a multiple of "2" and so we should return
     // cb::engine_errc::invalid_arguments
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
@@ -901,10 +904,8 @@ TEST_P(ConnectionTest, test_mb19955) {
 TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     // Define mock producers which return too_big when attempting to send
     // a noop - i.e. buffer is full.
@@ -941,10 +942,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
 TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
@@ -968,10 +967,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
 TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
     const auto send_time = ep_uptime_now();
@@ -1013,10 +1010,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
 TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Disabled);
@@ -1036,10 +1031,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
 TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
@@ -1061,9 +1054,7 @@ TEST_P(ConnectionTest, test_deadConnections) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer
-    connMap.newProducer(*cookie,
-                        "test_producer",
-                        /*flags*/ 0);
+    connMap.newProducer(*cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -1082,9 +1073,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer
-    connMap.newProducer(*cookie,
-                        "test_producer",
-                        /*flags*/ 0);
+    connMap.newProducer(*cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     // should be able to find the connection
     ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_producer"));
     // Disconnect the producer connection
@@ -1108,16 +1097,15 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     auto* cookie1 = create_mock_cookie(engine);
     auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(*cookie1,
-                                                "test_producer",
-                                                /*flags*/ 0);
+    DcpProducer* producer = connMap.newProducer(
+            *cookie1, "test_producer", cb::mcbp::DcpOpenFlag::None);
     ASSERT_NE(nullptr, producer) << "producer is null";
     // should be able to find the connection
     ASSERT_NE(nullptr, connMap.findByName("eq_dcpq:test_producer"));
 
     // Create a duplicate Dcp producer
-    DcpProducer* duplicateproducer =
-            connMap.newProducer(*cookie2, "test_producer", /*flags*/ 0);
+    DcpProducer* duplicateproducer = connMap.newProducer(
+            *cookie2, "test_producer", cb::mcbp::DcpOpenFlag::None);
     ASSERT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     ASSERT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
@@ -1149,15 +1137,13 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     auto* cookie1 = create_mock_cookie(engine);
     auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(*cookie1,
-                                                "test_producer",
-                                                /*flags*/ 0);
+    DcpProducer* producer = connMap.newProducer(
+            *cookie1, "test_producer", cb::mcbp::DcpOpenFlag::None);
     EXPECT_NE(nullptr, producer) << "producer is null";
 
     // Create a duplicate Dcp producer
-    DcpProducer* duplicateproducer = connMap.newProducer(*cookie2,
-                                                         "test_producer",
-                                                         /*flags*/ 0);
+    DcpProducer* duplicateproducer = connMap.newProducer(
+            *cookie2, "test_producer", cb::mcbp::DcpOpenFlag::None);
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
@@ -1207,10 +1193,8 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
 TEST_P(ConnectionTest, test_producer_unknown_ctrl_msg) {
     auto* cookie = create_mock_cookie(engine);
     /* Create a new Dcp producer */
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     /* Send an unknown control message to the producer and expect an error code
        of "cb::engine_errc::invalid_arguments" */
@@ -1374,9 +1358,8 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(*cookie,
-                                                "test_producer",
-                                                /*flags*/ 0);
+    DcpProducer* producer = connMap.newProducer(
+            *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     // Disconnect the producer connection
     connMap.disconnect(cookie);
@@ -1400,9 +1383,8 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer.
-    DcpProducer* producer = connMap.newProducer(*cookie,
-                                                "mb_20716r",
-                                                /*flags*/ 0);
+    DcpProducer* producer = connMap.newProducer(
+            *cookie, "mb_20716r", cb::mcbp::DcpOpenFlag::None);
 
     // Check preconditions.
     EXPECT_TRUE(producer->isPaused());
@@ -1690,7 +1672,8 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
 
     auto* cookie = create_mock_cookie();
     // Create a new Dcp producer
-    auto* producer = connMap.newProducer(*cookie, "test_producer", 0 /*flags*/);
+    auto* producer = connMap.newProducer(
+            *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     // Bit of a test hack; when we close the stream we will only remove the
     // ConnHandler reference from the vbToConns map if we do not set
@@ -1737,10 +1720,8 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
 TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
     /* Create a new Dcp producer */
     auto* dummyMockCookie = create_mock_cookie(engine.get());
-    DcpProducer* producer =
-            engine->getDcpConnMap().newProducer(*dummyMockCookie,
-                                                "test_producer",
-                                                /*flags*/ 0);
+    DcpProducer* producer = engine->getDcpConnMap().newProducer(
+            *dummyMockCookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
@@ -1846,9 +1827,8 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     MockDcpMessageProducers producers;
 
     // create a producer (We are currently active)
-    auto producer = engine->getDcpConnMap().newProducer(*producerCookie,
-                                                        "producerA",
-                                                        /*flags*/ 0);
+    auto producer = engine->getDcpConnMap().newProducer(
+            *producerCookie, "producerA", cb::mcbp::DcpOpenFlag::None);
 
     producer->control(0xdead, "send_stream_end_on_client_close_stream", "true");
 
@@ -1925,7 +1905,8 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
     auto* cookie = create_mock_cookie(engine.get());
     const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
-    auto* producer = connMap.newProducer(*cookie, "producer", flags);
+    auto* producer = connMap.newProducer(
+            *cookie, "producer", cb::mcbp::DcpOpenFlag::None);
 
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -1974,7 +1955,8 @@ TEST_F(DcpConnMapTest,
     auto* cookie = create_mock_cookie(engine.get());
     const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
-    auto* producer = connMap.newProducer(*cookie, "producer", flags);
+    auto* producer = connMap.newProducer(
+            *cookie, "producer", cb::mcbp::DcpOpenFlag::None);
 
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -2035,16 +2017,18 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     // create producers
     // Producer for conn type "fts" - the type is not special, it's just a
     // string which will be extracted from the conn name.
-    auto producer1 = std::make_shared<MockDcpProducer>(*engine,
-                                                       producerCookie1,
-                                                       "eq_dcpq:fts:foo",
-                                                       /*flags*/ 0);
+    auto producer1 =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              producerCookie1,
+                                              "eq_dcpq:fts:foo",
+                                              cb::mcbp::DcpOpenFlag::None);
 
     // Oroducer for "views"
-    auto producer2 = std::make_shared<MockDcpProducer>(*engine,
-                                                       producerCookie2,
-                                                       "eq_dcpq:views:bar",
-                                                       /*flags*/ 0);
+    auto producer2 =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              producerCookie2,
+                                              "eq_dcpq:views:bar",
+                                              cb::mcbp::DcpOpenFlag::None);
     // Create a consumer for conn type "replication"
     auto consumer = std::make_shared<MockDcpConsumer>(*engine,
                                                       consumerCookie,
@@ -2122,7 +2106,8 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     auto* cookie = create_mock_cookie(engine.get());
     const std::string connName = "producer";
     const uint32_t flags = 0;
-    auto* producer = connMap.newProducer(*cookie, connName, flags);
+    auto* producer =
+            connMap.newProducer(*cookie, connName, cb::mcbp::DcpOpenFlag::None);
 
     const uint32_t opaque = 0;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -2167,7 +2152,8 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     // Note: ActiveStream::setDead executed only if re-creating the same
     // connection (ie, same cookie or connection name).
     auto* cookie2 = create_mock_cookie(engine.get());
-    producer = connMap.newProducer(*cookie2, connName, flags);
+    producer = connMap.newProducer(
+            *cookie2, connName, cb::mcbp::DcpOpenFlag::None);
     ASSERT_TRUE(producer);
     // Check that the connection has been re-created with the same name
     // and exists in vbConns at stream-req
@@ -2203,9 +2189,8 @@ public:
                 [this](cb::engine_errc status) { notify(); });
         cookie->getConnection().setUserScheduleDcpStep([this]() { notify(); });
         connMap->initialize();
-        producer = connMap->newProducer(*cookie,
-                                        "test_producer",
-                                        /*flags*/ 0);
+        producer = connMap->newProducer(
+                *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     }
 
     ~ConnMapNotifyTest() {
@@ -2281,7 +2266,7 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
 TEST_P(ConnectionTest, ProducerEnablesDeleteXattr) {
     auto* cookie = create_mock_cookie();
 
-    uint32_t flags = 0;
+    auto flags = cb::mcbp::DcpOpenFlag::None;
     {
         const auto producer = std::make_shared<MockDcpProducer>(
                 *engine, cookie, "test_producer", flags);
@@ -2289,7 +2274,7 @@ TEST_P(ConnectionTest, ProducerEnablesDeleteXattr) {
                   producer->public_getIncludeDeletedUserXattrs());
     }
 
-    flags = cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs;
+    flags = cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs;
     const auto producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "test_producer", flags);
     EXPECT_EQ(IncludeDeletedUserXattrs::Yes,
@@ -2306,7 +2291,8 @@ TEST_P(ConnectionTest, Config_DcpBackfillByteLimit) {
 
     const std::string connName = "whatever";
     auto& connMap = engine->getDcpConnMap();
-    auto* producer = connMap.newProducer(*cookie, connName, 0);
+    auto* producer =
+            connMap.newProducer(*cookie, connName, cb::mcbp::DcpOpenFlag::None);
     ASSERT_TRUE(connMap.findByName("eq_dcpq:" + connName));
     ASSERT_EQ(initialValue, producer->getBackfillByteLimit());
 
@@ -2334,12 +2320,12 @@ public:
         addItems(3);
 
         producers = std::make_unique<MockDcpMessageProducers>();
-        producer = std::make_shared<MockDcpProducer>(
-                *engine,
-                cookie,
-                "test_producer",
-                0 /*flags*/,
-                false /*startTask*/);
+        producer =
+                std::make_shared<MockDcpProducer>(*engine,
+                                                  cookie,
+                                                  "test_producer",
+                                                  cb::mcbp::DcpOpenFlag::None,
+                                                  false /*startTask*/);
 
         /* Create the checkpoint processor task object, but don't schedule */
         producer->createCheckpointProcessorTask();
@@ -2453,10 +2439,11 @@ TEST_F(DcpConnMapTest, LimitToOneBackfillPerConnection) {
 TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "ProducerHandleResponse",
-                                                      /*flags*/ 0);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "ProducerHandleResponse",
+                                              cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
 
@@ -2510,7 +2497,10 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "ProducerHandleResponceDiscconnect", 0);
+            *engine,
+            cookie,
+            "ProducerHandleResponceDiscconnect",
+            cb::mcbp::DcpOpenFlag::None);
     MockDcpMessageProducers producers;
 
     cb::mcbp::Response message{};
@@ -2555,8 +2545,11 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseDisconnect) {
 
 // Test how we handle DcpStreamEnd responses from a consumer
 TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "ProducerHandleResponceStreamEnd", 0);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "ProducerHandleResponceStreamEnd",
+                                              cb::mcbp::DcpOpenFlag::None);
     MockDcpMessageProducers producers;
 
     cb::mcbp::Response message{};
@@ -2588,8 +2581,11 @@ TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseStreamEnd) {
 
 // Test how we handle DcpNoop responses from a consumer
 TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponseNoop) {
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "ProducerHandleResponceNoop", 0);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "ProducerHandleResponceNoop",
+                                              cb::mcbp::DcpOpenFlag::None);
     MockDcpMessageProducers producers;
 
     cb::mcbp::Response message{};
@@ -2656,10 +2652,8 @@ TEST_F(SingleThreadedKVBucketTest, ConsumerIdleTimeoutUpdatedOnConfigChange) {
 TEST_F(SingleThreadedKVBucketTest, ProducerIdleTimeoutUpdatedOnConfigChange) {
     engine->getConfiguration().setDcpIdleTimeout(100);
 
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     ASSERT_EQ(std::chrono::seconds(100), producer->getIdleTimeout());
 
     // Need to put our producer in the ConnMap or we won't know to change the

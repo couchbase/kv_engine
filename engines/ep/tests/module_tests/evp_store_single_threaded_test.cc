@@ -303,9 +303,9 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
         IncludeDeleteTime deleteTime,
         bool flatBuffersSystemEvents,
         const std::string name) {
-    int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
+    auto flags = cb::mcbp::DcpOpenFlag::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
-        flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
+        flags |= cb::mcbp::DcpOpenFlag::IncludeDeleteTimes;
     }
     auto newProducer = std::make_shared<MockDcpProducer>(*engine,
                                                          cookie,
@@ -764,8 +764,8 @@ TEST_P(STParameterizedBucketTest,
 
     // 1) Create Producer and ensure it is in the ConnMap so that we can
     // emulate the shutdown
-    auto producer =
-            std::make_shared<MockDcpProducer>(*engine, cookie, "MB_45255", 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "MB_45255", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     mockConnMap.addConn(cookie, producer);
@@ -913,10 +913,8 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
 
     // 2) Create Producer and ensure it is in the ConnMap so that we can emulate
     // the shutdown
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     mockConnMap.addConn(cookie, producer);
 
@@ -970,10 +968,8 @@ TEST_P(STParameterizedBucketTest, ConcurrentProducerCloseAllStreams) {
 
     // 2) Create Producer and ensure it is in the ConnMap so that we can emulate
     // the shutdown
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     mockConnMap.addConn(cookie, producer);
 
@@ -1040,10 +1036,8 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
 
     // 1) Create Producer and ensure it is in the ConnMap so that we can emulate
     // the shutdown
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     mockConnMap.addConn(cookie, producer);
 
     // 2) Need to enable sync rep for seqno acking and create our stream
@@ -1244,10 +1238,8 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     // Create a Mock Dcp producer
     // Create the Mock Active Stream with a startSeqno of 1
     // as a startSeqno is always valid
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
 
@@ -1802,10 +1794,8 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     // Since we are creating a mock active stream outside of
     // DcpProducer::streamRequest(), and we want the checkpt processor task,
@@ -2040,10 +2030,8 @@ TEST_P(STParamPersistentBucketTest,
 
     // Create a Mock Dcp producer
     const std::string testName("test_producer");
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      testName,
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, testName, cb::mcbp::DcpOpenFlag::None);
 
     // Since we are creating a mock active stream outside of
     // DcpProducer::streamRequest(), and we want the checkpt processor task,
@@ -2154,10 +2142,8 @@ TEST_P(STParamPersistentBucketTest, test_mb22451) {
     flush_vbucket_to_disk(vbid);
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     // Create a Mock Active Stream
     auto vb = store->getVBucket(vbid);
     ASSERT_NE(nullptr, vb.get());
@@ -2269,10 +2255,8 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
 
     {
         // Create a Mock Dcp producer
-        auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                          cookie,
-                                                          "test_producer",
-                                                          /*flags*/ 0);
+        auto producer = std::make_shared<MockDcpProducer>(
+                *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
         // Creating a producer will not create an
         // ActiveStreamCheckpointProcessorTask until a stream is created.
@@ -2338,7 +2322,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
               engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              cb::mcbp::request::DcpOpenPayload::Producer,
+                              cb::mcbp::DcpOpenFlag::Producer,
                               name,
                               {}));
 
@@ -2708,7 +2692,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
               engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
-                              cb::mcbp::request::DcpOpenPayload::Producer,
+                              cb::mcbp::DcpOpenFlag::Producer,
                               name,
                               {}));
 
@@ -3166,7 +3150,7 @@ public:
 
         // 1. Mock producer
         producer = std::make_shared<MockDcpProducer>(
-                *engine, cookie, "test_producer", 0);
+                *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
         producer->createCheckpointProcessorTask();
 
         producers = std::make_unique<MockDcpMessageProducers>();
@@ -3530,10 +3514,8 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     ASSERT_NE(nullptr, vb.get());
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     producer->createCheckpointProcessorTask();
 
@@ -3643,10 +3625,8 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
     ASSERT_NE(nullptr, vb.get());
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     producer->createCheckpointProcessorTask();
 
@@ -3764,10 +3744,8 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
     resetEngineAndWarmup();
 
     // Setup DCP, 1 producer and we will do a takeover of the vbucket
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "mb-29541",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "mb-29541", cb::mcbp::DcpOpenFlag::None);
 
     producer->createCheckpointProcessorTask();
 
@@ -3876,10 +3854,8 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
     resetEngineAndWarmup();
 
     // Setup DCP, 1 producer and we will do a takeover of the vbucket
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "mb-31481",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "mb-31481", cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
 
@@ -3951,7 +3927,8 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
 }
 
 void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
-    auto flags = xattr ? cb::mcbp::request::DcpOpenPayload::IncludeXattrs : 0;
+    auto flags = xattr ? cb::mcbp::DcpOpenFlag::IncludeXattrs
+                       : cb::mcbp::DcpOpenFlag::None;
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     // Expire a key;
@@ -4075,10 +4052,8 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
     vb->checkpointManager->clear();
 
     // Setup DCP
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "mb-26907",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "mb-26907", cb::mcbp::DcpOpenFlag::None);
 
     MockDcpMessageProducers producers;
 
@@ -5397,10 +5372,8 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
     TimeTraveller t(1000);
 
     // 3) DCP stream (and trigger expiry via CacheCallback)
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
     MockDcpMessageProducers producers;
     producer->mockActiveStreamRequest(0, // flags

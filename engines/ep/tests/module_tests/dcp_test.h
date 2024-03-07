@@ -17,6 +17,7 @@
 #include "vbucket_fwd.h"
 #include <gsl/gsl-lite.hpp>
 #include <memcached/engine_error.h>
+#include <memcached/protocol_binary.h>
 
 class Item;
 class MockDcpProducer;
@@ -34,7 +35,7 @@ protected:
 
     // Create a DCP producer; initially with no streams associated.
     void create_dcp_producer(
-            int flags = 0,
+            cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None,
             IncludeValue includeVal = IncludeValue::Yes,
             IncludeXattrs includeXattrs = IncludeXattrs::Yes,
             std::vector<std::pair<std::string, std::string>> controls = {});

@@ -1264,7 +1264,7 @@ cb::engine_errc EventuallyPersistentEngine::step(
 cb::engine_errc EventuallyPersistentEngine::open(CookieIface& cookie,
                                                  uint32_t opaque,
                                                  uint32_t seqno,
-                                                 uint32_t flags,
+                                                 cb::mcbp::DcpOpenFlag flags,
                                                  std::string_view conName,
                                                  std::string_view value) {
     return acquireEngine(this)->dcpOpen(
@@ -6733,14 +6733,14 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
         CookieIface& cookie,
         uint32_t opaque,
         uint32_t seqno,
-        uint32_t flags,
+        cb::mcbp::DcpOpenFlag flags,
         std::string_view stream_name,
         std::string_view value) {
     std::string connName{stream_name};
     ConnHandler* handler = nullptr;
-
-    if (flags & cb::mcbp::request::DcpOpenPayload::Producer) {
-        if (flags & cb::mcbp::request::DcpOpenPayload::PiTR) {
+    using cb::mcbp::DcpOpenFlag;
+    if ((flags & DcpOpenFlag::Producer) == DcpOpenFlag::Producer) {
+        if ((flags & DcpOpenFlag::PiTR) == DcpOpenFlag::PiTR) {
             auto* store = getKVBucket()->getOneROUnderlying();
             if (!store || !store->supportsHistoricalSnapshots()) {
                 EP_LOG_WARN_RAW(
@@ -6770,11 +6770,10 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
             EP_LOG_INFO(
                     "EventuallyPersistentEngine::dcpOpen: opening new DCP "
                     "Consumer handler - stream name:{}, opaque:{}, seqno:{}, "
-                    "flags:0b{} value:{}",
+                    "value:{}",
                     connName,
                     opaque,
                     seqno,
-                    std::bitset<sizeof(flags) * 8>(flags).to_string(),
                     jsonValue.dump());
         } else {
             EP_LOG_WARN_RAW(

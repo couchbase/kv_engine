@@ -472,10 +472,8 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
 
     // Create a Mock Dcp producer
     const std::string testName("test_producer");
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      testName,
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, testName, cb::mcbp::DcpOpenFlag::None);
 
     // Since we are creating a mock active stream outside of
     // DcpProducer::streamRequest(), and we want the checkpt processor task,
@@ -630,7 +628,7 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
 
     // Create producer and stream, enable SyncRepl
     auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer", 0 /*flags*/);
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->setSyncReplication(SyncReplication::SyncReplication);
     auto stream = std::make_shared<MockActiveStream>(
             static_cast<EventuallyPersistentEngine*>(engine.get()),

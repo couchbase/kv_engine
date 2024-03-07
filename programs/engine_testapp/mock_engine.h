@@ -180,7 +180,7 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::engine_errc open(CookieIface& cookie,
                          uint32_t opaque,
                          uint32_t seqno,
-                         uint32_t flags,
+                         cb::mcbp::DcpOpenFlag flags,
                          std::string_view name,
                          std::string_view value) override;
 

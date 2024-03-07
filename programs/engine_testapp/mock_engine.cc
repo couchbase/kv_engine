@@ -419,7 +419,7 @@ cb::engine_errc MockEngine::step(CookieIface& cookie,
 cb::engine_errc MockEngine::open(CookieIface& cookie,
                                  uint32_t opaque,
                                  uint32_t seqno,
-                                 uint32_t flags,
+                                 cb::mcbp::DcpOpenFlag flags,
                                  std::string_view name,
                                  std::string_view value) {
     return the_engine_dcp->open(cookie, opaque, seqno, flags, name, value);

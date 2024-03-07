@@ -5628,7 +5628,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
             std::make_shared<MockDcpProducer>(*engine,
                                               cookie,
                                               "test_producer->test_consumer",
-                                              0,
+                                              cb::mcbp::DcpOpenFlag::None,
                                               false /*startTask*/);
     stream.reset();
     // Store
@@ -5753,7 +5753,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
-                                                 0,
+                                                 cb::mcbp::DcpOpenFlag::None,
                                                  true /*startTask*/);
     producer->createCheckpointProcessorTask();
     stream.reset();
@@ -5874,7 +5874,7 @@ void DurabilityActiveStreamTest::
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
-                                                 0,
+                                                 cb::mcbp::DcpOpenFlag::None,
                                                  true /*startTask*/);
     producer->createCheckpointProcessorTask();
     stream.reset();

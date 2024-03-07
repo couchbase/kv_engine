@@ -784,7 +784,7 @@ TEST_P(RollbackTest, MB21784) {
 
     // Create a new Dcp producer, reserving its cookie.
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            *cookie, "test_producer", /*flags*/ 0);
+            *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,
@@ -2468,10 +2468,11 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     store->setVBucketState(vbid, vbucket_state_replica);
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      /*cookie*/ cookie,
-                                                      "MB-21682",
-                                                      0);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              /*cookie*/ cookie,
+                                              "MB-21682",
+                                              cb::mcbp::DcpOpenFlag::None);
 
     auto& mockConnMap =
             static_cast<MockDcpConnMap&>(engine->getDcpConnMap());

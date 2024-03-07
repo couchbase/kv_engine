@@ -148,11 +148,12 @@ class DcpStatsBench : public EngineStatsBench {
 public:
     void SetUp(const benchmark::State& state) override {
         EngineStatsBench::SetUp(state);
-        producer = std::make_shared<MockDcpProducer>(*engine,
-                                                     cookie,
-                                                     "test_producer",
-                                                     0,
-                                                     /*startTask*/ false);
+        producer =
+                std::make_shared<MockDcpProducer>(*engine,
+                                                  cookie,
+                                                  "test_producer",
+                                                  cb::mcbp::DcpOpenFlag::None,
+                                                  /*startTask*/ false);
         producer->createCheckpointProcessorTask();
 
         ASSERT_EQ(cb::engine_errc::success,

@@ -31,7 +31,7 @@ public:
     MockDcpProducer(EventuallyPersistentEngine& theEngine,
                     CookieIface* cookie,
                     const std::string& name,
-                    uint32_t flags,
+                    cb::mcbp::DcpOpenFlag flags,
                     bool startTask = true);
 
     using DcpProducer::updateStreamsMap;

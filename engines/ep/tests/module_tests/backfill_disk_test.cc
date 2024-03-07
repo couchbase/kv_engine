@@ -65,8 +65,12 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
             .WillOnce(Return(ScanStatus::Failed));
 
     // Create producer now we have items only on disk.
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
 
     auto stream =
             std::make_shared<MockActiveStream>(engine.get(),
@@ -131,8 +135,12 @@ void DCPBackfillDiskTest::backfillGetDriver(
     EXPECT_CALL(getInternalHook, Call()).Times(expectedGetCalls);
 
     // Items now only on disk, create producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
 
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),
@@ -207,8 +215,12 @@ void DCPBackfillDiskTest::testDiskBackfillHoldsVBStateLock() {
             }});
 
     // Items now only on disk, create producer
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
 
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),
@@ -304,8 +316,12 @@ TEST_F(DCPBackfillDiskTest,
     ASSERT_EQ(4, state.highSeqno);
 
     // Create producer now we have items only on disk.
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test-producer", 0 /*flags*/, true /*startTask*/);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              true /*startTask*/);
     producer->createCheckpointProcessorTask();
 
     auto stream =

@@ -1237,7 +1237,7 @@ TEST_P(StreamTest, ProcessItemsCheckpointStartIsLastItem) {
 }
 
 TEST_P(StreamTest, ProducerReceivesSeqnoAckForErasedStream) {
-    create_dcp_producer(0, /*flags*/
+    create_dcp_producer(cb::mcbp::DcpOpenFlag::None,
                         IncludeValue::Yes,
                         IncludeXattrs::Yes,
                         {{"send_stream_end_on_client_close_stream", "true"},
@@ -1582,7 +1582,7 @@ void SingleThreadedActiveStreamTest::setupProducer(
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
-                                                 flags,
+                                                 cb::mcbp::DcpOpenFlag::None,
                                                  false /*startTask*/);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
@@ -1602,7 +1602,7 @@ void SingleThreadedActiveStreamTest::setupProducer(
 
 void SingleThreadedActiveStreamTest::recreateProducerAndStream(
         VBucket& vb,
-        uint32_t flags,
+        cb::mcbp::DcpOpenFlag flags,
         std::optional<std::string_view> jsonFilter) {
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
@@ -3585,7 +3585,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
 void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(
         const std::optional<cb::durability::Requirements>& durReqs) {
-    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    using cb::mcbp::DcpOpenFlag;
 
     // Test is executed also for SyncDelete
     setVBucketStateAndRunPersistTask(
@@ -3710,9 +3710,9 @@ TEST_P(SingleThreadedActiveStreamTest, ProducerIncludesUserXattrsInSyncDelete) {
 }
 
 void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
-        uint32_t flags,
+        cb::mcbp::DcpOpenFlag flags,
         const std::optional<cb::durability::Requirements>& durReqs) {
-    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
 
     // Test is executed also for SyncDelete
     setVBucketStateAndRunPersistTask(
@@ -3722,13 +3722,14 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     // Check that we are testing a valid configuration: here we want to test
     // only configurations that trigger user-xattr pruning in deletes.
-    ASSERT_TRUE((flags & DcpOpenFlag::IncludeDeletedUserXattrs) == 0);
+    ASSERT_FALSE(
+            cb::mcbp::isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs));
 
     auto& vb = *engine->getVBucket(vbid);
     recreateProducerAndStream(vb, flags);
 
     const auto currIncDelUserXattr =
-            (flags & DcpOpenFlag::IncludeDeletedUserXattrs) != 0
+            isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
     ASSERT_EQ(currIncDelUserXattr,
@@ -3736,7 +3737,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     ASSERT_EQ(currIncDelUserXattr,
               stream->public_getIncludeDeletedUserXattrs());
 
-    const auto currIncXattr = (flags & DcpOpenFlag::IncludeXattrs) != 0
+    const auto currIncXattr = isFlagSet(flags, DcpOpenFlag::IncludeXattrs)
                                       ? IncludeXattrs::Yes
                                       : IncludeXattrs::No;
     ASSERT_EQ(currIncXattr, producer->public_getIncludeXattrs());
@@ -3919,7 +3920,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     }
 
     // Check that we have the expected value
-    if (flags == 0) {
+    if (flags == cb::mcbp::DcpOpenFlag::None) {
         ASSERT_EQ(IncludeXattrs::No, deletion.getIncludeXattrs());
         ASSERT_EQ(IncludeDeletedUserXattrs::No,
                   deletion.getIncludeDeletedUserXattrs());
@@ -3953,36 +3954,36 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
 TEST_P(SingleThreadedActiveStreamTest,
        ProducerPrunesUserXattrsForNormalDelete_NoDeleteUserXattrs) {
-    testProducerPrunesUserXattrsForDelete(
-            cb::mcbp::request::DcpOpenPayload::IncludeXattrs, {});
+    testProducerPrunesUserXattrsForDelete(cb::mcbp::DcpOpenFlag::IncludeXattrs,
+                                          {});
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
        ProducerPrunesUserXattrsForSyncDelete_NoDeleteUserXattrs) {
-    testProducerPrunesUserXattrsForDelete(
-            cb::mcbp::request::DcpOpenPayload::IncludeXattrs,
-            cb::durability::Requirements());
+    testProducerPrunesUserXattrsForDelete(cb::mcbp::DcpOpenFlag::IncludeXattrs,
+                                          cb::durability::Requirements());
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
        ProducerPrunesUserXattrsForNormalDelete_NoXattrs) {
-    testProducerPrunesUserXattrsForDelete(0, {});
+    testProducerPrunesUserXattrsForDelete(cb::mcbp::DcpOpenFlag::None, {});
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
        ProducerPrunesUserXattrsForSyncDelete_NoXattrs) {
-    testProducerPrunesUserXattrsForDelete(0, cb::durability::Requirements());
+    testProducerPrunesUserXattrsForDelete(cb::mcbp::DcpOpenFlag::None,
+                                          cb::durability::Requirements());
 }
 
-void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
-                                                               Xattrs xattrs) {
-    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
+        cb::mcbp::DcpOpenFlag flags, Xattrs xattrs) {
+    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
 
     auto& vb = *engine->getVBucket(vbid);
     recreateProducerAndStream(vb, DcpOpenFlag::IncludeXattrs | flags);
 
     const auto currIncDelUserXattr =
-            (flags & DcpOpenFlag::IncludeDeletedUserXattrs) != 0
+            isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
     ASSERT_EQ(currIncDelUserXattr,
@@ -4122,32 +4123,32 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66) {
-    testExpirationRemovesBody(0, Xattrs::None);
+    testExpirationRemovesBody({}, Xattrs::None);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66_UserXa) {
-    testExpirationRemovesBody(0, Xattrs::User);
+    testExpirationRemovesBody({}, Xattrs::User);
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
        ExpirationRemovesBody_Pre66_UserXa_SysXa) {
-    testExpirationRemovesBody(0, Xattrs::UserAndSys);
+    testExpirationRemovesBody({}, Xattrs::UserAndSys);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody) {
-    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::None);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa) {
-    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::User);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa_SysXa) {
-    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
                               Xattrs::UserAndSys);
 }
@@ -4268,8 +4269,7 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
                         uint32_t(CollectionEntry::defaultC.getId()),
                         uint32_t(collection.getId()));
     const std::optional<std::string_view> json(jsonFilter);
-    recreateProducerAndStream(
-            vb, cb::mcbp::request::DcpOpenPayload::NoValue, json);
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::NoValue, json);
     ASSERT_TRUE(producer);
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);
@@ -4928,8 +4928,12 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
 
     // Trigger an outbound backfill
     removeCheckpoint(vb);
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer->test_consumer", 0, false);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test_producer->test_consumer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     auto activeStream = std::make_shared<MockActiveStream>(
@@ -5016,8 +5020,12 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
     EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
 
     // Open an outbound stream from replica.
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer->test_consumer", 0, false);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test_producer->test_consumer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
     auto activeStream = std::make_shared<MockActiveStream>(
@@ -5114,8 +5122,12 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                        {}));
 
     // Open an outbound stream from replica.
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer->test_consumer", 0, false);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test_producer->test_consumer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
 
@@ -5195,7 +5207,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
 
     // Re-create producer and stream
-    recreateProducerAndStream(vb, 0 /*flags*/);
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
     ASSERT_TRUE(producer);
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);
@@ -5272,7 +5284,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create the old producer and stream
-    recreateProducerAndStream(vb, 0 /*flags*/);
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
     ASSERT_TRUE(producer);
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);
@@ -5286,11 +5298,12 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
 
     // The same DCP client reconnects and creates a new producer, so same name
     // as the old producer.
-    auto newProd = std::make_shared<MockDcpProducer>(*engine,
-                                                     cookie,
-                                                     producer->getName(),
-                                                     0 /*flags*/,
-                                                     false /*startTask*/);
+    auto newProd =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              producer->getName(),
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
     ASSERT_TRUE(newProd);
     newProd->createCheckpointProcessorTask();
     // StreamReq from the client on the same vbucket -> This stream has the same
@@ -5443,7 +5456,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_53806) {
     }
 
     // Re-create the old producer and stream
-    recreateProducerAndStream(vb, 0 /*flags*/);
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
     ASSERT_TRUE(producer);
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);

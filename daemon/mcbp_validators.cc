@@ -540,6 +540,7 @@ static Status verify_common_dcp_stream_restrictions(Cookie& cookie,
 }
 
 static Status dcp_open_validator(Cookie& cookie) {
+    using cb::mcbp::DcpOpenFlag;
     using cb::mcbp::request::DcpOpenPayload;
 
     auto status = McbpValidator::verify_header(
@@ -556,51 +557,66 @@ static Status dcp_open_validator(Cookie& cookie) {
 
     // Validate the flags.
     const auto mask =
-            DcpOpenPayload::Producer | DcpOpenPayload::IncludeXattrs |
-            DcpOpenPayload::NoValue | DcpOpenPayload::IncludeDeleteTimes |
-            DcpOpenPayload::NoValueWithUnderlyingDatatype |
-            DcpOpenPayload::PiTR | DcpOpenPayload::IncludeDeletedUserXattrs;
+            ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
+              DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
+              DcpOpenFlag::NoValueWithUnderlyingDatatype | DcpOpenFlag::PiTR |
+              DcpOpenFlag::IncludeDeletedUserXattrs);
 
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpOpenPayload>();
     const auto flags = payload.getFlags();
+    const auto unknown = flags & mask;
 
-    if (flags & ~mask) {
-        LOG_INFO(
-                "Client trying to open dcp stream with unknown flags ({:x}) {}",
-                flags,
-                get_peer_description(cookie));
-        cookie.setErrorContext("Request contains invalid flags");
+    if (unknown != DcpOpenFlag::None) {
+        if (cookie.getConnection().isAuthenticated()) {
+            LOG_INFO(
+                    "Client trying to open dcp stream with unknown flags ({}) "
+                    "{}",
+                    unknown,
+                    get_peer_description(cookie));
+        }
+        cookie.setErrorContext(
+                fmt::format("Request contains invalid flags: {}", unknown));
         return Status::Einval;
     }
 
-    if ((flags & DcpOpenPayload::Producer) == 0 &&
-        (flags & DcpOpenPayload::PiTR) == DcpOpenPayload::PiTR) {
-        cookie.setErrorContext("PiTR require Producer to be set");
-        return Status::Einval;
+    if (!isFlagSet(flags, DcpOpenFlag::Producer)) {
+        // Verify that we don't request any flags only available
+        // for producers
+        for (const auto& flag : {DcpOpenFlag::PiTR}) {
+            if (isFlagSet(flags, flag)) {
+                cookie.setErrorContext(
+                        fmt::format("{} require Producer to be set", flag));
+                return Status::Einval;
+            }
+        }
     }
 
-    if ((flags & DcpOpenPayload::NoValue) &&
-        (flags & DcpOpenPayload::NoValueWithUnderlyingDatatype)) {
-        LOG_INFO(
-                "Invalid flags combination ({:x}) specified for a DCP "
-                "consumer {} - cannot specify NO_VALUE with "
-                "NO_VALUE_WITH_UNDERLYING_DATATYPE",
-                flags,
-                get_peer_description(cookie));
+    if (isFlagSet(flags, DcpOpenFlag::NoValue) &&
+        isFlagSet(flags, DcpOpenFlag::NoValueWithUnderlyingDatatype)) {
+        if (cookie.getConnection().isAuthenticated()) {
+            LOG_INFO(
+                    "Invalid flags combination ({}) specified for a DCP "
+                    "consumer {} - cannot specify NO_VALUE with "
+                    "NO_VALUE_WITH_UNDERLYING_DATATYPE",
+                    flags,
+                    get_peer_description(cookie));
+        }
         cookie.setErrorContext(
                 "Request contains invalid flags combination (NO_VALUE && "
                 "NO_VALUE_WITH_UNDERLYING_DATATYPE)");
         return Status::Einval;
     }
 
-    if ((flags & DcpOpenPayload::IncludeDeletedUserXattrs) &&
-        !(flags & DcpOpenPayload::IncludeXattrs)) {
-        LOG_INFO(
-                "Invalid DcpOpen flags combination ({:x}) specified for {} - "
-                "Must specify IncludeXattrs for IncludeDeletedUserXattrs",
-                flags,
-                get_peer_description(cookie));
+    if (isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs) &&
+        !isFlagSet(flags, DcpOpenFlag::IncludeXattrs)) {
+        if (cookie.getConnection().isAuthenticated()) {
+            LOG_INFO(
+                    "Invalid DcpOpen flags combination ({}) specified for {} - "
+                    "Must specify IncludeXattrs for IncludeDeletedUserXattrs",
+                    flags,
+                    get_peer_description(cookie));
+        }
         cookie.setErrorContext(
                 "Request contains invalid flags combination - "
                 "IncludeDeletedUserXattrs but not IncludeXattrs");
@@ -629,7 +645,7 @@ static Status dcp_open_validator(Cookie& cookie) {
             }
             for (const auto& kv : json.items()) {
                 if (kv.key() == "consumer_name") {
-                    if (flags & DcpOpenPayload::Producer) {
+                    if (isFlagSet(flags, DcpOpenFlag::Producer)) {
                         cookie.setErrorContext(
                                 "consumer_name only valid for Consumer "
                                 "connections");

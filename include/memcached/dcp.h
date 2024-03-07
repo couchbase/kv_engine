@@ -26,6 +26,7 @@ enum class Level : uint8_t;
 
 namespace cb::mcbp {
 class Response;
+enum class DcpOpenFlag : uint32_t;
 }
 
 namespace mcbp::systemevent {
@@ -419,7 +420,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc open(CookieIface& cookie,
                                                uint32_t opaque,
                                                uint32_t seqno,
-                                               uint32_t flags,
+                                               cb::mcbp::DcpOpenFlag flags,
                                                std::string_view name,
                                                std::string_view value = {}) = 0;
 

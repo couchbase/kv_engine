@@ -134,7 +134,7 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
 
 DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
                                      const std::string& name,
-                                     uint32_t flags) {
+                                     cb::mcbp::DcpOpenFlag flags) {
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 

@@ -177,7 +177,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_NormalWrite) {
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create producer and stream
-    recreateProducerAndStream(vb, 0 /*flags*/);
+    recreateProducerAndStream(vb, {} /*flags*/);
     ASSERT_TRUE(producer);
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);
@@ -305,7 +305,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
     // Re-create producer and stream
-    recreateProducerAndStream(vb, 0 /*flags*/);
+    recreateProducerAndStream(vb, {} /*flags*/);
     ASSERT_TRUE(producer);
     producer->createCheckpointProcessorTask();
     ASSERT_TRUE(stream);

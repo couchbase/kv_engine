@@ -58,7 +58,7 @@ protected:
      */
     void recreateProducerAndStream(
             VBucket& vb,
-            uint32_t flags,
+            cb::mcbp::DcpOpenFlag flags,
             std::optional<std::string_view> jsonFilter = {});
 
     /**
@@ -93,7 +93,7 @@ protected:
      * @param flags The DcpOpen flags under test
      */
     void testProducerPrunesUserXattrsForDelete(
-            uint32_t flags,
+            cb::mcbp::DcpOpenFlag flags,
             const std::optional<cb::durability::Requirements>& durReqs);
 
     enum class Xattrs : uint8_t { None, User, UserAndSys };
@@ -106,7 +106,7 @@ protected:
      * @param xattrs Whether the value contain only the body or user/sys xattrs
      *  too
      */
-    void testExpirationRemovesBody(uint32_t flags, Xattrs xattrs);
+    void testExpirationRemovesBody(cb::mcbp::DcpOpenFlag flags, Xattrs xattrs);
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;

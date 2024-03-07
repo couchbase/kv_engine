@@ -171,9 +171,8 @@ TEST_F(StatTest, DcpStatTest) {
     auto username =
             cookie_to_mock_cookie(cookie)->getConnection().getUser().name;
 
-    engine->getDcpConnMap().newProducer(*cookie,
-                                        "test_producer",
-                                        /*flags*/ 0);
+    engine->getDcpConnMap().newProducer(
+            *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     auto vals = get_stat("dcp");
 
@@ -185,18 +184,16 @@ TEST_F(StatTest, FilteredDcpStatTest) {
     auto username =
             cookie_to_mock_cookie(cookie)->getConnection().getUser().name;
 
-    engine->getDcpConnMap().newProducer(*cookie,
-                                        "test_producer",
-                                        /*flags*/ 0);
+    engine->getDcpConnMap().newProducer(
+            *cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
     // Need another connection to test the filtering. We filter by user, so we
     // need to change that, lets use 2i in this case.
     auto* indexCookie = create_mock_cookie();
     auto& indexConn = indexCookie->getConnection();
     indexConn.setUser("2i");
-    engine->getDcpConnMap().newProducer(*indexCookie,
-                                        "2i",
-                                        /*flags*/ 0);
+    engine->getDcpConnMap().newProducer(
+            *indexCookie, "2i", cb::mcbp::DcpOpenFlag::None);
 
     nlohmann::json filter = {{"filter", {{"user", username}}}};
     auto vals = get_stat("dcp", filter.dump());
@@ -1482,7 +1479,8 @@ TEST_F(StatTest, testConnAggStats) {
     std::unordered_map<std::string, ::prometheus::MetricFamily> statsMap;
     PrometheusStatCollector collector(statsMap);
     auto bucketCollector = collector.forBucket("foo");
-    engine->getDcpConnMap().newProducer(*cookie, "foo_producer", 0);
+    engine->getDcpConnMap().newProducer(
+            *cookie, "foo_producer", cb::mcbp::DcpOpenFlag::None);
 
     auto mCookie = create_mock_cookie(engine.get());
     engine->getDcpConnMap().newConsumer(*mCookie, "replication:foo_consumer");

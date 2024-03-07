@@ -608,6 +608,9 @@ constexpr DcpOpenFlag operator&(DcpOpenFlag a, DcpOpenFlag b) {
 constexpr DcpOpenFlag operator~(DcpOpenFlag a) {
     return DcpOpenFlag(~static_cast<uint32_t>(a));
 }
+inline bool isFlagSet(DcpOpenFlag mask, DcpOpenFlag flag) {
+    return (mask & flag) == flag;
+}
 
 /// DcpAddStreamFlag is a bitmask where the following values are used:
 enum class DcpAddStreamFlag : uint32_t {
@@ -701,28 +704,12 @@ public:
     void setSeqno(uint32_t seqno) {
         DcpOpenPayload::seqno = htonl(seqno);
     }
-    uint32_t getFlags() const {
-        return ntohl(flags);
+    DcpOpenFlag getFlags() const {
+        return static_cast<DcpOpenFlag>(ntohl(flags));
     }
     void setFlags(DcpOpenFlag value) {
         flags = htonl(static_cast<uint32_t>(value));
     }
-
-    /// Deprecated values while we migrate over to the enum class
-    static const uint32_t Producer =
-            static_cast<uint32_t>(DcpOpenFlag::Producer);
-    static const uint32_t IncludeXattrs =
-            static_cast<uint32_t>(DcpOpenFlag::IncludeXattrs);
-    static const uint32_t NoValue = static_cast<uint32_t>(DcpOpenFlag::NoValue);
-    static const uint32_t Unused = static_cast<uint32_t>(DcpOpenFlag::Unused);
-    static const uint32_t IncludeDeleteTimes =
-            static_cast<uint32_t>(DcpOpenFlag::IncludeDeleteTimes);
-    static const uint32_t NoValueWithUnderlyingDatatype =
-            static_cast<uint32_t>(DcpOpenFlag::NoValueWithUnderlyingDatatype);
-    static const uint32_t PiTR = static_cast<uint32_t>(DcpOpenFlag::PiTR);
-    static const uint32_t IncludeDeletedUserXattrs =
-            static_cast<uint32_t>(DcpOpenFlag::IncludeDeletedUserXattrs);
-
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }

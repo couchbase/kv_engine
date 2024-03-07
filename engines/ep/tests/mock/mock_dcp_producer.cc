@@ -25,7 +25,7 @@ extern cb::mcbp::ClientOpcode last_op;
 MockDcpProducer::MockDcpProducer(EventuallyPersistentEngine& theEngine,
                                  CookieIface* cookie,
                                  const std::string& name,
-                                 uint32_t flags,
+                                 cb::mcbp::DcpOpenFlag flags,
                                  bool startTask)
     : DcpProducer(theEngine, cookie, name, flags, startTask) {
     backfillMgr = std::make_shared<MockDcpBackfillManager>(engine_);

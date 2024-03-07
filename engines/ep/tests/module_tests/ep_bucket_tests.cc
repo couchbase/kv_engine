@@ -105,10 +105,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_backfilling_but_task_finished) {
             *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*notifyOnly*/ false);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
 
     // Create a Mock Active Stream
@@ -168,10 +166,8 @@ TEST_F(SingleThreadedEPBucketTest, MB22421_reregister_cursor) {
             *(static_cast<MockCheckpointManager*>(vb->checkpointManager.get()));
 
     // Create a Mock Dcp producer
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     producer->createCheckpointProcessorTask();
 
     // Create a Mock Active Stream
@@ -465,10 +461,8 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
         setVBucketStateAndRunPersistTask(vbid, it.first);
 
         /* Create a Mock Dcp producer */
-        auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                          cookie,
-                                                          "test_producer",
-                                                          /*flags*/ 0);
+        auto producer = std::make_shared<MockDcpProducer>(
+                *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
 
         /* Try to open stream on replica vb with
            DCP_ADD_STREAM_ACTIVE_VB_ONLY flag */
@@ -561,10 +555,8 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     resetEngineAndWarmup();
 
     // Setup DCP, 1 producer and we will do a takeover of the vbucket
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "takeoverBlocking",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "takeoverBlocking", cb::mcbp::DcpOpenFlag::None);
 
     producer->createCheckpointProcessorTask();
 
@@ -694,7 +686,8 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
 // Verify that handleResponse against an unknown stream returns true, MB-32724
 // demonstrated a case where false will cause a failure.
 TEST_F(SingleThreadedEPBucketTest, MB_32724) {
-    auto p = std::make_shared<MockDcpProducer>(*engine, cookie, "mb-32724", 0);
+    auto p = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "mb-32724", cb::mcbp::DcpOpenFlag::None);
 
     p->createCheckpointProcessorTask();
 
@@ -711,8 +704,12 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
 
-    auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
 
     auto stream = std::make_shared<MockActiveStream>(
             engine.get(),

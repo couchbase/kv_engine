@@ -146,7 +146,7 @@ void STDcpTest::testDeleteVBucketClosesConnections(vbucket_state_t state,
     ConnHandler* handler;
 
     if (state == vbucket_state_active) {
-        auto* producer = connMap.newProducer(*cookie, "test_producer", 0);
+        auto* producer = connMap.newProducer(*cookie, "test_producer", {});
         // Open stream
         ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
         handler = producer;
@@ -235,8 +235,11 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     // Create a producer outside of the ConnMap so we don't have to create a new
     // cookie. We'll never add a stream to it so we won't have any ConnMap/Store
     // TearDown issues.
-    auto producer = std::make_shared<DcpProducer>(
-            *engine, cookie, "test_producer", 0 /*flags*/, false /*startTask*/);
+    auto producer = std::make_shared<DcpProducer>(*engine,
+                                                  cookie,
+                                                  "test_producer",
+                                                  cb::mcbp::DcpOpenFlag::None,
+                                                  false /*startTask*/);
 
     /*
      * StreamRequest should tmp fail due to the associated vbucket receiving
@@ -447,20 +450,17 @@ void STDcpTest::testProducerNegotiatesIncludeDeletedUserXattrs(
         IncludeDeletedUserXattrs producerState) {
     auto* cookie = create_mock_cookie();
 
-    uint32_t dcpOpenFlags;
+    cb::mcbp::DcpOpenFlag dcpOpenFlags = {};
     cb::engine_errc expectedControlResp;
     switch (producerState) {
-    case IncludeDeletedUserXattrs::Yes: {
-        dcpOpenFlags =
-                cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs;
+    case IncludeDeletedUserXattrs::Yes:
+        dcpOpenFlags = cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs;
         expectedControlResp = cb::engine_errc::success;
         break;
-    }
-    case IncludeDeletedUserXattrs::No: {
-        dcpOpenFlags = 0;
+    case IncludeDeletedUserXattrs::No:
+        dcpOpenFlags = {};
         expectedControlResp = cb::engine_errc::invalid_arguments;
         break;
-    }
     }
 
     const auto producer = std::make_shared<MockDcpProducer>(
@@ -680,10 +680,8 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
 
     /* Create a new Dcp producer */
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     mockConnMap.addConn(cookie, producer);
     EXPECT_TRUE(mockConnMap.doesConnHandlerExist("test_producer"));
 
@@ -741,7 +739,7 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     /* Create a new Dcp producer */
     DcpProducer* producer = connMap.newProducer(*cookie,
                                                 "test_producer",
-                                                /*flags*/ 0);
+                                                /*flags*/ {});
 
     /* Open stream */
     EXPECT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -1082,10 +1080,8 @@ TEST_P(STDcpTest, MB_45863) {
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
 
     /* Create a new Dcp producer */
-    auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                      cookie,
-                                                      "test_producer",
-                                                      /*flags*/ 0);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     mockConnMap.addConn(cookie, producer);
     EXPECT_TRUE(mockConnMap.doesConnHandlerExist("test_producer"));
 
@@ -1136,10 +1132,8 @@ TEST_P(STDcpTest, MB_45863) {
 TEST_P(STDcpTest, ConnHandlerLoggerRegisterUnregister) {
     std::string loggerName;
     {
-        auto producer = std::make_shared<MockDcpProducer>(*engine,
-                                                          cookie,
-                                                          "test_producer",
-                                                          /*flags*/ 0);
+        auto producer = std::make_shared<MockDcpProducer>(
+                *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
         loggerName = producer->getLogger().name();
         EXPECT_TRUE(spdlog::get(loggerName));
     }
@@ -1149,7 +1143,7 @@ TEST_P(STDcpTest, ConnHandlerLoggerRegisterUnregister) {
 TEST_P(STDcpTest, ProducerNegotiatesFlatBuffers) {
     auto* cookie = create_mock_cookie();
     const auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer", 0);
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     // Disables by default
     ASSERT_FALSE(producer->areFlatBuffersSystemEventsEnabled());
     // DCP_CONTROL validation
@@ -1175,7 +1169,7 @@ TEST_P(STDcpTest, ProducerNegotiatesCDC) {
 
     auto* cookie = create_mock_cookie();
     const auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer", 0);
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     ASSERT_FALSE(producer->areChangeStreamsEnabled());
 
     // Value validation
@@ -1198,7 +1192,7 @@ TEST_P(STDcpTest, ProducerNegotiatesCDC_NotMagma) {
 
     auto* cookie = create_mock_cookie();
     const auto producer = std::make_shared<MockDcpProducer>(
-            *engine, cookie, "test_producer", 0);
+            *engine, cookie, "test_producer", cb::mcbp::DcpOpenFlag::None);
     ASSERT_FALSE(producer->areChangeStreamsEnabled());
 
     EXPECT_EQ(cb::engine_errc::not_supported,

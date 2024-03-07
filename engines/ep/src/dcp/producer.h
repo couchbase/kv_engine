@@ -70,7 +70,7 @@ public:
     DcpProducer(EventuallyPersistentEngine& e,
                 CookieIface* cookie,
                 const std::string& n,
-                uint32_t flags,
+                cb::mcbp::DcpOpenFlag flags,
                 bool startTask);
 
     ~DcpProducer() override;

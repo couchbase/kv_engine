@@ -62,11 +62,12 @@ public:
 
         // The producer in this test does not support sync-writes so it will
         // always aim to replace with SeqnoAdvanced when required
-        producer = std::make_shared<MockDcpProducer>(*engine,
-                                                     cookie,
-                                                     "CollectionsSeqnoAdvanced",
-                                                     0,
-                                                     false /*startTask*/);
+        producer =
+                std::make_shared<MockDcpProducer>(*engine,
+                                                  cookie,
+                                                  "CollectionsSeqnoAdvanced",
+                                                  cb::mcbp::DcpOpenFlag::None,
+                                                  false /*startTask*/);
 
         auto vb = engine->getVBucket(vbid);
 

@@ -149,8 +149,7 @@ void to_json(nlohmann::json& json,
 }
 
 void to_json(nlohmann::json& json, const DcpOpenPayload& payload) {
-    json = {{"seqno", payload.getSeqno()},
-            {"flags", static_cast<DcpOpenFlag>(payload.getFlags())}};
+    json = {{"seqno", payload.getSeqno()}, {"flags", payload.getFlags()}};
 }
 
 void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload) {

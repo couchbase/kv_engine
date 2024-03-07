@@ -2369,7 +2369,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
     auto* payload = reinterpret_cast<DcpOpenPayload*>(
             const_cast<uint8_t*>(extras.data()));
     payload->setFlags(cb::mcbp::DcpOpenFlag::Unused);
-    EXPECT_EQ("Request contains invalid flags",
+    EXPECT_EQ("Request contains invalid flags: \"unknown:0x10\"",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
 }
 

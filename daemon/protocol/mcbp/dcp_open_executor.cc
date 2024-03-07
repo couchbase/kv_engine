@@ -19,11 +19,12 @@
 #include <string>
 
 void dcp_open_executor(Cookie& cookie) {
+    using cb::mcbp::DcpOpenFlag;
     using cb::mcbp::request::DcpOpenPayload;
 
     auto& request = cookie.getHeader().getRequest();
     const auto& payload = request.getCommandSpecifics<DcpOpenPayload>();
-    const uint32_t flags = payload.getFlags();
+    const auto flags = payload.getFlags();
 
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
@@ -31,7 +32,7 @@ void dcp_open_executor(Cookie& cookie) {
     connection.enableDatatype(cb::mcbp::Feature::JSON);
 
     const bool dcpProducer =
-            (flags & DcpOpenPayload::Producer) == DcpOpenPayload::Producer;
+            (flags & DcpOpenFlag::Producer) == DcpOpenFlag::Producer;
 
     if (ret == cb::engine_errc::success) {
         const auto privilege = dcpProducer ? cb::rbac::Privilege::DcpProducer
@@ -83,15 +84,17 @@ void dcp_open_executor(Cookie& cookie) {
     }
 
     if (ret == cb::engine_errc::success) {
-        const bool dcpXattrAware =
-                (flags & DcpOpenPayload::IncludeXattrs) != 0 &&
-                connection.selectedBucketIsXattrEnabled();
+        const bool dcpXattrAware = (flags & DcpOpenFlag::IncludeXattrs) ==
+                                           DcpOpenFlag::IncludeXattrs &&
+                                   connection.selectedBucketIsXattrEnabled();
         const bool dcpDeletedUserXattr =
-                (flags & DcpOpenPayload::IncludeDeletedUserXattrs) != 0 &&
+                (flags & DcpOpenFlag::IncludeDeletedUserXattrs) ==
+                        DcpOpenFlag::IncludeDeletedUserXattrs &&
                 connection.selectedBucketIsXattrEnabled();
-        const bool dcpNoValue = (flags & DcpOpenPayload::NoValue) != 0;
-        const bool dcpDeleteTimes =
-                (flags & DcpOpenPayload::IncludeDeleteTimes) != 0;
+        const bool dcpNoValue =
+                (flags & DcpOpenFlag::NoValue) == DcpOpenFlag::NoValue;
+        const bool dcpDeleteTimes = (flags & DcpOpenFlag::IncludeDeleteTimes) ==
+                                    DcpOpenFlag::IncludeDeleteTimes;
         connection.setDcpXattrAware(dcpXattrAware);
         connection.setDcpDeletedUserXattr(dcpDeletedUserXattr);
         connection.setDcpNoValue(dcpNoValue);
