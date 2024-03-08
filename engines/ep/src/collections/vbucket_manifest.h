@@ -388,6 +388,7 @@ public:
     bool operator!=(const Manifest& rhs) const;
 
     // local struct for managing collection creation
+    // @todo: rename as used for Flush
     struct CollectionCreation {
         ScopeCollectionPair identifiers;
         std::string name;
@@ -423,6 +424,7 @@ public:
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
         std::vector<CollectionModification> collectionsToModify;
+        std::vector<CollectionCreation> collectionsToFlush;
 
         const ManifestUid newUid{0};
 
@@ -430,7 +432,7 @@ public:
         bool none() const {
             return scopesToCreate.empty() && scopesToDrop.empty() &&
                    collectionsToCreate.empty() && collectionsToDrop.empty() &&
-                   collectionsToModify.empty();
+                   collectionsToModify.empty() && collectionsToFlush.empty();
         }
 
         /**

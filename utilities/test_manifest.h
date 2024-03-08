@@ -198,8 +198,9 @@ public:
                                 const std::string& newName);
 
     /// Update the manifest for a flush of the collection
-    CollectionsManifest& flush(const CollectionEntry::Entry& collectionEntry,
-                               const ScopeEntry::Entry& scopeEntry);
+    CollectionsManifest& flush(
+            const CollectionEntry::Entry& collectionEntry,
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
     CollectionsManifest& update(
             const CollectionEntry::Entry& collectionEntry,

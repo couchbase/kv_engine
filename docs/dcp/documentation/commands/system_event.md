@@ -4,11 +4,11 @@ Tells the consumer that the message contains a system event. The system event
 message encodes event information that relates to the user's data, but is not
 necessarily something they directly control.
 
-A system event always encodes in the extras the seqno of the event and an
+A system event always encodes in the extras the seqno of the event and a
 type identifier for the event, the following events are defined (values shown).
 
-* 0 - A collection has been created
-* 1 - A collection has been dropped
+* 0 - A collection begins (it has been created or flushed)
+* 1 - A collection ends (it has been dropped)
 * 2 - Reserved for future use
 * 3 - A scope has been created
 * 4 - A scope has been droppped
@@ -53,7 +53,7 @@ The extras of a system event encodes
        Total 13 bytes
 ```
 
-## Example Create Collection Event
+## Example Begin Collection Event
 
 The following example is showing a system event for the creation of
 "mycollection" with a collection-uid of 8.
@@ -148,20 +148,20 @@ the following:
 
 The Key and Value of the message are defined differently for each event.
 
-### Create Collection
+### Begin Collection
 
-__Key__: A create collection system event with version 0 or 1 has a key which is the
-name of the created collection.
+__Key__: A begin collection system event with version 0 or 1 has a key which is
+the name of the collection.
 
 __Value__: version 0 and version 1 values are defined.
 
 #### version 0
 * The ID of last completely processed manifest as a 8-byte integer (network endian)
 * The Scope-ID that the new collection belongs to as a 4-byte integer (network endian)
-* The ID of the new collection as a 4-byte integer (network endian)
+* The ID of the collection as a 4-byte integer (network endian)
 
 ```
-    struct collection_create_event_data_version0 {
+    struct collection_begin_event_data_version0 {
         uint64_t manifest_uid;
         uint32_t scope_id;
         uint32_t collection_id;
@@ -171,10 +171,10 @@ __Value__: version 0 and version 1 values are defined.
 #### version 1
 
 * The same data as version 0 and
-* The max_ttl value of the collection as 4-byte integer  (network endian)
+* The max_ttl value of the collection as 4-byte integer (network endian)
 
 ```
-    struct collection_create_event_data_version1 {
+    struct collection_begin_event_data_version1 {
         uint64_t manifest_uid;
         uint32_t scope_id;
         uint32_t collection_id;
@@ -182,18 +182,35 @@ __Value__: version 0 and version 1 values are defined.
     }
 ```
 
-### Drop
+### Flush Collection
 
-__Key__: A drop collection system event has no key.
+A collection can be flushed by updating the begin event (moving the event to a
+new seqno). Metadata of the collection will indicate the collection was
+flushed. The collection state now has a flush_uid field, when a flush occurs
+the flush_uid is the value of the manifest_uid which signals the collection is
+to be flushed. The flush_uid will begin as 0 (no flush has been requested) and
+then changes to a new value for each new flush. The flush_uid is included only
+in the FlatBuffers definition. A client could still detect a flush without
+enabling FlatBuffers by tracking the Collection system event seqno. Each time
+they see an updated to the Collection event at a higher seqno, a flush has
+occurred.
 
-__Value__: A drop collection system event with version 0 contains:
+Note that it is possible that when a DCP client first observes the collection's
+existence it has already been flushed and cannot assume the very first event will have
+a zero flush_uid.
+
+### End collection (drop)
+
+__Key__: End collection system event has no key.
+
+__Value__: End collection system event with version 0 contains:
 
 * The ID of last completely processed manifest as a 8-byte integer (network endian)
-* The Scope-ID that the dropped collection belonged to as a 4-byte integer (network endian)
-* The ID of the dropped collection as a 4-byte integer (network endian)
+* The Scope-ID that the collection belonged to as a 4-byte integer (network endian)
+* The ID of the collection as a 4-byte integer (network endian)
 
 ```
-    struct collection_drop_event_data_version0 {
+    struct collection_end_event_data_version0 {
         uint64_t manifest_uid;
         uint32_t scope_id;
         uint32_t collection_id;
@@ -265,8 +282,8 @@ This creates two new collections (d and e) and two system events are generated b
 each vbucket with increasing sequence numbers. Only the final system-event
 generated will be 'stamped' with manifest-id 11. For example:
 
-* create-collection "e" seqno 200, manifest-id 10
-* create-collection "d" seqno 202, manifest-id 11
+* begin-collection "e" seqno 200, manifest-id 10
+* begin-collection "d" seqno 202, manifest-id 11
 
 The manifest ID is primarily for use by memcached replication to better handle
 an interruption during the processing of a new manifest that introduces multiple

@@ -391,6 +391,7 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                      {},
                                      Collections::Metered::No,
                                      CanDeduplicate::Yes,
+                                     Collections::ManifestUid{},
                                      1);
     replica->replicaCreateCollection(Collections::ManifestUid(++uid),
                                      {ScopeID::Default, CollectionEntry::meat},
@@ -398,6 +399,7 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                      {},
                                      Collections::Metered::No,
                                      CanDeduplicate::Yes,
+                                     Collections::ManifestUid{},
                                      2);
     replica->replicaCreateCollection(Collections::ManifestUid(++uid),
                                      {ScopeID::Default, CollectionEntry::dairy},
@@ -405,6 +407,7 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                      {},
                                      Collections::Metered::No,
                                      CanDeduplicate::Yes,
+                                     Collections::ManifestUid{},
                                      3);
 
     // Would of seen a monotonic exception
@@ -2706,6 +2709,7 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                                 {},
                                 Collections::Metered::Yes,
                                 CanDeduplicate::Yes,
+                                Collections::ManifestUid{},
                                 1);
     vb->replicaCreateCollection(Collections::ManifestUid(++uid),
                                 {ScopeID::Default, CollectionEntry::fruit},
@@ -2713,6 +2717,7 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                                 {},
                                 Collections::Metered::Yes,
                                 CanDeduplicate::Yes,
+                                Collections::ManifestUid{},
                                 2);
 
     // 2 collections written

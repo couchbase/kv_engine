@@ -693,6 +693,7 @@ public:
      * @param maxTtl An optional maxTtl for the collection
      * @param metered Is the collection metered or "free"?
      * @param canDeduplicate Can the collection do any deduplication?
+     * @param flushUid The flush-uid assigned to the collection.
      * @param startSeqno The start-seqno assigned to the collection.
      */
     void replicaCreate(::VBucket& vb,
@@ -702,6 +703,7 @@ public:
                        cb::ExpiryLimit maxTtl,
                        Metered metered,
                        CanDeduplicate canDeduplicate,
+                       ManifestUid flushUid,
                        int64_t startSeqno) {
         manifest.createCollection(vbStateLock,
                                   *this,
@@ -712,7 +714,7 @@ public:
                                   maxTtl,
                                   metered,
                                   canDeduplicate,
-                                  ManifestUid{},
+                                  flushUid,
                                   OptionalSeqno{startSeqno});
     }
 

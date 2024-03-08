@@ -22,7 +22,8 @@ bool Collections::VB::ManifestEntry::operator==(
     return startSeqno == other.startSeqno && highSeqno == other.highSeqno &&
            itemCount == other.itemCount && diskSize == other.diskSize &&
            persistedHighSeqno == other.persistedHighSeqno &&
-           meta == other.meta && canDeduplicate == other.canDeduplicate;
+           meta == other.meta && canDeduplicate == other.canDeduplicate &&
+           flushUid == other.flushUid;
 }
 
 std::string Collections::VB::ManifestEntry::getExceptionString(
@@ -86,6 +87,8 @@ std::ostream& Collections::VB::operator<<(
     } else {
         os << ", maxTtl:none";
     }
+
+    os << ", flushUid:" << manifestEntry.getFlushUid();
 
     return os;
 }

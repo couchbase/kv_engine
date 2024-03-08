@@ -1812,6 +1812,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                       cb::ExpiryLimit maxTtl,
                                       Collections::Metered metered,
                                       CanDeduplicate canDeduplicate,
+                                      Collections::ManifestUid flushUid,
                                       int64_t bySeqno) {
     // The state of the VBucket should not change here, because replicaCreate
     // will generate SystemEvent items.
@@ -1826,6 +1827,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                        maxTtl,
                                        metered,
                                        canDeduplicate,
+                                       flushUid,
                                        bySeqno);
 }
 

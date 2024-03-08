@@ -15,7 +15,7 @@
 namespace Collections.VB;
 
 // FlatBuffers SystemEvents: This is the structure used by CreateCollection and
-// ModifyCollection
+// ModifyCollection and FlushCollection
 table Collection {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
@@ -44,6 +44,12 @@ table Collection {
     // and didn't define this value, metering must be enabled only by a change
     // pushed from ns_server
     metered:bool = false;
+
+    // All fields after here are added from 8.0
+    // flushUid: MB-41351 The default is 0 - for all collections which existed
+    // and didn't define this value they could not be flushed and 0 is the
+    // correct default to detect subsequent flushes.
+    flushUid:ulong = 0;
 
     // Warning: When merging/changing the tables. Always check all callers to
     // Collections::VB::CreateCollection and check that parameters are ordered

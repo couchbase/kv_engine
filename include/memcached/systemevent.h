@@ -30,6 +30,8 @@ enum class SystemEvent : uint32_t {
      *
      * In-use since 7.0 (epoch of SystemEvents)
      *
+     * With 8.0 flush, the Collection system event can move to represent the
+     * new start of a collection.
      */
     Collection = 0,
 

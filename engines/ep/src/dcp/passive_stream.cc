@@ -644,9 +644,7 @@ cb::engine_errc PassiveStream::processSystemEvent(
     case id::DropScope:
         return processDropScope(vb, DropScopeEvent(event));
     case id::ModifyCollection:
-        [[fallthrough]]; // invalid event for non-FlatBuffers
-    case id::FlushCollection:
-        // Event unused since epoch of system events (7.0)
+        // invalid event for non-FlatBuffers
         return cb::engine_errc::invalid_arguments;
     }
     folly::assume_unreachable();
@@ -669,9 +667,6 @@ cb::engine_errc PassiveStream::processSystemEventFlatBuffers(
         return processDropScope(vb, event);
     case id::ModifyCollection:
         return processModifyCollection(vb, event);
-    case id::FlushCollection:
-        // Event unused since epoch of system events (7.0)
-        return cb::engine_errc::invalid_arguments;
     }
     folly::assume_unreachable();
 }
@@ -680,8 +675,13 @@ cb::engine_errc PassiveStream::processCreateCollection(
         VBucket& vb, const CreateCollectionEvent& event) {
     try {
         // This creation event comes from a node which didn't support
-        // FlatBuffers. Assume "old" node so we default the CanDeduplicate and
-        // Metered settings to Yes.
+        // FlatBuffers. The following parameters require FlatBuffers to transfer
+        // Metered, CanDeduplicate and flushUid. These parameters are all set to
+        // default state as we assume the source node is older than any of these
+        // parameters.
+        // - No metering
+        // - De-duplication is enabled
+        // - FlushUid is 0
         vb.replicaCreateCollection(
                 event.getManifestUid(),
                 {event.getScopeID(), event.getCollectionID()},
@@ -689,6 +689,7 @@ cb::engine_errc PassiveStream::processCreateCollection(
                 event.getMaxTtl(),
                 Collections::Metered::No,
                 CanDeduplicate::Yes,
+                Collections::ManifestUid{},
                 event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
@@ -777,6 +778,7 @@ cb::engine_errc PassiveStream::processCreateCollection(
                 maxTtl,
                 Collections::getMetered(collection.metered()),
                 getCanDeduplicateFromHistory(collection.history()),
+                Collections::ManifestUid{collection.flushUid()},
                 *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,

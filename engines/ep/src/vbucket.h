@@ -803,8 +803,10 @@ public:
             VBucketStateLockRef vbStateLock, const Collections::Manifest& m);
 
     /**
-     * Add a collection to this vbucket with a pre-assigned seqno. I.e.
-     * this VB is a replica.
+     * Add or flush a collection. This function uses a pre-assigned seqno to
+     * give to the system event (i.e. this function is only applicable to
+     * replica vbuckets). The flush case is an update to an existing collection
+     * entry where the flushUid and start-seqno of the collection change.
      *
      * @param uid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
@@ -812,7 +814,8 @@ public:
      * @param maxTtl An optional maxTTL for the collection
      * @param metered metering setting for the new collection
      * @param canDeduplicate deduplicate setting for the collection
-     * @param bySeqno The seqno assigned to the collection create event.
+     * @param flushUid uid of any flush
+     * @param bySeqno The seqno assigned to the collection event.
      */
     void replicaCreateCollection(Collections::ManifestUid uid,
                                  ScopeCollectionPair identifiers,
@@ -820,6 +823,7 @@ public:
                                  cb::ExpiryLimit maxTtl,
                                  Collections::Metered metered,
                                  CanDeduplicate canDeduplicate,
+                                 Collections::ManifestUid flushUid,
                                  int64_t bySeqno);
 
     /**
@@ -831,7 +835,7 @@ public:
      * @param maxTTL expiry setting for the collection
      * @param metered metering setting for the collection
      * @param canDeduplicate deduplicate setting for the collection
-     * @param bySeqno The seqno assigned to the collection create event.
+     * @param bySeqno The seqno assigned to the collection modify event.
      */
     void replicaModifyCollection(Collections::ManifestUid uid,
                                  CollectionID cid,

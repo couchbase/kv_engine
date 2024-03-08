@@ -344,6 +344,7 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_duplicate_keys) {
             {},
             Collections::Metered::No,
             CanDeduplicate::No,
+            Collections::ManifestUid{},
             1);
 
     // Expect a single marker which states "history"

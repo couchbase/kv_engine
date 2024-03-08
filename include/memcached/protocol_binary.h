@@ -1215,8 +1215,9 @@ namespace mcbp::systemevent {
 
 enum class id : uint32_t {
     CreateCollection = 0, // Since 7.0 (epoch of SystemEvents)
+                          // Since 8.0 can move (be seen again/updated for a
+                          // flush). todo: rename as Collection
     DeleteCollection = 1, // Since 7.0 (epoch of SystemEvents)
-    FlushCollection = 2, // Defined but never used
     CreateScope = 3, // Since 7.0 (epoch of SystemEvents)
     DropScope = 4, // Since 7.0 (epoch of SystemEvents)
     ModifyCollection = 5 // Since 7.2 (requires opt-in on DCP)
@@ -1271,7 +1272,6 @@ public:
         switch (id(getEvent())) {
         case id::CreateCollection:
         case id::DeleteCollection:
-        case id::FlushCollection:
         case id::CreateScope:
         case id::DropScope:
         case id::ModifyCollection:

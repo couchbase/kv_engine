@@ -31,9 +31,11 @@ class Manifest;
 class SystemEventFactory {
 public:
     /**
-     * Make an Item representing the Collection SystemEvent, the returned Item
-     * will represent a "Create of CID" but can be marked deleted by the caller
-     * to represent a "Drop of CID"
+     * Make an Item representing a Collection. When this event is alive, it
+     * represents the current beginning of the collection, when this event is
+     * deleted it represents the end of the collection (dropped collection).
+     *
+     * Flushing of a collection is an update of this Item, moving the beginning.
      *
      * @param cid The ID of the collection
      * @param data The data which will be written to the value of the Item
