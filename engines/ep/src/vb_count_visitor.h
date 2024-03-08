@@ -61,10 +61,11 @@ public:
         return numVbucket;
     }
 
-    size_t getMemResidentPer() const {
+    double getMemResidentPer() const {
         if (numItems && numItems >= nonResident) {
             size_t numResident = numItems - nonResident;
-            return size_t(numResident * 100.0) / (numItems);
+            return static_cast<double>(numResident) * 100.0 /
+                   static_cast<double>(numItems);
         }
         // Note: access-scanner depends on 100% being returned for this case
         return 100;
