@@ -83,7 +83,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     auto& core = stats.coreLocal.get();
     core->memOverhead += sizeof(Checkpoint);
     core->numCheckpoints++;
-    core->checkpointManagerEstimatedMemUsage += sizeof(Checkpoint);
+    stats.checkpointManagerEstimatedMemUsage->fetch_add(sizeof(Checkpoint));
 
     this->highPreparedSeqno.reset(highPreparedSeqno);
 
@@ -687,7 +687,7 @@ void Checkpoint::detachFromManager() {
     if (manager->getVBState() == vbucket_state_replica) {
         stats.replicaCheckpointOverhead -= getMemOverhead();
     }
-    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage -= getMemUsage();
+    stats.checkpointManagerEstimatedMemUsage->fetch_sub(getMemUsage());
 
     manager = nullptr;
 
@@ -775,7 +775,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
     Expects(managerUsage);
     *managerUsage += size;
 
-    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage += size;
+    stats.checkpointManagerEstimatedMemUsage->fetch_add(size);
     return *this;
 }
 
@@ -785,7 +785,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     Expects(managerUsage);
     *managerUsage -= size;
 
-    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage -= size;
+    stats.checkpointManagerEstimatedMemUsage->fetch_sub(size);
     return *this;
 }
 

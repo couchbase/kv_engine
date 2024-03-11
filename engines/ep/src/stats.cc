@@ -48,7 +48,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 2176,
+static_assert(sizeof(EPStats) == 2304,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {
@@ -140,11 +140,7 @@ EPStats::BifurcatedCounter EPStats::getNumItem() const {
 }
 
 size_t EPStats::getCheckpointManagerEstimatedMemUsage() const {
-    int64_t result = 0;
-    for (const auto& core : coreLocal) {
-        result += core->checkpointManagerEstimatedMemUsage;
-    }
-    return std::max(int64_t(0), result);
+    return checkpointManagerEstimatedMemUsage->load();
 }
 
 EPStats::BifurcatedCounter EPStats::getNumCheckpoints() const {
