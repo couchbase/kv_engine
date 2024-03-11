@@ -92,10 +92,6 @@ public:
     //! Total number of Item objects
     BifurcatedCounter numItem;
 
-    //! Estimate of the total amount of memory used by checkpoints owned by CMs
-    // Note: This does NOT account mem used by checkpoints owned by Destroyers
-    Counter checkpointManagerEstimatedMemUsage;
-
     //! Total number of checkpoints across all vbuckets
     BifurcatedCounter numCheckpoints;
 
@@ -362,6 +358,13 @@ public:
 
     //! Core-local statistics
     CoreStore<folly::cacheline_aligned<CoreLocalStats>> coreLocal;
+
+    /// Estimate of the total amount of memory used by checkpoints owned by CMs
+    /// Note: This does NOT account mem used by checkpoints owned by Destroyers.
+    /// Aligned as this is on the front-end path and to make sure it is not on
+    /// the same cache line as replica memory or eviction stats.
+    folly::aligned<Counter, folly::hardware_constructive_interference_size>
+            checkpointManagerEstimatedMemUsage;
 
     // Total memory used by hashtable items for replica vbuckets for Ephemeral.
     cb::RelaxedAtomic<int64_t> replicaHTMemory;
