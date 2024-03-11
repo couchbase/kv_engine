@@ -1436,19 +1436,19 @@ void HashTable::dump() const {
 }
 
 nlohmann::json HashTable::dumpStoredValuesAsJson() const {
-    MultiLockHolder mlh(mutexes);
+    MultiLockHolder mlh1(mutexes);
+    MultiLockHolder mlh2(resizingMutexes);
     auto obj = nlohmann::json::array();
-    for (const auto& chain : values) {
-        if (chain) {
-            for (StoredValue* sv = chain.get().get(); sv != nullptr;
-                 sv = sv->getNext().get().get()) {
-                std::stringstream ss;
-                ss << sv->getKey();
-                obj.push_back(*sv);
+    for (const auto* table : {&values, &resizingTemporaryValues}) {
+        for (const auto& chain : *table) {
+            if (chain) {
+                for (StoredValue* sv = chain.get().get(); sv != nullptr;
+                     sv = sv->getNext().get().get()) {
+                    obj.push_back(*sv);
+                }
             }
         }
     }
-
     return obj;
 }
 
@@ -1794,13 +1794,18 @@ std::ostream& operator<<(std::ostream& os, const HashTable& ht) {
        << " numNonResident:" << ht.getNumInMemoryNonResItems()
        << " numTemp:" << ht.getNumTempItems()
        << " numSystemItems:" << ht.getNumSystemItems()
-       << " numPreparedSW:" << ht.getNumPreparedSyncWrites()
-       << " values: " << std::endl;
-    for (const auto& chain : ht.values) {
-        if (chain) {
-            for (StoredValue* sv = chain.get().get(); sv != nullptr;
-                 sv = sv->getNext().get().get()) {
-                os << "    " << *sv << std::endl;
+       << " numPreparedSW:" << ht.getNumPreparedSyncWrites() << std::endl;
+    for (const auto& [title, table] :
+         {std::make_pair(" values:", &ht.values),
+          std::make_pair(" resizingTemporaryValues:",
+                         &ht.resizingTemporaryValues)}) {
+        os << title << std::endl;
+        for (const auto& chain : *table) {
+            if (chain) {
+                for (StoredValue* sv = chain.get().get(); sv != nullptr;
+                     sv = sv->getNext().get().get()) {
+                    os << "    " << *sv << std::endl;
+                }
             }
         }
     }
