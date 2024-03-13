@@ -715,6 +715,12 @@ public:
      */
     virtual bool isWarmupComplete() = 0;
 
+    /**
+     * Has primary warmup loaded all metadata? E.g. the vbucket's and collection
+     * item counts
+     */
+    virtual bool hasPrimaryWarmupLoadedMetaData() = 0;
+
     virtual cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
                                           CookieIface& cookie) const = 0;
 

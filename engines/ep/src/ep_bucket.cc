@@ -2261,6 +2261,10 @@ bool EPBucket::isWarmupComplete() {
     return warmupTask && warmupTask->isComplete();
 }
 
+bool EPBucket::hasPrimaryWarmupLoadedMetaData() {
+    return warmupTask && warmupTask->hasLoadedMetaData();
+}
+
 cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
                                         CookieIface& cookie) const {
     if (!warmupTask) {

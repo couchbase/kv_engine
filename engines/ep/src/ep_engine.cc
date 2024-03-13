@@ -6755,11 +6755,9 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
         }
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
-        // Don't accept dcp consumer open requests during warm up. This waits
-        // for warmup to complete entirely (including background tasks) as it
-        // was observed in MB-48373 that a rollback from a DCP connection could
-        // delete a vBucket from under a warmup task.
-        if (kvBucket->isWarmupComplete()) {
+        // Don't accept dcp consumer open requests before warm up has loaded
+        // metadata. Primarily see MB-32577
+        if (kvBucket->hasPrimaryWarmupLoadedMetaData()) {
             // Check if consumer_name specified in value; if so use in Consumer
             // object.
             nlohmann::json jsonValue;

@@ -2919,106 +2919,34 @@ TEST_F(WarmupTest, CrashWarmupAfterInitialize) {
 // of consumers until we complete all of the warmup tasks. We do this by
 // checking that warmup has entired the Done state before allowing consumer
 // connections.
-TEST_F(WarmupTest, ConsumerDuringWarmup) {
-    // Write to two vBuckets on two different shards (we have 2 by default) so
-    // that we can have two tasks that load data which allows us to check
-    // at the same point in MB-48373 that a DCP connection can't be created
-    setVBucketToActiveWithValidTopology();
-    store_item(vbid, makeStoredDocKey("key"), "value");
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
+TEST_P(DurabilityWarmupTest, RollbackDuringWarmup) {
     setVBucketStateAndRunPersistTask(Vbid(1), vbucket_state_active);
     store_item(Vbid(1), makeStoredDocKey("key1"), "value");
     flushVBucketToDiskIfPersistent(Vbid(1), 1);
+    setVBucketStateAndRunPersistTask(Vbid(1), vbucket_state_replica);
 
     resetEngineAndEnableWarmup();
     auto* warmupPtr = store->getPrimaryWarmup();
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
-    while (store->isWarmupLoadingData()) {
-        if (warmupPtr->getWarmupState() == WarmupState::State::LoadingData) {
-            break;
-        }
+    // Bring the vb back.
+    do {
+        runNextTask(readerQueue);
+    } while (warmupPtr->getWarmupState() !=
+             WarmupState::State::PopulateVBucketMap);
+
+    while (warmupPtr->getWarmupState() ==
+           WarmupState::State::PopulateVBucketMap) {
         runNextTask(readerQueue);
     }
 
-    // We've run until LoadingData (for the first shard)
-    EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::LoadingData);
+    EXPECT_TRUE(engine->getVBucket(Vbid(1)));
 
-    // Consumer should fail - not finished warmup
-    EXPECT_EQ(cb::engine_errc::temporary_failure,
-              engine->dcpOpen(*cookie,
-                              /*opaque:unused*/ {},
-                              /*seqno:unused*/ {},
-                              {} /*flags - consumer*/,
-                              "consumer",
-                              {}));
+    EXPECT_EQ(TaskStatus::Complete,
+              engine->getKVBucket()->rollback(Vbid(1), 0));
 
-    // Run for next shard, this is where the data loading was originally
-    // completed in MB-48373
-    runNextTask(readerQueue);
-    EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::LoadingData);
-
-    // ns_server gets stats to determine when to set up DcpConsumers. The stat
-    // ep_warmup_thread encapsulates the state of warmup threads and returns a
-    // value of either "running" or "complete". Check here that it is "running"
-    // as we will temp_fail a DcpConsumer creation.
-    {
-        bool threadStatAdded;
-        auto dummyAddStats = [&threadStatAdded](std::string_view key,
-                                                std::string_view value,
-                                                CookieIface&) {
-            if (key == "ep_warmup_thread") {
-                EXPECT_EQ("running", value);
-                threadStatAdded = true;
-            }
-        };
-        EXPECT_EQ(cb::engine_errc::success,
-                  engine->get_stats(*cookie, "warmup", {}, dummyAddStats));
-        EXPECT_TRUE(threadStatAdded);
-    }
-
-    // Still fails, not finished warmup
-    EXPECT_EQ(cb::engine_errc::temporary_failure,
-              engine->dcpOpen(*cookie,
-                              /*opaque:unused*/ {},
-                              /*seqno:unused*/ {},
-                              {} /*flags - consumer*/,
-                              "consumer",
-                              {}));
-
-    // Move to Done now
-    runNextTask(readerQueue);
-    EXPECT_EQ(warmupPtr->getWarmupState(), WarmupState::State::Done);
-
-    // Have to run again in the Done state to mark things as complete and stop
-    // finish warmup
-    runNextTask(readerQueue);
-
-    // Now that all warmup threads have complete, ep_warmup_thread should return
-    // "complete" indicating to ns_server that they can now create a DcpConsumer
-    {
-        bool threadStatAdded;
-        auto dummyAddStats = [&threadStatAdded](std::string_view key,
-                                                std::string_view value,
-                                                CookieIface&) {
-            if (key == "ep_warmup_thread") {
-                EXPECT_EQ("complete", value);
-                threadStatAdded = true;
-            }
-        };
-        EXPECT_EQ(cb::engine_errc::success,
-                  engine->get_stats(*cookie, "warmup", {}, dummyAddStats));
-        EXPECT_TRUE(threadStatAdded);
-    }
-
-    // Opening the connection should now work
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->dcpOpen(*cookie,
-                              /*opaque:unused*/ {},
-                              /*seqno:unused*/ {},
-                              {} /*flags - consumer*/,
-                              "consumer",
-                              {}));
+    do {
+        runNextTask(readerQueue);
+    } while (warmupPtr->getWarmupState() != WarmupState::State::Done);
 }
 
 INSTANTIATE_TEST_SUITE_P(FullOrValue,

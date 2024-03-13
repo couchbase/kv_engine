@@ -331,6 +331,11 @@ public:
         return finishedLoading && state.getState() == WarmupState::State::Done;
     }
 
+    /**
+     * @return true if this warmup has loaded all metadata
+     */
+    bool hasLoadedMetaData() const;
+
     bool isFinishedLoading() const {
         return finishedLoading.load();
     }

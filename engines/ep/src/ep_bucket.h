@@ -265,6 +265,8 @@ public:
 
     bool isWarmupComplete() override;
 
+    bool hasPrimaryWarmupLoadedMetaData() override;
+
     /**
      * Add warmup stats if the warmupTask object exists
      */
