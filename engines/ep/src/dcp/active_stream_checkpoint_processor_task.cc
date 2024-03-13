@@ -21,7 +21,8 @@
 
 ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
         EventuallyPersistentEngine& e, std::shared_ptr<DcpProducer> p)
-    : EpTask(e, TaskId::ActiveStreamCheckpointProcessorTask, INT_MAX, false),
+    : EpNotifiableTask(
+              e, TaskId::ActiveStreamCheckpointProcessorTask, INT_MAX, false),
       description("Process checkpoint(s) for DCP producer " + p->getName()),
       queue(e.getConfiguration().getMaxVbuckets()),
       notified(false),
@@ -30,16 +31,10 @@ ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
       producerPtr(p) {
 }
 
-bool ActiveStreamCheckpointProcessorTask::run() {
+bool ActiveStreamCheckpointProcessorTask::runInner(bool) {
     if (engine->getEpStats().isShutdown) {
         return false;
     }
-
-    // Setup that we will sleep forever when done.
-    snooze(INT_MAX);
-
-    // Clear the notification flag
-    notified.store(false);
 
     size_t iterations = 0;
     do {
@@ -56,18 +51,12 @@ bool ActiveStreamCheckpointProcessorTask::run() {
         iterations++;
     } while (!queueEmpty() && iterations < iterationsBeforeYield);
 
-    // Now check if we were re-notified or there are still checkpoints
-    bool expected = true;
-    if (notified.compare_exchange_strong(expected, false) || !queueEmpty()) {
-        // wakeUp, essentially yielding and allowing other tasks a go
-        wakeUp();
+    // Now check if there are still checkpoints
+    if (!queueEmpty()) {
+        wakeup();
     }
 
     return true;
-}
-
-void ActiveStreamCheckpointProcessorTask::wakeup() {
-    ExecutorPool::get()->wake(getId());
 }
 
 void ActiveStreamCheckpointProcessorTask::schedule(
@@ -76,11 +65,7 @@ void ActiveStreamCheckpointProcessorTask::schedule(
         // Return if already in queue, no need to notify the task
         return;
     }
-
-    bool expected = false;
-    if (notified.compare_exchange_strong(expected, true)) {
-        wakeup();
-    }
+    wakeup();
 }
 
 void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,

@@ -27,7 +27,7 @@ class Stream;
 template <class E>
 class StreamContainer;
 
-class ActiveStreamCheckpointProcessorTask : public EpTask {
+class ActiveStreamCheckpointProcessorTask : public EpNotifiableTask {
 public:
     ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
                                         std::shared_ptr<DcpProducer> p);
@@ -42,9 +42,8 @@ public:
         return std::chrono::milliseconds(210);
     }
 
-    bool run() override;
+    bool runInner(bool manuallyNotified) override;
     void schedule(std::shared_ptr<ActiveStream> stream);
-    void wakeup();
 
     /* Returns the number of unique streams waiting to be processed */
     size_t queueSize() {
