@@ -548,7 +548,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     //
     // Note: Scope triggers the flush handle that removes the backup cursor
     {
-        auto result = this->vbucket->getItemsToPersist(1);
+        auto result = this->vbucket->getItemsToPersist(
+                1, std::numeric_limits<size_t>::max());
         EXPECT_TRUE(result.moreAvailable);
         EXPECT_EQ(4, result.items.size());
         EXPECT_TRUE(result.items[0]->isCheckPointMetaItem());
@@ -562,7 +563,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     // Asking for 5 items should give us all items in second checkpoint and
     // third checkpoint - 7 total
     // (ckpt start, 2x mutation, ckpt_end, ckpt_start, 2x mutation)
-    auto result = this->vbucket->getItemsToPersist(5);
+    auto result = this->vbucket->getItemsToPersist(
+            5, std::numeric_limits<size_t>::max());
     EXPECT_FALSE(result.moreAvailable);
     EXPECT_EQ(7, result.items.size());
     EXPECT_TRUE(result.items[0]->isCheckPointMetaItem());
@@ -604,7 +606,8 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
     // Test - fetch items with (approxLimit < size_first_ckpt), we must retrieve
     // the complete first checkpoint (as it is not valid to read partial
     // checkpoint contents) but no item from the second checkpoint.
-    auto result = this->vbucket->getItemsToPersist(1 /*approxLimit*/);
+    auto result = this->vbucket->getItemsToPersist(
+            1 /*approxMaxItems*/, std::numeric_limits<size_t>::max());
     EXPECT_TRUE(result.moreAvailable);
     ASSERT_EQ(3, result.items.size());
     EXPECT_EQ(makeStoredDocKey("1"), result.items[0]->getKey());
@@ -616,7 +619,8 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
 
     // Again, get the complete second checkpoint, different items and range
     // expected
-    result = this->vbucket->getItemsToPersist(2 /*approxLimit*/);
+    result = this->vbucket->getItemsToPersist(
+            2 /*approxMaxItems*/, std::numeric_limits<size_t>::max());
     EXPECT_FALSE(result.moreAvailable);
     EXPECT_EQ(4, result.items.size());
     EXPECT_EQ(queue_op::checkpoint_start, result.items[0]->getOperation());
@@ -634,7 +638,7 @@ TEST_P(VBucketTest, GetItemsToPersist_ZeroLimitThrows) {
     }
 
     try {
-        vbucket->getItemsToPersist(0);
+        vbucket->getItemsToPersist(0, std::numeric_limits<size_t>::max());
     } catch (const std::invalid_argument& e) {
         EXPECT_THAT(e.what(), testing::HasSubstr("limit=0"));
         return;
@@ -662,7 +666,8 @@ TEST_P(VBucketTest, GetItemsToPersist_LimitCkptMoreAvailable) {
 
     // Test - fetch items such that we have a limit for CheckpointManager of
     // 1. This should return moreAvailable=true.
-    auto result = vbucket->getItemsToPersist(1);
+    auto result =
+            vbucket->getItemsToPersist(1, std::numeric_limits<size_t>::max());
     EXPECT_TRUE(result.moreAvailable);
     // start + mutation + end
     EXPECT_EQ(3, result.items.size());

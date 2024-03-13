@@ -3056,7 +3056,8 @@ TEST_P(EPVBucketDurabilityTest,
     // checkpoint and find items to run the persistence callback on.
     // (we are essentially mocking the actual flusher).
     std::vector<queued_item> items;
-    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    vbucket->checkpointManager->getItemsForPersistence(
+            items, 1, std::numeric_limits<size_t>::max());
     ASSERT_EQ(2, items.size()) << "Expected setVBState and SET.";
 
     // (1.2) Mimic flusher by running the PCB for the store at (1)
@@ -3086,7 +3087,8 @@ TEST_P(EPVBucketDurabilityTest,
     // Run persistence callback for Delete. This should not find a Committed
     // item in the HashTable, but _should_ decrement the numTotalItems to zero.
     items.clear();
-    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    vbucket->checkpointManager->getItemsForPersistence(
+            items, 1, std::numeric_limits<size_t>::max());
     ASSERT_EQ(2, items.size()) << "Expected Delete and Prepared SyncWrite";
     persistCb(*items.at(0), FlushStateDeletion::Delete);
 
@@ -3124,7 +3126,8 @@ TEST_P(EPVBucketDurabilityTest,
     // (1.1) Run persistence callback for Prepare (not important, but must
     // happen before Commit occurs).
     std::vector<queued_item> items;
-    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    vbucket->checkpointManager->getItemsForPersistence(
+            items, 1, std::numeric_limits<size_t>::max());
     EXPECT_EQ(2, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
     EXPECT_EQ(queue_op::pending_sync_write, items.at(1)->getOperation());
@@ -3149,7 +3152,8 @@ TEST_P(EPVBucketDurabilityTest,
     // (1.3) Begin persistence of the SyncWrite (i.e. advance persistence
     // cursor) but don't _yet_ complete persistence.
     items.clear();
-    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    vbucket->checkpointManager->getItemsForPersistence(
+            items, 1, std::numeric_limits<size_t>::max());
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::commit_sync_write, items.at(0)->getOperation());
 
@@ -3177,7 +3181,8 @@ TEST_P(EPVBucketDurabilityTest,
     // be reduced to zero, but in fact underflowed in original MB, given missing
     // increment from previous Commit SyncAdd.
     items.clear();
-    vbucket->checkpointManager->getItemsForPersistence(items, 1);
+    vbucket->checkpointManager->getItemsForPersistence(
+            items, 1, std::numeric_limits<size_t>::max());
     EXPECT_EQ(3, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
     EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());

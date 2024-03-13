@@ -384,7 +384,8 @@ public:
      * limit to a precise number of items.
      *
      * @param[in/out] items container which items will be appended to.
-     * @param approxNumItemsLimit Approximate number of items to add.
+     * @param approxMaxItems Approximate number of items to add.
+     * @param approxMaxBytes Approximate number of bytes to add.
      * @return An ItemsForCursor object containing:
      * range: the low/high sequence number of the checkpoints(s) added to
      * `items`;
@@ -392,12 +393,11 @@ public:
      * checkpoint (i.e. the limit was hit).
      */
     ItemsForCursor getItemsForPersistence(std::vector<queued_item>& items,
-                                          size_t approxNumItemsLimit) {
+                                          size_t approxMaxItems,
+                                          size_t approxMaxBytes) {
         Expects(persistenceCursor);
-        return getItemsForCursor(*persistenceCursor,
-                                 items,
-                                 approxNumItemsLimit,
-                                 std::numeric_limits<size_t>::max());
+        return getItemsForCursor(
+                *persistenceCursor, items, approxMaxItems, approxMaxBytes);
     }
 
     /**

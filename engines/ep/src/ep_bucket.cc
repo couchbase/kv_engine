@@ -412,7 +412,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     const auto flushStart = std::chrono::steady_clock::now();
     // Obtain the set of items to flush, up to the maximum allowed for
     // a single flush.
-    auto toFlush = vb.getItemsToPersist(flusherBatchSplitTrigger);
+    auto toFlush =
+            vb.getItemsToPersist(flusherBatchSplitTrigger, flushBatchMaxBytes);
 
     // Callback must be initialized at persistence
     Expects(toFlush.flushHandle.get());
