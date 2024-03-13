@@ -488,7 +488,7 @@ class MemcachedClient(object):
     def getr(self, key, collection=None):
         """Get the value for a given key in a replica vbucket within the memcached server."""
         parts=self._doCmd(memcacheConstants.CMD_GET_REPLICA, key, '', collection=collection)
-        return self.__parseGet(parts, len(key))
+        return self.__parseGet(parts)
 
     def version(self):
         """Get the value for a given key within the memcached server."""

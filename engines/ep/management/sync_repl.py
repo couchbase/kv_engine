@@ -46,6 +46,8 @@ timeout = 1000
 
 if op == "get":
     print (client.get(key, collection=collection))
+elif op =="getr":
+    print (client.getr(key, collection=collection))
 elif op == "set":
     print (client.set(key, 0, 0, value, collection=collection))
 elif op == "bulk_set":
