@@ -566,6 +566,18 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "flush_batch_max_bytes": {
+            "default": "2147483648",
+            "descr": "Max size (in bytes) of a single flush-batch passed to the KVStore for persistence.",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1,
+                    "max": 2147483648
+                }
+            }
+        },
         "freq_counter_increment_factor": {
             "default": "0.012",
             "descr": "The increment factor of the ProbabilisticCounter being used for the frequency counter. The default value of 0.012 is set such that it allows an 8-bit ProbabilisticCounter to mimic a uint16 counter. See the comment on the ProbabilisticCounter class for more information.",

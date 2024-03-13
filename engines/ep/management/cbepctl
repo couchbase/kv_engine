@@ -261,6 +261,8 @@ Available params for "set":
                                    (Range: 0 - 23, Specify 'disable' to not delay the
                                    the expiry pager, in which case first run will be
                                    after exp_pager_stime seconds.)
+    flush_batch_max_bytes         - Max size (in bytes) of a single flush-batch passed to the
+                                   KVStore for persistence.
     item_compressor_interval     - How often the item compressor task should be run
                                    (in milliseconds).
     item_compressor_chunk_duration - Maximum time (in ms) the item compressor task

@@ -682,6 +682,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setExpPagerInitialRunTime(std::stoll(val));
         } else if (key == "flusher_total_batch_limit") {
             configuration.setFlusherTotalBatchLimit(std::stoll(val));
+        } else if (key == "flush_batch_max_bytes") {
+            configuration.setFlushBatchMaxBytes(std::stoll(val));
         } else if (key == "getl_default_timeout") {
             configuration.setGetlDefaultTimeout(std::stoull(val));
         } else if (key == "getl_max_timeout") {
