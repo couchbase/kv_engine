@@ -13,6 +13,7 @@
 
 #include "spdlog/logger.h"
 #include <fmt/core.h>
+#include <platform/json_log.h>
 #include <spdlog/fmt/ostr.h>
 
 class EventuallyPersistentEngine;
@@ -106,6 +107,20 @@ public:
     void log(spdlog::level::level_enum lvl, const char* msg);
     template <typename T>
     void log(spdlog::level::level_enum lvl, const T& msg);
+
+    /**
+     * Record a log message for the bucket currently associated with the calling
+     * thread.
+     *
+     * JSON Format: {"conn_id": <id>, "bucket": <name>, ...rest}
+     *
+     * @param lvl The log level to report at
+     * @param msg The message to log
+     * @param ctx The context object
+     */
+    void logWithContext(spdlog::level::level_enum lvl,
+                        std::string_view msg,
+                        cb::logger::Json ctx);
 
     /*
      * The following convenience functions simplify logging a message at the
@@ -241,6 +256,14 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
         }                                                              \
     } while (false)
 
+#define EP_LOG_CTX(severity, msg, ...)                            \
+    do {                                                          \
+        auto& logger = getGlobalBucketLogger();                   \
+        if (logger->should_log(severity)) {                       \
+            logger->logWithContext(severity, msg, {__VA_ARGS__}); \
+        }                                                         \
+    } while (false)
+
 #define EP_LOG_RAW(severity, msg)               \
     do {                                        \
         auto& logger = getGlobalBucketLogger(); \
@@ -282,6 +305,24 @@ std::shared_ptr<BucketLogger>& getGlobalBucketLogger();
 
 #define EP_LOG_CRITICAL(...) \
     EP_LOG_FMT(spdlog::level::level_enum::critical, __VA_ARGS__)
+
+#define EP_LOG_TRACE_CTX(msg, ...) \
+    EP_LOG_CTX(spdlog::level::level_enum::trace, msg, __VA_ARGS__)
+
+#define EP_LOG_DEBUG_CTX(msg, ...) \
+    EP_LOG_CTX(spdlog::level::level_enum::debug, msg, __VA_ARGS__)
+
+#define EP_LOG_INFO_CTX(msg, ...) \
+    EP_LOG_CTX(spdlog::level::level_enum::info, msg, __VA_ARGS__)
+
+#define EP_LOG_WARN_CTX(msg, ...) \
+    EP_LOG_CTX(spdlog::level::level_enum::warn, msg, __VA_ARGS__)
+
+#define EP_LOG_ERR_CTX(msg, ...) \
+    EP_LOG_CTX(spdlog::level::level_enum::err, msg, __VA_ARGS__)
+
+#define EP_LOG_CRITICAL_CTX(msg, ...) \
+    EP_LOG_CTX(spdlog::level::level_enum::critical, msg, __VA_ARGS__)
 
 // Convenience macros which call globalBucketLogger->log() with the given level,
 // and message.

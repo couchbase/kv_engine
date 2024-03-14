@@ -13,6 +13,7 @@
 #include "logger.h"
 #include "logger_config.h"
 
+#include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
@@ -22,6 +23,8 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdio>
+#include <iterator>
+#include <stdexcept>
 static const std::string logger_name{"spdlog_file_logger"};
 
 /**
@@ -263,4 +266,41 @@ void cb::logger::setLogLevels(spdlog::level::level_enum level) {
     });
 
     flush();
+}
+
+void cb::logger::logWithContext(spdlog::logger& logger,
+                                spdlog::level::level_enum lvl,
+                                std::string_view msg,
+                                Json ctx) {
+    if (!ctx.is_object()) {
+#if CB_DEVELOPMENT_ASSERTS
+        throw std::invalid_argument(fmt::format(
+                "JSON context must be an object, not `{}`", ctx.dump()));
+#else
+        // In production, handle this case gracefully.
+        ctx = Json{{"context", std::move(ctx)}};
+#endif
+    }
+
+    // TODO: Consider checking that the message conforms to the conventions and
+    // doesn't contain ".:()", starts with a capital, etc.
+
+    if (!logger.should_log(lvl)) {
+        return;
+    }
+
+    std::string sanitized;
+    if (msg.find_first_of("{}") != std::string::npos) {
+        sanitized = msg;
+        std::replace(sanitized.begin(), sanitized.end(), '{', '[');
+        std::replace(sanitized.begin(), sanitized.end(), '}', ']');
+        msg = sanitized;
+    }
+
+    // We build up the log string here then pass the already-formatted
+    // string down to spdlog directly, not using spdlog's formatting
+    // functions.
+    fmt::memory_buffer formatted;
+    fmt::format_to(std::back_inserter(formatted), "{} {}", msg, ctx);
+    logger.log(lvl, {formatted.data(), formatted.size()});
 }

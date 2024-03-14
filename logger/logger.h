@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <platform/json_log.h>
 #include <spdlog/fmt/ostr.h>
 #include <spdlog/logger.h>
 
@@ -141,6 +142,23 @@ void shutdown();
  */
 bool isInitialized();
 
+/**
+ * Record a log message with additional context.
+ * Format: <MSG> <JSON>
+ *
+ * NOTE: If present, the characters {} in the message are replaced by [].
+ *
+ * @param lvl The log level to report at
+ * @param msg The message to log
+ * @param ctx The context object
+ * @throws std::invalid_argument if ctx is not an object (disabled in
+ * production)
+ */
+void logWithContext(spdlog::logger& logger,
+                    spdlog::level::level_enum lvl,
+                    std::string_view msg,
+                    Json ctx);
+
 } // namespace cb::logger
 
 // Visual Studio doesn't correctly handle the constexpr
@@ -158,6 +176,15 @@ bool isInitialized();
         if (_logger_ && _logger_->should_log(severity)) {                \
             _logger_->log(severity, CHECK_FMT_STRING(fmt), __VA_ARGS__); \
         }                                                                \
+    } while (false)
+
+#define CB_LOG_ENTRY_CTX(severity, msg, ...)                  \
+    do {                                                      \
+        auto _logger_ = cb::logger::get();                    \
+        if (_logger_ && _logger_->should_log(severity)) {     \
+            ::cb::logger::logWithContext(                     \
+                    *_logger_, severity, msg, {__VA_ARGS__}); \
+        }                                                     \
     } while (false)
 
 #define CB_LOG_RAW(severity, msg)                         \
@@ -178,6 +205,19 @@ bool isInitialized();
 #define LOG_ERROR(...) CB_LOG_ENTRY(spdlog::level::level_enum::err, __VA_ARGS__)
 #define LOG_CRITICAL(...) \
     CB_LOG_ENTRY(spdlog::level::level_enum::critical, __VA_ARGS__)
+
+#define LOG_TRACE_CTX(msg, ...) \
+    CB_LOG_ENTRY_CTX(spdlog::level::level_enum::trace, msg, __VA_ARGS__)
+#define LOG_DEBUG_CTX(msg, ...) \
+    CB_LOG_ENTRY_CTX(spdlog::level::level_enum::debug, msg, __VA_ARGS__)
+#define LOG_INFO_CTX(msg, ...) \
+    CB_LOG_ENTRY_CTX(spdlog::level::level_enum::info, msg, __VA_ARGS__)
+#define LOG_WARNING_CTX(msg, ...) \
+    CB_LOG_ENTRY_CTX(spdlog::level::level_enum::warn, msg, __VA_ARGS__)
+#define LOG_ERROR_CTX(msg, ...) \
+    CB_LOG_ENTRY_CTX(spdlog::level::level_enum::err, msg, __VA_ARGS__)
+#define LOG_CRITICAL_CTX(msg, ...) \
+    CB_LOG_ENTRY_CTX(spdlog::level::level_enum::critical, msg, __VA_ARGS__)
 
 // Convenience macros which log with the given level, and message, if the given
 // level is currently enabled.

@@ -29,3 +29,10 @@
         cb::logger::get()->flush();               \
         exit(EXIT_STATUS);                        \
     } while (false)
+
+#define FATAL_ERROR_CTX(EXIT_STATUS, msg, ...) \
+    do {                                       \
+        LOG_CRITICAL_CTX(msg, __VA_ARGS__);    \
+        cb::logger::get()->flush();            \
+        exit(EXIT_STATUS);                     \
+    } while (false)

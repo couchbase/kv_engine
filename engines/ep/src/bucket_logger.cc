@@ -79,13 +79,60 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
         // Finally format the actual user-specified format string & args.
         fmt::vformat_to(std::back_inserter(msg), fmt, args);
         spdlog::logger::log(lvl, {msg.data(), msg.size()});
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         // Log a fixed message about this failing - we can't really be sure
         // what arguments failed above.
         spdlog::logger::log(spdlog::level::err,
                             "BucketLogger::logInner: Failed to log message "
                             "with format string '{}'",
                             fmt);
+    }
+}
+
+void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
+                                  std::string_view msg,
+                                  cb::logger::Json ctx) {
+    try {
+        if (!ctx.is_object()) {
+#if CB_DEVELOPMENT_ASSERTS
+            throw std::invalid_argument(fmt::format(
+                    "JSON context must be an object, not `{}`", ctx.dump()));
+#else
+            // In production, handle this case gracefully.
+            ctx = Json{{"context", std::move(ctx)}};
+#endif
+        }
+
+        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+        // Disable memory tracking for the formatting and logging of the
+        // message. This is necessary because the message will be written to
+        // disk (and subsequently freed) by the shared background thread (as
+        // part of spdlog::async_logger) and hence we do not know which engine
+        // to associate the deallocation to. Instead account any log message
+        // memory to "NonBucket" (it is only transient and typically small - of
+        // the order of the log message length).
+        NonBucketAllocationGuard guard;
+
+        auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
+        // Write the bucket
+        if (engine) {
+            object.insert(object.begin(), {"bucket", engine->getName()});
+        }
+        // Write the ID.
+        if (connectionId != 0) {
+            object.insert(object.begin(), {"conn_id", connectionId});
+        }
+
+        cb::logger::logWithContext(*this, lvl, msg, std::move(ctx));
+    } catch (const std::exception& e) {
+        // Log a fixed message about this failing - we can't really be sure
+        // what arguments failed above.
+        spdlog::logger::log(
+                spdlog::level::err,
+                "BucketLogger::logWithContext: Failed to log '{}' {}, what(): ",
+                msg,
+                ctx,
+                e.what());
     }
 }
 

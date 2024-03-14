@@ -33,12 +33,21 @@ void BucketLoggerTest::SetUp() {
     if (getGlobalBucketLogger()) {
         getGlobalBucketLogger()->unregister();
     }
+
     SpdloggerTest::SetUp();
     getGlobalBucketLogger() =
             BucketLogger::createBucketLogger(globalBucketLoggerName);
 }
 
 void BucketLoggerTest::TearDown() {
+    // If the test failed, print the actual log contents for debugging.
+    if (HasFailure()) {
+        for (auto& file : cb::io::findFilesWithPrefix(config.filename)) {
+            FAIL() << "---" << file << "---\n"
+                   << cb::io::loadFile(file) << "---END---\n";
+        }
+    }
+
     SpdloggerTest::TearDown();
 
     // Create a new console logger
@@ -178,6 +187,46 @@ TEST_F(BucketLoggerTest, CriticalRawMacro) {
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1, countInFile(files.front(), "CRITICAL (No Engine) rawtext"));
+}
+
+/**
+ * Test that the EP_LOG_INFO_CTX macro works correctly
+ */
+TEST_F(BucketLoggerTest, InfoContextMacro) {
+    EP_LOG_INFO_CTX("log message", {"a", 1});
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1, countInFile(files.front(), "INFO log message {\"a\":1}"));
+}
+
+/**
+ * Test that the connection ID is inserted as the first element in the context,
+ * with the correct key.
+ */
+TEST_F(BucketLoggerTest, InfoContextMacroWithConnId) {
+    getGlobalBucketLogger()->setConnectionId(1);
+    EP_LOG_INFO_CTX("log message", {"a", 1});
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(1,
+              countInFile(files.front(),
+                          "INFO log message {\"conn_id\":1,\"a\":1}"))
+            << "Not found in " << files.front();
+}
+
+/**
+ * Test that the EP_LOG_INFO_CTX macro handles {} in the message.
+ */
+TEST_F(BucketLoggerTest, InfoContextMacroWithCurlyBraces) {
+    EP_LOG_INFO_CTX("log {escape} message", {"a", 1});
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
+    EXPECT_EQ(
+            1,
+            countInFile(files.front(), "INFO log [escape] message {\"a\":1}"));
 }
 
 /**
