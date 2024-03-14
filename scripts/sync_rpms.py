@@ -24,7 +24,7 @@ listed in couchbase.log) and for each one:
 
 Example usage:
 
-    grep '^\(glibc\|libstdc++\)' couchbase.log | ./sync_rpms.py
+    grep '^\\(glibc\\|libstdc++\\)' couchbase.log | ./sync_rpms.py
 """
 
 import fileinput
@@ -55,6 +55,7 @@ warnings.simplefilter("ignore", urllib3.exceptions.InsecureRequestWarning)
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
+
 
 def is_package_installed(package):
     with open(os.devnull, 'w') as devnull:
@@ -122,13 +123,15 @@ def download_couchbase_package(package):
     # latestbuilds (requires VPN).
     (name, version, build_arch) = package.rsplit('-', 2)
     (build, arch) = build_arch.split('.')
-    version_to_dir = {'7.0.0': 'http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/cheshire-cat'}
+    version_to_dir = {
+        '7.0.0': 'http://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/cheshire-cat'}
     if version in version_to_dir:
         base_url = version_to_dir[version] + '/' + build
         # Map package name to filename - the EE package is named
         # 'couchbase-server', the CE one 'couchbase-server-community'.
-        pkg_to_file = {'couchbase-server': 'couchbase-server-enterprise',
-                       'couchbase-server-debuginfo': 'couchbase-server-enterprise-debuginfo'}
+        pkg_to_file = {
+            'couchbase-server': 'couchbase-server-enterprise',
+            'couchbase-server-debuginfo': 'couchbase-server-enterprise-debuginfo'}
         if name in pkg_to_file:
             name = pkg_to_file[name]
 

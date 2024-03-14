@@ -31,25 +31,25 @@ import re
 # evictionMap.png
 
 # four vbucket colours and evicted(black)
-green = (127, 201, 127);
-purple = (190, 174, 212);
-orange = (253, 192, 134);
-yellow = (255, 255, 153);
-black = (0, 0, 0);
-colours = [ green, purple, orange, yellow, black ];
-maxNoOfColumns = 500;
+green = (127, 201, 127)
+purple = (190, 174, 212)
+orange = (253, 192, 134)
+yellow = (255, 255, 153)
+black = (0, 0, 0)
+colours = [green, purple, orange, yellow, black]
+maxNoOfColumns = 500
 
 # contains a row of PNG values
-row = [];
+row = []
 # contains the complete PNG image
-image = [];
+image = []
 
 # count of the number of rows in the image
-rowCount = 0;
+rowCount = 0
 
 # current count of columns
 # reset when generating new row
-columnCount = 0;
+columnCount = 0
 
 # regular expression to match document number, vbucket number, and whether
 # evicted or not e.g."DOC_1 0 RESIDENT" or "DOC_2600 0 EVICT"
@@ -58,23 +58,23 @@ regex = r"DOC_(\d+) (\d+) (\w+)"
 for line in fileinput.input():
     matches = re.search(regex, line)
     if matches:
-        vbucket = matches.group(2);
+        vbucket = matches.group(2)
         # RESIDENT or EVICT
-        state = matches.group(3);
-        if (columnCount == maxNoOfColumns) :
-            columnCount = 0;
-            rowCount += 1;
-            image += [row] * 10;
-            row = [];
-        num = int(vbucket);
+        state = matches.group(3)
+        if (columnCount == maxNoOfColumns):
+            columnCount = 0
+            rowCount += 1
+            image += [row] * 10
+            row = []
+        num = int(vbucket)
         if (state == 'EVICT'):
-            colour = black;
+            colour = black
         else:
-            colour = colours[num];
-        row += colour * 10;
-        columnCount += 1;
+            colour = colours[num]
+        row += colour * 10
+        columnCount += 1
 
-f = open('evictionMap.png', 'wb');
-w = png.Writer(maxNoOfColumns * 10, rowCount * 10);
-w.write(f, image);
-f.close();
+f = open('evictionMap.png', 'wb')
+w = png.Writer(maxNoOfColumns * 10, rowCount * 10)
+w.write(f, image)
+f.close()

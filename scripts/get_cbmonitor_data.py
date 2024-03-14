@@ -40,7 +40,7 @@ def downloadData(url):
         request = urllib2.Request(url)
         request.add_header('Accept-encoding', 'gzip')
         response = urllib2.urlopen(request, timeout=10)
-    except urllib2.URLError, e:
+    except urllib2.URLError as e:
         raise Exception("'urlopen' error, url not correct or user not "
                         "connected to VPN: %r" % e)
 
@@ -57,14 +57,14 @@ def getAverage(url):
     pairs = json.loads(downloadData(url))
     for pair in pairs:
         accumulator += float(pair[1])
-    return accumulator/len(pairs)
+    return accumulator / len(pairs)
 
 
 def getAverageFromList(urls, per_single_node):
     accumulator = 0.0
     for url in urls:
         accumulator += getAverage(url)
-    return (accumulator/len(urls) if per_single_node else accumulator)
+    return (accumulator / len(urls) if per_single_node else accumulator)
 
 
 def getMax(url):
@@ -96,7 +96,7 @@ ap = argparse.ArgumentParser()
 try:
     ap.add_argument('--job-list', nargs='+')
     ap.add_argument('--output-dir')
-except:
+except BaseException:
     print(usage)
     sys.exit()
 
@@ -113,7 +113,7 @@ print("Job list: " + str(job_list))
 print("Output dir: " + output_dir)
 
 
-byteToMBConversionFactor = 1.0/(1024*1024)
+byteToMBConversionFactor = 1.0 / (1024 * 1024)
 host = "http://cbmonitor.sc.couchbase.com:8080"
 
 # Keep data for all jobs to build an aggregated CSV file
@@ -222,48 +222,48 @@ for job in job_list:
         ('snapshot', snapshot),
         ('ops', '{:.2f}'.format(getAverage(ops))),
         ('latency_set (ms)', '{:.2f}'.format(getAverage(latency_set))
-                            if hasLatencySet else 'N/A'),
+         if hasLatencySet else 'N/A'),
         ('latency_get (ms)', '{:.2f}'.format(getAverage(latency_get))
-                            if hasLatencyGet else 'N/A'),
+         if hasLatencyGet else 'N/A'),
         ('latency_set P99 (ms)', '{:.2f}'.format(getP99(latency_set))
-                                if hasLatencySet else 'N/A'),
+         if hasLatencySet else 'N/A'),
         ('latency_get P99 (ms)', '{:.2f}'.format(getP99(latency_get))
-                                if hasLatencyGet else 'N/A'),
+         if hasLatencyGet else 'N/A'),
         ('avg_disk_commit_time (ms)', '{:.2f}'
-                                     .format(getAverage(avg_disk_commit_time) *
-                                             1000)),
+         .format(getAverage(avg_disk_commit_time) *
+                 1000)),
         ('avg_bg_wait_time (ms)', '{:.2f}'.format(getAverage(avg_bg_wait_time) /
-                                                 1000)),
+                                                  1000)),
         ('avg_disk_commit_time P99 (ms)', '{:.2f}'
-                                     .format(getP99(avg_disk_commit_time) *
-                                             1000)),
+         .format(getP99(avg_disk_commit_time) *
+                 1000)),
         ('avg_bg_wait_time P99 (ms)', '{:.2f}'.format(getP99(avg_bg_wait_time) /
-                                                     1000)),
+                                                      1000)),
         ('data_rps (iops)', '{:.2f}'.format(getAverageFromList(data_rps, True))),
         ('data_wps (iops)', '{:.2f}'.format(getAverageFromList(data_wps, True))),
         ('data_rbps (MB/s)', '{:.2f}'.format(
-                                        getAverageFromList(data_rbps, True) *
-                                        byteToMBConversionFactor
-                                     )),
+            getAverageFromList(data_rbps, True) *
+            byteToMBConversionFactor
+        )),
         ('data_wbps (MB/s)', '{:.2f}'.format(
-                                        getAverageFromList(data_wbps, True) *
-                                        byteToMBConversionFactor
-                                    )),
+            getAverageFromList(data_wbps, True) *
+            byteToMBConversionFactor
+        )),
         ('couch_total_disk_size (MB)', int(getAverage(couch_total_disk_size) *
-                                          byteToMBConversionFactor)),
+                                           byteToMBConversionFactor)),
         ('max couch_total_disk_size (MB)', int(getMax(couch_total_disk_size) *
-                                              byteToMBConversionFactor)),
+                                               byteToMBConversionFactor)),
         ('mem_used (MB)', '{:.2f}'.format(
-                                     getAverage(mem_used) *
-                                     byteToMBConversionFactor
-                                 )),
+            getAverage(mem_used) *
+            byteToMBConversionFactor
+        )),
         ('memcached_rss (MB, all nodes)', '{:.2f}'.format(
                                           getAverageFromList(memcached_rss,
                                                              False) *
                                           byteToMBConversionFactor
-                                      )),
+        )),
         ('memcached_cpu', '{:.2f}'.format(getAverageFromList(memcached_cpu,
-                                                            True)))
+                                                             True)))
     ])
 
     data_list.append(data)

@@ -20,16 +20,16 @@ import mc_bin_client
 
 def main():
     parser = optparse.OptionParser(
-             usage="usage: %prog ip1:memcachedport1,ip2:memcachedport2",
-             version="%prog 1.1")
+        usage="usage: %prog ip1:memcachedport1,ip2:memcachedport2",
+        version="%prog 1.1")
     parser.add_option('-b', "--bucketName", dest="bucketName",
-                        help="name of bucket. default, if unspecified",
-                        default="default")
+                      help="name of bucket. default, if unspecified",
+                      default="default")
     parser.add_option('-u', "--user", dest="user",
-                        help="Username for authentication")
+                      help="Username for authentication")
     parser.add_option('-p', "--bucketPassword", dest="bucketPassword",
-                        help="password to authenticate to bucket",
-                        default="")
+                      help="password to authenticate to bucket",
+                      default="")
     stat_cmd = "vbucket-details"
     vbstats = {}
     states = {}
@@ -74,9 +74,9 @@ def main():
             if len(tokens) == 1:
                 vbid = int(tokens[0])
                 states[vbid] = stats[stat]
-                if not vbid in vbstats:
-                    row = { stats[stat] : stats[stat]}
-                    col = { "state" : row }
+                if vbid not in vbstats:
+                    row = {stats[stat]: stats[stat]}
+                    col = {"state": row}
                     vbstats[vbid] = col
 
         # ---- second pass over add stat, state => value
@@ -100,10 +100,11 @@ def main():
         active_count = int(vbstats[vbid]["num_items"].get("active", 0))
         replica_count = int(vbstats[vbid]["num_items"].get("replica", 0))
         if active_count != replica_count:
-           print("VBucket %d: active count %d != %d replica count \n"
-                % (vbid, active_count, replica_count))
+            print("VBucket %d: active count %d != %d replica count \n"
+                  % (vbid, active_count, replica_count))
         item_count += int(vbstats[vbid]["num_items"].get("active", 0))
     print("Active item count = %d\n" % item_count)
+
 
 if __name__ == '__main__':
     main()

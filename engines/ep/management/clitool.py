@@ -69,14 +69,14 @@ class CliTool(object):
             mc = mc_bin_client.MemcachedClient(host, port, family)
         except OSError as e:
             print(
-                "Failed to connect to host {} on port {}: {}".format(host, port,
-                                                                     e))
+                "Failed to connect to host {} on port {}: {}".format(
+                    host, port, e))
             sys.exit(1)
 
         f = self.cmds.get(self.cmd)
 
         if not f:
-             print(self.parser.error("Unknown command"))
+            print(self.parser.error("Unknown command"))
 
         try:
             if callable(f[0]):
@@ -96,7 +96,8 @@ class CliTool(object):
         output = ""
 
         # Create list and ignore any hidden=True commands
-        cmds = sorted(c[1] for c in (y for y in self.cmds.values() if not y[2]))
+        cmds = sorted(c[1]
+                      for c in (y for y in self.cmds.values() if not y[2]))
         output += "\nCommands:\n"
 
         for c in cmds:

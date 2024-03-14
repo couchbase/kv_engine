@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # also capturing text before and after match
     #     /lib64/libc.so.6(clone+0x6d) [0x7f77c18db000+0xfe8dd]
     pattern = re.compile(
-        '(.*?\s+)([\w/\.\+]+)\([^\)]*\) \[(0x[0-9a-f]+)\+(0x[0-9a-f]+)\](.*?)')
+        '(.*?\\s+)([\\w/\\.\\+]+)\\([^\\)]*\\) \\[(0x[0-9a-f]+)\\+(0x[0-9a-f]+)\\](.*?)')
 
     for line in fileinput.input(
             files=args.files if len(args.files) > 0 else ('-',)):

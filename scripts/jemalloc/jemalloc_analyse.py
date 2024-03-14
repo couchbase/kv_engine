@@ -32,7 +32,7 @@ utilization and fragmentation information.""".format(sys.argv[0]),
             if line.startswith('Merged arenas stats:'):
                 calc_bin_stats(stats, "merged")
             elif line.startswith('arenas['):
-                m = re.search('arenas\[(\d+)\]', line)
+                m = re.search('arenas\\[(\\d+)\\]', line)
                 calc_bin_stats(stats, m.group(1))
 
             line = stats.readline()
@@ -98,13 +98,14 @@ def calc_bin_stats(stats, arena_ID):
         while (line.strip() and
                not (line.startswith('--- End jemalloc statistics ---') or
                     line.startswith('extents:'))):
-            if line.startswith('=== Exceeded buffer size - output cropped ==='):
+            if line.startswith(
+                    '=== Exceeded buffer size - output cropped ==='):
                 output_cropped = True
                 break
 
             if (line.startswith('[') or
                 line.startswith('huge:') or
-                line.strip() == "---"):
+                    line.strip() == "---"):
                 line = stats.readline()
                 continue
             fields = [int(x) for x in line.split()]
@@ -118,7 +119,7 @@ def calc_bin_stats(stats, arena_ID):
 
             c['bin'] = '-'
             c['regs'] = 1  # Only one region per large allocation
-            c['pgs'] = c['pages'] if 'pages' in c else c['size']//4096
+            c['pgs'] = c['pages'] if 'pages' in c else c['size'] // 4096
             c['utilization'] = 1
             c['allocated'] = (c['allocated'] if 'allocated' in c else
                               c['size'] * c['curruns'])
@@ -178,6 +179,7 @@ def calc_bin_stats(stats, arena_ID):
         print()
         print("WARNING: Output was cropped due to exceeding buffer size - not "
               "all sizes classes may be listed.")
+
 
 if __name__ == '__main__':
     main()

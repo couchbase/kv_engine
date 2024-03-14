@@ -38,11 +38,13 @@ for event in events:
         nodes[node] = (ts, event['args']['time'])
 
 # Convert logged time to a timestamp in s
-nodes = {node: (ts, dt.fromisoformat(time).timestamp()) for node, (ts, time) in nodes.items()}
+nodes = {node: (ts, dt.fromisoformat(time).timestamp())
+         for node, (ts, time) in nodes.items()}
 # Find smallest timestamp
-floor = min(nodes.values(), key=lambda x:x[1])[1]
+floor = min(nodes.values(), key=lambda x: x[1])[1]
 # Rebase timestamp and convert to ms
-nodes = {node: (ts, (time - floor) * 1000000) for node, (ts, time) in nodes.items()}
+nodes = {node: (ts, (time - floor) * 1000000)
+         for node, (ts, time) in nodes.items()}
 
 # Rebase timestamps for all nodes
 out = list()

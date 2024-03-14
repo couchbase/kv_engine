@@ -29,6 +29,7 @@ from memcacheConstants import COMPACT_DB_PKT_FMT
 from memcacheConstants import DTYPE_RAW, DTYPE_JSON
 import memcacheConstants
 
+
 def parse_address(addr):
     """Parse a host string with optional port number into a
     (host, port, family) triple."""
@@ -81,6 +82,7 @@ class TimeoutError(Exception):
 # construct the appropriate subclass if the error code is known.
 class MemcachedErrorMetaclass(type):
     _dispatch = {}
+
     def __new__(meta, name, bases, dct):
         cls = (super(MemcachedErrorMetaclass, meta)
                .__new__(meta, name, bases, dct))
@@ -101,69 +103,210 @@ class MemcachedErrorMetaclass(type):
         return (super(MemcachedErrorMetaclass, cls)
                 .__call__(*args, **kwargs))
 
+
 class MemcachedError(Exception, metaclass=MemcachedErrorMetaclass):
     """Error raised when a command fails."""
 
     def __init__(self, status, msg):
-        supermsg='Memcached error #' + repr(status)
-        if msg: supermsg += ":  " + msg
+        supermsg = 'Memcached error #' + repr(status)
+        if msg:
+            supermsg += ":  " + msg
         Exception.__init__(self, supermsg)
 
-        self.status=status
-        self.msg=msg
+        self.status = status
+        self.msg = msg
 
     def __repr__(self):
         return "<MemcachedError #%d ``%s''>" % (self.status, self.msg)
 
-class ErrorKeyEnoent(MemcachedError): ERRCODE = 0x1
-class ErrorKeyEexists(MemcachedError): ERRCODE = 0x2
-class ErrorE2big(MemcachedError): ERRCODE = 0x3
-class ErrorEinval(MemcachedError): ERRCODE = 0x4
-class ErrorNotStored(MemcachedError): ERRCODE = 0x5
-class ErrorDeltaBadval(MemcachedError): ERRCODE = 0x6
-class ErrorNotMyVbucket(MemcachedError): ERRCODE = 0x7
-class ErrorNoBucket(MemcachedError): ERRCODE = 0x8
-class ErrorLocked(MemcachedError): ERRCODE = 0x9
-class ErrorAuthStale(MemcachedError): ERRCODE = 0x1f
-class ErrorAuthError(MemcachedError): ERRCODE = 0x20
-class ErrorAuthContinue(MemcachedError): ERRCODE = 0x21
-class ErrorErange(MemcachedError): ERRCODE = 0x22
-class ErrorRollback(MemcachedError): ERRCODE = 0x23
-class ErrorEaccess(MemcachedError): ERRCODE = 0x24
-class ErrorNotInitialized(MemcachedError): ERRCODE = 0x25
-class ErrorUnknownCommand(MemcachedError): ERRCODE = 0x81
-class ErrorEnomem(MemcachedError): ERRCODE = 0x82
-class ErrorNotSupported(MemcachedError): ERRCODE = 0x83
-class ErrorEinternal(MemcachedError): ERRCODE = 0x84
-class ErrorEbusy(MemcachedError): ERRCODE = 0x85
-class ErrorEtmpfail(MemcachedError): ERRCODE = 0x86
-class ErrorXattrEinval(MemcachedError): ERRCODE = 0x87
-class ErrorUnknownCollection(MemcachedError): ERRCODE = 0x88
-class ErrorNoCollectionManifest(MemcachedError): ERRCODE = 0x89
 
-class ErrorDurabilityInvalidLevel(MemcachedError): ERRCODE = 0xa0
-class ErrorDurabilityImpossible(MemcachedError): ERRCODE = 0xa1
-class ErrorSyncWriteInProgress(MemcachedError): ERRCODE = 0xa2
-class ErrorSyncWriteAmbiguous(MemcachedError): ERRCODE = 0xa3
-class ErrorSyncWriteReCommitInProgress(MemcachedError): ERRCODE = 0xa4
+class ErrorKeyEnoent(MemcachedError):
+    ERRCODE = 0x1
 
-class ErrorSubdocPathEnoent(MemcachedError): ERRCODE = 0xc0
-class ErrorSubdocPathMismatch(MemcachedError): ERRCODE = 0xc1
-class ErrorSubdocPathEinval(MemcachedError): ERRCODE = 0xc2
-class ErrorSubdocPathE2big(MemcachedError): ERRCODE = 0xc3
-class ErrorSubdocPathE2deep(MemcachedError): ERRCODE = 0xc4
-class ErrorSubdocValueCantinsert(MemcachedError): ERRCODE = 0xc5
-class ErrorSubdocDocNotjson(MemcachedError): ERRCODE = 0xc6
-class ErrorSubdocNumErange(MemcachedError): ERRCODE = 0xc7
-class ErrorSubdocDeltaEinval(MemcachedError): ERRCODE = 0xc8
-class ErrorSubdocPathEexists(MemcachedError): ERRCODE = 0xc9
-class ErrorSubdocValueEtoodeep(MemcachedError): ERRCODE = 0xca
-class ErrorSubdocInvalidCombo(MemcachedError): ERRCODE = 0xcb
-class ErrorSubdocMultiPathFailure(MemcachedError): ERRCODE = 0xcc
-class ErrorSubdocSuccessDeleted(MemcachedError): ERRCODE = 0xcd
-class ErrorSubdocXattrInvalidFlagCombo(MemcachedError): ERRCODE = 0xce
-class ErrorSubdocXattrInvalidKeyCombo(MemcachedError): ERRCODE = 0xcf
-class ErrorSubdocXattrUnknownMacro(MemcachedError): ERRCODE = 0xd0
+
+class ErrorKeyEexists(MemcachedError):
+    ERRCODE = 0x2
+
+
+class ErrorE2big(MemcachedError):
+    ERRCODE = 0x3
+
+
+class ErrorEinval(MemcachedError):
+    ERRCODE = 0x4
+
+
+class ErrorNotStored(MemcachedError):
+    ERRCODE = 0x5
+
+
+class ErrorDeltaBadval(MemcachedError):
+    ERRCODE = 0x6
+
+
+class ErrorNotMyVbucket(MemcachedError):
+    ERRCODE = 0x7
+
+
+class ErrorNoBucket(MemcachedError):
+    ERRCODE = 0x8
+
+
+class ErrorLocked(MemcachedError):
+    ERRCODE = 0x9
+
+
+class ErrorAuthStale(MemcachedError):
+    ERRCODE = 0x1f
+
+
+class ErrorAuthError(MemcachedError):
+    ERRCODE = 0x20
+
+
+class ErrorAuthContinue(MemcachedError):
+    ERRCODE = 0x21
+
+
+class ErrorErange(MemcachedError):
+    ERRCODE = 0x22
+
+
+class ErrorRollback(MemcachedError):
+    ERRCODE = 0x23
+
+
+class ErrorEaccess(MemcachedError):
+    ERRCODE = 0x24
+
+
+class ErrorNotInitialized(MemcachedError):
+    ERRCODE = 0x25
+
+
+class ErrorUnknownCommand(MemcachedError):
+    ERRCODE = 0x81
+
+
+class ErrorEnomem(MemcachedError):
+    ERRCODE = 0x82
+
+
+class ErrorNotSupported(MemcachedError):
+    ERRCODE = 0x83
+
+
+class ErrorEinternal(MemcachedError):
+    ERRCODE = 0x84
+
+
+class ErrorEbusy(MemcachedError):
+    ERRCODE = 0x85
+
+
+class ErrorEtmpfail(MemcachedError):
+    ERRCODE = 0x86
+
+
+class ErrorXattrEinval(MemcachedError):
+    ERRCODE = 0x87
+
+
+class ErrorUnknownCollection(MemcachedError):
+    ERRCODE = 0x88
+
+
+class ErrorNoCollectionManifest(MemcachedError):
+    ERRCODE = 0x89
+
+
+class ErrorDurabilityInvalidLevel(MemcachedError):
+    ERRCODE = 0xa0
+
+
+class ErrorDurabilityImpossible(MemcachedError):
+    ERRCODE = 0xa1
+
+
+class ErrorSyncWriteInProgress(MemcachedError):
+    ERRCODE = 0xa2
+
+
+class ErrorSyncWriteAmbiguous(MemcachedError):
+    ERRCODE = 0xa3
+
+
+class ErrorSyncWriteReCommitInProgress(MemcachedError):
+    ERRCODE = 0xa4
+
+
+class ErrorSubdocPathEnoent(MemcachedError):
+    ERRCODE = 0xc0
+
+
+class ErrorSubdocPathMismatch(MemcachedError):
+    ERRCODE = 0xc1
+
+
+class ErrorSubdocPathEinval(MemcachedError):
+    ERRCODE = 0xc2
+
+
+class ErrorSubdocPathE2big(MemcachedError):
+    ERRCODE = 0xc3
+
+
+class ErrorSubdocPathE2deep(MemcachedError):
+    ERRCODE = 0xc4
+
+
+class ErrorSubdocValueCantinsert(MemcachedError):
+    ERRCODE = 0xc5
+
+
+class ErrorSubdocDocNotjson(MemcachedError):
+    ERRCODE = 0xc6
+
+
+class ErrorSubdocNumErange(MemcachedError):
+    ERRCODE = 0xc7
+
+
+class ErrorSubdocDeltaEinval(MemcachedError):
+    ERRCODE = 0xc8
+
+
+class ErrorSubdocPathEexists(MemcachedError):
+    ERRCODE = 0xc9
+
+
+class ErrorSubdocValueEtoodeep(MemcachedError):
+    ERRCODE = 0xca
+
+
+class ErrorSubdocInvalidCombo(MemcachedError):
+    ERRCODE = 0xcb
+
+
+class ErrorSubdocMultiPathFailure(MemcachedError):
+    ERRCODE = 0xcc
+
+
+class ErrorSubdocSuccessDeleted(MemcachedError):
+    ERRCODE = 0xcd
+
+
+class ErrorSubdocXattrInvalidFlagCombo(MemcachedError):
+    ERRCODE = 0xce
+
+
+class ErrorSubdocXattrInvalidKeyCombo(MemcachedError):
+    ERRCODE = 0xcf
+
+
+class ErrorSubdocXattrUnknownMacro(MemcachedError):
+    ERRCODE = 0xd0
+
 
 class MemcachedClient(object):
     """Simple memcached client."""
@@ -198,7 +341,7 @@ class MemcachedClient(object):
             raise sock_error
 
         self.s.setblocking(0)
-        self.r=random.Random()
+        self.r = random.Random()
         self.req_features = set()
         self.features = set()
         self.error_map = None
@@ -212,7 +355,15 @@ class MemcachedClient(object):
     def __del__(self):
         self.close()
 
-    def _sendCmd(self, cmd, key, val, opaque, extraHeader=b'', cas=0, collection=None):
+    def _sendCmd(
+            self,
+            cmd,
+            key,
+            val,
+            opaque,
+            extraHeader=b'',
+            cas=0,
+            collection=None):
         self._sendMsg(cmd, key, val, opaque, extraHeader=extraHeader, cas=cas,
                       vbucketId=self.vbucketId, collection=collection)
 
@@ -234,9 +385,9 @@ class MemcachedClient(object):
         if collection is not None:
             key = self._encodeCollectionId(key, collection)
 
-        msg=struct.pack(fmt, magic,
-            cmd, len(key), len(extraHeader), dtype, vbucketId,
-                len(key) + len(extraHeader) + len(val), opaque, cas)
+        msg = struct.pack(fmt, magic,
+                          cmd, len(key), len(extraHeader), dtype, vbucketId,
+                          len(key) + len(extraHeader) + len(val), opaque, cas)
         self.s.sendall(msg + extraHeader + to_bytes(key) + to_bytes(val))
 
     def _socketRecv(self, amount):
@@ -255,7 +406,8 @@ class MemcachedClient(object):
         assert len(response) == MIN_RECV_PACKET
 
         (magic, ) = struct.unpack(">B", response[0:1])
-        assert magic in (RES_MAGIC_BYTE, ALT_RES_MAGIC_BYTE), "Got magic: {:#x}".format(magic)
+        assert magic in (
+            RES_MAGIC_BYTE, ALT_RES_MAGIC_BYTE), "Got magic: {:#x}".format(magic)
 
         if magic == RES_MAGIC_BYTE:
             (_, cmd, keylen, extralen, dtype, errcode, remaining, opaque,
@@ -290,16 +442,17 @@ class MemcachedClient(object):
                 err = self.error_map['errors'].get(errcode)
                 msg = "{name} : {desc} : {rv}".format(rv=err_context, **err)
 
-            raise MemcachedError(errcode,  msg)
+            raise MemcachedError(errcode, msg)
         return cmd, opaque, cas, keylen, extralen, rv
 
     def _handleSingleResponse(self, myopaque):
-        cmd, opaque, cas, keylen, extralen, data = self._handleKeyedResponse(myopaque)
+        cmd, opaque, cas, keylen, extralen, data = self._handleKeyedResponse(
+            myopaque)
         return opaque, cas, data
 
     def _doCmd(self, cmd, key, val, extraHeader=b'', cas=0, collection=None):
         """Send a command and await its response."""
-        opaque=self.r.randint(0, 2**32)
+        opaque = self.r.randint(0, 2**32)
         self._sendCmd(cmd, key, val, opaque, extraHeader, cas, collection)
         return self._handleSingleResponse(opaque)
 
@@ -314,12 +467,23 @@ class MemcachedClient(object):
 
     def _mutate(self, cmd, key, exp, flags, cas, val, collection):
         return self._doCmd(cmd, key, val, struct.pack(SET_PKT_FMT, flags, exp),
-            cas, collection)
-
-    def _mutateDurable(self, cmd, key, exp, flags, cas, val, level, timeout, collection):
-        flex = self._encodeDurabilityFlex(level, timeout)
-        return self._doAltCmd(cmd, flex, key, val, struct.pack(SET_PKT_FMT, flags, exp),
                            cas, collection)
+
+    def _mutateDurable(
+            self,
+            cmd,
+            key,
+            exp,
+            flags,
+            cas,
+            val,
+            level,
+            timeout,
+            collection):
+        flex = self._encodeDurabilityFlex(level, timeout)
+        return self._doAltCmd(
+            cmd, flex, key, val, struct.pack(
+                SET_PKT_FMT, flags, exp), cas, collection)
 
     def _cat(self, cmd, key, cas, val, collection):
         return self._doCmd(cmd, key, val, b'', cas, collection)
@@ -339,36 +503,67 @@ class MemcachedClient(object):
         return resp
 
     def append(self, key, value, cas=0, collection=None):
-        return self._cat(memcacheConstants.CMD_APPEND, key, cas, value, collection)
+        return self._cat(memcacheConstants.CMD_APPEND,
+                         key, cas, value, collection)
 
     def prepend(self, key, value, cas=0, collection=None):
-        return self._cat(memcacheConstants.CMD_PREPEND, key, cas, value, collection)
+        return self._cat(memcacheConstants.CMD_PREPEND,
+                         key, cas, value, collection)
 
     def __incrdecr(self, cmd, key, amt, init, exp, collection):
-        something, cas, val=self._doCmd(cmd, key, '',
-            struct.pack(memcacheConstants.INCRDECR_PKT_FMT, amt, init, exp),
-            collection=collection)
+        something, cas, val = self._doCmd(cmd, key, '', struct.pack(
+            memcacheConstants.INCRDECR_PKT_FMT, amt, init, exp), collection=collection)
         return struct.unpack(INCRDECR_RES_FMT, val)[0], cas
 
     def incr(self, key, amt=1, init=0, exp=0, collection=None):
         """Increment or create the named counter."""
-        return self.__incrdecr(memcacheConstants.CMD_INCR, key, amt, init, exp, collection)
+        return self.__incrdecr(
+            memcacheConstants.CMD_INCR,
+            key,
+            amt,
+            init,
+            exp,
+            collection)
 
     def decr(self, key, amt=1, init=0, exp=0, collection=None):
         """Decrement or create the named counter."""
-        return self.__incrdecr(memcacheConstants.CMD_DECR, key, amt, init, exp, collection)
+        return self.__incrdecr(
+            memcacheConstants.CMD_DECR,
+            key,
+            amt,
+            init,
+            exp,
+            collection)
 
-    def _doMetaCmd(self, cmd, key, value, cas, exp, flags, seqno, remote_cas, collection, options=None):
+    def _doMetaCmd(
+            self,
+            cmd,
+            key,
+            value,
+            cas,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection,
+            options=None):
         extra = b''
         if options is not None:
-            extra = struct.pack('>IIQQI', flags, exp, seqno, remote_cas, options)
+            extra = struct.pack(
+                '>IIQQI',
+                flags,
+                exp,
+                seqno,
+                remote_cas,
+                options)
         else:
             extra = struct.pack('>IIQQ', flags, exp, seqno, remote_cas)
         return self._doCmd(cmd, key, value, extra, cas, collection)
 
     def set(self, key, exp, flags, val, collection=None):
         """Set a value in the memcached server."""
-        return self._mutate(memcacheConstants.CMD_SET, key, exp, flags, 0, val, collection)
+        return self._mutate(memcacheConstants.CMD_SET, key,
+                            exp, flags, 0, val, collection)
 
     def setDurable(self, key, exp, flags, val,
                    level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
@@ -378,7 +573,16 @@ class MemcachedClient(object):
         return self._mutateDurable(memcacheConstants.CMD_SET, key, exp, flags,
                                    0, val, level, timeout, collection)
 
-    def setWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None, options=None):
+    def setWithMeta(
+            self,
+            key,
+            value,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection=None,
+            options=None):
         """Set a value and its meta data in the memcached server.
 
         The behaviour of the command may be changed by specifying any of the
@@ -389,10 +593,27 @@ class MemcachedClient(object):
         * `REGENERATE_CAS`
         * `SKIP_CONFLICT_RESOLUTION_FLAG`
         """
-        return self._doMetaCmd(memcacheConstants.CMD_SET_WITH_META,
-                               key, value, 0, exp, flags, seqno, remote_cas, collection, options)
+        return self._doMetaCmd(
+            memcacheConstants.CMD_SET_WITH_META,
+            key,
+            value,
+            0,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection,
+            options)
 
-    def delWithMeta(self, key, exp, flags, seqno, remote_cas, collection=None, options=None):
+    def delWithMeta(
+            self,
+            key,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection=None,
+            options=None):
         """Delete a value with its meta data in the memcached server.
 
         The behaviour of the command may be changed by specifying any of the
@@ -404,12 +625,22 @@ class MemcachedClient(object):
         * `SKIP_CONFLICT_RESOLUTION_FLAG`
         * `IS_EXPIRATION`
         """
-        return self._doMetaCmd(memcacheConstants.CMD_DELETE_WITH_META,
-                               key, '', 0, exp, flags, seqno, remote_cas, collection, options)
+        return self._doMetaCmd(
+            memcacheConstants.CMD_DELETE_WITH_META,
+            key,
+            '',
+            0,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection,
+            options)
 
     def add(self, key, exp, flags, val, collection=None):
         """Add a value in the memcached server iff it doesn't already exist."""
-        return self._mutate(memcacheConstants.CMD_ADD, key, exp, flags, 0, val, collection)
+        return self._mutate(memcacheConstants.CMD_ADD, key,
+                            exp, flags, 0, val, collection)
 
     def addDurable(self, key, exp, flags, val,
                    level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
@@ -419,44 +650,74 @@ class MemcachedClient(object):
         return self._mutateDurable(memcacheConstants.CMD_ADD, key, exp, flags,
                                    0, val, level, timeout, collection)
 
-    def addWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None):
-        return self._doMetaCmd(memcacheConstants.CMD_ADD_WITH_META,
-                               key, value, 0, exp, flags, seqno, remote_cas, collection)
+    def addWithMeta(
+            self,
+            key,
+            value,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection=None):
+        return self._doMetaCmd(
+            memcacheConstants.CMD_ADD_WITH_META,
+            key,
+            value,
+            0,
+            exp,
+            flags,
+            seqno,
+            remote_cas,
+            collection)
 
     def replace(self, key, exp, flags, val, collection=None):
         """Replace a value in the memcached server iff it already exists."""
         return self._mutate(memcacheConstants.CMD_REPLACE, key, exp, flags, 0,
-            val, collection)
+                            val, collection)
 
     def replaceDurable(self, key, exp, flags, val,
-                   level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
-                   timeout=None,
-                   collection=None):
+                       level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
+                       timeout=None,
+                       collection=None):
         """Replace a value with the given durability requirements iff it already exists."""
-        return self._mutateDurable(memcacheConstants.CMD_REPLACE, key, exp, flags,
-                                   0, val, level, timeout, collection)
+        return self._mutateDurable(
+            memcacheConstants.CMD_REPLACE,
+            key,
+            exp,
+            flags,
+            0,
+            val,
+            level,
+            timeout,
+            collection)
 
     def observe(self, key, vbucket, collection=None):
         """Observe a key for persistence and replication."""
         value = struct.pack('>HH', vbucket, len(key)) + key
-        opaque, cas, data = self._doCmd(memcacheConstants.CMD_OBSERVE, '', value, collection=collection)
+        opaque, cas, data = self._doCmd(
+            memcacheConstants.CMD_OBSERVE, '', value, collection=collection)
         rep_time = (cas & 0xFFFFFFFF)
-        persist_time =  (cas >> 32) & 0xFFFFFFFF
-        persisted = struct.unpack('>B', data[4+len(key)])[0]
+        persist_time = (cas >> 32) & 0xFFFFFFFF
+        persisted = struct.unpack('>B', data[4 + len(key)])[0]
         return opaque, rep_time, persist_time, persisted
 
     def __parseGet(self, data, klen=0):
-        flags=struct.unpack(memcacheConstants.GET_RES_FMT, data[-1][:4])[0]
+        flags = struct.unpack(memcacheConstants.GET_RES_FMT, data[-1][:4])[0]
         return flags, data[1], data[-1][4 + klen:]
 
     def get(self, key, collection=None):
         """Get the value for a given key within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GET, key, '', collection=collection)
+        parts = self._doCmd(
+            memcacheConstants.CMD_GET,
+            key,
+            '',
+            collection=collection)
         return self.__parseGet(parts)
 
     def getMeta(self, key, collection=None):
         """Get the metadata for a given key within the memcached server."""
-        opaque, cas, data = self._doCmd(memcacheConstants.CMD_GET_META, key, '', collection=collection)
+        opaque, cas, data = self._doCmd(
+            memcacheConstants.CMD_GET_META, key, '', collection=collection)
         deleted = struct.unpack('>I', data[0:4])[0]
         flags = struct.unpack('>I', data[4:8])[0]
         exp = struct.unpack('>I', data[8:12])[0]
@@ -465,29 +726,39 @@ class MemcachedClient(object):
 
     def getl(self, key, exp=15, collection=None):
         """Get the value for a given key within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GET_LOCKED, key, '',
-            struct.pack(memcacheConstants.GETL_PKT_FMT, exp), collection=collection)
+        parts = self._doCmd(
+            memcacheConstants.CMD_GET_LOCKED,
+            key,
+            '',
+            struct.pack(
+                memcacheConstants.GETL_PKT_FMT,
+                exp),
+            collection=collection)
         return self.__parseGet(parts)
 
     def cas(self, key, exp, flags, oldVal, val, collection=None):
         """CAS in a new value for the given key and comparison value."""
         self._mutate(memcacheConstants.CMD_SET, key, exp, flags,
-            oldVal, val, collection)
+                     oldVal, val, collection)
 
     def touch(self, key, exp, collection=None):
         """Touch a key in the memcached server."""
-        return self._doCmd(memcacheConstants.CMD_TOUCH, key, '',
-            struct.pack(memcacheConstants.TOUCH_PKT_FMT, exp), collection=collection)
+        return self._doCmd(memcacheConstants.CMD_TOUCH, key, '', struct.pack(
+            memcacheConstants.TOUCH_PKT_FMT, exp), collection=collection)
 
     def gat(self, key, exp, collection=None):
         """Get the value for a given key and touch it within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GAT, key, '',
-            struct.pack(memcacheConstants.GAT_PKT_FMT, exp), collection=collection)
+        parts = self._doCmd(memcacheConstants.CMD_GAT, key, '', struct.pack(
+            memcacheConstants.GAT_PKT_FMT, exp), collection=collection)
         return self.__parseGet(parts)
 
     def getr(self, key, collection=None):
         """Get the value for a given key in a replica vbucket within the memcached server."""
-        parts=self._doCmd(memcacheConstants.CMD_GET_REPLICA, key, '', collection=collection)
+        parts = self._doCmd(
+            memcacheConstants.CMD_GET_REPLICA,
+            key,
+            '',
+            collection=collection)
         return self.__parseGet(parts)
 
     def version(self):
@@ -510,7 +781,8 @@ class MemcachedClient(object):
 
     def sasl_auth_plain(self, user, password, foruser=''):
         """Perform plain auth."""
-        return self.sasl_auth_start('PLAIN', '\0'.join([foruser, user, password]))
+        return self.sasl_auth_start(
+            'PLAIN', '\0'.join([foruser, user, password]))
 
     def sasl_auth_cram_md5(self, user, password):
         """Start a plan auth session."""
@@ -552,7 +824,7 @@ class MemcachedClient(object):
         assert isinstance(dropDeletes, int)
         self.vbucketId = vbucket
         compact = struct.pack(memcacheConstants.COMPACT_DB_PKT_FMT,
-                            purgeBeforeTs, purgeBeforeSeq, dropDeletes)
+                              purgeBeforeTs, purgeBeforeSeq, dropDeletes)
         return self._doCmd(memcacheConstants.CMD_COMPACT_DB, '', '',
                            compact)
 
@@ -567,29 +839,31 @@ class MemcachedClient(object):
         return self._doCmd(memcacheConstants.CMD_DELETE_VBUCKET, '', '')
 
     def evict_key(self, key, collection=None):
-        return self._doCmd(memcacheConstants.CMD_EVICT_KEY, key, '', collection=collection)
+        return self._doCmd(memcacheConstants.CMD_EVICT_KEY,
+                           key, '', collection=collection)
 
     def getMulti(self, keys, collection=None):
         """Get values for any available keys in the given iterable.
 
         Returns a dict of matched keys to their values."""
-        opaqued=dict(enumerate(keys))
-        terminal=len(opaqued)+10
+        opaqued = dict(enumerate(keys))
+        terminal = len(opaqued) + 10
         # Send all of the keys in quiet
-        for k,v in opaqued.items():
-            self._sendCmd(memcacheConstants.CMD_GETQ, v, '', k, collection=collection)
+        for k, v in opaqued.items():
+            self._sendCmd(memcacheConstants.CMD_GETQ, v,
+                          '', k, collection=collection)
 
         self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
 
         # Handle the response
-        rv={}
-        done=False
+        rv = {}
+        done = False
         while not done:
-            opaque, cas, data=self._handleSingleResponse(None)
+            opaque, cas, data = self._handleSingleResponse(None)
             if opaque != terminal:
-                rv[opaqued[opaque]]=self.__parseGet((opaque, cas, data))
+                rv[opaqued[opaque]] = self.__parseGet((opaque, cas, data))
             else:
-                done=True
+                done = True
 
         return rv
 
@@ -602,19 +876,25 @@ class MemcachedClient(object):
         if hasattr(items, 'iteritems'):
             items = items.items()
 
-        opaqued=dict(enumerate(items))
-        terminal=len(opaqued)+10
-        extra=struct.pack(SET_PKT_FMT, flags, exp)
+        opaqued = dict(enumerate(items))
+        terminal = len(opaqued) + 10
+        extra = struct.pack(SET_PKT_FMT, flags, exp)
 
         # Send all of the keys in quiet
-        for opaque,kv in opaqued.items():
-            self._sendCmd(memcacheConstants.CMD_SETQ, kv[0], kv[1], opaque, extra, collection=collection)
+        for opaque, kv in opaqued.items():
+            self._sendCmd(
+                memcacheConstants.CMD_SETQ,
+                kv[0],
+                kv[1],
+                opaque,
+                extra,
+                collection=collection)
 
         self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
 
         # Handle the response
         failed = []
-        done=False
+        done = False
         while not done:
             try:
                 opaque, cas, data = self._handleSingleResponse(None)
@@ -630,18 +910,19 @@ class MemcachedClient(object):
         Give me a collection of keys."""
 
         opaqued = dict(enumerate(items))
-        terminal = len(opaqued)+10
+        terminal = len(opaqued) + 10
         extra = b''
 
         # Send all of the keys in quiet
         for opaque, k in opaqued.items():
-            self._sendCmd(memcacheConstants.CMD_DELETEQ, k, '', opaque, extra, collection=collection)
+            self._sendCmd(memcacheConstants.CMD_DELETEQ, k, '',
+                          opaque, extra, collection=collection)
 
         self._sendCmd(memcacheConstants.CMD_NOOP, '', '', terminal)
 
         # Handle the response
         failed = []
-        done=False
+        done = False
         while not done:
             try:
                 opaque, cas, data = self._handleSingleResponse(None)
@@ -653,15 +934,21 @@ class MemcachedClient(object):
 
     def stats(self, sub='', val=''):
         """Get stats."""
-        opaque=self.r.randint(0, 2**32)
+        opaque = self.r.randint(0, 2**32)
         dtype = DTYPE_RAW
         if len(val) > 0:
             dtype = DTYPE_JSON
-        self._sendMsg(memcacheConstants.CMD_STAT, sub, val, opaque, dtype=dtype)
+        self._sendMsg(
+            memcacheConstants.CMD_STAT,
+            sub,
+            val,
+            opaque,
+            dtype=dtype)
         done = False
         rv = {}
         while not done:
-            cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
+            cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(
+                None)
             if klen:
                 # Allow values which are not valid UTF-8 to be permitted, but
                 # not keys.
@@ -673,12 +960,13 @@ class MemcachedClient(object):
         return rv
 
     def get_random_key(self):
-        opaque=self.r.randint(0, 2**32)
+        opaque = self.r.randint(0, 2**32)
         self._sendCmd(memcacheConstants.CMD_GET_RANDOM_KEY, '', '', opaque)
-        cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(None)
+        cmd, opaque, cas, klen, extralen, data = self._handleKeyedResponse(
+            None)
         rv = {}
         if klen:
-            rv[data[4:klen+4]] = data[klen:]
+            rv[data[4:klen + 4]] = data[klen:]
         return rv
 
     def noop(self):
@@ -687,7 +975,8 @@ class MemcachedClient(object):
 
     def delete(self, key, cas=0, collection=None):
         """Delete the value for a given key within the memcached server."""
-        return self._doCmd(memcacheConstants.CMD_DELETE, key, '', b'', cas, collection=collection)
+        return self._doCmd(memcacheConstants.CMD_DELETE, key,
+                           '', b'', cas, collection=collection)
 
     def deleteDurable(self, key, cas=0,
                       level=memcacheConstants.DURABILITY_LEVEL_MAJORITY,
@@ -700,8 +989,9 @@ class MemcachedClient(object):
 
     def flush(self, timebomb=0):
         """Flush all storage in a memcached instance."""
-        return self._doCmd(memcacheConstants.CMD_FLUSH, '', '',
-            struct.pack(memcacheConstants.FLUSH_PKT_FMT, timebomb))
+        return self._doCmd(
+            memcacheConstants.CMD_FLUSH, '', '', struct.pack(
+                memcacheConstants.FLUSH_PKT_FMT, timebomb))
 
     def bucket_select(self, name):
         return self._doCmd(memcacheConstants.CMD_SELECT_BUCKET, name, '')
@@ -717,13 +1007,13 @@ class MemcachedClient(object):
 
     def get_error_map(self):
         _, _, errmap = self._doCmd(memcacheConstants.CMD_GET_ERROR_MAP, '',
-                    struct.pack("!H", self.error_map_version))
+                                   struct.pack("!H", self.error_map_version))
 
         errmap = json.loads(errmap)
 
         d = {}
 
-        for k,v in errmap['errors'].items():
+        for k, v in errmap['errors'].items():
             d[int(k, 16)] = v
 
         errmap['errors'] = d
@@ -746,21 +1036,21 @@ class MemcachedClient(object):
         return rv
 
     def get_collection_id(self, path):
-        tmpVbucketId=self.vbucketId
+        tmpVbucketId = self.vbucketId
         self.vbucketId = 0
         rv = self._doCmd(memcacheConstants.CMD_COLLECTIONS_GET_ID,
                          path,
                          '')
-        self.vbucketId=tmpVbucketId
+        self.vbucketId = tmpVbucketId
         return rv
 
     def get_scope_id(self, path):
-        tmpVbucketId=self.vbucketId
+        tmpVbucketId = self.vbucketId
         self.vbucketId = 0
         rv = self._doCmd(memcacheConstants.CMD_COLLECTIONS_GET_SCOPE_ID,
                          path,
                          '')
-        self.vbucketId=tmpVbucketId
+        self.vbucketId = tmpVbucketId
         return rv
 
     def enable_xerror(self):
@@ -790,16 +1080,17 @@ class MemcachedClient(object):
     # @return a string with the binary encoding
     def _encodeCollectionId(self, key, collection):
         if not self.is_collections_supported():
-                raise RuntimeError("Collections are not enabled")
+            raise RuntimeError("Collections are not enabled")
 
-        if type(collection) == str:
+        if isinstance(collection, str):
             if not self.collection_map:
                 self.get_collections(update_map=True)
             # expect scope.collection for name API
             try:
                 collection = self.collection_map[collection]
             except KeyError as e:
-                print("Error: cannot map collection \"{}\" to an ID".format(collection))
+                print(
+                    "Error: cannot map collection \"{}\" to an ID".format(collection))
                 print("name API expects \"scope.collection\" as the key")
                 raise e
 
@@ -837,6 +1128,6 @@ class MemcachedClient(object):
         # 2nd byte: level
         # Optional 3rd and 4th bytes: Timeout.
         if timeout:
-            return struct.pack(">BBH", ((1<<4) | 3), level, timeout)
+            return struct.pack(">BBH", ((1 << 4) | 3), level, timeout)
         else:
-            return struct.pack(">BB", ((1<<4) | 1), level)
+            return struct.pack(">BB", ((1 << 4) | 1), level)

@@ -29,7 +29,7 @@ client = mc_bin_client.MemcachedClient(host=HOST, port=PORT)
 client.sasl_auth_plain(user=sys.argv[1], password=sys.argv[2])
 client.bucket_select(sys.argv[3])
 
-collection=None
+collection = None
 client.enable_xerror()
 if len(sys.argv) == 7:
     client.enable_collections()
@@ -38,9 +38,9 @@ client.hello("cb_evict_key.py")
 
 if len(sys.argv) == 7:
     try:
-        collection=int(sys.argv[6])
+        collection = int(sys.argv[6])
     except ValueError:
-        collection=sys.argv[6]
+        collection = sys.argv[6]
 
 key = sys.argv[5]
 client.vbucketId = int(sys.argv[4])

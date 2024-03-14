@@ -42,8 +42,8 @@ try:
     import jenkins
 except ModuleNotFoundError as e:
     print(
-        "{}.\n\nInstall using `python3 -m pip install python-jenkins` or similar.".format(
-            e), file=sys.stderr);
+        "{}.\n\nInstall using `python3 -m pip install python-jenkins` or similar.".format(e),
+        file=sys.stderr)
     sys.exit(1)
 
 logging.basicConfig(level=logging.DEBUG)
@@ -53,7 +53,8 @@ logging.getLogger('urllib3').setLevel(logging.ERROR)
 def init_worker(function, url, username, password):
     """Initialise a multiprocessing worker by establishing a connection to
     the Jenkins server at url/username/password"""
-    function.server = jenkins.Jenkins(url, username=username, password=password)
+    function.server = jenkins.Jenkins(
+        url, username=username, password=password)
 
 
 def get_build_info(build):
@@ -98,12 +99,13 @@ def fetch_failed_builds(server_url, username, password, build_limit, branch):
                                         username,
                                         password)) as pool:
         for job in jobs:
-            builds = server.get_job_info(job + branch, depth=1, fetch_all_builds=True)[
-                'builds']
+            builds = server.get_job_info(
+                job + branch, depth=1, fetch_all_builds=True)['builds']
             for b in builds:
                 b['job'] = job + branch
             logging.debug(
-                "get_job_info({}) returned {} builds".format(job + branch, len(builds)))
+                "get_job_info({}) returned {} builds".format(
+                    job + branch, len(builds)))
 
             # Constrain to last N builds of each job.
             builds = builds[:build_limit]
@@ -139,7 +141,7 @@ def extract_failed_builds(details):
                         info['timestamp'] / 1000.0)
                     if description not in failures:
                         failures[description] = list()
-                    assert(gerrit_patch)
+                    assert (gerrit_patch)
                     failures[description].append({'description': description,
                                                   'gerrit_patch': gerrit_patch,
                                                   'timestamp': timestamp,
@@ -154,10 +156,12 @@ def extract_failed_builds(details):
                 info['url'] + " Result:" + info['result'])
     return failures
 
+
 class Template:
     def __init__(self, template, variables):
         self.template = template
         self.variables = variables
+
 
 def make_template(strings):
     """
@@ -169,7 +173,7 @@ def make_template(strings):
 
     strings_to_matches = [list(re.finditer(r'\d+', s)) for s in strings]
     # All strings should have the same number of matches
-    assert(len(set(len(matches) for matches in strings_to_matches)) == 1)
+    assert (len(set(len(matches) for matches in strings_to_matches)) == 1)
     matches_per_string = len(strings_to_matches[0])
 
     # Match index to matches in the strings
@@ -178,7 +182,8 @@ def make_template(strings):
     variable_matches = collections.defaultdict(list)
 
     for cur_match_in_strings in all_matches:
-        cur_group_in_strings = (match.group() for match in cur_match_in_strings)
+        cur_group_in_strings = (match.group()
+                                for match in cur_match_in_strings)
 
         if len(set(cur_group_in_strings)) == 1:
             # The i-th number is the same in all strings; we don't need to
@@ -205,8 +210,9 @@ def make_template(strings):
 
     # Make sure we've done the job of turning all strings into a template
     # without losing any info
-    assert(len(set(strings)) == 1)
+    assert (len(set(strings)) == 1)
     return Template(strings[0], variables)
+
 
 def erase_possible_variables(s):
     """
@@ -214,7 +220,8 @@ def erase_possible_variables(s):
     This allows us to identify groups of strings which can be turned into a
     template.
     """
-    return re.sub('\d+', '\0', s)
+    return re.sub('\\d+', '\0', s)
+
 
 def preprocess_output(key):
     # Replace all hex addresses with a single sanitized value.
@@ -226,7 +233,7 @@ def preprocess_output(key):
     # '[2020-11-26T15:30:05.571Z] ' - non-pipeline builds don't include
     # them.
     key = re.sub(r'\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] ', '',
-                    key)
+                 key)
     # Filter timings of the form '2 ms'
     key = re.sub(r'\d+ ms', 'X ms', key)
     # Filter exact test order / test number - e.g.
@@ -267,6 +274,7 @@ def preprocess_output(key):
 
     return key
 
+
 def filter_failed_builds(details):
     """Discard any failures which are not of interest, and collapse effectively
     identical issues:
@@ -276,11 +284,12 @@ def filter_failed_builds(details):
     """
 
     def include(elem):
-        for ignored in (r'Unexpected stat:',
-                        r'Compile error at',
-                        r'^One of more core files found at the end of the build',
-                        r'^Test exceeded the timeout:',
-                        r'^The warnings threshold for this job was exceeded'):
+        for ignored in (
+            r'Unexpected stat:',
+            r'Compile error at',
+            r'^One of more core files found at the end of the build',
+            r'^Test exceeded the timeout:',
+                r'^The warnings threshold for this job was exceeded'):
             if re.search(ignored, elem[0]):
                 return False
         return True
@@ -293,7 +302,9 @@ def filter_failed_builds(details):
 
     # Groups of outputs which can be turned into templates. Items are indexes
     # into the filtered list.
-    generic_strings = [erase_possible_variables(s) for s in [s for s, _ in filtered]]
+    generic_strings = [
+        erase_possible_variables(s) for s in [
+            s for s, _ in filtered]]
     groups = collections.defaultdict(list)
     for i, s in enumerate(generic_strings):
         groups[s].append(i)
@@ -302,7 +313,10 @@ def filter_failed_builds(details):
     # Each group becomes one template
     for group in groups.values():
         template = make_template([filtered[i][0] for i in group])
-        details = [dict(filtered[i][1][0], variables=template.variables) for i in group]
+        details = [
+            dict(
+                filtered[i][1][0],
+                variables=template.variables) for i in group]
         merged[template.template] = details
 
     # For each failure, determine the time range it has occurred over, and
@@ -331,13 +345,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('username', help='Username for Jenkins REST API')
     parser.add_argument('password', help='Password/token for Jenkins REST API')
-    parser.add_argument('--mode',
-                        choices=['download', 'parse', 'download_and_parse'],
-                        default='download_and_parse',
-                        help=('Analysis mode.\n'
-                              'download: Download build details, writing to stdout as JSON.\n'
-                              'parse: Parse previously-downloaded build details read from stdin.\n'
-                              'download_and_parse: Download and parse build details.\n'))
+    parser.add_argument(
+        '--mode',
+        choices=[
+            'download',
+            'parse',
+            'download_and_parse'],
+        default='download_and_parse',
+        help=(
+            'Analysis mode.\n'
+            'download: Download build details, writing to stdout as JSON.\n'
+            'parse: Parse previously-downloaded build details read from stdin.\n'
+            'download_and_parse: Download and parse build details.\n'))
     parser.add_argument('--branch', type=str, default='master',
                         help='Branch to scan for')
     parser.add_argument('--build-limit',
@@ -348,16 +367,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.mode != 'parse':
-        raw_builds = fetch_failed_builds('http://cv.jenkins.couchbase.com',
-                                         args.username, args.password, args.build_limit, args.branch)
+        raw_builds = fetch_failed_builds(
+            'http://cv.jenkins.couchbase.com',
+            args.username,
+            args.password,
+            args.build_limit,
+            args.branch)
     if args.mode == 'download':
         print(json.dumps(raw_builds))
         sys.exit(0)
-    if args.mode =='parse':
+    if args.mode == 'parse':
         raw_builds = json.load(sys.stdin)
     logging.info("Number of builds downloaded: {}.".format(len(raw_builds)))
     failures = extract_failed_builds(raw_builds)
-    logging.info("Number of builds with at least one failure: {}.".format(len(failures)))
+    logging.info(
+        "Number of builds with at least one failure: {}.".format(
+            len(failures)))
     failures = filter_failed_builds(failures)
     logging.info("Number of unique failures: {}".format(len(failures)))
 
@@ -383,9 +408,7 @@ if __name__ == '__main__':
         for d_idx, d in enumerate(details[:10]):
             human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
             print("* Time: {}, Jenkins job: {}, patch: {}".format(human_time,
-                                                                  d['url'],
-                                                                  d[
-                                                                      'gerrit_patch']))
+                  d['url'], d['gerrit_patch']))
             if len(d['variables']) > 0:
                 print(' `- where ', end='')
                 for name, value in d['variables'].items():

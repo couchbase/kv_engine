@@ -39,19 +39,22 @@ logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
                     datefmt='%Y-%m-%dT%H:%M:%S',
                     level=logging.INFO)
 
-minidump_dir=None
+minidump_dir = None
+
 
 def cleanup_and_exit(status_code):
     """Remove any temporary files etc and exit with the given status code."""
     if minidump_dir:
         shutil.rmtree(minidump_dir)
-    exit(status_code);
+    exit(status_code)
+
 
 def print_stderrdata(stderrdata):
     print("=== stderr begin ===")
     for line in stderrdata.splitlines():
         print(line)
     print("=== stderr end ===")
+
 
 def invoke_gdb(gdb_exe, program, core_file, commands=[]):
     """Invoke GDB on the specified program and core file, running the given
@@ -61,7 +64,7 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
             '--core=' + os.path.abspath(core_file.name),
             '--batch']
     for c in commands:
-        args += ['--eval-command='+c]
+        args += ['--eval-command=' + c]
 
     logging.debug("GDB args:" + ', '.join(args))
     gdb = subprocess.Popen(args,
@@ -120,8 +123,9 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
         # (needed for any useful backtraces).
         logging.info('GDB: Checking for shared library information')
         m = re.search(
-            "^0x[0-9a-f]+\s+0x[0-9a-f]+\s+(\w+)\s+[\(\*\)\s+]*([^\s]+libstdc\+\+.so.6$)",
-            gdb_output[1], re.MULTILINE)
+            "^0x[0-9a-f]+\\s+0x[0-9a-f]+\\s+(\\w+)\\s+[\\(\\*\\)\\s+]*([^\\s]+libstdc\\+\\+.so.6$)",
+            gdb_output[1],
+            re.MULTILINE)
         if not m:
             logging.error("FAIL - GDB unable to show information for " +
                           "libstdc++.so.6 shared library.")
@@ -141,7 +145,7 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
         lines = gdb_output[2].splitlines()
 
         # Discard all those lines before the stacktrace
-        backtrace = [i for i in lines if re.match('#\d+', i)]
+        backtrace = [i for i in lines if re.match('#\\d+', i)]
 
         # Discard the innermost frame, as it could be anywhere (and hence may
         # not have a valid symbol).
@@ -157,9 +161,11 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
             if 'recursive_crash_function' in frame:
                 recursive_crash_function_found = True
                 continue
-            m = re.match('#\d+\s+0x[0-9a-f]+ in \?\? \(\) from ([^\s]+)', frame)
+            m = re.match(
+                '#\\d+\\s+0x[0-9a-f]+ in \\?\\? \\(\\) from ([^\\s]+)', frame)
             if m:
-                # However allow unknown symbols if they are in system libraries.
+                # However allow unknown symbols if they are in system
+                # libraries.
                 so_name = m.group(1)
                 if not any(so_name.startswith(d) for d in ['/lib',
                                                            '/usr/lib',
@@ -185,7 +191,7 @@ def check_gdb(memcached_exe, gdb_exe, md2core_exe, minidump):
         # Check we can read stack memory. Another tricky one as again we have
         # no idea where we crashed. Just ensure that we get *something* back
         logging.info('GDB: Checking for readable stack memory')
-        m = re.search('(0x[0-9a-f]+):\s(0x[0-9a-f]+)?', gdb_output[3])
+        m = re.search('(0x[0-9a-f]+):\\s(0x[0-9a-f]+)?', gdb_output[3])
         if not m:
             logging.error(
                 "FAIL - GDB failed to output memory disassembly when " +
@@ -210,7 +216,7 @@ class Subprocess(object):
         def set_core_file_ulimit():
             try:
                 import resource
-                resource.setrlimit(resource.RLIMIT_CORE, (0,0))
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             except ImportError:
                 if os.name == 'nt':
                     # Not possible to set core on Windows.
@@ -219,29 +225,39 @@ class Subprocess(object):
                     raise
 
         self.process = subprocess.Popen(self.args, stderr=subprocess.PIPE,
-                                        env = os.environ,
+                                        env=os.environ,
                                         universal_newlines=True,
                                         preexec_fn=set_core_file_ulimit)
 
         try:
             (_, self.stderrdata) = self.process.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
-            # The process is not killed in case of a timeout, so we do it manually
+            # The process is not killed in case of a timeout, so we do it
+            # manually
             self.process.kill()
             (_, self.stderrdata) = self.process.communicate()
-            logging.error("Timeout waiting for process to finish " + self.args[0])
+            logging.error(
+                "Timeout waiting for process to finish " +
+                self.args[0])
         return (self.process.returncode, self.stderrdata)
 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('memcached_exe', help='Path to memcached executable')
 parser.add_argument('crash_mode', help='Type of crash to perform')
-parser.add_argument('--breakpad', action='store_true', help='Is Breakpad enabled or not?')
-parser.add_argument('--gdb_exe',
-                    help='Path to GDB executable, enables GDB checks. Requires that m2core_exe has been specified.')
-parser.add_argument('--md2core_exe',
-                    help='Path to minidump2core executable, enables minidump checks checks')
-parser.add_argument('--source_root', help='Root of the source root used to locate files')
+parser.add_argument(
+    '--breakpad',
+    action='store_true',
+    help='Is Breakpad enabled or not?')
+parser.add_argument(
+    '--gdb_exe',
+    help='Path to GDB executable, enables GDB checks. Requires that m2core_exe has been specified.')
+parser.add_argument(
+    '--md2core_exe',
+    help='Path to minidump2core executable, enables minidump checks checks')
+parser.add_argument(
+    '--source_root',
+    help='Root of the source root used to locate files')
 args = parser.parse_args()
 
 # Given there are multiple breakpad tests which can run in parallel, give
@@ -263,18 +279,18 @@ rbac_file.write(json.dumps(rbac_data))
 rbac_file.close()
 
 # 'verbosity' isn't functionally needed, but helpful to debug test issues.
-config = {"interfaces": [{"tag":"plain",
+config = {"interfaces": [{"tag": "plain",
                           "port": 0,
                           "host": "*"}],
-          "breakpad": { "enabled": True,
-                        "minidump_dir" : minidump_dir
-                      },
+          "breakpad": {"enabled": True,
+                       "minidump_dir": minidump_dir
+                       },
           "stdin_listener": False,
-          "root" : os.path.abspath(args.source_root),
-          "verbosity" : 2,
-          "rbac_file" : os.path.abspath(rbac_file.name),
-          "logger" : { "filename" : test_temp_dir + "/log",
-                       "unit_test" : True }}
+          "root": os.path.abspath(args.source_root),
+          "verbosity": 2,
+          "rbac_file": os.path.abspath(rbac_file.name),
+          "logger": {"filename": test_temp_dir + "/log",
+                     "unit_test": True}}
 config_json = json.dumps(config)
 
 # Need a temporary file which can be opened (a second time) by memcached,
@@ -285,7 +301,8 @@ config_file.write(config_json)
 config_file.close()
 
 os.environ['MEMCACHED_UNIT_TESTS'] = "true"
-# Use 'std_exception' crash mode for memcached when testing breakpad dump failures
+# Use 'std_exception' crash mode for memcached when testing breakpad dump
+# failures
 os.environ['MEMCACHED_CRASH_TEST'] = (args.crash_mode
                                       if not args.crash_mode.startswith('dump_fail_')
                                       else 'std_exception')
@@ -322,21 +339,27 @@ if args.breakpad and 'Breakpad caught a crash' not in stderrdata:
 # Check a version was written to stderr as part of the crash message.
 # checking for at least "7." (although most tests will run with "0.0.0-0000")
 if args.breakpad:
-    m = re.search('crash \(Couchbase version [0-9]+\.[0-9]+\.[0-9]+\-[0-9]+\)', stderrdata)
+    m = re.search(
+        'crash \\(Couchbase version [0-9]+\\.[0-9]+\\.[0-9]+\\-[0-9]+\\)',
+        stderrdata)
     if not m:
         logging.error("FAIL - No version included in the crash message.")
         print_stderrdata(stderrdata)
         cleanup_and_exit(3)
 
-# Check the message includes the exception what() message (std::exception crash)
+# Check the message includes the exception what() message (std::exception
+# crash)
 if args.crash_mode.startswith('std_exception') and 'what():' not in stderrdata:
-    logging.error("FAIL - No exception what() message written to stderr on crash.")
+    logging.error(
+        "FAIL - No exception what() message written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
-# Check the message include the location the exception was thrown from (throwWithTrace)
+# Check the message include the location the exception was thrown from
+# (throwWithTrace)
 if args.crash_mode == 'std_exception_with_trace' and 'Exception thrown from:' not in stderrdata:
-    logging.error("FAIL - No exception thrown backtrace message was written to stderr on crash.")
+    logging.error(
+        "FAIL - No exception thrown backtrace message was written to stderr on crash.")
     print_stderrdata(stderrdata)
     cleanup_and_exit(3)
 
@@ -351,14 +374,18 @@ if args.breakpad:
     # Check there is a minidump path in the output.
     # MB-42657 means there can be multiple "Writing crash" messages, the last
     # one is the relevant message for this test.
-    path_matches = re.findall('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
-    success_matches = re.findall('Writing dump succeeded: (yes|no)', stderrdata)
+    path_matches = re.findall(
+        'Writing crash dump to ([\\w\\\\/\\:\\-.]+)',
+        stderrdata)
+    success_matches = re.findall(
+        'Writing dump succeeded: (yes|no)', stderrdata)
     if not path_matches:
         logging.error("FAIL - Unable to find crash filename in stderr.")
         print_stderrdata(stderrdata)
         cleanup_and_exit(4)
     if not success_matches:
-        logging.error("FAIL - Unable to find success status message in stderr.")
+        logging.error(
+            "FAIL - Unable to find success status message in stderr.")
         print_stderrdata(stderrdata)
         cleanup_and_exit(4)
 
@@ -367,13 +394,15 @@ if args.breakpad:
 
     if args.crash_mode.startswith('dump_fail_'):
         if success:
-            logging.error("FAIL - Breakpad was supposed to fail but success status was printed.")
+            logging.error(
+                "FAIL - Breakpad was supposed to fail but success status was printed.")
             print_stderrdata(stderrdata)
             cleanup_and_exit(4)
 
         # Check that breakpad failed to write to the directory.
         if os.path.exists(minidump):
-            logging.error("FAIL - Breakpad was supposed to fail but a minidump was written.")
+            logging.error(
+                "FAIL - Breakpad was supposed to fail but a minidump was written.")
             print_stderrdata(stderrdata)
             cleanup_and_exit(4)
     else:
@@ -386,7 +415,11 @@ if args.breakpad:
 
         # On Windows we don't have md2core or gdb; so skip these tests.
         if args.md2core_exe and args.gdb_exe:
-            check_gdb(args.memcached_exe, args.gdb_exe, args.md2core_exe, minidump)
+            check_gdb(
+                args.memcached_exe,
+                args.gdb_exe,
+                args.md2core_exe,
+                minidump)
         else:
             # Check the minidump file is non-zero in size.
             statinfo = os.stat(minidump)

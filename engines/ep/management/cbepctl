@@ -21,6 +21,7 @@ import sys
 
 cmd = cli_auth_utils.cmd_decorator
 
+
 @cmd
 def set_param(mc, type, key, val):
     engine_param = None
@@ -42,7 +43,7 @@ def set_param(mc, type, key, val):
 
     if key == "mem_high_wat" or key == "mem_low_wat":
         if val.endswith("%"):
-            _x_ = (val[:len(val)-1])
+            _x_ = (val[:len(val) - 1])
             if not _x_.isdigit():
                 print('Error: Invalid parameter %s' % val)
                 return
@@ -50,20 +51,21 @@ def set_param(mc, type, key, val):
                 print('Error: Bad parameter %s' % val)
                 return
             _quota_ = int(mc.stats()['ep_max_size'])
-            val = str(int(float(_x_)*(_quota_)/100))
+            val = str(int(float(_x_) * (_quota_) / 100))
     if (key == "mem_used_merge_threshold_percent" and
-        (float(val) > 100.0 or float(val) < 0.0)):
+            (float(val) > 100.0 or float(val) < 0.0)):
         print('Error: Invalid mem_used_merge_threshold_percent value %s' % val)
         return
     try:
         mc.set_param(0, key, val, engine_param)
-        print('set %s to %s' %(key, val))
+        print('set %s to %s' % (key, val))
     except mc_bin_client.MemcachedError as error:
         print('Error: %s' % error.msg)
     except mc_bin_client.TimeoutError as error:
         print(error)
     except Exception as e:
         print('Generic error (%s)' % e)
+
 
 @cmd
 def set_vbucket_param(mc, key, vbucket, val):
@@ -71,13 +73,14 @@ def set_vbucket_param(mc, key, vbucket, val):
 
     try:
         mc.set_param(int(vbucket), key, val, engine_param)
-        print('set %s to %s' %(key, val))
+        print('set %s to %s' % (key, val))
     except mc_bin_client.MemcachedError as error:
         print('Error: %s' % error.msg)
     except mc_bin_client.TimeoutError as error:
         print(error)
     except Exception as e:
         print('Generic error (%s)' % e)
+
 
 @cmd
 def stop(mc):
@@ -89,7 +92,7 @@ def stop(mc):
             try:
                 stats = mc.stats()
                 success = True
-            except:
+            except BaseException:
                 if success:
                     mc = mc_bin_client.MemcachedClient(mc.host, mc.port)
                     raise
@@ -106,6 +109,7 @@ def stop(mc):
     except Exception as e:
         print('Generic error (%s)' % e)
 
+
 @cmd
 def start(mc):
     try:
@@ -117,6 +121,7 @@ def start(mc):
         print(error)
     except Exception as e:
         print('Generic error (%s)' % e)
+
 
 @cmd
 def drain(mc):
@@ -137,6 +142,7 @@ def drain(mc):
     except Exception as e:
         print('Generic error (%s)' % e)
 
+
 @cmd
 def set_collections(mc, filename):
 
@@ -154,6 +160,7 @@ def set_collections(mc, filename):
     except Exception as e:
         print('Generic error (%s)' % e)
 
+
 @cmd
 def get_collections(mc):
 
@@ -167,12 +174,17 @@ def get_collections(mc):
     except Exception as e:
         print('Generic error (%s)' % e)
 
+
 @cmd
 def run_compaction(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
     engine_param = memcacheConstants.ENGINE_PARAM_VBUCKET
 
     try:
-        mc.compact_db(int(vbucket), int(purgeBeforeTs), int(purgeBeforeSeq), int(dropDeletes))
+        mc.compact_db(
+            int(vbucket),
+            int(purgeBeforeTs),
+            int(purgeBeforeSeq),
+            int(dropDeletes))
         print('compaction started on vbucket {}'.format(vbucket))
     except mc_bin_client.MemcachedError as error:
         print('Error: %s' % error.msg)
@@ -180,6 +192,7 @@ def run_compaction(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
         print(error)
     except Exception as e:
         print('Generic error (%s)' % e)
+
 
 if __name__ == '__main__':
 
@@ -351,7 +364,10 @@ Available params for "set":
     c.addCommand('set_vbucket_param', set_vbucket_param, 'type vbucket value')
     c.addCommand('start', start, 'start')
     c.addCommand('stop', stop, 'stop')
-    c.addCommand('compact', run_compaction, 'vbucket purgeBeforeTs purgeBeforeSeq dropDeletes')
+    c.addCommand(
+        'compact',
+        run_compaction,
+        'vbucket purgeBeforeTs purgeBeforeSeq dropDeletes')
 
     # Add collection get manifest methods - These should not be executed
     # except for when required by support/development

@@ -70,10 +70,10 @@ try:
     data = f.read()[5:]  # The first 4 chars of response are ')]}'
     info = json.loads(data)
 except urllib2.HTTPError as e:
-    print ("Error: failed to lookup change {} from {}: {}".format(change,
-                                                                  url, e),
-           file=sys.stderr)
-    print ("Check your Change is valid", file=sys.stderr)
+    print("Error: failed to lookup change {} from {}: {}".format(change,
+                                                                 url, e),
+          file=sys.stderr)
+    print("Check your Change is valid", file=sys.stderr)
     exit(1)
 
 header("** Migrating change {} - '{}' to kv_engine".format(change,

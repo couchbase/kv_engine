@@ -27,6 +27,7 @@ import requests
 import sys
 import time
 
+
 class ASCIIFormat:
     BOLD = '\033[1m'
     END = '\033[0m'
@@ -65,21 +66,29 @@ def search(logText, searchPattern, isRegex):
 # --- Start Main Script ---
 # Create argparser so the user can specify which job to search
 argParser = argparse.ArgumentParser()
-argParser.add_argument('--job', '-j', type=str,
-                       help='The cv job to query. '
-                            "Example jobs are: 'kv_engine.ASan-UBSan/job/master', "
-                            "'kv_engine-clang_analyzer-master', "
-                            "'kv_engine.linux/job/master', "
-                            "'kv_engine.linux/job/mad-hatter', "
-                            "'kv_engine.threadsanitizer/job/master', "
-                            "'kv_engine-windows-master', "
-                            "'kv_engine-clang_format', "
-                            "'kv-engine-cv-perf'", required=True)
-argParser.add_argument('--search', '-s', type=str, required=True,
-                       help='The string to search the logs for in a RegEx format')
-argParser.add_argument('--build-no', '-b', type=int,
-                       help='The build number of cv job to check backwards from. '
-                            '0 (default) fetches latest build number', default=0)
+argParser.add_argument(
+    '--job', '-j', type=str, help='The cv job to query. '
+    "Example jobs are: 'kv_engine.ASan-UBSan/job/master', "
+    "'kv_engine-clang_analyzer-master', "
+    "'kv_engine.linux/job/master', "
+    "'kv_engine.linux/job/mad-hatter', "
+    "'kv_engine.threadsanitizer/job/master', "
+    "'kv_engine-windows-master', "
+    "'kv_engine-clang_format', "
+    "'kv-engine-cv-perf'", required=True)
+argParser.add_argument(
+    '--search',
+    '-s',
+    type=str,
+    required=True,
+    help='The string to search the logs for in a RegEx format')
+argParser.add_argument(
+    '--build-no',
+    '-b',
+    type=int,
+    help='The build number of cv job to check backwards from. '
+    '0 (default) fetches latest build number',
+    default=0)
 argParser.add_argument('--no-of-builds', '-n', type=int,
                        help='The number of builds to check back', default=100)
 argParser.add_argument('--format', '-f', default="plain", type=str,
@@ -129,26 +138,33 @@ start_time = time.time()
 
 for i in range(0, args.no_of_builds):
     print('\r >>> Current progress: {}   '.format(str(i)), end='',
-    flush=True, file=sys.stderr)
+          flush=True, file=sys.stderr)
 
     # Get the console log text from the jenkins job
-    r = requests.get(serverURL + job + str(args.build_no-i) + consoleText)
+    r = requests.get(serverURL + job + str(args.build_no - i) + consoleText)
     if r.status_code != 200:
-        failedBuildNums.append(args.build_no-i)
+        failedBuildNums.append(args.build_no - i)
 
     # Perform Search
     output = []
     output.extend(search(r.text, pattern, isRegex))
 
     if output:
-        resultURLs[serverURL + job + str(args.build_no-i) + '/console/'] = output
+        resultURLs[serverURL + job +
+                   str(args.build_no - i) + '/console/'] = output
 
 # Finish timing
-print('\r Completed search in', (time.time() - start_time), 's', file=sys.stderr)
+print(
+    '\r Completed search in',
+    (time.time() - start_time),
+    's',
+    file=sys.stderr)
 if failedBuildNums:
-    print("Failed log request on build(s) no:", failedBuildNums, file=sys.stderr)
+    print("Failed log request on build(s) no:",
+          failedBuildNums, file=sys.stderr)
 
-# Ensure above prints actually print before results (and not mangled inside results)
+# Ensure above prints actually print before results (and not mangled
+# inside results)
 sys.stderr.flush()
 
 # Result output
@@ -164,7 +180,12 @@ elif outputFormat == 'jira':
         print('[', url, ']', sep="")
         print('{noformat}')
         for line in resultURLs[url]:
-            print(line.replace(ASCIIFormat.BOLD, '').replace(ASCIIFormat.END, ''))
+            print(
+                line.replace(
+                    ASCIIFormat.BOLD,
+                    '').replace(
+                    ASCIIFormat.END,
+                    ''))
         print('{noformat}')
     print("{panel}")
 elif outputFormat == "log-line":

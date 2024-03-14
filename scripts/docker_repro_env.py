@@ -112,7 +112,7 @@ def select_docker_image(os_info):
     def get_version_id(os_info):
         try:
             return re.search(r'VERSION_ID="([\d\.]+)"', os_info).groups()[0]
-        except:
+        except BaseException:
             raise ValueError(
                 f'Expected to find VERSION_ID in the OS version info:\n{os_info}')
 

@@ -10,7 +10,8 @@ be governed by the Apache License, Version 2.0, included in the file
 licenses/APL2.txt.
 """
 
-# Script to show which commit(s) are not yet merged between our release branches.
+# Script to show which commit(s) are not yet merged between our release
+# branches.
 
 
 import os
@@ -106,13 +107,14 @@ for sequence in sequences[project]:
         count = len(commits)
         total_unmerged += count
         if count > 0:
-            print(f"{bcolors.HEADER}{count} commits in '{downstream}' not present in '{upstream}':{bcolors.ENDC}")
+            print(
+                f"{bcolors.HEADER}{count} commits in '{downstream}' not present in '{upstream}':{bcolors.ENDC}")
             for commit in commits:
                 if commit[0] == '-':
                     # Equivalent in upstream, de-emphasise
-                    color=bcolors.FAINT
+                    color = bcolors.FAINT
                 else:
-                    color=bcolors.ENDC
+                    color = bcolors.ENDC
                 print(f"  {color}{commit}{bcolors.ENDC}")
             print()
 

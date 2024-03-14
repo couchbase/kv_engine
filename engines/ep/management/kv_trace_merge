@@ -19,9 +19,9 @@ import sys
 parser = argparse.ArgumentParser(
     description='Merge two or more KV-Engine trace files into a single file.')
 parser.add_argument('infile', nargs='+', type=argparse.FileType('r'),
-                                        default=sys.stdin)
+                    default=sys.stdin)
 parser.add_argument('-o', '--outfile', nargs='?', type=argparse.FileType('w'),
-                                        default=sys.stdout)
+                    default=sys.stdout)
 args = parser.parse_args()
 
 events = []

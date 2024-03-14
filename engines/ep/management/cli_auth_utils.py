@@ -46,17 +46,19 @@ def cmd_decorator(f):
 
         if len(args) < min_args:
             print(("Error: too few arguments - command "
-                                  "expected a minimum of %s but was passed "
-                                  "%s: %s"
-                                  % (min_args - 1, len(args) - 1, list(args[1:]))), file=sys.stderr)
+                   "expected a minimum of %s but was passed "
+                   "%s: %s" %
+                   (min_args - 1, len(args) - 1, list(args[1:]))), file=sys.stderr)
             sys.exit(2)
 
         if spec.varargs is None:
             if len(args) > max_args:
                 print(("Error: too many arguments - command "
-                                      "expected a maximum of %s but was passed "
-                                      "%s: %s"
-                                      % (max_args - 1, len(args) - 1, list(args[1:]))), file=sys.stderr)
+                       "expected a maximum of %s but was passed "
+                       "%s: %s" %
+                       (max_args -
+                        1, len(args) -
+                           1, list(args[1:]))), file=sys.stderr)
                 sys.exit(2)
 
         # extract auth and bucket parameters (not passed to wrapped function)
@@ -78,7 +80,7 @@ def cmd_decorator(f):
                 mc.sasl_auth_plain(username, password)
             except mc_bin_client.MemcachedError:
                 print("Authentication error for user:{0} bucket:{1}"
-                       .format(username, bucket))
+                      .format(username, bucket))
                 sys.exit(1)
 
         # HELO
@@ -86,8 +88,8 @@ def cmd_decorator(f):
         mc.enable_collections()
         mc.enable_json()
         mc.hello("{0} {1}".format(os.path.split(sys.argv[0])[1],
-                                os.getenv("EP_ENGINE_VERSION",
-                                          "unknown version")))
+                                  os.getenv("EP_ENGINE_VERSION",
+                                            "unknown version")))
 
         # call function for one or all buckets
         try:
@@ -123,7 +125,11 @@ def get_authed_clitool(extraUsage="", allBuckets=True):
 
     if allBuckets:
         c.addFlag('-a', 'allBuckets', 'iterate over all buckets')
-    c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)', 'default')
+    c.addOption(
+        '-b',
+        'bucketName',
+        'the bucket to get stats from (Default: default)',
+        'default')
     c.addOption('-u', 'username', 'the user as which to authenticate')
     c.addOption('-p', 'password', 'the password for the user')
     c.addFlag('-S', 'passwordFromStdin', 'read password from stdin')

@@ -11,13 +11,14 @@ licenses/APL2.txt.
 import unittest
 import cbstats
 
+
 class CBStatsTest(unittest.TestCase):
     def test_time_label(self):
         self.assertEqual(cbstats.time_label(100), ' 100us')
         self.assertEqual(cbstats.time_label(10000), '10000us')
-        self.assertEqual(cbstats.time_label(1000*1000), '1000ms')
-        self.assertEqual(cbstats.time_label(10*1000*1000), '10000ms')
-        self.assertEqual(cbstats.time_label(600*1000*1000), ' 600s')
+        self.assertEqual(cbstats.time_label(1000 * 1000), '1000ms')
+        self.assertEqual(cbstats.time_label(10 * 1000 * 1000), '10000ms')
+        self.assertEqual(cbstats.time_label(600 * 1000 * 1000), ' 600s')
         self.assertEqual(cbstats.time_label(605000000), '10m:05s')
 
     def test_size_label(self):
@@ -27,6 +28,7 @@ class CBStatsTest(unittest.TestCase):
         self.assertEqual(cbstats.size_label(1024 * 1024), '1.00MB')
         self.assertEqual(cbstats.size_label(1000 * 1024 * 1024), '1000.00MB')
         self.assertEqual(cbstats.size_label(1024 * 1024 * 1024), '1.00GB')
+
 
 if __name__ == '__main__':
     unittest.main()

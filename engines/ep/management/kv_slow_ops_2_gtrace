@@ -51,7 +51,7 @@ def human_duration_to_sec(h):
         10m:2s -> 602
     """
     ts = timedelta()
-    debug=False
+    debug = False
     while True:
         m = re.search(r'^([\d.]+)\s?([a-z]+):?(.*$)', h)
         if not m:
@@ -71,6 +71,7 @@ def human_duration_to_sec(h):
             ts = ts + timedelta(microseconds=float(value) / 1000)
         else:
             raise ValueError("Unhandled unit '{}'".format(unit))
+
 
 def update_steady_clock_offset(system_clock, steady_clock):
     """To be able to plot Slow task runtimes/scheduling
@@ -203,7 +204,7 @@ def parse_slow_task_scheduling(m):
     # we represent as Async Google Trace events, which require (b)egin and
     # (e)end events.
     event = dict()
-    event['args'] = {'time': time, 'task' : task}
+    event['args'] = {'time': time, 'task': task}
     event['cat'] = "Slow scheduling"
     event['name'] = "Slow scheduling"
     event['id'] = task + time
@@ -249,20 +250,22 @@ def parse_slow_op(trace):
 
     # The cid object with IPv4, potentially with port number partially /
     # entirely omitted, and potentially without closing JSON object '}'.
-    trace = re.sub('"{"ip":"([\d\.]+)","port":(\d*)}?\/(\w+)"',
+    trace = re.sub('"{"ip":"([\\d\\.]+)","port":(\\d*)}?\\/(\\w+)"',
                    '"\\1:\\2/\\3"', trace)
     # The cid object with IPv6.
     # This can be quite corrupted:
     # - potentially with only part of IPv6 address
     # - potentially with only part of / none of port
     # - potentially without closing JSON object '}'
-    trace = re.sub('"{"ip":"([0-9a-fA-F\.:]+)"?,?"?p?o?r?t?"?:?(\d*)}?\/(\w+)"',
-                   '"[\\1]:\\2/\\3"', trace)
+    trace = re.sub(
+        '"{"ip":"([0-9a-fA-F\\.:]+)"?,?"?p?o?r?t?"?:?(\\d*)}?\\/(\\w+)"',
+        '"[\\1]:\\2/\\3"',
+        trace)
     # Peer object with IPv4
-    trace = re.sub('"{"ip":"([\d\.]+)","port":(\d+)}"',
+    trace = re.sub('"{"ip":"([\\d\\.]+)","port":(\\d+)}"',
                    '"\\1:\\2"', trace)
     # Peer object with IPv6
-    trace = re.sub('"{"ip":"([0-9a-fA-F\.:]+)","port":(\d+)}"',
+    trace = re.sub('"{"ip":"([0-9a-fA-F\\.:]+)","port":(\\d+)}"',
                    '"[\\1]:\\2"', trace)
 
     return json.loads(trace)
@@ -286,16 +289,21 @@ def main(file):
                 node = m.group(1)
         # Match ISO 8601 formatted log timestamps. Example:
         # 2022-07-20T01:58:01.316016+03:00
-        time_regex = "(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)"
-        m = re.search(time_regex + " WARNING (\d+): Slow operation. (.*)", line)
+        time_regex = "(\\d{4}-\\d{2}-\\d{2}T[0-9:.+-]+)"
+        m = re.search(
+            time_regex +
+            " WARNING (\\d+): Slow operation. (.*)",
+            line)
         if m:
-            parse_slow_operation(node,m)
+            parse_slow_operation(node, m)
             continue
 
         # Check for "Slow runtime" messages from tasks, e.g.
-        #   2022-11-21T18:06:56.188574-05:00 WARNING (No Engine) Slow runtime for 'Compact DB file 421' on thread WriterPool3: 32 s
+        # 2022-11-21T18:06:56.188574-05:00 WARNING (No Engine) Slow runtime for
+        # 'Compact DB file 421' on thread WriterPool3: 32 s
         m = re.search(
-            time_regex + " WARNING \(([^)]+)\) Slow runtime for '(.+)' on thread (.+): (.+)",
+            time_regex +
+            " WARNING \\(([^)]+)\\) Slow runtime for '(.+)' on thread (.+): (.+)",
             line)
         if m:
             if system_clock_steady_clock_delta:
@@ -304,9 +312,12 @@ def main(file):
                 skipped_slow_runtime_events += 1
 
         # Check for "Slow scheduling" messages from tasks, e.g.
-        #   2023-09-18T15:50:39.002619+00:00 WARNING (No Engine) Slow scheduling for NON_IO task 'Paging out items.' on thread NonIoPool1. Schedule overhead: 15 s
+        # 2023-09-18T15:50:39.002619+00:00 WARNING (No Engine) Slow scheduling
+        # for NON_IO task 'Paging out items.' on thread NonIoPool1. Schedule
+        # overhead: 15 s
         m = re.search(
-            time_regex + " WARNING \(([^)]+)\) Slow scheduling for [\w_]+ task '(.+)' on thread (.+). Schedule overhead: (.+)",
+            time_regex +
+            " WARNING \\(([^)]+)\\) Slow scheduling for [\\w_]+ task '(.+)' on thread (.+). Schedule overhead: (.+)",
             line)
         if m:
             if system_clock_steady_clock_delta:
@@ -326,7 +337,7 @@ def main(file):
 
 
 ##
-## ---------------------- Unit tests ------------------------------------------
+# ---------------------- Unit tests ------------------------------------------
 ##
 
 class TestParsing(unittest.TestCase):
@@ -340,8 +351,7 @@ class TestParsing(unittest.TestCase):
             r'"b","packet":{"bodylen":49,"cas":0,"datatype":"raw","extlen":0,"'
             r'key":"<ud>c0ca65a1438baaab6c8a156b05d3b08d91bfacd7</ud>",'
             r'"keylen":49,"magic":"ClientRequest","opaque":513417216,'
-            r'"opcode":"GET","vbucket":318}}'
-        )
+            r'"opcode":"GET","vbucket":318}}')
         obj = parse_slow_op(test_string)
         self.assertEqual(obj['cid'], '7E/FF/20')
         self.assertEqual(obj['peer'], '0.0.0.0:57324')
@@ -412,8 +422,7 @@ class TestParsing(unittest.TestCase):
             r'"684D:1111:222:3333:4444:5555:6:77","port":42678}","bucket":"a",'
             r'"packet":{"bodylen":3,"cas":0,"datatype":"raw","extlen":0,"key":'
             r'"<ud>dcp</ud>","keylen":3,"magic":"ClientRequest",'
-            r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
-        )
+            r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}')
         obj = parse_slow_op(test_string)
         self.assertEqual(obj['cid'],
                          '[684D:1111:222:3333:4444:5555:6:77]:42678/ef')
@@ -430,8 +439,7 @@ class TestParsing(unittest.TestCase):
             r'"opaque":693831680,"opcode":"GET_CLUSTER_CONFIG","vbucket":0},'
             r'"peer":{"ip":"0.0.0.0","port":54300},"response":"Success",'
             r'"trace":"request=10811483103351:580237 execute=108120633258:15",'
-            r'"worker_tid":281472829188416}'
-        )
+            r'"worker_tid":281472829188416}')
         obj = parse_slow_op(test_string)
         self.assertEqual(obj['cid'], 'AF12/4FC/6c')
         self.assertEqual(obj['peer']['ip'], '0.0.0.0')
@@ -441,24 +449,24 @@ class TestParsing(unittest.TestCase):
 class TestHumanDurationToSec(unittest.TestCase):
 
     def test_milliseconds(self):
-        self.assertEqual(human_duration_to_sec("12ms"), 0.012);
-        self.assertEqual(human_duration_to_sec("12 ms"), 0.012);
+        self.assertEqual(human_duration_to_sec("12ms"), 0.012)
+        self.assertEqual(human_duration_to_sec("12 ms"), 0.012)
 
     def test_seconds(self):
-        self.assertEqual(human_duration_to_sec("12s"), 12);
-        self.assertEqual(human_duration_to_sec("12 s"), 12);
+        self.assertEqual(human_duration_to_sec("12s"), 12)
+        self.assertEqual(human_duration_to_sec("12 s"), 12)
 
     def test_minutes(self):
-        self.assertEqual(human_duration_to_sec("12m"), 12 * 60);
-        self.assertEqual(human_duration_to_sec("12 m"), 12 * 60);
+        self.assertEqual(human_duration_to_sec("12m"), 12 * 60)
+        self.assertEqual(human_duration_to_sec("12 m"), 12 * 60)
 
     def test_minutes_seconds(self):
-        self.assertEqual(human_duration_to_sec("2m:5s"), 125);
-        self.assertEqual(human_duration_to_sec("2m5s"), 125);
+        self.assertEqual(human_duration_to_sec("2m:5s"), 125)
+        self.assertEqual(human_duration_to_sec("2m5s"), 125)
 
     def test_minutes_seconds_millis(self):
-        self.assertEqual(human_duration_to_sec("2m:5s:120ms"), 125.12);
-        self.assertEqual(human_duration_to_sec("2m5s120ms"), 125.12);
+        self.assertEqual(human_duration_to_sec("2m:5s:120ms"), 125.12)
+        self.assertEqual(human_duration_to_sec("2m5s120ms"), 125.12)
 
 
 if __name__ == '__main__':
@@ -473,6 +481,11 @@ if __name__ == '__main__':
         stdin = io.TextIOWrapper(sys.stdin.buffer, errors=unicode_errors)
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('file', type=argparse.FileType('r', errors=unicode_errors),
-                            nargs='?', default=stdin)
+        parser.add_argument(
+            'file',
+            type=argparse.FileType(
+                'r',
+                errors=unicode_errors),
+            nargs='?',
+            default=stdin)
         main(**vars(parser.parse_args()))

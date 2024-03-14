@@ -21,8 +21,10 @@ from time import sleep
 import sys
 import mc_bin_client
 
+
 def cmd(f):
     f = cli_auth_utils.cmd_decorator(f)
+
     def g(*args, **kwargs):
         mc = args[0]
 
@@ -41,16 +43,18 @@ def cmd(f):
         f(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes, **kwargs)
     return g
 
+
 @cmd
 def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
-     try:
+    try:
         return mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
                              dropDeletes)
-     except:
-         print("Unable to compact vbucket %d with the following parameters "
-               "(purge before time: %d, purge before seqno: %d, drop deletes: "
-               "%d) in requested engine."
-             % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes))
+    except BaseException:
+        print("Unable to compact vbucket %d with the following parameters "
+              "(purge before time: %d, purge before seqno: %d, drop deletes: "
+              "%d) in requested engine."
+              % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes))
+
 
 def main():
     c = cli_auth_utils.get_authed_clitool()
@@ -63,6 +67,7 @@ def main():
     c.addFlag('--dropdeletes', 'dropDeletes', 'drop deleted items')
 
     c.execute()
+
 
 if __name__ == '__main__':
     main()

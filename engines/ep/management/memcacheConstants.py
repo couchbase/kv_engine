@@ -84,31 +84,32 @@ CMD_COLLECTIONS_GET_SCOPE_ID = 0xbc
 CMD_GET_ERROR_MAP = 0xfe
 
 # event IDs for the SYNC command responses
-CMD_SYNC_EVENT_PERSISTED  = 1
-CMD_SYNC_EVENT_MODIFED    = 2
-CMD_SYNC_EVENT_DELETED    = 3
+CMD_SYNC_EVENT_PERSISTED = 1
+CMD_SYNC_EVENT_MODIFED = 2
+CMD_SYNC_EVENT_DELETED = 3
 CMD_SYNC_EVENT_REPLICATED = 4
-CMD_SYNC_INVALID_KEY      = 5
-CMD_SYNC_INVALID_CAS      = 6
+CMD_SYNC_INVALID_KEY = 5
+CMD_SYNC_INVALID_CAS = 6
 
-VB_STATE_ACTIVE=1
-VB_STATE_REPLICA=2
-VB_STATE_PENDING=3
-VB_STATE_DEAD=4
-VB_STATE_NAMES={'active': VB_STATE_ACTIVE,
-                'replica': VB_STATE_REPLICA,
-                'pending': VB_STATE_PENDING,
-                'dead': VB_STATE_DEAD}
+VB_STATE_ACTIVE = 1
+VB_STATE_REPLICA = 2
+VB_STATE_PENDING = 3
+VB_STATE_DEAD = 4
+VB_STATE_NAMES = {'active': VB_STATE_ACTIVE,
+                  'replica': VB_STATE_REPLICA,
+                  'pending': VB_STATE_PENDING,
+                  'dead': VB_STATE_DEAD}
 
 # Parameter types of CMD_SET_PARAM command.
-ENGINE_PARAM_FLUSH      = 1
-ENGINE_PARAM_REPLICATION= 2
+ENGINE_PARAM_FLUSH = 1
+ENGINE_PARAM_REPLICATION = 2
 ENGINE_PARAM_CHECKPOINT = 3
-ENGINE_PARAM_DCP        = 4
-ENGINE_PARAM_VBUCKET    = 5
+ENGINE_PARAM_DCP = 4
+ENGINE_PARAM_VBUCKET = 5
 
 
-COMMAND_NAMES = dict(((globals()[k], k) for k in globals() if k.startswith("CMD_")))
+COMMAND_NAMES = dict(((globals()[k], k)
+                     for k in globals() if k.startswith("CMD_")))
 
 # Enableable features
 FEATURE_DATATYPE = 0x01
@@ -124,59 +125,59 @@ FEATURE_TRACING = 0x0f
 FEATURE_COLLECTIONS = 0x12
 
 # Flags, expiration
-SET_PKT_FMT=">II"
+SET_PKT_FMT = ">II"
 
 # flags
-GET_RES_FMT=">I"
+GET_RES_FMT = ">I"
 
 # How long until the deletion takes effect.
-DEL_PKT_FMT=""
+DEL_PKT_FMT = ""
 
 # amount, initial value, expiration
-INCRDECR_PKT_FMT=">QQI"
+INCRDECR_PKT_FMT = ">QQI"
 # Special incr expiration that means do not store
-INCRDECR_SPECIAL=0xffffffff
-INCRDECR_RES_FMT=">Q"
+INCRDECR_SPECIAL = 0xffffffff
+INCRDECR_RES_FMT = ">Q"
 
 # Time bomb
-FLUSH_PKT_FMT=">I"
+FLUSH_PKT_FMT = ">I"
 
 # Touch commands
 # expiration
-TOUCH_PKT_FMT=">I"
-GAT_PKT_FMT=">I"
-GETL_PKT_FMT=">I"
+TOUCH_PKT_FMT = ">I"
+GAT_PKT_FMT = ">I"
+GETL_PKT_FMT = ">I"
 
 # set param command
-SET_PARAM_FMT=">I"
+SET_PARAM_FMT = ">I"
 
 # 2 bit integer.  :/
-VB_SET_PKT_FMT=">I"
+VB_SET_PKT_FMT = ">I"
 
 # 8b: purge_before_ts, purge_before_seq, 1b: drop_deletes, spare1, 2b: spare2
-COMPACT_DB_PKT_FMT=">QQBxxxxxxx"
+COMPACT_DB_PKT_FMT = ">QQBxxxxxxx"
 
 MAGIC_BYTE = 0x80
 REQ_MAGIC_BYTE = 0x80
-ALT_REQ_MAGIC_BYTE=0x08
+ALT_REQ_MAGIC_BYTE = 0x08
 RES_MAGIC_BYTE = 0x81
-ALT_RES_MAGIC_BYTE=0x18
+ALT_RES_MAGIC_BYTE = 0x18
 
 # magic, opcode, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
-REQ_PKT_FMT=">BBHBBHIIQ"
+REQ_PKT_FMT = ">BBHBBHIIQ"
 # magic, opcode, keylen, extralen, datatype, status, bodylen, opaque, cas
-RES_PKT_FMT=">BBHBBHIIQ"
+RES_PKT_FMT = ">BBHBBHIIQ"
 # magic, opcode, frame_extra_len, keylen, extralen, datatype, status, bodylen, opaque, cas
-ALT_RES_PKT_FMT=">BBBBBBHIIQ"
+ALT_RES_PKT_FMT = ">BBBBBBHIIQ"
 # magic, opcode, frame_extra_len, keylen, extralen, datatype, vbucket, bodylen, opaque, cas
-ALT_REQ_PKT_FMT=">BBBBBBHIIQ"
+ALT_REQ_PKT_FMT = ">BBBBBBHIIQ"
 
 # min recv packet size
 MIN_RECV_PACKET = struct.calcsize(REQ_PKT_FMT)
 # The header sizes don't deviate
 assert struct.calcsize(REQ_PKT_FMT) == struct.calcsize(RES_PKT_FMT)
 
-EXTRA_HDR_FMTS={
+EXTRA_HDR_FMTS = {
     CMD_SET: SET_PKT_FMT,
     CMD_ADD: SET_PKT_FMT,
     CMD_REPLACE: SET_PKT_FMT,
@@ -188,8 +189,8 @@ EXTRA_HDR_FMTS={
     CMD_COMPACT_DB: COMPACT_DB_PKT_FMT
 }
 
-EXTRA_HDR_SIZES=dict(
-    [(k, struct.calcsize(v)) for (k,v) in EXTRA_HDR_FMTS.items()])
+EXTRA_HDR_SIZES = dict(
+    [(k, struct.calcsize(v)) for (k, v) in EXTRA_HDR_FMTS.items()])
 
 # Kept for backwards compatibility with existing mc_bin_client users.
 
