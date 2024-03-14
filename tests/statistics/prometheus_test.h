@@ -32,7 +32,5 @@ public:
         StatMap metering;
     };
 
-    static void SetUpTestSuite();
-
     EndpointMetrics getMetrics() const;
 };
