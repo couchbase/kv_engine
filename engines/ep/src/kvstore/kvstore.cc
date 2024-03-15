@@ -206,29 +206,26 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
                 config.getDBName()));
     }
 
-    std::string backend = config.getBackend();
+    const auto backend = config.getBackend();
     if (backend == "couchdb") {
-        auto rw = std::make_unique<CouchKVStore>(
+        return std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config));
-        return std::move(rw);
-    } else if (backend == "nexus") {
-        auto rw = std::make_unique<NexusKVStore>(
-                dynamic_cast<NexusKVStoreConfig&>(config));
-        return std::move(rw);
-    }
-#ifdef EP_USE_MAGMA
-    else if (backend == "magma") {
-        auto rw = std::make_unique<MagmaKVStore>(
-                dynamic_cast<MagmaKVStoreConfig&>(config));
-        return std::move(rw);
-    }
-#endif
-    else {
-        throw std::invalid_argument("KVStoreFactory::create unknown backend:" +
-                                    config.getBackend());
     }
 
-    return {};
+    if (backend == "nexus") {
+        return std::make_unique<NexusKVStore>(
+                dynamic_cast<NexusKVStoreConfig&>(config));
+    }
+
+#ifdef EP_USE_MAGMA
+    if (backend == "magma") {
+        return std::make_unique<MagmaKVStore>(
+                dynamic_cast<MagmaKVStoreConfig&>(config));
+    }
+#endif
+
+    throw std::invalid_argument(fmt::format(
+            "KVStoreFactory::create: unknown backend {}", config.getBackend()));
 }
 
 bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
