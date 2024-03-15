@@ -60,19 +60,17 @@ DcpProducer::StreamsMap::SmartPtr makeStreamsMap(
     return DcpProducer::StreamsMap::create(maxNumVBuckets, config);
 }
 
-DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
-    if (isEnabled_UNLOCKED()) {
-        if (isFull_UNLOCKED()) {
-            return Full;
-        } else {
-            return SpaceAvailable;
+DcpProducer::BufferLog::State DcpProducer::BufferLog::getState() const {
+    if (isEnabled()) {
+        if (isSpaceAvailable()) {
+            return State::SpaceAvailable;
         }
+        return State::Full;
     }
-    return Disabled;
+    return State::Disabled;
 }
 
 void DcpProducer::BufferLog::setBufferSize(size_t newMaxBytes) {
-    std::unique_lock<folly::SharedMutex> wlh(logLock);
     maxBytes = newMaxBytes;
     if (newMaxBytes == 0) {
         bytesOutstanding = 0;
@@ -81,18 +79,17 @@ void DcpProducer::BufferLog::setBufferSize(size_t newMaxBytes) {
 }
 
 bool DcpProducer::BufferLog::insert(size_t bytes) {
-    std::unique_lock<folly::SharedMutex> wlh(logLock);
     bool inserted = false;
     // If the log is not enabled
     // or there is space, allow the insert
-    if (!isEnabled_UNLOCKED() || !isFull_UNLOCKED()) {
+    if (!isEnabled() || !isFull()) {
         bytesOutstanding += bytes;
         inserted = true;
     }
     return inserted;
 }
 
-void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
+void DcpProducer::BufferLog::release(size_t bytes) {
     if (bytes > bytesOutstanding) {
         EP_LOG_WARN(
                 "{} Attempting to release {} bytes which is greater than "
@@ -106,41 +103,20 @@ void DcpProducer::BufferLog::release_UNLOCKED(size_t bytes) {
 }
 
 bool DcpProducer::BufferLog::pauseIfFull() {
-    std::shared_lock<folly::SharedMutex> rhl(logLock);
-    if (getState_UNLOCKED() == Full) {
+    if (getState() == State::Full) {
         producer.pause(PausedReason::BufferLogFull);
         return true;
     }
     return false;
 }
 
-void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
-    {
-        std::shared_lock<folly::SharedMutex> rhl(logLock);
-        if (getState_UNLOCKED() == Full) {
-            EP_LOG_INFO(
-                    "{} Unable to notify paused connection because "
-                    "DcpProducer::BufferLog is full; ackedBytes:{}"
-                    ", bytesSent:{}, maxBytes:{}",
-                    producer.logHeader(),
-                    ackedBytes,
-                    uint64_t(bytesOutstanding),
-                    uint64_t(maxBytes));
-            return;
-        }
-    }
-    // notify the producer outside of the buffer lock
-    producer.scheduleNotify();
-}
-
 void DcpProducer::BufferLog::acknowledge(size_t bytes) {
-    std::unique_lock<folly::SharedMutex> wlh(logLock);
-    State state = getState_UNLOCKED();
-    if (state != Disabled) {
-        release_UNLOCKED(bytes);
+    State state = getState();
+    if (state != State::Disabled) {
+        release(bytes);
         ackedBytes += bytes;
 
-        if (state == Full) {
+        if (state == State::Full) {
             producer.scheduleNotify();
         }
     }
@@ -148,8 +124,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
 
 void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
                                       CookieIface& c) {
-    std::shared_lock<folly::SharedMutex> rhl(logLock);
-    if (isEnabled_UNLOCKED()) {
+    if (isEnabled()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
         producer.addStat("unacked_bytes", bytesOutstanding, add_stat, c);
         producer.addStat("total_acked_bytes", ackedBytes, add_stat, c);
@@ -180,7 +155,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       sendStreamEndOnClientStreamClose(false),
       consumerSupportsHifiMfu(false),
       lastSendTime(ep_uptime_now()),
-      log(*this),
+      log(BufferLog(*this)),
       backfillMgr(std::make_shared<BackfillManager>(
               *e.getKVBucket(),
               e.getKVBucket()->getKVStoreScanTracker(),
@@ -1060,7 +1035,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
 cb::engine_errc DcpProducer::bufferAcknowledgement(uint32_t opaque,
                                                    uint32_t buffer_bytes) {
     lastReceiveTime = ep_uptime_now();
-    log.acknowledge(buffer_bytes);
+    log.lock()->acknowledge(buffer_bytes);
     return cb::engine_errc::success;
 }
 
@@ -1117,7 +1092,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         if (safe_strtoul(valueStr, size)) {
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
-            log.setBufferSize(size);
+            log.lock()->setBufferSize(size);
             NonBucketAllocationGuard guard;
             getCookie()->getConnectionIface().setDcpFlowControlBufferSize(size);
             return cb::engine_errc::success;
@@ -1676,7 +1651,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
         backfillMgr->addStats(*this, add_stat, c);
     }
 
-    log.addStats(add_stat, c);
+    log.lock()->addStats(add_stat, c);
 
     ExTask pointerCopy;
     { // Locking scope
@@ -1974,7 +1949,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
 
         Vbid vbucket = Vbid(0);
         while (ready.popFront(vbucket)) {
-            if (log.pauseIfFull()) {
+            if (log.lock()->pauseIfFull()) {
                 ready.pushUnique(vbucket);
                 return nullptr;
             }
@@ -2080,9 +2055,28 @@ void DcpProducer::setDisconnect() {
 }
 
 void DcpProducer::notifyStreamReady(Vbid vbucket) {
+    // Transitioned from empty to non-empty readyQ - unpause the Producer.
     if (ready.pushUnique(vbucket)) {
-        // Transitioned from empty to non-empty readyQ - unpause the Producer.
-        log.unpauseIfSpaceAvailable();
+        bool full;
+        uint64_t ackedBytes, outstanding, max;
+        log.withLock([&full, &ackedBytes, &outstanding, &max](auto& entry) {
+            full = entry.isFull();
+            ackedBytes = entry.getAckedBytes();
+            outstanding = entry.getBytesOutstanding();
+            max = entry.getMaxBytes();
+        });
+
+        if (full) {
+            logger->info(
+                    "Unable to notify paused connection because "
+                    "DcpProducer::BufferLog is full; ackedBytes:{}, "
+                    "bytesSent:{}, maxBytes:{}",
+                    ackedBytes,
+                    outstanding,
+                    max);
+        } else {
+            scheduleNotify();
+        }
     }
 }
 
@@ -2209,7 +2203,7 @@ std::vector<Vbid> DcpProducer::getVBVector() {
 }
 
 bool DcpProducer::bufferLogInsert(size_t bytes) {
-    return log.insert(bytes);
+    return log.lock()->insert(bytes);
 }
 
 void DcpProducer::createCheckpointProcessorTask() {

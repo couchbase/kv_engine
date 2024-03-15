@@ -288,26 +288,20 @@ public:
      */
     class BufferLog {
     public:
-
-        /*
-            BufferLog has 3 states.
-            Disabled - Flow-control is not in-use.
-             This is indicated by setting the size to 0 (i.e. setBufferSize(0)).
-
-            SpaceAvailable - There is *some* space available. You can always
-             insert n-bytes even if there's n-1 bytes spare.
-
-            Full - inserts have taken the number of bytes available equal or
-             over the buffer size.
-        */
-        enum State {
+        enum class State {
+            /// Flow-control is not in-use.
+            /// This is indicated by setting the size to 0 (i.e.
+            /// setBufferSize(0)).
             Disabled,
-            Full,
-            SpaceAvailable
+            /// There is *some* space available. You can always
+            /// insert n-bytes even if there's n-1 bytes spare.
+            SpaceAvailable,
+            /// inserts have taken the number of bytes available equal or
+            /// over the buffer size.
+            Full
         };
 
-        explicit BufferLog(DcpProducer& p)
-            : producer(p), maxBytes(0), bytesOutstanding(0), ackedBytes(0) {
+        explicit BufferLog(DcpProducer& p) : producer(p) {
         }
 
         /**
@@ -338,40 +332,48 @@ public:
          */
         bool pauseIfFull();
 
-        /// Unpause the producer if there's space (or disabled).
-        void unpauseIfSpaceAvailable();
+        [[nodiscard]] size_t getAckedBytes() const {
+            return ackedBytes;
+        }
 
         size_t getBytesOutstanding() const {
             return bytesOutstanding;
         }
 
+        [[nodiscard]] size_t getMaxBytes() const {
+            return maxBytes;
+        }
+
+        [[nodiscard]] bool isFull() const {
+            return getState() == State::Full;
+        }
+
     private:
-        bool isEnabled_UNLOCKED() {
+        bool isEnabled() const {
             return maxBytes != 0;
         }
 
-        bool isFull_UNLOCKED() {
-            return bytesOutstanding >= maxBytes;
+        bool isSpaceAvailable() const {
+            return bytesOutstanding < maxBytes;
         }
 
-        void release_UNLOCKED(size_t bytes);
+        void release(size_t bytes);
 
-        State getState_UNLOCKED();
+        State getState() const;
 
-        folly::SharedMutex logLock;
         DcpProducer& producer;
 
         /// Capacity of the buffer - maximum number of bytes which can be
         /// outstanding before the buffer is considered full.
-        size_t maxBytes;
+        size_t maxBytes = 0;
 
         /// Number of bytes currently outstanding (in the buffer). Incremented
         /// upon insert(); and then decremented by acknowledge().
-        cb::NonNegativeCounter<size_t> bytesOutstanding;
+        cb::NonNegativeCounter<size_t> bytesOutstanding{0};
 
         /// Total number of bytes acknowledeged. Should be non-decreasing in
         /// normal usage; but can be reset to zero when buffer size changes.
-        Monotonic<size_t> ackedBytes;
+        Monotonic<size_t> ackedBytes{0};
     };
 
     /*
@@ -710,7 +712,7 @@ protected:
 
     /// Timestamp of when we last transmitted a message to our peer.
     cb::AtomicTimePoint<> lastSendTime;
-    BufferLog log;
+    folly::Synchronized<BufferLog, std::mutex> log;
 
     // backfill manager object is owned by this class, but use an
     // shared_ptr as the lifetime of the manager is shared between the
