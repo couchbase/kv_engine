@@ -2322,7 +2322,7 @@ TEST_P(KVBucketParamTest, MutationMemRatio_HigherThanMax) {
 
 class EPBucketParamTest : public KVBucketParamTest {
 protected:
-    void testFlushBatchMaxBytes(size_t newSize) {
+    void testInvalidFlushBatchMaxBytes(size_t newSize) {
         auto& config = engine->getConfiguration();
         const auto initialSize = config.getFlushBatchMaxBytes();
         const auto& bucket = dynamic_cast<EPBucket&>(*store);
@@ -2330,15 +2330,14 @@ protected:
         ASSERT_EQ(initialSize, bucket.getFlushBatchMaxBytes());
         try {
             config.setFlushBatchMaxBytes(newSize);
+            FAIL();
         } catch (const std::range_error& ex) {
             EXPECT_THAT(ex.what(),
                         testing::HasSubstr(
                                 "Validation Error, flush_batch_max_bytes takes "
                                 "values between 1 and 2147483648"));
             EXPECT_EQ(initialSize, bucket.getFlushBatchMaxBytes());
-            return;
         }
-        FAIL();
     }
 };
 
@@ -2355,11 +2354,11 @@ TEST_P(EPBucketParamTest, FlushBatchMaxBytes) {
 }
 
 TEST_P(EPBucketParamTest, FlushBatchMaxBytes_LowerThanMin) {
-    testFlushBatchMaxBytes(0);
+    testInvalidFlushBatchMaxBytes(0);
 }
 
 TEST_P(EPBucketParamTest, FlushBatchMaxBytes_HigherThanMax) {
-    testFlushBatchMaxBytes(5368709120ll); // 5GB
+    testInvalidFlushBatchMaxBytes(5368709120ll); // 5GB
 }
 
 // Test cases which run for EP (Full and Value eviction) and Ephemeral

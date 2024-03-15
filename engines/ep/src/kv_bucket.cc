@@ -3050,7 +3050,7 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     const auto checkpointQuota = maxSize * ckptMemRatio;
     Expects(checkpointQuota > 0);
 
-    size_t newCheckpointMaxSize =
+    const size_t newCheckpointMaxSize =
             checkpointQuota / numVBuckets / numCheckpointsPerVB;
     if (newCheckpointMaxSize < 1) {
         throw std::invalid_argument(
@@ -3069,8 +3069,18 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
                             numCheckpointsPerVB));
     }
 
-    engine.getCheckpointConfig().setCheckpointMaxSize(
-            checkpointQuota / numVBuckets / numCheckpointsPerVB);
+    const auto flushMaxBytes = config.getFlushBatchMaxBytes();
+    if (newCheckpointMaxSize > flushMaxBytes) {
+        EP_LOG_WARN(
+                "KVBucket::autoConfigCheckpointMaxSize: "
+                "checkpoint_computed_max_size {} can't cross "
+                "flush_batch_max_bytes {}, leaving config unchanged",
+                newCheckpointMaxSize,
+                flushMaxBytes);
+        return cb::engine_errc::success;
+    }
+
+    engine.getCheckpointConfig().setCheckpointMaxSize(newCheckpointMaxSize);
 
     return cb::engine_errc::success;
 }
