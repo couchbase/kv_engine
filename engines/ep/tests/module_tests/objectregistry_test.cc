@@ -26,7 +26,7 @@
 class ObjectRegistryTest : virtual public ::testing::Test {
 protected:
     void SetUp() override {
-        const auto dbname = dbnameFromCurrentGTestInfo();
+        const auto dbname = getProcessUniqueDatabaseName();
         removePathIfExists(dbname);
 
         {
@@ -41,7 +41,7 @@ protected:
     void TearDown() override {
         engine.reset();
         ExecutorPool::shutdown();
-        removePathIfExists(dbnameFromCurrentGTestInfo());
+        removePathIfExists(getProcessUniqueDatabaseName());
     }
 
     SynchronousEPEngineUniquePtr engine;

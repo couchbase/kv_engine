@@ -1613,7 +1613,7 @@ protected:
     void SetUp() override {
         ExecutorPool::create();
 
-        const auto dbname = dbnameFromCurrentGTestInfo();
+        const auto dbname = getProcessUniqueDatabaseName();
         removePathIfExists(dbname);
 
         const auto extraConfig = "dbname=" + dbname;
@@ -1629,7 +1629,7 @@ protected:
         engine.reset();
         ObjectRegistry::onSwitchThread(nullptr);
         ExecutorPool::shutdown();
-        removePathIfExists(dbnameFromCurrentGTestInfo());
+        removePathIfExists(getProcessUniqueDatabaseName());
     }
 
     /**

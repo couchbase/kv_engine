@@ -67,7 +67,7 @@
 #include <chrono>
 #include <thread>
 
-KVBucketTest::KVBucketTest() : test_dbname(dbnameFromCurrentGTestInfo()) {
+KVBucketTest::KVBucketTest() : test_dbname(getProcessUniqueDatabaseName()) {
 }
 
 void KVBucketTest::SetUp() {

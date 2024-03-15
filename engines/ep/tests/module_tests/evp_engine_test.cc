@@ -34,7 +34,7 @@
 #include <thread>
 
 EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
-    : test_dbname(dbnameFromCurrentGTestInfo()) {
+    : test_dbname(getProcessUniqueDatabaseName()) {
 }
 
 void EventuallyPersistentEngineTest::SetUp() {

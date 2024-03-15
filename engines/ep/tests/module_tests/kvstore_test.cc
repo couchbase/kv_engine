@@ -132,7 +132,7 @@ std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,
 }
 
 KVStoreTest::KVStoreTest()
-    : data_dir(dbnameFromCurrentGTestInfo()), flush(manifest) {
+    : data_dir(getProcessUniqueDatabaseName()), flush(manifest) {
 }
 
 void KVStoreTest::SetUp() {

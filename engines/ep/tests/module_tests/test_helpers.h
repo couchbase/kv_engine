@@ -179,7 +179,7 @@ void rewriteCouchstoreVBState(Vbid vbucket,
 
 // Return a string suitable for a database directory path, based on the
 // current running GoogleTest.
-std::string dbnameFromCurrentGTestInfo();
+std::string getProcessUniqueDatabaseName();
 
 /**
  * Modify the vbstate of the vbucket/revision

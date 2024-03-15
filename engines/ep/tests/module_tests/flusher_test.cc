@@ -32,7 +32,7 @@ protected:
             NonBucketAllocationGuard guard;
             ExecutorPool::create(ExecutorPool::Backend::Fake);
         }
-        const auto config = "dbname="s + dbnameFromCurrentGTestInfo();
+        const auto config = "dbname="s + getProcessUniqueDatabaseName();
         engine = SynchronousEPEngine::build(config);
         task_executor = reinterpret_cast<SingleThreadedExecutorPool*>(
                 ExecutorPool::get());
