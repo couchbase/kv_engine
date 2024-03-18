@@ -63,7 +63,7 @@ User::User(const nlohmann::json& json, UserData unm)
     }
 }
 
-std::atomic<int> IterationCount(4096);
+std::atomic<int> IterationCount(15000);
 
 class ScamShaFallbackSalt {
 public:

@@ -644,7 +644,7 @@ static void initialize_sasl() {
         using namespace cb::sasl;
         server::initialize();
 
-        if (!getenv("MEMCACHED_UNIT_TESTS")) {
+        if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
             // Speed up the unit tests ;)
             server::set_hmac_iteration_count(10);
         }
