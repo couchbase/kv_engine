@@ -7322,7 +7322,7 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
 }
 
 void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
-        DcpResponse::Event event, bool hasValue) {
+        DcpResponse::Event event, bool hasValue, OOMLevel oomLevel) {
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getHighSeqno());
     auto& manager = *vb.checkpointManager;
@@ -7331,7 +7331,14 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
     ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
 
     // Force OOM
-    engine->getConfiguration().setMutationMemRatio(0);
+    switch (oomLevel) {
+    case OOMLevel::Bucket:
+        engine->getConfiguration().setMutationMemRatio(0);
+        break;
+    case OOMLevel::Checkpoint:
+        engine->getConfiguration().setCheckpointMemoryRatio(0);
+        break;
+    }
 
     const uint32_t opaque = 1;
     const size_t seqno = 1;
@@ -7393,38 +7400,87 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
     EXPECT_EQ(messageBytes, stream->getUnackedBytes());
 
     // System recovers from OOM
-    engine->getConfiguration().setMutationMemRatio(1);
+    switch (oomLevel) {
+    case OOMLevel::Bucket:
+        engine->getConfiguration().setMutationMemRatio(1);
+        break;
+    case OOMLevel::Checkpoint:
+        engine->getConfiguration().setCheckpointMemoryRatio(0.5);
+        break;
+    }
     EXPECT_EQ(all_processed, stream->processUnackedBytes(processedBytes));
     EXPECT_EQ(messageBytes, processedBytes);
     EXPECT_EQ(0, stream->getUnackedBytes());
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Mutation) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Mutation, true);
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Mutation, true, OOMLevel::Bucket);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessMessageBypassMemCheck_Prepare) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Prepare, true);
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Prepare, true, OOMLevel::Bucket);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Deletion_WithValue) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion, true);
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Deletion, true, OOMLevel::Bucket);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Deletion_NoValue) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Deletion, false);
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Deletion, false, OOMLevel::Bucket);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Expiration_WithValue) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration, true);
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Expiration, true, OOMLevel::Bucket);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest,
        ProcessMessageBypassMemCheck_Expiration_NoValue) {
-    testProcessMessageBypassMemCheck(DcpResponse::Event::Expiration, false);
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Expiration, false, OOMLevel::Bucket);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Mutation_CheckppintOOM) {
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Mutation, true, OOMLevel::Checkpoint);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Prepare_CheckppintOOM) {
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Prepare, true, OOMLevel::Checkpoint);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Deletion_WithValue_CheckppintOOM) {
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Deletion, true, OOMLevel::Checkpoint);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Deletion_NoValue_CheckppintOOM) {
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Deletion, false, OOMLevel::Checkpoint);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Expiration_WithValue_CheckppintOOM) {
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Expiration, true, OOMLevel::Checkpoint);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       ProcessMessageBypassMemCheck_Expiration_NoValue_CheckppintOOM) {
+    testProcessMessageBypassMemCheck(
+            DcpResponse::Event::Expiration, false, OOMLevel::Checkpoint);
 }
 
 TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {

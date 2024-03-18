@@ -340,7 +340,7 @@ cb::engine_errc PassiveStream::messageReceived(
         }
     }
 
-    const auto& bucket = *engine->getKVBucket();
+    auto& bucket = *engine->getKVBucket();
     switch (bucket.getReplicationThrottleStatus()) {
     case KVBucket::ReplicationThrottleStatus::Disconnect:
         log(spdlog::level::level_enum::warn,
@@ -377,7 +377,7 @@ ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
     // twice otherwise, see MB-60468.
     std::lock_guard<std::mutex> lh(streamMutex);
 
-    const auto& bucket = *engine->getKVBucket();
+    auto& bucket = *engine->getKVBucket();
     const auto availableBytes = bucket.getMemAvailableForReplication();
     const auto ackableBytes = std::min(unackedBytes.load(), availableBytes);
 
