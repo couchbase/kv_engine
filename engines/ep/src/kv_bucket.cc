@@ -2065,6 +2065,18 @@ std::string KVBucket::validateKey(const DocKey& key,
                                    v->getValue()->valueSize());
             }
 
+            if (diskItem.getRevSeqno() != v->getRevSeqno()) {
+                return fmt::format("revseqno_mismatch: {} vs {}",
+                                   diskItem.getRevSeqno(),
+                                   v->getRevSeqno());
+            }
+
+            if (diskItem.getCas() != v->getCas()) {
+                return fmt::format("cas_mismatch: {} vs {}",
+                                   diskItem.getCas(),
+                                   v->getCas());
+            }
+
             if (memcmp(diskItem.getData(),
                        v->getValue()->getData(),
                        diskItem.getNBytes())) {

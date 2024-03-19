@@ -1665,6 +1665,43 @@ TEST_P(KVBucketParamTest, validateKeyTempDeletedItemTest) {
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 
+TEST_P(KVBucketParamTest, validateKeyWithRevSeqnoMismatchTest) {
+    auto key = makeStoredDocKey("key");
+    Item item = store_item(vbid,
+                           key,
+                           std::string("value"),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_RAW_BYTES);
+
+    // dummy item;
+    auto dummy = make_item(vbid, key, {"value"});
+    dummy.setDataType(item.getDataType());
+    // Set rev_seq to mismatch
+    dummy.setRevSeqno(item.getRevSeqno() + 1);
+    std::string result = store->validateKey(key, vbid, dummy);
+    EXPECT_THAT(result.c_str(), testing::HasSubstr("revseqno_mismatch"));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
+TEST_P(KVBucketParamTest, validateKeyWithCasMismatchTest) {
+    auto key = makeStoredDocKey("key");
+    Item item = store_item(vbid,
+                           key,
+                           std::string("value"),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_RAW_BYTES);
+
+    // dummy item;
+    auto dummy = make_item(vbid, key, {"value"});
+    dummy.setDataType(item.getDataType());
+    dummy.setCas(item.getCas() + 1);
+    std::string result = store->validateKey(key, vbid, dummy);
+    EXPECT_THAT(result.c_str(), testing::HasSubstr("cas_mismatch"));
+    EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
+}
+
 // Test demonstrates MB-25948 with a subtle difference. In the MB the issue
 // says delete(key1), but in this test we use expiry. That is because using
 // ep-engine deleteItem doesn't do the system-xattr pruning (that's part of
