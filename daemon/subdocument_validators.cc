@@ -266,17 +266,14 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     // (depending on if an expiry or doc_flags are encoded in the request);
     // for lookups must be one of two values depending on whether doc flags
     // are encoded in the request.
+    cb::mcbp::request::SubdocPayloadParser payload_parser(extras);
     if (traits.is_mutator) {
-        if ((extras.size() != SUBDOC_BASIC_EXTRAS_LEN) &&
-            (extras.size() != SUBDOC_EXPIRY_EXTRAS_LEN) &&
-            (extras.size() != SUBDOC_DOC_FLAG_EXTRAS_LEN) &&
-            (extras.size() != SUBDOC_ALL_EXTRAS_LEN)) {
+        if (!payload_parser.isValidMutation()) {
             cookie.setErrorContext("Request extras invalid");
             return cb::mcbp::Status::Einval;
         }
     } else {
-        if (extras.size() != SUBDOC_BASIC_EXTRAS_LEN &&
-            extras.size() != SUBDOC_DOC_FLAG_EXTRAS_LEN) {
+        if (!payload_parser.isValidLookup()) {
             cookie.setErrorContext("Request extras invalid");
             return cb::mcbp::Status::Einval;
         }
@@ -517,12 +514,13 @@ static cb::mcbp::Status subdoc_multi_validator(
         return cb::mcbp::Status::Einval;
     }
 
-    // 1a. extlen can be either 0 or 1 for lookups, can be 0, 1, 4 or 5 for
-    // mutations. Mutations can have expiry (4) and both mutations and lookups
-    // can have doc_flags (1). We've already validated that the extras
-    // size is one of the legal values, but the lookups cannot carry expiry
-    if (!traits.is_mutator) {
-        if ((extras.size() > 1)) {
+    if (traits.is_mutator) {
+        if (!parser.isValidMutation()) {
+            cookie.setErrorContext("Request extras invalid");
+            return cb::mcbp::Status::Einval;
+        }
+    } else {
+        if (!parser.isValidLookup()) {
             cookie.setErrorContext("Request extras invalid");
             return cb::mcbp::Status::Einval;
         }

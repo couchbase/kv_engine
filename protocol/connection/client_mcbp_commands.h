@@ -318,6 +318,8 @@ public:
     BinprotSubdocCommand& addPathFlags(protocol_binary_subdoc_flag flags_);
     BinprotSubdocCommand& addDocFlags(cb::mcbp::subdoc::doc_flag flags_);
     BinprotSubdocCommand& setExpiry(uint32_t value_);
+    BinprotSubdocCommand& setUserFlags(uint32_t flags);
+
     const std::string& getPath() const;
     const std::string& getValue() const;
     protocol_binary_subdoc_flag getFlags() const;
@@ -330,6 +332,7 @@ private:
     BinprotCommand::ExpiryValue expiry;
     protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE;
     cb::mcbp::subdoc::doc_flag doc_flags = cb::mcbp::subdoc::doc_flag::None;
+    std::optional<uint32_t> userFlags;
 };
 
 class BinprotSubdocResponse : public BinprotResponse {
@@ -377,6 +380,8 @@ public:
     BinprotSubdocMultiMutationCommand& setDurabilityReqs(
             const cb::durability::Requirements& durReqs);
 
+    BinprotSubdocMultiMutationCommand& setUserFlags(uint32_t flags);
+
     MutationSpecifier& at(size_t index);
 
     MutationSpecifier& operator[](size_t index);
@@ -393,6 +398,7 @@ protected:
     std::vector<MutationSpecifier> specs;
     ExpiryValue expiry;
     cb::mcbp::subdoc::doc_flag docFlags;
+    std::optional<uint32_t> userFlags;
 };
 
 class BinprotSubdocMultiMutationResponse : public BinprotResponse {

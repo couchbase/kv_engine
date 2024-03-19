@@ -53,12 +53,13 @@ class SubdocCommandContext : public CommandContext {
 public:
     SubdocCommandContext(Cookie& cookie, SubdocCmdTraits traits)
         : cookie(cookie),
-          traits(std::move(traits)),
+          traits(traits),
           auto_retry_mode(cookie.getRequest().getCas() ==
                           cb::mcbp::cas::Wildcard),
           preserveTtl(getPreserveTtl(cookie)),
           expiration(getExpiration(cookie, this->traits)),
-          doc_flags(getDocFlags(cookie, this->traits)) {
+          doc_flags(getDocFlags(cookie, this->traits)),
+          user_flags(getUserFlags(cookie, this->traits)) {
     }
 
     /**
@@ -232,6 +233,11 @@ protected:
     /// The doc_flags provided by the client (should be const)
     const doc_flag doc_flags;
 
+    /// The 32 bit opaque flags (owned by the user) if the client provided
+    /// any in the request (otherwise we'll copy the flags from the original
+    /// document into the new document)
+    const std::optional<uint32_t> user_flags;
+
 private:
     /// Construct and send a response to a single-path request back to the
     /// client.
@@ -306,6 +312,19 @@ private:
         cb::mcbp::request::SubdocMultiPayloadParser parser(
                 cookie.getRequest().getExtdata());
         return parser.getDocFlag();
+    }
+
+    static std::optional<uint32_t> getUserFlags(Cookie& cookie,
+                                                const SubdocCmdTraits& traits) {
+        if (traits.path == SubdocPath::SINGLE) {
+            cb::mcbp::request::SubdocPayloadParser parser(
+                    cookie.getRequest().getExtdata());
+            return parser.getUserFlags();
+        }
+
+        cb::mcbp::request::SubdocMultiPayloadParser parser(
+                cookie.getRequest().getExtdata());
+        return parser.getUserFlags();
     }
 };
 
@@ -537,17 +556,20 @@ cb::engine_errc SubdocCommandContext::allocate_document(cb::engine_errc ret) {
                                      ? context.getInputItemInfo().exptime
                                      : expiration;
 
-            // Calculate the updated document length - use the last operation
-            // result.
+            // Allocate the output document with the expected expiry time
+            // (see above), user flags (either the ones provided in this
+            // command, or the ones from the input document) and the
+            // correct datatype and vbucket
             try {
-                context.out_doc = bucket_allocate(cookie,
-                                                  cookie.getRequestKey(),
-                                                  context.out_doc_len,
-                                                  priv_bytes,
-                                                  context.in_flags,
-                                                  exp,
-                                                  context.in_datatype,
-                                                  context.vbucket);
+                context.out_doc =
+                        bucket_allocate(cookie,
+                                        cookie.getRequestKey(),
+                                        context.out_doc_len,
+                                        priv_bytes,
+                                        user_flags.value_or(context.in_flags),
+                                        exp,
+                                        context.in_datatype,
+                                        context.vbucket);
                 ret = cb::engine_errc::success;
             } catch (const cb::engine_error& e) {
                 ret = cb::engine_errc(e.code().value());

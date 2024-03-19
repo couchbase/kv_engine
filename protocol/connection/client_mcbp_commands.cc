@@ -255,10 +255,18 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     const bool include_doc_flags = !isNone(doc_flags);
 
     // Populate the header.
-    const size_t extlen = sizeof(uint16_t) + // Path length
-                          1 + // flags
-                          (include_expiry ? sizeof(uint32_t) : 0) +
-                          (include_doc_flags ? sizeof(uint8_t) : 0);
+    size_t extlen = sizeof(uint16_t) // Path length
+                    + 1; // flags
+
+    if (userFlags) {
+        extlen += sizeof(uint32_t) // exptime
+                  + sizeof(uint32_t); // user flags
+    } else if (include_expiry) {
+        extlen += sizeof(uint32_t); // exptime
+    }
+    if (include_doc_flags) {
+        extlen += sizeof(uint8_t);
+    }
 
     writeHeader(buf, path.size() + value.size(), extlen);
 
@@ -266,7 +274,10 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, gsl::narrow<uint16_t>(path.size()));
     buf.push_back(flags);
 
-    if (include_expiry) {
+    if (userFlags) {
+        append(buf, expiry.getValue());
+        append(buf, *userFlags);
+    } else if (include_expiry) {
         // As expiry is optional (and immediately follows subdoc_flags,
         // i.e. unaligned) there's no field in the struct; so use low-level
         // memcpy to populate it.
@@ -334,6 +345,10 @@ BinprotSubdocCommand& BinprotSubdocCommand::addDocFlags(
 }
 BinprotSubdocCommand& BinprotSubdocCommand::setExpiry(uint32_t value_) {
     expiry.assign(value_);
+    return *this;
+}
+BinprotSubdocCommand& BinprotSubdocCommand::setUserFlags(uint32_t flags) {
+    userFlags = flags;
     return *this;
 }
 const std::string& BinprotSubdocCommand::getPath() const {
@@ -995,13 +1010,21 @@ void BinprotSubdocMultiMutationCommand::encode(
         total += 1 + 1 + 2 + 4 + spec.path.size() + spec.value.size();
     }
 
-    const uint8_t extlen =
-            (expiry.isSet() ? 4 : 0) + (!isNone(docFlags) ? 1 : 0);
+    uint8_t extlen = isNone(docFlags) ? 0 : 1;
+    if (userFlags) {
+        extlen += sizeof(uint32_t) // exptime
+                  + sizeof(uint32_t); // user flags
+    } else if (expiry.isSet()) {
+        extlen += sizeof(uint32_t); // exptime;
+    }
+
     writeHeader(buf, total, extlen);
-    if (expiry.isSet()) {
-        uint32_t expbuf = htonl(expiry.getValue());
-        const char* p = reinterpret_cast<const char*>(&expbuf);
-        buf.insert(buf.end(), p, p + 4);
+
+    if (userFlags) {
+        append(buf, expiry.getValue());
+        append(buf, *userFlags);
+    } else if (expiry.isSet()) {
+        append(buf, expiry.getValue());
     }
     if (!isNone(docFlags)) {
         const auto* doc_flag_ptr = reinterpret_cast<const uint8_t*>(&docFlags);
@@ -1075,6 +1098,12 @@ BinprotSubdocMultiMutationCommand::addMutation(
 BinprotSubdocMultiMutationCommand& BinprotSubdocMultiMutationCommand::setExpiry(
         uint32_t expiry_) {
     expiry.assign(expiry_);
+    return *this;
+}
+
+BinprotSubdocMultiMutationCommand&
+BinprotSubdocMultiMutationCommand::setUserFlags(uint32_t flags) {
+    userFlags = flags;
     return *this;
 }
 
