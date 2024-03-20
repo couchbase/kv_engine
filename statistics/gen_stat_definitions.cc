@@ -682,7 +682,7 @@ int main(int argc, char** argv) {
         for (const auto& key : keys) {
             Spec spec;
             spec.enumKey = "ep_" + key;
-            spec.unit = "count";
+            spec.unit = "none";
             spec.added = configVersionAdded;
             // We don't have a stability field for our config params, so for now
             // we decide what it should be here.
