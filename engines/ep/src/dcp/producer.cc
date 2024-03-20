@@ -744,6 +744,20 @@ cb::engine_errc DcpProducer::step(bool throttled,
         return cb::engine_errc::throttled;
     }
 
+    // If the BufferLog is full there isn't any point of trying to move the
+    // stream forward. Ideally it should have been enough to just check if
+    // the stream was pasued, but the log may be full without pause being
+    // called.
+    if (log.lock()->isFull()) {
+        // If the stream wasn't paused, pause the stream and return
+        // that we're blocked (as we can't add more messages to the
+        // stream
+        if (!isPaused()) {
+            pause(PausedReason::BufferLogFull);
+        }
+        return cb::engine_errc::would_block;
+    }
+
     std::unique_ptr<DcpResponse> resp;
     if (rejectResp) {
         resp = std::move(rejectResp);
@@ -1945,9 +1959,11 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
 
         Vbid vbucket = Vbid(0);
         while (ready.popFront(vbucket)) {
-            if (log.lock()->pauseIfFull()) {
+            // This can't happen in production as the state would have
+            // changed before getting here.
+            if (log.lock()->isFull()) {
                 ready.pushUnique(vbucket);
-                return nullptr;
+                return {};
             }
 
             auto response = getNextItemFromVbucket(vbucket);
