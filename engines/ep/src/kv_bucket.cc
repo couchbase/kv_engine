@@ -3050,18 +3050,18 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     const auto checkpointQuota = maxSize * ckptMemRatio;
     Expects(checkpointQuota > 0);
 
-    const size_t newCheckpointMaxSize =
+    const size_t newComputedCheckpointMaxSize =
             checkpointQuota / numVBuckets / numCheckpointsPerVB;
-    if (newCheckpointMaxSize < 1) {
+    if (newComputedCheckpointMaxSize < 1) {
         throw std::invalid_argument(
                 fmt::format("KVBucket::autoConfigCheckpointMaxSize: "
-                            "newCheckpointMaxSize:{} is < 1. "
+                            "newComputedCheckpointMaxSize:{} is < 1. "
                             "max_size:{}, "
                             "checkpoint mem ratio:{}, "
                             "checkpoint quota:{}, "
                             "numVBuckets:{}, "
                             "numCheckpointsPerVB:{}",
-                            newCheckpointMaxSize,
+                            newComputedCheckpointMaxSize,
                             maxSize,
                             ckptMemRatio,
                             checkpointQuota,
@@ -3070,17 +3070,17 @@ cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     }
 
     const auto flushMaxBytes = config.getFlushBatchMaxBytes();
-    if (newCheckpointMaxSize > flushMaxBytes) {
+    if (newComputedCheckpointMaxSize > flushMaxBytes) {
         EP_LOG_WARN(
                 "KVBucket::autoConfigCheckpointMaxSize: "
                 "checkpoint_computed_max_size {} can't cross "
-                "flush_batch_max_bytes {}, leaving config unchanged",
-                newCheckpointMaxSize,
+                "flush_batch_max_bytes {}, capping to {}",
+                newComputedCheckpointMaxSize,
+                flushMaxBytes,
                 flushMaxBytes);
-        return cb::engine_errc::success;
     }
-
-    engine.getCheckpointConfig().setCheckpointMaxSize(newCheckpointMaxSize);
+    const auto newSize = std::min(newComputedCheckpointMaxSize, flushMaxBytes);
+    engine.getCheckpointConfig().setCheckpointMaxSize(newSize);
 
     return cb::engine_errc::success;
 }
