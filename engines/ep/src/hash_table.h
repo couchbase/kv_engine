@@ -596,10 +596,13 @@ public:
     HashTable(const HashTable&) = delete;
     const HashTable& operator=(const HashTable&) = delete;
 
-    size_t memorySize() const {
-        return sizeof(HashTable) +
-               (getSize() * sizeof(table_type::value_type)) +
-               (mutexes.size() * 2 * sizeof(std::mutex));
+    /**
+     * Get the amount of memory used for keeping track of elements.
+     * Includes the fixed size of the HashTable and the dynamic memory used for
+     * storing pointers to elements, and mutexes.
+     */
+    size_t getMemoryOverhead() const {
+        return getMemoryOverhead(getSize());
     }
 
     /**
@@ -1573,6 +1576,25 @@ protected:
 
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
+
+    /**
+     * Get the amount of memory used for keeping track of elements.
+     * Includes the fixed size of the HashTable and the dynamic memory used for
+     * storing pointers to elements, and mutexes.
+     * @param size number of buckets to assume
+     */
+    size_t getMemoryOverhead(size_t size) const {
+        return // Fixed size of the HashTable.
+                sizeof(HashTable) +
+                // Each bucket is a pointer to a StoredValue. Those pointers are
+                // stored on the heap and are not part of sizeof(HashTable).
+                // Only the Primary table is accounted as the overhead of the
+                // ResizingTemporary table is temporary.
+                size * sizeof(table_type::value_type) +
+                // Mutexes for the Primary and the ResizingTemporary tables
+                // are stored on the heap and are not part of sizeof(HashTable).
+                (mutexes.size() + resizingMutexes.size()) * sizeof(std::mutex);
+    }
 
     /**
      * Gets the mutex index for the given bucket

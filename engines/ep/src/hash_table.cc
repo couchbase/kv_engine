@@ -150,11 +150,14 @@ HashTable::HashTable(EPStats& st,
       probabilisticCounter(freqCounterIncFactor),
       getInitialMFU(std::move(getInitialMFU)) {
     activeState = true;
+    stats.coreLocal.get()->memOverhead += getMemoryOverhead();
 }
 
 HashTable::~HashTable() {
     std::unique_lock lh(visitorMutex, std::try_to_lock);
     Expects(lh.owns_lock());
+
+    stats.coreLocal.get()->memOverhead -= getMemoryOverhead();
 
     // Use unlocked clear for the destructor, avoids lock inversions on VBucket
     // delete
@@ -304,7 +307,9 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
     // Get a place for the new items.
     table_type newValues(newSize);
 
-    stats.coreLocal.get()->memOverhead -= memorySize();
+    stats.coreLocal.get()->memOverhead +=
+            static_cast<int64_t>(getMemoryOverhead(newSize)) -
+            static_cast<int64_t>(getMemoryOverhead());
     ++numResizes;
 
     // Set the new size so all the hashy stuff works.
@@ -327,8 +332,6 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
 
     // Finally assign the new table to values.
     values = std::move(newValues);
-
-    stats.coreLocal.get()->memOverhead += memorySize();
 
     resizeInProgress.store(ResizeAlgo::None, std::memory_order_release);
     return NeedsRevisit::No;
@@ -368,6 +371,9 @@ NeedsRevisit HashTable::beginIncrementalResize(size_t newSize) {
     Expects(0 == locksMovedForResizing.load(std::memory_order_acquire));
 
     resizingTemporaryValues = table_type(newSize);
+    stats.coreLocal.get()->memOverhead +=
+            static_cast<int64_t>(getMemoryOverhead(newSize)) -
+            static_cast<int64_t>(getMemoryOverhead());
     ++numResizes;
     nextSize.store(newSize);
     // Other value updates should not overtake resize-in-progress indication

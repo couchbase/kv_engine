@@ -564,6 +564,28 @@ TEST_F(HashTableTest, ConcurrentAccessIncrementalResizeDel) {
     testConcurrentAccessIncrementalResize(true);
 }
 
+TEST_F(HashTableTest, CoreLocalMemoryOverhead) {
+    const auto getOverhead = []() {
+        return global_stats.coreLocal.get()->memOverhead.load();
+    };
+    const auto initialOverhead = getOverhead();
+    {
+        HashTable ht(global_stats, makeFactory(), 7, 3, 0);
+        EXPECT_EQ(initialOverhead + ht.getMemoryOverhead(), getOverhead());
+
+        EXPECT_EQ(NeedsRevisit::No, ht.resizeInOneStep(13));
+        EXPECT_EQ(initialOverhead + ht.getMemoryOverhead(), getOverhead());
+
+        EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(11));
+        for (size_t ii = 0; ii < ht.getNumLocks(); ++ii) {
+            EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+        }
+        EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+        EXPECT_EQ(initialOverhead + ht.getMemoryOverhead(), getOverhead());
+    }
+    EXPECT_EQ(initialOverhead, getOverhead());
+}
+
 TEST_F(HashTableTest, DepthCounting) {
     HashTable h(global_stats, makeFactory(), 5, 1, 0);
     const int nkeys = 5000;

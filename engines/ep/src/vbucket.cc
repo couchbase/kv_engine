@@ -282,8 +282,9 @@ VBucket::VBucket(Vbid i,
     }
 
     pendingOpsStart = std::chrono::steady_clock::time_point();
+    // HashTable accounts its own overhead
     stats.coreLocal.get()->memOverhead +=
-            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager);
+            sizeof(VBucket) - sizeof(HashTable) + sizeof(CheckpointManager);
 
     setupSyncReplication(replTopology);
 
@@ -316,7 +317,7 @@ VBucket::~VBucket() {
     clearFilter();
 
     stats.coreLocal.get()->memOverhead -=
-            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager);
+            sizeof(VBucket) - sizeof(HashTable) + sizeof(CheckpointManager);
 }
 
 int64_t VBucket::getHighSeqno() const {
@@ -3322,7 +3323,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
                 ht.getNumPreparedSyncWrites(),
                 add_stat,
                 c);
-        addStat("ht_memory", ht.memorySize(), add_stat, c);
+        addStat("ht_memory", ht.getMemoryOverhead(), add_stat, c);
         addStat("ht_num_items", ht.getNumItems(), add_stat, c);
         addStat("ht_num_deleted_items", ht.getNumDeletedItems(), add_stat, c);
         addStat("ht_num_in_memory_items",
