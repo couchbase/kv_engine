@@ -1089,6 +1089,11 @@ public:
         userValidateReceivedFrameCallback = std::move(callback);
     }
 
+    void setScramPropertyListener(
+            std::function<void(char, const std::string&)> listener) {
+        scram_property_listener = std::move(listener);
+    }
+
     static void setLookupUserPasswordFunction(
             std::function<std::string(const std::string&)> func);
 
@@ -1180,7 +1185,7 @@ protected:
     std::function<void(const cb::mcbp::Header&)>
             userValidateReceivedFrameCallback;
     std::unique_ptr<cb::json::SyntaxValidator> jsonValidator;
-
+    std::function<void(char, const std::string&)> scram_property_listener;
     static folly::Synchronized<std::function<std::string(const std::string&)>,
                                std::mutex>
             lookupPasswordCallback;

@@ -49,19 +49,6 @@ std::string listmech();
 cb::sasl::Error reload_password_database(
         std::function<void(const cb::sasl::pwdb::User&)> usercallback);
 
-/**
- * Set the HMAC interation count to use.
- */
-void set_hmac_iteration_count(int count);
-
-/**
- * Set the salt to use for unknown users trying to log in. We dont' want
- * to reveal that the user doesn't exist by always returning a random
- * salt. Instead we're using a HMAC of the username and this salt as
- * the salt we're reporting back to the user.
- */
-void set_scramsha_fallback_salt(const std::string& salt);
-
 class ServerContext;
 
 class MechanismBackend {

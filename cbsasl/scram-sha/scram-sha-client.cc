@@ -23,14 +23,17 @@
 
 namespace cb::sasl::mechanism::scram {
 
-ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
-                             client::GetPasswordCallback& password_cb,
-                             client::ClientContext& ctx,
-                             Mechanism mechanism,
-                             cb::crypto::Algorithm algo,
-                             std::function<std::string()> generateNonceFunction)
+ClientBackend::ClientBackend(
+        client::GetUsernameCallback& user_cb,
+        client::GetPasswordCallback& password_cb,
+        client::ClientContext& ctx,
+        Mechanism mechanism,
+        cb::crypto::Algorithm algo,
+        const std::function<std::string()>& generateNonceFunction,
+        std::function<void(char, const std::string&)> propertyListener)
     : MechanismBackend(user_cb, password_cb, ctx),
-      ScramShaBackend(mechanism, algo) {
+      ScramShaBackend(mechanism, algo),
+      propertyListener(std::move(propertyListener)) {
     if (generateNonceFunction) {
         clientNonce = generateNonceFunction();
     } else {
@@ -72,17 +75,20 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
             return {Error::BAD_PARAM, {}};
         }
 
-        for (const auto& attribute : attributes) {
-            switch (attribute.first) {
+        for (const auto& [attribute, value] : attributes) {
+            if (propertyListener) {
+                propertyListener(attribute, value);
+            }
+            switch (attribute) {
             case 'r': // combined nonce
-                nonce = attribute.second;
+                nonce = value;
                 break;
             case 's':
-                salt = cb::base64::decode(attribute.second);
+                salt = cb::base64::decode(value);
                 break;
             case 'i':
                 try {
-                    iterationCount = (unsigned int)std::stoul(attribute.second);
+                    iterationCount = (unsigned int)std::stoul(value);
                 } catch (...) {
                     return {Error::BAD_PARAM, {}};
                 }

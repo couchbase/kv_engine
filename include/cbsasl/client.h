@@ -109,14 +109,21 @@ public:
      * @param mechanisms The list of available mechanisms provided by
      *                   the server. The client will pick the most
      *                   secure method available
+     * @param generate_nonce_function the function used to generate the
+     *                   nonce to be supplied (for unit tests)
+     * @param scram_property_listener a function to call with the properties
+     *                   returned from the server if SCRAM is used
      * @throws cb::sasl::no_such_mechanism if none of the mechanisms
      *                   specified in the list of available mechanisms
      *                   is supported
      */
-    ClientContext(GetUsernameCallback user_cb,
-                  GetPasswordCallback password_cb,
-                  const std::string& mechanisms,
-                  std::function<std::string()> generateNonceFunction = {});
+    ClientContext(
+            GetUsernameCallback user_cb,
+            GetPasswordCallback password_cb,
+            const std::string& mechanisms,
+            const std::function<std::string()>& generate_nonce_function = {},
+            std::function<void(char, const std::string&)>
+                    scram_property_listener = {});
 
     /**
      * Get the name of the mechanism in use by this backend.

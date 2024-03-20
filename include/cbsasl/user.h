@@ -211,7 +211,7 @@ public:
      *
      * @param count the new iteration count to use
      */
-    static void setDefaultHmacIterationCount(int count);
+    static void setDefaultScramShaIterationCount(int count);
 
     static void setScramshaFallbackSalt(const std::string& salt);
 };

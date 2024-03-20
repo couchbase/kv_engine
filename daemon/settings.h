@@ -696,6 +696,18 @@ public:
         return std::string{*scramsha_fallback_salt.rlock()};
     }
 
+    void setScramshaFallbackIterationCount(int count) {
+        scramsha_fallback_iteration_count.store(count,
+                                                std::memory_order_release);
+        has.scramsha_fallback_iteration_count = true;
+        notify_changed("scramsha_fallback_iteration_count");
+    }
+
+    int getScramshaFallbackIterationCount() const {
+        return scramsha_fallback_iteration_count.load(
+                std::memory_order_acquire);
+    }
+
     void setExternalAuthServiceEnabled(bool enable) {
         external_auth_service.store(enable, std::memory_order_release);
         has.external_auth_service = true;
@@ -994,6 +1006,9 @@ protected:
     /// The salt to return to users we don't know about
     folly::Synchronized<std::string> scramsha_fallback_salt;
 
+    /// The iteration count to return to users we don't know about
+    std::atomic_int scramsha_fallback_iteration_count{15000};
+
     folly::Synchronized<std::pair<in_port_t, sa_family_t>> prometheus_config;
 
     folly::Synchronized<std::string> phosphor_config{
@@ -1198,6 +1213,7 @@ public:
         bool tracing_enabled = false;
         bool stdin_listener = false;
         bool scramsha_fallback_salt = false;
+        bool scramsha_fallback_iteration_count = false;
         bool external_auth_service = false;
         bool tcp_keepalive_idle = false;
         bool tcp_keepalive_interval = false;

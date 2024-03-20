@@ -19,19 +19,32 @@ ClientContext::ClientContext(
         GetUsernameCallback user_cb,
         GetPasswordCallback password_cb,
         const std::string& mechanisms,
-        std::function<std::string()> generateNonceFunction) {
+        const std::function<std::string()>& generate_nonce_function,
+        std::function<void(char, const std::string&)> scram_property_listener) {
     switch (selectMechanism(mechanisms)) {
     case Mechanism::SCRAM_SHA512:
         backend = std::make_unique<mechanism::scram::Sha512ClientBackend>(
-                user_cb, password_cb, *this, generateNonceFunction);
+                user_cb,
+                password_cb,
+                *this,
+                generate_nonce_function,
+                std::move(scram_property_listener));
         break;
     case Mechanism::SCRAM_SHA256:
         backend = std::make_unique<mechanism::scram::Sha256ClientBackend>(
-                user_cb, password_cb, *this, generateNonceFunction);
+                user_cb,
+                password_cb,
+                *this,
+                generate_nonce_function,
+                std::move(scram_property_listener));
         break;
     case Mechanism::SCRAM_SHA1:
         backend = std::make_unique<mechanism::scram::Sha1ClientBackend>(
-                user_cb, password_cb, *this, generateNonceFunction);
+                user_cb,
+                password_cb,
+                *this,
+                generate_nonce_function,
+                std::move(scram_property_listener));
         break;
     case Mechanism::PLAIN:
         backend = std::make_unique<mechanism::plain::ClientBackend>(

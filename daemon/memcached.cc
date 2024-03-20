@@ -377,11 +377,6 @@ static void verbosity_changed_listener(const std::string&, Settings &s) {
     populate_log_level();
 }
 
-static void scramsha_fallback_salt_changed_listener(const std::string&,
-                                                    Settings& s) {
-    cb::sasl::server::set_scramsha_fallback_salt(s.getScramshaFallbackSalt());
-}
-
 static void opcode_attributes_override_changed_listener(const std::string&,
                                                         Settings& s) {
     try {
@@ -431,7 +426,16 @@ static void settings_init() {
 
     // Set up the listener functions
     settings.addChangeListener(
-            "scramsha_fallback_salt", scramsha_fallback_salt_changed_listener);
+            "scramsha_fallback_salt", [](const std::string&, Settings& s) {
+                cb::sasl::pwdb::UserFactory::setScramshaFallbackSalt(
+                        s.getScramshaFallbackSalt());
+            });
+    settings.addChangeListener(
+            "scramsha_fallback_iteration_count",
+            [](const std::string&, Settings& s) {
+                cb::sasl::pwdb::UserFactory::setDefaultScramShaIterationCount(
+                        s.getScramshaFallbackIterationCount());
+            });
     settings.addChangeListener(
             "active_external_users_push_interval",
             [](const std::string&, Settings& s) -> void {
@@ -652,13 +656,7 @@ void cleanup_buckets() {
 static void initialize_sasl() {
     try {
         LOG_INFO_RAW("Initialize SASL");
-        using namespace cb::sasl;
-        server::initialize();
-
-        if (!getenv("MEMCACHED_UNIT_TESTS")) {
-            // Speed up the unit tests ;)
-            server::set_hmac_iteration_count(10);
-        }
+        cb::sasl::server::initialize();
     } catch (std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE,
                     fmt::format("Failed to initialize SASL: {}", e.what()));

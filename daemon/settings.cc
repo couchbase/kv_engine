@@ -316,6 +316,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             auto salt = value.get<std::string>();
             cb::base64::decode(salt);
             setScramshaFallbackSalt(salt);
+        } else if (key == "scramsha_fallback_iteration_count"sv) {
+            setScramshaFallbackIterationCount(value.get<int>());
         } else if (key == "external_auth_service"sv) {
             setExternalAuthServiceEnabled(value.get<bool>());
         } else if (key == "active_external_users_push_interval"sv) {
@@ -822,6 +824,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      cb::UserDataView(m),
                      cb::UserDataView(o));
             setScramshaFallbackSalt(o);
+        }
+    }
+
+    if (other.has.scramsha_fallback_iteration_count) {
+        const auto o = other.getScramshaFallbackIterationCount();
+        const auto m = getScramshaFallbackIterationCount();
+        if (o != m) {
+            LOG_INFO("Change scram fallback iteration count from {} to {}",
+                     m,
+                     o);
+            setScramshaFallbackIterationCount(o);
         }
     }
 

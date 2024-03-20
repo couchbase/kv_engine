@@ -474,7 +474,7 @@ TEST_F(UserTest, InvalidAttribute) {
 TEST(UserFactoryTest, CreateDummy) {
     using namespace cb::sasl;
     // set the fallback salt to something we know about ;)
-    cb::sasl::server::set_scramsha_fallback_salt("WyulJ+YpKKZn+y9f");
+    pwdb::UserFactory::setScramshaFallbackSalt("WyulJ+YpKKZn+y9f");
     auto u = pwdb::UserFactory::createDummy("foobar", Algorithm::SHA512);
     EXPECT_TRUE(u.isDummy());
     auto meta = u.getScramMetaData(Algorithm::SHA512);

@@ -279,3 +279,40 @@ TEST_P(SaslTest, StepWithoutStart) {
 
     EXPECT_FALSE(response.isSuccess());
 }
+
+TEST_P(SaslTest, IterationCountMayBeChanged) {
+    std::optional<int> iteration_count;
+    auto listener = [&iteration_count](char key, const std::string& value) {
+        if (key == 'i') {
+            iteration_count = stoi(value);
+        }
+    };
+
+    auto clone = adminConnection->clone();
+    clone->setScramPropertyListener(listener);
+
+    auto tryFailedAuth = [&](const std::string& mech, int expected) {
+        iteration_count.reset();
+        try {
+            clone->authenticate("nouser", "wrongpassword", mech);
+            FAIL() << "Authentication should fail!!!";
+        } catch (ConnectionError& error) {
+            EXPECT_TRUE(error.isAuthError()) << error.what();
+        }
+        ASSERT_TRUE(iteration_count.has_value());
+        EXPECT_EQ(expected, *iteration_count) << "When running " << mech;
+    };
+
+    memcached_cfg["scramsha_fallback_iteration_count"] = 5;
+    reconfigure();
+
+    tryFailedAuth("SCRAM-SHA512", 5);
+    tryFailedAuth("SCRAM-SHA256", 5);
+    tryFailedAuth("SCRAM-SHA1", 5);
+
+    memcached_cfg["scramsha_fallback_iteration_count"] = 10;
+    reconfigure();
+    tryFailedAuth("SCRAM-SHA512", 10);
+    tryFailedAuth("SCRAM-SHA256", 10);
+    tryFailedAuth("SCRAM-SHA1", 10);
+}

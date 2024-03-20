@@ -1222,7 +1222,9 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
     cb::sasl::client::ClientContext client(
             [username]() -> std::string { return username; },
             [password]() -> std::string { return password; },
-            mech);
+            mech,
+            {},
+            scram_property_listener);
     auto client_data = client.start();
 
     if (client_data.first != cb::sasl::Error::OK) {
