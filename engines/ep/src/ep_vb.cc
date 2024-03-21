@@ -289,15 +289,6 @@ void EPVBucket::completeCompactionExpiryBgFetch(
             return;
         }
 
-        // If we find a StoredValue then the item that we are trying to expire
-        // has been superseded by a new one (as we wouldn't have tried to
-        // BGFetch the item if it was there originally). In this case, we don't
-        // have to expire anything.
-        if (htRes.committed && !htRes.committed->isTempItem() &&
-            htRes.committed->getCas() != fetchedItem.compactionItem.getCas()) {
-            return;
-        }
-
         // Check the cas of our BGFetched item against the cas of the item we
         // originally saw during our compaction (stashed in the
         // CompactionBGFetchItem object). If they are different then the item
@@ -307,25 +298,10 @@ void EPVBucket::completeCompactionExpiryBgFetch(
             return;
         }
 
-        // Only add a new StoredValue if there is not an already existing
-        // Temp item. Otherwise, we should just re-use the existing one to
-        // prevent us from having multiple values for the same key.
-        auto* sVToUse = htRes.committed;
-        if (!htRes.committed) {
-            auto addTemp = addTempStoredValue(htRes.getHBL(), key.getDocKey());
-            if (addTemp.status == TempAddStatus::NoMem) {
-                return;
-            }
-            sVToUse = addTemp.storedValue;
-            sVToUse->setTempDeleted();
-            sVToUse->setRevSeqno(fetchedItem.compactionItem.getRevSeqno());
-            htRes.committed = sVToUse;
-        }
-
         // @TODO perf: Investigate if it is necessary to add this to the
         //  HashTable
         ht.unlocked_updateStoredValue(
-                htRes.getHBL(), *sVToUse, fetchedItem.compactionItem);
+                htRes.getHBL(), *htRes.committed, fetchedItem.compactionItem);
         VBNotifyCtx notifyCtx;
         std::tie(std::ignore, std::ignore, notifyCtx) =
                 processExpiredItem(htRes, cHandle, ExpireBy::Compactor);
