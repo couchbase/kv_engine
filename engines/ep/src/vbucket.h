@@ -580,14 +580,15 @@ public:
      * Obtain the series of items to be flushed for this vBucket.
      *
      * @param vb VBucket to fetch items for.
-     * @param approxLimit Upper bound on how many items to fetch. Must be a
-     *  positive integer
+     * @param approxMaxItems Upper bound on how many items to fetch
+     * @param approxMaxBytes Upper bound on how many bytes to fetch
      * @return The items to flush; along with their seqno range and
      *         if more items are available for this vBucket (i.e. the
      *         limit was reached).
      * @throw std::invalid_argument if the user passes approxLimit=0
      */
-    ItemsToFlush getItemsToPersist(size_t approxLimit);
+    ItemsToFlush getItemsToPersist(size_t approxMaxItems,
+                                   size_t approxMaxBytes);
 
     bool isReceivingInitialDiskSnapshot() {
         return receivingInitialDiskSnapshot.load();

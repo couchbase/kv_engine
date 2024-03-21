@@ -7226,8 +7226,10 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     // Test: The flusher must process one checkpoint at a time, as we can't
     // merge checkpoints with different history configuration
     std::vector<queued_item> items;
-    auto res = manager.getItemsForPersistence(
-            items, std::numeric_limits<size_t>::max());
+    auto res =
+            manager.getItemsForPersistence(items,
+                                           std::numeric_limits<size_t>::max(),
+                                           std::numeric_limits<size_t>::max());
     EXPECT_EQ(1, res.ranges.size());
 
     // Coverage for MB-55337 from now on.

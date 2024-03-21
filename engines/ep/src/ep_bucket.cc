@@ -217,7 +217,9 @@ public:
     void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "flusher_total_batch_limit") {
             bucket.setFlusherBatchSplitTrigger(value);
-        } else if (key == "alog_sleep_time") {
+        } else if (key == "flush_batch_max_bytes") {
+            bucket.setFlushBatchMaxBytes(value);
+        }else if (key == "alog_sleep_time") {
             bucket.setAccessScannerSleeptime(value, false);
         } else if (key == "alog_task_time") {
             bucket.resetAccessScannerStartTime();
@@ -286,6 +288,11 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     setFlusherBatchSplitTrigger(config.getFlusherTotalBatchLimit());
     config.addValueChangedListener(
             "flusher_total_batch_limit",
+            std::make_unique<ValueChangedListener>(*this));
+
+    setFlushBatchMaxBytes(config.getFlushBatchMaxBytes());
+    config.addValueChangedListener(
+            "flush_batch_max_bytes",
             std::make_unique<ValueChangedListener>(*this));
 
     retainErroneousTombstones = config.isRetainErroneousTombstones();
@@ -420,7 +427,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     const auto flushStart = std::chrono::steady_clock::now();
     // Obtain the set of items to flush, up to the maximum allowed for
     // a single flush.
-    auto toFlush = vb.getItemsToPersist(flusherBatchSplitTrigger);
+    auto toFlush =
+            vb.getItemsToPersist(flusherBatchSplitTrigger, flushBatchMaxBytes);
 
     // Callback must be initialized at persistence
     Expects(toFlush.flushHandle.get());
@@ -968,6 +976,14 @@ void EPBucket::setFlusherBatchSplitTrigger(size_t limit) {
 
 size_t EPBucket::getFlusherBatchSplitTrigger() {
     return flusherBatchSplitTrigger;
+}
+
+void EPBucket::setFlushBatchMaxBytes(size_t bytes) {
+    flushBatchMaxBytes = bytes;
+}
+
+size_t EPBucket::getFlushBatchMaxBytes() const {
+    return flushBatchMaxBytes;
 }
 
 bool EPBucket::commit(KVStoreIface& kvstore,

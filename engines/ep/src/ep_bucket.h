@@ -96,6 +96,14 @@ public:
     size_t getFlusherBatchSplitTrigger();
 
     /**
+     * Set the max bytes of the single flush-batch that is passed to the
+     * storage for persistence.
+     */
+    void setFlushBatchMaxBytes(size_t bytes);
+
+    size_t getFlushBatchMaxBytes() const;
+
+    /**
      * Persist whatever flush-batch previously queued into KVStore.
      *
      * @param kvstore
@@ -516,6 +524,12 @@ protected:
      * by flusher on other thread.
      */
     std::atomic<size_t> flusherBatchSplitTrigger;
+
+    /**
+     * Max size (in bytes) of a single flush-batch passed to the KVStore for
+     * persistence.
+     */
+    std::atomic<size_t> flushBatchMaxBytes;
 
     /**
      * Indicates whether erroneous tombstones need to retained or not during

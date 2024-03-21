@@ -2320,6 +2320,54 @@ TEST_P(KVBucketParamTest, MutationMemRatio_HigherThanMax) {
     FAIL();
 }
 
+class EPBucketParamTest : public KVBucketParamTest {
+protected:
+    void testInvalidFlushBatchMaxBytes(size_t newSize) {
+        auto& config = engine->getConfiguration();
+        const auto initialSize = config.getFlushBatchMaxBytes();
+        const auto& bucket = dynamic_cast<EPBucket&>(*store);
+        ASSERT_NE(newSize, bucket.getFlushBatchMaxBytes());
+        ASSERT_EQ(initialSize, bucket.getFlushBatchMaxBytes());
+        try {
+            config.setFlushBatchMaxBytes(newSize);
+            FAIL();
+        } catch (const std::range_error& ex) {
+            EXPECT_THAT(ex.what(),
+                        testing::HasSubstr(
+                                "Validation Error, flush_batch_max_bytes takes "
+                                "values between 1 and 2147483648"));
+            EXPECT_EQ(initialSize, bucket.getFlushBatchMaxBytes());
+        }
+    }
+};
+
+TEST_P(EPBucketParamTest, FlushBatchMaxBytes) {
+    auto& config = engine->getConfiguration();
+    const auto initialSize = config.getFlushBatchMaxBytes();
+    const auto newSize = 123;
+    const auto& bucket = dynamic_cast<EPBucket&>(*store);
+    ASSERT_NE(newSize, bucket.getFlushBatchMaxBytes());
+    ASSERT_EQ(initialSize, bucket.getFlushBatchMaxBytes());
+    config.setFlushBatchMaxBytes(newSize);
+    EXPECT_EQ(newSize, config.getFlushBatchMaxBytes());
+    EXPECT_EQ(newSize, bucket.getFlushBatchMaxBytes());
+}
+
+TEST_P(EPBucketParamTest, FlushBatchMaxBytes_LowerThanMin) {
+    testInvalidFlushBatchMaxBytes(0);
+}
+
+TEST_P(EPBucketParamTest, FlushBatchMaxBytes_HigherThanMax) {
+    testInvalidFlushBatchMaxBytes(5368709120ll); // 5GB
+}
+
+// Test cases which run for EP (Full and Value eviction) and Ephemeral
+INSTANTIATE_TEST_SUITE_P(
+        Persistent,
+        EPBucketParamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {

@@ -458,10 +458,11 @@ std::vector<CookieIface*> VBucket::prepareTransitionAwayFromActive() {
     return getActiveDM().prepareTransitionAwayFromActive();
 }
 
-ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
+ItemsToFlush VBucket::getItemsToPersist(size_t approxMaxItems,
+                                        size_t approxMaxBytes) {
     ItemsToFlush result;
 
-    if (approxLimit == 0) {
+    if (approxMaxItems == 0) {
         throw std::invalid_argument("VBucket::getItemsToPersist: limit=0");
     }
 
@@ -471,8 +472,8 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
 
     const auto begin = std::chrono::steady_clock::now();
 
-    auto rangeInfo = checkpointManager->getItemsForPersistence(result.items,
-                                                               approxLimit);
+    auto rangeInfo = checkpointManager->getItemsForPersistence(
+            result.items, approxMaxItems, approxMaxBytes);
     result.ranges = std::move(rangeInfo.ranges);
     result.maxDeletedRevSeqno = rangeInfo.maxDeletedRevSeqno;
     result.checkpointType = rangeInfo.checkpointType;

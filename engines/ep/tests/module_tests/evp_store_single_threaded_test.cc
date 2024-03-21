@@ -6300,6 +6300,40 @@ void STParamPersistentBucketTest::
               store->rollback(vbid, initalItem.getBySeqno()));
 }
 
+TEST_P(STParamPersistentBucketTest, EnforceFlushBatchMaxBytes) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& vb = *store->getVBucket(vbid);
+    auto& cm = *vb.checkpointManager;
+    cm.clear();
+
+    const auto checkpointMaxSize =
+            engine->getCheckpointConfig().getCheckpointMaxSize();
+    const auto value = std::string(checkpointMaxSize, 'v');
+    for (size_t seqno = 1; seqno <= 10; ++seqno) {
+        store_item(
+                vbid, makeStoredDocKey("key" + std::to_string(seqno)), value);
+        EXPECT_EQ(seqno, cm.getNumCheckpoints());
+    }
+
+    // Set a flush_batch_max_bytes such that the flusher doesn't pull all the
+    // items for persistence.
+    auto& config = engine->getConfiguration();
+    const auto expectedPersistedItems = 7;
+    const auto maxBytes = checkpointMaxSize * expectedPersistedItems;
+    config.setFlushBatchMaxBytes(maxBytes);
+    auto& bucket = dynamic_cast<EPBucket&>(*store);
+    ASSERT_EQ(maxBytes, bucket.getFlushBatchMaxBytes());
+
+    // Verify behaviour at flusher.
+    // Note: The persistence cursor still moves at checkpoint boundaries, the
+    // enforcement of flush_batch_max_bytes relies on that we force a hard limit
+    // on the single checkpoint size (in bytes).
+    // Before MB-61158 we would persist all 10 items/checkpoints in the single
+    // flusher run.
+    const auto res = bucket.flushVBucket(vbid);
+    EXPECT_EQ(expectedPersistedItems, res.numFlushed);
+}
+
 /**
  * Test fixture for single-threaded warmup tests which require a single
  * shard.
