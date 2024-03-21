@@ -281,20 +281,23 @@ void EPVBucket::completeCompactionExpiryBgFetch(
             return;
         }
 
+        // Only continue if this item is a temp in the initial state.
         if (!htRes.committed->isTempInitialItem()) {
             return;
         }
 
+        // Not our temp-initial item
         if (htRes.committed->getCas() != fetchedItem.token) {
             return;
         }
 
-        // Check the cas of our BGFetched item against the cas of the item we
-        // originally saw during our compaction (stashed in the
-        // CompactionBGFetchItem object). If they are different then the item
-        // has been superseded by a new one and we don't need to do anything.
-        // Otherwise, expire the item.
+        // Check the cas of our BGFetched item against the cas of the item
+        // we originally saw during our compaction (stashed in the
+        // CompactionBGFetchItem object). If they are different then the
+        // item has been superseded by a new one and we don't need to do
+        // anything. Otherwise, expire the item.
         if (fetchedValue->getCas() != fetchedItem.compactionItem.getCas()) {
+            ht.unlocked_del(htRes.getHBL(), *htRes.committed);
             return;
         }
 
