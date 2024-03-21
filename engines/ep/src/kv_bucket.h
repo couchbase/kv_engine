@@ -371,6 +371,14 @@ public:
 
     bool resetVBucket(Vbid vbid) override;
 
+    size_t getMinimumHashTableSize() const {
+        return minimumHashTableSize;
+    }
+
+    void setMinimumHashTableSize(size_t size) {
+        minimumHashTableSize = size;
+    }
+
     void visit(VBucketVisitor &visitor) override;
 
     size_t visitAsync(std::unique_ptr<InterruptableVBucketVisitor> visitor,
@@ -1196,6 +1204,8 @@ protected:
     EvictionPolicy eviction_policy;
 
     const std::shared_ptr<Collections::Manager> collectionsManager;
+
+    cb::RelaxedAtomic<size_t> minimumHashTableSize;
 
     /**
      * Status of XATTR support for this bucket - this is set from the

@@ -1289,6 +1289,12 @@ public:
      */
     uint8_t generateFreqValue(uint8_t value);
 
+    /**
+     * Function which returns the minimum number of slots the HT should have.
+     * Note that a change of minimum size does NOT trigger resize.
+     */
+    std::function<size_t()> minimumSize;
+
 protected:
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
@@ -1380,9 +1386,6 @@ protected:
                                  HashBucketLock& hbl,
                                  StoredValue* committed,
                                  StoredValue* pending);
-
-    // The initial (and minimum) size of the HashTable.
-    const size_t initialSize;
 
     // The size of the hash table (number of buckets) - i.e. number of elements
     // in `values`
