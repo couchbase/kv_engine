@@ -1955,8 +1955,6 @@ const char* DcpProducer::getType() const {
 
 std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
     do {
-        unPause();
-
         Vbid vbucket = Vbid(0);
         while (ready.popFront(vbucket)) {
             // This can't happen in production as the state would have
@@ -1969,19 +1967,21 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
             auto response = getNextItemFromVbucket(vbucket);
             if (response) {
                 ready.pushUnique(vbucket);
+                unPause();
                 return response;
             }
         }
 
-        // flag we are paused
-        pause(PausedReason::ReadyListEmpty);
-
         // re-check the ready queue.
         // A new vbucket could of became ready and the notifier could of seen
         // paused = false, so reloop so we don't miss an operation.
-    } while(!ready.empty());
+    } while (!ready.empty());
 
-    return nullptr;
+    // flag we are paused
+    if (!isPaused()) {
+        pause(PausedReason::ReadyListEmpty);
+    }
+    return {};
 }
 
 std::unique_ptr<DcpResponse> DcpProducer::getNextItemFromVbucket(Vbid vbid) {
