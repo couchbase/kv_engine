@@ -539,6 +539,31 @@ protected:
 
     std::unique_ptr<DcpResponse> getNextItem();
 
+    /**
+     * Use the resumable handle so that we can service the streams that
+     * are associated with the vbucket. If a stream returns a response
+     * we will ship it (i.e. leave this scope). Then next time we visit
+     * the VB, we should /resume/ from the next stream in the container.
+     *
+     * @param vbid The vbucket to check
+     * @return Empty if there is no message, otherwise the next message to send
+     * @throws std::logic_error if an invalid message is returned from the
+     *         stream
+     */
+    std::unique_ptr<DcpResponse> getNextItemFromVbucket(Vbid vbid);
+
+    /**
+     * Try to get the next message from the provided active stream and validate
+     * that the item is one of the legal types
+     *
+     * @param stream The active stream to look at
+     * @return Empty if there is no message, otherwise the next message to send
+     * @throws std::logic_error if an invalid message is returned from the
+     *         stream
+     */
+    std::unique_ptr<DcpResponse> getAndValidateNextItemFromStream(
+            const std::shared_ptr<ActiveStream>& stream);
+
     size_t getItemsRemaining() const;
 
     struct StreamAggStats {

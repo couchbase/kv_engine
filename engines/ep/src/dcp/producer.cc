@@ -1979,61 +1979,8 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                 return nullptr;
             }
 
-            auto rv = streams->find(vbucket.get());
-            if (rv == streams->end()) {
-                // The vbucket is not in the map.
-                continue;
-            }
-
-            std::unique_ptr<DcpResponse> response;
-
-            // Use the resumable handle so that we can service the streams that
-            // are associated with the vbucket. If a stream returns a response
-            // we will ship it (i.e. leave this scope). Then next time we visit
-            // the VB, we should /resume/ from the next stream in the container.
-            for (auto resumableIterator = rv->second->startResumable();
-                 !resumableIterator.complete();
-                 resumableIterator.next()) {
-                const auto& stream = resumableIterator.get();
-                if (!stream) {
-                    continue;
-                }
-
-                response = stream->next(*this);
-                if (!response) {
-                    continue;
-                }
-
-                // The stream gave us something, validate it
-                switch (response->getEvent()) {
-                case DcpResponse::Event::SnapshotMarker: {
-                    if (stream->endIfRequiredPrivilegesLost(*this)) {
-                        return stream->makeEndStreamResponse(
-                                cb::mcbp::DcpStreamEndStatus::LostPrivileges);
-                    }
-                }
-                case DcpResponse::Event::Mutation:
-                case DcpResponse::Event::Deletion:
-                case DcpResponse::Event::Expiration:
-                case DcpResponse::Event::Prepare:
-                case DcpResponse::Event::Commit:
-                case DcpResponse::Event::Abort:
-                case DcpResponse::Event::StreamEnd:
-                case DcpResponse::Event::SetVbucket:
-                case DcpResponse::Event::SystemEvent:
-                case DcpResponse::Event::OSOSnapshot:
-                case DcpResponse::Event::SeqnoAdvanced:
-                    break;
-                default:
-                    throw std::logic_error(
-                            std::string("DcpProducer::getNextItem: "
-                                        "Producer (") +
-                            logHeader() +
-                            ") is attempting to "
-                            "write an unexpected event:" +
-                            response->to_string());
-                }
-
+            auto response = getNextItemFromVbucket(vbucket);
+            if (response) {
                 ready.pushUnique(vbucket);
                 return response;
             }
@@ -2048,6 +1995,71 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
     } while(!ready.empty());
 
     return nullptr;
+}
+
+std::unique_ptr<DcpResponse> DcpProducer::getNextItemFromVbucket(Vbid vbid) {
+    auto rv = streams->find(vbid.get());
+    if (rv == streams->end()) {
+        // The vbucket is not in the map.
+        return {};
+    }
+
+    // Use the resumable handle so that we can service the streams that
+    // are associated with the vbucket. If a stream returns a response
+    // we will ship it (i.e. leave this scope). Then next time we visit
+    // the VB, we should /resume/ from the next stream in the container.
+    for (auto resumableIterator = rv->second->startResumable();
+         !resumableIterator.complete();
+         resumableIterator.next()) {
+        const auto& stream = resumableIterator.get();
+        if (!stream) {
+            continue;
+        }
+
+        auto response = getAndValidateNextItemFromStream(stream);
+        if (response) {
+            return response;
+        }
+    }
+    return {};
+}
+
+std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
+        const std::shared_ptr<ActiveStream>& stream) {
+    auto response = stream->next(*this);
+    if (!response) {
+        return {};
+    }
+
+    // The stream gave us something, validate it
+    switch (response->getEvent()) {
+    case DcpResponse::Event::SnapshotMarker: {
+        if (stream->endIfRequiredPrivilegesLost(*this)) {
+            return stream->makeEndStreamResponse(
+                    cb::mcbp::DcpStreamEndStatus::LostPrivileges);
+        }
+    }
+    case DcpResponse::Event::Mutation:
+    case DcpResponse::Event::Deletion:
+    case DcpResponse::Event::Expiration:
+    case DcpResponse::Event::Prepare:
+    case DcpResponse::Event::Commit:
+    case DcpResponse::Event::Abort:
+    case DcpResponse::Event::StreamEnd:
+    case DcpResponse::Event::SetVbucket:
+    case DcpResponse::Event::SystemEvent:
+    case DcpResponse::Event::OSOSnapshot:
+    case DcpResponse::Event::SeqnoAdvanced:
+        break;
+    default:
+        throw std::logic_error(fmt::format(
+                "DcpProducer::getAndValidateNextItemFromStream: Producer ({}) "
+                "is attempting to write an unexpected event:{}",
+                logHeader(),
+                response->to_string()));
+    }
+
+    return response;
 }
 
 void DcpProducer::setDisconnect() {
