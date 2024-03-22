@@ -115,10 +115,6 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
     if (state != State::Disabled) {
         release(bytes);
         ackedBytes += bytes;
-
-        if (state == State::Full) {
-            producer.scheduleNotify();
-        }
     }
 }
 
