@@ -64,6 +64,7 @@ sequences = {
         [('couchbase/trinity', 'couchbase/master')],
 
         [('couchbase/neo', 'couchbase/trinity')],
+        [('couchbase/7.2.4', 'couchbase/neo')],
 
         # kv_engine 7.1.x release train; one branch for each
         # maintenance release which required subsequent maintenance
