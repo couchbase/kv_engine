@@ -2515,6 +2515,7 @@ std::string VBCBAdaptor::getDescription() const {
     if (value == None) {
         return std::string(label) + " no vbucket assigned";
     } else {
+        // MB-61220: Now prints the vBucket that was last visited.
         return std::string(label) + " on " + Vbid(value).to_string();
     }
 }
@@ -2526,8 +2527,6 @@ bool VBCBAdaptor::run() {
         const auto vbid = vbucketsToVisit.front();
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
-            currentvb = vbid.get();
-
             using State = InterruptableVBucketVisitor::ExecutionState;
             switch (visitor->shouldInterrupt()) {
             case State::Continue:
@@ -2540,6 +2539,8 @@ bool VBCBAdaptor::run() {
                 return false;
             }
 
+            // MB-61220: This used to be set before pausing.
+            currentvb = vbid.get();
             visitor->visitBucket(*vb);
         }
         vbucketsToVisit.pop_front();
