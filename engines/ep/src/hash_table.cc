@@ -140,7 +140,7 @@ HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
                      size_t locks)
-    : initialSize(initialSize),
+    : minimumSize([initialSize]() { return initialSize; }),
       size(initialSize),
       mutexes(locks),
       stats(st),
@@ -241,6 +241,7 @@ static bool isCurrently(size_t size, ssize_t a, ssize_t b) {
 }
 
 void HashTable::resize() {
+    const size_t minSize = minimumSize();
     size_t ni = getNumInMemoryItems();
     int i(0);
     size_t new_size(0);
@@ -254,12 +255,13 @@ void HashTable::resize() {
     if (prime_size_table[i] == -1) {
         // We're at the end, take the biggest
         new_size = prime_size_table[i-1];
-    } else if (prime_size_table[i] < static_cast<ssize_t>(initialSize)) {
-        // Was going to be smaller than the initial size.
-        new_size = initialSize;
+    } else if (prime_size_table[i] < static_cast<ssize_t>(minSize)) {
+        // Was going to be smaller than the minimum size.
+        new_size = minSize;
     } else if (0 == i) {
         new_size = prime_size_table[i];
-    }else if (isCurrently(size, prime_size_table[i-1], prime_size_table[i])) {
+    } else if (isCurrently(
+                       size, prime_size_table[i - 1], prime_size_table[i])) {
         // If one of the candidate sizes is the current size, maintain
         // the current size in order to remain stable.
         new_size = size;

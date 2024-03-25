@@ -135,6 +135,8 @@ public:
             store.setBackfillMemoryThreshold(backfill_threshold);
         } else if (key.compare("max_ttl") == 0) {
             store.setMaxTtl(value);
+        } else if (key == "ht_size") {
+            store.setMinimumHashTableSize(value);
         } else if (key == "checkpoint_max_size") {
             store.setCheckpointMaxSize(value);
         } else if (key == "seqno_persistence_timeout") {
@@ -425,6 +427,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "durability_min_level",
             std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setMinimumHashTableSize(config.getHtSize());
+    config.addValueChangedListener(
+            "ht_size", std::make_unique<EPStoreValueChangeListener>(*this));
 
     config.addValueChangedListener(
             "checkpoint_memory_ratio",
@@ -1415,6 +1421,13 @@ void KVBucket::appendAggregatedVBucketStats(
         stateCol.addStat(Key::vb_ht_item_memory, visitor.getItemMemory());
         stateCol.addStat(Key::vb_ht_item_memory_uncompressed,
                          visitor.getUncompressedItemMemory());
+        stateCol.addStat(Key::vb_ht_max_size, visitor.getHtMaxSize());
+        stateCol.addStat(Key::vb_ht_avg_size,
+                         (visitor.getVBucketNumber() == 0)
+                                 ? 0
+                                 : static_cast<double>(visitor.getHtSizeSum()) /
+                                           static_cast<double>(
+                                                   visitor.getVBucketNumber()));
         stateCol.addStat(Key::vb_bloom_filter_memory,
                          visitor.getBloomFilterMemory());
         stateCol.addStat(Key::vb_ops_create, visitor.getOpsCreate());
