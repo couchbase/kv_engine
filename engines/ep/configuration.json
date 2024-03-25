@@ -672,7 +672,13 @@
             "default": "47",
             "descr": "The initial and minimum number of slots in HashTable objects.",
             "dynamic": true,
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1,
+                    "max": 2147483647
+                }
+            }
         },
         "item_compressor_interval": {
             "default": "250",
