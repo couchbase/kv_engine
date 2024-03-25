@@ -119,7 +119,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
 }
 
 void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
-                                      CookieIface& c) {
+                                      CookieIface& c) const {
     if (isEnabled()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
         producer.addStat("unacked_bytes", bytesOutstanding, add_stat, c);
@@ -748,7 +748,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
     // stream forward. Ideally it should have been enough to just check if
     // the stream was pasued, but the log may be full without pause being
     // called.
-    if (log.lock()->isFull()) {
+    if (log.rlock()->isFull()) {
         // If the stream wasn't paused, pause the stream and return
         // that we're blocked (as we can't add more messages to the
         // stream
@@ -1045,7 +1045,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
 cb::engine_errc DcpProducer::bufferAcknowledgement(uint32_t opaque,
                                                    uint32_t buffer_bytes) {
     lastReceiveTime = ep_uptime_now();
-    log.lock()->acknowledge(buffer_bytes);
+    log.wlock()->acknowledge(buffer_bytes);
     return cb::engine_errc::success;
 }
 
@@ -1102,7 +1102,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         if (safe_strtoul(valueStr, size)) {
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
-            log.lock()->setBufferSize(size);
+            log.wlock()->setBufferSize(size);
             NonBucketAllocationGuard guard;
             getCookie()->getConnectionIface().setDcpFlowControlBufferSize(size);
             return cb::engine_errc::success;
@@ -1661,7 +1661,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
         backfillMgr->addStats(*this, add_stat, c);
     }
 
-    log.lock()->addStats(add_stat, c);
+    log.rlock()->addStats(add_stat, c);
 
     ExTask pointerCopy;
     { // Locking scope
@@ -1961,7 +1961,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
         while (ready.popFront(vbucket)) {
             // This can't happen in production as the state would have
             // changed before getting here.
-            if (log.lock()->isFull()) {
+            if (log.rlock()->isFull()) {
                 ready.pushUnique(vbucket);
                 return {};
             }
@@ -2069,14 +2069,13 @@ void DcpProducer::setDisconnect() {
 void DcpProducer::notifyStreamReady(Vbid vbucket) {
     // Transitioned from empty to non-empty readyQ - unpause the Producer.
     if (ready.pushUnique(vbucket)) {
-        bool full;
-        uint64_t ackedBytes, outstanding, max;
-        log.withLock([&full, &ackedBytes, &outstanding, &max](auto& entry) {
-            full = entry.isFull();
-            ackedBytes = entry.getAckedBytes();
-            outstanding = entry.getBytesOutstanding();
-            max = entry.getMaxBytes();
-        });
+        const auto [full, ackedBytes, outstanding, max] =
+                log.withRLock([](auto& entry) {
+                    return std::make_tuple(entry.isFull(),
+                                           entry.getAckedBytes(),
+                                           entry.getBytesOutstanding(),
+                                           entry.getMaxBytes());
+                });
 
         if (full) {
             logger->info(
@@ -2215,7 +2214,7 @@ std::vector<Vbid> DcpProducer::getVBVector() {
 }
 
 bool DcpProducer::bufferLogInsert(size_t bytes) {
-    return log.lock()->insert(bytes);
+    return log.wlock()->insert(bytes);
 }
 
 void DcpProducer::createCheckpointProcessorTask() {

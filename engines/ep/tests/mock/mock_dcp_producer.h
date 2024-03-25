@@ -150,11 +150,11 @@ public:
     }
 
     size_t getBytesOutstanding() const {
-        return log.lock()->getBytesOutstanding();
+        return log.rlock()->getBytesOutstanding();
     }
 
     void ackBytesOutstanding(size_t bytes) {
-        return log.lock()->acknowledge(bytes);
+        return log.wlock()->acknowledge(bytes);
     }
 
     VBReadyQueue& getReadyQueue() {

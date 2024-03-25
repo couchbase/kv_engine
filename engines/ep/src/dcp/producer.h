@@ -310,7 +310,7 @@ public:
          */
         void setBufferSize(size_t maxBytes);
 
-        void addStats(const AddStatFn& add_stat, CookieIface& c);
+        void addStats(const AddStatFn& add_stat, CookieIface& c) const;
 
         /**
          * Insert N bytes into the buffer.
@@ -712,7 +712,7 @@ protected:
 
     /// Timestamp of when we last transmitted a message to our peer.
     cb::AtomicTimePoint<> lastSendTime;
-    folly::Synchronized<BufferLog, std::mutex> log;
+    folly::Synchronized<BufferLog> log;
 
     // backfill manager object is owned by this class, but use an
     // shared_ptr as the lifetime of the manager is shared between the
