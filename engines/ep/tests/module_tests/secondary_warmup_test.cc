@@ -21,11 +21,12 @@
 
 class SecondaryWarmupTest
     : public SingleThreadedEPBucketTest,
-      public ::testing::WithParamInterface<std::tuple<std::string, size_t>> {
+      public ::testing::WithParamInterface<
+              std::tuple<std::string, std::string, size_t>> {
 public:
     void SetUp() override {
         config_string += generateBackendConfig(std::get<0>(GetParam()));
-        config_string += ";item_eviction_policy=full_eviction";
+        config_string += ";item_eviction_policy=" + std::get<1>(GetParam());
 #ifdef EP_USE_MAGMA
         config_string += ";" + magmaRollbackConfig;
 #endif
@@ -36,7 +37,7 @@ public:
         config_string += "warmup_secondary_min_memory_threshold=100;";
         // Finally configure from parameter so warmup can stop based on items
         config_string += "warmup_secondary_min_items_threshold=" +
-                         std::to_string(std::get<1>(GetParam()));
+                         std::to_string(std::get<2>(GetParam()));
 
         SingleThreadedEPBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -55,8 +56,8 @@ public:
 
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info) {
-        return std::get<0>(info.param) + "_item_perc" +
-               std::to_string(std::get<1>(info.param));
+        return std::get<0>(info.param) + "_" + std::get<1>(info.param) +
+               "_item_perc" + std::to_string(std::get<2>(info.param));
     }
 
     void runPrimaryAndEnableTraffic() {
@@ -74,17 +75,25 @@ public:
             runNextTask(readerQueue);
         }
 
-        // No items loaded.
-        auto vb = kvBucket->getVBucket(vbid);
-        EXPECT_EQ(0, engine->getEpStats().warmedUpKeys);
+        // keys depends on eviction policy
+        checkKeys(0);
+        // No values loaded.
         EXPECT_EQ(0, engine->getEpStats().warmedUpValues);
         EXPECT_EQ(0, engine->getEpStats().warmDups);
-
+        auto vb = kvBucket->getVBucket(vbid);
         EXPECT_EQ(4, vb->getNumItems());
         EXPECT_EQ(4, vb->getNumNonResidentItems());
         EXPECT_EQ(cb::engine_errc::success,
                   engine->handleTrafficControlCmd(*cookie,
                                                   TrafficControlMode::Enabled));
+    }
+
+    void checkKeys(size_t fullEVExpected) {
+        if (isFullEviction()) {
+            EXPECT_EQ(fullEVExpected, engine->getEpStats().warmedUpKeys);
+        } else {
+            EXPECT_EQ(4, engine->getEpStats().warmedUpKeys);
+        }
     }
 };
 
@@ -138,10 +147,9 @@ TEST_P(SecondaryWarmupTest, GoldenPath) {
     // item. E,g, if 25% is configured, 2 items are loaded. This is because
     // the stopLoading check occurs before each key is loaded, but still stores
     // the currently loading key.
-    auto expected = size_t((4 * std::get<1>(GetParam()) / 100.0));
+    auto expected = size_t((4 * std::get<2>(GetParam()) / 100.0));
     expected = std::min(size_t(4), expected + 1);
-
-    EXPECT_EQ(expected, engine->getEpStats().warmedUpKeys);
+    checkKeys(expected);
     EXPECT_EQ(expected, engine->getEpStats().warmedUpValues);
     EXPECT_EQ(0, engine->getEpStats().warmDups);
 
@@ -180,10 +188,10 @@ TEST_P(SecondaryWarmupTest, WritingAndWarming) {
     // item. E,g, if 25% is configured, 2 items are loaded. This is because
     // the stopLoading check occurs before each key is loaded, but still stores
     // the currently loading key.
-    auto expected = size_t((4 * std::get<1>(GetParam()) / 100.0));
+    auto expected = size_t((4 * std::get<2>(GetParam()) / 100.0));
     expected = std::min(size_t(4), expected + 1);
     ASSERT_EQ(expected, keyCount) << "callback count is incorrect";
-    EXPECT_EQ(expected, engine->getEpStats().warmedUpKeys);
+    checkKeys(expected);
     EXPECT_EQ(expected, engine->getEpStats().warmedUpValues);
     EXPECT_EQ(expected, engine->getEpStats().warmDups);
     EXPECT_EQ(4 - expected, vb->getNumNonResidentItems());
@@ -200,13 +208,15 @@ TEST_P(SecondaryWarmupTest, WritingAndWarming) {
     }
 }
 
-auto testConfig = ::testing::Combine(::testing::Values("persistent_couchdb"
+auto testConfig =
+        ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
-                                                       ,
-                                                       "persistent_magma"
+                                             ,
+                                             "persistent_magma"
 #endif
-                                                       ),
-                                     ::testing::Values(100, 50, 25));
+                                             ),
+                           ::testing::Values("full_eviction", "value_only"),
+                           ::testing::Values(100, 50, 25));
 
 // Test that only attempt to create a scan have no need to run in key and value
 // variations. Use key only
