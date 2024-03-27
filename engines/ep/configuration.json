@@ -573,8 +573,7 @@
             "type": "size_t",
             "validator": {
                 "range": {
-                    "min": 1,
-                    "max": 2147483648
+                    "min": 1
                 }
             }
         },
