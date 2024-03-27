@@ -254,6 +254,10 @@ public:
         return historyRetentionTime;
     }
 
+    std::string getFusionEndpointURI() const {
+        return fusionEndpointURI;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -517,4 +521,7 @@ private:
 
     size_t historyRetentionSize{0};
     std::chrono::seconds historyRetentionTime{0};
+
+    // Endpoint URI of the Fusion StoragePool.
+    std::string fusionEndpointURI;
 };

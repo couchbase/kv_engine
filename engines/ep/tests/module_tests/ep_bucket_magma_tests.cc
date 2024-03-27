@@ -11,17 +11,29 @@
 #ifdef EP_USE_MAGMA
 
 #include "evp_store_single_threaded_test.h"
-
+#include "kvstore/magma-kvstore/magma-kvstore.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include <folly/portability/GTest.h>
 
 /**
  * Test fixture for single-threaded tests on EPBucket/Magma.
  */
-class SingleThreadedMagmaTest : public STParameterizedBucketTest {};
+class SingleThreadedMagmaTest : public STParameterizedBucketTest {
+public:
+    void SetUp() override {
+        config_string += "magma_fusion_endpoint_uri=" + fusionURI;
+        STParameterizedBucketTest::SetUp();
+    }
+
+protected:
+    const std::string fusionURI = "fusion://localhost:10000";
+};
 
 TEST_P(SingleThreadedMagmaTest, FusionEndpointUri) {
-    const auto& config = store->getEPEngine().getConfiguration();
-    EXPECT_TRUE(config.getMagmaFusionEndpointUri().empty());
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const auto& config =
+            dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(fusionURI, config.getFusionEndpointURI());
 }
 
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,

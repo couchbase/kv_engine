@@ -172,6 +172,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     historyRetentionTime =
             std::chrono::seconds(config.getHistoryRetentionSeconds());
     historyRetentionSize = config.getHistoryRetentionBytes();
+
+    fusionEndpointURI = config.getMagmaFusionEndpointUri();
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
