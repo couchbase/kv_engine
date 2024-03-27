@@ -39,7 +39,7 @@
  *    For example:
  *     {
  *     "key": "vb_num",
- *     "unit": "count",
+ *     "unit": "none",
  *     "cbstat": "vb_{state}_num",
  *     "prometheus": {
  *         "family": "num_vbuckets"
@@ -141,7 +141,7 @@
     {
         "key": "default_evictions",
         "description": "Number of items evicted from the bucket",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "evictions",
         "prometheus": {
             "family": "memcache_evictions"
@@ -150,7 +150,7 @@
     },
     {
         "key": "default_curr_items",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "curr_items",
         "prometheus": {
             "family": "memcache_curr_items"
@@ -161,7 +161,7 @@
     {
         "key": "default_total_items",
         "description": "Total number of items in the bucket",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "total_items",
         "prometheus": {
             "family": "memcache_total_items"
@@ -181,7 +181,7 @@
     {
         "key": "default_reclaimed",
         "description": "Number of items allocated by reusing expired objects",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "reclaimed",
         "prometheus": {
             "family": "memcache_reclaimed"
@@ -191,7 +191,7 @@
     {
         "key": "default_engine_maxbytes",
         "description": "The max size of the bucket",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "engine_maxbytes",
         "prometheus": {
             "family": "memcache_engine_maxbytes"
@@ -204,7 +204,7 @@
  */
     {
         "key": "ep_num_workers",
-        "unit": "count",
+        "unit": "none",
         "description": "Global number of shared worker threads",
         "added": "7.0.0"
     },
@@ -218,55 +218,55 @@
 /* TODO: make 0/1 rather than text for Prometheus? */
     {
         "key": "ep_total_enqueued",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of items queued for persistence",
         "added": "7.0.0"
     },
     {
         "key": "ep_total_deduplicated",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of items de-duplicated when queued to CheckpointManager",
         "added": "7.0.0"
     },
     {
         "key": "ep_total_deduplicated_flusher",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of items de-duplicated when flushed to disk",
         "added": "7.2.0"
     },
     {
         "key": "ep_expired_access",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times an item was expired on application access",
         "added": "7.0.0"
     },
     {
         "key": "ep_expired_compactor",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times an item was expired by the compactor",
         "added": "7.0.0"
     },
     {
         "key": "ep_expired_pager",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times an item was expired by the item pager",
         "added": "7.0.0"
     },
     {
         "key": "ep_queue_size",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items queued for storage",
         "added": "7.0.0"
     },
     {
         "key": "ep_diskqueue_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Total items in disk queue",
         "added": "7.0.0"
     },
     {
         "key": "ep_commit_num",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of write commits",
         "added": "7.0.0"
     },
@@ -284,25 +284,25 @@
     },
     {
         "key": "ep_item_begin_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times a transaction failed to start due to storage errors",
         "added": "7.0.0"
     },
     {
         "key": "ep_item_commit_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times a transaction failed to commit due to storage errors",
         "added": "7.0.0"
     },
     {
         "key": "ep_item_flush_expired",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times an item is not flushed due to the expiry of the item",
         "added": "7.0.0"
     },
     {
         "key": "ep_item_flush_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times an item failed to flush due to storage errors",
         "added": "7.0.0"
     },
@@ -315,31 +315,31 @@
     },
     {
         "key": "ep_flusher_todo",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items currently being written",
         "added": "7.0.0"
     },
     {
         "key": "ep_total_persisted",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of items persisted",
         "added": "7.0.0"
     },
     {
         "key": "ep_uncommitted_items",
-        "unit": "count",
+        "unit": "none",
         "description": "The amount of items that have not been written to disk",
         "added": "7.0.0"
     },
     {
         "key": "ep_vbucket_del",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of vbucket deletion events",
         "added": "7.0.0"
     },
     {
         "key": "ep_vbucket_del_fail",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of failed vbucket deletion events",
         "added": "7.0.0"
     },
@@ -351,7 +351,7 @@
     },
     {
         "key": "ep_persist_vbstate_total",
-        "unit": "count",
+        "unit": "none",
         "description": "Total VB persist state to disk",
         "added": "7.0.0"
     },
@@ -450,20 +450,20 @@
     },
     {
         "key": "ep_blob_num",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of blob objects in the cache",
         "added": "7.0.0"
     },
     {
         "key": "ep_blob_num_allocated_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of blob object allocations",
         "added": "7.6.0"
     },
     {
         "key": "ep_blob_num_freed_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of blob object deallocations",
         "added": "7.6.0"
@@ -557,20 +557,20 @@
     },
     {
         "key": "ep_storedval_num",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of storedval objects allocated",
         "added": "7.0.0"
     },
     {
         "key": "ep_storedval_num_allocated_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of storedval object allocations",
         "added": "7.6.0"
     },
     {
         "key": "ep_storedval_num_freed_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of blob object deallocations",
         "added": "7.6.0"
@@ -586,33 +586,33 @@
     },
     {
         "key": "ep_item_num",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of item objects allocated",
         "added": "7.0.0"
     },
     {
         "key": "ep_item_num_allocated_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of item object allocations",
         "added": "7.6.0"
     },
     {
         "key": "ep_item_num_freed_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of item object deallocations",
         "added": "7.6.0"
     },
     {
         "key": "ep_oom_errors",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times unrecoverable OOMs happened while processing operations",
         "added": "7.0.0"
     },
     {
         "key": "ep_tmp_oom_errors",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of times temporary OOMs happened while processing operations",
         "added": "7.0.0"
@@ -625,96 +625,96 @@
     },
     {
         "key": "ep_bg_fetched",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items fetched from disk",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "ep_bg_meta_fetched",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of metadata fetches from disk",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "ep_bg_remaining_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of remaining bg fetch items",
         "added": "7.0.0"
     },
     {
         "key": "ep_bg_remaining_jobs",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of remaining bg fetch jobs",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_pager_runs",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of times we ran pager loops to seek additional memory",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_expiry_pager_runs",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of times we ran expiry pager loops to purge expired items from memory/disk",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_freq_decayer_runs",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of times we ran the freq decayer task because a frequency counter has become saturated",
         "added": "7.0.0"
     },
     {
         "key": "ep_items_expelled_from_checkpoints",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of items expelled from checkpoints. Expelled refers to items that have been ejected from memory but are still considered to be part of the checkpoint.",
         "added": "7.0.0"
     },
     {
         "key": "ep_items_rm_from_checkpoints",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of items removed from closed unreferenced checkpoints",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_value_ejects",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of times item values got ejected from memory to disk",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_eject_failures",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of items that could not be ejected",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_not_my_vbuckets",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Number of times Not My VBucket exception happened during runtime",
         "added": "7.0.0"
     },
     {
         "key": "ep_pending_ops",
-        "unit": "count",
+        "unit": "none",
         "type": "gauge",
         "description": "Number of ops awaiting pending vbuckets",
         "added": "7.0.0"
     },
     {
         "key": "ep_pending_ops_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "Total blocked pending ops since reset",
         "added": "7.0.0"
@@ -724,7 +724,7 @@
  */
     {
         "key": "ep_pending_ops_max",
-        "unit": "count",
+        "unit": "none",
         "description": "Max ops seen awaiting 1 pending vbucket",
         "added": "7.0.0"
     },
@@ -737,25 +737,25 @@
     },
     {
         "key": "ep_pending_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "For persistent buckets, the count of compaction tasks.",
         "added": "7.0.0"
     },
     {
         "key": "ep_compaction_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Counter of how many times compaction has failed, e.g. a system call error caused compaction to fail",
         "added": "7.1.0"
     },
     {
         "key": "ep_compaction_aborted",
-        "unit": "count",
+        "unit": "none",
         "description": "Counter of how many times compaction aborted, e.g. the vbucket is required to rollback, so compaction is aborted",
         "added": "7.1.0"
     },
     {
         "key": "ep_rollback_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of rollbacks on consumer",
         "added": "7.0.0"
     },
@@ -773,7 +773,7 @@
     },
     {
         "key": "ep_bg_num_samples",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of samples included in the average",
         "added": "7.0.0"
     },
@@ -840,13 +840,13 @@
     },
     {
         "key": "ep_num_access_scanner_runs",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times we ran accesss scanner to snapshot working set",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_access_scanner_skips",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times accesss scanner task decided not to generate access log",
         "added": "7.0.0"
     },
@@ -859,7 +859,7 @@
 /* TODO: relative to server start. Convert to absolute time? */
     {
         "key": "ep_access_scanner_num_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items that last Access Scanner task run wrote to the Access Log.",
         "added": "7.0.0"
     },
@@ -897,13 +897,13 @@
     },
     {
         "key": "ep_warmup_oom",
-        "unit": "count",
+        "unit": "none",
         "description": "OOMs encountered during warmup",
         "added": "7.0.0"
     },
     {
         "key": "ep_warmup_dups",
-        "unit": "count",
+        "unit": "none",
         "description": "Duplicates encountered during warmup",
         "added": "7.0.0"
     },
@@ -923,19 +923,19 @@
     },
     {
         "key": "ep_warmup_key_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of keys warmed up",
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_value_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of values warmed up",
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_min_item_threshold",
-        "unit": "count",
+        "unit": "none",
         "description": "The minimum number of items that needs to be warmed up before external data mutations is allowed. This is in % of the number of items.",
         "added": "7.1.0"
     },
@@ -971,12 +971,12 @@
     },
     {
         "family": "ops",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of operations"
     },
     {
         "key": "ep_num_ops_get_meta",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -988,7 +988,7 @@
     },
     {
         "key": "ep_num_ops_set_meta",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1000,7 +1000,7 @@
     },
     {
         "key": "ep_num_ops_del_meta",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1012,12 +1012,12 @@
     },
     {
         "family": "ops_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of operations failed due to conflict resolution"
     },
     {
         "key": "ep_num_ops_set_meta_res_fail",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops_failed",
             "labels": {
@@ -1028,7 +1028,7 @@
     },
     {
         "key": "ep_num_ops_del_meta_res_fail",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops_failed",
             "labels": {
@@ -1039,7 +1039,7 @@
     },
     {
         "key": "ep_num_ops_set_ret_meta",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1051,7 +1051,7 @@
     },
     {
         "key": "ep_num_ops_del_ret_meta",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1063,7 +1063,7 @@
     },
     {
         "key": "ep_num_ops_get_meta_on_set_meta",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1082,19 +1082,19 @@
     },
     {
         "key": "ep_defragmenter_num_visited",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items visited (considered for defragmentation) by the defragmenter task.",
         "added": "7.0.0"
     },
     {
         "key": "ep_defragmenter_num_moved",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items moved by the defragmentater task.",
         "added": "7.0.0"
     },
     {
         "key": "ep_defragmenter_sv_num_moved",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of StoredValues moved by the defragmentater task.",
         "added": "7.0.0"
     },
@@ -1106,13 +1106,13 @@
     },
     {
         "key": "ep_item_compressor_num_visited",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items visited (considered for compression) by the item compressor task.",
         "added": "7.0.0"
     },
     {
         "key": "ep_item_compressor_num_compressed",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items compressed by the item compressor task.",
         "added": "7.0.0"
     },
@@ -1124,7 +1124,7 @@
     },
     {
         "key": "ep_cursors_dropped",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of cursors dropped by the checkpoint remover",
         "added": "7.0.0"
     },
@@ -1142,39 +1142,39 @@
     },
     {
         "key": "ep_num_checkpoints",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of checkpoint objects allocated",
         "added": "7.1.0"
     },
     {
         "key": "ep_num_checkpoints_allocated_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of checkpoint object allocations",
         "added": "7.6.0"
     },
     {
         "key": "ep_num_checkpoints_freed_total",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "description": "The number of checkpoint object deallocations",
         "added": "7.6.0"
     },
     {
         "key": "ep_num_checkpoints_pending_destruction",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of checkpoints detached from CM and owned by Destroyers",
         "added": "7.6.0"
     },
     {
         "key": "ep_data_write_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Total compaction and commit failures",
         "added": "7.0.0"
     },
     {
         "key": "ep_data_read_failed",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of get failures",
         "added": "7.0.0"
     },
@@ -1210,7 +1210,7 @@
     },
     {
         "key": "ep_io_bg_fetch_read_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Accumulated count of read system calls issued by BG fetches, only maintained by couchstore buckets",
         "added": "7.0.0"
     },
@@ -1223,30 +1223,30 @@
 /* Magma stats */
     {
         "key": "ep_magma_sets",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of set operations (DocUpsert)",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_gets",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of get operations",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_inserts",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of DocInsert operations",
         "added": "7.1.0"
     },
     {
         "family": "magma_itr",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items returned by iterators"
     },
     {
         "key": "ep_magma_keyitr_items_read",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0",
         "prometheus": {
             "family": "magma_itr",
@@ -1259,7 +1259,7 @@
     },
     {
         "key": "ep_magma_seqitr_items_read",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0",
         "prometheus": {
             "family": "magma_itr",
@@ -1272,7 +1272,7 @@
     },
     {
         "key": "ep_magma_keyitr_items_skipped",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0",
         "prometheus": {
             "family": "magma_itr",
@@ -1285,7 +1285,7 @@
     },
     {
         "key": "ep_magma_seqitr_items_skipped",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0",
         "prometheus": {
             "family": "magma_itr",
@@ -1312,18 +1312,18 @@
 /* Compaction. */
     {
         "key": "ep_magma_compactions",
-        "unit": "count",
+        "unit": "none",
         "added": "7.1.0",
         "description": "Count of Magma compactions in key, seq and local index."
     },
     {
         "family": "magma_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Count of Magma compactions"
     },
     {
         "key": "ep_magma_keyindex_compactions",
-        "unit": "count",
+        "unit": "none",
         "added": "7.2.0",
         "prometheus": {
             "family": "magma_compactions",
@@ -1335,7 +1335,7 @@
     },
     {
         "key": "ep_magma_seqindex_compactions",
-        "unit": "count",
+        "unit": "none",
         "added": "7.2.0",
         "prometheus": {
             "family": "magma_compactions",
@@ -1347,55 +1347,55 @@
     },
     {
         "key": "ep_magma_seqindex_data_compactions",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0",
         "description": "Count of Magma compactions in seq index that compact the data level. This are already accounted in ep_magma_seqindex_compactions hence not part of the magma_compactions Prometheus stat family."
     },
     {
         "key": "ep_magma_flushes",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of write cache flushes performed",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_ttl_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of time-to-live based compactions",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_filecount_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of compactions triggered by file count",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_keyindex_filecount_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of compactions triggered by file count for the KeyIndex",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_seqindex_filecount_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of compactions triggered by file count for the SeqIndex",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_writer_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of compaction performed on the writer thread",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_keyindex_writer_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of compaction performed on the writer thread for the KeyIndex",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_seqindex_writer_compactions",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of compaction performed on the writer thread for the SeqIndex",
         "added": "7.2.0"
     },
@@ -1439,7 +1439,7 @@
 /* ReadIOAmp. */
     {
         "key": "ep_magma_readio",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of read IOs performed",
         "added": "7.1.0"
     },
@@ -1711,51 +1711,51 @@
 /* Block cache. */
     {
         "key": "ep_magma_block_cache_hits",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of block cache hits",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_block_cache_misses",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of block cache misses",
         "added": "7.1.0"
     },
 /* SST file count. */
     {
         "key": "ep_magma_tables_created",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of table files created",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_tables_deleted",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of table files deleted",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_tables",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of files used for tables",
         "added": "7.1.0"
     },
 /* NSync. */
     {
         "key": "ep_magma_syncs",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of fsyncs performed",
         "added": "7.1.0"
     },
     {
         "key" : "ep_magma_data_blocks_uncompressed_size",
-        "unit": "count",
+        "unit": "none",
         "description": "Data blocks uncompressed size",
         "added": "7.2.0"
     },
     {
         "key" : "ep_magma_data_blocks_compressed_size",
-        "unit": "count",
+        "unit": "none",
         "description": "Data blocks compressed size; actual size in storage",
         "added": "7.2.0"
     },
@@ -2024,7 +2024,7 @@
 /* TODO: this is not timing related but is in doTimingStats */
     {
         "key": "bg_batch_size",
-        "unit": "count",
+        "unit": "none",
         "type": "histogram",
         "description": "Batch size for background fetches",
         "added": "7.0.0"
@@ -2169,50 +2169,50 @@
     {
         "key": "daemon_connections",
         "description": "The number of server sockets currently in use",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
         "key": "curr_connections",
         "description": "The current number of connections. This includes user, system and daemon connections",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
         "key": "system_connections",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0",
         "description" : "The number of connections to system ports in memcached"
     },
     {
         "key": "user_connections",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0",
         "description" : "The number of connections to user ports in memcached"
     },
     {
         "key": "max_user_connections",
         "description": "Maximum number of connections to the interfaces marked as user",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0"
     },
     {
         "key": "max_system_connections",
         "description": "Maximum number of connections to the interfaces marked as system only",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0"
     },
     {
         "key": "total_connections",
         "description": "The total number of connections to this system since the process started (or reset)",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "connection_structures",
         "description": "Current number of allocated connection structures",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
 /* Amount of memory allocated by the daemon. */
@@ -2232,7 +2232,7 @@
     {
         "key": "cmd_get",
         "description": "The number of get operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": false,
         "added": "7.0.0"
     },
@@ -2242,7 +2242,7 @@
     {
         "key": "cmd_set",
         "description": "The number of set operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2254,7 +2254,7 @@
     {
         "key": "cmd_flush",
         "description": "The number of flush operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2266,7 +2266,7 @@
     {
         "key": "cmd_lock",
         "description": "The number of lock operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2277,13 +2277,13 @@
     },
     {
         "family": "subdoc_ops",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of subdoc operations"
     },
     {
         "key": "cmd_subdoc_lookup",
         "description": "The number of subdoc operations performing lookup",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "subdoc_ops",
             "labels": {
@@ -2295,7 +2295,7 @@
     {
         "key": "cmd_subdoc_mutation",
         "description": "The number of subdoc operations performing data mutations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "subdoc_ops",
             "labels": {
@@ -2344,7 +2344,7 @@
     {
         "key": "subdoc_update_races",
         "description": "The number of times a subdoc mutation had to be retried as the document was changed by a different actor while performing the operation",
-        "unit": "count",
+        "unit": "none",
         "added": "7.6.0"
     },
     {
@@ -2357,21 +2357,21 @@
     {
         "key": "cmd_total_sets",
         "description": "The total number of mutation operations (all buckets)",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "cmd_total_gets",
         "description": "The total number of data retrieval operations (all buckets)",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "cmd_total_ops",
         "description": "The sum of cmd_total_sets and cmd_total_gets (all buckets)",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
@@ -2379,14 +2379,14 @@
     {
         "key": "cmd_mutation",
         "description": "The number of mutation operations",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "cmd_lookup",
         "description": "The number of lookup operations",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
@@ -2401,19 +2401,19 @@
     {
         "key": "auth_cmds",
         "description": "The number of authentication commands",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
         "key": "auth_errors",
         "description": "The number of failed authentication requests",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
         "key": "get_hits",
         "description": "The number of successful get operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2426,7 +2426,7 @@
     {
         "key": "get_misses",
         "description": "The number of unsuccessful get operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2439,7 +2439,7 @@
     {
         "key": "delete_misses",
         "description": "The number of unsuccessful delete operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2452,7 +2452,7 @@
     {
         "key": "delete_hits",
         "description": "The number of successful delete operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2465,7 +2465,7 @@
     {
         "key": "incr_misses",
         "description": "The number of unsuccessful INCR operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2478,7 +2478,7 @@
     {
         "key": "incr_hits",
         "description": "The number of successful INCR operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2491,7 +2491,7 @@
     {
         "key": "decr_misses",
         "description": "The number of unsuccesful DECR operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2504,7 +2504,7 @@
     {
         "key": "decr_hits",
         "description": "The number of successful DECR operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2517,7 +2517,7 @@
     {
         "key": "cas_misses",
         "description": "The number of unsuccessful CAS operations due to missing document",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2530,7 +2530,7 @@
     {
         "key": "cas_hits",
         "description": "The number of successful CAS operations",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2543,7 +2543,7 @@
     {
         "key": "cas_badval",
         "description": "The number of unsuccessful CAS operations due to incorrect CAS value",
-        "unit": "count",
+        "unit": "none",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2575,13 +2575,13 @@
     {
         "key": "rejected_conns",
         "description": "The number of connections rejected due to hitting the maximum number of connections",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
         "key": "threads",
         "description": "The number of threads used to serve clients",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
@@ -2593,26 +2593,26 @@
     {
         "key": "conn_yields",
         "description": "The total number all clients in this bucket yield due to consuming the number of ops allowed for the current timeslice",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "conn_timeslice_yields",
         "description": "The total number all clients in this bucket yield due to using their entire timeslice",
-        "unit": "count",
+        "unit": "none",
         "type": "counter",
         "added": "7.6.0"
     },
     {
         "key": "lock_errors",
         "description": "The number of times an operation failed due to accessing a locked document",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
         "key": "cmd_lookup_10s_count",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of lookup operations performed within the last 10 seconds",
         "added": "7.0.0"
     },
@@ -2628,7 +2628,7 @@
     },
     {
         "key": "cmd_mutation_10s_count",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of mutation operations performed within the last 10 seconds",
         "added": "7.0.0"
     },
@@ -2645,7 +2645,7 @@
     {
         "key": "total_resp_errors",
         "description": "The number of error messages returned",
-        "unit": "count",
+        "unit": "none",
         "added": "7.0.0"
     },
     {
@@ -2673,13 +2673,13 @@
     },
     {
         "key": "clients",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of references to the bucket",
         "added": "7.6.0"
     },
     {
         "key": "items_in_transit",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of items currently in transit (with a reference into the engine)",
         "added": "7.6.0"
     },
@@ -2696,7 +2696,7 @@
     {
         "key": "audit_dropped_events",
         "description": "The number of audit events dropped due to errors while trying to insert them to the audit trail",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "dropped_events",
         "type": "counter",
         "prometheus": {
@@ -2914,7 +2914,7 @@
     },
     {
         "key": "vb_num",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_num",
         "prometheus": {
             "family": "num_vbuckets"
@@ -2924,7 +2924,7 @@
     },
     {
         "key": "vb_curr_items",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_curr_items",
         "prometheus": {
             "family": "vb_curr_items"
@@ -2934,7 +2934,7 @@
     },
     {
         "key": "vb_hp_vb_req_size",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_hp_vb_req_size",
         "prometheus": {
             "family": "num_high_pri_requests"
@@ -2944,7 +2944,7 @@
     },
     {
         "key": "vb_num_non_resident",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_num_non_resident",
         "prometheus": {
             "family": "vb_num_non_resident"
@@ -2964,7 +2964,7 @@
     },
     {
         "key": "vb_eject",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_eject",
         "prometheus": {
             "family": "vb_eject"
@@ -2974,7 +2974,7 @@
     },
     {
         "key": "vb_expired",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_expired",
         "prometheus": {
             "family": "vb_expired"
@@ -3128,7 +3128,7 @@
     },
     {
         "key": "vb_ops_create",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_ops_create",
         "prometheus": {
             "family": "vb_ops_create"
@@ -3138,7 +3138,7 @@
     },
     {
         "key": "vb_ops_update",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_ops_update",
         "prometheus": {
             "family": "vb_ops_update"
@@ -3148,7 +3148,7 @@
     },
     {
         "key": "vb_ops_delete",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_ops_delete",
         "prometheus": {
             "family": "vb_ops_delete"
@@ -3158,7 +3158,7 @@
     },
     {
         "key": "vb_ops_get",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_ops_get",
         "prometheus": {
             "family": "vb_ops_get"
@@ -3168,7 +3168,7 @@
     },
     {
         "key": "vb_ops_reject",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_ops_reject",
         "prometheus": {
             "family": "vb_ops_reject"
@@ -3178,7 +3178,7 @@
     },
     {
         "key": "vb_queue_size",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_queue_size",
         "prometheus": {
             "family": "vb_queue_size"
@@ -3218,7 +3218,7 @@
     },
     {
         "key": "vb_queue_fill",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_queue_fill",
         "prometheus": {
             "family": "vb_queue_fill"
@@ -3228,7 +3228,7 @@
     },
     {
         "key": "vb_queue_drain",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_queue_drain",
         "prometheus": {
             "family": "vb_queue_drain"
@@ -3238,7 +3238,7 @@
     },
     {
         "key": "vb_rollback_item_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_rollback_item_count",
         "prometheus": {
             "family": "vb_rollback_item_count"
@@ -3268,7 +3268,7 @@
     },
         {
         "key": "vb_dm_num_tracked",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_dm_num_tracked",
         "prometheus": {
             "family": "vb_dm_num_tracked"
@@ -3278,7 +3278,7 @@
     },
     {
         "key": "vb_evictable_mfu",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_evictable_mfu",
         "prometheus": {
             "family": "vb_evictable_mfu"
@@ -3288,25 +3288,25 @@
     },
     {
         "key": "curr_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Count of alive (non-deleted) items in active vbuckets, including non-resident items",
         "added": "7.0.0"
     },
     {
         "key": "curr_temp_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of temporary items in memory",
         "added": "7.0.0"
     },
     {
         "key": "curr_items_tot",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of items",
         "added": "7.0.0"
     },
     {
         "key": "vb_sync_write_accepted_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_sync_write_accepted_count",
         "prometheus": {
             "family": "vb_sync_write_accepted_count"
@@ -3316,7 +3316,7 @@
     },
     {
         "key": "vb_sync_write_committed_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_sync_write_committed_count",
         "prometheus": {
             "family": "vb_sync_write_committed_count"
@@ -3326,7 +3326,7 @@
     },
     {
         "key": "vb_sync_write_aborted_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_sync_write_aborted_count",
         "prometheus": {
             "family": "vb_sync_write_aborted_count"
@@ -3336,19 +3336,19 @@
     },
     {
         "key": "ep_vb_total",
-        "unit": "count",
+        "unit": "none",
         "description": "Total vBuckets (count)",
         "added": "7.0.0"
     },
     {
         "key": "ep_total_new_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of persisted new items",
         "added": "7.0.0"
     },
     {
         "key": "ep_total_del_items",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of persisted deletions",
         "added": "7.0.0"
     },
@@ -3360,19 +3360,19 @@
     },
     {
         "key": "ep_diskqueue_fill",
-        "unit": "count",
+        "unit": "none",
         "description": "Total enqueued items on disk queue",
         "added": "7.0.0"
     },
     {
         "key": "ep_diskqueue_drain",
-        "unit": "count",
+        "unit": "none",
         "description": "Total drained items on disk queue",
         "added": "7.0.0"
     },
     {
         "key": "ep_diskqueue_pending",
-        "unit": "count",
+        "unit": "none",
         "description": "Total bytes of pending writes",
         "added": "7.0.0"
     },
@@ -3432,19 +3432,19 @@
     },
     {
         "key": "rollback_item_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Num of items rolled back",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_non_resident",
-        "unit": "count",
+        "unit": "none",
         "description": "The number of non-resident items",
         "added": "7.0.0"
     },
     {
         "key": "ep_chk_persistence_remains",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of remaining vbuckets for checkpoint persistence",
         "added": "7.0.0"
     },
@@ -3457,14 +3457,14 @@
     },
     {
         "key": "ep_hlc_drift_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_{state}_hlc_drift_count",
         "description": "The accumulated number of times the corresponding kv_ep_hlc_drift_count has been updated",
         "added": "7.0.0"
     },
     {
         "key": "ep_ahead_exceptions",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of times a vbucket saw an item with a HLC CAS from too far in the future (indicating the clock is behind)",
         "type": "counter",
         "cbstat": "ep_{state}_ahead_exceptions",
@@ -3472,7 +3472,7 @@
     },
     {
         "key": "ep_behind_exceptions",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of times a vbucket saw an item with a HLC CAS from too far in the past (indicating the clock is ahead)",
         "type": "counter",
         "cbstat": "ep_{state}_behind_exceptions",
@@ -3480,20 +3480,20 @@
     },
     {
         "key": "ep_clock_cas_drift_threshold_exceeded",
-        "unit": "count",
+        "unit": "none",
         "description": "ep_active_ahead_exceptions + ep_replica_ahead_exceptions",
         "added": "7.0.0"
     },
     {
         "key": "datatype_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Count of items in memory with a given datatype combination",
         "cbstat": "ep_{vbucket_state}_datatype_{datatype}",
         "added": "7.0.2"
     },
     {
         "key": "vb_auto_delete_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_auto_delete_count",
         "prometheus": {
             "family": "vb_auto_delete_count"
@@ -3503,7 +3503,7 @@
     },
     {
         "key": "vb_ht_tombstone_purged_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_ht_tombstone_purged_count",
         "prometheus": {
             "family": "vb_ht_tombstone_purged_count"
@@ -3513,7 +3513,7 @@
     },
     {
         "key": "vb_seqlist_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_seqlist_count",
         "prometheus": {
             "family": "vb_seqlist_count"
@@ -3523,7 +3523,7 @@
     },
     {
         "key": "vb_seqlist_deleted_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_seqlist_deleted_count",
         "prometheus": {
             "family": "vb_seqlist_deleted_count"
@@ -3533,7 +3533,7 @@
     },
     {
         "key": "vb_seqlist_purged_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_seqlist_purged_count",
         "prometheus": {
             "family": "vb_seqlist_purged_count"
@@ -3543,7 +3543,7 @@
     },
     {
         "key": "vb_seqlist_read_range_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_seqlist_read_range_count",
         "prometheus": {
             "family": "vb_seqlist_read_range_count"
@@ -3553,7 +3553,7 @@
     },
     {
         "key": "vb_seqlist_stale_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "vb_{state}_seqlist_stale_count",
         "prometheus": {
             "family": "vb_seqlist_stale_count"
@@ -3607,7 +3607,7 @@
     },
     {
         "key": "connagg_connection_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of DCP connections (Consumers or Producers)",
         "cbstat": "{connection_type}:count",
         "prometheus": {
@@ -3617,7 +3617,7 @@
     },
     {
         "key": "connagg_backoff",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of times Consumer DCP connections (i.e., replica) have paused consuming items because memory usage is too high",
         "cbstat": "{connection_type}:backoff",
         "prometheus": {
@@ -3627,12 +3627,12 @@
     },
     {
         "family": "dcp_stream_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of Streams (Active or Passive)"
     },
     {
         "key": "connagg_activestream_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of ActiveStreams",
         "cbstat": "{connection_type}:activestream_count",
         "prometheus": {
@@ -3645,7 +3645,7 @@
     },
     {
         "key": "connagg_passivestream_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of PassiveStreams",
         "cbstat": "{connection_type}:passivestream_count",
         "prometheus": {
@@ -3658,12 +3658,12 @@
     },
     {
         "family": "dcp_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of DCP connections"
     },
     {
         "key": "connagg_producer_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of DCP Producer connections (outbound)",
         "cbstat": "{connection_type}:producer_count",
         "prometheus": {
@@ -3676,7 +3676,7 @@
     },
     {
         "key": "connagg_consumer_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Current number of DCP Consumer connections (inbound replication)",
         "cbstat": "{connection_type}:consumer_count",
         "prometheus": {
@@ -3689,7 +3689,7 @@
     },
     {
         "key": "connagg_items_sent",
-        "unit": "count",
+        "unit": "none",
         "description": "Total number of items sent out by all _currently existing_ outgoing DCP streams, since each stream was created",
         "cbstat": "{connection_type}:items_sent",
         "prometheus": {
@@ -3699,7 +3699,7 @@
     },
     {
         "key": "connagg_items_remaining",
-        "unit": "count",
+        "unit": "none",
         "description": "Current total number of items remaining for to be sent for all outgoing DCP streams (approximate)",
         "cbstat": "{connection_type}:items_remaining",
         "prometheus": {
@@ -3739,7 +3739,7 @@
     },
         {
         "key": "connagg_paused",
-        "unit": "count",
+        "unit": "none",
         "description": "Count of how many times the DCP connection has been paused",
         "cbstat": "{connection_type}:paused_count",
         "prometheus": {
@@ -3749,7 +3749,7 @@
     },
     {
         "key": "connagg_unpaused",
-        "unit": "count",
+        "unit": "none",
         "description": "Count of how many times the DCP connection has been unpaused",
         "cbstat": "{connection_type}:unpaused_count",
         "prometheus": {
@@ -3759,12 +3759,12 @@
     },
     {
         "family": "dcp_items_backfilled",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items pushed into the DCP stream ready queue from a backfill"
     },
     {
         "key": "connagg_items_backfilled_disk",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "{connection_type}:items_backfilled_disk",
         "description": "Number of items pushed into the DCP stream ready queue from a backfill",
         "prometheus": {
@@ -3777,7 +3777,7 @@
     },
     {
         "key": "connagg_items_backfilled_memory",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "{connection_type}:items_backfilled_memory",
         "description": "Number of items pushed into the DCP stream ready queue from a backfill",
         "prometheus": {
@@ -3796,21 +3796,21 @@
  */
     {
         "key": "dcp_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_count",
         "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_consumer_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_consumer_count",
         "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_producer_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_producer_count",
         "prometheus": false,
         "added": "7.0.2"
@@ -3831,7 +3831,7 @@
     },
     {
         "key": "dcp_queue_fill",
-        "unit": "count",
+        "unit": "none",
         "description": "Number of items ever queued to send across all _existing_ DCP connections",
         "cbstat": "ep_dcp_queue_fill",
         "prometheus": false,
@@ -3839,42 +3839,42 @@
     },
     {
         "key": "dcp_items_sent",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_items_sent",
         "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_items_remaining",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_items_remaining",
         "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_queue_backfill_disk",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_backfill_disk",
         "prometheus": false,
         "added": "7.2.1"
     },
     {
         "key": "dcp_queue_backfill_memory",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_backfill_memory",
         "prometheus": false,
         "added": "7.2.1"
     },
     {
         "key": "dcp_num_running_backfills",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_num_running_backfills",
         "description": "Total number of running backfills across all DCP connections",
         "added": "7.0.2"
     },
     {
         "key": "dcp_max_running_backfills",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ep_dcp_max_running_backfills",
         "description": "Maximum number of backfills across all DCP connections",
         "added": "7.0.2"
@@ -3948,7 +3948,7 @@
     },
     {
         "key": "scope_collection_count",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "collections",
         "description": "Number of collections in the scope",
         "added": "7.0.0"
@@ -3962,7 +3962,7 @@
     },
     {
         "key": "collection_item_count",
-        "unit": "count",
+        "unit": "none",
         "description": "Per-collection item count",
         "cbstat": "items",
         "added": "7.0.0"
@@ -3976,12 +3976,12 @@
     },
     {
         "family": "collection_ops",
-        "unit": "count",
+        "unit": "none",
         "description": "Per-collection counters of sets/gets/deletes"
     },
     {
         "key": "collection_ops_store",
-        "unit": "count",
+        "unit": "none",
         "description": "Per-collection counters of sets/gets/deletes",
         "type": "counter",
         "cbstat": "ops_store",
@@ -3995,7 +3995,7 @@
     },
     {
         "key": "collection_ops_delete",
-        "unit": "count",
+        "unit": "none",
         "cbstat": "ops_delete",
         "prometheus": {
             "family": "collection_ops",
@@ -4009,7 +4009,7 @@
     },
     {
         "key": "collection_ops_get",
-        "unit": "count",
+        "unit": "none",
         "description": "Per-collection counters of sets/gets/deletes",
         "type": "counter",
         "cbstat": "ops_get",
