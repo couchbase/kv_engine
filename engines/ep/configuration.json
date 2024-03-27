@@ -1518,6 +1518,12 @@
                 ]
             }
         },
+        "magma_fusion_endpoint_uri": {
+            "default": "",
+            "descr": "Endpoint URI of the Fusion StoragePool.",
+            "dynamic": false,
+            "type": "std::string"
+        },
         "range_scan_kv_store_scan_ratio": {
             "default": "0.8",
             "dynamic": false,
