@@ -3448,9 +3448,13 @@ static enum test_result test_access_scanner(EngineIface* h) {
     // with the given max_size for this test.
     const std::string value(2000, 'x');
     while (true) {
-        // Gathering stats on every store is expensive, just check every 100 iterations
+        // Gathering stats on every store is expensive, just check every 100
+        // iterations
         if ((num_items % 100) == 0) {
-            if (get_int_stat(h, "vb_active_perc_mem_resident") < 94) {
+            // Test wants 94% rr and 1000 or more items
+            if (get_int_stat(h, "vb_active_perc_mem_resident") < 94 &&
+                num_items >= 1000) {
+                // stop population
                 break;
             }
         }
