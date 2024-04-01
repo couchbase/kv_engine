@@ -25,3 +25,7 @@ bool ConfigureEvent::process(AuditImpl& audit) {
     cookie.notifyIoComplete(cb::engine_errc::failed);
     return false;
 }
+
+bool ConfigureEvent::drop_if_audit_disabled() {
+    return false;
+}

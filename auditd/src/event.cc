@@ -18,3 +18,7 @@
 bool Event::process(AuditImpl& audit) {
     return audit.write_to_audit_trail(payload);
 }
+
+bool Event::drop_if_audit_disabled() {
+    return true;
+}

@@ -25,4 +25,5 @@ public:
     }
 
     bool process(AuditImpl& audit) override;
+    bool drop_if_audit_disabled() override;
 };

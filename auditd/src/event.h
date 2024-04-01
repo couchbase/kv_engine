@@ -29,6 +29,7 @@ public:
     }
 
     virtual bool process(AuditImpl& audit);
+    virtual bool drop_if_audit_disabled();
 
     virtual ~Event() = default;
 };

@@ -271,8 +271,13 @@ void AuditImpl::consume_events() {
         while (!processeventqueue.empty()) {
             auto& event = processeventqueue.front();
             try {
-                if (!event->process(*this)) {
-                    dropped_events++;
+                // If a previous event disabled auditing, drop any events which
+                // aren't changing the audit config again (i.e events others
+                // than configureevent events).
+                if (enabled || !event->drop_if_audit_disabled()) {
+                    if (!event->process(*this)) {
+                        dropped_events++;
+                    }
                 }
             } catch (const std::exception& e) {
                 LOG_WARNING(
