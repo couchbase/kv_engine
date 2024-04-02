@@ -175,6 +175,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     fusionEndpointURI = config.getMagmaFusionEndpointUri();
     fusionVolumeName = config.getMagmaFusionVolumeName();
+    fusionCacheSize = config.getMagmaFusionCacheSize();
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {

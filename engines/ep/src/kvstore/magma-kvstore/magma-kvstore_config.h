@@ -262,6 +262,10 @@ public:
         return fusionVolumeName;
     }
 
+    size_t getFusionCacheSize() const {
+        return fusionCacheSize;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -532,4 +536,7 @@ private:
     // Namespace where all data of a bucket is uploaded onto the Fusion
     // StoragePool.
     std::string fusionVolumeName;
+
+    // Size (in bytes) of the magma cache size for Fusion.
+    size_t fusionCacheSize;
 };
