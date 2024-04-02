@@ -1524,6 +1524,12 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "magma_fusion_volume_name": {
+            "default": "",
+            "descr": "Unique namespace where all data of a bucket is uploaded. That maps 1:1 with a bucket.",
+            "dynamic": false,
+            "type": "std::string"
+        },
         "range_scan_kv_store_scan_ratio": {
             "default": "0.8",
             "dynamic": false,

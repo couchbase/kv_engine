@@ -36,6 +36,11 @@ TEST_P(SingleThreadedMagmaTest, FusionEndpointUri) {
     EXPECT_EQ(fusionURI, config.getFusionEndpointURI());
 }
 
+TEST_P(SingleThreadedMagmaTest, FusionVolumeName) {
+    const auto& config = store->getEPEngine().getConfiguration();
+    EXPECT_TRUE(config.getMagmaFusionVolumeName().empty());
+}
+
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,
                          SingleThreadedMagmaTest,
                          STParameterizedBucketTest::magmaConfigValues(),
