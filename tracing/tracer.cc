@@ -164,6 +164,8 @@ std::string to_string(const cb::tracing::Code tracecode) {
         return "select_bucket";
     case Code::Sasl:
         return "sasl";
+    case Code::StorageEngineStats:
+        return "storage_engine_stats";
     }
     return "unknown tracecode";
 }

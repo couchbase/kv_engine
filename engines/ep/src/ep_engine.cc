@@ -457,7 +457,7 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupLow(
         const BucketStatCollector& collector) {
     cb::engine_errc status;
 
-    if (status = doEngineStatsLowCardinality(collector);
+    if (status = doEngineStatsLowCardinality(collector, nullptr);
         status != cb::engine_errc::success) {
         return status;
     }
@@ -3232,9 +3232,9 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEngineStats(
-        const BucketStatCollector& collector) {
+        const BucketStatCollector& collector, CookieIface* cookie) {
     cb::engine_errc status;
-    if (status = doEngineStatsLowCardinality(collector);
+    if (status = doEngineStatsLowCardinality(collector, cookie);
         status != cb::engine_errc::success) {
         return status;
     }
@@ -3243,7 +3243,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStats(
     return status;
 }
 cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
-        const BucketStatCollector& collector) {
+        const BucketStatCollector& collector, CookieIface* cookie) {
     EPStats& epstats = getEpStats();
 
     using namespace cb::stats;
@@ -3294,7 +3294,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_checkpoint_computed_max_size,
                       checkpointConfig->getCheckpointMaxSize());
 
-    kvBucket->getFileStats(collector);
 
     collector.addStat(Key::ep_persist_vbstate_total,
                       epstats.totalPersistVBState);
@@ -3464,9 +3463,15 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
             .addStat(Key::conflicts_resolved,
                      epstats.numOpsDelMetaResolutionFailedIdentical);
 
-    doDiskFailureStats(collector);
 
     kvBucket->getImplementationStats(collector);
+
+    // Timing of all KVStore related stats
+    const auto start = std::chrono::steady_clock::now();
+
+    doDiskFailureStats(collector);
+
+    kvBucket->getFileStats(collector);
 
     // Note: These are also reported per-shard in 'kvstore' stats, however
     // we want to be able to graph these over time, and hence need to expose
@@ -3489,6 +3494,13 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         } else if (configuration.getNexusSecondaryBackend() == "magma") {
             doEngineStatsMagma(secondaryCollector);
         }
+    }
+
+    if (cookie) {
+        NonBucketAllocationGuard guard;
+        cookie->getTracer().record(Code::StorageEngineStats,
+                                   start,
+                                   std::chrono::steady_clock::now());
     }
 
     return cb::engine_errc::success;
@@ -5253,7 +5265,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     auto bucketCollector = collector.forBucket(getName());
 
     if (key.empty()) {
-        return doEngineStats(bucketCollector);
+        return doEngineStats(bucketCollector, &c);
     }
     if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
         return doConnAggStats(bucketCollector, key.substr(7));
