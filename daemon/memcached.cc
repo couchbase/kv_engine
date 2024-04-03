@@ -48,6 +48,7 @@
 #include <platform/backtrace.h>
 #include <platform/dirutils.h>
 #include <platform/interrupt.h>
+#include <platform/json_log_conversions.h>
 #include <platform/process_monitor.h>
 #include <platform/scope_timer.h>
 #include <platform/strerror.h>
@@ -221,7 +222,8 @@ static void populate_log_level() {
 
     // Log the verbosity value set by the user and not the log level as they
     // are inverted
-    LOG_INFO("Changing logging level to {}", Settings::instance().getVerbose());
+    LOG_INFO_CTX("Changing logging level",
+                 {"level", Settings::instance().getVerbose()});
     cb::logger::setLogLevels(val);
 }
 
@@ -321,18 +323,17 @@ static void recalculate_max_connections() {
     if (environment.max_file_descriptors < maxfiles) {
         const auto newmax = environment.max_file_descriptors - totalReserved;
         settings.setMaxConnections(newmax, false);
-        LOG_WARNING(
-                "max_connections is set higher than the available number of "
-                "file descriptors available. Reduce max_connections to: {}",
-                newmax);
+        LOG_WARNING_CTX("Reducing max_connections",
+                        {"reason",
+                         "max_connections is set higher than the available "
+                         "number of file descriptors available"},
+                        {"to", newmax});
 
         if (settings.getSystemConnections() > newmax) {
-            LOG_WARNING(
-                    "system_connections:{} > max_connections:{}. Reduce "
-                    "system_connections to {}",
-                    settings.getSystemConnections(),
-                    newmax,
-                    newmax / 2);
+            LOG_WARNING_CTX("Reducing system_connections",
+                            {"from", settings.getSystemConnections()},
+                            {"to", newmax / 2},
+                            {"max_connections", newmax});
             settings.setSystemConnections(newmax / 2);
         }
 
@@ -350,13 +351,11 @@ static void recalculate_max_connections() {
         // @TODO send down to the engine(s)
     }
 
-    LOG_INFO("recalculate_max_connections: {}",
-             nlohmann::json{
-                     {"max_fds", environment.max_file_descriptors.load()},
-                     {"max_connections", settings.getMaxConnections()},
-                     {"system_connections", settings.getSystemConnections()},
-                     {"engine_fds", environment.engine_file_descriptors.load()}}
-                     .dump());
+    LOG_INFO_CTX("recalculate_max_connections",
+                 {"max_fds", environment.max_file_descriptors.load()},
+                 {"max_connections", settings.getMaxConnections()},
+                 {"system_connections", settings.getSystemConnections()},
+                 {"engine_fds", environment.engine_file_descriptors.load()});
 }
 
 static void breakpad_changed_listener(const std::string&, Settings &s) {
@@ -386,8 +385,7 @@ static void opcode_attributes_override_changed_listener(const std::string&,
     } catch (const std::exception&) {
         cb::mcbp::sla::reconfigure(Settings::instance().getRoot());
     }
-    LOG_INFO("SLA configuration changed to: {}",
-             cb::mcbp::sla::to_json().dump());
+    LOG_INFO_CTX("SLA configuration changed", cb::mcbp::sla::to_json());
 }
 
 #ifdef HAVE_LIBNUMA
@@ -518,7 +516,9 @@ static void update_settings_from_config()
             cb::mcbp::sla::reconfigure(root);
         }
     } catch (const std::exception& e) {
-        FATAL_ERROR(EXIT_FAILURE, e.what());
+        FATAL_ERROR_CTX(EXIT_FAILURE,
+                        "Failed to load SLA configuration",
+                        {"error", e.what()});
     }
 
     settings.addChangeListener(
@@ -539,7 +539,9 @@ void safe_close(SOCKET sfd) {
 
         if (rval == SOCKET_ERROR) {
             std::string error = cb_strerror();
-            LOG_WARNING("Failed to close socket {} ({})!!", (int)sfd, error);
+            LOG_WARNING_CTX("Failed to close socket",
+                            {"fd", (int)sfd},
+                            {"error", error});
         } else {
             --stats.curr_conns;
         }
@@ -658,8 +660,8 @@ static void initialize_sasl() {
         LOG_INFO_RAW("Initialize SASL");
         cb::sasl::server::initialize();
     } catch (std::exception& e) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    fmt::format("Failed to initialize SASL: {}", e.what()));
+        FATAL_ERROR_CTX(
+                EXIT_FAILURE, "Failed to initialize SASL", {"error", e.what()});
     }
 }
 
@@ -679,14 +681,12 @@ static void startExecutorPool() {
     ExecutorPool::get()->setDefaultTaskable(NoBucketTaskable::instance());
 
     auto* pool = ExecutorPool::get();
-    LOG_INFO(
-            "Started executor pool with backend:{} readers:{} "
-            "writers:{} auxIO:{} nonIO:{}",
-            pool->getName(),
-            pool->getNumReaders(),
-            pool->getNumWriters(),
-            pool->getNumAuxIO(),
-            pool->getNumNonIO());
+    LOG_INFO_CTX("Started executor pool",
+                 {"backend", pool->getName()},
+                 {"readers", pool->getNumReaders()},
+                 {"writers", pool->getNumWriters()},
+                 {"auxIO", pool->getNumAuxIO()},
+                 {"nonIO", pool->getNumNonIO()});
 
     // MB-47484 Set up the settings callback for the executor pool now that
     // it is up'n'running
@@ -756,18 +756,17 @@ static void initialize_serverless_config() {
             "couchbase" / "kv" / "serverless" / "configuration.json";
     auto& config = cb::serverless::Config::instance();
     if (exists(serverless)) {
-        LOG_INFO("Using serverless static configuration from: {}",
-                 serverless.generic_string());
+        LOG_INFO_CTX("Using serverless static configuration",
+                     {"path", serverless.generic_string()});
         try {
             config.update_from_json(nlohmann::json::parse(
                     cb::io::loadFile(serverless.generic_string())));
         } catch (const std::exception& e) {
-            LOG_WARNING("Failed to read serverless configuration: {}",
-                        e.what());
+            LOG_WARNING_CTX("Failed to read serverless configuration",
+                            {"error", e.what()});
         }
     }
-    LOG_INFO("Serverless static configuration: {}",
-             nlohmann::json(config).dump());
+    LOG_INFO_CTX("Serverless static configuration", nlohmann::json(config));
 }
 
 int memcached_main(int argc, char** argv) {
@@ -815,9 +814,9 @@ int memcached_main(int argc, char** argv) {
     try {
         parse_arguments(argc, argv);
     } catch (const std::exception& exception) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to initialize server: {}",
-                    exception.what());
+        FATAL_ERROR_CTX(EXIT_FAILURE,
+                        "Failed to initialize server",
+                        {"error", exception.what()});
     }
 
     update_settings_from_config();
@@ -829,8 +828,9 @@ int memcached_main(int argc, char** argv) {
         auto ret =
                 cb::logger::initialize(Settings::instance().getLoggerConfig());
         if (ret) {
-            FATAL_ERROR(
-                    EXIT_FAILURE, "Failed to initialize logger: {}", ret.value());
+            FATAL_ERROR_CTX(EXIT_FAILURE,
+                            "Failed to initialize logger",
+                            {"error", ret.value()});
         }
     }
 
@@ -839,8 +839,8 @@ int memcached_main(int argc, char** argv) {
                                            verbosity_changed_listener);
 
     // Logging available now extensions have been loaded.
-    LOG_INFO("Couchbase version {} starting.", get_server_version());
-    LOG_INFO("Process identifier: {}", getpid());
+    LOG_INFO_CTX("Couchbase starting", {"version", get_server_version()});
+    LOG_INFO_CTX("Process identifier", {"pid", getpid()});
 
     if (folly::kIsSanitizeAddress) {
         LOG_INFO_RAW("Address sanitizer enabled");
@@ -850,8 +850,8 @@ int memcached_main(int argc, char** argv) {
         LOG_INFO_RAW("Thread sanitizer enabled");
     }
 
-    LOG_DEBUG("Using {} as the event framework",
-              Settings::instance().getEventFramework());
+    LOG_DEBUG_CTX("Event framework",
+                  {"name", Settings::instance().getEventFramework()});
 
 #if CB_DEVELOPMENT_ASSERTS
     LOG_INFO_RAW("Development asserts enabled");
@@ -876,7 +876,8 @@ int memcached_main(int argc, char** argv) {
     try {
         cb::backtrace::initialize();
     } catch (const std::exception& e) {
-        LOG_WARNING("Failed to initialize backtrace support: {}", e.what());
+        LOG_WARNING_CTX("Failed to initialize backtrace support",
+                        {"error", e.what()});
     }
 
     // Call recalculate_max_connections to make sure we put log the number
@@ -902,21 +903,24 @@ int memcached_main(int argc, char** argv) {
             cb::estimateClockOverhead<std::chrono::steady_clock>();
     const auto fineClockResolution =
             cb::estimateClockResolution<std::chrono::steady_clock>();
-    LOG_INFO("Fine clock resolution:{}, overhead:{}",
-             fineClockResolution,
-             fineClock.overhead);
+    LOG_INFO_CTX("Clock",
+                 {"type", "fine"},
+                 {"resolution", fineClockResolution},
+                 {"overhead", fineClock.overhead},
+                 {"period", fineClock.measurementPeriod});
     const auto coarseClock =
             cb::estimateClockOverhead<folly::chrono::coarse_steady_clock>();
     const auto coarseClockResolution =
             cb::estimateClockResolution<folly::chrono::coarse_steady_clock>();
-    LOG_INFO("Coarse clock resolution:{}, overhead:{}",
-             coarseClockResolution,
-             coarseClock.overhead);
     // Note: benchmark measurementPeriod is the same across all tested clocks,
     // to just report once.
-    LOG_INFO("(Clock measurement period: {})", coarseClock.measurementPeriod);
+    LOG_INFO_CTX("Clock",
+                 {"type", "coarse"},
+                 {"resolution", coarseClockResolution},
+                 {"overhead", coarseClock.overhead},
+                 {"period", coarseClock.measurementPeriod});
 
-    LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
+    LOG_INFO_CTX("Using SLA configuration", cb::mcbp::sla::to_json());
 
     if (cb::serverless::isEnabled()) {
         initialize_serverless_config();
@@ -942,27 +946,31 @@ int memcached_main(int argc, char** argv) {
     }
 
     if (!cb::io::isFile(Settings::instance().getRbacFile())) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "RBAC [{}] does not exist",
-                    Settings::instance().getRbacFile());
+        FATAL_ERROR_CTX(EXIT_FAILURE,
+                        "RBAC file does not exist",
+                        {"path", Settings::instance().getRbacFile()});
     }
 
-    LOG_INFO("Loading RBAC configuration from [{}]",
-             Settings::instance().getRbacFile());
+    LOG_INFO_CTX("Loading RBAC configuration",
+                 {"path", Settings::instance().getRbacFile()});
     try {
         cb::rbac::loadPrivilegeDatabase(Settings::instance().getRbacFile());
     } catch (const std::exception& exception) {
         // We can't run without a privilege database
-        FATAL_ERROR(EXIT_FAILURE, exception.what());
+        FATAL_ERROR_CTX(EXIT_FAILURE,
+                        "Failed to load RBAC database",
+                        {"error", exception.what()});
     }
 
     try {
         const auto errormapPath =
                 std::filesystem::path{Settings::instance().getErrorMapsDir()};
-        LOG_INFO("Loading error maps from [{}]", errormapPath.generic_string());
+        LOG_INFO_CTX("Loading error maps",
+                     {"path", errormapPath.generic_string()});
         ErrorMapManager::initialize(errormapPath);
     } catch (const std::exception& e) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
+        FATAL_ERROR_CTX(
+                EXIT_FAILURE, "Failed to load error maps", {"error", e.what()});
     }
 
     LOG_INFO_RAW("Starting external authentication manager");
@@ -1015,8 +1023,8 @@ int memcached_main(int argc, char** argv) {
             prometheus_auth_callback);
     worker_threads_init();
 
-    LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
-             Settings::instance().getPhosphorConfig());
+    LOG_INFO_CTX("Starting Phosphor tracing",
+                 {"config", Settings::instance().getPhosphorConfig()});
     initializeTracing(Settings::instance().getPhosphorConfig());
     TRACE_GLOBAL0("memcached", "Started");
 
@@ -1060,9 +1068,9 @@ int memcached_main(int argc, char** argv) {
         main_base->loopForever();
     }
 
-    LOG_INFO("Initiating graceful shutdown. sigint:{} sigterm:{}",
-             sigint,
-             sigterm);
+    LOG_INFO_CTX("Initiating graceful shutdown",
+                 {"sigint", sigint},
+                 {"sigterm", sigterm});
     BucketManager::instance().destroyAll();
 
     if (parent_monitor) {
