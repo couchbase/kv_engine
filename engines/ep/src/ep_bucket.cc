@@ -231,12 +231,12 @@ public:
             if (auto* warmup = bucket.getPrimaryWarmup()) {
                 warmup->setItemThreshold(value);
             }
-        } else if (key == "warmup_secondary_min_memory_threshold") {
+        } else if (key == "secondary_warmup_min_memory_threshold") {
             auto* warmup = bucket.getSecondaryWarmup();
             if (warmup) {
                 warmup->setMemoryThreshold(value);
             }
-        } else if (key == "warmup_secondary_min_items_threshold") {
+        } else if (key == "secondary_warmup_min_items_threshold") {
             auto* warmup = bucket.getSecondaryWarmup();
             if (warmup) {
                 warmup->setItemThreshold(value);
@@ -317,10 +317,10 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
             "warmup_min_items_threshold",
             std::make_unique<ValueChangedListener>(*this));
     config.addValueChangedListener(
-            "warmup_secondary_min_memory_threshold",
+            "secondary_warmup_min_memory_threshold",
             std::make_unique<ValueChangedListener>(*this));
     config.addValueChangedListener(
-            "warmup_secondary_min_items_threshold",
+            "secondary_warmup_min_items_threshold",
             std::make_unique<ValueChangedListener>(*this));
 
     // create the semaphore with a default capacity of 1. This will be
@@ -2400,14 +2400,14 @@ void EPBucket::primaryWarmupCompleted() {
     // Check if secondary warmup should now be created and continue background
     // warmup.
     const auto& config = engine.getConfiguration();
-    if (warmupTask && (config.getWarmupSecondaryMinMemoryThreshold() ||
-                       config.getWarmupSecondaryMinItemsThreshold())) {
+    if (warmupTask && (config.getSecondaryWarmupMinMemoryThreshold() ||
+                       config.getSecondaryWarmupMinItemsThreshold())) {
         // This construction path will automatically call step and begin
         // scheduling of the next step of warm-up.
         secondaryWarmupTask = std::make_unique<Warmup>(
                 *warmupTask,
-                config.getWarmupSecondaryMinMemoryThreshold(),
-                config.getWarmupSecondaryMinItemsThreshold(),
+                config.getSecondaryWarmupMinMemoryThreshold(),
+                config.getSecondaryWarmupMinItemsThreshold(),
                 "Secondary");
     }
 }
