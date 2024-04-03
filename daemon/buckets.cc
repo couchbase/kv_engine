@@ -23,6 +23,7 @@
 #include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
+#include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 #include <platform/timeutils.h>
 #include <serverless/config.h>
@@ -102,7 +103,8 @@ nlohmann::json Bucket::to_json() const {
             }
             return json;
         } catch (const std::exception& e) {
-            LOG_ERROR("Failed to generate bucket details: {}", e.what());
+            LOG_ERROR_CTX("Failed to generate bucket details",
+                          {"error", e.what()});
         }
     }
     return {};
@@ -115,11 +117,11 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
         auto err = getEngine().get_prometheus_stats(
                 collector, cb::prometheus::MetricGroup::Metering);
         if (err != cb::engine_errc::success) {
-            LOG_WARNING(
+            LOG_WARNING_CTX(
                     "Bucket::addMeteringMetrics(): Failed to get metering "
-                    "stats for bucket [{}]: {}",
-                    name,
-                    err);
+                    "stats",
+                    {"bucket", name},
+                    {"error", err});
         }
     }
 
@@ -502,7 +504,9 @@ std::pair<cb::engine_errc, Bucket::State> BucketManager::setClusterConfig(
     bucket.supportedFeatures.emplace(cb::engine::Feature::Collections);
     bucketStateChangeListener(bucket, Bucket::State::Ready);
     bucket.state = Bucket::State::Ready;
-    LOG_INFO("Created cluster config bucket [{}]", name);
+    LOG_INFO_CTX("Created bucket",
+                 {"bucket", name},
+                 {"type", bucket.type});
     return {cb::engine_errc::success, Bucket::State::Ready};
 }
 
@@ -578,10 +582,10 @@ void BucketManager::createEngineInstance(Bucket& bucket,
     bucket.setEngine(new_engine_instance(type, get_server_api));
     auto stop = std::chrono::steady_clock::now();
     if ((stop - start) > std::chrono::seconds{1}) {
-        LOG_WARNING("{}: Creation of bucket instance for bucket [{}] took {}",
-                    cid,
-                    name,
-                    cb::time2text(stop - start));
+        LOG_WARNING_CTX("Creation of bucket instance",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"duration", stop - start});
     }
 
     // Set the state initializing so that people monitoring the
@@ -594,11 +598,11 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         bucket.state = Bucket::State::Initializing;
     }
 
-    LOG_INFO(R"({}: Initialize {} bucket [{}] using configuration: "{}")",
-             cid,
-             to_string(type),
-             name,
-             config);
+    LOG_INFO_CTX("Initialize bucket",
+                 {"conn_id", cid},
+                 {"bucket", name},
+                 {"type", type},
+                 {"configuration", config});
     start = std::chrono::steady_clock::now();
     auto result = bucket.getEngine().initialize(config);
     if (result != cb::engine_errc::success) {
@@ -606,10 +610,10 @@ void BucketManager::createEngineInstance(Bucket& bucket,
     }
     stop = std::chrono::steady_clock::now();
     if ((stop - start) > std::chrono::seconds{1}) {
-        LOG_WARNING("{}: Initialization of bucket [{}] took {}",
-                    cid,
-                    name,
-                    cb::time2text(stop - start));
+        LOG_WARNING_CTX("Initialization of bucket completed",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"duration", stop - start});
     }
 
     // We don't pass the storage threads down in the config like we do for
@@ -639,13 +643,16 @@ cb::engine_errc BucketManager::create(uint32_t cid,
                                       std::string_view name,
                                       std::string_view config,
                                       BucketType type) {
-    LOG_INFO("{}: Create {} bucket [{}]", cid, to_string(type), name);
+    LOG_INFO_CTX("Create bucket",
+                 {"conn_id", cid},
+                 {"bucket", name},
+                 {"type", type});
     auto [err, free_bucket] = allocateBucket(name);
     if (err != cb::engine_errc::success) {
-        LOG_ERROR("{}: Create bucket [{}] failed - {}",
-                  cid,
-                  name,
-                  to_string(err));
+        LOG_ERROR_CTX("Create bucket failed",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", err});
         return err;
     }
 
@@ -673,18 +680,26 @@ cb::engine_errc BucketManager::create(uint32_t cid,
             bucketStateChangeListener(bucket, Bucket::State::Ready);
             bucket.state = Bucket::State::Ready;
         }
-        LOG_INFO("{}: Bucket [{}] created successfully", cid, name);
+        LOG_INFO_CTX("Bucket created successfully",
+                     {"conn_id", cid},
+                     {"bucket", name});
     } catch (const cb::engine_error& exception) {
         result = cb::engine_errc(exception.code().value());
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}",
-                  cid,
-                  name,
-                  exception.what());
+        LOG_ERROR_CTX("Failed to create bucket",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", exception.what()});
     } catch (const std::bad_alloc&) {
-        LOG_ERROR("{}: Failed to create bucket [{}]: No memory", cid, name);
+        LOG_ERROR_CTX("Failed to create bucket",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", "No memory"});
         result = cb::engine_errc::no_memory;
     } catch (const std::exception& e) {
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
+        LOG_ERROR_CTX("Failed to create bucket",
+                      {"conn_id", cid},
+                      {"bucket", name},
+                      {"error", e.what()});
         result = cb::engine_errc::failed;
     }
 
@@ -768,7 +783,10 @@ BucketManager::startDestroy(std::string_view cid,
     }
 
     if (ret != cb::engine_errc::success) {
-        LOG_WARNING("{}: Delete bucket [{}]: {}", cid, name, to_string(ret));
+        LOG_WARNING_CTX("Delete bucket",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"status", ret});
         return {ret, {}};
     }
     // The destroyer _could_ be stepped here until it first returns
@@ -789,11 +807,11 @@ void BucketManager::waitForEveryoneToDisconnect(
         std::unique_lock<std::mutex> guard(bucket.mutex);
 
         if (bucket.clients > 0) {
-            LOG_INFO("{}: {} bucket [{}]. Wait for {} clients to disconnect",
-                     id,
-                     operation,
-                     bucket.name,
-                     bucket.clients);
+            LOG_INFO_CTX("Operation waiting for clients to disconnect",
+                         {"conn_id", id},
+                         {"operation", operation},
+                         {"bucket", bucket.name},
+                         {"clients", bucket.clients});
 
             // Signal clients bound to the bucket before waiting
             guard.unlock();
@@ -857,13 +875,12 @@ void BucketManager::waitForEveryoneToDisconnect(
                 }
             });
 
-            LOG_INFO(
-                    R"({}: {} bucket [{}]. Still waiting: {} clients connected: {})",
-                    id,
-                    operation,
-                    bucket.name,
-                    bucket.clients,
-                    currConns.dump());
+            LOG_INFO_CTX("Operation still waiting for clients to disconnect",
+                         {"conn_id", id},
+                         {"operation", operation},
+                         {"bucket", bucket.name},
+                         {"clients", bucket.clients},
+                         {"connections", currConns.dump()});
 
             guard.lock();
         }
@@ -873,12 +890,11 @@ void BucketManager::waitForEveryoneToDisconnect(
     int counter = 0;
     while (num != 0) {
         if (++counter % 100 == 0) {
-            LOG_INFO(
-                    R"({}: {} bucket [{}]. Still waiting: {} items still stuck in transfer.)",
-                    id,
-                    operation,
-                    bucket.name,
-                    num);
+            LOG_INFO_CTX("Operation waiting for items stuck in transfer",
+                         {"conn_id", id},
+                         {"operation", operation},
+                         {"bucket", bucket.name},
+                         {"items", num});
         }
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
         num = bucket.items_in_transit.load();
@@ -995,9 +1011,9 @@ void BucketManager::destroyAll() {
     for (size_t ii = 1; ii < all_buckets.size(); ++ii) {
         if (all_buckets[ii].state == Bucket::State::Ready) {
             const std::string name{all_buckets[ii].name};
-            LOG_INFO("Waiting for delete of {} to complete", name);
+            LOG_INFO_CTX("Waiting for delete to complete", {"bucket", name});
             destroy("<none>", name, false, {});
-            LOG_INFO("Bucket {} deleted", name);
+            LOG_INFO_CTX("Bucket deleted", {"bucket", name});
         }
     }
 }
@@ -1059,7 +1075,10 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         }
     }
 
-    LOG_INFO("{}: Pausing bucket [{}], notifying engine to quiesce state", cid, name);
+    LOG_INFO_CTX("Pausing bucket",
+                 {"conn_id", cid},
+                 {"bucket", name},
+                 {"state", "notifying engine to quiesce state"});
 
     bucketPausingListener(name, "before_cancellation_callback");
 
@@ -1078,7 +1097,9 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         std::lock_guard guard(bucket->mutex);
         return folly::CancellationCallback{
                 cancellationToken, [this, cid, bucket, name] {
-                    LOG_INFO("{}: Cancelling pause of bucket [{}]", cid, name);
+                    LOG_INFO_CTX("Cancelling pause of bucket",
+                                 {"conn_id", cid},
+                                 {"bucket", name});
                     Expects(bucket->state == Bucket::State::Pausing ||
                             bucket->state == Bucket::State::Paused);
                     bucket->management_operation_in_progress = false;
@@ -1123,7 +1144,10 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         if (cancellationToken.isCancellationRequested()) {
             return cb::engine_errc::cancelled;
         }
-        LOG_INFO("{}: Paused bucket [{}]", cid, name, to_string(status));
+        LOG_INFO_CTX("Paused bucket",
+                     {"conn_id", cid},
+                     {"bucket", name},
+                     {"status", status});
         bucket->management_operation_in_progress = false;
         bucketStateChangeListener(*bucket, Bucket::State::Paused);
         bucket->pause_cancellation_source =
@@ -1134,10 +1158,10 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         if (cancellationToken.isCancellationRequested()) {
             return cb::engine_errc::cancelled;
         }
-        LOG_WARNING("{}: Pausing bucket [{}] failed:{}",
-                    cid,
-                    name,
-                    to_string(status));
+        LOG_WARNING_CTX("Pausing bucket failed",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"status", status});
         bucketStateChangeListener(*bucket, Bucket::State::Ready);
         bucket->pause_cancellation_source =
                 folly::CancellationSource::invalid();
@@ -1191,25 +1215,28 @@ cb::engine_errc BucketManager::resume(std::string_view cid,
         if (bucket.pause_cancellation_source.canBeCancelled()) {
             bool alreadyRequested =
                     bucket.pause_cancellation_source.requestCancellation();
-            LOG_INFO(
-                    "{}: Requesting cancellation of in-progress pause() "
-                    "request. previouslyRequested:{}",
-                    cid,
-                    alreadyRequested);
+            LOG_INFO_CTX(
+                    "Requesting cancellation of in-progress pause() request",
+                    {"conn_id", cid},
+                    {"bucket", name},
+                    {"previously_requested", alreadyRequested});
             return cb::engine_errc::success;
         }
     }
 
-    LOG_INFO("{}: Resuming bucket '{}'", cid, name);
+    LOG_INFO_CTX("Resuming bucket", {"conn_id", cid}, {"bucket", name});
     auto status = bucket.getEngine().resume();
     if (status == cb::engine_errc::success) {
-        LOG_INFO("{}: Bucket [{}] is back online", cid, name);
+        LOG_INFO_CTX(
+                "Bucket is back online", {"conn_id", cid}, {"bucket", name});
         std::lock_guard bucketguard(bucket.mutex);
         bucketStateChangeListener(bucket, Bucket::State::Ready);
         bucket.state = Bucket::State::Ready;
     } else {
-        LOG_WARNING("{}: Failed to resume bucket [{}]: {}",
-                    cid, name, to_string(status));
+        LOG_WARNING_CTX("Failed to resume bucket",
+                        {"conn_id", cid},
+                        {"bucket", name},
+                        {"status", status});
     }
 
     return status;
@@ -1231,9 +1258,10 @@ BucketManager::BucketManager() {
         nobucket.setEngine(
                 new_engine_instance(BucketType::NoBucket, get_server_api));
     } catch (const std::exception& exception) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "Failed to create the internal bucket \"No bucket\": {}",
-                    exception.what());
+        FATAL_ERROR_CTX(
+                EXIT_FAILURE,
+                "Failed to create the internal bucket \"No bucket\": {}",
+                {"error", exception.what()});
     }
     nobucket.max_document_size = nobucket.getEngine().getMaxItemSize();
     nobucket.supportedFeatures = nobucket.getEngine().getFeatures();
