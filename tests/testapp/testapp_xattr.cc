@@ -78,6 +78,7 @@ protected:
         XattrNoDocTest::SetUp();
 
         // Create the document to operate on (with some compressible data).
+        document.info.flags = 0;
         document.info.id = name;
         document.info.datatype = cb::mcbp::Datatype::Raw;
         document.value =
@@ -2539,12 +2540,14 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
     auto val = userConnection->get(name, Vbid{0});
     // Verify that the server didn't "decode" the value
     EXPECT_EQ(base64_encode_value(payload), val.value);
+    EXPECT_EQ(0x0, val.info.flags);
 
     // And finally replace with the binary value...
     // Replace the body with the staged value and remove the staged xattr
     {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(name);
+        cmd.setUserFlags(0xbeefcafe);
         cmd.addMutation(ClientOpcode::SubdocReplaceBodyWithXattr,
                         PathFlag::XattrPath | PathFlag::BinaryValue,
                         "tnx.op.staged",
@@ -2564,6 +2567,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
     val = userConnection->get(name, Vbid{0});
     EXPECT_EQ(val.info.datatype, Datatype::Raw);
     EXPECT_EQ(val.value, payload);
+    EXPECT_EQ(0xbeefcafe, val.info.flags);
 }
 
 TEST_P(XattrTest, UpsertWithXattrBase64EncodedBinaryValue) {
@@ -2620,6 +2624,21 @@ TEST_P(XattrTest, BinaryFlagAndExpandMacrosIsNotLegal) {
     EXPECT_EQ(Status::SubdocXattrInvalidFlagCombo, rsp.getStatus());
     EXPECT_EQ("BINARY_VALUE can't be used together with EXPAND_MACROS",
               rsp.getErrorContext());
+}
+
+TEST_P(XattrTest, UpdateUserFlags) {
+    auto info = userConnection->get(name, Vbid{0});
+    EXPECT_EQ(0, info.info.flags);
+    BinprotSubdocCommand cmd{ClientOpcode::SubdocDictUpsert,
+                             name,
+                             "foo",
+                             "true",
+                             PathFlag::XattrPath | PathFlag::Mkdir_p};
+    cmd.setUserFlags(0xdeadcafe);
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_EQ(Status::Success, rsp.getStatus());
+    info = userConnection->get(name, Vbid{0});
+    EXPECT_EQ(0xdeadcafe, info.info.flags);
 }
 
 /// Simulate that an old client (without support for binary values)
