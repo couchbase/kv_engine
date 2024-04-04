@@ -55,7 +55,8 @@ class RollbackTest
               std::tuple<std::string, std::string, std::string>> {
     void SetUp() override {
         config_string += generateBackendConfig(std::get<0>(GetParam()));
-        config_string += ";item_eviction_policy=" + getEvictionMode();
+        config_string +=
+                ";ht_locks=7;item_eviction_policy=" + getEvictionMode();
 #ifdef EP_USE_MAGMA
         config_string += ";" + magmaRollbackConfig;
 #endif
@@ -946,7 +947,7 @@ public:
     RollbackDcpTest() = default;
 
     void SetUp() override {
-        config_string += "item_eviction_policy=" + getEvictionMode();
+        config_string += "ht_locks=7;item_eviction_policy=" + getEvictionMode();
         SingleThreadedEPBucketTest::SetUp();
         if (getVBStateAtRollback() == "pending") {
             vbStateAtRollback = vbucket_state_pending;
