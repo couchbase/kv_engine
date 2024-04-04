@@ -3690,8 +3690,8 @@ static enum test_result test_warmup_with_threshold(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     checkeq(1,
-            get_int_stat(h, "ep_warmup_min_item_threshold", "warmup"),
-            "Unable to set warmup_min_item_threshold to 1%");
+            get_int_stat(h, "ep_warmup_min_items_threshold", "warmup"),
+            "Unable to set warmup_min_items_threshold to 1%");
 
     const std::string policy = get_str_stat(h, "ep_item_eviction_policy");
 
@@ -7628,7 +7628,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
                                         "ep_warmup_dups",
                                         "ep_warmup_oom",
                                         "ep_warmup_min_memory_threshold",
-                                        "ep_warmup_min_item_threshold",
+                                        "ep_warmup_min_items_threshold",
                                         "ep_warmup_estimated_key_count",
                                         "ep_warmup_estimated_value_count" } });
     }

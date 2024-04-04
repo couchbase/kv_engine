@@ -943,12 +943,6 @@
         "added": "7.1.0"
     },
     {
-        "key": "ep_warmup_min_item_threshold",
-        "unit": "none",
-        "description": "The minimum number of items that needs to be warmed up before external data mutations is allowed. This is in % of the number of items.",
-        "added": "7.1.0"
-    },
-    {
         "key": "ep_warmup_keys_time",
         "unit": "microseconds",
         "description": "Time (\u00b5s) spent by warming keys",

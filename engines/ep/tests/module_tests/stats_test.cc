@@ -820,7 +820,7 @@ TEST_F(StatTest, WarmupStats) {
     EXPECT_CALL(cb, Call("ep_warmup_key_count"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_value_count"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_min_memory_threshold"sv, _, _));
-    EXPECT_CALL(cb, Call("ep_warmup_min_item_threshold"sv, _, _));
+    EXPECT_CALL(cb, Call("ep_warmup_min_items_threshold"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_keys_time"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_estimated_key_count"sv, _, _));
     EXPECT_CALL(cb, Call("ep_warmup_estimated_value_count"sv, _, _));
