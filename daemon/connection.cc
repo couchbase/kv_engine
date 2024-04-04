@@ -773,26 +773,7 @@ void Connection::tryToProgressDcpStream() {
         return;
     }
 
-    // MB-38007: We see an increase in rebalance time for
-    // "in memory" workloads when allowing DCP to fill up to
-    // 40MB (that used to be the default) batch size into the
-    // output buffer. We've not been able to figure out exactly
-    // _why_ this is happening and have assumptions that it may be caused
-    // that it doesn't align too much with the flow control being
-    // used. Before moving to bufferevent we would copy the entire
-    // message into kernel space before trying to read (and process)
-    // any input messages before trying to send the next one.
-    // It could be that it would be better at processing the
-    // incoming flow control messages instead of the current
-    // model where the input socket gets drained and put in
-    // userspace buffers, the send queue is tried to be drained
-    // before we do the callback and process the already queued
-    // input and generate more output before returning to the
-    // layer doing the actual IO.
-    std::size_t dcpMaxQSize =
-            (dcpFlowControlBufferSize == 0)
-                    ? Settings::instance().getMaxSendQueueSize()
-                    : 1024 * 1024;
+    std::size_t dcpMaxQSize = Settings::instance().getMaxSendQueueSize();
     bool more = (getSendQueueSize() < dcpMaxQSize);
     if (type == Type::Consumer) {
         // We want the consumer to perform some steps because
