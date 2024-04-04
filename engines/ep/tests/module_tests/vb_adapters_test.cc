@@ -307,3 +307,46 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorIgnoresUnexpectedWakeups) {
     crossBucketVisitor->scheduleNow(std::move(visitors));
     ASSERT_TRUE(wasHookExecuted);
 }
+
+class MockInterruptVisitor : public InterruptableVBucketVisitor {
+public:
+    MOCK_METHOD0(shouldInterrupt, ExecutionState());
+    MOCK_METHOD1(visitBucket, void(VBucket&));
+};
+
+TEST_F(VBAdaptorsTest, VBCBAdaptorDescription) {
+    setVBucketState(Vbid(0), vbucket_state_active);
+    setVBucketState(Vbid(1), vbucket_state_active);
+
+    auto visitor = std::make_unique<StrictMock<MockInterruptVisitor>>();
+    {
+        InSequence s;
+        EXPECT_CALL(*visitor, shouldInterrupt())
+                .WillOnce(
+                        Return(MockInterruptVisitor::ExecutionState::Continue));
+        EXPECT_CALL(*visitor, visitBucket(HasVbid(Vbid(0))));
+        EXPECT_CALL(*visitor, shouldInterrupt())
+                .WillOnce(Return(MockInterruptVisitor::ExecutionState::Pause));
+
+        EXPECT_CALL(*visitor, shouldInterrupt())
+                .WillOnce(
+                        Return(MockInterruptVisitor::ExecutionState::Continue));
+        EXPECT_CALL(*visitor, visitBucket(HasVbid(Vbid(1))));
+        // Done.
+    }
+
+    // Create an adapter for our dummy visitor. TaskId doesn't matter.
+    auto task = std::make_shared<VBCBAdaptor>(store,
+                                              TaskId::ItemPager,
+                                              std::move(visitor),
+                                              "Task",
+                                              /*shutdown*/ false);
+
+    EXPECT_EQ(task->getDescription(), "Task no vbucket assigned");
+
+    EXPECT_TRUE(task->run());
+    EXPECT_EQ(task->getDescription(), "Task on vb:0");
+
+    EXPECT_FALSE(task->run());
+    EXPECT_EQ(task->getDescription(), "Task on vb:1");
+}
