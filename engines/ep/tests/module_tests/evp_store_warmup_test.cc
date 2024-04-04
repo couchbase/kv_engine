@@ -1464,6 +1464,7 @@ TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
     // In production this isn't needed as data is loaded for many different
     // vBuckets; but to simplify here we just stick with a single VB.
     store->getPrimaryWarmup()->setItemThreshold(200);
+    store->getPrimaryWarmup()->setMemoryThreshold(200);
 
     // Batons used to synchronise the various setup phases:
     folly::Baton<true> syncWriteCommittedBaton;
@@ -2486,6 +2487,10 @@ TEST_F(WarmupTest, MB_35326) {
 
 class WarmupDiskTest : public SingleThreadedKVBucketTest {
 public:
+    void SetUp() override {
+        setupPrimaryWarmupOnly();
+        SingleThreadedKVBucketTest::SetUp();
+    }
     void TearDown() override {
         // Add back write permissions on all files we've removed
         // write permission on
@@ -2729,7 +2734,15 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
 
-    while (warmup->getWarmupState() != WarmupState::State::CheckForAccessLog) {
+    while (!warmup->isFinishedLoading()) {
+        runNextTask(readerQueue);
+    }
+
+    const auto* secondary = engine->getKVBucket()->getSecondaryWarmup();
+    ASSERT_TRUE(secondary);
+
+    while (secondary->getWarmupState() !=
+           WarmupState::State::CheckForAccessLog) {
         runNextTask(readerQueue);
     }
 
@@ -2959,6 +2972,11 @@ INSTANTIATE_TEST_SUITE_P(FullOrValue,
  */
 class WarmupAbortedOnDiskError : public WarmupTest {
 public:
+    void SetUp() override {
+        setupPrimaryWarmupOnly();
+        WarmupTest::SetUp();
+    }
+
     enum class InjectErrorFunc { InitScanContext, Scan };
 
 protected:
@@ -3114,11 +3132,16 @@ TEST_F(WarmupTest, WarmupStateRace) {
  * Test to ensure we don't load items into memory when warming up if
  * warmup_min_memory_threshold=0;warmup_min_items_threshold=0 are set in full
  * eviction mode.
+ *
+ * MB-9418: This test also disables secondary warmup so no data is loaded
  */
 TEST_F(WarmupTest, WarmupZeroThreshold) {
     const auto config =
             "item_eviction_policy=full_eviction;"
-            "warmup_min_memory_threshold=0;warmup_min_items_threshold=0";
+            "warmup_min_memory_threshold=0;"
+            "warmup_min_items_threshold=0;"
+            "secondary_warmup_min_memory_threshold=0;"
+            "secondary_warmup_min_items_threshold=0";
 
     // 1. Create a vbucket and docs, persist them to disk
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);

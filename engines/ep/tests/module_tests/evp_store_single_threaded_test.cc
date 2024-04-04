@@ -238,9 +238,23 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
     }
 }
 
-void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
+void SingleThreadedKVBucketTest::runReadersUntilPrimaryWarmedUp() {
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     while (engine->getKVBucket()->isWarmupLoadingData()) {
+        runNextTask(readerQueue);
+    }
+}
+
+void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
+    runReadersUntilPrimaryWarmedUp();
+
+    const auto* secondary = engine->getKVBucket()->getSecondaryWarmup();
+    if (!secondary) {
+        return;
+    }
+
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    while (!secondary->isComplete()) {
         runNextTask(readerQueue);
     }
 }
@@ -4788,19 +4802,8 @@ TEST_P(STParamPersistentBucketTest,
     // Create warmup task and flusher
     store->initialize();
 
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
-    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
-    ASSERT_TRUE(warmup);
-
-    // Warmup - run past the PopulateVBucketMap step which is the one that
-    // now triggers the flusher and persists the FailoverTable entry.
-    // CheckForAccessLog is the first step common to both value and full
-    // eviction.
-    while (warmup->getWarmupState() != WarmupState::State::CheckForAccessLog) {
-        runNextTask(readerQueue);
-    }
-
-    EXPECT_EQ(WarmupState::State::CheckForAccessLog, warmup->getWarmupState());
+    // MB-9418: Run until primary complete - so metadata stages are complete
+    runReadersUntilPrimaryWarmedUp();
 
     auto flusher = store->getOneFlusher();
     EXPECT_EQ(0, flusher->getLPQueueSize());
@@ -4815,12 +4818,7 @@ TEST_P(STParamPersistentBucketTest,
     // Run through the rest of the warmup so that we can shutdown properly.
     // This isn't actually required in a production setup but the test will hang
     // if we don't.
-    while (warmup->getWarmupState() != WarmupState::State::Done) {
-        runNextTask(readerQueue);
-    }
-
-    // And once more to get it out of the queue
-    runNextTask(readerQueue);
+    runReadersUntilWarmedUp();
 
     // Final clean shutdown
     resetEngineAndWarmup();
@@ -6344,7 +6342,8 @@ TEST_P(STParamPersistentBucketTest, EnforceFlushBatchMaxBytes) {
  */
 class WarmupSTSingleShardTest : public STParamPersistentBucketTest {
     void SetUp() override {
-        config_string = "max_num_shards=1";
+        setupPrimaryWarmupOnly();
+        config_string += "max_num_shards=1";
         STParamPersistentBucketTest::SetUp();
     }
 };

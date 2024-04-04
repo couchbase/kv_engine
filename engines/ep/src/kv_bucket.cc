@@ -530,6 +530,10 @@ Warmup* KVBucket::getPrimaryWarmup() const {
     return nullptr;
 }
 
+Warmup* KVBucket::getSecondaryWarmup() const {
+    return nullptr;
+}
+
 bool KVBucket::pauseFlusher() {
     // Nothing do to - no flusher in this class
     return false;

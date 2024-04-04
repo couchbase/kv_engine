@@ -2281,11 +2281,7 @@ Warmup* EPBucket::getPrimaryWarmup() const {
     return warmupTask.get();
 }
 
-const Warmup* EPBucket::getSecondaryWarmup() const {
-    return secondaryWarmupTask.lock()->get();
-}
-
-Warmup* EPBucket::getSecondaryWarmup() {
+Warmup* EPBucket::getSecondaryWarmup() const {
     return secondaryWarmupTask.lock()->get();
 }
 

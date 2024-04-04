@@ -301,10 +301,16 @@ protected:
     void cancelAndPurgeTasks();
 
     /**
-     * This method will keep running reader tasks until the engine shows warmup
+     * This method will keep running reader tasks until all Warmup stages warmup
      * is complete.
      */
     void runReadersUntilWarmedUp();
+
+    /**
+     * This method will keep running reader tasks until primary Warmup shows it
+     * is complete
+     */
+    void runReadersUntilPrimaryWarmedUp();
 
     /**
      * Helper method that takes the objects current base config, will re-enable

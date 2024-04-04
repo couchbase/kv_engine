@@ -583,6 +583,13 @@ public:
     virtual Warmup* getPrimaryWarmup() const = 0;
 
     /**
+     * Return a pointer to the secondary warmup object. Can be null for
+     * bucket's which don't warmup and don't enable or have yet created this
+     * object
+     */
+    virtual Warmup* getSecondaryWarmup() const = 0;
+
+    /**
      * Looks up the key stats for the given {vbucket, key}.
      * @param key The key to lookup
      * @param vbucket The vbucket the key belongs to.

@@ -397,6 +397,8 @@ public:
 
     Warmup* getPrimaryWarmup() const override;
 
+    Warmup* getSecondaryWarmup() const override;
+
     cb::engine_errc getKeyStats(const DocKey& key,
                                 Vbid vbucket,
                                 CookieIface& cookie,

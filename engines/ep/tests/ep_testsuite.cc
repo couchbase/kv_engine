@@ -2627,10 +2627,10 @@ static enum test_result test_warmup_conf(EngineIface* h) {
         return SKIPPED;
     }
 
-    checkeq(100,
+    checkeq(0,
             get_int_stat(h, "ep_warmup_min_items_threshold"),
             "Incorrect initial warmup min items threshold.");
-    checkeq(100,
+    checkeq(0,
             get_int_stat(h, "ep_warmup_min_memory_threshold"),
             "Incorrect initial warmup min memory threshold.");
 
@@ -2681,8 +2681,11 @@ static enum test_result test_warmup_conf(EngineIface* h) {
 
     // Restart the server.
     std::string config(testHarness->get_current_testcase()->cfg);
-    config = config + "warmup_min_memory_threshold=0";
-    testHarness->reload_engine(&h, config.c_str(), true, false);
+    config +=
+            "warmup_min_memory_threshold=0;"
+            "secondary_warmup_min_items_threshold=0;"
+            "secondary_warmup_min_memory_threshold=0";
+    testHarness->reload_engine(&h, config, true, false);
 
     wait_for_warmup_complete(h);
 
@@ -8670,7 +8673,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_warmup_with_threshold,
                  test_setup,
                  teardown,
-                 "warmup_min_items_threshold=1",
+                 "warmup_min_items_threshold=1;"
+                 "secondary_warmup_min_items_threshold=0;"
+                 "secondary_warmup_min_memory_threshold=0",
                  prepare,
                  cleanup),
         TestCase("seqno stats",

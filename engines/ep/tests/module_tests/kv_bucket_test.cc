@@ -692,6 +692,14 @@ void KVBucketTest::setProcessExpiredItemHook(std::function<void()> cb) {
     store->processExpiredItemHook = std::move(cb);
 }
 
+void KVBucketTest::setupPrimaryWarmupOnly() {
+    config_string +=
+            "warmup_min_memory_threshold=100;"
+            "warmup_min_items_threshold=100;"
+            "secondary_warmup_min_memory_threshold=0;"
+            "secondary_warmup_min_items_threshold=0;";
+}
+
 class KVBucketParamTest : public STParameterizedBucketTest {
     void SetUp() override {
         STParameterizedBucketTest::SetUp();

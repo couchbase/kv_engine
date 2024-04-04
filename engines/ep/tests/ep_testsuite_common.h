@@ -263,6 +263,8 @@ bool isActiveCompressionEnabled(EngineIface* h);
 // Returns true if Warmup is enabled for the given engine.
 bool isWarmupEnabled(EngineIface* h);
 
+bool isSecondaryWarmupEnabled(EngineIface* h);
+
 // Returns true if the given engine is a persistent bucket (EPBucket).
 bool isPersistentBucket(EngineIface* h);
 

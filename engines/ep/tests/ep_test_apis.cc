@@ -1447,11 +1447,18 @@ bool wait_for_warmup_complete(EngineIface* h) {
         return true;
     }
 
+    bool waitForSecondary = isSecondaryWarmupEnabled(h);
+
     std::chrono::microseconds sleepTime{128};
     do {
         try {
             if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
-                return true;
+                if (!waitForSecondary ||
+                    (waitForSecondary &&
+                     get_str_stat(h, "ep_secondary_warmup_status", "warmup") ==
+                             "complete")) {
+                    return true;
+                }
             }
         } catch (const cb::engine_error&) {
             // If the stat call failed then the warmup stats group no longer

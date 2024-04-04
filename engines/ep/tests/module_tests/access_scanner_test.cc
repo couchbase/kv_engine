@@ -21,6 +21,7 @@
 class AccessLogTest : public STParamPersistentBucketTest {
 public:
     void SetUp() override {
+        setupPrimaryWarmupOnly();
         config_string +=
                 "alog_resident_ratio_threshold=100;alog_max_stored_items=10;"
                 "alog_path=" +
@@ -55,7 +56,7 @@ public:
 // assumption is that if 1 item from each VB is evicted prior to generating
 // the access log then warmup (with a configuration that cannot load all items)
 // should return the cache to pre-warmup state.
-TEST_P(AccessLogTest, WarmupWithAcceessLog) {
+TEST_P(AccessLogTest, WarmupWithAccessLog) {
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
     auto key3 = makeStoredDocKey("key3");

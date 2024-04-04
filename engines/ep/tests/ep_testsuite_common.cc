@@ -417,6 +417,12 @@ bool isWarmupEnabled(EngineIface* h) {
     return isPersistentBucket(h) && get_bool_stat(h, "ep_warmup");
 }
 
+bool isSecondaryWarmupEnabled(EngineIface* h) {
+    return isWarmupEnabled(h) &&
+           (get_int_stat(h, "ep_secondary_warmup_min_memory_threshold") ||
+            get_int_stat(h, "ep_secondary_warmup_min_items_threshold"));
+}
+
 bool isPersistentBucket(EngineIface* h) {
     return get_str_stat(h, "ep_bucket_type") == "persistent";
 }

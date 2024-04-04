@@ -412,6 +412,12 @@ public:
      */
     void setProcessExpiredItemHook(std::function<void()> cb);
 
+    /**
+     * Add to config_string configuration so that warmup is 100% done using
+     * the primary warmup object
+     */
+    void setupPrimaryWarmupOnly();
+
 private:
     /**
      * Destroy the test objects - e.g. engine/store/cookie

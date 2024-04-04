@@ -1729,7 +1729,7 @@
         },
         "warmup_min_memory_threshold": {
             "default": {
-                "on-prem": "100",
+                "on-prem": "0",
                 "serverless": "0"
             },
             "descr": "Mark primary warm-up as complete when bucket memory usage reaches this percentage of max_data_size. This is checked before evaluating warmup_min_items_threshold.",
@@ -1744,7 +1744,7 @@
         },
         "warmup_min_items_threshold": {
             "default": {
-                "on-prem": "100",
+                "on-prem": "0",
                 "serverless": "0"
             },
             "descr": "Mark primary warm-up as complete when the number of values loaded by warm-up reaches this percentage of the available values. This is checked after evaluating warmup_min_memory_threshold.",
@@ -1759,7 +1759,7 @@
         },
         "secondary_warmup_min_memory_threshold": {
             "default": {
-                "on-prem": "0",
+                "on-prem": "100",
                 "serverless": "0"
             },
             "descr": "Stop secondary warm-up when bucket memory usage reaches this percentage of max_data_size. This is checked before evaluating secondary_warmup_min_items_threshold.",
@@ -1774,7 +1774,7 @@
         },
         "secondary_warmup_min_items_threshold": {
             "default": {
-                "on-prem": "0",
+                "on-prem": "100",
                 "serverless": "0"
             },
             "descr": "Stop secondary warm-up when the number of values loaded by warm-up reaches this percentage of the available values. This is checked after evaluating secondary_warmup_min_memory_threshold.",
