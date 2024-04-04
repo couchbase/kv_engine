@@ -22,17 +22,13 @@ def check_for_only_def_once(file):
     """
     Function to check for the presence of #pragma once or a #ifndef guard in a
     file
-    :param file: file to search for #pragma once or (#ifndef X, #define X and
-    #endif)
+    :param file: file to search for #pragma once
     :return: returns true if the correct macros are found or false if not
     """
-    header_file = open(file, "r")
-    # re-set the seek location to the beginning of the file as read()
-    # will have made it point to the end
-    header_file.seek(0)
+    header_file = open(file, "rb")
     for line in header_file:
         # if there is a #pragma once then were good
-        if line == str("#pragma once\n"):
+        if line == b"#pragma once\n":
             return True
     return False
 
