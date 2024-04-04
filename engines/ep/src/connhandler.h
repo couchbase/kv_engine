@@ -385,7 +385,7 @@ public:
      * @returns a textual description of the current paused state, and details
      * of how previous paused reaons.
      */
-    std::string getPausedDetails() const;
+    std::string getPausedDetailsDescription() const;
 
     const std::string& getAuthenticatedUser() const {
         return authenticatedUser;
@@ -481,23 +481,6 @@ protected:
     /// Indicates whether this connection enables sending history on the streams
     std::atomic<bool> changeStreams = false;
 
-private:
-
-     //! The name for this connection
-    std::string name;
-
-    //! The cookie representing this connection (provided by the memcached code)
-    std::atomic<CookieIface*> cookie;
-
-    //! Should we disconnect as soon as possible?
-    std::atomic<bool> disconnect;
-
-    //! Whether or not this connection supports acking
-    std::atomic<bool> supportAck;
-
-    //! Connection is temporarily paused?
-    std::atomic<bool> paused;
-
     /**
      * Details of why and for how long a connection is paused, for diagnostic
      * purposes.
@@ -520,6 +503,27 @@ private:
         size_t pausedCounter{0};
         size_t unpausedCounter{0};
     };
+
+    [[nodiscard]] auto getPausedDetails() const {
+        return pausedDetails.copy();
+    }
+
+private:
+    //! The name for this connection
+    std::string name;
+
+    //! The cookie representing this connection (provided by the memcached code)
+    std::atomic<CookieIface*> cookie;
+
+    //! Should we disconnect as soon as possible?
+    std::atomic<bool> disconnect;
+
+    //! Whether or not this connection supports acking
+    std::atomic<bool> supportAck;
+
+    //! Connection is temporarily paused?
+    std::atomic<bool> paused;
+
     folly::Synchronized<PausedDetails, std::mutex> pausedDetails;
 
     /// The authenticated user the connection

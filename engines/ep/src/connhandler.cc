@@ -414,7 +414,7 @@ void ConnHandler::unPause() {
     });
 }
 
-std::string ConnHandler::getPausedDetails() const {
+std::string ConnHandler::getPausedDetailsDescription() const {
     const auto details = pausedDetails.copy();
     fmt::memory_buffer buf;
     bool addComma = false;

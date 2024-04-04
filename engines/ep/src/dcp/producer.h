@@ -714,6 +714,27 @@ protected:
     cb::AtomicTimePoint<> lastSendTime;
     folly::Synchronized<BufferLog> log;
 
+    /// As part of 'step' we'll log if the buffer has been full for a certain
+    /// duration of time. It is a fixed multiplier of this number
+    std::chrono::seconds nextLogBufferFull;
+
+    /// The amount of time we have to be stuck waiting for the consumer
+    /// to free up space in the buffer window. Once logged we'll wait the
+    /// same amount of time before logging again
+    std::chrono::seconds logBufferFullInterval{360};
+
+#ifdef CB_DEVELOPMENT_ASSERTS
+    /// As part of 'step' we'll log if the aggregated amount of time we've
+    /// spent blocked due to the buffer being full exceeds a certain duration
+    /// of time. (and then every minute after that)
+    std::chrono::minutes nextLogBufferAggregatedFull;
+
+    /// The amount of time we need to wait (in total) for the client to free
+    /// up space in the buffer window before we emit a log message. Once
+    /// we exceed the limit we'll log once every minute.
+    std::chrono::minutes logBufferAggregatedFullDuration{30};
+#endif
+
     // backfill manager object is owned by this class, but use an
     // shared_ptr as the lifetime of the manager is shared between the
     // producer (this class) and BackfillManagerTask (which has a

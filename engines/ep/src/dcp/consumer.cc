@@ -216,7 +216,7 @@ DcpConsumer::~DcpConsumer() {
             "{} ago. {}",
             (now - created),
             (now - lastMessageTime),
-            getPausedDetails());
+            getPausedDetailsDescription());
 
     cancelTask();
 }

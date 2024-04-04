@@ -177,6 +177,18 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       connectionSupportsSnappy(
               cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)),
       collectionsEnabled(cookie->isCollectionsSupported()) {
+    if (getName().find("secidx") != std::string::npos) {
+        logBufferFullInterval = std::chrono::seconds{15};
+#ifdef CB_DEVELOPMENT_ASSERTS
+        logBufferAggregatedFullDuration = std::chrono::minutes{1};
+#endif
+    }
+
+    nextLogBufferFull = logBufferFullInterval;
+#ifdef CB_DEVELOPMENT_ASSERTS
+    nextLogBufferAggregatedFull = logBufferAggregatedFullDuration;
+#endif
+
     setSupportAck(true);
     pause(PausedReason::Initializing);
     setLogHeader("DCP (Producer) " + getName() + " -");
@@ -252,7 +264,7 @@ DcpProducer::~DcpProducer() {
             std::chrono::duration<double>(now - created).count(),
             totalBytesSent,
             noopDescr,
-            getPausedDetails());
+            getPausedDetailsDescription());
 
     backfillMgr.reset();
 }
@@ -754,9 +766,38 @@ cb::engine_errc DcpProducer::step(bool throttled,
         // stream
         if (!isPaused()) {
             pause(PausedReason::BufferLogFull);
+            return cb::engine_errc::would_block;
         }
+
+        auto details = getPausedDetails();
+        const auto& duration = details.reasonDurations[static_cast<uint8_t>(
+                PausedReason::BufferLogFull)];
+#ifdef CB_DEVELOPMENT_ASSERTS
+        if (nextLogBufferAggregatedFull < duration) {
+            logger->info(
+                    "Total wait time so far for the consumer to free up space "
+                    "in the buffer window: {}",
+                    cb::time2text(duration));
+            ++nextLogBufferFull;
+            ++nextLogBufferAggregatedFull;
+        }
+#endif
+
+        if (details.reason == PausedReason::BufferLogFull) {
+            using std::chrono::steady_clock;
+            const auto now = steady_clock::now();
+            if (details.lastPaused + nextLogBufferFull < now) {
+                logger->warn(
+                        "Waited {} for the consumer to free up space in the "
+                        "buffer window",
+                        cb::time2text(now - details.lastPaused));
+                nextLogBufferFull += logBufferFullInterval;
+            }
+        }
+
         return cb::engine_errc::would_block;
     }
+    nextLogBufferFull = logBufferFullInterval;
 
     std::unique_ptr<DcpResponse> resp;
     if (rejectResp) {
