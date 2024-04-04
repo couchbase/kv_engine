@@ -20,9 +20,9 @@
 #include "mcbp_validators.h"
 #include "subdocument_parser.h"
 #include "subdocument_traits.h"
-
-#include "xattr/key_validator.h"
-#include "xattr/utils.h"
+#include <utilities/string_utilities.h>
+#include <xattr/key_validator.h>
+#include <xattr/utils.h>
 
 static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
     auto status =
@@ -90,8 +90,21 @@ static inline cb::mcbp::Status validate_xattr_section(
                     "EXPAND_MACROS flag requires XATTR flag to be set");
             return cb::mcbp::Status::SubdocXattrInvalidFlagCombo;
         }
-        // XATTR flag isn't set... just bail out
+
+        if (hasBinaryValue(flags)) {
+            cookie.setErrorContext(
+                    "BINARY_VALUE flag requires XATTR flag to be set");
+            return cb::mcbp::Status::SubdocXattrInvalidFlagCombo;
+        }
+
         return cb::mcbp::Status::Success;
+    }
+
+    if (hasBinaryValue(flags) && hasExpandedMacros(flags)) {
+        cookie.setErrorContext(
+                "BINARY_VALUE can't be used together with EXPAND_MACROS");
+        // the value can't be binary _AND_ contain macros to expand
+        return cb::mcbp::Status::SubdocXattrInvalidFlagCombo;
     }
 
     if (!cookie.getConnection().selectedBucketIsXattrEnabled() ||
@@ -108,6 +121,32 @@ static inline cb::mcbp::Status validate_xattr_section(
 
     if (cb::xattr::is_vattr(path) && mutator) {
         return cb::mcbp::Status::SubdocXattrCantModifyVattr;
+    }
+
+    if (const auto start = value.find("cb-content-base64-encoded:");
+        start != std::string_view::npos) {
+        // validate that it is correctly encoded
+        std::string_view view;
+        if (start == 0 || (start == 1 && value.front() == '"')) {
+            // view is the entire view
+            view = value;
+        } else {
+            view = value;
+            view.remove_prefix(start);
+            auto end = view.find('"');
+            if (end == std::string_view::npos) {
+                cookie.setErrorContext("Incorrectly encoded binary value");
+                return cb::mcbp::Status::XattrEinval;
+            }
+            view = view.substr(0, end);
+        }
+
+        try {
+            base64_decode_value(view);
+        } catch (const std::exception& e) {
+            cookie.setErrorContext(e.what());
+            return cb::mcbp::Status::XattrEinval;
+        }
     }
 
     return hasExpandedMacros(flags) ? validate_macro(value)
@@ -135,15 +174,14 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         return cb::mcbp::Status::Einval;
     }
 
-    auto value = request.getValue();
+    auto value = request.getValueString();
     if (pathlen > value.size()) {
         cookie.setErrorContext("Path length can't exceed value");
         return cb::mcbp::Status::Einval;
     }
 
-    std::string_view path = {reinterpret_cast<const char*>(value.data()),
-                             pathlen};
-    value = {value.data() + pathlen, value.size() - pathlen};
+    std::string_view path = {value.data(), pathlen};
+    value.remove_prefix(pathlen);
 
     // Now command-trait specific stuff:
 
@@ -211,11 +249,9 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
                 "Request must not contain both add and mkdoc flags");
         return cb::mcbp::Status::Einval;
     }
-    std::string_view macro = {reinterpret_cast<const char*>(value.data()),
-                              value.size()};
 
     const auto status = validate_xattr_section(
-            cookie, traits.is_mutator, subdoc_flags, path, macro);
+            cookie, traits.is_mutator, subdoc_flags, path, value);
     if (status != cb::mcbp::Status::Success) {
         return status;
     }

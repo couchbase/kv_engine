@@ -20,10 +20,7 @@
 #include <memcached/protocol_binary.h>
 #include <subdoc/operations.h>
 
-enum class SubdocPath : uint8_t {
-    SINGLE,
-    MULTI
-};
+enum class SubdocPath : uint8_t { SINGLE, MULTI };
 
 /* Defines the scope of an operation. Whether it is on a specific path
  * (subjson) or on the whole document (wholedoc). In the wholedoc case, the
@@ -60,9 +57,9 @@ enum class ResponseValue : uint8_t {
  *   valid_doc_flags: What doc flags are valid for this command.
  *   request_has_value: Does the command request require a value?
  *   allow_empty_path: Is the path field allowed to be empty (zero-length)?
- *   response_value: Does the command response have a value, and if so what type?
- *   is_mutator: Does the command mutate (modify) the document?
- *   path: Whether this command on a single path or multiple paths
+ *   response_value: Does the command response have a value, and if so what
+ * type? is_mutator: Does the command mutate (modify) the document? path:
+ * Whether this command on a single path or multiple paths
  */
 struct SubdocCmdTraits {
     CommandScope scope;
@@ -88,9 +85,9 @@ struct SubdocCmdTraits {
 
 // Additional traits for multi-path operations.
 struct SubdocMultiCmdTraits {
-    uint32_t min_value_len;  // Minimum size of the command value.
-                             // (i.e. lookup/mutation specs)
-    bool is_mutator;  // Does the command mutate (modify) the document?
+    uint32_t min_value_len; // Minimum size of the command value.
+                            // (i.e. lookup/mutation specs)
+    bool is_mutator; // Does the command mutate (modify) the document?
 };
 
 /*
@@ -155,7 +152,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocGet>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::GET,
             cb::mcbp::ClientOpcode::Invalid,
-            cb::mcbp::subdoc::PathFlag::XattrPath,
+            cb::mcbp::subdoc::PathFlag::XattrPath |
+                    cb::mcbp::subdoc::PathFlag::BinaryValue,
             cb::mcbp::subdoc::PathFlag::None,
             cb::mcbp::subdoc::DocFlag::AccessDeleted |
                     cb::mcbp::subdoc::DocFlag::ReviveDocument |
@@ -190,7 +188,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictAdd>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::DICT_ADD,
             cb::mcbp::ClientOpcode::Invalid,
-            PathFlag::Mkdir_p | PathFlag::XattrPath | PathFlag::ExpandMacros,
+            PathFlag::Mkdir_p | PathFlag::XattrPath | PathFlag::ExpandMacros |
+                    PathFlag::BinaryValue,
             PathFlag::None,
             DocFlag::Mkdoc | DocFlag::AccessDeleted | DocFlag::ReviveDocument |
                     DocFlag::Add | DocFlag::CreateAsDeleted,
@@ -207,7 +206,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocDictUpsert>() {
     return {CommandScope::SubJSON,
             Subdoc::Command::DICT_UPSERT,
             cb::mcbp::ClientOpcode::Invalid,
-            PathFlag::Mkdir_p | PathFlag::XattrPath | PathFlag::ExpandMacros,
+            PathFlag::Mkdir_p | PathFlag::XattrPath | PathFlag::ExpandMacros |
+                    PathFlag::BinaryValue,
             PathFlag::None,
             DocFlag::Mkdoc | DocFlag::AccessDeleted | DocFlag::ReviveDocument |
                     DocFlag::Add | DocFlag::CreateAsDeleted,
@@ -240,7 +240,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::SubdocReplace>() {
             Subdoc::Command::REPLACE,
             cb::mcbp::ClientOpcode::Invalid,
             cb::mcbp::subdoc::PathFlag::XattrPath |
-                    cb::mcbp::subdoc::PathFlag::ExpandMacros,
+                    cb::mcbp::subdoc::PathFlag::ExpandMacros |
+                    cb::mcbp::subdoc::PathFlag::BinaryValue,
             cb::mcbp::subdoc::PathFlag::None,
             cb::mcbp::subdoc::DocFlag::AccessDeleted |
                     cb::mcbp::subdoc::DocFlag::ReviveDocument |
@@ -366,7 +367,8 @@ get_traits<cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr>() {
     return {CommandScope::AttributesAndBody,
             Subdoc::Command::GET,
             cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
-            cb::mcbp::subdoc::PathFlag::XattrPath,
+            cb::mcbp::subdoc::PathFlag::XattrPath |
+                    cb::mcbp::subdoc::PathFlag::BinaryValue,
             cb::mcbp::subdoc::PathFlag::XattrPath,
             DocFlag::AccessDeleted | DocFlag::ReviveDocument,
             false,
@@ -417,7 +419,7 @@ inline SubdocMultiCmdTraits
 get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiLookup>() {
     // Header + 1byte path.
     return {sizeof(protocol_binary_subdoc_multi_lookup_spec) + 1,
-            /*is_mutator*/false};
+            /*is_mutator*/ false};
 }
 
 template <>
@@ -425,5 +427,5 @@ inline SubdocMultiCmdTraits
 get_multi_traits<cb::mcbp::ClientOpcode::SubdocMultiMutation>() {
     // Header + 1byte path (not all mutations need a value - e.g. delete).
     return {sizeof(protocol_binary_subdoc_multi_mutation_spec) + 1,
-            /*is_mutator*/true};
+            /*is_mutator*/ true};
 }

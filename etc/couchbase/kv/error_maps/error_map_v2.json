@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "revision": 4,
+    "revision": 5,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -614,6 +614,14 @@
         "d7": {
             "name": "SUBDOC_DELETED_DOCUMENT_CANT_HAVE_VALUE",
             "desc": "Subdoc: A deleted document can't have a value",
+            "attrs": [
+                "subdoc",
+                "item-only"
+            ]
+        },
+        "d8": {
+            "name": "SUBDOC_FIELD_NOT_BINARY_VALUE",
+            "desc": "Subdoc: The field is not a binary value",
             "attrs": [
                 "subdoc",
                 "item-only"

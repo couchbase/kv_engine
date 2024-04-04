@@ -77,6 +77,8 @@ enum class Code : uint8_t {
     /// Time spent in running the SASL start/step call on the executor
     /// thread
     Sasl,
+    /// Time spent looking up stats from the underlying Storage engine
+    StorageEngineStats,
 };
 
 using Clock = std::chrono::steady_clock;

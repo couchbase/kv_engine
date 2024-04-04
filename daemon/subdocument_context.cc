@@ -17,6 +17,7 @@
 #include "subdocument_validators.h"
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
+#include <platform/base64.h>
 #include <platform/crc32c.h>
 #include <platform/string_hex.h>
 #include <subdoc/util.h>
@@ -30,6 +31,7 @@
 #include <utility>
 
 using namespace std::string_literals;
+using namespace std::string_view_literals;
 
 SubdocExecutionContext::OperationSpec::OperationSpec(
         SubdocCmdTraits traits_,
@@ -770,6 +772,9 @@ cb::mcbp::Status SubdocExecutionContext::operate_one_path(
             }
         }
         op.set_value(padded_macro.data(), padded_macro.size());
+    } else if (spec.traits.is_mutator && hasBinaryValue(spec.flags)) {
+        binaryEncodedStorage.emplace_back(base64_encode_value(spec.value));
+        op.set_value(binaryEncodedStorage.back());
     } else {
         op.set_value(spec.value.data(), spec.value.size());
     }
@@ -810,6 +815,19 @@ cb::mcbp::Status SubdocExecutionContext::operate_one_path(
 
     switch (subdoc_res) {
     case Subdoc::Error::SUCCESS:
+        if (spec.traits.subdocCommand == Subdoc::Command::GET &&
+            hasBinaryValue(spec.flags)) {
+            try {
+                auto value =
+                        base64_decode_value(spec.result.matchloc().to_view());
+                binaryEncodedStorage.emplace_back(std::move(value));
+                spec.result.set_matchloc({binaryEncodedStorage.back().data(),
+                                          binaryEncodedStorage.back().size()});
+            } catch (const std::exception&) {
+                return cb::mcbp::Status::SubdocFieldNotBinaryValue;
+            }
+        }
+
         return cb::mcbp::Status::Success;
 
     case Subdoc::Error::PATH_ENOENT:
@@ -902,14 +920,23 @@ cb::mcbp::Status SubdocExecutionContext::operate_attributes_and_body(
     // of the data; and then reset the body with the content of the operation.
     auto st = operate_one_path(spec, xattr->view);
     if (st == cb::mcbp::Status::Success) {
-        body.reset(spec.result.matchloc().to_string());
-        spec.result.clear();
-        if (body.view.empty()) {
+        auto value = spec.result.matchloc().to_string();
+        if (value.empty()) {
             // document body is now empty; clear the json bit
             in_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+        } else if (hasBinaryValue(spec.flags)) {
+            // It was stored as a binary encoded blob, but it _could_
+            // still be valid JSON...
+            if (connection.getThread().isValidJson(cookie, value)) {
+                in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+            } else {
+                in_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+            }
         } else {
             in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
         }
+        body.reset(std::move(value));
+        spec.result.clear();
     }
     return st;
 }
@@ -1147,6 +1174,7 @@ void SubdocExecutionContext::do_xattr_phase() {
     }
 
     rewrite_in_document(copy.finalize(), body.view);
+    binaryEncodedStorage.clear();
 }
 
 void SubdocExecutionContext::do_body_phase() {

@@ -1110,13 +1110,14 @@ protected:
      *
      * Used to generate the cbstats "empty key" group.
      */
-    cb::engine_errc doEngineStats(const BucketStatCollector& collector);
+    cb::engine_errc doEngineStats(const BucketStatCollector& collector,
+                                  CookieIface* cookie);
     /**
      * Collect a smaller number of engine stats which are of higher importance,
      * or specifically need to be collected frequently.
      */
     cb::engine_errc doEngineStatsLowCardinality(
-            const BucketStatCollector& collector);
+            const BucketStatCollector& collector, CookieIface* cookie);
     /**
      * Collect engine stats which are any of:
      *  1) Numerous (e.g., per collection, per vbucket)

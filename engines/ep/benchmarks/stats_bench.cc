@@ -201,7 +201,7 @@ BENCHMARK_DEFINE_F(EngineStatsBench, EngineStats)(benchmark::State& state) {
     CBStatCollector collector(dummyCallback, *cookie);
     auto bucketCollector = collector.forBucket("foobar");
     while (state.KeepRunning()) {
-        engine->doEngineStats(bucketCollector);
+        engine->doEngineStats(bucketCollector, nullptr);
     }
 }
 
@@ -218,7 +218,7 @@ BENCHMARK_DEFINE_F(MultiVBEngineStatsBench, VBucketDetailsStats)
     CBStatCollector collector(dummyCallback, *cookie);
     auto bucketCollector = collector.forBucket("foobar");
     while (state.KeepRunning()) {
-        engine->doEngineStats(bucketCollector);
+        engine->doEngineStats(bucketCollector, nullptr);
     }
 }
 
