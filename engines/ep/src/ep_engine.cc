@@ -690,6 +690,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setGetlMaxTimeout(std::stoull(val));
         } else if (key == "ht_resize_interval") {
             configuration.setHtResizeInterval(std::stoull(val));
+        } else if (key == "ht_size") {
+            configuration.setHtSize(std::stoull(val));
         } else if (key == "max_item_privileged_bytes") {
             configuration.setMaxItemPrivilegedBytes(std::stoull(val));
         } else if (key == "max_item_size") {
