@@ -52,7 +52,8 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::ClustermapChangeNotificationBrief,
           "ClustermapChangeNotificationBrief"},
          {cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
-          "SubdocAllowsAccessOnMultipleXattrKeys"}}};
+          "SubdocAllowsAccessOnMultipleXattrKeys"},
+         {cb::mcbp::Feature::SubdocBinaryXattr, "SubdocBinaryXattr"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

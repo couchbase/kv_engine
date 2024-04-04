@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,6 +9,8 @@
  */
 
 #include "string_utilities.h"
+#include <fmt/format.h>
+#include <platform/base64.h>
 
 std::vector<std::string> split_string(const std::string& s,
                                       const std::string& delim,
@@ -115,4 +116,36 @@ std::string_view get_thread_pool_name(std::string_view threadname) {
         thread_pool = {threadname.data(), prefix_end};
     }
     return thread_pool;
+}
+
+using namespace std::string_view_literals;
+
+static constexpr std::string_view cb_base64_prefix =
+        "cb-content-base64-encoded:"sv;
+
+std::string base64_encode_value(std::string_view view) {
+    return fmt::format(R"("{}{}")", cb_base64_prefix, cb::base64::encode(view));
+}
+
+std::string base64_decode_value(std::string_view view) {
+    if (view.size() < 2) {
+        // to avoid underflowing on the next test in the case in the case
+        // where the view is empty or consists of a single '"'
+        throw std::invalid_argument(
+                "base64_decode_value(): provided value is not base64 encoded "
+                "value");
+    }
+    if (view.front() == '"' && view.back() == '"') {
+        view.remove_prefix(1);
+        view.remove_suffix(1);
+    }
+
+    auto index = view.find(cb_base64_prefix);
+    if (index != 0) {
+        throw std::invalid_argument(
+                "base64_decode_value(): encoded value does not start with "
+                "magic");
+    }
+    view.remove_prefix(cb_base64_prefix.size());
+    return cb::base64::decode(view);
 }

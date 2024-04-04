@@ -637,7 +637,7 @@ TEST_F(StatTest, StringStats) {
 
     // config stats are per-bucket, wrap the collector up with a bucket label
     auto bucketC = collector.forBucket("bucket-name");
-    engine->doEngineStats(bucketC);
+    engine->doEngineStats(bucketC, nullptr);
 }
 
 TEST_F(StatTest, WarmupState) {
@@ -860,7 +860,7 @@ TEST_F(StatTest, EngineStatsWarmup) {
 
     CBStatCollector collector(cbFunc, *cookie);
     auto bucketCollector = collector.forBucket("");
-    engine->doEngineStats(bucketCollector);
+    engine->doEngineStats(bucketCollector, nullptr);
 }
 
 TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {

@@ -89,6 +89,7 @@ void buildRequestVector(FeatureSet& requested,
         case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
         case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
         case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        case cb::mcbp::Feature::SubdocBinaryXattr:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -130,6 +131,7 @@ void buildRequestVector(FeatureSet& requested,
         case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
         case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
         case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        case cb::mcbp::Feature::SubdocBinaryXattr:
             // No other dependency
             break;
 
@@ -312,18 +314,6 @@ void process_hello_packet_executor(Cookie& cookie) {
             connection.setXerrorSupport(true);
             added = true;
             break;
-        case cb::mcbp::Feature::SELECT_BUCKET:
-            // The select bucket is only informative ;-)
-            added = true;
-            break;
-        case cb::mcbp::Feature::AltRequestSupport:
-            // The AltRequestSupport is only informative
-            added = true;
-            break;
-        case cb::mcbp::Feature::SyncReplication:
-            // The SyncReplication is only informative
-            added = true;
-            break;
         case cb::mcbp::Feature::Collections: {
             auto& bucket = connection.getBucket();
             // Abort if the engine cannot support collections
@@ -401,6 +391,10 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::SubdocReplicaRead:
         case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
         case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        case cb::mcbp::Feature::SubdocBinaryXattr:
+        case cb::mcbp::Feature::SELECT_BUCKET:
+        case cb::mcbp::Feature::AltRequestSupport:
+        case cb::mcbp::Feature::SyncReplication:
             // Informative features don't need special handling
             added = true;
             break;

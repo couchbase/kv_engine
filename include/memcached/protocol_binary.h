@@ -254,6 +254,9 @@ enum class PathFlag : uint8_t {
     /// Expand macro values inside extended attributes. The request is
     /// invalid if this flag is set without SUBDOC_FLAG_XATTR_PATH being set.
     ExpandMacros = 0x10,
+    /// The provided value is a binary value
+    BinaryValue = 0x20,
+
 };
 std::string format_as(PathFlag flag);
 
@@ -267,6 +270,9 @@ inline bool hasXattrPath(PathFlag flag) {
 }
 inline bool hasMkdirP(PathFlag flag) {
     return isFlagSet(flag, PathFlag::Mkdir_p);
+}
+inline bool hasBinaryValue(PathFlag flag) {
+    return isFlagSet(flag, PathFlag::BinaryValue);
 }
 
 /// Definitions of sub-document doc flags (this is a bitmap).

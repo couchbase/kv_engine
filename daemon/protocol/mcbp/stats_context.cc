@@ -449,17 +449,6 @@ static cb::engine_errc stat_tracing_executor(const std::string& arg,
     }
 }
 
-static cb::engine_errc stat_all_stats(const std::string& arg, Cookie& cookie) {
-    auto value = cookie.getRequest().getValue();
-    auto ret = bucket_get_stats(cookie, arg, value, appendStatsFn);
-    if (ret != cb::engine_errc::success) {
-        return ret;
-    }
-
-    CBStatCollector collector(appendStatsFn, cookie);
-    return server_stats(collector, cookie.getConnection().getBucket());
-}
-
 static cb::engine_errc stat_bucket_stats(const std::string&, Cookie& cookie) {
     auto key = cookie.getRequest().getKeyString();
     auto value = cookie.getRequest().getValueString();
@@ -706,7 +695,6 @@ struct command_stat_handler {
  */
 static std::unordered_map<StatGroupId, struct command_stat_handler>
         stat_handlers = {
-                {StatGroupId::All, {true, stat_all_stats}},
                 {StatGroupId::Reset, {true, stat_reset_executor}},
                 {StatGroupId::WorkerThreadInfo, {true, stat_sched_executor}},
                 {StatGroupId::Audit, {true, stat_audit_executor}},

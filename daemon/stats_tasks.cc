@@ -20,6 +20,8 @@
 #include "memcached/engine_error.h"
 #include "nobucket_taskable.h"
 #include <logger/logger.h>
+#include <statistics/cbstat_collector.h>
+
 #include <memory>
 
 std::size_t StatsTask::TaskData::append(std::string_view k,
@@ -154,6 +156,12 @@ void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
                     value.size()),
             add_stat_callback,
             check_yield_callback);
+
+    if (key.empty() && command_error == cb::engine_errc::success) {
+        CBStatCollector collector(add_stat_callback, cookie);
+        command_error =
+                server_stats(collector, cookie.getConnection().getBucket());
+    }
 }
 
 std::string StatsTaskBucketStats::getDescription() const {

@@ -79,6 +79,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "ClustermapChangeNotificationBrief";
     case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         return "SubdocAllowsAccessOnMultipleXattrKeys";
+    case cb::mcbp::Feature::SubdocBinaryXattr:
+        return "SubdocBinaryXattr";
     }
 
     throw std::invalid_argument(

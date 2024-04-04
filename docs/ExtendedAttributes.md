@@ -77,3 +77,22 @@ https://docs.google.com/document/d/18UVa5j8KyufnLLy29VObbWRtoBn9vs8pcxttuMt6rz8
       If the `INCLUDE_XATTRS` flag is specified, whenever any of a Document
       changes (main document or XATTRs), a DCP_MUTATION will be generated
       including the XATTRs and the Value.
+
+### Binary values
+
+It is possible to use a binary value as an extended attribute by using
+`SUBDOC_FLAG_BINARY_VALUE` as part of the request (on read / write /
+replace-body-with-xattr).
+Due to "requirement" #3 above, a binary value will be returned as a
+base64-encoded string to clients who *don't* provide the flag on the
+requests.
+
+#### Encoding format (backwards compatibility)
+
+A binary value will be returned as a string value
+with `cb-content-base64-encoded:` followed by the base64 encoded value.
+
+If we try to store '`base64_encode_value`' as a binary value and request
+it as a "normal" value the server will return:
+
+    cb-content-base64-encoded:YmFzZTY0X2VuY29kZV92YWx1ZQ==
