@@ -432,7 +432,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     if (!vbPtr || !vbPtr.owns_lock()) {
         // should never really hit this code, if we do you're using the method
         // incorrectly
-        std::logic_error(fmt::format(
+        throw std::logic_error(fmt::format(
                 "EPBucket::flushVBucket_UNLOCKED(): should always be called "
                 "with a valid LockedVBucketPtr: VbucketPtr:{} owns_lock:{}",
                 bool{vbPtr},
