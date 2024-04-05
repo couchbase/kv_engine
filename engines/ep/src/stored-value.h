@@ -1238,6 +1238,33 @@ public:
     }
 
     /**
+     * True if this item is for the given key.
+     *
+     * Shadows the generic SV::hasKey(). Paths which know they are dealing with
+     * OSV, do not need the branch on the ordered bit field.
+     *
+     * @param k the key we're checking
+     * @return true if this item's key is equal to k
+     */
+    bool hasKey(const DocKey& k) const {
+        return getKey() == k;
+    }
+
+    /**
+     * Get this item's key.
+     *
+     * Shadows the generic SV::getKey(). Paths which know they are dealing with
+     * OSV, do not need the branch on the ordered bit field.
+     *
+     * MB-61226: By preventing the read for the ordered bit, we avoid some
+     * TSAN warnings.
+     */
+    const SerialisedDocKey& getKey() const {
+        return *const_cast<const SerialisedDocKey*>(
+                const_cast<OrderedStoredValue*>(this)->key());
+    }
+
+    /**
      * True if a newer version of the same key exists in the HashTable.
      * Note: Only true for OrderedStoredValues which are no longer in the
      *       HashTable (and only live in SequenceList)
