@@ -485,7 +485,6 @@ static SOCKET new_socket(const std::string& host,
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = family;
 
-    int error;
     struct addrinfo* ai;
     std::string hostname{host};
 
@@ -499,15 +498,16 @@ static SOCKET new_socket(const std::string& host,
         }
     }
 
-    error = getaddrinfo(
+    const auto error = getaddrinfo(
             hostname.c_str(), std::to_string(port).c_str(), &hints, &ai);
 
     if (error != 0) {
-        throw std::system_error(error,
-                                std::system_category(),
-                                "Failed to resolve address host: \"" +
-                                        hostname +
-                                        "\" Port: " + std::to_string(port));
+        throw std::system_error(
+                error,
+                std::system_category(),
+                fmt::format("Failed to resolve address host: \"{}\" Port: {}",
+                            hostname,
+                            port));
     }
 
     // Iterate over all entries returned by getaddrinfo
@@ -522,14 +522,14 @@ static SOCKET new_socket(const std::string& host,
                 auto sfd = try_connect_socket(next, hostname, port);
                 freeaddrinfo(ai);
                 return sfd;
-            } catch (const std::system_error& error) {
+            } catch (const std::system_error& exception) {
                 if (is_unit_test_mode()) {
-                    std::cerr << "Failed building socket: " << error.what()
+                    std::cerr << "Failed building socket: " << exception.what()
                               << std::endl;
 #ifndef WIN32
                     const int WSAEADDRINUSE = EADDRINUSE;
 #endif
-                    if (error.code().value() == WSAEADDRINUSE) {
+                    if (exception.code().value() == WSAEADDRINUSE) {
                         std::cerr << "EADDRINUSE.. backing off" << std::endl;
                         std::this_thread::sleep_for(
                                 std::chrono::milliseconds(10));
