@@ -86,8 +86,6 @@ public:
         // none
     }
 
-    void validateKeyScan(const std::unordered_set<StoredDocKey>& expectedKeys);
-    void validateItemScan(const std::unordered_set<StoredDocKey>& expectedKeys);
     void checkKeyIsUnique(DocKey key) {
         auto [itr, emplaced] = allKeys.emplace(key);
         EXPECT_TRUE(emplaced) << "Duplicate key returned " << key.to_string();

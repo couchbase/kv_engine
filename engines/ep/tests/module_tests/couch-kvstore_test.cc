@@ -601,11 +601,6 @@ protected:
      */
     void testCompactDBCompactDBEx();
 
-    /**
-     * Test that stats are update correctly when a compaction fails
-     */
-    void testCompactionFailedStats();
-
     const std::string data_dir;
 
     ::testing::NiceMock<MockOps> ops;

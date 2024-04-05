@@ -93,15 +93,6 @@ protected:
             IncludeDeletedUserXattrs producerState);
 
     /**
-     * Creates a consumer conn and makes the consumer processor task run with
-     * memory usage near to replication threshold
-     *
-     * @param beyondThreshold indicates if the memory usage should above the
-     *                        threshold or just below it
-     */
-    void processConsumerMutationsNearThreshold(bool beyondThreshold);
-
-    /**
      * Creates a consumer conn and sends items on the conn with memory usage
      * near to replication threshold
      *
