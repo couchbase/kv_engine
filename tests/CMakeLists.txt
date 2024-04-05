@@ -14,7 +14,7 @@ add_subdirectory(testapp_cluster)
 add_subdirectory(testapp_serverless)
 ADD_SUBDIRECTORY(unsigned_leb128)
 
-add_test(NAME kv-engine-check-header-define-once-guard COMMAND ${PYTHON_EXECUTABLE}
-        ${Memcached_SOURCE_DIR}/tests/header_define_once_test.py
+add_test(NAME kv-engine-check-header-define-once-guard
+        COMMAND check_pragma_once
         --rootdir ${Memcached_SOURCE_DIR}
-        --exclude executor/tasks.def.h include/statistics/stats.def.h)
+        --exclude executor/tasks.def.h)
