@@ -29,28 +29,6 @@ const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 // Maximum length for an xattr key
 const size_t SUBDOC_MAX_XATTR_LENGTH = 16;
 
-/* Possible valid extras lengths for single-path commands. */
-
-// Extras could be pathlen + path flags ...
-const size_t SUBDOC_BASIC_EXTRAS_LEN = sizeof(uint16_t) + sizeof(uint8_t);
-// ... or pathlen + path flags + optional doc_flags:
-const size_t SUBDOC_DOC_FLAG_EXTRAS_LEN =
-        SUBDOC_BASIC_EXTRAS_LEN + sizeof(uint8_t);
-// ... or pathlen + path flags + optional expiry (mutations only):
-const size_t SUBDOC_EXPIRY_EXTRAS_LEN = SUBDOC_BASIC_EXTRAS_LEN + sizeof(uint32_t);
-// ... or it may have the additional expiry and doc_flags:
-const size_t SUBDOC_ALL_EXTRAS_LEN = SUBDOC_EXPIRY_EXTRAS_LEN + sizeof(uint8_t);
-
-/* Possible extras lengths for multi-path commands. */
-
-// Extras could just be (optional) doc flags ...
-const size_t SUBDOC_MULTI_DOC_FLAG_EXTRAS_LEN = sizeof(uint8_t);
-// ... or just (optional) expiry (mutations only):
-const size_t SUBDOC_MULTI_EXPIRY_EXTRAS_LEN = sizeof(uint32_t);
-// ... or expiry and doc flags:
-const size_t SUBDOC_MULTI_ALL_EXTRAS_LEN =
-        SUBDOC_MULTI_EXPIRY_EXTRAS_LEN + SUBDOC_MULTI_DOC_FLAG_EXTRAS_LEN;
-
 /* Subdocument validator functions. Returns 0 if valid, else -1. */
 cb::mcbp::Status subdoc_get_validator(Cookie& cookie);
 cb::mcbp::Status subdoc_exists_validator(Cookie& cookie);
