@@ -130,6 +130,14 @@ public:
         return htUncompressedItemMemory;
     }
 
+    size_t getHtMaxSize() const {
+        return htMaxSize;
+    }
+
+    size_t getHtSizeSum() const {
+        return htSizeSum;
+    }
+
     size_t getOpsCreate() const {
         return opsCreate;
     }
@@ -217,6 +225,8 @@ private:
     size_t htMemory{0};
     size_t htItemMemory{0};
     size_t htUncompressedItemMemory{0};
+    size_t htMaxSize{0};
+    size_t htSizeSum{0};
     size_t numEjects{0};
     size_t numExpiredItems{0};
     size_t metaDataMemory{0};
