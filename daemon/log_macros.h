@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -13,19 +12,19 @@
 #include <logger/logger.h>
 #include <cstdlib>
 
-/*
+/**
  * This macro records a fatal error to the log and
  * terminates memcached.
- * It calls exit() and therefore should only be used in
+ * It calls std::_Exit() and therefore should only be used in
  * extreme cases because we want to keep memcached
  * available if at all possible.  Hence it should only be
  * used where memcached cannot make any sensible progress
  * or the possbility of data corruption arises.
  */
-
 #define FATAL_ERROR(EXIT_STATUS, ...)             \
     do {                                          \
         cb::logger::get()->critical(__VA_ARGS__); \
         cb::logger::get()->flush();               \
-        exit(EXIT_STATUS);                        \
+        cb::logger::shutdown();                   \
+        std::_Exit(EXIT_STATUS);                  \
     } while (false)
