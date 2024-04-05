@@ -45,13 +45,6 @@ protected:
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
 
-    std::string validate_error_context(
-            cb::mcbp::ClientOpcode opcode,
-            cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
-        return ValidatorTest::validate_error_context(
-                opcode, static_cast<void*>(&request), expectedStatus);
-    }
-
     protocol_binary_request_subdocument &request =
         *reinterpret_cast<protocol_binary_request_subdocument*>(blob);
 };
