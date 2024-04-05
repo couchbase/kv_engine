@@ -69,7 +69,7 @@ void Flush::saveCollectionStats(
                     collsFlushStats.diskSize,
                     flushStats.getDiskSize(),
                     flushAccounting.getDroppedCollections().size());
-            throw e;
+            throw;
         }
     }
 }

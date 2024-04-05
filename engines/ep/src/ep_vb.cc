@@ -1272,7 +1272,7 @@ void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
                 systemEvents,
                 vbItemCount2,
                 e.what());
-        throw e;
+        throw;
     }
 }
 

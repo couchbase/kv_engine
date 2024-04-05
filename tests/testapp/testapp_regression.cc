@@ -508,11 +508,11 @@ TEST_P(RegressionTest, MB10114_append_e2big_wont_delete_doc) {
     while (true) {
         try {
             userConnection->mutate(document, Vbid{0}, MutationType::Append);
-        } catch (ConnectionError& error) {
+        } catch (const ConnectionError& error) {
             if (error.isTooBig()) {
                 break;
             }
-            throw error;
+            throw;
         }
     }
 
