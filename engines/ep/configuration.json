@@ -612,6 +612,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "hlc_max_future_threshold_us": {
+            "default": "100000000",
+            "descr": "The acceptable μs threshold of drift at which we accept a new cas value.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "ht_locks": {
             "default": "47",
             "dynamic": false,

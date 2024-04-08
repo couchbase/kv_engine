@@ -1040,6 +1040,10 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
             getConfiguration().setHlcDriftBehindThresholdUs(v);
+        } else if (key == "hlc_max_future_threshold_us") {
+            uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
+            checkNumeric(val.c_str());
+            getConfiguration().setHlcMaxFutureThresholdUs(v);
         } else if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());

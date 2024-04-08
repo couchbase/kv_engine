@@ -287,12 +287,20 @@ public:
         return hlc.getDriftExceptionCounters();
     }
 
+    uint64_t getHLCMaxFutureThreshold() const {
+        return hlc.getHlcMaxFutureThreshold();
+    }
+
     void setHLCDriftAheadThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftAheadThreshold(threshold);
     }
 
     void setHLCDriftBehindThreshold(std::chrono::microseconds threshold) {
         hlc.setDriftBehindThreshold(threshold);
+    }
+
+    void setHLCMaxFutureThreshold(std::chrono::microseconds maxCas) {
+        hlc.setHlcMaxFutureThreshold(maxCas);
     }
 
     /// Returns the current HLC time and which mode it is in.

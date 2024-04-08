@@ -2244,7 +2244,8 @@ static enum test_result test_set_with_meta_and_check_drift_stats(
     HLC hlc(0 /*init HLC*/,
             HlcCasSeqnoUninitialised,
             std::chrono::microseconds(0) /*ahead threshold*/,
-            std::chrono::microseconds(0) /*behind threshold*/);
+            std::chrono::microseconds(0) /*behind threshold*/,
+            std::chrono::microseconds(0) /*max hlc future threshold*/);
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold =
@@ -2348,7 +2349,8 @@ static enum test_result test_del_with_meta_and_check_drift_stats(
     HLC hlc(0 /*init HLC*/,
             HlcCasSeqnoUninitialised,
             std::chrono::microseconds(0) /*ahead threshold*/,
-            std::chrono::microseconds(0) /*behind threshold*/);
+            std::chrono::microseconds(0) /*behind threshold*/,
+            std::chrono::microseconds(0) /*max hlc future threshold*/);
 
     // grab the drift behind threshold
     uint64_t driftBehindThreshold =
