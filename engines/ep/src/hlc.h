@@ -56,11 +56,14 @@ public:
      *        increment driftAheadExceeded. Expressed in us.
      * @param behindThresholdhreshold a peer can be ahead before we
      *        increment driftBehindExceeded. Expressed in us.
+     * @param maxFutureThreshold acceptable threshold of drift at which we
+     *        accept a new cas value.
      */
     HLCT(uint64_t initHLC,
          int64_t epochSeqno,
          std::chrono::microseconds aheadThreshold,
-         std::chrono::microseconds behindThreshold)
+         std::chrono::microseconds behindThreshold,
+         std::chrono::microseconds maxFutureThreshold)
         : maxHLC(initHLC),
           cummulativeDrift(0),
           cummulativeDriftIncrements(0),
@@ -70,6 +73,7 @@ public:
           epochSeqno(epochSeqno) {
         setDriftAheadThreshold(aheadThreshold);
         setDriftBehindThreshold(behindThreshold);
+        setHlcMaxFutureThreshold(maxFutureThreshold);
     }
 
     /**
@@ -195,6 +199,16 @@ public:
         return getMasked48(getTime());
     }
 
+    uint64_t getHlcMaxFutureThreshold() const {
+        return hlcMaxFutureThreshold.load();
+    }
+
+    void setHlcMaxFutureThreshold(std::chrono::microseconds duration) {
+        hlcMaxFutureThreshold =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(duration)
+                        .count();
+    }
+
 protected:
     /*
      * Returns 48-bit of t (bottom 16-bit zero)
@@ -227,6 +241,7 @@ protected:
     std::atomic<uint32_t> driftBehindExceeded;
     std::atomic<uint64_t> driftAheadThreshold;
     std::atomic<uint64_t> driftBehindThreshold;
+    std::atomic<uint64_t> hlcMaxFutureThreshold;
 
     /**
      * Documents with a seqno >= epochSeqno have a HLC generated CAS.

@@ -40,8 +40,13 @@ public:
     MockHLC(uint64_t initHLC,
             int64_t epochSeqno,
             std::chrono::microseconds aheadThreshold,
-            std::chrono::microseconds behindThreshold)
-        : HLCT<Clock>(initHLC, epochSeqno, aheadThreshold, behindThreshold) {
+            std::chrono::microseconds behindThreshold,
+            std::chrono::microseconds maxHlcFutureThreshold)
+        : HLCT<Clock>(initHLC,
+                      epochSeqno,
+                      aheadThreshold,
+                      behindThreshold,
+                      maxHlcFutureThreshold) {
     }
 
     void setNonLogicalClockGetNextCasHook(std::function<void()> hook) {
@@ -61,7 +66,7 @@ protected:
         // Currently don't care what threshold we have for ours tests,
         std::chrono::microseconds threshold;
         testHLC = std::make_unique<MockHLC<MockClock>>(
-                0, 0, threshold, threshold);
+                0, 0, threshold, threshold, threshold);
     }
 
     std::unique_ptr<MockHLC<MockClock>> testHLC;
