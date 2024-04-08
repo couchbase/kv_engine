@@ -2282,11 +2282,11 @@ Warmup* EPBucket::getPrimaryWarmup() const {
 }
 
 const Warmup* EPBucket::getSecondaryWarmup() const {
-    return secondaryWarmupTask.get();
+    return secondaryWarmupTask.lock()->get();
 }
 
 Warmup* EPBucket::getSecondaryWarmup() {
-    return secondaryWarmupTask.get();
+    return secondaryWarmupTask.lock()->get();
 }
 
 bool EPBucket::isWarmupLoadingData() const {
@@ -2316,15 +2316,26 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
     CBStatCollector collector(add_stat, cookie);
     warmupTask->addStats(collector);
 
-    if (secondaryWarmupTask) {
-        secondaryWarmupTask->addSecondaryWarmupStats(collector);
+    bool noSecondary =
+            secondaryWarmupTask.withLock([&collector](const auto& warmup) {
+                if (warmup) {
+                    warmup->addSecondaryWarmupStats(collector);
+                }
+                return warmup == nullptr;
+            });
+
+    if (noSecondary) {
+        using namespace cb::stats;
+        collector.addStat(Key::ep_secondary_warmup_status, "uninitialized");
     }
     return cb::engine_errc::success;
 }
 
 bool EPBucket::isWarmupOOMFailure() const {
     return (warmupTask && warmupTask->hasOOMFailure()) ||
-           (secondaryWarmupTask && secondaryWarmupTask->hasOOMFailure());
+           secondaryWarmupTask.withLock([](const auto& warmup) {
+               return warmup && warmup->hasOOMFailure();
+           });
 }
 
 bool EPBucket::hasWarmupSetVbucketStateFailed() const {
@@ -2361,10 +2372,6 @@ void EPBucket::startWarmupTask() {
 }
 
 void EPBucket::primaryWarmupCompleted() {
-    // primaryWarmupCompleted is a one-shot function that will create the
-    // secondary warmup object - there should be no second call once created.
-    Expects(!secondaryWarmupTask);
-
     if (!engine.getConfiguration().getAlogPath().empty()) {
         if (engine.getConfiguration().isAccessScannerEnabled()) {
             accessScanner.wlock()->enabled = true;
@@ -2405,13 +2412,19 @@ void EPBucket::primaryWarmupCompleted() {
     const auto& config = engine.getConfiguration();
     if (warmupTask && (config.getSecondaryWarmupMinMemoryThreshold() ||
                        config.getSecondaryWarmupMinItemsThreshold())) {
-        // This construction path will automatically call step and begin
-        // scheduling of the next step of warm-up.
-        secondaryWarmupTask = std::make_unique<Warmup>(
-                *warmupTask,
-                config.getSecondaryWarmupMinMemoryThreshold(),
-                config.getSecondaryWarmupMinItemsThreshold(),
-                "Secondary");
+        secondaryWarmupTask.withLock([this, &config](auto& warmup) {
+            // primaryWarmupCompleted is a one-shot function that will create
+            // the secondary warmup object - there should be no second call once
+            // created.
+            Expects(!warmup);
+            // This construction path will automatically call step and begin
+            // scheduling of the next step of warm-up.
+            warmup = std::make_unique<Warmup>(
+                    *warmupTask,
+                    config.getSecondaryWarmupMinMemoryThreshold(),
+                    config.getSecondaryWarmupMinItemsThreshold(),
+                    "Secondary");
+        });
     }
 }
 

@@ -545,7 +545,8 @@ protected:
     cb::RelaxedAtomic<bool> retainErroneousTombstones;
 
     std::unique_ptr<Warmup> warmupTask;
-    std::unique_ptr<Warmup> secondaryWarmupTask;
+    folly::Synchronized<std::unique_ptr<Warmup>, std::mutex>
+            secondaryWarmupTask;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
 
