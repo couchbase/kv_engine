@@ -56,9 +56,6 @@ void startCluster(int verbosity, std::string_view backend) {
                 // the serverless test in elixir should be as close as how
                 // we want to deploy it.
                 config.erase("event_framework");
-                // serverless configurations should _always_ collect trace
-                // no matter what memcached.json setting say
-                config["always_collect_trace_info"] = false;
 
                 // We don't want the system to keep make a ton of "slow command"
                 // entries so only override on node 2 (which we don't use much)

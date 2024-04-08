@@ -488,7 +488,6 @@ static std::string get_errmaps_dir() {
 
 nlohmann::json TestappTest::generate_config() {
     nlohmann::json ret = {
-            {"always_collect_trace_info", true},
             {"event_framework", event_framework},
             {"max_connections", Testapp::MAX_CONNECTIONS},
             {"system_connections", Testapp::MAX_CONNECTIONS / 4},
