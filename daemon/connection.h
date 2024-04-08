@@ -984,6 +984,12 @@ protected:
     /// privileges and update any cached variables
     void updatePrivilegeContext();
 
+    // Accumulate duration the send queue has been blocked.
+    void processBlockedSendQueue();
+
+    // Reset blocked send queue if it's no longer full.
+    void updateBlockedSendQueue();
+
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the
      * the first entry in the list (and try to reuse that) due to how DCP
@@ -1078,6 +1084,14 @@ protected:
     /// number of references to the object (set to 1 during creation as the
     /// creator has a reference)
     uint8_t refcount{1};
+
+    // Duration representing the total time the connection has spent blocked due
+    // to a full send queue.
+    std::chrono::nanoseconds blockedOnFullSendQueueDuration{};
+
+    // Optional timestamp indicating the time a connection has been blocked due
+    // to a full send queue.
+    std::optional<std::chrono::steady_clock::time_point> blockedOnFullSendQueue;
 
     /**
      * The connections' priority.
