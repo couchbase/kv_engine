@@ -257,5 +257,6 @@ TEST_P(DcpTest, MB60706) {
     EXPECT_TRUE(sendq.contains("term"));
     EXPECT_TRUE(sendq["term"].get<bool>());
     EXPECT_TRUE(json.contains("socket_options"));
+    EXPECT_TRUE(json.contains("blocked_send_queue_duration"));
     ASSERT_TRUE(json["socket_options"].is_object());
 }
