@@ -98,9 +98,15 @@ def detect_package_manager(cblog_data):
     Expects: cblog_data contains keys 'dpkg', 'rpm' with the relevant output
     (error or package info).
     """
-    interesting_keys = dict((k, cblog_data[k]) for k in ('dpkg', 'rpm'))
-    # Longer output wins!
-    return max(interesting_keys.items(), key=lambda item: len(item[1][0]))[0]
+    options = set(('dpkg', 'rpm'))
+    not_found = set()
+    for o in options:
+        if any(('command not found' in line for line in cblog_data[o])):
+            not_found.add(o)
+
+    available = list(options.difference(not_found))
+    assert len(available) == 1, 'Expected exactly one package manager output'
+    return available[0]
 
 
 def select_docker_image(os_info):
@@ -129,6 +135,9 @@ def select_docker_image(os_info):
     if 'Red Hat Enterprise Linux 8' in os_info:
         version_id = get_version_id(os_info)
         return 'redhat/ubi8', version_id
+    if 'Red Hat Enterprise Linux Server 7' in os_info:
+        version_id = get_version_id(os_info)
+        return 'registry.access.redhat.com/ubi7/ubi', version_id
 
     dbg(f'Unknown OS\n++++{os_info}++++')
     dbg('Docker image to use [e.g. ubuntu]: ', end='')
