@@ -123,7 +123,7 @@ void TimingHistogramPrinter::dumpHistogram(std::string_view name, FILE* out) {
 }
 
 void TimingHistogramPrinter::printLegend(FILE* out) {
-    fmt::print(out, legend);
+    fmt::print(out, "{}", legend);
     fflush(out);
 }
 

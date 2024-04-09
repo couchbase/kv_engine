@@ -332,7 +332,7 @@ int main(int argc, char** argv) {
             argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
     if (!file.empty()) {
         try {
-            fmt::print(stdout, histogramInfo);
+            fmt::print(stdout, "{}", histogramInfo);
             dumpHistogramFromFile(file);
         } catch (const std::exception& ex) {
             fmt::print(stderr, "{}\n", ex.what());
@@ -349,7 +349,7 @@ int main(int argc, char** argv) {
         connection->setFeatures({cb::mcbp::Feature::XERROR});
 
         if (verbose && !json) {
-            fmt::print(stdout, histogramInfo);
+            fmt::print(stdout, "{}", histogramInfo);
         }
 
         if (buckets.empty()) {

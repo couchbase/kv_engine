@@ -164,48 +164,52 @@ struct Spec {
     bool cbstatEnabled = true;
     bool prometheusEnabled = true;
     std::string stability = "committed";
-    std::string added = "";
-    std::string deprecated = "";
-    std::string notes = "";
+    std::string added;
+    std::string deprecated;
+    std::string notes;
 
-    std::string_view getName() const {
+    [[nodiscard]] std::string_view getName() const {
         return prometheus.family.empty() ? enumKey : prometheus.family;
     }
 
     [[nodiscard]] bool validate() const {
         bool success = true;
-        auto fail = [&](auto&&... args) {
+        auto fail = [&](const std::string_view msg) {
             success = false;
             fmt::print(stderr,
                        "{}genstats: {}{}",
                        cb::terminal::TerminalColor::Red,
-                       fmt::format(std::forward<decltype(args)>(args)...),
+                       msg,
                        cb::terminal::TerminalColor::Reset);
         };
         if (!cbstatEnabled && !prometheusEnabled) {
-            fail("'{}' is not exposed for either of cbstat or prometheus",
-                 enumKey);
+            fail(fmt::format(
+                    "'{}' is not exposed for either of cbstat or prometheus",
+                    enumKey));
         }
         if (!prometheus.family.empty() &&
             !isValidMetricFamily(prometheus.family)) {
-            fail("'{}' has invalid prometheus metric family name. Must "
-                 "match regex:{}",
-                 enumKey,
-                 metricFamilyRegexStr);
+            fail(fmt::format(
+                    "'{}' has invalid prometheus metric family name. Must "
+                    "match regex:{}",
+                    enumKey,
+                    metricFamilyRegexStr));
         }
 
         if (!(stability == "committed" || stability == "volatile" ||
               stability == "internal")) {
-            fail("'{}' invalid value for field: stability: '{}'\n",
-                 enumKey,
-                 stability);
+            fail(fmt::format("'{}' invalid value for field: stability: '{}'\n",
+                             enumKey,
+                             stability));
         }
         if (added.empty()) {
-            fail("'{}' missing required field: added\n", enumKey);
+            fail(fmt::format("'{}' missing required field: added\n", enumKey));
         }
 
         if (!deprecated.empty() && notes.empty()) {
-            fail("'{}' has deprecated field, but missing notes field", enumKey);
+            fail(fmt::format(
+                    "'{}' has deprecated field, but missing notes field",
+                    enumKey));
         }
         return success;
     }
