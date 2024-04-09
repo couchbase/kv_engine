@@ -311,17 +311,17 @@ void MemcachedConnection::enterMessagePumpMode(
 }
 
 ::std::ostream& operator<<(::std::ostream& os, const Frame& frame) {
-    auto magic = frame.getMagic();
-    if (!cb::mcbp::is_legal(magic)) {
-        return os << fmt::format("Frame(magic={}, payload={{{0:x}}})",
+    const auto magic = frame.getMagic();
+    if (!is_legal(magic)) {
+        return os << fmt::format("Frame(magic={0:x} payload={{{0:x}}})",
+                                 frame.payload.front(),
                                  fmt::join(frame.payload, " "));
-    } else if (cb::mcbp::is_request(magic)) {
+    }
+    if (is_request(magic)) {
         return os << "Frame(" << frame.getRequest()->to_json(false).dump()
                   << ")";
-    } else {
-        return os << "Frame(" << frame.getResponse()->to_json(false).dump()
-                  << ")";
     }
+    return os << "Frame(" << frame.getResponse()->to_json(false).dump() << ")";
 }
 
 ::std::ostream& operator<<(::std::ostream& os, const DocumentInfo& info) {
