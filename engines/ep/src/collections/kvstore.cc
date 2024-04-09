@@ -30,7 +30,7 @@ void verifyFlatbuffersData(cb::const_byte_buffer buf,
         return;
     }
     throw std::runtime_error(fmt::format(
-            "verifyFlatbuffersData:{} data invalid, ptr:{}, size:{:p}",
+            "verifyFlatbuffersData:{} data invalid, ptr:{}, size:{}",
             caller,
             fmt::ptr(buf.data()),
             buf.size()));
