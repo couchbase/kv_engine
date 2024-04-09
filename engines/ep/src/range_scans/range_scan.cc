@@ -943,9 +943,8 @@ void RangeScan::ContinueRunState::addStats(
 
 std::string RangeScan::ContinueRunState::to_string() const {
     return fmt::format(
-            "{}, itemCount:{}, byteCount:{}, scanContinueDeadline:{}, "
-            "snappy:{}, limitByThrottle:{}, exceededBufferLimit:{}, "
-            "cancelStatus:{}, manifestUid:{}",
+            "{}, itemCount:{}, byteCount:{}, snappy:{}, limitByThrottle:{}, "
+            "exceededBufferLimit:{}, cancelStatus:{}, manifestUid:{}",
             limits,
             itemCount,
             byteCount,
