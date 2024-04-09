@@ -81,7 +81,10 @@ std::ostream& operator<<(std::ostream& os, const CollectionID& cid) {
 }
 
 std::string CollectionID::to_string(bool xPrefix) const {
-    return fmt::format(xPrefix ? "{:#x}" : "{:x}", value);
+    if (xPrefix) {
+        return fmt::format("{:#x}", value);
+    }
+    return fmt::format("{:x}", value);
 }
 
 bool operator==(ScopeIDType lhs, const ScopeID& rhs) {
