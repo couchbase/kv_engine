@@ -3011,6 +3011,109 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
     }
 }
 
+TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
+    // Nexus only forwards the callback to the primary so this test doesn't
+    // work for it.
+    if (isNexus()) {
+        GTEST_SKIP();
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Need two items, one to expire to hit our hook and one to skip with the
+    // shutdown check
+    auto keyToKeep = makeStoredDocKey("key2");
+    store_item(vbid, makeStoredDocKey("key1"), "value", 1);
+    store_item(vbid, keyToKeep, "value");
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Define a callback that will call "cb" before the expiry callback
+    class ExpiryCb : public Callback<Item&, time_t&> {
+    public:
+        explicit ExpiryCb(ExpiredItemsCBPtr realExpiryCallback,
+                          std::function<void()> callback)
+            : cb(std::move(callback)),
+              realExpiryCallback(std::move(realExpiryCallback)) {
+        }
+
+        void callback(Item& item, time_t& time) override {
+            cb();
+            realExpiryCallback->callback(item, time);
+        }
+
+        std::function<void()> cb;
+        ExpiredItemsCBPtr realExpiryCallback;
+    };
+
+    auto forceExpiry = [this] {
+        // get the key which will now expire
+        EXPECT_EQ(cb::engine_errc::no_such_key,
+                  store->get(makeStoredDocKey("key1"),
+                             vbid,
+                             cookie,
+                             get_options_t::NONE)
+                          .getStatus());
+        // flush - this removes from hash-table.
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    };
+
+    dynamic_cast<MockEPBucket*>(store)->mockMakeCompactionContext =
+            [this, &forceExpiry](std::shared_ptr<CompactionContext> ctx) {
+                EXPECT_TRUE(ctx->expiryCallback);
+                auto callback = std::make_shared<ExpiryCb>(ctx->expiryCallback,
+                                                           forceExpiry);
+                ctx->expiryCallback = callback;
+                ctx->timeToExpireFrom = 10;
+                return ctx;
+            };
+
+    CompactionConfig config;
+    config.internally_requested = false;
+    auto* epBucket = dynamic_cast<EPBucket*>(store);
+    if (epBucket) {
+        epBucket->scheduleCompaction(
+                vbid, config, cookie, std::chrono::milliseconds(0));
+    }
+
+    // Drive all the tasks through the queue
+    auto runTasks = [=](TaskQueue& queue) {
+        while (queue.getFutureQueueSize() > 0 ||
+               queue.getReadyQueueSize() > 0) {
+            ObjectRegistry::onSwitchThread(engine.get());
+            runNextTask(queue);
+        }
+    };
+    EXPECT_EQ(0, engine->getEpStats().bg_fetched_compaction);
+    EXPECT_EQ(2, store->getVBucket(vbid)->ht.getNumItems());
+    EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumTempItems());
+
+    runTasks(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+
+    if (!engine->getConfiguration().isCompactionExpiryFetchInline()) {
+        runBGFetcherTask();
+    }
+
+    // bg-fetch ran
+    EXPECT_EQ(1, engine->getEpStats().bg_fetched_compaction);
+    EXPECT_EQ(1, store->getVBucket(vbid)->ht.getNumItems());
+    // Expect that the temp item is cleaned-up, only if by chance client tries
+    // to read the key again would this get cleaned up.
+    EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumTempItems());
+}
+
+struct BFilterPrintToStringCombinedName {
+    std::string
+    operator()(const ::testing::TestParamInfo<
+               ::testing::tuple<std::string, std::string, bool>>& info) const {
+        std::string bfilter = "_bfilter_enabled";
+        if (!std::get<2>(info.param)) {
+            bfilter = "_bfilter_disabled";
+        }
+        return std::get<0>(info.param) + "_" + std::get<1>(info.param) +
+               bfilter;
+    }
+};
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_SUITE_P(
