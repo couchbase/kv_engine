@@ -116,29 +116,13 @@ private:
                         res.getValueString());
             }
         } else {
-            if (print_skeleton) {
-                std::string format = R"(
-{
-    "key": "{}_{}",
-    "cbstat": "{}",
-    "unit": "none",
-    "prometheus": false,
-    "added": "7.0.0"
-},
-)";
-                std::cout << fmt::format(format, "memcached", key, key)
-                          << std::endl;
-                std::cout.flush();
-            } else {
-                FAIL() << fmt::format(
-                        "Missing entry for stat key [{}] with value [{}]",
-                        key,
-                        res.getValueString());
-            }
+            FAIL() << fmt::format(
+                    "Missing entry for stat key [{}] with value [{}]",
+                    key,
+                    res.getValueString());
         }
     }
 
-    bool print_skeleton = false;
     static nlohmann::json stats_definitions;
 };
 
