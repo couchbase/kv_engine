@@ -2713,6 +2713,50 @@ TEST_P(DurabilityBucketTest, SetDeadAndReorderTasks) {
     destroy_mock_cookie(cookie2);
 }
 
+TEST_P(DurabilityBucketTest, DeleteVbucket) {
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    // Store two keys, key1 is acknowledged, key2 is not.
+    auto key1 = makeStoredDocKey("ack-me");
+    auto pending1 = makePendingItem(key1, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending1, cookie));
+
+    auto key2 = makeStoredDocKey("don't-ack-me");
+    auto pending2 = makePendingItem(key2, "value");
+    auto cookie2 = create_mock_cookie(engine.get());
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending2, cookie2));
+
+    auto vb = store->getVBucket(vbid);
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          pending1->getBySeqno());
+
+    // We don't send cb::engine_errc::sync_write_pending to clients
+    auto mockCookie = cookie_to_mock_cookie(cookie);
+    auto mockCookie2 = cookie_to_mock_cookie(cookie2);
+
+    // DeleteVB
+    EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid));
+
+    // There has to be a task to run (fails here without the fix)
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpAuxioQ);
+
+    ASSERT_TRUE(mock_cookie_notified(mockCookie));
+    ASSERT_TRUE(mock_cookie_notified(mockCookie2));
+
+    // We should have told client the SyncWrite is ambiguous
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie2));
+
+    destroy_mock_cookie(cookie2);
+}
+
 // Test that if a SyncWrite times out, then a subsequent SyncWrite which
 // _should_ fail does indeed fail.
 // (Regression test for part of MB-34367 - after using notify_IO_complete
