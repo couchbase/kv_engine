@@ -113,7 +113,7 @@ void RangeScanDataHandler::addStats(std::string_view prefix,
     const auto addStat = [&prefix, &collector](const auto& statKey,
                                                auto statValue) {
         fmt::memory_buffer key;
-        format_to(std::back_inserter(key), "{}:{}", prefix, statKey);
+        fmt::format_to(std::back_inserter(key), "{}:{}", prefix, statKey);
         collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
 

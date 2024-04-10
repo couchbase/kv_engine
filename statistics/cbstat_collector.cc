@@ -54,7 +54,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               int64_t v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(std::back_inserter(buf), "{}", v);
+    fmt::format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -62,7 +62,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               uint64_t v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(std::back_inserter(buf), "{}", v);
+    fmt::format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -70,7 +70,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               float v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(std::back_inserter(buf), "{}", v);
+    fmt::format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -78,7 +78,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               double v,
                               const Labels& labels) const {
     fmt::memory_buffer buf;
-    format_to(std::back_inserter(buf), "{}", v);
+    fmt::format_to(std::back_inserter(buf), "{}", v);
     addStat(k, {buf.data(), buf.size()}, labels);
 }
 
@@ -88,17 +88,17 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     auto key = k.needsFormatting() ? formatKey(k.cbstatsKey, labels)
                                    : std::string(k.cbstatsKey);
     fmt::memory_buffer buf;
-    format_to(std::back_inserter(buf), "{}_mean", key);
+    fmt::format_to(std::back_inserter(buf), "{}_mean", key);
     addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);
 
     uint64_t cumulativeCount = 0;
     for (const auto& bucket : hist.buckets) {
         buf.resize(0);
-        format_to(std::back_inserter(buf),
-                  "{}_{},{}",
-                  key,
-                  bucket.lowerBound,
-                  bucket.upperBound);
+        fmt::format_to(std::back_inserter(buf),
+                       "{}_{},{}",
+                       key,
+                       bucket.lowerBound,
+                       bucket.upperBound);
         addStat(cb::stats::StatDef({buf.data(), buf.size()}),
                 bucket.count,
                 labels);
@@ -112,12 +112,12 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     const auto overflowed = hist.sampleCount - cumulativeCount;
     if (overflowed) {
         buf.resize(0);
-        format_to(std::back_inserter(buf), "{}_overflowed", key);
+        fmt::format_to(std::back_inserter(buf), "{}_overflowed", key);
         addStat(cb::stats::StatDef({buf.data(), buf.size()}),
                 overflowed,
                 labels);
         buf.resize(0);
-        format_to(std::back_inserter(buf), "{}_maxTrackable", key);
+        fmt::format_to(std::back_inserter(buf), "{}_maxTrackable", key);
         addStat(cb::stats::StatDef({buf.data(), buf.size()}),
                 hist.maxTrackableValue,
                 labels);

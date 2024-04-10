@@ -137,6 +137,6 @@ void add_prefixed_stat(P prefix,
                        const AddStatFn& add_stat,
                        CookieIface& cookie) {
     fmt::memory_buffer buf;
-    format_to(std::back_inserter(buf), "{}:{}", prefix, name);
+    fmt::format_to(std::back_inserter(buf), "{}:{}", prefix, name);
     add_casted_stat({buf.data(), buf.size()}, val, add_stat, cookie);
 }
