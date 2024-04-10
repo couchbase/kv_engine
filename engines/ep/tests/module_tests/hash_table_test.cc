@@ -41,11 +41,10 @@ using ResizeAlgo = HashTable::ResizeAlgo;
 
 class Counter : public HashTableVisitor {
 public:
+    size_t count = 0;
+    size_t deleted = 0;
 
-    size_t count;
-    size_t deleted;
-
-    explicit Counter(bool v) : count(), deleted(), verify(v) {
+    explicit Counter(bool v) : verify(v) {
     }
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
@@ -592,7 +591,6 @@ class HashTableStatsTest
 protected:
     HashTableStatsTest()
         : ht(stats, makeFactory(), 5, 1, 0),
-          initialSize(0),
           key(makeStoredDocKey("somekey")),
           itemSize(16 * 1024),
           item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
@@ -665,7 +663,7 @@ protected:
 
     EPStats stats;
     HashTable ht;
-    size_t initialSize;
+    size_t initialSize = 0;
     const StoredDocKey key;
     const size_t itemSize;
     Item item;

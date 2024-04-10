@@ -41,7 +41,7 @@ public:
  */
 class SizeRangeValidator : public ValueChangedValidator {
 public:
-    SizeRangeValidator() : lower(0), upper(0) {}
+    SizeRangeValidator() = default;
 
     SizeRangeValidator *min(size_t v) {
         lower = v;
@@ -79,8 +79,8 @@ public:
     }
 
 private:
-    size_t lower;
-    size_t upper;
+    size_t lower = 0;
+    size_t upper = 0;
 };
 
 /**
@@ -89,7 +89,7 @@ private:
  */
 class SSizeRangeValidator : public ValueChangedValidator {
 public:
-    SSizeRangeValidator() : lower(0), upper(0) {}
+    SSizeRangeValidator() = default;
 
     SSizeRangeValidator* min(size_t v) {
         lower = v;
@@ -113,8 +113,8 @@ public:
     }
 
 private:
-    ssize_t lower;
-    ssize_t upper;
+    ssize_t lower = 0;
+    ssize_t upper = 0;
 };
 
 /**
@@ -123,7 +123,7 @@ private:
  */
 class FloatRangeValidator : public ValueChangedValidator {
 public:
-    FloatRangeValidator() : lower(0), upper(0) {}
+    FloatRangeValidator() = default;
 
     FloatRangeValidator *min(float v) {
         lower = v;
@@ -147,8 +147,8 @@ public:
     }
 
 private:
-    float lower;
-    float upper;
+    float lower = 0.0f;
+    float upper = 0.0f;
 };
 
 /**

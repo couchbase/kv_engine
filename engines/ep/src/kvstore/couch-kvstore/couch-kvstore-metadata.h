@@ -64,8 +64,7 @@ protected:
      */
     class MetaDataV0 {
     public:
-        MetaDataV0() : cas(0), exptime(0), flags(0) {
-        }
+        MetaDataV0() = default;
 
         void initialise(const char* raw) {
             std::memcpy(this, raw, sizeof(MetaDataV0));
@@ -121,15 +120,15 @@ protected:
         /*
          * V0 knows about CAS, expiry time and flags.
          */
-        uint64_t cas;
+        uint64_t cas = 0;
 
         /**
          * For Alive documents, the time it should expire. For Deleted
          * documents, the time the document was deleted.
          * Expressed as seconds since unix epoch (time_t).
          */
-        uint32_t exptime;
-        uint32_t flags;
+        uint32_t exptime = 0;
+        uint32_t flags = 0;
     };
 
     static_assert(sizeof(MetaDataV0) == 16,
@@ -137,8 +136,7 @@ protected:
 
     class MetaDataV1 {
     public:
-        MetaDataV1() : flexCode(0), dataType(PROTOCOL_BINARY_RAW_BYTES) {
-        }
+        MetaDataV1() = default;
 
         void initialise(const char* raw) {
             flexCode = raw[0];
@@ -194,8 +192,8 @@ protected:
          *   0 - flexCode (which also holds deleteSource in bit 7)
          *   1 - dataType
          */
-        uint8_t flexCode;
-        uint8_t dataType;
+        uint8_t flexCode = 0;
+        uint8_t dataType = PROTOCOL_BINARY_RAW_BYTES;
     };
 
     static_assert(sizeof(MetaDataV1) == 2,

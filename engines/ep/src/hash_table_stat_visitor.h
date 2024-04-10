@@ -19,8 +19,7 @@
  */
 class HashTableDepthStatVisitor : public HashTableDepthVisitor {
 public:
-    HashTableDepthStatVisitor() : size(0), memUsed(0), min(-1), max(0) {
-    }
+    HashTableDepthStatVisitor() = default;
 
     void visit(int bucket, int depth, size_t mem) override {
         (void)bucket;
@@ -34,8 +33,8 @@ public:
     }
 
     Hdr1sfInt32Histogram depthHisto;
-    size_t size;
-    size_t memUsed;
-    int min;
-    int max;
+    size_t size = 0;
+    size_t memUsed = 0;
+    int min = -1;
+    int max = 0;
 };

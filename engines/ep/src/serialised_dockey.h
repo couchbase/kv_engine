@@ -121,8 +121,7 @@ protected:
     friend class MutationLogEntryV3;
     friend class StoredValue;
 
-    SerialisedDocKey() : length(0), bytes() {
-    }
+    SerialisedDocKey() = default;
 
     /**
      * Create a SerialisedDocKey from a DocKey. Protected constructor as

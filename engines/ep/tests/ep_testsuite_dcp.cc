@@ -117,80 +117,63 @@ class DcpStreamCtx {
  * to TestDcpConsumer.
  */
 public:
-    DcpStreamCtx()
-        : vbucket(0),
-          vb_uuid(0),
-          exp_mutations(0),
-          exp_deletions(0),
-          exp_expirations(0),
-          extra_takeover_ops(0),
-          exp_disk_snapshot(false),
-          exp_conflict_res(0),
-          skip_estimate_check(false),
-          live_frontend_client(false),
-          skip_verification(false),
-          exp_err(cb::engine_errc::success),
-          exp_rollback(0),
-          expected_values(0),
-          opaque(0),
-          exp_seqno_advanced(0),
-          exp_system_events(0) {
+    DcpStreamCtx() {
         seqno = {0, static_cast<uint64_t>(~0)};
         snapshot = {0, static_cast<uint64_t>(~0)};
     }
 
     /* Vbucket Id */
-    Vbid vbucket;
+    Vbid vbucket{0};
     /* Stream flags */
     cb::mcbp::DcpAddStreamFlag flags = cb::mcbp::DcpAddStreamFlag::None;
     /* Vbucket UUID */
-    uint64_t vb_uuid;
+    uint64_t vb_uuid = 0;
     /* Sequence number range */
     SeqnoRange seqno;
     /* Snapshot range */
     SeqnoRange snapshot;
     /* Number of mutations expected (for verification) */
-    size_t exp_mutations;
+    size_t exp_mutations = 0;
     /* Number of deletions expected (for verification) */
-    size_t exp_deletions;
+    size_t exp_deletions = 0;
     /* Number of expiries expected (for verification) */
-    size_t exp_expirations;
+    size_t exp_expirations = 0;
     /* Number of snapshot markers expected (for verification) */
     std::optional<size_t> exp_markers;
     /* Extra front end mutations as part of takeover */
-    size_t extra_takeover_ops;
+    size_t extra_takeover_ops = 0;
     /* Flag - expect disk snapshot or not */
-    bool exp_disk_snapshot;
+    bool exp_disk_snapshot = false;
     /* Expected conflict resolution flag */
-    uint8_t exp_conflict_res;
+    uint8_t exp_conflict_res = 0;
     /* Skip estimate check during takeover */
-    bool skip_estimate_check;
+    bool skip_estimate_check = false;
     /*
        live_frontend_client to be set to true when streaming is done in parallel
        with a client issuing writes to the vbucket. In this scenario, predicting
        the number of snapshot markers received is difficult.
     */
-    bool live_frontend_client;
+    bool live_frontend_client = false;
     /*
        skip_verification to be set to true if verification of mutation count,
        deletion count, marker count etc. is to be skipped at the end of
        streaming.
      */
-    bool skip_verification;
+    bool skip_verification = false;
     /* Expected error code on stream creation. We need this because rollback is
        a valid operation and returns cb::engine_errc::rollback (not
        cb::engine_errc::success) */
-    cb::engine_errc exp_err;
+    cb::engine_errc exp_err = cb::engine_errc::success;
     /* Expected rollback seqno */
-    uint64_t exp_rollback;
+    uint64_t exp_rollback = 0;
     /* Expected number of values (from mutations or deleted_values) */
-    size_t expected_values;
+    size_t expected_values = 0;
     /* stream opaque */
-    uint32_t opaque;
+    uint32_t opaque = 0;
     /* Expected number of SeqnoAdvanced ops*/
-    size_t exp_seqno_advanced;
+    size_t exp_seqno_advanced = 0;
     /* Expected number of SystemEvent ops*/
-    size_t exp_system_events;
+    size_t exp_system_events = 0;
     /* Expected number of oso markers*/
     size_t exp_oso_markers{0};
 
@@ -208,11 +191,6 @@ public:
     TestDcpConsumer(std::string _name, CookieIface* _cookie, EngineIface* h)
         : name(std::move(_name)),
           cookie(_cookie),
-          opaque(0),
-          total_bytes(0),
-          simulate_cursor_dropping(false),
-          flow_control_buf_size(1024),
-          disable_ack(false),
           h(h),
           dcp(requireDcpIface(h)),
           nruCounter(2) {
@@ -281,39 +259,21 @@ public:
 private:
     /* Vbucket-level stream stats used in test */
     struct VBStats {
-        VBStats()
-            : num_mutations(0),
-              num_deletions(0),
-              num_expirations(0),
-              num_snapshot_markers(0),
-              num_set_vbucket_pending(0),
-              num_set_vbucket_active(0),
-              pending_marker_ack(false),
-              marker_end(0),
-              last_by_seqno(0),
-              extra_takeover_ops(0),
-              exp_disk_snapshot(false),
-              exp_conflict_res(0),
-              num_values(0),
-              number_of_seqno_advanced(0),
-              number_of_system_events(0) {
-        }
-
-        size_t num_mutations;
-        size_t num_deletions;
-        size_t num_expirations;
-        size_t num_snapshot_markers;
-        size_t num_set_vbucket_pending;
-        size_t num_set_vbucket_active;
-        bool pending_marker_ack;
-        uint64_t marker_end;
-        uint64_t last_by_seqno;
-        size_t extra_takeover_ops;
-        bool exp_disk_snapshot;
-        uint8_t exp_conflict_res;
-        size_t num_values;
-        size_t number_of_seqno_advanced;
-        size_t number_of_system_events;
+        size_t num_mutations = 0;
+        size_t num_deletions = 0;
+        size_t num_expirations = 0;
+        size_t num_snapshot_markers = 0;
+        size_t num_set_vbucket_pending = 0;
+        size_t num_set_vbucket_active = 0;
+        bool pending_marker_ack = false;
+        uint64_t marker_end = 0;
+        uint64_t last_by_seqno = 0;
+        size_t extra_takeover_ops = 0;
+        bool exp_disk_snapshot = false;
+        uint8_t exp_conflict_res = 0;
+        size_t num_values = 0;
+        size_t number_of_seqno_advanced = 0;
+        size_t number_of_system_events = 0;
         size_t number_of_oso_markers{0};
         std::vector<CollectionID> collections{};
     };
@@ -325,15 +285,15 @@ private:
     /* Vector containing information of streams */
     std::vector<DcpStreamCtx> stream_ctxs;
     /* Opaque value in the connection */
-    uint32_t opaque;
+    uint32_t opaque = 0;
     /* Total bytes received */
-    uint64_t total_bytes;
+    uint64_t total_bytes = 0;
     /* Flag to simulate cursor dropping */
-    bool simulate_cursor_dropping;
+    bool simulate_cursor_dropping = false;
     /* Flow control buffer size */
-    uint64_t flow_control_buf_size;
+    uint64_t flow_control_buf_size = 1024;
     /* Flag to disable acking */
-    bool disable_ack;
+    bool disable_ack = false;
     /* map of vbstats */
     std::map<Vbid, VBStats> vb_stats;
     EngineIface* h;

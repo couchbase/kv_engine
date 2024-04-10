@@ -420,8 +420,7 @@ protected:
      */
     class LocalDocHolder {
     public:
-        LocalDocHolder() : localDoc(nullptr) {
-        }
+        LocalDocHolder() = default;
 
         ~LocalDocHolder() {
             if (localDoc) {
@@ -457,7 +456,7 @@ protected:
         }
 
     private:
-        LocalDoc* localDoc;
+        LocalDoc* localDoc = nullptr;
     };
 
     const KVStoreConfig& getConfig() const override;

@@ -73,8 +73,7 @@ protected:
      */
     friend class MutationLogEntryV2;
 
-    SpockSerialisedDocKey() : length(0), docNamespace(0), bytes() {
-    }
+    SpockSerialisedDocKey() = default;
 
     /**
      * Create a LegacySerialisedDocKey from a byte_buffer that has no collection
@@ -82,9 +81,7 @@ protected:
      * MutationLogEntryV1 -> V2 upgrade
      */
     explicit SpockSerialisedDocKey(cb::const_byte_buffer key)
-        : length(gsl::narrow_cast<uint8_t>(key.size())),
-          docNamespace(0),
-          bytes() {
+        : length(gsl::narrow_cast<uint8_t>(key.size())) {
         // Assertions to protect the layout of MutationLogEntryV2 as
         // compatibility must be maintained with entries written by older
         // versions (entries are read from disk and reinterpret_cast).
@@ -95,14 +92,14 @@ protected:
         std::copy(key.begin(), key.end(), reinterpret_cast<char*>(bytes));
     }
 
-    uint8_t length{0};
+    uint8_t length = 0;
     // V2 entries always set the docNamespace member to 0.
     // Upgrading to V3 ignores this value, so docNamespace is currently
     // unused. This member is present to maintain compatibility with entries
     // written by spock/vulcan/alice. Entries are read from disk then
     // reinterpret_cast, so the struct layout is crucial.
-    uint8_t docNamespace;
-    uint8_t bytes[1];
+    uint8_t docNamespace = 0;
+    uint8_t bytes[1] = {};
 };
 
 static_assert(std::is_standard_layout<SpockSerialisedDocKey>::value,

@@ -21,12 +21,6 @@
  */
 class SessionCas {
 public:
-    SessionCas()
-        : value(0xdeadbeef),
-          counter(0) {
-        // empty
-    }
-
     /**
      * Set the the current session cas value.
      *
@@ -74,7 +68,7 @@ private:
      * use <code>cas</code> to update (it may not be modified unless
      * counter == 0)
      */
-    uint64_t value;
+    uint64_t value = 0xdeadbeef;
 
     /**
      * Whenever we need to perform a potentially long-lived operation
@@ -82,7 +76,7 @@ private:
      * change the CAS value until we're done (used to protect ourself from
      * race conditions)
      */
-    uint64_t counter;
+    uint64_t counter = 0;
 
     /**
      * All members in the class is protected with this mutex

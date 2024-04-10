@@ -42,7 +42,6 @@ public:
           taskStart(std::chrono::steady_clock::now()),
           shardID(sh),
           semaphoreGuard(std::move(guard)),
-          items_scanned(0),
           items_to_scan(items_to_scan) {
         Expects(semaphoreGuard.valid());
         setVBucketFilter(VBucketFilter(
@@ -191,7 +190,7 @@ private:
     cb::SemaphoreGuard<> semaphoreGuard;
 
     // The number items scanned since last pause
-    uint64_t items_scanned;
+    uint64_t items_scanned = 0;
     // The number of items to scan before we pause
     const uint64_t items_to_scan;
 };

@@ -50,7 +50,7 @@ public:
 
 class MockDiskCallback : public StatusCallback<GetValue> {
 public:
-    MockDiskCallback() : itemCount(0){};
+    MockDiskCallback() = default;
     void callback(GetValue& val) override {
         // Just increase the item count
         // Note: this callback is invoked for each item read from the storage.
@@ -65,7 +65,7 @@ public:
 
 protected:
     // Number of items found during a scan
-    size_t itemCount;
+    size_t itemCount = 0;
 };
 
 /*

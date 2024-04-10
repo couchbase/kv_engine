@@ -2179,7 +2179,6 @@ class ConnMapNotifyTest {
 public:
     explicit ConnMapNotifyTest(EventuallyPersistentEngine& engine)
         : connMap(new MockDcpConnMap(engine)),
-          callbacks(0),
           cookie(create_mock_cookie(&engine)) {
         cookie->setUserNotifyIoComplete(
                 [this](cb::engine_errc status) { notify(); });
@@ -2205,7 +2204,7 @@ public:
     DcpProducer* producer;
 
 private:
-    int callbacks;
+    int callbacks = 0;
     MockCookie* cookie = nullptr;
 };
 

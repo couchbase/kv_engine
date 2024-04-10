@@ -22,21 +22,17 @@
 // Abstract base class for multi lookup / mutation command encoding.
 struct SubdocMultiCmd {
     explicit SubdocMultiCmd(cb::mcbp::ClientOpcode command_)
-        : cas(0),
-          expiry(0),
-          encode_zero_expiry_on_wire(false),
-          command(command_),
-          doc_flags(cb::mcbp::subdoc::DocFlag::None) {
+        : command(command_) {
     }
 
     std::string key;
-    uint64_t cas;
-    uint32_t expiry;
+    uint64_t cas = 0;
+    uint32_t expiry = 0;
 
     // If true then a zero expiry will actually be encoded on the wire (as
     // zero), as opposed to the normal behaviour of indicating zero by the
     // absence of the 'expiry' field in extras.
-    bool encode_zero_expiry_on_wire;
+    bool encode_zero_expiry_on_wire = false;
 
     cb::mcbp::ClientOpcode command;
 
@@ -51,7 +47,7 @@ protected:
 
     // Fill in the header for this command.
     void populate_header(cb::mcbp::Request& header, size_t bodylen) const;
-    cb::mcbp::subdoc::DocFlag doc_flags;
+    cb::mcbp::subdoc::DocFlag doc_flags = cb::mcbp::subdoc::DocFlag::None;
 };
 
 /* Sub-document API MULTI_LOOKUP command */

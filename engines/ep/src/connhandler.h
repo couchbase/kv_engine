@@ -37,20 +37,6 @@ class Stream;
  * Aggregator object to count stats.
  */
 struct ConnCounter {
-    ConnCounter()
-        : totalConns(0),
-          totalProducers(0),
-          conn_queueFill(0),
-          conn_backfillDisk(0),
-          conn_backfillMemory(0),
-          conn_queueDrain(0),
-          conn_totalBytes(0),
-          conn_totalUncompressedDataSize(0),
-          conn_queueRemaining(0),
-          conn_queueBackoff(0),
-          conn_queueMemory(0) {
-    }
-
     ConnCounter& operator+=(const ConnCounter& other) {
         totalConns += other.totalConns;
         totalProducers += other.totalProducers;
@@ -70,23 +56,23 @@ struct ConnCounter {
         return *this;
     }
 
-    size_t      totalConns;
-    size_t      totalProducers;
+    size_t totalConns = 0;
+    size_t totalProducers = 0;
 
     size_t conn_activeStreams = 0;
     size_t conn_passiveStreams = 0;
-    size_t      conn_queueFill;
+    size_t conn_queueFill = 0;
     /// Number of items backfilled from disk
-    size_t conn_backfillDisk;
+    size_t conn_backfillDisk = 0;
     /// Number of items backfilled from memory (either because Ephemeral bucket,
     /// or EP bucket where item was resident and avoid avoid disk read.
-    size_t conn_backfillMemory;
-    size_t      conn_queueDrain;
-    size_t      conn_totalBytes;
-    size_t      conn_totalUncompressedDataSize;
-    size_t      conn_queueRemaining;
-    size_t      conn_queueBackoff;
-    size_t conn_queueMemory;
+    size_t conn_backfillMemory = 0;
+    size_t conn_queueDrain = 0;
+    size_t conn_totalBytes = 0;
+    size_t conn_totalUncompressedDataSize = 0;
+    size_t conn_queueRemaining = 0;
+    size_t conn_queueBackoff = 0;
+    size_t conn_queueMemory = 0;
     size_t conn_paused{0};
     size_t conn_unpaused{0};
 };

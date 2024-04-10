@@ -58,8 +58,7 @@ public:
     static void SetUpTestCase();
 
 protected:
-    TestappXattrClientTest() : xattrOperationStatus(cb::mcbp::Status::Success) {
-    }
+    TestappXattrClientTest() = default;
 
     void SetUp() override;
 
@@ -172,7 +171,7 @@ protected:
 
 protected:
     Document document;
-    cb::mcbp::Status xattrOperationStatus;
+    cb::mcbp::Status xattrOperationStatus = cb::mcbp::Status::Success;
 };
 
 struct PrintToStringCombinedName {

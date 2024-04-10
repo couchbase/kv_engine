@@ -53,7 +53,6 @@ public:
         : SteppableCommandContext(cookie),
           vbucket(req.getVBucket()),
           input_cas(req.getCas()),
-          state(State::GetItem),
           mutation_descr{} {
     }
 
@@ -126,7 +125,7 @@ private:
 
     // The current state we're operating in, and where we'll resume
     // after returned from an EWOULDBLOCK
-    State state;
+    State state = State::GetItem;
 
     // Pointer to the deleted object to store
     cb::unique_item_ptr deleted;

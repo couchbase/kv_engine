@@ -1368,16 +1368,12 @@ protected:
     std::shared_ptr<ExpiredItemPager> expiryPagerTask;
 
     struct ALogTask {
-        ALogTask()
-            : sleeptime(0),
-              task(0),
-              lastTaskRuntime(std::chrono::steady_clock::now()),
-              enabled(true) {
+        ALogTask() : lastTaskRuntime(std::chrono::steady_clock::now()) {
         }
-        size_t sleeptime;
-        size_t task;
+        size_t sleeptime = 0;
+        size_t task = 0;
         std::chrono::steady_clock::time_point lastTaskRuntime;
-        bool enabled;
+        bool enabled = true;
     };
     folly::Synchronized<ALogTask> accessScanner;
 

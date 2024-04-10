@@ -509,7 +509,7 @@ private:
     class ErrOnFirst : public FaultInjectMode {
     public:
         explicit ErrOnFirst(cb::engine_errc injected_error_)
-            : FaultInjectMode(injected_error_), prev_cmd(Cmd::NONE) {
+            : FaultInjectMode(injected_error_) {
         }
 
         bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
@@ -530,7 +530,7 @@ private:
 
     private:
         // Last command issued by this cookie.
-        Cmd prev_cmd;
+        Cmd prev_cmd = Cmd::NONE;
     };
 
     class ErrOnNextN : public FaultInjectMode {
@@ -676,7 +676,7 @@ private:
     class ErrOnNoNotify : public FaultInjectMode {
         public:
             explicit ErrOnNoNotify(cb::engine_errc injected_error_)
-                : FaultInjectMode(injected_error_), issued_return_error(false) {
+                : FaultInjectMode(injected_error_) {
             }
 
             std::optional<cb::engine_errc> add_to_pending_io_ops() override {
@@ -702,7 +702,7 @@ private:
 
         private:
             // Record of whether have yet issued return error.
-            bool issued_return_error;
+            bool issued_return_error = false;
         };
 
     class CASMismatch : public FaultInjectMode {

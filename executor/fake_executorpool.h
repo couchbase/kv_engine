@@ -150,8 +150,7 @@ public:
           nowAdjustment(timeAdvance),
           queue(q),
           preFutureQueueSize(queue.getFutureQueueSize()),
-          preReadyQueueSize(queue.getReadyQueueSize()),
-          rescheduled(false) {
+          preReadyQueueSize(queue.getReadyQueueSize()) {
         if (!queue.fetchNextTask(*this)) {
             throw std::logic_error("CheckedExecutor failed fetchNextTask");
         }
@@ -293,7 +292,7 @@ private:
     TaskQueue& queue;
     size_t preFutureQueueSize;
     size_t preReadyQueueSize;
-    bool rescheduled;
+    bool rescheduled = false;
 
     /*
      * A function object that runs post task execution for the purpose of

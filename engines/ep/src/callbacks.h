@@ -133,8 +133,7 @@ public:
 template <typename... RV>
 class StatusCallback : public Callback<RV...> {
 public:
-    StatusCallback() : myStatus(cb::engine_errc::success) {
-    }
+    StatusCallback() = default;
 
     virtual void setStatus(cb::engine_errc status) {
         myStatus = status;
@@ -153,7 +152,7 @@ public:
     }
 
 private:
-    cb::engine_errc myStatus;
+    cb::engine_errc myStatus = cb::engine_errc::success;
 };
 
 /// CacheLookup callback which does nothing when called.

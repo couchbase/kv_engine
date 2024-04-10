@@ -30,9 +30,7 @@ public:
     enum class State { Initial, Create, Remove, Pause, Resume, Done };
 
     explicit BucketManagementCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie),
-          request(cookie.getRequest()),
-          state(State::Initial) {
+        : SteppableCommandContext(cookie), request(cookie.getRequest()) {
     }
 
 protected:
@@ -46,5 +44,5 @@ protected:
 
 private:
     const cb::mcbp::Request& request;
-    State state;
+    State state = State::Initial;
 };

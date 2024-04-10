@@ -53,8 +53,7 @@ class ServerContext;
 
 class MechanismBackend {
 public:
-    explicit MechanismBackend(ServerContext& ctx)
-        : context(ctx), domain(Domain::Local) {
+    explicit MechanismBackend(ServerContext& ctx) : context(ctx) {
     }
     virtual ~MechanismBackend() = default;
     virtual std::pair<cb::sasl::Error, std::string_view> start(
@@ -86,7 +85,7 @@ public:
 protected:
     ServerContext& context;
     std::string username;
-    Domain domain;
+    Domain domain = Domain::Local;
 };
 
 class ServerContext : public Context {

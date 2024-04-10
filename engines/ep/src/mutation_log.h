@@ -119,10 +119,7 @@ class LogHeaderBlock {
 public:
     explicit LogHeaderBlock(
             MutationLogVersion version = MutationLogVersion::Current)
-        : _version(htonl(int(version))),
-          _blockSize(0),
-          _blockCount(0),
-          _rdwr(1) {
+        : _version(htonl(int(version))) {
     }
 
     void set(uint32_t bs, uint32_t bc=1) {
@@ -168,9 +165,9 @@ public:
 private:
 
     uint32_t _version;
-    uint32_t _blockSize;
-    uint32_t _blockCount;
-    uint32_t _rdwr;
+    uint32_t _blockSize = 0;
+    uint32_t _blockCount = 0;
+    uint32_t _rdwr = 1;
 };
 
 /**

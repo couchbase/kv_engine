@@ -29,9 +29,7 @@ public:
         : ValidatorTest(std::get<1>(GetParam())),
           doc("Document"),
           path("_sync.cas"),
-          value("\"${Mutation.CAS}\""),
-          flags(cb::mcbp::subdoc::PathFlag::XattrPath),
-          docFlags(cb::mcbp::subdoc::DocFlag::None) {
+          value("\"${Mutation.CAS}\"") {
     }
 
     void SetUp() override {
@@ -132,8 +130,8 @@ protected:
     const std::string doc;
     std::string path;
     std::string value;
-    cb::mcbp::subdoc::PathFlag flags = cb::mcbp::subdoc::PathFlag::None;
-    cb::mcbp::subdoc::DocFlag docFlags;
+    cb::mcbp::subdoc::PathFlag flags = cb::mcbp::subdoc::PathFlag::XattrPath;
+    cb::mcbp::subdoc::DocFlag docFlags = cb::mcbp::subdoc::DocFlag::None;
 };
 
 INSTANTIATE_TEST_SUITE_P(

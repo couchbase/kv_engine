@@ -94,7 +94,7 @@ private:
     EPStats& stats;
     EPBucket& epstore;
     Warmup& warmup;
-    bool hasPurged;
+    bool hasPurged = false;
     std::optional<const std::chrono::steady_clock::duration>
             deltaDeadlineFromNow;
     std::chrono::steady_clock::time_point deadline;
@@ -1021,7 +1021,6 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
       stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
       warmup(warmup),
-      hasPurged(false),
       deltaDeadlineFromNow(std::move(deltaDeadlineFromNow)),
       deadline(std::chrono::steady_clock::time_point::max()),
       shouldCheckIfWarmupThresholdReached(shouldCheckIfWarmupThresholdReached),

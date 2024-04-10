@@ -132,15 +132,14 @@ TEST(TaggedPtrTest, updateTagTest) {
     // only takes RCValues
     class TestObject : public RCValue {
     public:
-        TestObject() : data(123) {
-        }
+        TestObject() = default;
 
         uint32_t getData() {
             return data;
         }
 
     private:
-        uint32_t data;
+        uint32_t data = 123;
     };
 
     // Custom deleter for TestObject objects
@@ -162,15 +161,14 @@ TEST(TaggedPtrTest, updateTagTest) {
 TEST(TaggedPtrTest, updateTagTestUniquePtr) {
     class TestObject {
     public:
-        TestObject() : data(123) {
-        }
+        TestObject() = default;
 
         uint32_t getData() {
             return data;
         }
 
     private:
-        uint32_t data;
+        uint32_t data = 123;
     };
 
     // Custom deleter for TestObject objects
