@@ -233,14 +233,16 @@ TEST_F(McTimeUptimeTest, systemTimeTriggers) {
     // back. Expected change accounts for the 200ms advance of system time for
     // the 2000ms advance of steady time
     epoch -= 1800ms;
-    EXPECT_EQ(epoch, uptimeClock.getEpoch());
+    EXPECT_EQ(epoch.time_since_epoch().count(),
+              uptimeClock.getEpoch().time_since_epoch().count());
 
     // Now out of tolerance (system clock is rushing)
     EXPECT_EQ(4s, tick(2, 1000ms, 2000ms));
     EXPECT_EQ(2, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 
-    EXPECT_EQ(epoch + 2s, uptimeClock.getEpoch());
+    EXPECT_EQ((epoch + 2s).time_since_epoch().count(),
+              uptimeClock.getEpoch().time_since_epoch().count());
 }
 
 // Test the return value of tick() that it returns the "real" elapsed time
