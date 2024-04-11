@@ -680,7 +680,7 @@ TEST_F(MutationLogTest, upgradeV3toV4) {
         ASSERT_EQ(MutationLogVersion::V3, ml.header().version());
         auto iter = ml.begin();
         EXPECT_EQ(MutationLogType::New, (*iter)->type());
-        EXPECT_EQ(makeStoredDocKey("somekey"), (*iter)->key());
+        EXPECT_EQ((*iter)->key(), makeStoredDocKey("somekey"));
         ++iter;
         EXPECT_EQ(MutationLogType::Commit1, (*iter)->type());
         ++iter;
