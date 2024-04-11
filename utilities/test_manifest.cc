@@ -60,7 +60,8 @@ CollectionsManifest& CollectionsManifest::add(
         const CollectionEntry::Entry& collectionEntry,
         cb::ExpiryLimit maxTtl,
         std::optional<bool> history,
-        const ScopeEntry::Entry& scopeEntry) {
+        const ScopeEntry::Entry& scopeEntry,
+        std::optional<uint64_t> flushUid) {
     updateUid();
 
     nlohmann::json jsonEntry;
@@ -80,6 +81,10 @@ CollectionsManifest& CollectionsManifest::add(
 
     if (history) {
         jsonEntry["history"] = history.value();
+    }
+
+    if (flushUid) {
+        jsonEntry["flush_uid"] = fmt::format("{:x}", flushUid.value());
     }
 
     // Add the new collection to the set of collections belonging to the
@@ -203,6 +208,30 @@ CollectionsManifest& CollectionsManifest::rename(
     }
     throw std::invalid_argument(
             "CollectionsManifest::rename(collection) did not rename "
+            "anything");
+}
+
+CollectionsManifest& CollectionsManifest::flush(
+        const CollectionEntry::Entry& collectionEntry,
+        const ScopeEntry::Entry& scopeEntry) {
+    updateUid();
+    std::stringstream sidString, cidString;
+    sidString << std::hex << uint32_t(scopeEntry.uid);
+    cidString << std::hex << uint32_t(collectionEntry.uid);
+    for (auto& scope : json["scopes"]) {
+        if (scope["name"] == scopeEntry.name &&
+            scope["uid"] == sidString.str()) {
+            for (auto& collection : scope["collections"]) {
+                if (collection["name"] == collectionEntry.name &&
+                    collection["uid"] == cidString.str()) {
+                    collection["flush_uid"] = json["uid"];
+                    return *this;
+                }
+            }
+        }
+    }
+    throw std::invalid_argument(
+            "CollectionsManifest::flush(collection) did not update "
             "anything");
 }
 

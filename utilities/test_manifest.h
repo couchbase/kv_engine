@@ -172,7 +172,8 @@ public:
             const CollectionEntry::Entry& collectionEntry,
             cb::ExpiryLimit maxTtl,
             std::optional<bool> history = {},
-            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS,
+            std::optional<uint64_t> flushUid = {});
 
     /// Add the collection entry to the given scope - allows duplicates
     /// Adds the collection to the default scope if not are specified
@@ -196,6 +197,10 @@ public:
     CollectionsManifest& rename(const CollectionEntry::Entry& collectionEntry,
                                 const ScopeEntry::Entry& scopeEntry,
                                 const std::string& newName);
+
+    /// Update the manifest for a flush of the collection
+    CollectionsManifest& flush(const CollectionEntry::Entry& collectionEntry,
+                               const ScopeEntry::Entry& scopeEntry);
 
     CollectionsManifest& update(
             const CollectionEntry::Entry& collectionEntry,
