@@ -235,8 +235,6 @@ public:
 
     void setUid(const std::string& uid);
 
-    void setForce(bool force);
-
     /// Most interfaces require std::string manifest
     operator std::string() const {
         return to_json();
@@ -247,6 +245,16 @@ public:
     }
 
 private:
+    std::optional<nlohmann::json> findScope(
+            const ScopeEntry::Entry& scopeEntry) const;
+    std::optional<nlohmann::json> findCollection(
+            const CollectionEntry::Entry& collectionEntry,
+            const nlohmann::json& scopes) const;
+    nlohmann::json* findScope(const ScopeEntry::Entry& scopeEntry);
+    nlohmann::json* findCollection(
+            const CollectionEntry::Entry& collectionEntry,
+            nlohmann::json& scopes);
+
     void updateUid();
     std::string to_json() const;
     nlohmann::json json;

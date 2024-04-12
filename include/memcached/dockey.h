@@ -207,7 +207,7 @@ public:
     /// Get network byte order of the value
     ScopeIDNetworkOrder to_network() const;
 
-    std::string to_string() const;
+    std::string to_string(bool xPrefix = true) const;
 
 private:
     ScopeIDType value;

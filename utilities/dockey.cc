@@ -95,8 +95,11 @@ std::ostream& operator<<(std::ostream& os, const ScopeID& sid) {
     return os << sid.to_string();
 }
 
-std::string ScopeID::to_string() const {
-    return fmt::format("{:#x}", value);
+std::string ScopeID::to_string(bool xPrefix) const {
+    if (xPrefix) {
+        return fmt::format("{:#x}", value);
+    }
+    return fmt::format("{:x}", value);
 }
 
 CollectionIDNetworkOrder::CollectionIDNetworkOrder(CollectionID v)

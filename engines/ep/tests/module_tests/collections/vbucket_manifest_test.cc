@@ -578,10 +578,11 @@ TEST_P(VBucketManifestTest, defaultCollectionExists) {
 
 TEST_P(VBucketManifestTest, add_to_scope) {
     EXPECT_TRUE(manifest.update(
-            cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)));
+            cm.add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy2, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
-            StoredDocKey{"vegetable:cucumber", CollectionEntry::vegetable}));
-    EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
+            StoredDocKey{"vegetable:cucumber", CollectionEntry::dairy2}));
+    EXPECT_TRUE(manifest.exists(CollectionEntry::dairy2));
 }
 
 TEST_P(VBucketManifestTest, add_delete_different_scopes) {

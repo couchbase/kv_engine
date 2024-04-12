@@ -14,9 +14,9 @@
 #include <memcached/dockey.h>
 
 #include <nlohmann/json.hpp>
+#include <spdlog/fmt/fmt.h>
 #include <iomanip>
 #include <iostream>
-#include <sstream>
 
 CollectionsManifest::CollectionsManifest() {
     add(ScopeEntry::defaultS);
@@ -38,11 +38,8 @@ CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
     updateUid();
 
     nlohmann::json jsonEntry;
-    std::stringstream ss;
-    ss << std::hex << uint32_t(entry.uid);
-
     jsonEntry["name"] = entry.name;
-    jsonEntry["uid"] = ss.str();
+    jsonEntry["uid"] = entry.uid.to_string(false);
     jsonEntry["collections"] = std::vector<nlohmann::json>();
 
     if (dataLimit) {
@@ -62,14 +59,9 @@ CollectionsManifest& CollectionsManifest::add(
         std::optional<bool> history,
         const ScopeEntry::Entry& scopeEntry,
         std::optional<uint64_t> flushUid) {
-    updateUid();
-
     nlohmann::json jsonEntry;
-    std::stringstream ss;
-    ss << std::hex << uint32_t(collectionEntry.uid);
-
     jsonEntry["name"] = collectionEntry.name;
-    jsonEntry["uid"] = ss.str();
+    jsonEntry["uid"] = collectionEntry.uid.to_string(false);
 
     if (maxTtl) {
         jsonEntry["maxTTL"] = maxTtl.value().count();
@@ -89,14 +81,14 @@ CollectionsManifest& CollectionsManifest::add(
 
     // Add the new collection to the set of collections belonging to the
     // given scope
-    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
-         itr++) {
-        if ((*itr)["name"] == scopeEntry.name) {
-            (*itr)["collections"].push_back(jsonEntry);
-            break;
-        }
+    auto scope = findScope(scopeEntry);
+    if (!scope) {
+        throw std::invalid_argument(
+                "CollectionsManifest::add(collection) failed to find scope");
     }
 
+    updateUid();
+    (*scope)["collections"].push_back(jsonEntry);
     return *this;
 }
 
@@ -121,12 +113,11 @@ CollectionsManifest& CollectionsManifest::add(
 
 CollectionsManifest& CollectionsManifest::remove(
         const ScopeEntry::Entry& entry) {
-    updateUid();
-    std::stringstream sid;
-    sid << std::hex << uint32_t(entry.uid);
+    const auto sid = entry.uid.to_string(false);
     for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
          itr++) {
-        if ((*itr)["name"] == entry.name && (*itr)["uid"] == sid.str()) {
+        if ((*itr)["name"] == entry.name && (*itr)["uid"] == sid) {
+            updateUid();
             json["scopes"].erase(itr);
             return *this;
         }
@@ -139,10 +130,7 @@ CollectionsManifest& CollectionsManifest::remove(
 CollectionsManifest& CollectionsManifest::remove(
         const CollectionEntry::Entry& collectionEntry,
         const ScopeEntry::Entry& scopeEntry) {
-    updateUid();
-
-    std::stringstream cid;
-    cid << std::hex << uint32_t(collectionEntry.uid);
+    const auto cid = collectionEntry.uid.to_string(false);
 
     // Iterate on all scopes, find the one matching the passed scopeEntry
     for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
@@ -154,7 +142,8 @@ CollectionsManifest& CollectionsManifest::remove(
                  citr != (*itr)["collections"].end();
                  citr++) {
                 if ((*citr)["name"] == collectionEntry.name &&
-                    (*citr)["uid"] == cid.str()) {
+                    (*citr)["uid"] == cid) {
+                    updateUid();
                     (*itr)["collections"].erase(citr);
                     return *this;
                 }
@@ -170,15 +159,11 @@ CollectionsManifest& CollectionsManifest::remove(
 
 CollectionsManifest& CollectionsManifest::rename(
         const ScopeEntry::Entry& scopeEntry, const std::string& newName) {
-    updateUid();
-    std::stringstream sidString;
-    sidString << std::hex << uint32_t(scopeEntry.uid);
-    for (auto& scope : json["scopes"]) {
-        if (scope["name"] == scopeEntry.name &&
-            scope["uid"] == sidString.str()) {
-            scope["name"] = newName;
-            return *this;
-        }
+    auto* scope = findScope(scopeEntry);
+    if (scope) {
+        updateUid();
+        (*scope)["name"] = newName;
+        return *this;
     }
 
     throw std::invalid_argument(
@@ -190,22 +175,16 @@ CollectionsManifest& CollectionsManifest::rename(
         const CollectionEntry::Entry& collectionEntry,
         const ScopeEntry::Entry& scopeEntry,
         const std::string& newName) {
-    updateUid();
-    std::stringstream sidString, cidString;
-    sidString << std::hex << uint32_t(scopeEntry.uid);
-    cidString << std::hex << uint32_t(collectionEntry.uid);
-    for (auto& scope : json["scopes"]) {
-        if (scope["name"] == scopeEntry.name &&
-            scope["uid"] == sidString.str()) {
-            for (auto& collection : scope["collections"]) {
-                if (collection["name"] == collectionEntry.name &&
-                    collection["uid"] == cidString.str()) {
-                    collection["name"] = newName;
-                    return *this;
-                }
-            }
+    auto* scope = findScope(scopeEntry);
+    if (scope) {
+        auto* collection = findCollection(collectionEntry, *scope);
+        if (collection) {
+            updateUid();
+            (*collection)["name"] = newName;
+            return *this;
         }
     }
+
     throw std::invalid_argument(
             "CollectionsManifest::rename(collection) did not rename "
             "anything");
@@ -214,20 +193,13 @@ CollectionsManifest& CollectionsManifest::rename(
 CollectionsManifest& CollectionsManifest::flush(
         const CollectionEntry::Entry& collectionEntry,
         const ScopeEntry::Entry& scopeEntry) {
-    updateUid();
-    std::stringstream sidString, cidString;
-    sidString << std::hex << uint32_t(scopeEntry.uid);
-    cidString << std::hex << uint32_t(collectionEntry.uid);
-    for (auto& scope : json["scopes"]) {
-        if (scope["name"] == scopeEntry.name &&
-            scope["uid"] == sidString.str()) {
-            for (auto& collection : scope["collections"]) {
-                if (collection["name"] == collectionEntry.name &&
-                    collection["uid"] == cidString.str()) {
-                    collection["flush_uid"] = json["uid"];
-                    return *this;
-                }
-            }
+    auto scope = findScope(scopeEntry);
+    if (scope) {
+        auto* collection = findCollection(collectionEntry, *scope);
+        if (collection) {
+            updateUid();
+            (*collection)["flush_uid"] = json["uid"];
+            return *this;
         }
     }
     throw std::invalid_argument(
@@ -237,58 +209,24 @@ CollectionsManifest& CollectionsManifest::flush(
 
 bool CollectionsManifest::exists(const CollectionEntry::Entry& collectionEntry,
                                  const ScopeEntry::Entry& scopeEntry) const {
-    std::stringstream cid;
-    cid << std::hex << uint32_t(collectionEntry.uid);
-    std::stringstream sid;
-    sid << std::hex << uint32_t(scopeEntry.uid);
-
-    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
-         itr++) {
-        if ((*itr)["name"] == scopeEntry.name && (*itr)["uid"] == sid.str()) {
-            for (auto citr = (*itr)["collections"].begin();
-                 citr != (*itr)["collections"].end();
-                 citr++) {
-                if ((*citr)["name"] == collectionEntry.name &&
-                    (*citr)["uid"] == cid.str()) {
-                    return true;
-                }
-            }
-            break;
-        }
+    auto scope = findScope(scopeEntry);
+    if (scope && findCollection(collectionEntry, scope.value()).has_value()) {
+        return true;
     }
     return false;
 }
 
 bool CollectionsManifest::exists(const ScopeEntry::Entry& scopeEntry) const {
-    std::stringstream sid;
-    sid << std::hex << uint32_t(scopeEntry.uid);
-    for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
-         itr++) {
-        if ((*itr)["name"] == scopeEntry.name && (*itr)["uid"] == sid.str()) {
-            return true;
-        }
-    }
-    return false;
+    return findScope(scopeEntry).has_value();
 }
 
 void CollectionsManifest::updateUid() {
-    uid++;
-
-    std::stringstream ss;
-    ss << std::hex << uid;
-    json["uid"] = ss.str();
+    updateUid(uid + 1);
 }
 
 void CollectionsManifest::updateUid(uint64_t uid) {
     this->uid = uid;
-
-    std::stringstream ss;
-    ss << std::hex << uid;
-    json["uid"] = ss.str();
-}
-
-void CollectionsManifest::setForce(bool force) {
-    json["force"] = force;
+    json["uid"] = fmt::format("{:x}", uid);
 }
 
 std::string CollectionsManifest::to_json() const {
@@ -298,4 +236,49 @@ std::string CollectionsManifest::to_json() const {
 void CollectionsManifest::setUid(const std::string& uid) {
     this->uid = strtoull(uid.c_str(), nullptr, 16);
     updateUid();
+}
+
+std::optional<nlohmann::json> CollectionsManifest::findScope(
+        const ScopeEntry::Entry& scopeEntry) const {
+    const auto sid = scopeEntry.uid.to_string(false);
+    for (auto& scope : json["scopes"]) {
+        if (scope["name"] == scopeEntry.name && scope["uid"] == sid) {
+            return scope;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<nlohmann::json> CollectionsManifest::findCollection(
+        const CollectionEntry::Entry& collectionEntry,
+        const nlohmann::json& scopes) const {
+    const auto cid = collectionEntry.uid.to_string(false);
+    for (const auto& entry : scopes["collections"]) {
+        if (entry["name"] == collectionEntry.name && entry["uid"] == cid) {
+            return entry;
+        }
+    }
+    return std::nullopt;
+}
+
+nlohmann::json* CollectionsManifest::findScope(
+        const ScopeEntry::Entry& scopeEntry) {
+    const auto sid = scopeEntry.uid.to_string(false);
+    for (auto& entry : json["scopes"]) {
+        if (entry["name"] == scopeEntry.name && entry["uid"] == sid) {
+            return &entry;
+        }
+    }
+    return nullptr;
+}
+
+nlohmann::json* CollectionsManifest::findCollection(
+        const CollectionEntry::Entry& collectionEntry, nlohmann::json& scopes) {
+    const auto cid = collectionEntry.uid.to_string(false);
+    for (auto& entry : scopes["collections"]) {
+        if (entry["name"] == collectionEntry.name && entry["uid"] == cid) {
+            return &entry;
+        }
+    }
+    return nullptr;
 }
