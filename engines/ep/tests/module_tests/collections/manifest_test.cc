@@ -638,12 +638,7 @@ TEST(ManifestTest, validation) {
 
             Collections::Manifest m4(*itr);
             EXPECT_EQ(m1, m2);
-
-            // @todo: temp ignore flatbuffer construct/compare (next patch adds
-            // this back).
-            if (itr2->find("flush_uid") == std::string::npos) {
-                EXPECT_EQ(m1, m3);
-            }
+            EXPECT_EQ(m1, m3);
 
             EXPECT_NE(m1, m4);
             EXPECT_NE(m3, m4);

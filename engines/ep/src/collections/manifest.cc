@@ -481,7 +481,8 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     c.maxTtl.value_or(std::chrono::seconds(0)).count(),
                     builder.CreateString(c.name),
                     getHistoryFromCanDeduplicate(c.canDeduplicate),
-                    c.metered == Metered::Yes);
+                    c.metered == Metered::Yes,
+                    c.flushUid);
             fbCollections.push_back(newEntry);
         }
         auto collectionVector = builder.CreateVector(fbCollections);
@@ -557,7 +558,7 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
                     maxTtl,
                     getCanDeduplicateFromHistory(collection->history()),
                     collection->metered() ? Metered::Yes : Metered::No,
-                    ManifestUid{});
+                    ManifestUid{collection->flushUid()});
         }
 
         std::optional<size_t> dataSize;

@@ -25,6 +25,8 @@ table Collection {
     history:bool = false;
     // "metered" added in "7.5" (elixir)
     metered:bool = false;
+    // "flush_uid" added in "8.0" (morpheus)
+    flushUid:ulong = 0;
 }
 
 table ScopeLimits {
