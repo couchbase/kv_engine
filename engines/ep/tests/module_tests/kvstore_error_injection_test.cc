@@ -296,7 +296,8 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
                                                CollectionEntry::dairy.name,
                                                {/*no ttl*/},
                                                CanDeduplicate::Yes,
-                                               Collections::Metered::No};
+                                               Collections::Metered::No,
+                                               Collections::ManifestUid{}};
     // no ordering of returned collections, both default and dairy must exist
     for (const auto& c : m3.collections) {
         if (c.metaData.cid == CollectionID::Default) {

@@ -1421,13 +1421,16 @@ CreateEventData Manifest::getCreateEventData(const Collection& collection) {
     if (collection.ttlValid()) {
         maxTtl = std::chrono::seconds(collection.maxTtl());
     }
+    // Creating a collection - flush_uid is currently just set to epoch (0) to
+    // make it clearer that no flush has yet occurred.
     return {ManifestUid(collection.uid()),
             {collection.scopeId(),
              collection.collectionId(),
              collection.name()->str(),
              maxTtl,
              getCanDeduplicateFromHistory(collection.history()),
-             Collections::getMetered(collection.metered())}};
+             getMetered(collection.metered()),
+             ManifestUid{}}};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(

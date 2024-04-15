@@ -177,7 +177,8 @@ public:
                                 name,
                                 maxTtl,
                                 getCanDeduplicateFromHistory(historyValue),
-                                metered);
+                                metered,
+                                Collections::ManifestUid{});
             }
         }
         return rv;
@@ -323,7 +324,8 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                             "c101",
                                             {},
                                             CanDeduplicate::Yes,
-                                            Collections::Metered::Yes});
+                                            Collections::Metered::Yes,
+                                            Collections::ManifestUid{}});
     EXPECT_NE(m1, m2);
     m2.collections = m1.collections;
 
@@ -345,7 +347,8 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               "c1",
                                               {},
                                               CanDeduplicate::Yes,
-                                              Collections::Metered::No};
+                                              Collections::Metered::No,
+                                              Collections::ManifestUid{}};
     m1.collections.emplace_back(0, c1);
     c1.metered = Collections::Metered::Yes;
     m2.collections.emplace_back(0, c1);
@@ -359,7 +362,8 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               "c2",
                                               {},
                                               CanDeduplicate::Yes,
-                                              Collections::Metered::No};
+                                              Collections::Metered::No,
+                                              Collections::ManifestUid{}};
     m1.collections.emplace_back(0, c2);
     c2.canDeduplicate = CanDeduplicate::No;
     m2.collections.emplace_back(0, c2);
@@ -373,7 +377,8 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               "c3",
                                               cb::NoExpiryLimit,
                                               CanDeduplicate::Yes,
-                                              Collections::Metered::No};
+                                              Collections::Metered::No,
+                                              Collections::ManifestUid{}};
     m1.collections.emplace_back(0, c3);
     c3.maxTtl = std::chrono::seconds(1);
     m2.collections.emplace_back(0, c3);
@@ -1080,7 +1085,8 @@ TEST(ScanContextTest, isLogicallyDeleted) {
                                             "c1",
                                             cb::NoExpiryLimit,
                                             CanDeduplicate::No,
-                                            Collections::Metered::No}});
+                                            Collections::Metered::No,
+                                            Collections::ManifestUid{}}});
 
     // No dropped collections, only open collections
     TestScanContext tsc{&open, {}};

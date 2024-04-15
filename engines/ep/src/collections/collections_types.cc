@@ -214,14 +214,15 @@ std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
 
 std::string to_string(const CollectionMetaData& collection) {
     return fmt::format(
-            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}, {}",
+            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}, {}, flushUid:{}",
             collection.cid.to_string(),
             collection.name,
             collection.maxTtl.has_value(),
             collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
             collection.sid.to_string(),
             collection.metered,
-            to_string(collection.canDeduplicate));
+            to_string(collection.canDeduplicate),
+            collection.flushUid);
 }
 
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta) {

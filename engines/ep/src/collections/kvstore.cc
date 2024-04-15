@@ -129,7 +129,8 @@ std::vector<Collections::KVStore::OpenCollection> decodeOpenCollections(
                                 entry->name()->str(),
                                 maxTtl,
                                 getCanDeduplicateFromHistory(entry->history()),
-                                Collections::getMetered(entry->metered())});
+                                Collections::getMetered(entry->metered()),
+                                ManifestUid{}});
     }
     return rv;
 }

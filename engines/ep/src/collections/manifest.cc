@@ -288,8 +288,8 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                                           cnameValue,
                                           maxTtl,
                                           collectionCanDeduplicate,
-                                          meteredState
-                                          /*todo pass flush_uid*/);
+                                          meteredState,
+                                          flushUid);
         }
 
         // Check for limits - only support for data_size
@@ -443,6 +443,9 @@ nlohmann::json Manifest::to_json(
                     // Only include when the value is true
                     collection[HistoryKey] = true;
                 }
+                if (c.flushUid) {
+                    collection[FlushUidKey] = fmt::format("{0:x}", c.flushUid);
+                }
                 scope[CollectionsKey].push_back(collection);
             }
         }
@@ -553,7 +556,8 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
                     collection->name()->str(),
                     maxTtl,
                     getCanDeduplicateFromHistory(collection->history()),
-                    collection->metered() ? Metered::Yes : Metered::No);
+                    collection->metered() ? Metered::Yes : Metered::No,
+                    ManifestUid{});
         }
 
         std::optional<size_t> dataSize;
@@ -615,6 +619,11 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                 collectionC.addStat(
                         Key::collection_history,
                         getHistoryFromCanDeduplicate(entry.canDeduplicate));
+
+                if (entry.flushUid) {
+                    collectionC.addStat(Key::collection_flush_uid,
+                                        entry.flushUid);
+                }
             }
         }
     } catch (const std::exception& e) {
@@ -919,11 +928,15 @@ bool Manifest::isEpoch() const {
         return false;
     }
 
-    // Default collection has no maxTTL and no history defined
+    // Default collection has:
+    // no maxTTL
+    // no history enabled
+    // no flush_uid (i.e. flush_uid is 0)
     // Scope has no history and no data limit defined
     return collection->second.canDeduplicate == CanDeduplicate::Yes &&
            !collection->second.maxTtl.has_value() &&
            collection->second.name == DefaultCollectionIdentifier &&
+           collection->second.flushUid.load() == 0 &&
            !scope->second.dataLimit.has_value() &&
            scope->second.name == DefaultScopeIdentifier;
 }

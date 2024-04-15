@@ -4036,6 +4036,14 @@
         "stability": "internal"
     },
     {
+        "key": "collection_flush_uid",
+        "unit": "none",
+        "cbstat": "flush_uid",
+        "description": "The last manifest-uid triggering a flush",
+        "added": "8.0",
+        "stability": "internal"
+    },
+    {
         "key": "scope_name",
         "unit": "none",
         "cbstat": "name",
