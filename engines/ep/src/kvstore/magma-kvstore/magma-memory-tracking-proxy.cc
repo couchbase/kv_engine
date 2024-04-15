@@ -593,3 +593,8 @@ void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetKeyTreeIndexBlockSize(value);
 }
+
+void MagmaMemoryTrackingProxy::SetFusionCacheSize(size_t bytes) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetFusionCacheSize(bytes);
+}

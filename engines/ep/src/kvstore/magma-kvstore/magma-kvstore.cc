@@ -4209,3 +4209,7 @@ void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
 std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {
     return magma->GetOldestHistorySeqno(vbid.get());
 }
+
+void MagmaKVStore::setFusionCacheSize(size_t bytes) {
+    magma->SetFusionCacheSize(bytes);
+}

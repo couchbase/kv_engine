@@ -604,6 +604,8 @@ public:
     void setHistoryRetentionSeconds(std::chrono::seconds secs) override;
     std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override;
 
+    void setFusionCacheSize(size_t bytes);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

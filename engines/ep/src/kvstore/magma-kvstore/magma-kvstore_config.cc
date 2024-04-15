@@ -38,6 +38,8 @@ public:
             config.setMagmaKeyTreeDataBlockSize(value);
         } else if (key == "magma_key_tree_index_block_size") {
             config.setMagmaKeyTreeIndexBlockSize(value);
+        } else if (key == "magma_fusion_cache_size") {
+            config.setMagmaFusionCacheSize(value);
         }
     }
 
@@ -175,6 +177,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     fusionEndpointURI = config.getMagmaFusionEndpointUri();
     fusionVolumeName = config.getMagmaFusionVolumeName();
+
+    config.addValueChangedListener(
+            "magma_fusion_cache_size",
+            std::make_unique<ConfigChangeListener>(*this));
     fusionCacheSize = config.getMagmaFusionCacheSize();
 }
 
@@ -249,5 +255,12 @@ void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
     magmaKeyTreeIndexBlockSize.store(value);
     if (store) {
         store->setMagmaKeyTreeIndexBlockSize(value);
+    }
+}
+
+void MagmaKVStoreConfig::setMagmaFusionCacheSize(size_t bytes) {
+    fusionCacheSize = bytes;
+    if (store) {
+        store->setFusionCacheSize(bytes);
     }
 }

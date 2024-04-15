@@ -242,6 +242,8 @@ public:
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);
 
+    void SetFusionCacheSize(size_t bytes);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

@@ -1545,7 +1545,7 @@
         "magma_fusion_cache_size": {
             "default": "0",
             "descr": "Size (in bytes) of the magma cache for Fusion.",
-            "dynamic": false,
+            "dynamic": true,
             "type": "size_t"
         },
         "range_scan_kv_store_scan_ratio": {
