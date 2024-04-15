@@ -136,7 +136,7 @@ HashTable::HashTable(EPStats& st,
                      double freqCounterIncFactor,
                      std::function<uint8_t()> getInitialMFU,
                      ShouldTrackMFUCallback shouldTrackMfuCallback)
-    : initialSize(initialSize),
+    : minimumSize([initialSize]() { return initialSize; }),
       valuesSize(initialSize),
       values(initialSize),
       mutexes(locks),
@@ -234,6 +234,7 @@ static size_t nearest(size_t n, size_t a, size_t b) {
 }
 
 size_t HashTable::getPreferredSize() const {
+    const size_t minSize = minimumSize();
     const size_t numItems = getNumInMemoryItems();
     const size_t currSize = getSize();
 
@@ -246,9 +247,9 @@ size_t HashTable::getPreferredSize() const {
     if (candidate == prime_size_table.end()) {
         // We're at the end, take the biggest
         return prime_size_table.back();
-    } else if (*candidate < initialSize) {
-        // Was going to be smaller than the initial size.
-        return initialSize;
+    } else if (*candidate < minSize) {
+        // Was going to be smaller than the minimum size.
+        return minSize;
     } else if (candidate == prime_size_table.begin()) {
         return *candidate;
     } else if (currSize == *(candidate - 1) || currSize == *candidate) {

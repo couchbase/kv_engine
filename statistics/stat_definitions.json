@@ -3200,7 +3200,7 @@
             "family": "vb_ht_max_size"
         },
         "description": "The maximum HashTable size (number of slots) across all vbuckets",
-        "added": "8.0.0"
+        "added": "7.2.5"
     },
     {
         "key": "vb_ht_avg_size",
@@ -3209,8 +3209,8 @@
         "prometheus": {
             "family": "vb_ht_avg_size"
         },
-        "description": "The average size of a HashTable across all vbuckets",
-        "added": "8.0.0"
+        "description": "The average size (number of slots) of the HashTable across all vbuckets",
+        "added": "7.2.5"
     },
     {
         "key": "vb_bloom_filter_memory",

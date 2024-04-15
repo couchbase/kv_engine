@@ -132,6 +132,8 @@ public:
             store.setBackfillMemoryThreshold(backfill_threshold);
         } else if (key == "max_ttl") {
             store.setMaxTtl(value);
+        } else if (key == "ht_size") {
+            store.setMinimumHashTableSize(value);
         } else if (key == "checkpoint_max_size") {
             store.setCheckpointMaxSize(value);
         } else if (key == "checkpoint_destruction_tasks") {
@@ -396,6 +398,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "durability_min_level",
             std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setMinimumHashTableSize(config.getHtSize());
+    config.addValueChangedListener(
+            "ht_size", std::make_unique<EPStoreValueChangeListener>(*this));
 
     config.addValueChangedListener(
             "checkpoint_memory_ratio",

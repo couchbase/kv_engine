@@ -2604,6 +2604,33 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceRequestNotify) {
     destroy_mock_cookie(cookie3);
 }
 
+TEST_P(KVBucketParamTest, HashTableMinimumSize) {
+    auto& config = engine->getConfiguration();
+    auto& ht = store->getVBucket(vbid)->ht;
+    EXPECT_EQ(config.getHtSize(), ht.minimumSize());
+    EXPECT_EQ(config.getHtSize(), ht.getSize());
+
+    config.setHtSize(3);
+    EXPECT_EQ(3, config.getHtSize());
+    EXPECT_EQ(3, ht.minimumSize());
+    EXPECT_NE(3, ht.getSize());
+
+    ht.resizeInOneStep();
+    EXPECT_EQ(3, config.getHtSize());
+    EXPECT_EQ(3, ht.minimumSize());
+    EXPECT_EQ(3, ht.getSize());
+
+    config.setHtSize(47);
+    EXPECT_EQ(47, config.getHtSize());
+    EXPECT_EQ(47, ht.minimumSize());
+    EXPECT_EQ(3, ht.getSize());
+
+    ht.resizeInOneStep();
+    EXPECT_EQ(47, config.getHtSize());
+    EXPECT_EQ(47, ht.minimumSize());
+    EXPECT_EQ(47, ht.getSize());
+}
+
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          KVBucketParamTest,

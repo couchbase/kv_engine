@@ -44,6 +44,7 @@ std::string VBCBAdaptor::getDescription() const {
     if (value == None) {
         return std::string(label) + " no vbucket assigned";
     } else {
+        // MB-61220: Now prints the vBucket that was last visited.
         return std::string(label) + " on " + Vbid(value).to_string();
     }
 }
@@ -64,7 +65,6 @@ bool VBCBAdaptor::run() {
             vbucketsToVisit.pop_front();
             continue;
         }
-        currentvb = vbid.get();
         // Also record the vbid.
         cb::DebugVariable debugVbid{vbid.get()};
 
@@ -80,6 +80,8 @@ bool VBCBAdaptor::run() {
             return false;
         }
 
+        // MB-61220: This used to be set before pausing.
+        currentvb = vbid.get();
         visitor->visitBucket(*vb);
 
         switch (visitor->needsToRevisitLast()) {
