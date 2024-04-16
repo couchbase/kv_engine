@@ -1548,6 +1548,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "magma_fusion_volatile_storage_path": {
+            "default": "",
+            "descr": "Path to the local volatile storage for Fusion; used as a disk cache.",
+            "dynamic": false,
+            "type": "std::string"
+        },
         "range_scan_kv_store_scan_ratio": {
             "default": "0.8",
             "dynamic": false,
