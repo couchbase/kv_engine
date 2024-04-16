@@ -10,11 +10,9 @@
  */
 #pragma once
 
-#include <chrono>
-#include <cstdint>
-#include <platform/ring_buffer.h>
-
 #include "relaxed_atomic.h"
+#include <boost/circular_buffer.hpp>
+#include <cstdint>
 
 namespace cb::sampling {
 
@@ -41,6 +39,9 @@ struct Interval {
  */
 class IntervalSeries {
 public:
+    IntervalSeries() : intervals(INTERVAL_SERIES_SIZE) {
+    }
+
     /**
      * Get the count of all the operations and the total duration time for
      * the entire series.
@@ -54,7 +55,7 @@ public:
     void reset();
 
 private:
-    cb::RingBuffer<Interval, INTERVAL_SERIES_SIZE> intervals;
+    boost::circular_buffer_space_optimized<Interval> intervals;
 };
 
 } // namespace cb::sampling

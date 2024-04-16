@@ -25,7 +25,7 @@ void Interval::reset() {
 }
 
 void IntervalSeries::reset() {
-    intervals.reset();
+    intervals.clear();
 }
 
 Interval IntervalSeries::getAggregate() const {
