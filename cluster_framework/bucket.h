@@ -59,11 +59,11 @@ public:
 
     virtual ~Bucket();
 
-    std::string getName() const {
+    [[nodiscard]] auto getName() const {
         return name;
     }
 
-    std::string getUuid() const {
+    [[nodiscard]] auto getUuid() const {
         return uuid;
     }
 
@@ -78,11 +78,11 @@ public:
      * The node# is the index into the clusters array of nodes.
      *
      */
-    const std::vector<std::vector<int>>& getVbucketMap() const {
+    [[nodiscard]] const auto& getVbucketMap() const {
         return vbucketmap;
     }
 
-    nlohmann::json getManifest() const {
+    [[nodiscard]] auto getManifest() const {
         return manifest;
     }
 
@@ -111,7 +111,7 @@ public:
      * @throws std::system_error if an error occurs on the socket
      * @throws ConnectionError if an error occurs while trying to apply features
      */
-    std::unique_ptr<MemcachedConnection> getConnection(
+    [[nodiscard]] std::unique_ptr<MemcachedConnection> getConnection(
             Vbid vbucket,
             vbucket_state_t state = vbucket_state_active,
             size_t replica_number = 0);
@@ -131,7 +131,7 @@ public:
      * @throws std::system_error if an error occurs on the socket
      * @throws ConnectionError if an error occurs while trying to apply features
      */
-    std::unique_ptr<MemcachedConnection> getAuthedConnection(
+    [[nodiscard]] std::unique_ptr<MemcachedConnection> getAuthedConnection(
             Vbid vbucket,
             vbucket_state_t state = vbucket_state_active,
             size_t replica_number = 0);
@@ -157,7 +157,7 @@ public:
     void setCollectionManifest(nlohmann::json next);
 
     /// Get the collection manifest currently being used
-    nlohmann::json getCollectionManifest() const {
+    [[nodiscard]] auto getCollectionManifest() const {
         return collectionManifest;
     }
 

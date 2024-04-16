@@ -33,17 +33,19 @@ public:
     ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
                 std::filesystem::path dir);
     ~ClusterImpl() override;
-    std::shared_ptr<Bucket> createBucket(const std::string& name,
-                                         const nlohmann::json& attributes,
-                                         DcpPacketFilter packet_filter,
-                                         bool setUpReplication) override;
+    [[nodiscard]] std::shared_ptr<Bucket> createBucket(
+            const std::string& name,
+            const nlohmann::json& attributes,
+            DcpPacketFilter packet_filter,
+            bool setUpReplication) override;
     void deleteBucket(const std::string& name) override;
-    std::shared_ptr<Bucket> getBucket(const std::string& name) const override;
-    std::unique_ptr<MemcachedConnection> getConnection(
+    [[nodiscard]] std::shared_ptr<Bucket> getBucket(
+            const std::string& name) const override;
+    [[nodiscard]] std::unique_ptr<MemcachedConnection> getConnection(
             size_t node) const override;
-    size_t size() const override;
-    AuthProviderService& getAuthProviderService() override;
-    nlohmann::json to_json() const override;
+    [[nodiscard]] size_t size() const override;
+    [[nodiscard]] AuthProviderService& getAuthProviderService() override;
+    [[nodiscard]] nlohmann::json to_json() const override;
     void iterateNodes(std::function<void(const Node&)> visitor) const override;
 
 protected:

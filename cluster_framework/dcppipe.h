@@ -62,7 +62,7 @@ protected:
     SOCKET psd;
     SOCKET csd;
     std::array<SOCKET, 2> notification_pipe;
-    std::size_t awaiting;
+    std::size_t awaiting = 0;
     std::atomic_bool shutdown{false};
     std::unique_ptr<bufferevent, EventDeleter> producer;
     std::unique_ptr<bufferevent, EventDeleter> consumer;

@@ -63,7 +63,11 @@ public:
                 {"cross_bucket_ht_quota_sharing", quotaSharing}};
 
         for (size_t i = 0; i < numBuckets; i++) {
-            cluster->createBucket(fmt::format("bucket-{}", i), bucketConfig);
+            if (!cluster->createBucket(fmt::format("bucket-{}", i),
+                                       bucketConfig)) {
+                throw std::runtime_error(
+                        fmt::format("Failed to create bucket-{}", i));
+            }
         }
     }
 

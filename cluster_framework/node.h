@@ -31,7 +31,8 @@ class Node {
 public:
     virtual ~Node();
 
-    virtual std::unique_ptr<MemcachedConnection> getConnection() const = 0;
+    [[nodiscard]] virtual std::unique_ptr<MemcachedConnection> getConnection()
+            const = 0;
 
     const std::filesystem::path directory;
 
@@ -48,7 +49,7 @@ public:
     virtual const ConnectionMap& getConnectionMap() const = 0;
 
     /// get the current configuration stored in "memcached.json"
-    virtual nlohmann::json& getConfig() = 0;
+    [[nodiscard]] virtual nlohmann::json& getConfig() = 0;
 
     /// write the current configuration to "memcached.json"
     virtual void writeConfig() const = 0;
@@ -62,7 +63,7 @@ public:
      * @param configCallback callback to update the configuration before
      *                       starting the node
      */
-    static std::unique_ptr<Node> create(
+    [[nodiscard]] static std::unique_ptr<Node> create(
             std::filesystem::path directory,
             const std::string& id,
             std::function<void(std::string_view, nlohmann::json&)>

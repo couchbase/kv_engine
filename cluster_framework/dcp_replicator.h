@@ -74,7 +74,7 @@ public:
      *                  given features.
      * @return A new DCP replication object (which manages its own thread)
      */
-    static std::unique_ptr<DcpReplicator> create(
+    [[nodiscard]] static std::unique_ptr<DcpReplicator> create(
             const Cluster& cluster,
             Bucket& bucket,
             DcpPacketFilter& packet_filter,

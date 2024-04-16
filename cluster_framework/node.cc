@@ -35,14 +35,15 @@ public:
     ~NodeImpl() override;
     void startMemcachedServer();
 
-    std::unique_ptr<MemcachedConnection> getConnection() const override;
-    const ConnectionMap& getConnectionMap() const override {
+    [[nodiscard]] std::unique_ptr<MemcachedConnection> getConnection()
+            const override;
+    [[nodiscard]] const ConnectionMap& getConnectionMap() const override {
         return connectionMap;
     }
-    std::string_view getId() const override {
+    [[nodiscard]] std::string_view getId() const override {
         return id;
     }
-    nlohmann::json& getConfig() override {
+    [[nodiscard]] nlohmann::json& getConfig() override {
         return config;
     }
 

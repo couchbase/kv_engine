@@ -53,7 +53,7 @@ public:
      * @param setup should we set up replication?
      * @return a bucket object representing the bucket
      */
-    virtual std::shared_ptr<Bucket> createBucket(
+    [[nodiscard]] virtual std::shared_ptr<Bucket> createBucket(
             const std::string& name,
             const nlohmann::json& attributes,
             DcpPacketFilter packet_filter = {},
@@ -72,7 +72,7 @@ public:
      * @param name The name of the bucket
      * @return THe handle to the named bucket (if exist)
      */
-    virtual std::shared_ptr<Bucket> getBucket(
+    [[nodiscard]] virtual std::shared_ptr<Bucket> getBucket(
             const std::string& name) const = 0;
 
     /**
@@ -82,7 +82,7 @@ public:
      * @param node the node number
      * @return a connection towards the specified node
      */
-    virtual std::unique_ptr<MemcachedConnection> getConnection(
+    [[nodiscard]] virtual std::unique_ptr<MemcachedConnection> getConnection(
             size_t node) const = 0;
 
     /**
@@ -90,16 +90,16 @@ public:
      *
      * @return the number of nodes this cluster is built up of
      */
-    virtual size_t size() const = 0;
+    [[nodiscard]] virtual size_t size() const = 0;
 
     /// Get the auth provider
-    virtual AuthProviderService& getAuthProviderService() = 0;
+    [[nodiscard]] virtual AuthProviderService& getAuthProviderService() = 0;
 
     CollectionsManifest collections;
 
     /// Get a JSON representation for the pool (whats typically returned
     /// via rest when requesting "http://172.0.0.1:8091/pools"
-    virtual nlohmann::json to_json() const = 0;
+    [[nodiscard]] virtual nlohmann::json to_json() const = 0;
 
     /// Iterate over all of the nodes in the cluster
     virtual void iterateNodes(
@@ -117,7 +117,7 @@ public:
      *                       node ID and the current configuration.
      * @return a handle to the newly created cluster
      */
-    static std::unique_ptr<Cluster> create(
+    [[nodiscard]] static std::unique_ptr<Cluster> create(
             size_t nodes,
             std::optional<std::string> directory = {},
             std::function<void(std::string_view, nlohmann::json&)>
@@ -125,7 +125,7 @@ public:
 
     /// Get a JSON representation for the cluster before the
     /// cluster is initialized
-    static nlohmann::json getUninitializedJson();
+    [[nodiscard]] static nlohmann::json getUninitializedJson();
 
     /**
      * Utility function to try to remove a file or directory with retries
