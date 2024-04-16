@@ -33,6 +33,7 @@
 #include <platform/semaphore.h>
 
 #include <gsl/gsl-lite.hpp>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -135,6 +136,20 @@ EvictionRatios StrictQuotaItemPager::getEvictionRatios(
     }
 
     return {activeAndPendingEvictionRatio, replicaEvictionRatio};
+}
+
+std::chrono::microseconds StrictQuotaItemPager::maxExpectedVisitorDuration()
+        const {
+    // Based on YCSB D tests comparing p99.9 and p99.99 based on bucket quota:
+    // - p99.9 grows linearly from 65ms for 10 GiB to 255ms for 50 GiB.
+    // - p99.99 stays at ~125ms for 10 - 25 GiB quota, then jumps to 255ms
+    // for 37.5 - 50.
+    // We take the p99.99 as baseline and linearly interpolate upwards from 10
+    // GiB. maxExpectedDuration becomes 575ms for 100 GiB quota.
+    const auto quotaInGiB =
+            gsl::narrow<int64_t>(stats.getMaxDataSize() / 1024 * 1024);
+    return std::chrono::milliseconds(125 +
+                                     std::max(quotaInGiB - 10, int64_t(0)) * 5);
 }
 
 void StrictQuotaItemPager::wakeUp() {
@@ -299,10 +314,6 @@ void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
 
     PermittedVBStates statesToEvictFrom = getStatesForEviction(evictionRatios);
 
-    // p99.99 is ~200ms
-    const auto maxExpectedDurationForVisitorTask =
-            std::chrono::milliseconds(200);
-
     auto makeEvictionStrategy = getEvictionStrategyFactory(evictionRatios);
 
     // distribute the vbuckets that should be visited among multiple
@@ -331,7 +342,7 @@ void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
         kvBucket->visitAsync(std::move(pv),
                              "Item pager",
                              TaskId::ItemPagerVisitor,
-                             maxExpectedDurationForVisitorTask);
+                             maxExpectedVisitorDuration());
     }
 }
 
@@ -391,6 +402,19 @@ bool ExpiredItemPager::disable() {
 
 bool ExpiredItemPager::isEnabled() const {
     return config.rlock()->enabled;
+}
+
+std::chrono::microseconds ExpiredItemPager::maxExpectedVisitorDuration() const {
+    // Based on YCSB D tests comparing p99.9 and p99.99 based on bucket quota:
+    // - p99.9 linearly from 55ms for 10 GiB to 112ms for 50 GiB.
+    // - p99.99 is ~55ms for 10 GiB quota, then jumps to 127ms
+    // for 25 - 50.
+    // We take the p99.99 as baseline and linearly interpolate upwards from 10
+    // GiB. maxExpectedDuration becomes 235ms for 100 GiB quota.
+    const auto quotaInGiB =
+            gsl::narrow<int64_t>(stats.getMaxDataSize() / 1024 * 1024);
+    return std::chrono::milliseconds(55 +
+                                     std::max(quotaInGiB - 10, int64_t(0)) * 2);
 }
 
 std::chrono::seconds ExpiredItemPager::calculateWakeTimeFromCfg(
@@ -461,15 +485,11 @@ bool ExpiredItemPager::run() {
             auto pv = std::make_unique<ExpiredPagingVisitor>(
                     *kvBucket, stats, pagerSemaphore, true, partFilter);
 
-            // p99.99 is ~50ms (same as ItemPager).
-            const auto maxExpectedDurationForVisitorTask =
-                    std::chrono::milliseconds(50);
-
             // track spawned tasks for shutdown..
             kvBucket->visitAsync(std::move(pv),
                                  "Expired item remover",
                                  TaskId::ExpiredItemPagerVisitor,
-                                 maxExpectedDurationForVisitorTask);
+                                 maxExpectedVisitorDuration());
         }
     }
     {

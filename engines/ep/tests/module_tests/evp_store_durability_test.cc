@@ -2701,6 +2701,117 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
     }
 }
 
+TEST_P(DurabilityBucketTest, SetDeadAndReorderTasks) {
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    // Store two keys, key1 is acknowledged, key2 is not.
+    auto key1 = makeStoredDocKey("ack-me");
+    auto pending1 = makePendingItem(key1, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending1, cookie));
+
+    auto key2 = makeStoredDocKey("don't-ack-me");
+    auto pending2 = makePendingItem(key2, "value");
+    auto cookie2 = create_mock_cookie(engine.get());
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending2, cookie2));
+
+    auto vb = store->getVBucket(vbid);
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          pending1->getBySeqno());
+
+    // We don't send cb::engine_errc::sync_write_pending to clients
+    auto mockCookie = cookie_to_mock_cookie(cookie);
+    auto mockCookie2 = cookie_to_mock_cookie(cookie2);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_dead));
+    EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid));
+
+    // Test requires the deletion task to be scheduled, which requires 1 user
+    // remaining and thus when we reset, the task is scheduled
+    ASSERT_EQ(1, vb.use_count());
+    vb.reset();
+
+    // Run the tasks in a specific order, RespondAmbiguous is always last but
+    // we must pull it from the TaskQ now so we can run the next NonIO first
+    CheckedExecutor ambiguous(task_executor,
+                              *task_executor->getLpTaskQ()[NONIO_TASK_IDX]);
+
+    if (isPersistent()) {
+        // If this is persistent the VB deletion occurs on AuxIO and the
+        // RespondAmbiguous task is on NonIO. They must run in AuxIO, NonIO
+        // order
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                    "Removing (dead) vb:0 from memory and disk");
+    } else {
+        // For ephemeral run the NonIO task now.
+        runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
+                    "Removing (dead) vb:0 from memory");
+    }
+
+    // Now run the RespondAmbiguous task
+    ambiguous.runCurrentTask("Notify clients of Sync Write Ambiguous vb:0");
+    ambiguous.completeCurrentTask();
+
+    ASSERT_TRUE(mock_cookie_notified(mockCookie));
+    ASSERT_TRUE(mock_cookie_notified(mockCookie2));
+
+    // We should have told client the SyncWrite is ambiguous
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie2));
+
+    destroy_mock_cookie(cookie2);
+}
+
+TEST_P(DurabilityBucketTest, DeleteVbucket) {
+    setVBucketToActiveWithValidTopology();
+    using namespace cb::durability;
+
+    // Store two keys, key1 is acknowledged, key2 is not.
+    auto key1 = makeStoredDocKey("ack-me");
+    auto pending1 = makePendingItem(key1, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending1, cookie));
+
+    auto key2 = makeStoredDocKey("don't-ack-me");
+    auto pending2 = makePendingItem(key2, "value");
+    auto cookie2 = create_mock_cookie(engine.get());
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending2, cookie2));
+
+    auto vb = store->getVBucket(vbid);
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          pending1->getBySeqno());
+
+    // We don't send cb::engine_errc::sync_write_pending to clients
+    auto mockCookie = cookie_to_mock_cookie(cookie);
+    auto mockCookie2 = cookie_to_mock_cookie(cookie2);
+
+    // DeleteVB
+    EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid));
+
+    // There has to be a task to run (fails here without the fix)
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpAuxioQ);
+
+    ASSERT_TRUE(mock_cookie_notified(mockCookie));
+    ASSERT_TRUE(mock_cookie_notified(mockCookie2));
+
+    // We should have told client the SyncWrite is ambiguous
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie));
+    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous,
+              mock_waitfor_cookie(mockCookie2));
+
+    destroy_mock_cookie(cookie2);
+}
+
 // Test that if a SyncWrite times out, then a subsequent SyncWrite which
 // _should_ fail does indeed fail.
 // (Regression test for part of MB-34367 - after using notify_IO_complete

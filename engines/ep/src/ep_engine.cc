@@ -431,6 +431,8 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupHigh(
     cb::engine_errc status;
 
     doTimingStats(collector);
+    doRunTimeStats(collector);
+
     if (status = doEngineStatsHighCardinality(collector);
         status != cb::engine_errc::success) {
         return status;
@@ -4715,12 +4717,18 @@ cb::engine_errc EventuallyPersistentEngine::doSchedulerStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doRunTimeStats(
-        CookieIface& cookie, const AddStatFn& add_stat) {
+        const BucketStatCollector& collector) {
+    using namespace cb::stats;
     for (TaskId id : GlobalTask::allTaskIds) {
-        add_casted_stat(GlobalTask::getTaskIdString(id).c_str(),
-                        stats.taskRuntimeHisto[static_cast<int>(id)],
-                        add_stat,
-                        cookie);
+        auto& hist = stats.taskRuntimeHisto[static_cast<int>(id)];
+        if (hist.isEmpty()) {
+            continue;
+        }
+
+        auto labelled = collector.withLabels(
+                {{"task", GlobalTask::getTaskName(id)},
+                 {"type", to_string(GlobalTask::getTaskType(id))}});
+        labelled.addStat(Key::task_duration, hist);
     }
 
     return cb::engine_errc::success;
@@ -5346,7 +5354,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doSchedulerStats(c, add_stat);
     }
     if (key == "runtimes"sv) {
-        return doRunTimeStats(c, add_stat);
+        return doRunTimeStats(bucketCollector);
     }
     if (key == "memory"sv) {
         return doMemoryStats(c, add_stat);

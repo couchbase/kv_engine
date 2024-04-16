@@ -1178,8 +1178,7 @@ protected:
             const BucketStatCollector& collector);
     cb::engine_errc doSchedulerStats(CookieIface& cookie,
                                      const AddStatFn& add_stat);
-    cb::engine_errc doRunTimeStats(CookieIface& cookie,
-                                   const AddStatFn& add_stat);
+    cb::engine_errc doRunTimeStats(const BucketStatCollector& collector);
     cb::engine_errc doDispatcherStats(CookieIface& cookie,
                                       const AddStatFn& add_stat);
     cb::engine_errc doTasksStats(CookieIface& cookie,
