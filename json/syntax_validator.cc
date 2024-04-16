@@ -25,11 +25,11 @@ public:
      * @param preferVectorized Set to true to enable the use of a SIMD-enabled
      *                         implementation (if one is available)
      */
-    JSON_checkerValidator(bool preferVectorized = false)
+    explicit JSON_checkerValidator(bool preferVectorized = false)
         : validator(preferVectorized) {
     }
 
-    bool validate(std::string_view view) override {
+    [[nodiscard]] bool validate(std::string_view view) override {
         return validator.validate(view);
     }
 
@@ -39,7 +39,7 @@ protected:
 
 class NlohmannValidator : public SyntaxValidator {
 public:
-    bool validate(std::string_view view) override {
+    [[nodiscard]] bool validate(std::string_view view) override {
         return nlohmann::json::accept(view);
     }
 };

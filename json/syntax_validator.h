@@ -21,15 +21,19 @@ namespace cb::json {
 /// across all components without having to update all of them.
 class SyntaxValidator {
 public:
-    enum class Type { JSON_checker, JSON_checker_vectorized, Nlohmann };
+    enum class [[nodiscard]] Type {
+        JSON_checker,
+        JSON_checker_vectorized,
+        Nlohmann
+    };
 
     virtual ~SyntaxValidator();
 
     /// Validate that the provided view contains valid JSON
-    virtual bool validate(std::string_view view) = 0;
+    [[nodiscard]] virtual bool validate(std::string_view view) = 0;
 
     /// Create a new instance of the given type
-    static std::unique_ptr<SyntaxValidator> New(
+    [[nodiscard]] static std::unique_ptr<SyntaxValidator> New(
             Type = Type::JSON_checker_vectorized);
 };
 

@@ -22,7 +22,7 @@ static void benchmarkJsonValidator(SyntaxValidator::Type type,
     auto validator = SyntaxValidator::New(type);
     EXPECT_EQ(valid, validator->validate(data));
     while (state.KeepRunning()) {
-        validator->validate(data);
+        EXPECT_EQ(valid, validator->validate(data));
     }
 }
 
