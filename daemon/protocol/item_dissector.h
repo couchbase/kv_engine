@@ -59,27 +59,27 @@ public:
      * @return A send buffer wrapping the internal data (unique_ptr for the
      *         item or the unique_ptr for the inflated data)
      */
-    std::unique_ptr<SendBuffer> takeSendBuffer(std::string_view view,
-                                               Bucket& bucket);
+    [[nodiscard]] std::unique_ptr<SendBuffer> takeSendBuffer(
+            std::string_view view, Bucket& bucket);
 
     /// Get the XAttr section from the item
-    std::string_view getExtendedAttributes() const {
+    [[nodiscard]] auto getExtendedAttributes() const {
         return xattr_view;
     }
 
     /// Get the Value from the item
-    std::string_view getValue() const {
+    [[nodiscard]] auto getValue() const {
         return value_view;
     }
 
     /// Get the datatype for the in-memory representation of whats returned
     /// through getValue, which means that it will NEVER include XATTR
-    uint8_t getDatatype() const {
+    [[nodiscard]] auto getDatatype() const {
         return datatype;
     }
 
     /// Get the item to allow fetching key/flags etc
-    const ItemIface& getItem() const {
+    [[nodiscard]] const auto& getItem() const {
         return *item;
     }
 
