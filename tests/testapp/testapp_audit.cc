@@ -45,11 +45,10 @@ void AuditTest::setEnabled(bool mode) {
     auto& json = mcd_env->getAuditConfig();
     json["auditd_enabled"] = mode;
     json["filtering_enabled"] = true;
-    json["disabled_userids"][0] = {
-            {"domain", to_string(cb::rbac::Domain::Local)},
-            {"user", "MB33603"}};
-    json["disabled_userids"][1] = {
-            {"domain", to_string(cb::rbac::Domain::Local)}, {"user", "Jane"}};
+    json["disabled_userids"][0] = {{"domain", cb::rbac::Domain::Local},
+                                   {"user", "MB33603"}};
+    json["disabled_userids"][1] = {{"domain", cb::rbac::Domain::Local},
+                                   {"user", "Jane"}};
 
     json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_READ)] =
             "enabled";
@@ -571,7 +570,7 @@ TEST_P(AuditTest, MB33603_ValidDomainName) {
         return true;
     });
 
-    EXPECT_EQ(to_string(cb::rbac::Domain::Local), domain);
+    EXPECT_EQ(format_as(cb::rbac::Domain::Local), domain);
 }
 
 /// Verify that we honor filtering. We should filter out all events for Jane,
@@ -663,7 +662,7 @@ TEST_P(AuditTest, MB3750_AuditImpersonatedUser) {
     });
 
     EXPECT_EQ("smith", user);
-    EXPECT_EQ(to_string(cb::rbac::Domain::Local), domain);
+    EXPECT_EQ(format_as(cb::rbac::Domain::Local), domain);
 }
 
 TEST_P(AuditTest, MB41183_UnifiedConnectionDescription) {

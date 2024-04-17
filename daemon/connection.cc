@@ -108,7 +108,7 @@ nlohmann::json Connection::to_json() const {
     if (isAuthenticated()) {
         const auto& ui = getUser();
         ret["user"]["name"] = ui.getSanitizedName();
-        ret["user"]["domain"] = to_string(ui.domain);
+        ret["user"]["domain"] = ui.domain;
     }
 
     ret["refcount"] = refcount;

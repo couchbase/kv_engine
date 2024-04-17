@@ -33,8 +33,7 @@ std::size_t std::hash<cb::rbac::UserIdent>::operator()(
 namespace cb::rbac {
 
 void to_json(nlohmann::json& json, const UserIdent& ui) {
-    json = nlohmann::json{{"user", ui.name},
-                          {"domain", ::to_string(ui.domain)}};
+    json = nlohmann::json{{"user", ui.name}, {"domain", ui.domain}};
 }
 
 UserIdent::UserIdent(const nlohmann::json& json) {
@@ -401,7 +400,7 @@ UserEntry::UserEntry(const std::string& username,
 
 nlohmann::json UserEntry::to_json(Domain domain) const {
     nlohmann::json ret;
-    ret["domain"] = ::to_string(domain);
+    ret["domain"] = domain;
     ret["privileges"] = privilegeMask2Vector(privilegeMask);
     for (const auto& b : buckets) {
         ret["buckets"][b.first] = *b.second;
@@ -412,7 +411,7 @@ nlohmann::json UserEntry::to_json(Domain domain) const {
 PrivilegeDatabase::PrivilegeDatabase(const nlohmann::json& json, Domain domain)
     : generation(contexts[to_index(domain)].create_generation.operator++()) {
     for (auto it = json.begin(); it != json.end(); ++it) {
-        const std::string username = it.key();
+        const std::string& username = it.key();
         userdb.emplace(username, UserEntry(username, it.value(), domain));
     }
 

@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -20,7 +21,7 @@ namespace cb::sasl {
  * The Domain enum defines all of the legal states where the users may
  * be defined.
  */
-enum class Domain : uint8_t {
+enum class [[nodiscard]] Domain : uint8_t {
     /**
      * The user is defined locally on the node and authenticated
      * through `cbsasl` (or by using SSL certificates)
@@ -36,7 +37,6 @@ enum class Domain : uint8_t {
 };
 
 Domain to_domain(std::string_view domain);
-
+std::string format_as(Domain domain);
+void to_json(nlohmann::json& json, Domain domain);
 } // namespace cb::sasl
-
-std::string to_string(cb::sasl::Domain domain);

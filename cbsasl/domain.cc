@@ -10,6 +10,7 @@
 
 #include <cbsasl/domain.h>
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 
 /// We're using domains in (at least) two places in our system: in cbsasl
@@ -19,7 +20,7 @@
 /// was added the UI wants the user to use "couchbase" for the domain
 /// and external for the others. Allow "builtin" and "couchbase" as "aliases"
 /// for "local" until all components submit using "local"
-cb::sasl::Domain cb::sasl::to_domain(std::string_view domain) {
+cb::sasl::Domain cb::sasl::to_domain(const std::string_view domain) {
     using namespace std::string_view_literals;
     if (domain == "local"sv || domain == "builtin"sv ||
         domain == "couchbase"sv) {
@@ -35,15 +36,19 @@ cb::sasl::Domain cb::sasl::to_domain(std::string_view domain) {
             fmt::format("cb::sasl::to_domain: invalid domain: {}", domain));
 }
 
-std::string to_string(cb::sasl::Domain domain) {
+std::string cb::sasl::format_as(const Domain domain) {
     switch (domain) {
-    case cb::sasl::Domain::Local:
+    case Domain::Local:
         return "local";
-    case cb::sasl::Domain::External:
+    case Domain::External:
         return "external";
-    case cb::sasl::Domain::Unknown:
+    case Domain::Unknown:
         return "unknown";
     }
-    throw std::invalid_argument("cb::sasl::to_string: invalid domain " +
-                                std::to_string(int(domain)));
+    throw std::invalid_argument(fmt::format("format_as(): invalid domain: {}",
+                                            static_cast<int>(domain)));
+}
+
+void cb::sasl::to_json(nlohmann::json& json, const Domain domain) {
+    json = format_as(domain);
 }

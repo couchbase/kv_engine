@@ -23,5 +23,5 @@ TEST(Domain, to_domain) {
     EXPECT_EQ(Domain::Local, to_domain("couchbase"s));
     EXPECT_EQ(Domain::External, to_domain("external"s));
     EXPECT_EQ(Domain::Unknown, to_domain("unknown"s));
-    EXPECT_THROW(to_domain("blahblah"s), std::invalid_argument);
+    EXPECT_THROW((void)to_domain("blahblah"s), std::invalid_argument);
 }
