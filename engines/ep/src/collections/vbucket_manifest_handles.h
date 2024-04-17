@@ -739,6 +739,7 @@ public:
                                   maxTtl,
                                   metered,
                                   canDeduplicate,
+                                  ManifestUid{},
                                   OptionalSeqno{startSeqno});
     }
 

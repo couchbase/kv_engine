@@ -41,6 +41,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager)
                           cb::NoExpiryLimit,
                           Collections::Metered::No,
                           CanDeduplicate::Yes,
+                          ManifestUid{},
                           0 /*startSeqno*/);
 }
 
@@ -69,6 +70,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
                               meta.maxTtl,
                               meta.metered,
                               meta.canDeduplicate,
+                              meta.flushUid,
                               e.startSeqno);
     }
 }
@@ -187,6 +189,7 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
                          creation.maxTtl,
                          creation.metered,
                          creation.canDeduplicate,
+                         creation.flushUid,
                          OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -435,6 +438,7 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                          finalAddition.value().maxTtl,
                          finalAddition.value().metered,
                          finalAddition.value().canDeduplicate,
+                         finalAddition.value().flushUid,
                          OptionalSeqno{/*no-seqno*/});
     }
 
@@ -530,12 +534,18 @@ void Manifest::createCollection(VBucketStateLockRef vbStateLock,
                                 cb::ExpiryLimit maxTtl,
                                 Metered metered,
                                 CanDeduplicate canDeduplicate,
+                                ManifestUid flushUid,
                                 OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the collections
     // map. The start-seqno is 0 here and is patched up once we've created and
     // queued the system-event Item (step 2 and 3)
-    auto& entry = addNewCollectionEntry(
-            identifiers, collectionName, maxTtl, metered, canDeduplicate, 0);
+    auto& entry = addNewCollectionEntry(identifiers,
+                                        collectionName,
+                                        maxTtl,
+                                        metered,
+                                        canDeduplicate,
+                                        flushUid,
+                                        0);
 
     // 1.1 record the uid of the manifest which is adding the collection
     updateUid(newManUid, optionalSeqno.has_value());
@@ -554,18 +564,20 @@ void Manifest::createCollection(VBucketStateLockRef vbStateLock,
 
     EP_LOG_DEBUG(
             "{} create collection:id:{}, name:{} in scope:{}, metered:{}, "
-            "seq:{}, manifest:{:#x}, {}{}{}",
+            "flushUid:{} seq:{}, manifest:{:#x}, {}{}{}",
             vb.getId(),
             identifiers.second,
             collectionName,
             identifiers.first,
             metered,
+            flushUid,
             seqno,
             newManUid,
             canDeduplicate,
             maxTtl.has_value()
                     ? ", maxttl:" + std::to_string(maxTtl.value().count())
                     : "",
+            flushUid,
             optionalSeqno.has_value() ? ", replica" : "");
 
     // 3. Now patch the entry with the seqno of the system event, note the copy
@@ -579,6 +591,7 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                cb::ExpiryLimit maxTtl,
                                                Metered metered,
                                                CanDeduplicate canDeduplicate,
+                                               ManifestUid flushUid,
                                                int64_t startSeqno) {
     CollectionSharedMetaDataView meta{collectionName, identifiers.first};
     auto [itr, inserted] = map.try_emplace(
@@ -653,6 +666,7 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
                               cb::ExpiryLimit{},
                               Metered::Yes,
                               CanDeduplicate::Yes,
+                              ManifestUid{},
                               0 /*startSeq*/);
     }
 
@@ -975,7 +989,8 @@ Manifest::ManifestChanges Manifest::processManifest(
                                                   m.name,
                                                   m.maxTtl,
                                                   m.metered,
-                                                  m.canDeduplicate});
+                                                  m.canDeduplicate,
+                                                  m.flushUid});
             }
         }
     }

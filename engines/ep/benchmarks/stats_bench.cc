@@ -65,6 +65,7 @@ public:
                     cb::NoExpiryLimit,
                     Collections::Metered::Yes,
                     CanDeduplicate::Yes,
+                    Collections::ManifestUid{0},
                     0);
         }
     }

@@ -1185,25 +1185,29 @@ TEST_P(VBucketManifestTest, check_applyChanges) {
                                            "name1",
                                            cb::NoExpiryLimit,
                                            Collections::Metered::Yes,
-                                           CanDeduplicate::Yes});
+                                           CanDeduplicate::Yes,
+                                           Collections::ManifestUid{2}});
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(ScopeID(0), value.value().identifiers.first);
     EXPECT_EQ(8, value.value().identifiers.second);
     EXPECT_EQ("name1", value.value().name);
+    EXPECT_EQ(Collections::ManifestUid{2}, value.value().flushUid);
     EXPECT_TRUE(changes.collectionsToCreate.empty());
 
     changes.collectionsToCreate.push_back({std::make_pair(0, 8),
                                            "name2",
                                            cb::NoExpiryLimit,
                                            Collections::Metered::Yes,
-                                           CanDeduplicate::Yes});
+                                           CanDeduplicate::Yes,
+                                           Collections::ManifestUid{}});
     changes.collectionsToCreate.push_back({std::make_pair(0, 9),
                                            "name3",
                                            cb::NoExpiryLimit,
                                            Collections::Metered::Yes,
-                                           CanDeduplicate::No});
+                                           CanDeduplicate::No,
+                                           Collections::ManifestUid{4}});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
@@ -1213,6 +1217,7 @@ TEST_P(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ("name3", value.value().name);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
     EXPECT_EQ(CanDeduplicate::No, value.value().canDeduplicate);
+    EXPECT_EQ(Collections::ManifestUid{4}, value.value().flushUid);
 }
 
 TEST_P(VBucketManifestTest, isLogicallyDeleted) {

@@ -394,6 +394,7 @@ public:
         cb::ExpiryLimit maxTtl;
         Metered metered;
         CanDeduplicate canDeduplicate;
+        ManifestUid flushUid;
     };
 
     struct CollectionModification {
@@ -537,6 +538,7 @@ protected:
      * @param maxTtl An optional maxTTL for the collection
      * @param metered flag defining metering behaviour of the collection
      * @param canDeduplicate The collection's deduplication setting
+     * @param flushUid The flushUid of the collection
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
@@ -549,6 +551,7 @@ protected:
                           cb::ExpiryLimit maxTtl,
                           Metered metered,
                           CanDeduplicate canDeduplicate,
+                          ManifestUid flushUid,
                           OptionalSeqno optionalSeqno);
 
     /**
@@ -1069,6 +1072,7 @@ protected:
                                          cb::ExpiryLimit maxTtl,
                                          Metered metered,
                                          CanDeduplicate canDeduplicate,
+                                         ManifestUid flushUid,
                                          int64_t startSeqno);
 
     /**
