@@ -40,10 +40,12 @@ public:
                   uint64_t startSeqno,
                   CanDeduplicate canDeduplicate,
                   cb::ExpiryLimit ttl,
-                  Metered metered)
+                  Metered metered,
+                  ManifestUid flushUid)
         : itemCount(0),
           highSeqno(startSeqno),
           persistedHighSeqno(startSeqno),
+          flushUid(flushUid),
           meta(std::move(meta)),
           startSeqno(startSeqno),
           canDeduplicate(canDeduplicate),
@@ -225,6 +227,14 @@ public:
         canDeduplicate.store(value);
     }
 
+    ManifestUid getFlushUid() const {
+        return flushUid;
+    }
+
+    void setFlushUid(ManifestUid uid) {
+        flushUid = uid;
+    }
+
 private:
     /**
      * Return a string for use in throwException, returns:
@@ -297,6 +307,13 @@ private:
      *           The write lock is really for the Manifest map being changed.
      */
     mutable AtomicMonotonic<uint64_t, IgnorePolicy> persistedHighSeqno;
+
+    /**
+     * The last recorded flushUid, a change in this value (compared to Manifest)
+     * triggers a new flush. A value of 0 is the default state indicating no
+     * flush has occurred.
+     */
+    ManifestUid flushUid;
 
     /**
      * The 'static' metadata associated with this collection.

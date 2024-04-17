@@ -63,22 +63,23 @@ bool Collections::VB::ManifestEntry::addStats(
         addStat("maxTTL"sv, getMaxTtl().value().count());
     }
 
+    addStat("flush_uid"sv, getFlushUid());
+
     return true;
 }
 
 std::ostream& Collections::VB::operator<<(
         std::ostream& os,
         const Collections::VB::ManifestEntry& manifestEntry) {
-    os << "ManifestEntry:"
-       << " name:" << manifestEntry.getName()
+    os << "ManifestEntry:" << " name:" << manifestEntry.getName()
        << ", scope:" << manifestEntry.getScopeID() << std::dec
        << ", startSeqno:" << manifestEntry.getStartSeqno()
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", itemCount:" << manifestEntry.getItemCount()
        << ", diskSize:" << manifestEntry.getDiskSize() << ", "
-       << manifestEntry.getCanDeduplicate() << ", "
-       << manifestEntry.isMetered();
+       << manifestEntry.getCanDeduplicate() << ", " << manifestEntry.isMetered()
+       << ", flushUid:" << manifestEntry.getFlushUid();
 
     if (auto maxTtl = manifestEntry.getMaxTtl(); maxTtl) {
         os << ", maxTtl:" << maxTtl.value().count();

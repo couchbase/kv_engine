@@ -80,7 +80,8 @@ public:
                     0,
                     CanDeduplicate::Yes,
                     cb::NoExpiryLimit,
-                    Collections::Metered::No);
+                    Collections::Metered::No,
+                    Collections::ManifestUid{});
     std::unique_ptr<Collections::VB::ManifestEntry> entryInShop1Scope =
             std::make_unique<Collections::VB::ManifestEntry>(
                     manager->createOrReferenceMeta(
@@ -90,7 +91,8 @@ public:
                     0,
                     CanDeduplicate::Yes,
                     cb::NoExpiryLimit,
-                    Collections::Metered::No);
+                    Collections::Metered::No,
+                    Collections::ManifestUid{});
 
     std::unique_ptr<Collections::VB::ManifestEntry> entryInSystemScope =
             std::make_unique<Collections::VB::ManifestEntry>(
@@ -101,7 +103,8 @@ public:
                     0,
                     CanDeduplicate::Yes,
                     cb::NoExpiryLimit,
-                    Collections::Metered::No);
+                    Collections::Metered::No,
+                    Collections::ManifestUid{});
 
     CookieIface* cookie = nullptr;
 };

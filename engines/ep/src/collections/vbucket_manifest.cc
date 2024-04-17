@@ -102,7 +102,8 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
                                 entry.getStartSeqno(),
                                 entry.getCanDeduplicate(),
                                 entry.getMaxTtl(),
-                                entry.isMetered());
+                                entry.isMetered(),
+                                entry.getFlushUid());
         Expects(inserted);
         itr->second.setItemCount(entry.getItemCount());
         itr->second.setDiskSize(entry.getDiskSize());
@@ -586,7 +587,8 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
             startSeqno,
             canDeduplicate,
             maxTtl,
-            metered);
+            metered,
+            ManifestUid{}); // @todo: Pass the flushUid from update paths
 
     if (!inserted) {
         throwException<std::logic_error>(
