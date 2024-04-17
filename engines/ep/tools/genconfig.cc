@@ -394,6 +394,7 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
     std::string defaultValStr;
     std::string defaultValServerless;
+    std::optional<std::string> defaultValTSAN;
     if (defaultVal.is_object()) {
         if (defaultVal.find("on-prem") == defaultVal.end()) {
             fmt::print(stderr,
@@ -414,6 +415,10 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
         defaultValStr = defaultVal["on-prem"].get<std::string>();
         defaultValServerless = defaultVal["serverless"].get<std::string>();
+        if (auto tsanFound = defaultVal.find("tsan");
+            tsanFound != defaultVal.end()) {
+            defaultValTSAN = tsanFound->get<std::string>();
+        }
     } else {
         defaultValStr = defaultVal.get<std::string>();
     }
@@ -427,6 +432,11 @@ static void generate(const nlohmann::json& params, const std::string& key) {
             defaultValServerless = fmt::format("std::numeric_limits<{}>::{}()",
                                                type,
                                                defaultValServerless);
+        }
+        if (defaultValTSAN.has_value() &&
+            (*defaultValTSAN == "max" || *defaultValTSAN == "min")) {
+            defaultValTSAN = fmt::format(
+                    "std::numeric_limits<{}>::{}()", type, *defaultValTSAN);
         }
     }
 
@@ -445,11 +455,13 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
     // Generate initialization code
     if (defaultVal.is_object()) {
-        initialization += fmt::format("    addParameter(\"{}\", {}, {}, {});\n",
-                                      key,
-                                      formatValue(defaultValStr, type),
-                                      formatValue(defaultValServerless, type),
-                                      dynamic);
+        initialization += fmt::format(
+                "    addParameter(\"{}\", {}, {}, {{{}}}, {});\n",
+                key,
+                formatValue(defaultValStr, type),
+                formatValue(defaultValServerless, type),
+                (defaultValTSAN ? formatValue(*defaultValTSAN, type) : ""),
+                dynamic);
     } else {
         initialization += fmt::format("    addParameter(\"{}\", {}, {});\n",
                                       key,

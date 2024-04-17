@@ -425,3 +425,23 @@ TEST(ChangeListenerTest, CallbackProvidedCurrentValueNonDefault) {
     EXPECT_CALL(mockCB, Call(4321)).Times(1);
     configuration.addAndNotifyValueChangedCallback(key, mockCB.AsStdFunction());
 }
+
+class MockConfiguration : public Configuration {
+public:
+    using Configuration::addParameter;
+    using Configuration::Configuration;
+    using Configuration::getParameter;
+};
+
+TEST(ConfigurationTest, TsanOverride) {
+    for (bool serverless : {false, true}) {
+        MockConfiguration config(serverless);
+        config.addParameter("param", size_t(3), size_t(2), {size_t(1)}, false);
+        auto value = config.getParameter<size_t>("param");
+        if (folly::kIsSanitizeThread) {
+            EXPECT_EQ(1, value);
+        } else {
+            EXPECT_EQ((serverless ? 2 : 3), value);
+        }
+    }
+}

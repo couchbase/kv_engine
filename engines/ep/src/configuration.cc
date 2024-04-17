@@ -150,13 +150,14 @@ struct Configuration::value_t {
 
 template <class T>
 void Configuration::addParameter(std::string_view key, T value, bool dynamic) {
-    addParameter<T>(key, value, value, dynamic);
+    addParameter<T>(key, value, value, std::nullopt, dynamic);
 }
 
 template <class T>
 void Configuration::addParameter(std::string_view key,
                                  T defaultOnPrem,
                                  T defaultServerless,
+                                 std::optional<T> defaultTSAN,
                                  bool dynamic) {
     auto [itr, success] = attributes.insert(
             {std::string{key}, std::make_shared<value_t>(dynamic)});
@@ -164,7 +165,11 @@ void Configuration::addParameter(std::string_view key,
         throw std::logic_error("Configuration::addParameter(" +
                                std::string{key} + ") already exists.");
     }
-    itr->second->value = isServerless ? defaultServerless : defaultOnPrem;
+    if (folly::kIsSanitizeThread && defaultTSAN.has_value()) {
+        itr->second->value = *defaultTSAN;
+    } else {
+        itr->second->value = isServerless ? defaultServerless : defaultOnPrem;
+    }
 }
 
 template <class T>
