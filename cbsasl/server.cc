@@ -10,10 +10,10 @@
 
 #include "pwfile.h"
 
-#include "cbcrypto.h"
 #include <cbsasl/plain/plain.h>
 #include <cbsasl/scram-sha/scram-sha.h>
 #include <cbsasl/server.h>
+#include <fmt/format.h>
 #include <sodium.h>
 #include <memory>
 #include <stdexcept>
@@ -67,9 +67,9 @@ void initialize() {
 
     const auto ret = load_user_db();
     if (ret != Error::OK) {
-        throw std::runtime_error(
-                "cb::sasl::server::initialize: Failed to load database: " +
-                ::to_string(ret));
+        throw std::runtime_error(fmt::format(
+                "cb::sasl::server::initialize: Failed to load database: {}",
+                ret));
     }
 }
 

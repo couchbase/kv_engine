@@ -17,7 +17,7 @@ namespace cb::sasl {
 /**
  * The error values used in CBSASL
  */
-enum class Error {
+enum class [[nodiscard]] Error {
     OK,
     CONTINUE,
     FAIL,
@@ -29,7 +29,6 @@ enum class Error {
     NO_RBAC_PROFILE,
     AUTH_PROVIDER_DIED
 };
-std::ostream& operator<<(std::ostream& os, const Error& error);
-} // namespace cb::sasl
 
-std::string to_string(cb::sasl::Error error);
+[[nodiscard]] std::string format_as(Error error);
+} // namespace cb::sasl

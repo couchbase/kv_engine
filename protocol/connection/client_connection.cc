@@ -1228,10 +1228,9 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
     auto client_data = client.start();
 
     if (client_data.first != cb::sasl::Error::OK) {
-        throw std::runtime_error(std::string("cbsasl_client_start (") +
-                                 std::string(client.getName()) +
-                                 std::string("): ") +
-                                 ::to_string(client_data.first));
+        throw std::runtime_error(fmt::format("cbsasl_client_start ({}): {}",
+                                             client.getName(),
+                                             client_data.first));
     }
 
     BinprotSaslAuthCommand authCommand;
@@ -1247,8 +1246,9 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
         if (client_data.first != cb::sasl::Error::OK &&
             client_data.first != cb::sasl::Error::CONTINUE) {
             reconnect();
-            throw std::runtime_error(std::string("cbsasl_client_step: ") +
-                                     ::to_string(client_data.first));
+            throw std::runtime_error(fmt::format("cbsasl_client_step ({}): {}",
+                                                 client.getName(),
+                                                 client_data.first));
         }
 
         BinprotSaslStepCommand stepCommand;
@@ -1265,7 +1265,7 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
                 throw std::runtime_error(
                         fmt::format("Authentication failed as part of final "
                                     "verification: Error:{} Reason:{}",
-                                    ::to_string(e),
+                                    e,
                                     c));
             }
         }

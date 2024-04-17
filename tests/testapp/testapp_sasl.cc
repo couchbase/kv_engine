@@ -263,18 +263,16 @@ TEST_P(SaslTest, StepWithoutStart) {
     cb::sasl::client::ClientContext client([username] { return username; },
                                            [password] { return password; },
                                            mech);
-    auto client_data = client.start();
+    const auto [status, challenge] = client.start();
 
-    if (client_data.first != cb::sasl::Error::OK) {
-        throw std::runtime_error(std::string("cbsasl_client_start (") +
-                                 std::string(client.getName()) +
-                                 std::string("): ") +
-                                 ::to_string(client_data.first));
+    if (status != cb::sasl::Error::OK) {
+        throw std::runtime_error(fmt::format(
+                "cbsasl_client_start ({}): {}", client.getName(), status));
     }
 
     BinprotSaslStepCommand stepCommand;
     stepCommand.setMechanism(client.getName());
-    stepCommand.setChallenge(client_data.second);
+    stepCommand.setChallenge(challenge);
     auto response = conn.execute(stepCommand);
 
     EXPECT_FALSE(response.isSuccess());

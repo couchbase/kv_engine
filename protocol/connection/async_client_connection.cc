@@ -234,9 +234,9 @@ void AsyncClientConnection::authenticate(std::string_view user,
 
     if (client_data.first != cb::sasl::Error::OK) {
         throw std::runtime_error(
-                std::string("AsyncClientConnectionImpl::authenticate (") +
-                std::string(client.getName()) + std::string("): ") +
-                ::to_string(client_data.first));
+                fmt::format("AsyncClientConnectionImpl::authenticate ({}): {}",
+                            client.getName(),
+                            client_data.first));
     }
 
     auto response = execute(BinprotGenericCommand{
@@ -251,9 +251,10 @@ void AsyncClientConnection::authenticate(std::string_view user,
                              respdata.size()});
         if (client_data.first != cb::sasl::Error::OK &&
             client_data.first != cb::sasl::Error::CONTINUE) {
-            throw std::runtime_error(
-                    std::string("AsyncClientConnectionImpl::authenticate: ") +
-                    ::to_string(client_data.first));
+            throw std::runtime_error(fmt::format(
+                    "AsyncClientConnectionImpl::authenticate ({}): {}",
+                    client.getName(),
+                    client_data.first));
         }
 
         BinprotSaslStepCommand stepCommand;
@@ -270,7 +271,7 @@ void AsyncClientConnection::authenticate(std::string_view user,
                 throw std::runtime_error(
                         fmt::format("Authentication failed as part of final "
                                     "verification: Error:{} Reason:{}",
-                                    ::to_string(e),
+                                    e,
                                     c));
             }
         }

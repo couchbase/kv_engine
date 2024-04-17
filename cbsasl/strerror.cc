@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2016-Present Couchbase, Inc.
+ *     Copyright 2024-Present Couchbase, Inc.
  *
  *   Use of this software is governed by the Business Source License included
  *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
@@ -10,41 +9,33 @@
  */
 
 #include <cbsasl/error.h>
-#include <stdexcept>
+#include <fmt/format.h>
 
-std::string to_string(cb::sasl::Error error) {
-    using Error = cb::sasl::Error;
+std::string cb::sasl::format_as(Error error) {
+    using namespace std::string_literals;
     switch (error) {
     case Error::OK:
-        return "Success";
+        return "Success"s;
     case Error::CONTINUE:
-        return "Continue";
+        return "Continue"s;
     case Error::FAIL:
-        return "Fail";
+        return "Fail"s;
     case Error::BAD_PARAM:
-        return "Invalid parameters";
+        return "Invalid parameters"s;
     case Error::NO_MEM:
-        return "No memory";
+        return "No memory"s;
     case Error::NO_MECH:
-        return "No such mechanism";
+        return "No such mechanism"s;
     case Error::NO_USER:
-        return "No such user";
+        return "No such user"s;
     case Error::PASSWORD_ERROR:
-        return "Invalid password";
+        return "Invalid password"s;
     case Error::NO_RBAC_PROFILE:
-        return "User not defined in Couchbase";
+        return "User not defined in Couchbase"s;
     case Error::AUTH_PROVIDER_DIED:
-        return "Auth provider died";
+        return "Auth provider died"s;
     }
 
-    throw std::invalid_argument(
-            "to_string(cb::sasl::Error error): Unknown error: " +
-            std::to_string(int(error)));
+    return fmt::format("format_as(Error): Unknown error: {}",
+                       static_cast<int>(error));
 }
-
-namespace cb::sasl {
-std::ostream& operator<<(std::ostream& os, const Error& error) {
-    os << ::to_string(error);
-    return os;
-}
-} // namespace cb::sasl
