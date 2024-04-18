@@ -56,7 +56,7 @@ User PasswordDatabase::find(const std::string& username) const {
 
 /// Iterate over all of the users in the database
 void PasswordDatabase::iterate(
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback) const {
+        const std::function<void(const User&)>& usercallback) const {
     for (const auto& entry : db) {
         usercallback(entry.second);
     }

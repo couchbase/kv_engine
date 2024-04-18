@@ -163,8 +163,8 @@ protected:
 
     /// Perform the specified subdoc multi-mutation command; returning the
     /// response.
-    BinprotSubdocResponse subdocMultiMutation(
-            BinprotSubdocMultiMutationCommand cmd);
+    static BinprotSubdocResponse subdocMultiMutation(
+            const BinprotSubdocMultiMutationCommand& cmd);
 
     cb::mcbp::Status xattr_upsert(const std::string& path,
                                   const std::string& value);

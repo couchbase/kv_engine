@@ -25,14 +25,14 @@ using namespace cb::mcbp::subdoc;
 BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
         std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
         cb::mcbp::subdoc::DocFlag docFlags) {
-    BinprotSubdocMultiLookupCommand cmd{name, specs, docFlags};
+    BinprotSubdocMultiLookupCommand cmd{name, std::move(specs), docFlags};
     return BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
 }
 
 BinprotSubdocMultiMutationResponse XattrNoDocTest::subdoc_multi_mutation(
         std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier> specs,
         cb::mcbp::subdoc::DocFlag docFlags) {
-    BinprotSubdocMultiMutationCommand cmd{name, specs, docFlags};
+    BinprotSubdocMultiMutationCommand cmd{name, std::move(specs), docFlags};
     userConnection->sendCommand(cmd);
     BinprotSubdocMultiMutationResponse multiResp;
     userConnection->recvResponse(multiResp);

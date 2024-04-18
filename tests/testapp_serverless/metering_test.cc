@@ -141,7 +141,7 @@ protected:
      * @return The size of the document (key + value including the encoded
      *         xattr blob)
      */
-    size_t calculateDocumentSize(DocKey key,
+    size_t calculateDocumentSize(const DocKey& key,
                                  std::string_view value,
                                  std::string_view xp = {},
                                  std::string_view xv = {},
@@ -385,7 +385,7 @@ protected:
         return value;
     }
 
-    void testWithMeta(cb::mcbp::ClientOpcode opcode, DocKey id);
+    void testWithMeta(cb::mcbp::ClientOpcode opcode, const DocKey& id);
     void testReturnMeta(cb::mcbp::request::ReturnMetaType type,
                         DocKey id,
                         bool success);
@@ -507,7 +507,7 @@ TEST_P(MeteringTest, OpsMetered) {
     admin->authenticate("@admin");
     admin->dropPrivilege(cb::rbac::Privilege::Unmetered);
 
-    auto executeWithExpectedCU = [&admin](std::function<void()> func,
+    auto executeWithExpectedCU = [&admin](const std::function<void()>& func,
                                           size_t ru,
                                           size_t wu) {
         nlohmann::json before;
@@ -3198,7 +3198,8 @@ TEST_P(MeteringTest, RangeScanValue) {
     testRangeScan(false);
 }
 
-void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, DocKey id) {
+void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode,
+                                const DocKey& id) {
     Document doc;
     doc.info.id = std::string{id};
     doc.info.cas = 0xdeadbeef;

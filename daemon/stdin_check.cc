@@ -121,7 +121,7 @@ static void check_stdin_thread() {
 }
 
 void start_stdin_listener(std::function<void()> function) {
-    exit_function = function;
+    exit_function = std::move(function);
     auto thr = create_thread([]() { check_stdin_thread(); }, "mc:check_stdin");
     thr.detach();
 }

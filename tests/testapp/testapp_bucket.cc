@@ -62,7 +62,7 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
 static void deleteBucket(
         MemcachedConnection& conn,
         const std::string& name,
-        std::function<void(const std::string&)> stateCallback) {
+        const std::function<void(const std::string&)>& stateCallback) {
     auto clone = conn.clone();
     clone->authenticate("@admin");
     const auto timeout =

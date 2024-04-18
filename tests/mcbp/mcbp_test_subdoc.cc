@@ -127,7 +127,7 @@ public:
     }
 
 protected:
-    cb::mcbp::Status validate(const std::vector<uint8_t> request) {
+    cb::mcbp::Status validate(const std::vector<uint8_t>& request) {
         void* packet =
             const_cast<void*>(static_cast<const void*>(request.data()));
         return ValidatorTest::validate(
@@ -141,7 +141,7 @@ protected:
     }
 
     std::string validate_error_context(
-            const std::vector<uint8_t> request,
+            const std::vector<uint8_t>& request,
             cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         void* packet =
                 const_cast<void*>(static_cast<const void*>(request.data()));

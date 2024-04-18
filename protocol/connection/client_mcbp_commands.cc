@@ -1040,7 +1040,7 @@ BinprotSubdocMultiMutationCommand::BinprotSubdocMultiMutationCommand(
         const std::optional<cb::durability::Requirements>& durReqs)
     : BinprotCommand(), specs(std::move(specs)), docFlags(docFlags) {
     setOp(cb::mcbp::ClientOpcode::SubdocMultiMutation);
-    setKey(key);
+    setKey(std::move(key));
     if (durReqs) {
         setDurabilityReqs(*durReqs);
     }
@@ -1061,9 +1061,10 @@ BinprotSubdocMultiMutationCommand::addMutation(
 BinprotSubdocMultiMutationCommand&
 BinprotSubdocMultiMutationCommand::addMutation(cb::mcbp::ClientOpcode opcode,
                                                cb::mcbp::subdoc::PathFlag flags,
-                                               const std::string& path,
-                                               const std::string& value) {
-    specs.emplace_back(MutationSpecifier{opcode, flags, path, value});
+                                               std::string path,
+                                               std::string value) {
+    specs.emplace_back(MutationSpecifier{
+            opcode, flags, std::move(path), std::move(value)});
     return *this;
 }
 BinprotSubdocMultiMutationCommand& BinprotSubdocMultiMutationCommand::setExpiry(
@@ -1216,7 +1217,7 @@ BinprotSubdocMultiLookupCommand::BinprotSubdocMultiLookupCommand(
         cb::mcbp::subdoc::DocFlag docFlags)
     : BinprotCommand(), specs(std::move(specs)), docFlags(docFlags) {
     setOp(cb::mcbp::ClientOpcode::SubdocMultiLookup);
-    setKey(key);
+    setKey(std::move(key));
 }
 
 BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addLookup(
@@ -1606,17 +1607,16 @@ BinprotSetWithMetaCommand::BinprotSetWithMetaCommand(const Document& doc,
                                                      uint64_t operationCas,
                                                      uint64_t seqno,
                                                      uint32_t options,
-                                                     std::vector<uint8_t>& meta)
+                                                     std::vector<uint8_t> meta)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetWithMeta),
       doc(doc),
       seqno(seqno),
       operationCas(operationCas),
       options(options),
-      meta(meta) {
+      meta(std::move(meta)) {
     setVBucket(vbucket);
     setCas(operationCas);
     setKey(doc.info.id);
-    setMeta(meta);
 }
 BinprotSetWithMetaCommand& BinprotSetWithMetaCommand::setQuiet(bool quiet) {
     if (quiet) {

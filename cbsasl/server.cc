@@ -54,8 +54,8 @@ std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
     return backend->start(input);
 }
 
-cb::sasl::Error reload_password_database(
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
+Error reload_password_database(
+        const std::function<void(const pwdb::User&)>& usercallback) {
     return load_user_db(usercallback);
 }
 
@@ -76,10 +76,10 @@ void initialize() {
 void shutdown() {
 }
 
-std::optional<cb::sasl::pwdb::User> getUser(cb::rbac::UserIdent ident) {
-    cb::sasl::pwdb::User user;
+std::optional<pwdb::User> getUser(const rbac::UserIdent& ident) {
+    pwdb::User user;
     if (ident.domain == Domain::Local && find_user(ident.name, user)) {
-        return {user};
+        return user;
     }
 
     return {};

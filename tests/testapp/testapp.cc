@@ -462,7 +462,7 @@ Document TestappTest::storeAndPersistItem(MemcachedConnection& conn,
                 "Mutation Seqno enabled");
     }
     Document doc;
-    doc.info.id = key;
+    doc.info.id = std::move(key);
     doc.value = "persist me";
     auto mutation = conn.mutate(doc, vbid, MutationType::Set);
     EXPECT_NE(0, mutation.seqno);

@@ -136,7 +136,7 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
 }
 
 BinprotSubdocResponse TestappXattrClientTest::subdocMultiMutation(
-        BinprotSubdocMultiMutationCommand cmd) {
+        const BinprotSubdocMultiMutationCommand& cmd) {
     userConnection->sendCommand(cmd);
     BinprotSubdocResponse resp;
     userConnection->recvResponse(resp);

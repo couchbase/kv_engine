@@ -78,7 +78,7 @@ public:
      *                             the document is persisted to disk
      */
     static void upsert(MemcachedConnection& conn,
-                       DocKey id,
+                       const DocKey& id,
                        std::string value,
                        bool wait_for_persistence) {
         Document doc;

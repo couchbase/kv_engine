@@ -32,9 +32,11 @@ protected:
     void doTestServerRejectsLargeSize(bool compressedSource);
     void doTestServerRejectsLargeSizeWithXattr(bool compressedSource);
 
-    void verifyData(MemcachedConnection& conn, int successCount,
-                    int numOps, cb::mcbp::Datatype expectedDatatype,
-                    std::string expectedValue);
+    void verifyData(MemcachedConnection& conn,
+                    int successCount,
+                    int numOps,
+                    cb::mcbp::Datatype expectedDatatype,
+                    std::string_view expectedValue);
 
     void doTestGetRandomKey(bool collections);
 };
@@ -300,7 +302,7 @@ void GetSetTest::verifyData(MemcachedConnection& conn,
                             int successCount,
                             int numOps,
                             cb::mcbp::Datatype expectedDatatype,
-                            std::string expectedValue) {
+                            std::string_view expectedValue) {
     const auto stored = conn.get(name, Vbid(0));
     EXPECT_EQ(successCount + numOps + 2,
               getResponseCount(cb::mcbp::Status::Success));
@@ -317,11 +319,11 @@ void GetSetTest::verifyData(MemcachedConnection& conn,
 /// Off and On.
 class GetSetSnappyOnOffTest : public GetSetTest {
 protected:
-    void doTestCompressedRawData(std::string mode);
-    void doTestCompressedJSON(std::string mode);
+    void doTestCompressedRawData(const std::string& mode);
+    void doTestCompressedJSON(const std::string& mode);
 };
 
-void GetSetSnappyOnOffTest::doTestCompressedRawData(std::string mode) {
+void GetSetSnappyOnOffTest::doTestCompressedRawData(const std::string& mode) {
     setCompressionMode(mode);
 
     const std::string valueData(1024, 'a');
@@ -363,7 +365,7 @@ void GetSetSnappyOnOffTest::doTestCompressedRawData(std::string mode) {
     }
 }
 
-void GetSetSnappyOnOffTest::doTestCompressedJSON(std::string mode) {
+void GetSetSnappyOnOffTest::doTestCompressedJSON(const std::string& mode) {
     setCompressionMode(mode);
 
     std::string valueData{R"({"aaaaaaaaa":10000000000})"};

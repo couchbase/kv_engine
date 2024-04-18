@@ -20,8 +20,9 @@
 
 namespace cb::test {
 
-void executeOnAllNodes(cb::test::Cluster& cluster,
-                       std::function<void(MemcachedConnection&)> callback) {
+void executeOnAllNodes(
+        const Cluster& cluster,
+        const std::function<void(MemcachedConnection&)>& callback) {
     for (std::size_t ii = 0; ii < cluster.size(); ++ii) {
         auto admin = cluster.getConnection(ii);
         admin->authenticate("@admin");

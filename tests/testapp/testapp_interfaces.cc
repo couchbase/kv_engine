@@ -599,7 +599,7 @@ protected:
      * @param agentname
      * @param pattern
      */
-    void testit(std::string agentname, std::string_view pattern) {
+    void testit(const std::string& agentname, std::string_view pattern) {
         auto conn = userConnection->clone();
 
         cb::net::closesocket(conn->releaseSocket());

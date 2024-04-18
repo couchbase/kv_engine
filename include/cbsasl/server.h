@@ -35,7 +35,7 @@ void initialize();
 void shutdown();
 
 /// lookup the named user
-std::optional<cb::sasl::pwdb::User> getUser(cb::rbac::UserIdent ident);
+[[nodiscard]] std::optional<pwdb::User> getUser(const rbac::UserIdent& ident);
 
 /**
  * List all of the mechanisms available in cbsasl
@@ -46,8 +46,8 @@ std::string listmech();
  * Reload the password database and iterate over the database before it
  * is installed.
  */
-cb::sasl::Error reload_password_database(
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback);
+Error reload_password_database(
+        const std::function<void(const pwdb::User&)>& usercallback);
 
 class ServerContext;
 

@@ -46,7 +46,7 @@ protected:
     time_t subdoc_modify(const std::string& key, time_t ttl, bool preserveTtl);
 
     /// Get the TTL for the document on the server
-    time_t getTtl(std::string key);
+    time_t getTtl(const std::string& key);
 
     void test(MutationType type);
 
@@ -59,7 +59,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
-time_t TtlTest::getTtl(std::string key) {
+time_t TtlTest::getTtl(const std::string& key) {
     BinprotSubdocCommand cmd(cb::mcbp::ClientOpcode::SubdocGet,
                              key,
                              R"($document.exptime)",

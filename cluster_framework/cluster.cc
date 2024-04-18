@@ -426,7 +426,8 @@ static std::filesystem::path createTemporaryDirectory() {
 std::unique_ptr<Cluster> Cluster::create(
         size_t num_nodes,
         std::optional<std::string> directory,
-        std::function<void(std::string_view, nlohmann::json&)> configCallback) {
+        const std::function<void(std::string_view, nlohmann::json&)>&
+                configCallback) {
     const std::filesystem::path root =
             directory.has_value() ? *directory
                                   : createTemporaryDirectory().string();

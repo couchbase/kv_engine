@@ -372,8 +372,8 @@ public:
     BinprotSubdocMultiMutationCommand& addMutation(
             cb::mcbp::ClientOpcode opcode,
             cb::mcbp::subdoc::PathFlag flags,
-            const std::string& path,
-            const std::string& value);
+            std::string path,
+            std::string value);
 
     BinprotSubdocMultiMutationCommand& setExpiry(uint32_t expiry_);
 
@@ -988,7 +988,7 @@ public:
                               uint64_t operationCas,
                               uint64_t seqno,
                               uint32_t options,
-                              std::vector<uint8_t>& meta);
+                              std::vector<uint8_t> meta);
 
     BinprotSetWithMetaCommand& setQuiet(bool quiet);
 

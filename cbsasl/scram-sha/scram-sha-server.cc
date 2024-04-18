@@ -23,10 +23,11 @@
 
 namespace cb::sasl::mechanism::scram {
 
-ServerBackend::ServerBackend(server::ServerContext& ctx,
-                             Mechanism mechanism,
-                             cb::crypto::Algorithm algo,
-                             std::function<std::string()> generateNonceFunction)
+ServerBackend::ServerBackend(
+        server::ServerContext& ctx,
+        Mechanism mechanism,
+        cb::crypto::Algorithm algo,
+        const std::function<std::string()>& generateNonceFunction)
     : MechanismBackend(ctx), ScramShaBackend(mechanism, algo) {
     if (generateNonceFunction) {
         serverNonce = generateNonceFunction();

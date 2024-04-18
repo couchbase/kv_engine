@@ -63,7 +63,8 @@ protected:
 
     // Helper functions for tests /////////////////////////////////////////////
     Document storeAndPersistItem(std::string key) {
-        return TestappTest::storeAndPersistItem(*userConnection, vbid, key);
+        return TestappTest::storeAndPersistItem(
+                *userConnection, vbid, std::move(key));
     }
 
     void waitForAtLeastSeqno(uint64_t uuid, uint64_t seqno) {

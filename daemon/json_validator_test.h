@@ -33,7 +33,7 @@ protected:
      * @param legalValues If provided we should only allow these strings
      */
     void acceptString(const std::string& tag,
-                      std::vector<std::string> legalValues = {});
+                      const std::vector<std::string>& legalValues = {});
 
     /// Verify that we only accept boolean values
     void acceptBoolean(const std::string& tag);

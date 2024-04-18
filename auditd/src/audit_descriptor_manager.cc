@@ -27,7 +27,7 @@ const EventDescriptor& AuditDescriptorManager::lookup(uint32_t id) {
 }
 
 void AuditDescriptorManager::iterate(
-        std::function<void(const EventDescriptor&)> callback) {
+        const std::function<void(const EventDescriptor&)>& callback) {
     for (const auto& [k, v] : instance().descriptors) {
         callback(v);
     }

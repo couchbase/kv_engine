@@ -252,7 +252,8 @@ MockTestHarness harness;
  * from test func, or if an exception is thrown then catch and return a failure
  * code
  */
-test_result try_run_test(std::function<test_result()> testFunc) noexcept {
+static test_result try_run_test(
+        const std::function<test_result()>& testFunc) noexcept {
     try {
         return testFunc();
     } catch (const TestExpectationFailed&) {

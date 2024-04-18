@@ -30,7 +30,8 @@ public:
     /// Iterate over all available descriptors
     /// @todo remove this once we add support for specifying the audit filter
     ///       in the audit configuration
-    static void iterate(std::function<void(const EventDescriptor&)> callback);
+    static void iterate(
+            const std::function<void(const EventDescriptor&)>& callback);
 
 private:
     AuditDescriptorManager();

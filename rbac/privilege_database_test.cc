@@ -183,10 +183,11 @@ public:
     // non-collection privilege audit). This means every Read check (bucket,
     // scope or collection) will succeed and non Read checks will plainly fail
     nlohmann::json bucketAccess = {{"privileges", {"Read", "Audit"}}};
-    void test(std::optional<nlohmann::json> scope);
+    void test(const std::optional<nlohmann::json>& scope);
 };
 
-void BucketPrivCollectionVisibility::test(std::optional<nlohmann::json> scope) {
+void BucketPrivCollectionVisibility::test(
+        const std::optional<nlohmann::json>& scope) {
     if (scope) {
         bucketAccess["scopes"] = scope.value();
     }

@@ -148,8 +148,8 @@ User UserFactory::create(const std::string& name,
 
 User UserFactory::create(const std::string& unm,
                          const std::string& passwd,
-                         std::function<bool(crypto::Algorithm)> callback,
-                         std::string_view password_hash_type) {
+                         const std::function<bool(Algorithm)>& callback,
+                         const std::string_view password_hash_type) {
     return create(unm,
                   std::vector<std::string>{{passwd}},
                   callback,

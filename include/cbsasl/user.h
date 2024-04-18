@@ -184,10 +184,11 @@ public:
      *
      * @return a newly created dummy object
      */
-    static User create(const std::string& name,
-                       const std::string& pw,
-                       std::function<bool(crypto::Algorithm)> callback = {},
-                       std::string_view password_hash_type = {});
+    static User create(
+            const std::string& name,
+            const std::string& pw,
+            const std::function<bool(crypto::Algorithm)>& callback = {},
+            std::string_view password_hash_type = {});
 
     static User create(const std::string& name,
                        const std::vector<std::string>& passwords,

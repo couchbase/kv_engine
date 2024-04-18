@@ -250,9 +250,9 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
     }
 }
 
-static void testAllOpcodes(std::function<bool(ClientOpcode)> function,
+static void testAllOpcodes(const std::function<bool(ClientOpcode)>& function,
                            const std::vector<ClientOpcode>& blueprint,
-                           const std::string feature) {
+                           const std::string_view feature) {
     using cb::mcbp::ClientOpcode;
     using cb::mcbp::is_durability_supported;
 

@@ -26,8 +26,8 @@ public:
         return (*db.rlock())->find(username);
     }
 
-    void iterate(
-            std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
+    void iterate(const std::function<void(const cb::sasl::pwdb::User&)>&
+                         usercallback) {
         (*db.rlock())->iterate(usercallback);
     }
 
@@ -51,7 +51,7 @@ bool find_user(const std::string& username, cb::sasl::pwdb::User& user) {
 
 static cb::sasl::Error parse_user_db(
         const nlohmann::json& content,
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
+        const std::function<void(const cb::sasl::pwdb::User&)>& usercallback) {
     try {
         std::unique_ptr<cb::sasl::pwdb::PasswordDatabase> db(
                 new cb::sasl::pwdb::PasswordDatabase(content));
@@ -71,7 +71,7 @@ static cb::sasl::Error parse_user_db(
 }
 
 cb::sasl::Error load_user_db(
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback) {
+        const std::function<void(const cb::sasl::pwdb::User&)>& usercallback) {
     try {
         const char* filename = getenv("CBSASL_PWFILE");
 

@@ -59,7 +59,7 @@ bool Response::isValid() const {
             size_t(getBodylen()));
 }
 
-void Response::parseFrameExtras(FrameInfoCallback callback) const {
+void Response::parseFrameExtras(const FrameInfoCallback& callback) const {
     auto fe = getFramingExtras();
     if (fe.empty()) {
         return;

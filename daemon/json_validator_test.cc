@@ -9,8 +9,8 @@
  */
 #include "json_validator_test.h"
 
-void JsonValidatorTest::acceptString(const std::string& tag,
-                                     std::vector<std::string> legalValues) {
+void JsonValidatorTest::acceptString(
+        const std::string& tag, const std::vector<std::string>& legalValues) {
     // Boolean values should not be accepted
     nlohmann::json json = legalSpec;
     json[tag] = true;

@@ -74,7 +74,7 @@ public:
     const Control& lookup(Id id) const;
 
     /// Iterate over all the available controls and call the provided callback
-    void iterate(std::function<void(const Control&)> callback) const;
+    void iterate(const std::function<void(const Control&)>& callback) const;
 
 protected:
     Manager();

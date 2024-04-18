@@ -73,7 +73,7 @@ protected:
      *
      * @param value The documents value
      */
-    void upsert(std::string value) {
+    void upsert(const std::string& value) {
         BinprotSubdocMultiMutationCommand cmd;
         cmd.setKey(name);
         cmd.setVBucket(Vbid{0});

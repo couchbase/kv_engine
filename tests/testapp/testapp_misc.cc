@@ -26,8 +26,8 @@ public:
     // Helper function to test if "default" thread setting is applied correctly
     // for the given named thread type, and a function to return the current
     // size of that thread pool.
-    void testConfigDefaultThreads(std::string name,
-                                  std::function<int()> getPoolSize);
+    void testConfigDefaultThreads(const std::string& name,
+                                  const std::function<int()>& getPoolSize);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -141,8 +141,8 @@ TEST_P(MiscTest, Config_NonIoThreadsDefault) {
     testConfigDefaultThreads("num_nonio_threads", getAuxIoThreads);
 }
 
-void MiscTest::testConfigDefaultThreads(std::string name,
-                                        std::function<int()> getPoolSize) {
+void MiscTest::testConfigDefaultThreads(
+        const std::string& name, const std::function<int()>& getPoolSize) {
     SCOPED_TRACE(name);
     // Lookup the "default" thread count; we will compare this to
     // what we get later when we flip away from "default" and back again.

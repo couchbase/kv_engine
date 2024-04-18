@@ -103,7 +103,8 @@ const Control& Manager::lookup(Id id) const {
             std::to_string(int(id)));
 }
 
-void Manager::iterate(std::function<void(const Control&)> callback) const {
+void Manager::iterate(
+        const std::function<void(const Control&)>& callback) const {
     for (const auto& e : getInstance().entries) {
         callback(e);
     }

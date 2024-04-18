@@ -180,11 +180,11 @@ public:
 
     size_t drainKeyResponse(
             const BinprotResponse& response,
-            const std::unordered_set<std::string> expectedKeySet);
+            const std::unordered_set<std::string>& expectedKeySet);
 
     size_t drainItemResponse(
             const BinprotResponse& response,
-            const std::unordered_set<std::string> expectedKeySet);
+            const std::unordered_set<std::string>& expectedKeySet);
     struct ScanCounters {
         size_t records{0};
         size_t frames{0};
@@ -194,7 +194,7 @@ public:
             cb::rangescan::Id id,
             bool keyScan,
             size_t itemLimit,
-            const std::unordered_set<std::string> expectedKeySet);
+            const std::unordered_set<std::string>& expectedKeySet);
 
     void testErrorsDuringContinue(cb::mcbp::Status error);
 
@@ -352,7 +352,7 @@ TEST_P(RangeScanTest, CreateEmpty) {
 
 size_t RangeScanTest::drainKeyResponse(
         const BinprotResponse& response,
-        const std::unordered_set<std::string> expectedKeySet) {
+        const std::unordered_set<std::string>& expectedKeySet) {
     if (response.getDataView().empty()) {
         return 0;
     }
@@ -383,7 +383,7 @@ size_t RangeScanTest::drainKeyResponse(
 
 size_t RangeScanTest::drainItemResponse(
         const BinprotResponse& response,
-        const std::unordered_set<std::string> expectedKeySet) {
+        const std::unordered_set<std::string>& expectedKeySet) {
     if (response.getDataView().empty()) {
         return 0;
     }
@@ -442,7 +442,7 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
         cb::rangescan::Id id,
         bool keyScan,
         size_t itemLimit,
-        const std::unordered_set<std::string> expectedKeySet) {
+        const std::unordered_set<std::string>& expectedKeySet) {
     BinprotResponse resp;
     size_t recordsReturned = 0;
     size_t frames = 0;

@@ -120,7 +120,7 @@ public:
     [[nodiscard]] static std::unique_ptr<Cluster> create(
             size_t nodes,
             std::optional<std::string> directory = {},
-            std::function<void(std::string_view, nlohmann::json&)>
+            const std::function<void(std::string_view, nlohmann::json&)>&
                     configCallback = {});
 
     /// Get a JSON representation for the cluster before the

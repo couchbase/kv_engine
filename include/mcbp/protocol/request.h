@@ -201,7 +201,7 @@ public:
      *                 Frame Info identifier and the content
      * @throws std::overflow_error if we overflow the encoded buffer.
      */
-    void parseFrameExtras(FrameInfoCallback callback) const;
+    void parseFrameExtras(const FrameInfoCallback& callback) const;
 
     /**
      * Parse the Frame Extras section and pick out the optional Durability

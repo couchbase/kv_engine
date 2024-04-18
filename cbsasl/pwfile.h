@@ -32,7 +32,8 @@ bool find_user(const std::string& username, cb::sasl::pwdb::User& user);
  *                     from the rest of the system.
  */
 cb::sasl::Error load_user_db(
-        std::function<void(const cb::sasl::pwdb::User&)> usercallback = {});
+        const std::function<void(const cb::sasl::pwdb::User&)>& usercallback =
+                {});
 
 namespace cb::sasl::pwdb {
 class PasswordDatabase;

@@ -108,7 +108,7 @@ cb::const_byte_buffer Request::getFrame() const {
     return reinterpret_cast<const Header*>(this)->getFrame();
 }
 
-void Request::parseFrameExtras(FrameInfoCallback callback) const {
+void Request::parseFrameExtras(const FrameInfoCallback& callback) const {
     auto fe = getFramingExtras();
     if (fe.empty()) {
         return;

@@ -1847,14 +1847,15 @@ static const SubdocStatTraits MUTATION_TRAITS { "cmd_subdoc_mutation",
                                                 "bytes_subdoc_mutation_total",
                                                 "bytes_subdoc_mutation_inserted" };
 
-void SubdocTestappTest::test_subdoc_stats_command(cb::mcbp::ClientOpcode cmd,
-                                                  SubdocStatTraits traits,
-                                                  const std::string& doc,
-                                                  const std::string& path,
-                                                  const std::string& value,
-                                                  const std::string& fragment,
-                                                  size_t expected_total_len,
-                                                  size_t expected_subset_len) {
+void SubdocTestappTest::test_subdoc_stats_command(
+        cb::mcbp::ClientOpcode cmd,
+        const SubdocStatTraits& traits,
+        const std::string& doc,
+        const std::string& path,
+        const std::string& value,
+        const std::string& fragment,
+        size_t expected_total_len,
+        size_t expected_subset_len) {
     store_document("doc", doc);
 
     // Get initial stats

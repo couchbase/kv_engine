@@ -134,7 +134,7 @@ public:
     ServerBackend(server::ServerContext& ctx,
                   Mechanism mechanism,
                   cb::crypto::Algorithm algo,
-                  std::function<std::string()> generateNonceFunction);
+                  const std::function<std::string()>& generateNonceFunction);
 
     std::pair<Error, std::string_view> start(std::string_view input) override;
 
@@ -152,11 +152,11 @@ class Sha512ServerBackend : public ServerBackend {
 public:
     explicit Sha512ServerBackend(
             server::ServerContext& ctx,
-            std::function<std::string()> generateNonceFunction = {})
+            const std::function<std::string()>& generateNonceFunction = {})
         : ServerBackend(ctx,
                         Mechanism::SCRAM_SHA512,
                         cb::crypto::Algorithm::SHA512,
-                        std::move(generateNonceFunction)) {
+                        generateNonceFunction) {
     }
 };
 
@@ -164,11 +164,11 @@ class Sha256ServerBackend : public ServerBackend {
 public:
     explicit Sha256ServerBackend(
             server::ServerContext& ctx,
-            std::function<std::string()> generateNonceFunction = {})
+            const std::function<std::string()>& generateNonceFunction = {})
         : ServerBackend(ctx,
                         Mechanism::SCRAM_SHA256,
                         cb::crypto::Algorithm::SHA256,
-                        std::move(generateNonceFunction)) {
+                        generateNonceFunction) {
     }
 };
 
@@ -176,11 +176,11 @@ class Sha1ServerBackend : public ServerBackend {
 public:
     explicit Sha1ServerBackend(
             server::ServerContext& ctx,
-            std::function<std::string()> generateNonceFunction = {})
+            const std::function<std::string()>& generateNonceFunction = {})
         : ServerBackend(ctx,
                         Mechanism::SCRAM_SHA1,
                         cb::crypto::Algorithm::SHA1,
-                        std::move(generateNonceFunction)) {
+                        generateNonceFunction) {
     }
 };
 
@@ -235,7 +235,7 @@ public:
             client::GetUsernameCallback& user_cb,
             client::GetPasswordCallback& password_cb,
             client::ClientContext& ctx,
-            std::function<std::string()> generateNonceFunction = {},
+            const std::function<std::string()>& generateNonceFunction = {},
             std::function<void(char, const std::string&)> propertyListener = {})
         : ClientBackend(user_cb,
                         password_cb,
@@ -253,7 +253,7 @@ public:
             client::GetUsernameCallback& user_cb,
             client::GetPasswordCallback& password_cb,
             client::ClientContext& ctx,
-            std::function<std::string()> generateNonceFunction = {},
+            const std::function<std::string()>& generateNonceFunction = {},
             std::function<void(char, const std::string&)> propertyListener = {})
         : ClientBackend(user_cb,
                         password_cb,
@@ -271,7 +271,7 @@ public:
             client::GetUsernameCallback& user_cb,
             client::GetPasswordCallback& password_cb,
             client::ClientContext& ctx,
-            std::function<std::string()> generateNonceFunction = {},
+            const std::function<std::string()>& generateNonceFunction = {},
             std::function<void(char, const std::string&)> propertyListener = {})
         : ClientBackend(user_cb,
                         password_cb,

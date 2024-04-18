@@ -60,7 +60,7 @@ public:
 
     /// Execute the provided function iff the provided cas represents
     /// the session cas.
-    bool execute(uint64_t cas, std::function<void()> func);
+    bool execute(uint64_t cas, const std::function<void()>& func);
 
 private:
     /**

@@ -45,8 +45,7 @@ public:
     User find(const std::string& username) const;
 
     /// Iterate over all of the users in the database
-    void iterate(std::function<void(const cb::sasl::pwdb::User&)> usercallback)
-            const;
+    void iterate(const std::function<void(const User&)>& usercallback) const;
 
     /// Create a JSON representation of the password database
     ///
