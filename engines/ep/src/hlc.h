@@ -147,6 +147,12 @@ public:
         maxHLC = hlc;
     }
 
+    bool isInvalidHLC(uint64_t hlc) const {
+        int64_t difference = getMasked48(hlc) - getMaskedTime();
+        uint64_t abs_diff = std::abs(difference);
+        return abs_diff > hlcMaxFutureThreshold;
+    }
+
     uint64_t getMaxHLC() const {
         return maxHLC;
     }

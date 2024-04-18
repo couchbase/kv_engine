@@ -132,6 +132,15 @@ enum class ConflictResolutionMode {
 };
 
 /**
+ * The different strategies to manage invalid CAS values.
+ */
+enum class InvalidCasStrategy : uint8_t {
+    Error,  // Fail CAS values outside hlc_max_future_threshold
+    Ignore, // Ignore CAS validation
+    Replace // Generates a new CAS for invalid values
+};
+
+/**
  * We need to send SyncWrite Commits as Mutations when backfilling from disk as
  * the preceding prepare may have been de-duped and the replica needs to know
  * what to commit.

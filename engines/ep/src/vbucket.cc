@@ -2020,7 +2020,8 @@ cb::engine_errc VBucket::prepare(
             genBySeqno,
             genCas,
             GenerateDeleteTime::No,
-            TrackCasDrift::Yes,
+            (genCas == GenerateCas::Yes) ? TrackCasDrift::No
+                                         : TrackCasDrift::Yes,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
             {} /*overwritingPrepareSeqno*/,
@@ -2186,7 +2187,8 @@ cb::engine_errc VBucket::setWithMeta(
             genBySeqno,
             genCas,
             GenerateDeleteTime::No,
-            TrackCasDrift::Yes,
+            (genCas == GenerateCas::Yes) ? TrackCasDrift::No
+                                         : TrackCasDrift::Yes,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
             {} /*overwritingPrepareSeqno*/,
@@ -2516,7 +2518,9 @@ cb::engine_errc VBucket::deleteWithMeta(
     VBQueueItemCtx queueItmCtx{genBySeqno,
                                generateCas,
                                GenerateDeleteTime::No,
-                               TrackCasDrift::Yes,
+                               (generateCas == GenerateCas::Yes)
+                                       ? TrackCasDrift::No
+                                       : TrackCasDrift::Yes,
                                {},
                                nullptr /* No pre link step needed */,
                                {} /*overwritingPrepareSeqno*/,

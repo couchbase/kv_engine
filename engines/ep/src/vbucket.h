@@ -303,6 +303,10 @@ public:
         hlc.setHlcMaxFutureThreshold(maxCas);
     }
 
+    bool isInvalidHLC(uint64_t cas) const {
+        return hlc.isInvalidHLC(cas);
+    }
+
     /// Returns the current HLC time and which mode it is in.
     cb::HlcTime getHLCNow() const {
         return hlc.peekHLC();

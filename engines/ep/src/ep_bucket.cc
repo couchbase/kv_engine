@@ -258,7 +258,7 @@ public:
             }
         } else if (key == "retain_erroneous_tombstones") {
             bucket.setRetainErroneousTombstones(value);
-        } else  {
+        } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }
@@ -312,7 +312,6 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     config.addValueChangedListener(
             "retain_erroneous_tombstones",
             std::make_unique<ValueChangedListener>(*this));
-
     config.addValueChangedListener(
             "warmup_min_memory_threshold",
             std::make_unique<ValueChangedListener>(*this));

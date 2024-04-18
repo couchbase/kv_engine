@@ -11,6 +11,7 @@
 
 #include "hlc.h"
 
+#include "checkpoint_manager.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "kv_bucket.h"
@@ -370,7 +371,153 @@ TEST_P(HLCBucketTest, setVbState) {
     EXPECT_EQ(poisonedMaxCas + 5, vb->getMaxCas());
 }
 
+class HLCInvalidStraegyTest : public STParameterizedBucketTest {
+public:
+    void SetUp() override {
+        config_string += "hlc_invalid_strategy=error;";
+        SingleThreadedKVBucketTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    }
+};
+
+// This test validates the behaviour of a setWithMeta commands with invalid CAS
+// values when hlc_invalid_strategy is set to error and replace
+TEST_P(HLCInvalidStraegyTest, setWithMetaHLCInvalidStrategyTest) {
+    auto key = makeStoredDocKey("setWithMeta");
+    auto item = make_item(vbid, key, "value");
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+    item.setCas(poisonedCas);
+
+    uint64_t seqno;
+    // setWithMeta will fail due to an invalid CAS value
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              store->setWithMeta(std::ref(item),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::No,
+                                 true,
+                                 GenerateBySeqno::Yes,
+                                 GenerateCas::No));
+
+    // set hlc_invalid_strategy to replace
+    config_string += ";hlc_invalid_strategy=replace";
+    reinitialise(config_string);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // setWithMeta succeeds by generating a new valid CAS
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setWithMeta(std::ref(item),
+                                 0,
+                                 &seqno,
+                                 cookie,
+                                 {vbucket_state_active},
+                                 CheckConflicts::No,
+                                 true,
+                                 GenerateBySeqno::Yes,
+                                 GenerateCas::No));
+
+    auto rv = engine->get(*cookie, key, vbid, DocStateFilter::Alive);
+    EXPECT_EQ(cb::engine_errc::success, rv.first);
+    EXPECT_LT(rv.second->getCas(), poisonedCas);
+}
+
+// This test validates the behaviour of a deleteWithMeta commands with an
+// invalid CAS value when hlc_invalid_strategy is set to error and replace
+TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
+    // store item to delete
+    auto key = makeStoredDocKey("delete");
+    store_item(vbid, key, "value");
+
+    ItemMetaData meta;
+    uint64_t cas = 0;
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+    meta.cas = poisonedCas;
+    // deleteWithMeta fails with an invalid CAS value
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              store->deleteWithMeta(key,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::No,
+                                    meta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr /* extended metadata */,
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
+
+    // set hlc_invalid_strategy to replace
+    config_string += ";hlc_invalid_strategy=replace";
+    reinitialise(config_string);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // deleteWithMeta succeeds by generating a new valid CAS
+    EXPECT_EQ(cb::engine_errc::success,
+              store->deleteWithMeta(key,
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::No,
+                                    meta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    0,
+                                    nullptr /* extended metadata */,
+                                    DeleteSource::Explicit,
+                                    EnforceMemCheck::Yes));
+}
+
+// This test validates the behaviour of a prepare commands with an invalid CAS
+// value when hlc_invalid_strategy is set to error and replace
+TEST_P(HLCInvalidStraegyTest, prepareHLCInvalidStrategyTest) {
+    // prepare requires vbucket state to be replica or pending
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto key = makeStoredDocKey("prepare");
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+    auto item = make_item(vbid, key, "value");
+    item.setCas(poisonedCas);
+
+    // prepare fails with an invalid CAS value
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              store->prepare(item, cookie, EnforceMemCheck::Yes));
+
+    // set hlc_invalid_strategy to replace
+    config_string += ";hlc_invalid_strategy=replace";
+    reinitialise(config_string);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto vb = store->getVBucket(vbid);
+    vb->checkpointManager->createSnapshot(vb->getHighSeqno(),
+                                          vb->getHighSeqno() + 1,
+                                          {} /*HCS*/,
+                                          CheckpointType::Memory,
+                                          0);
+
+    using namespace cb::durability;
+    auto prepare = makePendingItem(
+            key, "value", {Level::Majority, Timeout::Infinity()});
+    prepare->setVBucketId(vbid);
+    prepare->setBySeqno(vb->getHighSeqno() + 1);
+    prepare->setCas(poisonedCas);
+    // prepare succeeds by generating a new valid CAS
+    EXPECT_EQ(cb::engine_errc::success,
+              store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
+}
+
 INSTANTIATE_TEST_SUITE_P(HLCBucketTests,
                          HLCBucketTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(HLCInvalidStraegyTest,
+                         HLCInvalidStraegyTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
