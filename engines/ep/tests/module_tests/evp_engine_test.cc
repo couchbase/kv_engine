@@ -188,6 +188,14 @@ void EventuallyPersistentEngineTest::store_committed_item(
                       *cookie, *item, cas, StoreSemantics::Set, false));
 }
 
+bool EPEngineParamTest::isPersistent() const {
+    return engine->getConfiguration().getBucketType() == "persistent";
+}
+
+bool EPEngineParamTest::isMagma() const {
+    return engine->getConfiguration().getBackend() == "magma";
+}
+
 TEST_P(EPEngineParamTest, requirements_bucket_type) {
     std::string bucketType = engine->getConfiguration().getBucketType();
 
@@ -434,6 +442,33 @@ struct ESTestDestructor {
         --instances;
     }
 };
+
+TEST_P(EPEngineParamTest, MagmaFusionCheckpointingEnabled) {
+    const std::string key = "magma_fusion_checkpointing_enabled";
+    std::string outMsg;
+    const auto isApplicable = isPersistent() && isMagma();
+    const auto expectedErr = isApplicable ? cb::engine_errc::success
+                                          : cb::engine_errc::invalid_arguments;
+
+    auto ret = engine->setVbucketParam(Vbid(0), key, "true", outMsg);
+    EXPECT_EQ(expectedErr, ret);
+    const auto expectedMsg =
+            isPersistent()
+                    ? (isMagma() ? ""
+                                 : "backend:" + engine->getConfiguration()
+                                                        .getBackend())
+                    : "bucket_type:ephemeral";
+    EXPECT_EQ(expectedMsg, outMsg);
+
+    ret = engine->setVbucketParam(Vbid(0), key, "false", outMsg);
+    EXPECT_EQ(expectedErr, ret);
+    EXPECT_EQ(expectedMsg, outMsg);
+
+    ret = engine->setVbucketParam(Vbid(0), key, "non-bool", outMsg);
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, ret);
+    EXPECT_EQ(isApplicable ? "val:non-bool" : expectedMsg, outMsg);
+}
+
 int ESTestDestructor::instances{0};
 } // namespace
 

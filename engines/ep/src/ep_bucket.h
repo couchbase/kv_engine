@@ -392,6 +392,16 @@ public:
 
     bool disconnectReplicationAtOOM() const override;
 
+    /**
+     * Toggle Fusion Checkpointing on/off (for KVStore(s) that support it).
+     *
+     * @param vbid The vbucket
+     * @param value True/false for enable/disable
+     * @throw logic_error If the underlying KVStore doesn't support Fusion
+     *        Checkpointing
+     */
+    void setStoreCheckpointing(Vbid vbid, bool value);
+
     /// Hook that gets called from prepareForPause. Phase of prepareForPause()
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;

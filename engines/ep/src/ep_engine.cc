@@ -49,6 +49,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <boost/lexical_cast.hpp>
 #include <executor/executorpool.h>
 #include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
@@ -1039,15 +1040,15 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
         if (key == "hlc_drift_ahead_threshold_us") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
-            getConfiguration().setHlcDriftAheadThresholdUs(v);
+            configuration.setHlcDriftAheadThresholdUs(v);
         } else if (key == "hlc_drift_behind_threshold_us") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
-            getConfiguration().setHlcDriftBehindThresholdUs(v);
+            configuration.setHlcDriftBehindThresholdUs(v);
         } else if (key == "hlc_max_future_threshold_us") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
-            getConfiguration().setHlcMaxFutureThresholdUs(v);
+            configuration.setHlcMaxFutureThresholdUs(v);
         } else if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
@@ -1057,12 +1058,28 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
                 rv = cb::engine_errc::not_my_vbucket;
                 msg = "Not my vbucket";
             }
+        } else if (key == "magma_fusion_checkpointing_enabled") {
+            const auto bucketType = configuration.getBucketType();
+            if (bucketType != "persistent") {
+                throw std::invalid_argument("bucket_type:" + bucketType);
+            }
+            const auto backend = configuration.getBackend();
+            if (backend != "magma") {
+                throw std::invalid_argument("backend:" + backend);
+            }
+            if (val != "false" && val != "true") {
+                throw std::invalid_argument("val:" + val);
+            }
+
+            Expects(kvBucket);
+            auto& epBucket = dynamic_cast<EPBucket&>(*kvBucket);
+            epBucket.setStoreCheckpointing(vbucket, val == "true");
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;
         }
-    } catch (std::runtime_error&) {
-        msg = "Value out of range.";
+    } catch (std::exception& e) {
+        msg = e.what();
         rv = cb::engine_errc::invalid_arguments;
     }
     return rv;

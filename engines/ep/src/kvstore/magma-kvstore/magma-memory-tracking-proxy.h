@@ -243,6 +243,8 @@ public:
     void SetKeyTreeIndexBlockSize(size_t value);
 
     void SetFusionCacheSize(size_t bytes);
+    void setFusionCheckpointing(magma::Magma::KVStoreID kvID, bool value);
+    bool IsFusionCheckpointingEnabled(magma::Magma::KVStoreID kvID) const;
 
 private:
     std::unique_ptr<magma::Magma> magma;

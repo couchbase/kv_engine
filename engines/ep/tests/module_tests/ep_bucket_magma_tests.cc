@@ -13,6 +13,7 @@
 #include "evp_store_single_threaded_test.h"
 #include "kvstore/magma-kvstore/magma-kvstore.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
 /**
@@ -68,6 +69,47 @@ TEST_P(SingleThreadedMagmaTest, FusionVolatileStoragePath) {
     const auto& config =
             dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
     EXPECT_EQ(fusionVolatileStoragePath, config.getFusionVolatileStoragePath());
+}
+
+TEST_P(SingleThreadedMagmaTest, FusionCheckpointing) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    const std::string key = "magma_fusion_checkpointing_enabled";
+    std::string outMsg;
+
+    // Enable
+    auto ret = engine->setVbucketParam(vbid, key, "true", outMsg);
+    EXPECT_EQ(cb::engine_errc::success, ret);
+    EXPECT_TRUE(outMsg.empty());
+    auto& store = dynamic_cast<MagmaKVStore&>(
+            *engine->getKVBucket()->getRWUnderlying(vbid));
+    EXPECT_TRUE(store.isFusionCheckpointingEnabled(vbid));
+
+    // Disable
+    ret = engine->setVbucketParam(vbid, key, "false", outMsg);
+    EXPECT_EQ(cb::engine_errc::success, ret);
+    EXPECT_TRUE(outMsg.empty());
+    EXPECT_FALSE(store.isFusionCheckpointingEnabled(vbid));
+
+    // Invalid call, still disabled
+    ret = engine->setVbucketParam(
+            vbid, key, "some invalid value for the param", outMsg);
+    EXPECT_EQ(cb::engine_errc::invalid_arguments, ret);
+    EXPECT_THAT(outMsg, testing::HasSubstr("some invalid value"));
+    EXPECT_FALSE(store.isFusionCheckpointingEnabled(vbid));
+
+    // Disable, still disabled
+    outMsg.clear();
+    ret = engine->setVbucketParam(vbid, key, "false", outMsg);
+    EXPECT_EQ(cb::engine_errc::success, ret);
+    EXPECT_TRUE(outMsg.empty());
+    EXPECT_FALSE(store.isFusionCheckpointingEnabled(vbid));
+
+    // Re-enable
+    ret = engine->setVbucketParam(vbid, key, "true", outMsg);
+    EXPECT_EQ(cb::engine_errc::success, ret);
+    EXPECT_TRUE(outMsg.empty());
+    EXPECT_TRUE(store.isFusionCheckpointingEnabled(vbid));
 }
 
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,

@@ -140,6 +140,9 @@ public:
 #endif
                 "persistent_couchstore");
     }
+
+    bool isPersistent() const;
+    bool isMagma() const;
 };
 
 class EPEnginePersistentTest : public EPEngineParamTest {};

@@ -26,6 +26,9 @@
 #include "item.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/magma-kvstore.h"
+#endif
 #include "kvstore/persistence_callback.h"
 #include "kvstore/rollback_callback.h"
 #include "range_scans/range_scan_callbacks.h"
@@ -2779,4 +2782,16 @@ cb::engine_errc EPBucket::prepareForResume() {
 
 bool EPBucket::disconnectReplicationAtOOM() const {
     return false;
+}
+
+void EPBucket::setStoreCheckpointing(Vbid vbid, bool value) {
+#ifdef EP_USE_MAGMA
+    auto* store = dynamic_cast<MagmaKVStore*>(getRWUnderlying(vbid));
+    if (!store) {
+        throw std::logic_error(
+                "EPBucket::setStoreCheckpointing: Not supported for backend:" +
+                engine.getConfiguration().getBackend());
+    }
+    store->setFusionCheckpointing(vbid, value);
+#endif
 }
