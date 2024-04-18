@@ -89,8 +89,8 @@ static void handle_get_pools(struct evhttp_request* req) {
     evhttp_send_reply(req, HTTP_OK, "OK", buf.get());
 }
 
-static const std::unordered_map<std::string, std::string> decode_encoded_string(
-        const std::string& string) {
+[[nodiscard]] static std::unordered_map<std::string, std::string>
+decode_encoded_string(const std::string& string) {
     std::unordered_map<std::string, std::string> vals;
     for (const auto& str_pair : split_string(string, "&")) {
         auto pair = split_string(str_pair, "=", 1);

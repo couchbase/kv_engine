@@ -1208,7 +1208,7 @@ void PassiveStream::notifyStreamReady() {
     }
 }
 
-const std::string PassiveStream::createStreamReqValue() const {
+std::string PassiveStream::createStreamReqValue() const {
     nlohmann::json stream_req_json;
     std::ostringstream ostr;
     ostr << std::hex << static_cast<uint64_t>(vb_manifest_uid);

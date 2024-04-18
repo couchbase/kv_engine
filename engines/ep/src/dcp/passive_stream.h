@@ -310,7 +310,7 @@ protected:
      */
     void notifyStreamReady();
 
-    const std::string createStreamReqValue() const;
+    [[nodiscard]] std::string createStreamReqValue() const;
 
     /**
      * RAII class. At dtor the logic triggers post-processMessage steps.

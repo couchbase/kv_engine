@@ -176,7 +176,7 @@ public:
                            size_t byteLimit,
                            cb::engine_errc status);
 
-    const std::vector<std::string> getUserStrings() const {
+    [[nodiscard]] std::vector<std::string> getUserStrings() const {
         return {"user-alan", "useralan", "user.claire", "user::zoe", "users"};
     }
 
@@ -184,7 +184,7 @@ public:
      * @return a set of collection aware user-prefixed keys, all in the
      *         collection that the tests will scan
      */
-    const std::unordered_set<StoredDocKey> getUserKeys() const {
+    [[nodiscard]] std::unordered_set<StoredDocKey> getUserKeys() const {
         // Create a number of user prefixed collections and place them in the
         // collection that we will scan.
         std::unordered_set<StoredDocKey> keys;
@@ -199,7 +199,7 @@ public:
      * the test runs. Tests can then scan for these using various start/end
      * patterns
      */
-    const std::vector<StoredDocKey> generateTestKeys() {
+    [[nodiscard]] std::vector<StoredDocKey> generateTestKeys() {
         std::vector<StoredDocKey> keys;
 
         for (const auto& k : getUserKeys()) {

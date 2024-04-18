@@ -890,7 +890,7 @@ void TestappTest::stop_memcached_server() {
 
 static bool dump_socket_traffic = getenv("TESTAPP_PACKET_DUMP") != nullptr;
 
-static const std::string phase_get_errno() {
+[[nodiscard]] static std::string phase_get_errno() {
     return cb_strerror();
 }
 
