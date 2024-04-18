@@ -147,13 +147,8 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
     CollectionsManifest cm(CollectionEntry::meat);
     setCollections(cookie, cm);
 
-    EXPECT_EQ(0, vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
-    EXPECT_EQ(0, vb->getManifest().lock(CollectionID::Default).getDiskSize());
     EXPECT_EQ(1,
               vb->getManifest().lock().getDefaultCollectionMaxVisibleSeqno());
-
-    // Scope dataSize is also updated for persistent buckets
-    EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
 
     // Trigger a flush to disk. Flushes the meat create event and 1 item
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -165,8 +160,6 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
                   vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
         EXPECT_NE(0,
                   vb->getManifest().lock(CollectionID::Default).getDiskSize());
-        // Scope dataSize is also updated for persistent buckets
-        EXPECT_NE(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
         EXPECT_EQ(
                 1,
                 vb->getManifest().lock().getDefaultCollectionMaxVisibleSeqno());
@@ -175,8 +168,6 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
                   vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
         EXPECT_EQ(0,
                   vb->getManifest().lock(CollectionID::Default).getDiskSize());
-        // Scope dataSize is also updated for persistent buckets
-        EXPECT_EQ(0, vb->getManifest().lock().getDataSize(ScopeID::Default));
     }
 
     // System event not counted
@@ -1035,7 +1026,6 @@ TEST_F(CollectionsWarmupTest, warmup) {
     CollectionsManifest cm;
     uint32_t uid = 0xface2;
     cm.setUid(uid);
-    size_t scopeDataSize = 0;
     {
         auto vb = store->getVBucket(vbid);
 
@@ -1080,8 +1070,6 @@ TEST_F(CollectionsWarmupTest, warmup) {
         EXPECT_EQ(3,
                   store->getVBucket(vbid)->lockCollections().getHighSeqno(
                           CollectionEntry::fruit));
-        scopeDataSize = store->getVBucket(vbid)->lockCollections().getDataSize(
-                ScopeID::Default);
     } // VBucketPtr scope ends
 
     resetEngineAndWarmup();
@@ -1100,10 +1088,6 @@ TEST_F(CollectionsWarmupTest, warmup) {
     EXPECT_EQ(2,
               store->getVBucket(vbid)->lockCollections().getHighSeqno(
                       CollectionEntry::meat));
-
-    EXPECT_EQ(scopeDataSize,
-              store->getVBucket(vbid)->lockCollections().getDataSize(
-                      ScopeID::Default));
 
     {
         Item item(StoredDocKey{"meat:beef", CollectionEntry::meat},
@@ -4471,40 +4455,6 @@ TEST_P(CollectionsPersistentParameterizedTest, WarmupWithANewUUID_MB_48398) {
     EXPECT_EQ(vbucket_state_active, vb->getState());
     EXPECT_NE(uuid, vb->failovers->getLatestUUID());
     EXPECT_EQ(cm.getUid(), vb->lockCollections().getManifestUid());
-}
-
-TEST_P(CollectionsParameterizedTest, WriteToScopeWithLimit) {
-    CollectionsManifest cm;
-    cm.add(ScopeEntry::shop1, 0); // 0 data limit
-    cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
-    cm.add(ScopeEntry::shop2, 10000); // 10000  data limit
-    cm.add(CollectionEntry::vegetable, ScopeEntry::shop2);
-    auto vb = store->getVBucket(vbid);
-    setCollections(cookie, cm);
-
-    // Cat write to vegetable
-    store_item(vbid, StoredDocKey{"k1", CollectionEntry::vegetable}, "v1");
-
-    // Cannot write to fruit
-    auto item = make_item(
-            vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "value");
-    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
-              store->set(item, cookie));
-    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
-              store->add(item, cookie));
-    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
-              store->replace(item, cookie));
-    item.setCas(1);
-    EXPECT_EQ(cb::engine_errc::scope_size_limit_exceeded,
-              store->setWithMeta(item,
-                                 1,
-                                 nullptr,
-                                 cookie,
-                                 {vbucket_state_active},
-                                 CheckConflicts::Yes,
-                                 false,
-                                 GenerateBySeqno::Yes,
-                                 GenerateCas::No));
 }
 
 TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {

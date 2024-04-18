@@ -45,15 +45,6 @@ static constexpr char const* UidKey = "uid";
 static constexpr char const* MaxTtlKey = "maxTTL";
 static constexpr nlohmann::json::value_t MaxTtlType =
         nlohmann::json::value_t::number_unsigned;
-static constexpr char const* LimitsKey = "limits";
-static constexpr nlohmann::json::value_t LimitsType =
-        nlohmann::json::value_t::object;
-static constexpr char const* KvKey = "kv";
-static constexpr nlohmann::json::value_t KvType =
-        nlohmann::json::value_t::object;
-static constexpr char const* DataSizeKey = "data_size";
-static constexpr nlohmann::json::value_t DataSizeType =
-        nlohmann::json::value_t::number_unsigned;
 static constexpr char const* MeteredKey = "metered";
 static constexpr nlohmann::json::value_t MeteredType =
         nlohmann::json::value_t::boolean;
@@ -292,16 +283,8 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                                           flushUid);
         }
 
-        // Check for limits - only support for data_size
-        auto dataLimit = processLimits(
-                cb::getOptionalJsonObject(scope, LimitsKey, LimitsType),
-                numVbuckets);
-
         this->scopes.emplace(sidValue,
-                             Scope{dataLimit.first,
-                                   dataLimit.second,
-                                   nameValue,
-                                   std::move(scopeCollections)});
+                             Scope{nameValue, std::move(scopeCollections)});
     }
 
     // Now build the collection id to collection-entry map
@@ -317,28 +300,6 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
     } else if (findScope(ScopeID::Default) == this->scopes.end()) {
         throwInvalid("the default scope was not defined");
     }
-}
-
-std::pair<DataLimit, uint64_t> Manifest::processLimits(
-        std::optional<nlohmann::json> limits, size_t numVbuckets) {
-    if (!limits) {
-        return {std::nullopt, 0};
-    }
-    auto kv = cb::getOptionalJsonObject(*limits, KvKey, KvType);
-    if (!kv) {
-        return {std::nullopt, 0};
-    }
-
-    auto dataSize = cb::getOptionalJsonObject(*kv, DataSizeKey, DataSizeType);
-    if (!dataSize) {
-        return {std::nullopt, 0};
-    }
-
-    // The data_limit from the manifest is bucket total data, so divide it down
-    // by how many active vbuckets will exist.
-    Expects(numVbuckets > 0);
-    auto value = dataSize.value().get<uint64_t>();
-    return {value / numVbuckets, value};
 }
 
 Manifest& Manifest::operator=(Manifest&& other) {
@@ -452,13 +413,6 @@ nlohmann::json Manifest::to_json(
         if (!scope[CollectionsKey].empty() || visible) {
             scope[NameKey] = scopeMeta.name;
             scope[UidKey] = fmt::format("{0:x}", uint32_t(sid));
-            if (scopeMeta.dataLimit) {
-                nlohmann::json jsonDataLimit;
-                jsonDataLimit[KvKey][DataSizeKey] =
-                        scopeMeta.dataLimitFromCluster;
-                scope[LimitsKey] = jsonDataLimit;
-            }
-
             manifest[ScopesKey].push_back(scope);
         }
     }
@@ -486,29 +440,13 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
             fbCollections.push_back(newEntry);
         }
         auto collectionVector = builder.CreateVector(fbCollections);
-
-        if (scope.dataLimit) {
-            auto limits = Collections::Persist::CreateScopeLimits(
-                    builder,
-                    true,
-                    scope.dataLimit.value(),
-                    scope.dataLimitFromCluster);
-            auto newEntry = Collections::Persist::CreateScope(
-                    builder,
-                    uint32_t(sid),
-                    builder.CreateString(scope.name),
-                    collectionVector,
-                    limits);
-            fbScopes.push_back(newEntry);
-        } else {
-            auto newEntry = Collections::Persist::CreateScope(
-                    builder,
-                    uint32_t(sid),
-                    builder.CreateString(scope.name),
-                    collectionVector,
-                    0 /* No limits*/);
-            fbScopes.push_back(newEntry);
-        }
+        auto newEntry = Collections::Persist::CreateScope(
+                builder,
+                uint32_t(sid),
+                builder.CreateString(scope.name),
+                collectionVector,
+                0 /* No limits - limit support removed*/);
+        fbScopes.push_back(newEntry);
     }
 
     auto scopeVector = builder.CreateVector(fbScopes);
@@ -561,19 +499,9 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
                     ManifestUid{collection->flushUid()});
         }
 
-        std::optional<size_t> dataSize;
-        uint64_t pristineValue = 0;
-
-        if (scope->limits() && scope->limits()->dataSizeEnabled()) {
-            dataSize = scope->limits()->dataSize();
-            pristineValue = scope->limits()->dataSizeClusterValue();
-        }
-
-        this->scopes.emplace(scope->scopeId(),
-                             Scope{dataSize,
-                                   pristineValue,
-                                   scope->name()->str(),
-                                   std::move(scopeCollections)});
+        this->scopes.emplace(
+                scope->scopeId(),
+                Scope{scope->name()->str(), std::move(scopeCollections)});
     }
 
     // Now build the collection id to collection-entry map
@@ -664,11 +592,6 @@ void Manifest::addScopeStats(KVBucket& bucket,
             scopeC.addStat(Key::scope_collection_count,
                            entry.second.collections.size());
 
-            if (entry.second.dataLimit) {
-                scopeC.addStat(Key::scope_data_limit,
-                               entry.second.dataLimitFromCluster);
-            }
-
             // add each collection name and id
             for (const auto& colEntry : entry.second.collections) {
                 auto collectionC =
@@ -757,14 +680,6 @@ std::optional<ScopeID> Manifest::getScopeID(CollectionID cid) const {
     return {};
 }
 
-DataLimit Manifest::getScopeDataLimit(ScopeID sid) const {
-    auto scopeItr = scopes.find(sid);
-    if (scopeItr == scopes.end()) {
-        return std::nullopt;
-    }
-    return scopeItr->second.dataLimit;
-}
-
 std::optional<Metered> Manifest::isMetered(CollectionID cid) const {
     auto itr = collections.find(cid);
     if (itr != collections.end()) {
@@ -796,9 +711,7 @@ void Manifest::dump() const {
 
 bool Scope::operator==(const Scope& other) const {
     bool equal = name == other.name &&
-                 collections.size() == other.collections.size() &&
-                 dataLimit == other.dataLimit &&
-                 dataLimitFromCluster == other.dataLimitFromCluster;
+                 collections.size() == other.collections.size();
     if (equal) {
         for (const auto& c : collections) {
             equal &= std::find(other.collections.begin(),
@@ -938,7 +851,6 @@ bool Manifest::isEpoch() const {
            !collection->second.maxTtl.has_value() &&
            collection->second.name == DefaultCollectionIdentifier &&
            collection->second.flushUid.load() == 0 &&
-           !scope->second.dataLimit.has_value() &&
            scope->second.name == DefaultScopeIdentifier;
 }
 
@@ -971,12 +883,8 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
 std::string to_string(const Scope& scope) {
     // not descending into the collections vector as caller can choose how to
     // space that out.
-    return fmt::format("name:{}, limit:{{{},{}}}, limitFromCluster:{}, size:{}",
-                       scope.name,
-                       scope.dataLimit.has_value(),
-                       scope.dataLimit.value_or(0),
-                       scope.dataLimitFromCluster,
-                       scope.collections.size());
+    return fmt::format(
+            "name:{}, size:{}", scope.name, scope.collections.size());
 }
 
 std::ostream& operator<<(std::ostream& os, const Scope& scope) {

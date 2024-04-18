@@ -162,8 +162,7 @@ public:
     explicit CollectionsManifest(const CollectionEntry::Entry& entry);
 
     /// Add the scope entry - allows duplicates
-    CollectionsManifest& add(const ScopeEntry::Entry& entry,
-                             std::optional<size_t> dataLimit = {});
+    CollectionsManifest& add(const ScopeEntry::Entry& entry);
 
     /// Add the collection entry to the given scope - allows duplicates
     /// caller specifies the collection maxTTL

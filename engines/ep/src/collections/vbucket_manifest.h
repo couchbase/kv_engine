@@ -408,14 +408,6 @@ public:
     struct ScopeCreation {
         ScopeID sid;
         std::string name;
-        DataLimit dataLimit;
-    };
-
-    // struct for managing scope modification
-    struct ScopeModified {
-        ScopeID sid;
-        ScopeEntry& entry;
-        DataLimit dataLimit;
     };
 
     /**
@@ -427,21 +419,17 @@ public:
         }
         std::vector<ScopeCreation> scopesToCreate;
         std::vector<ScopeID> scopesToDrop;
-        std::vector<ScopeModified> scopesToModify;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
         std::vector<CollectionModification> collectionsToModify;
-        // stores any new value (if needed)
-        std::optional<bool> changeScopeWithDataLimitExists;
 
         const ManifestUid uid{0};
 
         /// @return true if no changes are to be made
         bool none() const {
-            return scopesToCreate.empty() && scopesToModify.empty() &&
-                   scopesToDrop.empty() && collectionsToCreate.empty() &&
-                   collectionsToDrop.empty() && collectionsToModify.empty() &&
-                   !changeScopeWithDataLimitExists;
+            return scopesToCreate.empty() && scopesToDrop.empty() &&
+                   collectionsToCreate.empty() && collectionsToDrop.empty() &&
+                   collectionsToModify.empty();
         }
 
         /// @return true if there are collections/scopes to create or drop
@@ -615,7 +603,6 @@ protected:
      * @param newManUid the uid of the manifest which made the change
      * @param sid ScopeID
      * @param scopeName Name of the added scope
-     * @param dataLimit An optional limit on the data stored in the scope
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
@@ -625,22 +612,7 @@ protected:
                      ManifestUid newManUid,
                      ScopeID sid,
                      std::string_view scopeName,
-                     DataLimit dataLimit,
                      OptionalSeqno optionalSeqno);
-
-    /**
-     * Modiffy a scope in the vbucket.
-     *
-     * @param wHandle The manifest write handle under which this operation is
-     *        currently locked.
-     * @param vb The vbucket to modify the scope in.
-     * @param newManUid the uid of the manifest which made the change
-     * @param modification sid/dataLimit of the modification
-     */
-    void modifyScope(const WriteHandle& wHandle,
-                     ::VBucket& vb,
-                     ManifestUid newManUid,
-                     const ScopeModified& modification);
 
     /**
      * Drop a scope
@@ -747,15 +719,6 @@ protected:
         entry->second.updateDiskSize(delta);
     }
 
-    /**
-     * Update a collection's scope data size
-     *
-     * @param entry iterator from the collection map
-     * @param delta the value (+/-) that is added to the data size
-     */
-    void updateScopeDataSize(const container::const_iterator entry,
-                             ssize_t delta) const;
-
     void setDiskSize(const container::const_iterator entry,
                      size_t newValue) const {
         if (entry == map.end()) {
@@ -768,13 +731,6 @@ protected:
 
     void setDiskSize(CollectionID cid, size_t newValue) const;
 
-    /**
-     * Update the data size of the scope with the +/- delta
-     * @param sid Scope to update
-     * @param delta the value (+/-) that is added to the data size
-     */
-    void updateDataSize(ScopeID sid, ssize_t delta) const;
-
     size_t getDiskSize(const container::const_iterator entry) const {
         if (entry == map.end()) {
             throwException<std::invalid_argument>(__func__,
@@ -783,9 +739,6 @@ protected:
 
         return entry->second.getDiskSize();
     }
-
-    /// @return the data size for the scope
-    size_t getDataSize(ScopeID sid) const;
 
     /**
      * Set the high seqno of the collection entry to the given value. Allowed
@@ -1080,12 +1033,9 @@ protected:
      *
      * @param sid is of the new scope
      * @param name The name of the scope
-     * @param limit The scope's data limit
      * @return The new scope entry
      */
-    ScopeEntry& addNewScopeEntry(ScopeID sid,
-                                 std::string_view name,
-                                 DataLimit limit);
+    ScopeEntry& addNewScopeEntry(ScopeID sid, std::string_view name);
 
     /**
      * Add a scope to the manifest. This will fail if the scope already exists.
@@ -1183,15 +1133,6 @@ protected:
      */
     StatsForFlush getStatsForFlush(CollectionID cid, uint64_t seqno) const;
 
-    /**
-     * Return the status of the data limit if we were to try and write nBytes
-     * to the collection's scope.
-     * @param itr iterator to a collection in the map
-     * @param nBytes size of the data we want to add to the collection
-     * @return status code success if can write otherwise the error
-     */
-    cb::engine_errc getScopeDataLimitStatus(const container::const_iterator itr,
-                                            size_t nBytes) const;
     /**
      * Sets the default collection max-visible to seqno (if the collection
      * exists). This does not just set the value. The seqno passed is the value
@@ -1416,12 +1357,6 @@ protected:
      */
     mutable AtomicMonotonic<uint64_t, IgnorePolicy>
             defaultCollectionMaxLegacyDCPSeqno;
-
-    /**
-     * Flag to help avoid limit checking when there are no limits to check.
-     * This is written with the write lock and only readable via the read lock.
-     */
-    bool scopeWithDataLimitExists{false};
 
     /**
      * Flag value which indicates if dropped collections exist, that includes

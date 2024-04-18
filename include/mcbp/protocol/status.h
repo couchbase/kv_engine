@@ -89,8 +89,6 @@ enum class Status : uint16_t {
     RateLimitedMaxConnections = 0x32,
     /// The tenant exceeded max number of commands
     RateLimitedMaxCommands = 0x33,
-    /// There is too much data in the scope
-    ScopeSizeLimitExceeded = 0x34,
     /// There is too much data in the bucket
     BucketSizeLimitExceeded = 0x35,
     /// Bucket RR% is too low, write to the bucket is rejected

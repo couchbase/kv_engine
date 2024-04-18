@@ -36,19 +36,6 @@ namespace Collections {
 static const size_t MaxScopeOrCollectionNameSize = 251;
 
 struct Scope {
-    /**
-     * Store the dataLimit we will use (which is the clusters value / nVbuckets)
-     * This is so we don't need to re-calculate it everytime we read it.
-     */
-    DataLimit dataLimit;
-
-    /**
-     * Store the 'pristine' value from the cluster manager - currently used so
-     * cbstats can just display the pristine value for scope stats and the
-     * get manifest command.
-     */
-    size_t dataLimitFromCluster{0};
-
     std::string name;
     std::vector<CollectionMetaData> collections;
 
@@ -249,12 +236,6 @@ public:
     std::optional<ScopeID> getScopeID(CollectionID cid) const;
 
     /**
-     * Get the data limit for the scope that is to be used for vbucket limit
-     * This is the value ns_server gave us divided by the number of vbuckets
-     */
-    DataLimit getScopeDataLimit(ScopeID sid) const;
-
-    /**
      * Get the 'metered' state of the collection. If the collection is unknown
      * the returned value is uninitialised.
      */
@@ -331,14 +312,6 @@ private:
     bool isEqualContent(const Manifest& other) const;
 
     /**
-     * Parse the optional limits section of a scope object
-     * @return The value of 'data_size' if found, the number divided by vbuckets
-     *         and the raw value
-     */
-    std::pair<DataLimit, uint64_t> processLimits(
-            std::optional<nlohmann::json> limits, size_t numVbuckets);
-
-    /**
      * Check if the std::string represents a legal collection name.
      * Current validation is to ensure we block creation of _ prefixed
      * collections and only accept $default for $ prefixed names.
@@ -363,8 +336,7 @@ private:
      * collection)
      */
     scopeContainer scopes = {
-            {ScopeID::Default,
-             {NoDataLimit, 0, DefaultScopeName, {CollectionMetaData{}}}}};
+            {ScopeID::Default, {DefaultScopeName, {CollectionMetaData{}}}}};
 
     collectionContainer collections;
     ManifestUid uid{0};

@@ -232,13 +232,6 @@ using IsVisibleFunction =
         std::function<bool(ScopeID, std::optional<CollectionID>, Visibility)>;
 
 /**
- * A data limit - optional
- */
-using DataLimit = std::optional<size_t>;
-
-static const DataLimit NoDataLimit{};
-
-/**
  * A system collection - one which is created by Couchbase for some internal
  * use will use the _ prefix. However the _default collection which is also
  * created by Couchbase is not classed the same.
@@ -366,12 +359,10 @@ class ScopeSharedMetaData;
 class ScopeSharedMetaDataView {
 public:
     ScopeSharedMetaDataView(const ScopeSharedMetaData&);
-    ScopeSharedMetaDataView(std::string_view name, DataLimit dataLimit)
-        : name(name), dataLimit(dataLimit) {
+    ScopeSharedMetaDataView(std::string_view name) : name(name) {
     }
     std::string to_string() const;
     std::string_view name;
-    DataLimit dataLimit;
 };
 
 // The type stored by the Manager SharedMetaDataTable
@@ -389,10 +380,6 @@ public:
 
     // scope name is fixed
     const std::string name;
-
-    // A scope limit can be changed by any thread post creation of the
-    // ScopeSharedMetaData, hence is synchronised
-    folly::Synchronized<DataLimit> dataLimit;
 };
 std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta);
 

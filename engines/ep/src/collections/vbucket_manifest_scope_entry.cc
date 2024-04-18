@@ -14,29 +14,11 @@
 #include <ostream>
 
 bool Collections::VB::ScopeEntry::operator==(const ScopeEntry& other) const {
-    return getName() == other.getName() &&
-           getDataSize() == other.getDataSize() &&
-           getDataLimit() == other.getDataLimit();
-}
-
-bool Collections::VB::ScopeEntry::updateDataLimitIfDifferent(
-        DataLimit newLimit) {
-    return sharedMeta->dataLimit.withWLock([&newLimit](auto& dataLimit) {
-        if (dataLimit != newLimit) {
-            dataLimit = newLimit;
-            return true;
-        }
-        return false;
-    });
+    return getName() == other.getName();
 }
 
 std::ostream& Collections::VB::operator<<(
         std::ostream& os, const Collections::VB::ScopeEntry& scopeEntry) {
-    os << "ScopeEntry:"
-       << " name:" << scopeEntry.getName()
-       << ", dataSize:" << scopeEntry.getDataSize();
-    if (scopeEntry.getDataLimit()) {
-        os << ", dataLimit:" << scopeEntry.getDataLimit().value();
-    }
+    os << "ScopeEntry: name:" << scopeEntry.getName();
     return os;
 }

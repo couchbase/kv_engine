@@ -27,7 +27,6 @@ static const std::string_view manifestJson = R"({"uid" : "1",
                             {"name":"_default", "uid":"0"},
                             {"name":"meat", "uid":"8"}]},
                   {"name":"brewerA", "uid":"8",
-                   "limits": { "kv": {"data_size": 123456}},
                         "collections":[
                             {"name":"beer", "uid":"9"},
                             {"name":"meat", "uid":"a"}]}]})";
@@ -354,17 +353,6 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"Default","uid":"0"}]}]})",
-            // scope data_size wrong type
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
-                          {"name":"s1", "uid":"8",
-                           "limits": { "kv": {"data_size": {}}},
-                           "collections":[]}]})",
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
-                          {"name":"s1", "uid":"8",
-                           "limits": { "kv": {"data_size": "apple"}},
-                           "collections":[]}]})",
             // invalid type for metered
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -509,29 +497,6 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8"}]}]})",
-
-            // Scopes with a data size
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
-                          {"name":"s1", "uid":"8",
-                           "limits": { "kv": {"data_size": 0}},
-                           "collections":[]}]})",
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
-                          {"name":"s1", "uid":"8",
-                           "limits": { "kv": {"data_size": 8000000000}},
-                           "collections":[]}]})",
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
-                          {"name":"s1", "uid":"8",
-                           "limits": { "kv": {"data_size": 18446744073709551615}},
-                           "collections":[]}]})",
-            // Not being super strict with the limits section
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
-                          {"name":"s1", "uid":"8",
-                           "limits": {},
-                           "collections":[]}]})",
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"test0","uid":"8", "metered":true}]}]})",
@@ -1157,13 +1122,6 @@ TEST(ManifestTest, isNotSuccesor) {
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
     Collections::Manifest incoming3{std::string{cm}};
     EXPECT_NE(cb::engine_errc::success, current.isSuccessor(incoming3).code());
-}
-
-TEST(ManifestTest, scopeDataSize) {
-    Collections::Manifest cm(manifestJson);
-    auto scope = cm.findScope(ScopeID{8});
-    ASSERT_NE(scope, cm.endScopes());
-    EXPECT_EQ(123456, scope->second.dataLimitFromCluster);
 }
 
 TEST(ManifestTest, configureHistory) {

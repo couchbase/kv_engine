@@ -33,23 +33,14 @@ CollectionsManifest::CollectionsManifest(const CollectionEntry::Entry& entry)
     add(entry);
 }
 
-CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
-                                              std::optional<size_t> dataLimit) {
+CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry) {
     updateUid();
 
     nlohmann::json jsonEntry;
     jsonEntry["name"] = entry.name;
     jsonEntry["uid"] = entry.uid.to_string(false);
     jsonEntry["collections"] = std::vector<nlohmann::json>();
-
-    if (dataLimit) {
-        nlohmann::json limitObject;
-        limitObject["kv"]["data_size"] = dataLimit.value();
-        jsonEntry["limits"] = limitObject;
-    }
-
     json["scopes"].push_back(jsonEntry);
-
     return *this;
 }
 

@@ -124,9 +124,6 @@ enum class engine_errc {
     /** Opaque in message did not match stream's */
     opaque_no_match = 0x24,
 
-    /// Too much data in the scope
-    scope_size_limit_exceeded = 0x25,
-
     /// RangeScan was cancelled
     range_scan_cancelled = 0x26,
 

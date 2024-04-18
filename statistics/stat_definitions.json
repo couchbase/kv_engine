@@ -4051,14 +4051,6 @@
         "added": "7.0.0"
     },
     {
-        "key": "scope_data_limit",
-        "unit": "none",
-        "cbstat": "data_limit",
-        "description": "The configured data limit for the scope (not used)",
-        "stability": "internal",
-        "added": "7.1.0"
-    },
-    {
         "key": "scope_collection_count",
         "unit": "none",
         "cbstat": "collections",

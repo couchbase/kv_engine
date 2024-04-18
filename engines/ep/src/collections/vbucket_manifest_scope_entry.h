@@ -26,9 +26,8 @@ namespace Collections::VB {
  */
 class ScopeEntry {
 public:
-    ScopeEntry(size_t dataSize,
-               SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta)
-        : dataSize(dataSize), sharedMeta(std::move(sharedMeta)) {
+    ScopeEntry(SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta)
+        : sharedMeta(std::move(sharedMeta)) {
     }
 
     // Mark copy and move as deleted as it simplifies the lifetime of
@@ -43,41 +42,10 @@ public:
         return !(*this == other);
     }
 
-    /// @return the size of the data stored in the scope
-    size_t getDataSize() const {
-        return dataSize;
-    }
-
-    /// Update the size of the data of this scope
-    /// @param delta the delta to apply to the current data size
-    void updateDataSize(ssize_t delta) const {
-        dataSize += delta;
-    }
-
-    /// Set the data size to the given value
-    void setDataSize(size_t value) const {
-        dataSize = value;
-    }
-
     /// @return the name of the scope
     std::string_view getName() const {
         return sharedMeta->name;
     }
-
-    /// @return the optional data limit
-    DataLimit getDataLimit() const {
-        return *sharedMeta->dataLimit.rlock();
-    }
-
-    void setDataLimit(DataLimit newLimit) {
-        *sharedMeta->dataLimit.wlock() = newLimit;
-    }
-
-    /**
-     * Compare newLimit with this->dataLimit and update if different
-     * @return true if a change was made
-     */
-    bool updateDataLimitIfDifferent(DataLimit newLimit);
 
     /**
      * Take the ScopeSharedMetaData from this entry (moves the data) to
@@ -88,11 +56,6 @@ public:
     }
 
 private:
-    // @todo MB-49040: Remove the clamp at zero policy.
-    // This is here for now as warmup will return this to zero and we underflow
-    // if a delete occurs. A later commit fixes warmup and changes this
-    mutable cb::NonNegativeCounter<size_t, cb::ClampAtZeroUnderflowPolicy>
-            dataSize;
     SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta;
 };
 

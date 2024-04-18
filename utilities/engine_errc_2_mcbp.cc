@@ -78,8 +78,6 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::DcpStreamNotFound;
     case engine_errc::opaque_no_match:
         return Status::OpaqueNoMatch;
-    case engine_errc::scope_size_limit_exceeded:
-        return Status::ScopeSizeLimitExceeded;
     case engine_errc::range_scan_cancelled:
         return Status::RangeScanCancelled;
     case engine_errc::range_scan_more:

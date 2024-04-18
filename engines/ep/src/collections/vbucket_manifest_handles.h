@@ -237,12 +237,6 @@ public:
         return manifest->getStatsForFlush(collection, seqno);
     }
 
-    /// @return data size of the scope, throw for unknown scope
-    size_t getDataSize(ScopeID sid) const;
-
-    /// @return the data limit for the scope, throw for unknown scope
-    DataLimit getDataLimit(ScopeID sid) const;
-
     /// @return the metering state of the collection, throw for unknown cid
     Metered isMetered(CollectionID cid) const;
 
@@ -346,31 +340,12 @@ public:
     /**
      * handle 'write-status' of the collection associated with this handle.
      * If the collection doesn't exist - invoke setUnknownCollectionErrorContext
-     * If the collection's scope doesn't have space (data-limit)
      * @param engine The engine so we can call setUnknownCollectionErrorContext
      * @param cookie Cookie for the command
-     * @param nBytes size of the write
      * @return the status - success and the write can go ahead
      */
     cb::engine_errc handleWriteStatus(EventuallyPersistentEngine& engine,
-                                      CookieIface* cookie,
-                                      size_t nBytes);
-
-    /**
-     * Special variant for use by setWithMeta which can be invoked from external
-     * connection against active vbuckets or by our DcpConsumer for replicas.
-     * For replicas we do not check the limit
-     *
-     * @param engine The engine so we can call setUnknownCollectionErrorContext
-     * @param cookie Cookie for the command
-     * @param nBytes size of the write
-     * @param stat the state of the target vbucket
-     * @return the status - success and the write can go ahead
-     */
-    cb::engine_errc handleWriteStatus(EventuallyPersistentEngine& engine,
-                                      CookieIface* cookie,
-                                      vbucket_state_t state,
-                                      size_t nBytes);
+                                      CookieIface* cookie);
 
     /**
      * @return the key used in construction
@@ -626,15 +601,6 @@ public:
         manifest->updateDiskSize(itr, delta);
     }
 
-    /**
-     * Update the data size of the collection's scope. The collection being
-     * the one used to consruct the StatsReadHandle
-     * @param delta the value (+/-) to add to the current data size
-     */
-    void updateScopeDataSize(ssize_t delta) const {
-        manifest->updateScopeDataSize(itr, delta);
-    }
-
     void setDiskSize(size_t newValue) const {
         manifest->setDiskSize(itr, newValue);
     }
@@ -819,7 +785,6 @@ public:
                              manifestUid,
                              sid,
                              scopeName,
-                             NoDataLimit, // no data limit for replicas
                              OptionalSeqno{startSeqno});
     }
 
@@ -891,10 +856,6 @@ public:
 
     void setDiskSize(CollectionID cid, size_t size) {
         manifest.setDiskSize(cid, size);
-    }
-
-    void updateDataSize(ScopeID sid, ssize_t delta) {
-        manifest.updateDataSize(sid, delta);
     }
 
     CanDeduplicate getCanDeduplicate(CollectionID cid) const;

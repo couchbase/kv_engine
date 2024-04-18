@@ -42,7 +42,6 @@ bool is_known(Status status) {
     case Status::RateLimitedNetworkEgress:
     case Status::RateLimitedMaxConnections:
     case Status::RateLimitedMaxCommands:
-    case Status::ScopeSizeLimitExceeded:
     case Status::BucketSizeLimitExceeded:
     case Status::BucketResidentRatioTooLow:
     case Status::BucketDataSizeTooBig:
@@ -139,7 +138,6 @@ bool isStatusSuccess(Status status) {
     case Status::RateLimitedNetworkEgress:
     case Status::RateLimitedMaxConnections:
     case Status::RateLimitedMaxCommands:
-    case Status::ScopeSizeLimitExceeded:
     case Status::BucketSizeLimitExceeded:
     case Status::BucketResidentRatioTooLow:
     case Status::BucketDataSizeTooBig:
@@ -283,8 +281,6 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "RateLimitedMaxConnections";
         case Status::RateLimitedMaxCommands:
             return "RateLimitedMaxCommands";
-        case Status::ScopeSizeLimitExceeded:
-            return "ScopeSizeLimitExceeded";
         case Status::BucketSizeLimitExceeded:
             return "BucketSizeLimitExceeded";
         case Status::BucketResidentRatioTooLow:
@@ -448,8 +444,6 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Rate limit: Max Connections";
         case Status::RateLimitedMaxCommands:
             return "Rate limit: Max Commands";
-        case Status::ScopeSizeLimitExceeded:
-            return "Too much data in Scope";
         case Status::BucketSizeLimitExceeded:
             return "Too much data in Bucket";
         case Status::BucketResidentRatioTooLow:

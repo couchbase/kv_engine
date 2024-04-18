@@ -1816,7 +1816,6 @@ bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     case cb::engine_errc::sync_write_pending:
     case cb::engine_errc::stream_not_found:
     case cb::engine_errc::opaque_no_match:
-    case cb::engine_errc::scope_size_limit_exceeded:
     case cb::engine_errc::vbuuid_not_equal:
     case cb::engine_errc::cancelled:
     case cb::engine_errc::bucket_paused:

@@ -743,9 +743,8 @@ cb::engine_errc KVBucket::set(Item& itm,
     cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
-        auto status =
-                cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
-        if (status != cb::engine_errc::success) {
+        if (auto status = cHandle.handleWriteStatus(engine, cookie);
+            status != cb::engine_errc::success) {
             return status;
         } // now hold collections read access for the duration of the set
 
@@ -786,9 +785,8 @@ cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
     cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
-        auto status =
-                cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
-        if (status != cb::engine_errc::success) {
+        if (auto status = cHandle.handleWriteStatus(engine, cookie);
+            status != cb::engine_errc::success) {
             return status;
         } // now hold collections read access for the duration of the add
 
@@ -825,9 +823,8 @@ cb::engine_errc KVBucket::replace(Item& itm,
     cb::engine_errc result;
     { // collections read-lock scope
         auto cHandle = vb->lockCollections(itm.getKey());
-        auto status =
-                cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
-        if (status != cb::engine_errc::success) {
+        if (auto status = cHandle.handleWriteStatus(engine, cookie);
+            status != cb::engine_errc::success) {
             return status;
         } // now hold collections read access for the duration of the replace
 
@@ -1774,8 +1771,7 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     {
         // hold collections read lock for duration of set
         auto cHandle = vb->lockCollections(itm.getKey());
-        rv = cHandle.handleWriteStatus(
-                engine, cookie, vb->getState(), itm.getNBytes());
+        rv = cHandle.handleWriteStatus(engine, cookie);
 
         if (rv == cb::engine_errc::success) {
             cHandle.processExpiryTime(itm, getMaxTtl());
@@ -1827,7 +1823,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
     { // hold collections read lock for duration of prepare
 
         auto cHandle = vb->lockCollections(itm.getKey());
-        rv = cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
+        rv = cHandle.handleWriteStatus(engine, cookie);
         if (rv == cb::engine_errc::success) {
             cHandle.processExpiryTime(itm, getMaxTtl());
             rv = vb->prepare(rlh,

@@ -17,14 +17,6 @@
 
 namespace Collections::VB {
 
-size_t ReadHandle::getDataSize(ScopeID sid) const {
-    return manifest->getDataSize(sid);
-}
-
-DataLimit ReadHandle::getDataLimit(ScopeID sid) const {
-    return manifest->getScopeEntry(sid).getDataLimit();
-}
-
 Metered ReadHandle::isMetered(CollectionID cid) const {
     return manifest->getManifestEntry(cid).isMetered();
 }
@@ -48,34 +40,12 @@ void ReadHandle::dump() const {
 }
 
 cb::engine_errc CachingReadHandle::handleWriteStatus(
-        EventuallyPersistentEngine& engine,
-        CookieIface* cookie,
-        size_t nBytes) {
+        EventuallyPersistentEngine& engine, CookieIface* cookie) {
     // Collection not found
     if (!valid()) {
         engine.setUnknownCollectionErrorContext(*cookie, getManifestUid());
         return cb::engine_errc::unknown_collection;
     }
-
-    return manifest->getScopeDataLimitStatus(itr, nBytes);
-}
-
-cb::engine_errc CachingReadHandle::handleWriteStatus(
-        EventuallyPersistentEngine& engine,
-        CookieIface* cookie,
-        vbucket_state_t state,
-
-        size_t nBytes) {
-    // Collection not found
-    if (!valid()) {
-        engine.setUnknownCollectionErrorContext(*cookie, getManifestUid());
-        return cb::engine_errc::unknown_collection;
-    }
-
-    if (state == vbucket_state_active) {
-        return manifest->getScopeDataLimitStatus(itr, nBytes);
-    }
-
     return cb::engine_errc::success;
 }
 

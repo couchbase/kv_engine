@@ -208,15 +208,6 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
     // sizes as they may differ between KVStores. We'll load the disk sizes of
     // each collection now...
 
-    // First each scope's dataSize must begin at zero
-    {
-        auto secondary = secondaryManifest.lock();
-        for (auto itr = secondary.beginScopes(); itr != secondary.endScopes();
-             ++itr) {
-            itr->second.setDataSize(0);
-        }
-    } // end locking scope
-
     // Check if vbucket state is on disk, if not it will cause secondary
     // KVStore::getCollectionStats() to log a warning message for each
     // collection in 'collections. This can happen in the situation where this
@@ -239,7 +230,6 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
         if (status == GetCollectionStatsStatus::Success) {
             auto statsHandle = secondaryManifest.lock(entry.first);
             statsHandle.setDiskSize(stats.diskSize);
-            statsHandle.updateScopeDataSize(stats.diskSize);
         }
     }
 

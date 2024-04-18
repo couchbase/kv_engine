@@ -52,17 +52,6 @@ public:
         return exists_UNLOCKED(identifier);
     }
 
-    Collections::DataLimit getDataLimit(ScopeID sid) const {
-        std::shared_lock<mutex_type> readLock(rwlock);
-        auto itr = scopes.find(sid);
-        if (itr == scopes.end()) {
-            throw std::invalid_argument(
-                    "MockVBManifest: getDataLimit unknown sid:" +
-                    sid.to_string());
-        }
-        return itr->second.getDataLimit();
-    }
-
     size_t size() const {
         std::shared_lock<mutex_type> readLock(rwlock);
         return map.size();
@@ -135,11 +124,6 @@ public:
     Collections::VB::StatsForFlush public_getStatsForFlush(
             CollectionID collection, uint64_t seqno) const {
         return getStatsForFlush(collection, seqno);
-    }
-
-    bool doesScopeWithDataLimitExist() const {
-        std::shared_lock<mutex_type> readLock(rwlock);
-        return scopeWithDataLimitExists;
     }
 
     CanDeduplicate public_getCanDeduplicate(CollectionID id) const {
@@ -1231,111 +1215,6 @@ TEST_P(VBucketManifestTest, isLogicallyDeleted) {
             manifest.active.lock().isLogicallyDeleted(item->getKey(), sno));
 }
 
-TEST_P(VBucketManifestTest, add_scope_with_limit) {
-    // update will compare the VB::manifests, the ScopeEntry has compare
-    // operator which checks the active vs replica. Even though the replica
-    // doesn't receive the limit via replicaCreateScope path it is sharing
-    // metadata with the active via the shared meta table, so will have a
-    // data limit in this case
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1, 0)));
-    const size_t limit = 800;
-    EXPECT_TRUE(manifest.update(cm.add(
-            ScopeEntry::shop2, limit * manifest.config.getMaxVbuckets())));
-    EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    // replica won't know until it is made active
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-
-    // To be sure that the datalimit was compared check it explicitly on one
-    // manifest
-    auto replica = manifest.getReplicaManifest();
-
-    EXPECT_TRUE(replica.exists(ScopeEntry::shop1));
-
-    // Even though the replica doesn't receive the limit via replicaCreateScope
-    // it is sharing metadata with the active via the shared meta table
-    auto limit1 = replica.getDataLimit(ScopeEntry::shop1);
-    auto limit2 = replica.getDataLimit(ScopeEntry::shop2);
-    EXPECT_EQ(0, limit1);
-    EXPECT_EQ(limit, limit2);
-}
-
-TEST_P(VBucketManifestTest, scope_with_limit_exists) {
-    EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    cm.add(ScopeEntry::shop1, 0);
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
-
-    // Active will know about the limit, but replica doesn't
-    EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-    cm.remove(ScopeEntry::shop1);
-    EXPECT_TRUE(manifest.update(cm));
-    EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-    cm.remove(ScopeEntry::shop2);
-    EXPECT_TRUE(manifest.update(cm));
-    EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-}
-
-TEST_P(VBucketManifestTest, scope_limits_corrected_by_update_drop_one_scope) {
-    EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
-    EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-
-    // Reset the replica's checkpoint seqno range so we can write to it
-    manifest.vbR->checkpointManager->createNewCheckpoint();
-    // Now drive the replica as if it was now active - i.e call update, this
-    // happens when a replica becomes active and is what would correct the
-    // limits
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-    EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
-              manifest.getReplicaManifest().update(
-                      folly::SharedMutex::ReadHolder(
-                              manifest.vbR->getStateLock()),
-                      *manifest.vbR,
-                      Collections::Manifest{std::string{cm}}));
-    EXPECT_TRUE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-    EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
-              manifest.getReplicaManifest().update(
-                      folly::SharedMutex::ReadHolder(
-                              manifest.vbR->getStateLock()),
-                      *manifest.vbR,
-                      Collections::Manifest{
-                              std::string{cm.remove(ScopeEntry::shop2)}}));
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-}
-
-TEST_P(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
-    EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
-    EXPECT_TRUE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
-
-    // Reset the replica's checkpoint seqno range so we can write to it
-    manifest.vbR->checkpointManager->createNewCheckpoint();
-    // Now drive the replica as if it was now active - i.e call update, this
-    // happens when a replica becomes active and is what would correct the
-    // limits
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-    EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
-              manifest.getReplicaManifest().update(
-                      folly::SharedMutex::ReadHolder(
-                              manifest.vbR->getStateLock()),
-                      *manifest.vbR,
-                      Collections::Manifest{
-                              std::string{cm.remove(ScopeEntry::shop1)}}));
-    EXPECT_TRUE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-    EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
-              manifest.getReplicaManifest().update(
-                      folly::SharedMutex::ReadHolder(
-                              manifest.vbR->getStateLock()),
-                      *manifest.vbR,
-                      Collections::Manifest{
-                              std::string{cm.remove(ScopeEntry::shop2)}}));
-    EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
-}
-
 TEST_P(VBucketManifestTest, add_with_history) {
     // Test requires FlatBuffers event to pass most up-to-date event data.
     if (!GetParam()) {
@@ -1343,7 +1222,7 @@ TEST_P(VBucketManifestTest, add_with_history) {
     }
 
     // Add a collection with history=true and check the status on active/replica
-    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1, {/*no data limit*/})
+    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)
                                         .add(CollectionEntry::fruit,
                                              cb::NoExpiryLimit,
                                              true,

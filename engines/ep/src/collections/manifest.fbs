@@ -29,6 +29,7 @@ table Collection {
     flushUid:ulong = 0;
 }
 
+// not used
 table ScopeLimits {
     dataSizeEnabled:bool = false;
     dataSize:uint64 = 0;
@@ -39,7 +40,7 @@ table Scope {
     scopeId:uint;
     name:string;
     collections:[Collection];
-    limits:ScopeLimits;
+    limits:ScopeLimits; // not used
 }
 
 table Manifest {

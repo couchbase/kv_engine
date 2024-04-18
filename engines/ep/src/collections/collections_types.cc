@@ -173,25 +173,15 @@ ScopeSharedMetaDataView::ScopeSharedMetaDataView(
 }
 
 std::string ScopeSharedMetaDataView::to_string() const {
-    std::string rv = "Scope: name:" + std::string(name);
-
-    if (dataLimit) {
-        rv += ", limit:" + std::to_string(dataLimit.value());
-    }
-    return rv;
+    return "Scope: name:" + std::string(name);
 }
 
 ScopeSharedMetaData::ScopeSharedMetaData(const ScopeSharedMetaDataView& view)
-    : name(view.name), dataLimit(view.dataLimit) {
+    : name(view.name) {
 }
 
 bool ScopeSharedMetaData::operator==(
         const ScopeSharedMetaDataView& view) const {
-    // Note: deliberately not including the dataLimit in the compare. Not going
-    // to consider the dataLimit a primary part of the scope identity. This
-    // means we can create a scope on a replica (which isn't told the limit) and
-    // it will share the metadata of any scope created by an active (which has
-    // the data limit).
     return name == view.name;
 }
 
@@ -201,12 +191,6 @@ bool ScopeSharedMetaData::operator==(const ScopeSharedMetaData& meta) const {
 
 std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
     os << " name:" << meta.name;
-
-    meta.dataLimit.withRLock([&os](auto& dataLimit) {
-        if (dataLimit) {
-            os << ",dataLimit:" << dataLimit.value();
-        }
-    });
     return os;
 }
 

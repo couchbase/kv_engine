@@ -35,7 +35,7 @@ namespace Collections::VB {
 
 Manifest::Manifest(std::shared_ptr<Manager> manager)
     : manager(std::move(manager)) {
-    addNewScopeEntry(ScopeID::Default, DefaultScopeIdentifier, DataLimit{});
+    addNewScopeEntry(ScopeID::Default, DefaultScopeIdentifier);
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                           DefaultCollectionIdentifier,
                           cb::NoExpiryLimit,
@@ -52,9 +52,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
       dropInProgress(data.droppedCollectionsExist) {
     auto bucketManifest = this->manager->getCurrentManifest().rlock();
     for (const auto& scope : data.scopes) {
-        addNewScopeEntry(scope.metaData.sid,
-                         scope.metaData.name,
-                         bucketManifest->getScopeDataLimit(scope.metaData.sid));
+        addNewScopeEntry(scope.metaData.sid, scope.metaData.name);
     }
 
     for (const auto& e : data.collections) {
@@ -114,11 +112,9 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
     }
 
     for (auto& [sid, entry] : other.scopes) {
-        ScopeSharedMetaDataView meta{entry.getName(), entry.getDataLimit()};
+        ScopeSharedMetaDataView meta{entry.getName()};
         auto [itr, inserted] = scopes.try_emplace(
-                sid,
-                entry.getDataSize(),
-                other.manager->createOrReferenceMeta(sid, meta));
+                sid, other.manager->createOrReferenceMeta(sid, meta));
         Expects(inserted);
     }
 
@@ -262,7 +258,6 @@ std::optional<Manifest::ScopeCreation> Manifest::applyScopeCreates(
                     manifestUid,
                     creation.sid,
                     creation.name,
-                    creation.dataLimit,
                     OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -316,19 +311,6 @@ ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
                     changes.scopesToDrop.size(),
                     changes.collectionsToDrop.size());
             return ManifestUpdateStatus::EqualUidWithDifferences;
-        } else if (changes.scopesToModify.empty() &&
-                   !changes.changeScopeWithDataLimitExists) {
-            // else only a scope modification or change of
-            // scopeWithDataLimitExists is allowed when the uid is equal
-            EP_LOG_CRITICAL(
-                    "Manifest::update {} scopesToModify:{} "
-                    "changeScopeWithDataLimitExists:{} {}{}",
-                    vb.getId(),
-                    changes.scopesToModify.empty(),
-                    changes.changeScopeWithDataLimitExists.has_value(),
-                    *this,
-                    manifest);
-            Expects(false);
         }
     }
 
@@ -349,7 +331,6 @@ void Manifest::applyFlusherStats(
         collection.updateItemCount(flushStats.getItemCount());
         collection.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());
         collection.updateDiskSize(flushStats.getDiskSize());
-        collection.updateScopeDataSize(flushStats.getDiskSize());
     }
 }
 
@@ -387,17 +368,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
         return;
     }
 
-    if (changeset.changeScopeWithDataLimitExists) {
-        EP_LOG_INFO(
-                "Manifest::completeUpdate {} toggling scopeWithDataLimitExists "
-                "{} -> {}",
-                vb.getId(),
-                scopeWithDataLimitExists,
-                changeset.changeScopeWithDataLimitExists.value());
-        scopeWithDataLimitExists =
-                changeset.changeScopeWithDataLimitExists.value();
-    }
-
     auto finalDeletion =
             applyDrops(vbStateLock, wHandle, vb, changeset.collectionsToDrop);
     if (finalDeletion) {
@@ -421,7 +391,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                     changeset.getUidForChange(manifestUid),
                     finalScopeCreate.value().sid,
                     finalScopeCreate.value().name,
-                    finalScopeCreate.value().dataLimit,
                     OptionalSeqno{/*no-seqno*/});
     }
 
@@ -469,15 +438,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                   *finalScopeDrop,
                   std::nullopt,
                   OptionalSeqno{/*no-seqno*/});
-    }
-
-    // The scope and collection modifications are process last. These generate
-    // no system-events and only result in this VB::Manifest being corrected
-    // the values from the Manifest for a subset of the scope/collection
-    // metadata
-    for (const auto& modified : changeset.scopesToModify) {
-        // Here the changeset.uid is used as it's for logging
-        modifyScope(wHandle, vb, changeset.uid, modified);
     }
 }
 
@@ -617,17 +577,15 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
 }
 
 ScopeEntry& Manifest::addNewScopeEntry(ScopeID sid,
-                                       std::string_view scopeName,
-                                       DataLimit dataLimit) {
-    return addNewScopeEntry(
-            sid,
-            manager->createOrReferenceMeta(
-                    sid, ScopeSharedMetaDataView{scopeName, dataLimit}));
+                                       std::string_view scopeName) {
+    return addNewScopeEntry(sid,
+                            manager->createOrReferenceMeta(
+                                    sid, ScopeSharedMetaDataView{scopeName}));
 }
 
 ScopeEntry& Manifest::addNewScopeEntry(
         ScopeID sid, SingleThreadedRCPtr<ScopeSharedMetaData> sharedMeta) {
-    auto [itr, emplaced] = scopes.try_emplace(sid, 0, sharedMeta);
+    auto [itr, emplaced] = scopes.try_emplace(sid, sharedMeta);
     if (!emplaced) {
         throwException<std::logic_error>(
                 __func__, "scope already exists, scope:" + sid.to_string());
@@ -791,20 +749,8 @@ void Manifest::createScope(VBucketStateLockRef vbStateLock,
                            ManifestUid newManUid,
                            ScopeID sid,
                            std::string_view scopeName,
-                           DataLimit dataLimit,
                            OptionalSeqno optionalSeqno) {
-    auto& entry = addNewScopeEntry(sid, scopeName, dataLimit);
-
-    bool dataLimitModified{false};
-    if (!optionalSeqno) {
-        // This case may correct the data limit of this scope, why? The active
-        // vbucket is creating a scope yet it is referencing name and dataLimit
-        // from the SharedMetaDataTable. If the SharedMetaDataTable entry was
-        // first created by a replicaCreateScope (where dataLimit is not known)
-        // then the first active createScope will need to correct the value in
-        // the SharedMetaDataTable.
-        dataLimitModified = entry.updateDataLimitIfDifferent(dataLimit);
-    }
+    addNewScopeEntry(sid, scopeName);
 
     // record the uid of the manifest which added the scope
     updateUid(newManUid, optionalSeqno.has_value());
@@ -825,36 +771,13 @@ void Manifest::createScope(VBucketStateLockRef vbStateLock,
     auto seqno = vb.addSystemEventItem(
             std::move(item), optionalSeqno, {}, wHandle, {});
 
-    EP_LOG_DEBUG(
-            "{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}{}{}",
-            vb.getId(),
-            sid,
-            scopeName,
-            seqno,
-            manifestUid,
-            entry.getDataLimit()
-                    ? fmt::format(", limit:{}", entry.getDataLimit().value())
-                    : "",
-            dataLimitModified ? ", mod" : "",
-            optionalSeqno.has_value() ? ", replica" : "");
-}
-
-void Manifest::modifyScope(const WriteHandle& wHandle,
-                           ::VBucket& vb,
-                           ManifestUid newManUid,
-                           const ScopeModified& modification) {
-    // Update under write lock
-    modification.entry.setDataLimit(modification.dataLimit);
-
-    // Keep this logging - it's new and should be rare
-    EP_LOG_INFO(
-            "{} modifying scope:id:{} manifest:{:#x}{}",
-            vb.getId(),
-            modification.sid,
-            manifestUid,
-            modification.dataLimit.has_value()
-                    ? fmt::format(" limit:{}", modification.dataLimit.value())
-                    : "");
+    EP_LOG_DEBUG("{} create scope:id:{} name:{}, seq:{}, manifest:{:#x}{}",
+                 vb.getId(),
+                 sid,
+                 scopeName,
+                 seqno,
+                 manifestUid,
+                 optionalSeqno.has_value() ? ", replica" : "");
 }
 
 void Manifest::dropScope(VBucketStateLockRef vbStateLock,
@@ -925,8 +848,6 @@ Manifest::ManifestChanges Manifest::processManifest(
         const Collections::Manifest& manifest) {
     ManifestChanges rv{manifest.getUid()};
 
-    bool scopeWithDataLimitExists{false};
-
     // First iterate through the collections of this VB::Manifest
     for (const auto& [cid, entry] : map) {
         // Look-up the collection inside the new manifest
@@ -965,20 +886,8 @@ Manifest::ManifestChanges Manifest::processManifest(
         auto myScope = scopes.find(scopeItr->first);
         if (myScope == scopes.end()) {
             // Scope is not mapped
-            rv.scopesToCreate.push_back({scopeItr->first,
-                                         scopeItr->second.name,
-                                         scopeItr->second.dataLimit});
-        } else {
-            if (myScope->second.getDataLimit() != scopeItr->second.dataLimit) {
-                // save the scope being modified and the new dataLimit
-                rv.scopesToModify.push_back({myScope->first,
-                                             myScope->second,
-                                             scopeItr->second.dataLimit});
-            }
-        }
-
-        if (scopeItr->second.dataLimit) {
-            scopeWithDataLimitExists = true;
+            rv.scopesToCreate.push_back(
+                    {scopeItr->first, scopeItr->second.name});
         }
 
         for (const auto& m : scopeItr->second.collections) {
@@ -993,10 +902,6 @@ Manifest::ManifestChanges Manifest::processManifest(
                                                   m.flushUid});
             }
         }
-    }
-
-    if (this->scopeWithDataLimitExists != scopeWithDataLimitExists) {
-        rv.changeScopeWithDataLimitExists = scopeWithDataLimitExists;
     }
 
     return rv;
@@ -1524,38 +1429,6 @@ void Manifest::setDiskSize(CollectionID collection, size_t size) const {
     itr->second.setDiskSize(size);
 }
 
-void Manifest::updateDataSize(ScopeID sid, ssize_t delta) const {
-    auto itr = scopes.find(sid);
-    if (itr == scopes.end()) {
-        throwException<std::invalid_argument>(
-                __func__, "failed find of scope:" + sid.to_string());
-    }
-    itr->second.updateDataSize(delta);
-}
-
-size_t Manifest::getDataSize(ScopeID sid) const {
-    auto scope = scopes.find(sid);
-    if (scope == scopes.end()) {
-        throwException<std::logic_error>(
-                __func__, "scope not found for " + sid.to_string());
-    }
-    return scope->second.getDataSize();
-}
-
-void Manifest::updateScopeDataSize(const container::const_iterator entry,
-                                   ssize_t delta) const {
-    // Don't continue with a zero update, avoids scope map lookup
-    if (delta == 0) {
-        return;
-    }
-
-    if (entry == map.end()) {
-        throwException<std::invalid_argument>(__func__, "iterator is invalid");
-    }
-
-    updateDataSize(entry->second.getScopeID(), delta);
-}
-
 uint64_t Manifest::getPersistedHighSeqno(CollectionID collection) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
@@ -1659,11 +1532,6 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
     fmt::format_to(std::back_inserter(key), "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
-    fmt::format_to(
-            std::back_inserter(key), "vb_{}:scope_data_limit", vbid.get());
-    collector.addStat(std::string_view(key.data(), key.size()),
-                      scopeWithDataLimitExists);
-
     for (const auto& [sid, value] : scopes) {
         std::optional<cb::rbac::Privilege> extraPriv;
         if (isSystemScope(value.getName(), sid)) {
@@ -1680,21 +1548,6 @@ bool Manifest::addScopeStats(Vbid vbid, const StatCollector& collector) const {
                 std::back_inserter(key), "vb_{}:{}:name:", vbid.get(), sid);
         collector.addStat(std::string_view(key.data(), key.size()),
                           value.getName());
-        key.resize(0);
-        fmt::format_to(
-                std::back_inserter(key), "vb_{}:{}:data_size", vbid.get(), sid);
-        collector.addStat(std::string_view(key.data(), key.size()),
-                          value.getDataSize());
-
-        if (value.getDataLimit()) {
-            key.resize(0);
-            fmt::format_to(std::back_inserter(key),
-                           "vb_{}:{}:data_limit",
-                           vbid.get(),
-                           sid);
-            collector.addStat(std::string_view(key.data(), key.size()),
-                              value.getDataLimit().value());
-        }
     }
 
     // Dump all collections and how they map to a scope. Stats requires unique
@@ -1785,21 +1638,6 @@ bool Manifest::operator==(const Manifest& rhs) const {
 
 bool Manifest::operator!=(const Manifest& rhs) const {
     return !(*this == rhs);
-}
-
-cb::engine_errc Manifest::getScopeDataLimitStatus(
-        const container::const_iterator itr, size_t nBytes) const {
-    if (!scopeWithDataLimitExists) {
-        return cb::engine_errc::success;
-    }
-
-    const auto& entry = getScopeEntry(itr->second.getScopeID());
-
-    if (entry.getDataLimit() &&
-        (entry.getDataSize() + nBytes) > entry.getDataLimit().value()) {
-        return cb::engine_errc::scope_size_limit_exceeded;
-    }
-    return cb::engine_errc::success;
 }
 
 void Manifest::setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
@@ -2044,9 +1882,7 @@ std::ostream& operator<<(std::ostream& os,
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
-    os << "VB::Manifest: "
-       << "uid:" << manifest.manifestUid
-       << ", scopeWithDataLimitExists:" << manifest.scopeWithDataLimitExists
+    os << "VB::Manifest: " << "uid:" << manifest.manifestUid
        << ", dropInProgress:" << manifest.dropInProgress.load()
        << ", defaultCollectionMVS:" << manifest.defaultCollectionMaxVisibleSeqno
        << ", defaultCollectionMaxLegacyDCPSeqno:"
