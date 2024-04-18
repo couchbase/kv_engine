@@ -15,14 +15,32 @@
 #include <cbsasl/server.h>
 #include <fmt/format.h>
 #include <sodium.h>
+#include <atomic>
 #include <memory>
 #include <stdexcept>
 #include <string>
 
 namespace cb::sasl::server {
+static std::atomic_bool using_external_auth_service{false};
+
+void set_using_external_auth_service(bool value) {
+    using_external_auth_service = value;
+}
 
 std::string listmech() {
     return "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN";
+}
+
+pwdb::User ServerContext::lookupUser(const std::string& username) {
+    if (lookup_user_function) {
+        return lookup_user_function(username);
+    }
+
+    return ::find_user(username);
+}
+
+bool ServerContext::bypassAuthForUnknownUsers() const {
+    return (using_external_auth_service && !lookup_user_function);
 }
 
 std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
@@ -52,6 +70,17 @@ std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
     }
 
     return backend->start(input);
+}
+
+std::pair<cb::sasl::Error, std::string_view> ServerContext::step(
+        std::string_view input) {
+    if (lookup_user_function) {
+        lookup_user_function = [](auto&) -> pwdb::User {
+            throw std::runtime_error(
+                    "ServerContext::step() must not try to lookup user");
+        };
+    }
+    return backend->step(input);
 }
 
 Error reload_password_database(

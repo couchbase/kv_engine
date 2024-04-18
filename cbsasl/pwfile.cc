@@ -44,9 +44,8 @@ protected:
     folly::Synchronized<std::unique_ptr<cb::sasl::pwdb::PasswordDatabase>> db;
 };
 
-bool find_user(const std::string& username, cb::sasl::pwdb::User& user) {
-    user = PasswordDatabaseManager::instance().find(username);
-    return !user.isDummy();
+cb::sasl::pwdb::User find_user(const std::string& username) {
+    return PasswordDatabaseManager::instance().find(username);
 }
 
 static cb::sasl::Error parse_user_db(

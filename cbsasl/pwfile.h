@@ -16,11 +16,11 @@
 /**
  * Searches for a user entry for the specified user.
  *
- * @param user the username to search for
- * @param user updated with the user information if found
- * @return true if user exists, false otherwise
+ * @param username the username to search for
+ * @return user updated with the user information if found (or dummy if
+ *         user don't exist)
  */
-bool find_user(const std::string& username, cb::sasl::pwdb::User& user);
+[[nodiscard]] cb::sasl::pwdb::User find_user(const std::string& username);
 
 /**
  * (Re)Load the user database (specified by the environment variable

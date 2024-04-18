@@ -118,7 +118,13 @@ std::pair<Error, std::string_view> ServerBackend::start(
         return {Error::BAD_PARAM, {}};
     }
 
-    if (!find_user(username, user)) {
+    user = context.lookupUser(username);
+    if (user.isDummy()) {
+        if (context.bypassAuthForUnknownUsers()) {
+            return {Error::NO_USER, {}};
+        }
+        // create a new dummy user with the correct algorithm so that
+        // we may perform authentication
         user = pwdb::UserFactory::createDummy(username, algorithm);
     }
 

@@ -83,7 +83,10 @@ protected:
      * @param more set to true if we should add a trailing comma (more data
      *             follows)
      */
-    static void addAttribute(std::ostream& out, char key, int value, bool more);
+    static void addAttribute(std::ostream& out,
+                             char key,
+                             std::size_t value,
+                             bool more);
 
     /**
      * Generate the Server Signature. It is computed as:

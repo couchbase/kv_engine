@@ -40,6 +40,14 @@ void shutdown();
 std::string listmech();
 
 /**
+ * Set if we should allow for use of an external auth service.
+ * When enabled SCRAM-SHA will return NO_USER in start() if the
+ * user isn't found instead of running a full SCRAM authentication
+ * and eventually fail.
+ */
+void set_using_external_auth_service(bool value);
+
+/**
  * Reload the password database and iterate over the database before it
  * is installed.
  */
@@ -87,6 +95,10 @@ protected:
 
 class ServerContext : public Context {
 public:
+    ServerContext() = default;
+    ServerContext(std::function<pwdb::User(const std::string&)> function)
+        : lookup_user_function(std::move(function)) {
+    }
     const std::string getName() const {
         return backend->getName();
     }
@@ -116,17 +128,49 @@ public:
             const std::string& available,
             std::string_view input);
 
-    std::pair<cb::sasl::Error, std::string_view> step(std::string_view input) {
-        return backend->step(input);
-    }
+    std::pair<cb::sasl::Error, std::string_view> step(std::string_view input);
 
     void reset() {
         backend.reset();
         uuid.clear();
     }
 
+    /**
+     * Look up the provided user and popuate the user entry if found.
+     *
+     * This allows the various backends to look up a user in the server
+     * context they run (useful where we link memcached core together
+     * with an auth provider and want them to use different password
+     * database)
+     *
+     * @param username The user to search for
+     * @return A user object (may be a dummy object if the user don't exists)
+     */
+    [[nodiscard]] pwdb::User lookupUser(const std::string& username);
+
+    /**
+     * Should one bypass authentication and return "No User" if the user
+     * don't exists, or should the authentcation continue and return
+     * "No user" as part of the final step of authentication (For
+     * mechanisms which involves multiple roundtrips between the
+     * client and the server)
+     */
+    [[nodiscard]] bool bypassAuthForUnknownUsers() const;
+
+    [[nodiscard]] auto getExternalServerContext() const {
+        return external_server_context;
+    }
+
+    void setExternalServerContext(std::string ctx) {
+        external_server_context = std::move(ctx);
+    }
+
 protected:
+    /// The external auth provider might want to store some context
+    /// information between each request (in a start-step scenatio)
+    std::string external_server_context;
     std::unique_ptr<MechanismBackend> backend;
+    std::function<pwdb::User(const std::string&)> lookup_user_function;
     std::string uuid;
 };
 

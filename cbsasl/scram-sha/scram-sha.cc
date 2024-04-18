@@ -162,7 +162,7 @@ void ScramShaBackend::addAttribute(std::ostream& out,
 
 void ScramShaBackend::addAttribute(std::ostream& out,
                                    char key,
-                                   int value,
+                                   std::size_t value,
                                    bool more) {
     out << key << '=';
 

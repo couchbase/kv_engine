@@ -49,9 +49,8 @@ User PasswordDatabase::find(const std::string& username) const {
         // through the entire authentication phase but fail with
         // incorrect password ;-)
         return User();
-    } else {
-        return it->second;
     }
+    return it->second;
 }
 
 /// Iterate over all of the users in the database

@@ -39,12 +39,12 @@ std::pair<Error, std::string_view> ServerBackend::start(
     if (!password.empty() && password.back() == '\0') {
         password.remove_suffix(1);
     }
-    cb::sasl::pwdb::User user;
-    if (!find_user(username, user)) {
+    const auto user = context.lookupUser(username);
+    if (user.isDummy()) {
         return {Error::NO_USER, {}};
     }
 
-    return {cb::sasl::plain::check_password(user, password), {}};
+    return {sasl::plain::check_password(user, password), {}};
 }
 
 std::pair<Error, std::string_view> ClientBackend::start() {
@@ -63,12 +63,12 @@ std::pair<Error, std::string_view> ClientBackend::start() {
 }
 
 Error authenticate(const std::string& username, const std::string& passwd) {
-    cb::sasl::pwdb::User user;
-    if (!find_user(username, user)) {
+    auto user = find_user(username);
+    if (user.isDummy()) {
         return Error::NO_USER;
     }
 
-    return cb::sasl::plain::check_password(user, passwd);
+    return sasl::plain::check_password(user, passwd);
 }
 
 } // namespace cb::sasl::mechanism::plain
