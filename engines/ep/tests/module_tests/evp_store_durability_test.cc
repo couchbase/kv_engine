@@ -3189,7 +3189,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     // Check the committed item on disk.
     gv = kvstore->get(DiskDocKey(key), Vbid(0));
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
-    EXPECT_EQ("value", gv.item->getValue()->to_s());
+    EXPECT_EQ("value", gv.item->getValue()->to_string_view());
 
     // Check the Prepare on disk
     gv = kvstore->get(prefixedKey, Vbid(0));
@@ -4568,7 +4568,7 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     auto gv = store->get(key, vbid, cookie, options);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
-    EXPECT_EQ("value", gv.item->getValue()->to_s());
+    EXPECT_EQ("value", gv.item->getValue()->to_string_view());
 }
 
 TEST_P(DurabilityCouchstoreBucketTest,

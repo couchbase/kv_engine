@@ -107,9 +107,10 @@ public:
     }
 
     /**
-     * Get a std::string representation of this blob.
+     * Get a std::string_view representation of this blob (used by
+     * unit tests)
      */
-    const std::string to_s() const;
+    [[nodiscard]] std::string_view to_string_view() const;
 
     /**
      * Class-specific deallocation function. We need to specify this

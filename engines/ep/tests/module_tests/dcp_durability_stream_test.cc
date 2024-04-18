@@ -121,7 +121,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     it++;
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
-    EXPECT_EQ(value, (*it)->getValue()->to_s());
+    EXPECT_EQ(value, (*it)->getValue()->to_string_view());
 
     // We must have ckpt-start + Prepare
     auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
@@ -163,7 +163,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     EXPECT_EQ(prepareSeqno, *resp->getBySeqno());
     auto& prepare = static_cast<MutationResponse&>(*resp);
     EXPECT_EQ(key, prepare.getItem()->getKey());
-    EXPECT_EQ(value, prepare.getItem()->getValue()->to_s());
+    EXPECT_EQ(value, prepare.getItem()->getValue()->to_string_view());
     EXPECT_EQ(cas, prepare.getItem()->getCas());
 
     // The expected size of a DCP_PREPARE is 57 + key-size + value-size.
@@ -1755,7 +1755,7 @@ void DurabilityPassiveStreamTest::
                   res.committed->getCommitted());
         if (docState == DocumentState::Alive) {
             ASSERT_TRUE(res.committed->getValue());
-            EXPECT_EQ(value, res.committed->getValue()->to_s());
+            EXPECT_EQ(value, res.committed->getValue()->to_string_view());
         }
     }
 
@@ -2929,7 +2929,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
     EXPECT_EQ(key, (*it)->getKey());
     EXPECT_TRUE((*it)->getValue());
-    EXPECT_EQ("value", (*it)->getValue()->to_s());
+    EXPECT_EQ("value", (*it)->getValue()->to_string_view());
     EXPECT_EQ(commitSeqno, (*it)->getBySeqno());
     EXPECT_EQ(cas, (*it)->getCas());
 

@@ -80,7 +80,8 @@ void GetCallback::callback(GetValue& result) {
             result.item->decompressValue();
         }
 
-        EXPECT_EQ(COMPRESSIBLE_VALUE, result.item->getValue()->to_s());
+        EXPECT_EQ(COMPRESSIBLE_VALUE,
+                  result.item->getValue()->to_string_view());
     }
 }
 
@@ -106,7 +107,7 @@ void checkGetValue(GetValue& result,
             EXPECT_TRUE(result.item->decompressValue());
         }
 
-        EXPECT_EQ("value", result.item->getValue()->to_s());
+        EXPECT_EQ("value", result.item->getValue()->to_string_view());
     }
 }
 
@@ -1115,7 +1116,7 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
                 EXPECT_EQ(expectedDatatype, item.getDataType());
             }
             item.decompressValue();
-            EXPECT_EQ(expectedValue, item.getValue()->to_s());
+            EXPECT_EQ(expectedValue, item.getValue()->to_string_view());
         }
     };
 
@@ -1176,9 +1177,9 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
             [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
     ASSERT_EQ(2, results.size());
     EXPECT_EQ(makeStoredDocKey("c"), results.at(0).item->getKey());
-    EXPECT_EQ("value_c"s, results.at(0).item->getValue()->to_s());
+    EXPECT_EQ("value_c"s, results.at(0).item->getValue()->to_string_view());
     EXPECT_EQ(makeStoredDocKey("e"), results.at(1).item->getKey());
-    EXPECT_EQ("value_e"s, results.at(1).item->getValue()->to_s());
+    EXPECT_EQ("value_e"s, results.at(1).item->getValue()->to_string_view());
 }
 
 TEST_P(KVStoreParamTest, Durability_PersistPrepare) {
@@ -1795,13 +1796,14 @@ void KVStoreParamTest::testPerDocumentCompression(bool useJson) {
             DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
     EXPECT_TRUE(gv.item->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
     EXPECT_EQ(useJson, qi->getDataType() & uint8_t(cb::mcbp::Datatype::JSON));
-    EXPECT_EQ(std::string_view(expectedValue), gv.item->getValue()->to_s());
+    EXPECT_EQ(std::string_view(expectedValue),
+              gv.item->getValue()->to_string_view());
 
     // for rigour, check the decompressed version is exactly the original value
     gv.item->decompressValue();
     EXPECT_FALSE(gv.item->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
     EXPECT_EQ(useJson, qi->getDataType() & uint8_t(cb::mcbp::Datatype::JSON));
-    EXPECT_EQ(value, gv.item->getValue()->to_s());
+    EXPECT_EQ(value, gv.item->getValue()->to_string_view());
 }
 
 // TODO: MB-54829 re-enable once per-doc compression is functional
@@ -1850,7 +1852,7 @@ TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Disabled) {
     // check the value is read uncompressed, and is the expected value
     GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
     EXPECT_FALSE(gv.item->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
-    EXPECT_EQ(value, gv.item->getValue()->to_s());
+    EXPECT_EQ(value, gv.item->getValue()->to_string_view());
 }
 
 TEST_P(KVStoreParamTest, GetBySeqno) {

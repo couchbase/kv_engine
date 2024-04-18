@@ -451,7 +451,7 @@ TEST_P(EPBucketTest, DeletedValue) {
     EXPECT_EQ(cb::engine_errc::success, result.getStatus())
             << "Expected to get Deleted-with-value for evicted key after "
                "notify_IO_complete";
-    EXPECT_EQ("deleted value", result.item->getValue()->to_s());
+    EXPECT_EQ("deleted value", result.item->getValue()->to_string_view());
 }
 
 // Test to ensure all pendingBGfetches are deleted when the
@@ -837,7 +837,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
 
     store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
-    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_string_view());
 
     // 3) Evict item
     evict_key(vbid, key);
@@ -871,7 +871,7 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem() {
 
     store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
-    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_string_view());
 
     // 3) Evict Av1
     evict_key(vbid, key);
@@ -1001,7 +1001,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
-    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_string_view());
 
     // 4) Flush and evict Av2
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1059,7 +1059,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     EXPECT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
-    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+    EXPECT_EQ("v1", q[diskDocKey].value.item->getValue()->to_string_view());
 
     // 3) Evict Av1
     evict_key(vbid, key);
@@ -1224,7 +1224,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     ASSERT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
-    ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+    ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_string_view());
 
     // 3) Evict Av1
     evict_key(vbid, key);
@@ -1299,7 +1299,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
     q[diskDocKey] = std::move(ctx);
     store->getRWUnderlying(vbid)->getMulti(vbid, q, createItemCallback);
     ASSERT_EQ(cb::engine_errc::success, q[diskDocKey].value.getStatus());
-    ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_s());
+    ASSERT_EQ("v1", q[diskDocKey].value.item->getValue()->to_string_view());
 
     // 3) Evict Av1
     evict_key(vbid, key);
@@ -1569,7 +1569,7 @@ TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterPositive) {
         ASSERT_NE(nullptr, res.second.get());
         Item* epItem = static_cast<Item*>(res.second.get());
         ASSERT_NE(nullptr, epItem->getValue().get().get());
-        EXPECT_EQ("value", epItem->getValue()->to_s());
+        EXPECT_EQ("value", epItem->getValue()->to_string_view());
 
     } else {
         // First attempt should return would_block (as the item has been evicted
@@ -1598,7 +1598,7 @@ TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterPositive) {
         ASSERT_NE(nullptr, res.second.get());
         Item* epItem = static_cast<Item*>(res.second.get());
         ASSERT_NE(nullptr, epItem->getValue().get().get());
-        EXPECT_EQ("value", epItem->getValue()->to_s());
+        EXPECT_EQ("value", epItem->getValue()->to_string_view());
     }
 }
 
@@ -1691,7 +1691,7 @@ TEST_P(EPBucketTest, getDeletedItemWithValue) {
 
     // Ensure that the item is deleted and the value matches
     Item* itm = gv.item.get();
-    EXPECT_EQ("deletedvalue", itm->getValue()->to_s());
+    EXPECT_EQ("deletedvalue", itm->getValue()->to_string_view());
     EXPECT_TRUE(itm->isDeleted());
 }
 

@@ -50,7 +50,7 @@ TEST_P(HashTablePerspectiveTest, PendingItem) {
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
-        EXPECT_EQ("pending"s, sv->getValue()->to_s());
+        EXPECT_EQ("pending"s, sv->getValue()->to_string_view());
     }
 
     // Should *not* be visible via findForRead (Committed perspective).
@@ -74,7 +74,7 @@ TEST_P(HashTablePerspectiveTest, CommittedItem) {
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
         EXPECT_EQ(CommittedState::CommittedViaMutation, sv->getCommitted());
-        EXPECT_EQ("committed"s, sv->getValue()->to_s());
+        EXPECT_EQ("committed"s, sv->getValue()->to_string_view());
     }
 
     // Should also be visible via Committed (Read) perspective.
@@ -83,7 +83,7 @@ TEST_P(HashTablePerspectiveTest, CommittedItem) {
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
         EXPECT_EQ(CommittedState::CommittedViaMutation, sv->getCommitted());
-        EXPECT_EQ("committed"s, sv->getValue()->to_s());
+        EXPECT_EQ("committed"s, sv->getValue()->to_string_view());
     }
 
     del(ht, key);
@@ -111,7 +111,7 @@ TEST_P(HashTablePerspectiveTest, CorrectItemForEachPerspective) {
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
-        EXPECT_EQ("pending"s, sv->getValue()->to_s());
+        EXPECT_EQ("pending"s, sv->getValue()->to_string_view());
     }
 
     {
@@ -119,7 +119,7 @@ TEST_P(HashTablePerspectiveTest, CorrectItemForEachPerspective) {
         auto* sv = item.storedValue;
         ASSERT_TRUE(sv);
         EXPECT_EQ(CommittedState::CommittedViaMutation, sv->getCommitted());
-        EXPECT_EQ("committed"s, sv->getValue()->to_s());
+        EXPECT_EQ("committed"s, sv->getValue()->to_string_view());
     }
 
     del(ht, key);

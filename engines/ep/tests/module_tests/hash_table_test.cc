@@ -55,7 +55,7 @@ public:
             if (verify) {
                 StoredDocKey key(v.getKey());
                 value_t val = v.getValue();
-                EXPECT_EQ(key.to_string(), val->to_s());
+                EXPECT_EQ(key.to_string(), val->to_string_view());
             }
         }
         return true;

@@ -1249,7 +1249,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
         EXPECT_TRUE(prepared.storedValue);
         EXPECT_TRUE(prepared.storedValue->isPending());
         EXPECT_EQ(item->getCas(), prepared.storedValue->getCas());
-        EXPECT_EQ("B", prepared.storedValue->getValue()->to_s());
+        EXPECT_EQ("B", prepared.storedValue->getValue()->to_string_view());
     }
 
     // DurabilityMonitor be tracking the prepare.
@@ -1323,7 +1323,7 @@ TEST_P(DurabilityWarmupTest, AbortedSyncWritePrepareIsNotLoaded) {
     EXPECT_EQ(0, vb->ht.getNumPreparedSyncWrites());
     auto gv = store->get(key, vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
-    EXPECT_EQ("A", gv.item->getValue()->to_s());
+    EXPECT_EQ("A", gv.item->getValue()->to_string_view());
 
     // Check there's no pending item
     auto handle = vb->lockCollections(item->getKey());

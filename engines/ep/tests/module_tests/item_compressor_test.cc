@@ -79,8 +79,8 @@ TEST_P(ItemCompressorTest, testCompressionInActiveMode) {
     StoredValue* v1 = findValue(key1);
     StoredValue* v2 = findValue(key2);
 
-    EXPECT_EQ(compressed_str, v1->getValue()->to_s());
-    EXPECT_EQ(uncompressed_str, v2->getValue()->to_s());
+    EXPECT_EQ(compressed_str, v1->getValue()->to_string_view());
+    EXPECT_EQ(uncompressed_str, v2->getValue()->to_string_view());
     EXPECT_EQ(new_datatype, v1->getDatatype());
     EXPECT_EQ(curr_datatype_count - 1,
               vbucket->ht.getDatatypeCounts()[curr_datatype]);
@@ -119,7 +119,7 @@ TEST_P(ItemCompressorTest, testStoreUncompressedInActiveMode) {
     std::string uncompressed_str(item.getData(), item.getNBytes());
     StoredValue* v = findValue(key);
 
-    EXPECT_EQ(uncompressed_str, v->getValue()->to_s());
+    EXPECT_EQ(uncompressed_str, v->getValue()->to_string_view());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, v->getDatatype());
 }
 

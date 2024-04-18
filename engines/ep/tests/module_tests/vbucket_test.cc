@@ -204,7 +204,7 @@ void VBucketTestBase::verifyValue(StoredDocKey& key,
     if (!value) {
         EXPECT_EQ(nullptr, val.get().get());
     } else {
-        EXPECT_STREQ(value, val->to_s().c_str());
+        EXPECT_EQ(value, val->to_string_view());
     }
 }
 

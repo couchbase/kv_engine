@@ -182,7 +182,7 @@ void DCPBackfillDiskTest::backfillGetDriver(
     EXPECT_EQ(item->getKey(), makeStoredDocKey("key"));
 
     if (!(stream->isKeyOnly())) {
-        EXPECT_EQ(item->getValue()->to_s(), "value");
+        EXPECT_EQ(item->getValue()->to_string_view(), "value");
     }
 }
 

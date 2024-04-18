@@ -56,8 +56,8 @@ Blob::Blob(const Blob& other)
     ObjectRegistry::onCreateBlob(this);
 }
 
-const std::string Blob::to_s() const {
-    return std::string(data, valueSize());
+std::string_view Blob::to_string_view() const {
+    return {data, valueSize()};
 }
 
 Blob::~Blob() {

@@ -146,7 +146,7 @@ TEST_F(EphemeralVBucketTest, PageOutAfterDeleteWithValue) {
 
     // Check preconditions
     ASSERT_TRUE(storedVal->isDeleted());
-    ASSERT_EQ(value, storedVal->getValue()->to_s());
+    ASSERT_EQ(value, storedVal->getValue()->to_string_view());
 
     // Page it out.
     EXPECT_TRUE(

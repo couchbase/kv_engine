@@ -3868,7 +3868,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
         EXPECT_EQ(expectedOp, (*it)->getOperation());
 
         // Byte-by-byte comparison
-        EXPECT_EQ(originalValue, (*it)->getValue()->to_s());
+        EXPECT_EQ(originalValue, (*it)->getValue()->to_string_view());
 
         // The latest check should already fail if even a single byte in the
         // payload has changed, but check also the sizes of the specific value
@@ -4075,7 +4075,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
     it++;
     EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
     EXPECT_FALSE((*it)->isDeleted());
-    EXPECT_EQ(value, (*it)->getValue()->to_s());
+    EXPECT_EQ(value, (*it)->getValue()->to_string_view());
 
     TimeTraveller tt(5000);
 

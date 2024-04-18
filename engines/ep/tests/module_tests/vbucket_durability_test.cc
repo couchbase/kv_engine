@@ -577,7 +577,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
                 EXPECT_EQ(preparedSeqno, qi->getBySeqno());
-                EXPECT_EQ("value", qi->getValue()->to_s());
+                EXPECT_EQ("value", qi->getValue()->to_string_view());
             }
         }
     };
@@ -594,7 +594,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
                 EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
                 EXPECT_GT(qi->getBySeqno() /*commitSeqno*/, preparedSeqno);
                 EXPECT_EQ(preparedSeqno, qi->getPrepareSeqno());
-                EXPECT_EQ("value", qi->getValue()->to_s());
+                EXPECT_EQ("value", qi->getValue()->to_string_view());
             }
         }
     };
@@ -652,7 +652,8 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
                   storedItem.storedValue->getCommitted());
         // value is resident
         ASSERT_TRUE(storedItem.storedValue->getValue());
-        EXPECT_EQ("value", storedItem.storedValue->getValue()->to_s());
+        EXPECT_EQ("value",
+                  storedItem.storedValue->getValue()->to_string_view());
 
         // CheckpointManager state:
         // empty-item
@@ -666,7 +667,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
         // 1 non-metaitem is pending and contains the expected value
         it++;
         EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
-        EXPECT_EQ("value", (*it)->getValue()->to_s());
+        EXPECT_EQ("value", (*it)->getValue()->to_string_view());
 
         // Need to clear the dirty flag to ensure that we are testing the right
         // thing, i.e. that the item is not ejected because it is Pending (not
@@ -716,7 +717,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
     // value is resident
     EXPECT_TRUE(sv->getValue());
-    EXPECT_EQ("value", sv->getValue()->to_s());
+    EXPECT_EQ("value", sv->getValue()->to_string_view());
 
     // CheckpointManager state:
     // 1 checkpoint
@@ -732,7 +733,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
     // 1 non-metaitem is committed and contains the expected value
     it++;
     EXPECT_EQ(queue_op::commit_sync_write, (*it)->getOperation());
-    EXPECT_EQ("value", (*it)->getValue()->to_s());
+    EXPECT_EQ("value", (*it)->getValue()->to_string_view());
 }
 
 TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbort) {
@@ -962,7 +963,7 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
     it++;
     EXPECT_EQ(queue_op::pending_sync_write, (*it)->getOperation());
     EXPECT_EQ(preparedSeqno, (*it)->getBySeqno());
-    EXPECT_EQ("value", (*it)->getValue()->to_s());
+    EXPECT_EQ("value", (*it)->getValue()->to_string_view());
 
     // The Pending is tracked by the DurabilityMonitor
     const auto& monitor = VBucketTestIntrospector::public_getActiveDM(*vbucket);
@@ -2930,7 +2931,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
         EXPECT_GT((*it)->getBySeqno() /*commitSeqno*/, prepare.seqno);
         EXPECT_EQ(prepare.seqno, (*it)->getPrepareSeqno());
         if (expectedOp == queue_op::commit_sync_write) {
-            EXPECT_EQ("value", (*it)->getValue()->to_s());
+            EXPECT_EQ("value", (*it)->getValue()->to_string_view());
         }
     }
 

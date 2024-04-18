@@ -625,7 +625,7 @@ TEST_F(WithMetaTest, storeUncompressedInOffMode) {
     VBucketPtr vb = store->getVBucket(vbid);
     const auto* v(vb->ht.findForRead(makeStoredDocKey("key")).storedValue);
     ASSERT_NE(nullptr, v);
-    EXPECT_EQ(valueData, v->getValue()->to_s());
+    EXPECT_EQ(valueData, v->getValue()->to_string_view());
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, v->getDatatype());
 }
 
