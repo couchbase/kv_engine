@@ -1055,7 +1055,9 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
         } else if (key == "hlc_max_future_threshold_us") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
-            getConfiguration().setHlcMaxFutureThresholdUs(v);
+            configuration.setHlcMaxFutureThresholdUs(v);
+        } else if (key == "hlc_invalid_strategy") {
+            configuration.setHlcInvalidStrategy(val);
         } else if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());

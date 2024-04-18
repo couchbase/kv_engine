@@ -686,6 +686,17 @@ public:
 
     cb::engine_errc forceMaxCas(Vbid vbucket, uint64_t cas) override;
 
+    /**
+     * This method validates if the new CAS value is within the acceptable
+     * range, hlcMaxFutureThreshold.
+     *
+     * @param vb vbucket ptr,
+     * @param cas CAS value to validate,
+     * @return true if the CAS value is within hlcMaxFutureThreshold, false
+     *         otherwise.
+     */
+    bool isWithinCasThreshold(VBucketPtr vb, uint64_t cas) const;
+
     VBucketPtr makeVBucket(Vbid id,
                            vbucket_state_t state,
                            KVShard* shard,
@@ -773,6 +784,16 @@ public:
     bool isXattrEnabled() const;
 
     void setXattrEnabled(bool value);
+
+    InvalidCasStrategy parseHlcInvalidStrategy(std::string_view strat);
+
+    void setHlcInvalidStrategy(InvalidCasStrategy value) {
+        hlcInvalidStrategy = value;
+    }
+
+    InvalidCasStrategy getHlcInvalidStrategy() const {
+        return hlcInvalidStrategy.load();
+    }
 
     bool isCrossBucketHtQuotaSharing() const;
 
@@ -1404,6 +1425,11 @@ protected:
      * threads.
      */
     cb::RelaxedAtomic<bool> xattrEnabled;
+
+    /**
+     * Indicate which strategy to implement when faced with invalid CAS values.
+     */
+    cb::RelaxedAtomic<InvalidCasStrategy> hlcInvalidStrategy;
 
     /**
      * Is this bucket sharing HashTable quota?

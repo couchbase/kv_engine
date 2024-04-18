@@ -206,6 +206,10 @@ public:
                         "Failed to set durability_min_level: " +
                         to_string(res));
             }
+        } else if (key == "hlc_invalid_strategy") {
+            store.setHlcInvalidStrategy(store.parseHlcInvalidStrategy(value));
+        } else {
+            EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
     }
 
@@ -408,6 +412,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             cb::durability::to_level(config.getDurabilityMinLevel());
     config.addValueChangedListener(
             "durability_min_level",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setHlcInvalidStrategy(
+            parseHlcInvalidStrategy(config.getHlcInvalidStrategy()));
+    config.addValueChangedListener(
+            "hlc_invalid_strategy",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     setMinimumHashTableSize(config.getHtSize());
@@ -1705,6 +1715,15 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
         return cb::engine_errc::key_already_exists;
     }
 
+    if (!isWithinCasThreshold(vb, itm.getCas())) {
+        if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
+            // force failure due to invalid CAS
+            return cb::engine_errc::key_already_exists;
+        }
+        // invalidCasStrategy == InvalidCasStrategy::Replace
+        genCas = GenerateCas::Yes;
+    }
+
     {
         // hold collections read lock for duration of set
         auto cHandle = vb->lockCollections(itm.getKey());
@@ -1757,6 +1776,16 @@ cb::engine_errc KVBucket::prepare(Item& itm,
         return cb::engine_errc::key_already_exists;
     }
 
+    auto generateCas = GenerateCas::No;
+    if (!isWithinCasThreshold(vb, itm.getCas())) {
+        if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
+            // force failure due to invalid CAS
+            return cb::engine_errc::key_already_exists;
+        }
+        // invalidCasStrategy == InvalidCasStrategy::Replace
+        generateCas = GenerateCas::Yes;
+    }
+
     cb::engine_errc rv = cb::engine_errc::success;
     { // hold collections read lock for duration of prepare
 
@@ -1773,7 +1802,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
                              CheckConflicts::No,
                              true /*allowExisting*/,
                              GenerateBySeqno::No,
-                             GenerateCas::No,
+                             generateCas,
                              cHandle,
                              enforceMemCheck);
         }
@@ -2116,6 +2145,15 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itemMeta.cas)) {
         return cb::engine_errc::key_already_exists;
+    }
+
+    if (!isWithinCasThreshold(vb, itemMeta.cas)) {
+        if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
+            // force failure due to invalid CAS
+            return cb::engine_errc::key_already_exists;
+        }
+        // invalidCasStrategy == InvalidCasStrategy::Replace
+        generateCas = GenerateCas::Yes;
     }
 
     {
@@ -2651,6 +2689,15 @@ cb::engine_errc KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
     return cb::engine_errc::not_my_vbucket;
 }
 
+bool KVBucket::isWithinCasThreshold(VBucketPtr vb, uint64_t cas) const {
+    if (getHlcInvalidStrategy() != InvalidCasStrategy::Ignore) {
+        if (vb->isInvalidHLC(cas)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     os << pos.vbucket_id;
     return os;
@@ -2809,6 +2856,19 @@ bool KVBucket::isXattrEnabled() const {
 
 void KVBucket::setXattrEnabled(bool value) {
     xattrEnabled = value;
+}
+
+InvalidCasStrategy KVBucket::parseHlcInvalidStrategy(std::string_view strat) {
+    if (strat == "error") {
+        return InvalidCasStrategy::Error;
+    } else if (strat == "ignore") {
+        return InvalidCasStrategy::Ignore;
+    } else if (strat == "replace") {
+        return InvalidCasStrategy::Replace;
+    } else {
+        throw std::invalid_argument(
+                "parseHlcInvalidStrategy: invalid mode specified");
+    }
 }
 
 bool KVBucket::isCrossBucketHtQuotaSharing() const {
