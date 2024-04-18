@@ -27,7 +27,7 @@ public:
     }
 
     void externalResponse(cb::mcbp::Status status,
-                          const std::string& payload) override;
+                          std::string_view payload) override;
 
     void logIfSlowResponse() const;
 

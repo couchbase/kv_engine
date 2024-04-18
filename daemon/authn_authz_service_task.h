@@ -26,6 +26,9 @@ enum class Status : uint16_t;
  */
 class AuthnAuthzServiceTask {
 public:
+    using steady_clock = std::chrono::steady_clock;
+    using time_point = steady_clock::time_point;
+
     virtual ~AuthnAuthzServiceTask() = default;
 
     /**
@@ -36,16 +39,17 @@ public:
      *                request type and the status)
      */
     virtual void externalResponse(cb::mcbp::Status status,
-                                  const std::string& payload) = 0;
+                                  std::string_view payload) = 0;
+
     void recordStartTime() {
         Expects(startTime.time_since_epoch().count() == 0);
-        startTime = std::chrono::steady_clock::now();
+        startTime = steady_clock::now();
     }
 
-    std::chrono::steady_clock::time_point getStartTime() const {
+    [[nodiscard]] time_point getStartTime() const {
         return startTime;
     }
 
-private:
-    std::chrono::steady_clock::time_point startTime{};
+protected:
+    time_point startTime{};
 };

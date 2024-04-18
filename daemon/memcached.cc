@@ -526,6 +526,12 @@ static void update_settings_from_config()
             opcode_attributes_override_changed_listener);
     cb::serverless::setEnabled(Settings::instance().getDeploymentModel() ==
                                DeploymentModel::Serverless);
+    settings.addChangeListener(
+            "external_auth_service_scram_support",
+            [](const std::string&, Settings& s) -> void {
+                cb::sasl::server::set_using_external_auth_service(
+                        s.doesExternalAuthServiceSupportScram());
+            });
 }
 
 void safe_close(SOCKET sfd) {
@@ -659,6 +665,11 @@ static void initialize_sasl() {
     try {
         LOG_INFO_RAW("Initialize SASL");
         cb::sasl::server::initialize();
+        if (Settings::instance().doesExternalAuthServiceSupportScram()) {
+            LOG_INFO_RAW("Proxy SCRAM-SHA for unknown users to external users");
+        }
+        cb::sasl::server::set_using_external_auth_service(
+                Settings::instance().doesExternalAuthServiceSupportScram());
     } catch (std::exception& e) {
         FATAL_ERROR_CTX(
                 EXIT_FAILURE, "Failed to initialize SASL", {"error", e.what()});

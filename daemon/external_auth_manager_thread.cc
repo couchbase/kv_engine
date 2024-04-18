@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -14,7 +13,7 @@
 #include "front_end_thread.h"
 #include "get_authorization_task.h"
 #include "platform/timeutils.h"
-#include "start_sasl_auth_task.h"
+#include "sasl_auth_task.h"
 #include "tracing.h" // SlowMutexThreshold
 
 #include <logger/logger.h>
@@ -57,23 +56,26 @@ void ExternalAuthManagerThread::responseReceived(
     // the response message is delayed and not handled until the auth
     // thread is scheduled. The reason we set it here is because
     // if we receive an update on the same connection the last one wins
-    if (cb::mcbp::isStatusSuccess(response.getStatus())) {
-        // Note that this may cause an exception to be thrown
-        // and the connection closed..
-        auto value = response.getValue();
-        const auto payload = std::string{
-                reinterpret_cast<const char*>(value.data()), value.size()};
-        auto decoded = nlohmann::json::parse(payload);
+    if (isStatusSuccess(response.getStatus())) {
+        auto decoded = nlohmann::json::parse(response.getValueString());
         auto rbac = decoded.find("rbac");
         if (rbac != decoded.end()) {
-            cb::rbac::updateExternalUser(rbac->dump());
+            try {
+                cb::rbac::updateExternalUser(rbac->dump());
+            } catch (const std::runtime_error& exception) {
+                LOG_WARNING_CTX("Failed to update RBAC entry",
+                                {"payload", *rbac},
+                                {"exception", exception.what()});
+            }
         }
     }
 
     // Enqueue the response and let the auth thread deal with it
     std::lock_guard<std::mutex> guard(mutex);
-    incommingResponse.emplace_back(std::make_unique<AuthResponse>(
-            response.getOpaque(), response.getStatus(), response.getValue()));
+    incommingResponse.emplace_back(
+            std::make_unique<AuthResponse>(response.getOpaque(),
+                                           response.getStatus(),
+                                           response.getValueString()));
     condition_variable.notify_all();
 }
 
@@ -157,8 +159,7 @@ void ExternalAuthManagerThread::pushActiveUsers() {
                 builder.setDatatype(provider->getEnabledDatatypes(
                         cb::mcbp::Datatype::JSON));
                 builder.setOpcode(cb::mcbp::ServerOpcode::ActiveExternalUsers);
-                builder.setValue(
-                        {reinterpret_cast<const uint8_t*>(p.data()), p.size()});
+                builder.setValue(p);
                 // Inject our packet into the stream!
                 provider->copyToOutputStream(builder.getFrame()->getFrame());
             });
@@ -187,8 +188,8 @@ void ExternalAuthManagerThread::processRequestQueue() {
         auto currentRequest = incomingRequests.front();
         currentRequest->recordStartTime();
 
-        auto* startSaslTask = dynamic_cast<StartSaslAuthTask*>(currentRequest);
-        if (startSaslTask == nullptr) {
+        auto* saslTask = dynamic_cast<SaslAuthTask*>(currentRequest);
+        if (saslTask == nullptr) {
             auto* getAuthz =
                     dynamic_cast<GetAuthorizationTask*>(currentRequest);
             if (getAuthz == nullptr) {
@@ -223,13 +224,16 @@ void ExternalAuthManagerThread::processRequestQueue() {
                     });
         } else {
             nlohmann::json json;
-            json["mechanism"] = startSaslTask->getMechanism();
+            json["peer"] = saslTask->getPeer();
+            if (!saslTask->getContext().empty()) {
+                json["context"] = saslTask->getContext();
+            }
+            json["mechanism"] = saslTask->getMechanism();
             json["challenge"] =
-                    cb::base64::encode(startSaslTask->getChallenge(), false);
+                    cb::base64::encode(saslTask->getChallenge(), false);
             json["authentication-only"] =
-                    haveRbacEntryForUser(startSaslTask->getUsername());
+                    haveRbacEntryForUser(saslTask->getUsername());
             auto payload = json.dump();
-
             provider->getThread().eventBase.runInEventBaseThread(
                     [provider, id = next, p = std::move(payload)]() {
                         const size_t needed =
@@ -242,9 +246,7 @@ void ExternalAuthManagerThread::processRequestQueue() {
                                 cb::mcbp::Datatype::JSON));
                         builder.setOpcode(cb::mcbp::ServerOpcode::Authenticate);
                         builder.setOpaque(id);
-                        builder.setValue(
-                                {reinterpret_cast<const uint8_t*>(p.data()),
-                                 p.size()});
+                        builder.setValue(p);
                         // Inject our packet into the stream!
                         provider->copyToOutputStream(
                                 builder.getFrame()->getFrame());
@@ -277,7 +279,7 @@ void ExternalAuthManagerThread::processResponseQueue() {
                         entry->opaque);
         } else {
             auto* task = iter->second.second;
-            auto* startSaslTask = dynamic_cast<StartSaslAuthTask*>(task);
+            auto* startSaslTask = dynamic_cast<SaslAuthTask*>(task);
             auto responseTime =
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::steady_clock::now() -

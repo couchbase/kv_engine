@@ -16,8 +16,8 @@
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
+#include <daemon/sasl_auth_task.h>
 #include <daemon/settings.h>
-#include <daemon/start_sasl_auth_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <platform/scope_timer.h>
@@ -55,7 +55,7 @@ cb::engine_errc SaslStartCommandContext::initial() {
                     Settings::instance().isExternalAuthServiceEnabled()) {
                     connection.getSaslServerContext()->setDomain(
                             cb::sasl::Domain::External);
-                    task = std::make_shared<StartSaslAuthTask>(
+                    task = std::make_shared<SaslAuthTask>(
                             cookie,
                             *connection.getSaslServerContext(),
                             mechanism,
@@ -71,25 +71,6 @@ cb::engine_errc SaslStartCommandContext::initial() {
             ConcurrencySemaphores::instance().authentication));
 
     return cb::engine_errc::would_block;
-}
-
-cb::engine_errc SaslStartCommandContext::handleSaslAuthTaskResult() {
-    cb::engine_errc ret;
-    if (task) {
-        error = task->getError();
-        payload = {};
-        task.reset();
-    }
-
-    ret = doHandleSaslAuthTaskResult(error, payload);
-
-    if (error != cb::sasl::Error::CONTINUE) {
-        // we should _ONLY_ preserve the sasl server context if the underlying
-        // sasl backend returns CONTINUE
-        connection.releaseSaslServerContext();
-    }
-
-    return ret;
 }
 
 void SaslStartCommandContext::doSaslStart() {

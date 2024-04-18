@@ -320,6 +320,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setScramshaFallbackIterationCount(value.get<int>());
         } else if (key == "external_auth_service"sv) {
             setExternalAuthServiceEnabled(value.get<bool>());
+        } else if (key == "external_auth_service_scram_support"sv) {
+            setExternalAuthServiceScramSupport(value.get<bool>());
         } else if (key == "active_external_users_push_interval"sv) {
             switch (value.type()) {
             case nlohmann::json::value_t::number_unsigned:
@@ -871,6 +873,20 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                     other.isExternalAuthServiceEnabled() ? "enabled"
                                                          : "disabled");
             setExternalAuthServiceEnabled(other.isExternalAuthServiceEnabled());
+        }
+    }
+
+    if (other.has.external_auth_service_scram_support) {
+        if (doesExternalAuthServiceSupportScram() !=
+            other.doesExternalAuthServiceSupportScram()) {
+            LOG_INFO(
+                    R"(Change external authentication SCRAM support from "{}" to "{}")",
+                    doesExternalAuthServiceSupportScram() ? "enabled"
+                                                          : "disabled",
+                    other.doesExternalAuthServiceSupportScram() ? "enabled"
+                                                                : "disabled");
+            setExternalAuthServiceScramSupport(
+                    other.doesExternalAuthServiceSupportScram());
         }
     }
 

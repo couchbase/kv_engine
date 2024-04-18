@@ -96,6 +96,7 @@ NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
               {"active_external_users_push_interval", "30 m"},
               {"error_maps_dir", errmaps.generic_string()},
               {"external_auth_service", true},
+              {"external_auth_service_scram_support", true},
               {"root", NodeImpl::directory.generic_string()},
               {"rbac_file", rbac.generic_string()},
               {"opcode_attributes_override",

@@ -14,8 +14,6 @@
 #include <cbsasl/error.h>
 #include <daemon/cookie.h>
 
-class StartSaslAuthTask;
-
 /**
  * SaslStartCommandContext is responsible for handling the
  * SASL auth command. Offload the work to another thread to avoid blocking
@@ -27,14 +25,9 @@ public:
 
 protected:
     cb::engine_errc initial() override;
-    cb::engine_errc handleSaslAuthTaskResult() override;
-    std::shared_ptr<StartSaslAuthTask> task;
 
 private:
     /// Run the SASL START (run in another thread from the folly executor
     /// and update Error and Payload
     void doSaslStart();
-
-    cb::sasl::Error error = cb::sasl::Error::FAIL;
-    std::string payload;
 };

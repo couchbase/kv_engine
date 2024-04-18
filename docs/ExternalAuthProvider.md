@@ -30,12 +30,10 @@ memcached will send `Authenticate` with the following payload
       "step" : false,
       "context" : "",
       "mechanism" : "",
+      "peer" : { "ip" : "127.0.0.1", "port" : 12345 },
       "challenge" : "base64encoded challenge sent from client",
       "authentication-only" : true
     }
-
-`step` should be set to true if this is a continuation of an ongoing
-authentication. If not present this is assumed to be set to false.
 
 `context` is an opaque context string returned from the external
 provider _iff_ the authentication process needs multiple iterations.
@@ -118,22 +116,28 @@ success response won't include the RBAC entry.
 
 ## Successful Authentication response
 
-The provider should reply with status code Success or AuthContinue.
+The provider should reply with status code Success.
 
     {
       "response": "base64 encoded response to send to the client",
       "rbac": {
         "Users RBAC entry": ""
-      }
+      },
+      "domain" : "local"
     }
 
 `response` is an optional field which contains the base64 encoded
 data which should be returned to the client as part of the SASL command.
 
 `rbac` contains the RBAC entry in the same format as in
-[rbac.md](rbac.md#File-Format). This field is mandatory unless the request
-contained `"authentication-only" : true`. In that case it may or may not be
+[rbac.md](rbac.md#File-Format). This field should only exist for external
+users and is mandatory unless the request contained 
+`"authentication-only" : true`. In that case it may or may not be
 present.
+
+`domain` may be set to "local" if the user represents a local user and
+the RBAC definition for the user should be located in the local RBAC
+database (`memcached.rbac`).
 
 If nothing is to be sent back to the client and `"authentication-only" : true`
 was set to true, the response looks like:
@@ -264,7 +268,7 @@ code set to AuthContinue and the following payload:
 to the client as part of the SASL response.
 
 `context` is a token that the provider wants back as part of the
-next Authenticate (with `step` set to true)
+next Authenticate.
 
 ## Unsuccessfull Authentication response
 
@@ -275,8 +279,11 @@ payload:
       "error": {
         "context": "textual error context",
         "ref": "UUID client may search for"
-      }
+      },
+      "domain": "local"
     }
+
+`domain` may be set to "local" if the user represents a local user.
 
 In order to have memcached generate the correct audit events, the
 following reasons codes should be used:

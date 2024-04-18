@@ -718,6 +718,18 @@ public:
         return external_auth_service.load(std::memory_order_acquire);
     }
 
+    void setExternalAuthServiceScramSupport(bool enable) {
+        external_auth_service_scram_support.store(enable,
+                                                  std::memory_order_release);
+        has.external_auth_service_scram_support = true;
+        notify_changed("external_auth_service_scram_support");
+    }
+
+    bool doesExternalAuthServiceSupportScram() const {
+        return external_auth_service_scram_support.load(
+                std::memory_order_acquire);
+    }
+
     std::chrono::microseconds getActiveExternalUsersPushInterval() const {
         return active_external_users_push_interval.load(
                 std::memory_order_acquire);
@@ -1143,6 +1155,8 @@ protected:
 
     /// Should we allow for using the external authentication service or not
     std::atomic_bool external_auth_service{false};
+    /// Set to true if we should try to forward SCRAM for unknown users
+    std::atomic_bool external_auth_service_scram_support{false};
 
     /// If set "localhost" connections will not be deleted as part
     /// of server cleanup. This setting should only be used for unit
@@ -1215,6 +1229,7 @@ public:
         bool scramsha_fallback_salt = false;
         bool scramsha_fallback_iteration_count = false;
         bool external_auth_service = false;
+        bool external_auth_service_scram_support = false;
         bool tcp_keepalive_idle = false;
         bool tcp_keepalive_interval = false;
         bool tcp_keepalive_probes = false;

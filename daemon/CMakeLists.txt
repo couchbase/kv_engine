@@ -71,6 +71,8 @@ add_library(memcached_daemon STATIC
             nobucket_taskable.h
             resource_allocation_domain.cc
             resource_allocation_domain.h
+            sasl_auth_task.cc
+            sasl_auth_task.h
             sendbuffer.cc
             sendbuffer.h
             server_api.cc
@@ -84,8 +86,6 @@ add_library(memcached_daemon STATIC
             sloppy_gauge.h
             ssl_utils.cc
             ssl_utils.h
-            start_sasl_auth_task.cc
-            start_sasl_auth_task.h
             stat_timings.cc
             stat_timings.h
             stats.cc

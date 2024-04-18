@@ -10,6 +10,9 @@
 
 #include "sasl_step_command_context.h"
 
+#include "daemon/external_auth_manager_thread.h"
+#include "daemon/sasl_auth_task.h"
+
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/memcached.h>
@@ -40,23 +43,23 @@ cb::engine_errc SaslStepCommandContext::initial() {
                     TaskId::Core_SaslStepTask,
                     "SASL Step",
                     [this]() {
-                        doSaslStep();
-                        // We need to notify with success here to avoid having
-                        // the framework report the error
-                        cookie.notifyIoComplete(cb::engine_errc::success);
+                        if (connection.getSaslServerContext()->getDomain() ==
+                            cb::sasl::Domain::Local) {
+                            doSaslStep();
+                            // We need to notify with success here to avoid
+                            // having the framework report the error
+                            cookie.notifyIoComplete(cb::engine_errc::success);
+                            return;
+                        }
+                        task = std::make_shared<SaslAuthTask>(
+                                cookie,
+                                *connection.getSaslServerContext(),
+                                mechanism,
+                                challenge);
+                        externalAuthManager->enqueueRequest(*task);
                     },
                     ConcurrencySemaphores::instance().authentication));
     return cb::engine_errc::would_block;
-}
-
-cb::engine_errc SaslStepCommandContext::handleSaslAuthTaskResult() {
-    auto ret = doHandleSaslAuthTaskResult(error, payload);
-    if (error != cb::sasl::Error::CONTINUE) {
-        // we should _ONLY_ preserve the sasl server context if the underlying
-        // sasl backend returns CONTINUE
-        connection.releaseSaslServerContext();
-    }
-    return ret;
 }
 
 void SaslStepCommandContext::doSaslStep() {

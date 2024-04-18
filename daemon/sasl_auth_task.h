@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,40 +10,39 @@
 
 #pragma once
 
-#include <mcbp/protocol/status.h>
-
 #include "authn_authz_service_task.h"
 #include <cbsasl/server.h>
+#include <mcbp/protocol/status.h>
 #include <string>
 
 class Connection;
 class Cookie;
 
-namespace cb::sasl::server {
-class ServerContext;
-} // namespace cb::sasl::server
-
 /**
  * The SaslAuthTask is the abstract base class used during SASL
  * authentication (which is being run by the executor service)
  */
-class StartSaslAuthTask : public AuthnAuthzServiceTask {
+class SaslAuthTask : public AuthnAuthzServiceTask {
 public:
-    StartSaslAuthTask(Cookie& cookie_,
-                      cb::sasl::server::ServerContext& serverContext_,
-                      std::string mechanism_,
-                      std::string challenge_);
+    SaslAuthTask(Cookie& cookie,
+                 cb::sasl::server::ServerContext& serverContext,
+                 std::string mechanism,
+                 std::string challenge);
 
     cb::sasl::Error getError() const {
         return error;
     }
 
-    const std::string& getMechanism() const {
+    std::string_view getMechanism() const {
         return mechanism;
     }
 
-    const std::string& getChallenge() const {
+    std::string_view getChallenge() const {
         return challenge;
+    }
+
+    std::string_view getContext() const {
+        return context;
     }
 
     cb::rbac::UserIdent getUser() const {
@@ -52,20 +50,30 @@ public:
     }
 
     void externalResponse(cb::mcbp::Status status,
-                          const std::string& payload) override;
+                          std::string_view payload) override;
 
     void logIfSlowResponse() const;
 
     std::string getUsername() const;
 
+    nlohmann::json getPeer() const;
+
+    void updateExternalAuthContext() {
+        serverContext.setExternalServerContext(std::move(context));
+    }
+
 protected:
-    void successfull_external_auth();
+    void successfull_external_auth(const nlohmann::json& json);
     void unsuccessfull_external_auth(cb::mcbp::Status status,
-                                     const std::string& payload);
+                                     const nlohmann::json& json);
+
+    // @todo I might need folly::synchronized on the ones I update in
+    //       the external one?
 
     Cookie& cookie;
     cb::sasl::server::ServerContext& serverContext;
     std::string mechanism;
     std::string challenge;
+    std::string context;
     cb::sasl::Error error = cb::sasl::Error::FAIL;
 };

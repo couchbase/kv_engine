@@ -14,6 +14,8 @@
 #include <cbsasl/error.h>
 #include <daemon/cookie.h>
 
+class SaslAuthTask;
+
 /**
  * Base abstract class used handle SASL AUTH and SASL STEP.
  */
@@ -36,10 +38,17 @@ protected:
     /// Verify the input and start SASL authentication. If everything
     /// is OK it should set the state to HandleSaslAuthTaskResult
     virtual cb::engine_errc initial() = 0;
-    /// Called by the state machine and the underlying implementation
-    /// should call doHandleSaslAuthTaskResult with the appropriate
-    /// error code and status and set the state to Done.
-    virtual cb::engine_errc handleSaslAuthTaskResult() = 0;
+
+    const cb::mcbp::Request& request;
+    const std::string mechanism;
+    const std::string challenge;
+    State state;
+    std::shared_ptr<SaslAuthTask> task;
+    cb::sasl::Error error = cb::sasl::Error::FAIL;
+    std::string payload;
+
+private:
+    cb::engine_errc handleSaslAuthTaskResult();
 
     /**
      * Perform the correct action for a SASL authentication (build
@@ -51,13 +60,6 @@ protected:
      */
     cb::engine_errc doHandleSaslAuthTaskResult(cb::sasl::Error error,
                                                std::string_view payload);
-
-    const cb::mcbp::Request& request;
-    const std::string mechanism;
-    const std::string challenge;
-    State state;
-
-private:
     cb::engine_errc tryHandleSaslOk(std::string_view payload);
     cb::engine_errc authContinue(std::string_view challenge);
     cb::engine_errc authBadParameters();

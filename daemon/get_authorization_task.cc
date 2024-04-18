@@ -28,7 +28,7 @@ void GetAuthorizationTask::logIfSlowResponse() const {
 }
 
 void GetAuthorizationTask::externalResponse(cb::mcbp::Status statusCode,
-                                            const std::string& payload) {
+                                            std::string_view payload) {
     logIfSlowResponse();
     if (statusCode == cb::mcbp::Status::Success) {
         status = cb::sasl::Error::OK;

@@ -14,6 +14,7 @@
 #include <daemon/connection.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
+#include <daemon/sasl_auth_task.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <logger/logger.h>
@@ -105,6 +106,23 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     stats.auth_cmds++;
     state = State::Done;
     return cb::engine_errc::success;
+}
+
+cb::engine_errc SaslAuthCommandContext::handleSaslAuthTaskResult() {
+    if (task) {
+        error = task->getError();
+        payload = task->getChallenge();
+        task->updateExternalAuthContext();
+        task.reset();
+    }
+
+    const auto ret = doHandleSaslAuthTaskResult(error, payload);
+    if (error != cb::sasl::Error::CONTINUE) {
+        // we should _ONLY_ preserve the sasl server context if the underlying
+        // sasl backend returns CONTINUE
+        connection.releaseSaslServerContext();
+    }
+    return ret;
 }
 
 cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(

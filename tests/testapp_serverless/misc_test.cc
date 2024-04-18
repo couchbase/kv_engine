@@ -334,7 +334,7 @@ TEST(MiscTest, StopClientDataIngressLockedByNsServer) {
 /// configuration.
 TEST(MiscTest, MemcachedBucketNotSupported) {
     auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin");
+    admin->authenticate("@admin", "password", "SCRAM-SHA1");
     auto rsp = admin->execute(BinprotCreateBucketCommand{
             "NotSupported", "default_engine.so", ""});
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());

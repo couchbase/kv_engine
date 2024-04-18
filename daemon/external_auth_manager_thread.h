@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -208,11 +207,8 @@ protected:
         }
         AuthResponse(uint32_t opaque,
                      cb::mcbp::Status status,
-                     cb::const_byte_buffer value)
-            : opaque(opaque),
-              status(status),
-              payload(reinterpret_cast<const char*>(value.data()),
-                      value.size()) {
+                     std::string_view value)
+            : opaque(opaque), status(status), payload(value) {
         }
         uint32_t opaque;
         cb::mcbp::Status status;

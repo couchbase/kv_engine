@@ -24,11 +24,7 @@ public:
 
 protected:
     cb::engine_errc initial() override;
-    cb::engine_errc handleSaslAuthTaskResult() override;
 
 private:
     void doSaslStep();
-
-    cb::sasl::Error error = cb::sasl::Error::FAIL;
-    std::string payload;
 };
