@@ -619,7 +619,11 @@
             "type": "size_t"
         },
         "ht_locks": {
-            "default": "47",
+            "default": {
+                "on-prem": "47",
+                "serverless": "47",
+                "tsan": "23"
+            },
             "dynamic": false,
             "type": "size_t"
         },
