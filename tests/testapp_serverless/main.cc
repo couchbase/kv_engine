@@ -87,8 +87,13 @@ void startCluster(int verbosity, std::string_view backend) {
     }
 
     try {
-        const nlohmann::json bucketConfig = {
-                {"replicas", 2}, {"max_vbuckets", 8}, {"backend", backend}};
+        // We need to reduce the number of HashTable locks so that when
+        // incremental resizing is used, no more than 64 locks are held by a
+        // single thread, as that is not supported by thread-sanitizer.
+        const nlohmann::json bucketConfig = {{"backend", backend},
+                                             {"ht_locks", 23},
+                                             {"max_vbuckets", 8},
+                                             {"replicas", 2}};
 
         for (int ii = 0; ii < 5; ++ii) {
             const auto name = "bucket-" + std::to_string(ii);
