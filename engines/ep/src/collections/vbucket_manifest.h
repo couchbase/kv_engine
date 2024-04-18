@@ -412,10 +412,11 @@ public:
 
     /**
      * The changes that we need to make to the VB:Manifest manifest derived from
-     * the bucket Collections::Manifest.
+     * a compare against the bucket Collections::Manifest.
      */
     struct ManifestChanges {
-        explicit ManifestChanges(ManifestUid uid) : uid(uid) {
+        /// constructor is expected to be given the new Manifest UID
+        explicit ManifestChanges(ManifestUid uid) : newUid(uid) {
         }
         std::vector<ScopeCreation> scopesToCreate;
         std::vector<ScopeID> scopesToDrop;
@@ -423,26 +424,24 @@ public:
         std::vector<CollectionID> collectionsToDrop;
         std::vector<CollectionModification> collectionsToModify;
 
-        const ManifestUid uid{0};
+        const ManifestUid newUid{0};
 
-        /// @return true if no changes are to be made
+        /// @return true if there are no changes
         bool none() const {
             return scopesToCreate.empty() && scopesToDrop.empty() &&
                    collectionsToCreate.empty() && collectionsToDrop.empty() &&
                    collectionsToModify.empty();
         }
 
-        /// @return true if there are collections/scopes to create or drop
-        bool wouldCreateOrDrop() const {
-            return !(scopesToCreate.empty() && scopesToDrop.empty() &&
-                     collectionsToCreate.empty() && collectionsToDrop.empty());
-        }
-
-        ManifestUid getUidForChange(ManifestUid theirUid) {
-            // If the set of changes no longer will create or drop, i.e. is now
-            // 'drained' of creates or drops then the correct uid to now use is
-            // the change set uid
-            return !wouldCreateOrDrop() ? uid : theirUid;
+        /**
+         * This function is used to determine which UID is set against events
+         * if many events come from a manifest update, we don't want to declare
+         * we've reached the new-uid until all events have been processed.
+         * @return theirUid if all change vectors are not empty, else return
+         *         newUid.
+         */
+        ManifestUid getUidForChange(ManifestUid theirUid) const {
+            return none() ? newUid : theirUid;
         }
     };
 

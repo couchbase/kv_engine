@@ -294,24 +294,21 @@ ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
 
     auto changes = processManifest(manifest);
 
-    // If manifest was equal.
-    if (manifest.getUid() == manifestUid) {
-        if (changes.none()) {
-            return ManifestUpdateStatus::Success;
-        } else if (changes.wouldCreateOrDrop()) {
-            // Log verbosely for this case. An equal manifest should not change
-            // the scope or collection membership
-            EP_LOG_WARN(
-                    "Manifest::update {} with equal uid:{:#x} but differences "
-                    "scopes+:{}, collections+:{}, scopes-:{}, collections-:{}",
-                    vb.getId(),
-                    manifestUid,
-                    changes.scopesToCreate.size(),
-                    changes.collectionsToCreate.size(),
-                    changes.scopesToDrop.size(),
-                    changes.collectionsToDrop.size());
-            return ManifestUpdateStatus::EqualUidWithDifferences;
-        }
+    if (manifest.getUid() == manifestUid && !changes.none()) {
+        // Log verbosely for this case. An equal manifest should not change
+        // the scope, collection membership or modify a collection
+        EP_LOG_WARN(
+                "Manifest::update {} with equal uid:{:#x} but differences "
+                "scopes+:{}, collections+:{}, mods:{}, scopes-:{}, "
+                "collections-:{}",
+                vb.getId(),
+                manifestUid,
+                changes.scopesToCreate.size(),
+                changes.collectionsToCreate.size(),
+                changes.collectionsToModify.size(),
+                changes.scopesToDrop.size(),
+                changes.collectionsToDrop.size());
+        return ManifestUpdateStatus::EqualUidWithDifferences;
     }
 
     completeUpdate(vbStateLock, std::move(upgradeLock), vb, changes);
@@ -364,15 +361,13 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
 
     // Capture the UID
     if (changeset.none()) {
-        updateUid(changeset.uid, false /*reset*/);
+        updateUid(changeset.newUid, false /*reset*/);
         return;
     }
 
     auto finalDeletion =
             applyDrops(vbStateLock, wHandle, vb, changeset.collectionsToDrop);
     if (finalDeletion) {
-        // if the changeset is now 'drained' of create/drop, then this is final
-        // the final change to make - so use changeset.uid
         dropCollection(vbStateLock,
                        wHandle,
                        vb,
@@ -434,7 +429,7 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
         dropScope(vbStateLock,
                   wHandle,
                   vb,
-                  changeset.uid,
+                  changeset.newUid,
                   *finalScopeDrop,
                   std::nullopt,
                   OptionalSeqno{/*no-seqno*/});
