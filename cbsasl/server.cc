@@ -76,13 +76,4 @@ void initialize() {
 void shutdown() {
 }
 
-std::optional<pwdb::User> getUser(const rbac::UserIdent& ident) {
-    pwdb::User user;
-    if (ident.domain == Domain::Local && find_user(ident.name, user)) {
-        return user;
-    }
-
-    return {};
-}
-
 } // namespace cb::sasl::server

@@ -34,9 +34,6 @@ void initialize();
  */
 void shutdown();
 
-/// lookup the named user
-[[nodiscard]] std::optional<pwdb::User> getUser(const rbac::UserIdent& ident);
-
 /**
  * List all of the mechanisms available in cbsasl
  */
