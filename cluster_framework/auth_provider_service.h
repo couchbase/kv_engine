@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cbsasl/server.h>
 #include <event2/event.h>
 #include <folly/Synchronized.h>
 #include <libevent/utilities.h>
@@ -59,24 +60,60 @@ public:
 protected:
     /// Handle the authenticate request and send the reply
     void onAuthenticate(bufferevent* bev, const cb::mcbp::Request& req);
+
+    void onAuthenticateStart(bufferevent* bev,
+                             const cb::mcbp::Request& req,
+                             const nlohmann::json& json);
+    void onAuthenticateStep(bufferevent* bev,
+                            const cb::mcbp::Request& req,
+                            const nlohmann::json& json);
+
     /// Handle the GetAuthorization request and send the reply
     void onGetAuthorization(bufferevent* bev, const cb::mcbp::Request& req);
     /// Dispatch an incoming request (ignore the ones we don't know about)
     void onRequest(bufferevent* bev, const cb::mcbp::Request& req);
     /// Dispach an incomming response message (we don't expect any)
-    void onResponse(bufferevent* bev, const cb::mcbp::Response& res);
+    static void onResponse(bufferevent* bev, const cb::mcbp::Response& res);
     /// The callback from libevent when there is new data available
     static void read_callback(bufferevent* bev, void* ctx);
     /// The callback from libevent when the socket is closed
     static void event_callback(bufferevent* bev, short event, void* ctx);
 
-    void sendResponse(bufferevent* bev,
-                      const cb::mcbp::Request& req,
-                      cb::mcbp::Status status,
-                      const std::string& payload);
+    static void sendResponse(bufferevent* bev,
+                             const cb::mcbp::Request& req,
+                             cb::mcbp::Status status,
+                             std::string_view payload);
+
+    void handleSaslResponse(
+            bufferevent* bev,
+            const cb::mcbp::Request& req,
+            bool authentication_only,
+            std::unique_ptr<cb::sasl::server::ServerContext> server_ctx,
+            nlohmann::json rbac,
+            cb::sasl::Error status,
+            std::string_view challenge);
+
+    /// The struct used for each entry in our password database
+    struct PwDbEntry;
 
     Cluster& cluster;
-    folly::Synchronized<std::vector<UserEntry>> users;
+    folly::Synchronized<std::vector<std::unique_ptr<PwDbEntry>>> users;
+
+    struct ActiveAuth {
+        ActiveAuth(
+                std::unique_ptr<cb::sasl::server::ServerContext> server_context,
+                nlohmann::json json)
+            : server_context(std::move(server_context)), json(std::move(json)) {
+        }
+        std::unique_ptr<cb::sasl::server::ServerContext> server_context;
+        nlohmann::json json;
+    };
+
+    // We don't need any synchronization on the active users
+    // map as it is only referenced from the thread running the server
+    // part of the auth service
+    std::unordered_map<std::string, std::unique_ptr<ActiveAuth>> active_auth;
+
     std::thread thread;
     cb::libevent::unique_event_base_ptr base;
 };

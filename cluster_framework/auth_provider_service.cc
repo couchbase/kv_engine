@@ -12,15 +12,31 @@
 
 #include "cluster.h"
 
+#include <cbsasl/server.h>
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
-#include <include/mcbp/protocol/framebuilder.h>
+#include <folly/ScopeGuard.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <platform/base64.h>
+#include <platform/uuid.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <iostream>
 
 namespace cb::test {
+struct AuthProviderService::PwDbEntry {
+    PwDbEntry() = default;
+    explicit PwDbEntry(UserEntry ue)
+        : user_entry(std::move(ue)),
+          user(sasl::pwdb::UserFactory::create(
+                  user_entry.username,
+                  std::vector{{user_entry.password}},
+                  [](auto) { return true; },
+                  "pbkdf2-hmac-sha512")) {
+    }
+    UserEntry user_entry;
+    sasl::pwdb::User user;
+};
 
 AuthProviderService::AuthProviderService(Cluster& cluster) : cluster(cluster) {
     base.reset(event_base_new());
@@ -119,7 +135,7 @@ void AuthProviderService::event_callback(bufferevent* bev, short event, void*) {
 void AuthProviderService::removeUser(const std::string& user) {
     users.withWLock([&user](auto& db) {
         for (auto iter = db.begin(); iter != db.end(); ++iter) {
-            if (iter->username == user) {
+            if ((*iter)->user_entry.username == user) {
                 db.erase(iter);
                 return;
             }
@@ -134,15 +150,13 @@ void AuthProviderService::upsertUser(UserEntry entry) {
     }
 
     users.withWLock([&entry](auto& db) {
-        // check to see if we're replacing an entry
-        for (auto& e : db) {
-            if (e.username == entry.username) {
-                e.password = entry.password;
-                e.authz = entry.authz;
+        for (auto iter = db.begin(); iter != db.end(); ++iter) {
+            if ((*iter)->user_entry.username == entry.username) {
+                db.erase(iter);
                 break;
             }
         }
-        db.emplace_back(entry);
+        db.emplace_back(std::make_unique<PwDbEntry>(entry));
     });
 
     // push the value to all of the connections
@@ -170,8 +184,8 @@ std::optional<UserEntry> AuthProviderService::lookupUser(
     return users.withWLock([&user](auto& db) -> std::optional<UserEntry> {
         // check to see if we're replacing an entry
         for (auto& e : db) {
-            if (e.username == user) {
-                return e;
+            if (e->user_entry.username == user) {
+                return e->user_entry;
             }
         }
         return {};
@@ -228,90 +242,161 @@ void AuthProviderService::onAuthenticate(bufferevent* bev,
         return;
     }
 
-    if (json.at("mechanism").get<std::string>() != "PLAIN") {
+    if (json.contains("context")) {
+        onAuthenticateStep(bev, req, json);
+    } else {
+        onAuthenticateStart(bev, req, json);
+    }
+}
+
+void AuthProviderService::handleSaslResponse(
+        bufferevent* bev,
+        const cb::mcbp::Request& req,
+        bool authentication_only,
+        std::unique_ptr<cb::sasl::server::ServerContext> server_ctx,
+        nlohmann::json rbac,
+        cb::sasl::Error status,
+        std::string_view challenge) {
+    using mcbp::Status;
+    using sasl::Error;
+
+    nlohmann::json success_payload;
+    if (!challenge.empty()) {
+        success_payload["response"] = base64::encode(challenge);
+    }
+
+    switch (status) {
+    case Error::CONTINUE:
+        success_payload["context"] = ::to_string(cb::uuid::random());
+        active_auth.emplace(success_payload["context"],
+                            std::make_unique<ActiveAuth>(std::move(server_ctx),
+                                                         std::move(rbac)));
+        sendResponse(bev, req, Status::AuthContinue, success_payload.dump());
+        return;
+
+    case Error::FAIL:
         sendResponse(bev,
                      req,
-                     cb::mcbp::Status::NotSupported,
+                     Status::Einternal,
+                     R"({"error":{"context":"Internal error."}})");
+        return;
+    case Error::BAD_PARAM:
+        sendResponse(bev,
+                     req,
+                     Status::Einval,
+                     R"({"error":{"context":"Invalid challenge"}})");
+        return;
+
+    case Error::NO_MEM:
+        sendResponse(
+                bev,
+                req,
+                Status::Enomem,
+                R"({"error":{"context":"Internal error. Missing rbac profile"}})");
+        return;
+
+    case Error::AUTH_PROVIDER_DIED:
+    case Error::NO_RBAC_PROFILE:
+        // These errors are not returned by start
+        Expects(false);
+
+    case Error::NO_MECH:
+        sendResponse(bev,
+                     req,
+                     Status::NotSupported,
                      R"({"error":{"context":"mechanism not supported"}})");
         return;
-    }
 
-    const auto ch = cb::base64::decode(json.at("challenge").get<std::string>());
-    const auto challenge =
-            std::string{reinterpret_cast<const char*>(ch.data()), ch.size()};
-
-    // The syntax for the payload for plain auth is a string looking like:
-    // \0username\0password
-    if (challenge.empty()) {
-        sendResponse(bev,
-                     req,
-                     cb::mcbp::Status::Einval,
-                     R"({"error":{"context":"Invalid encoded challenge"}})");
+    case Error::NO_USER:
+        sendResponse(bev, req, Status::KeyEnoent, {});
         return;
-    }
-
-    // Skip everything up to the first \0
-    size_t inputpos = 0;
-    while (inputpos < challenge.size() && challenge[inputpos] != '\0') {
-        inputpos++;
-    }
-    inputpos++;
-
-    if (inputpos >= challenge.size()) {
-        sendResponse(bev,
-                     req,
-                     cb::mcbp::Status::Einval,
-                     R"({"error":{"context":"Invalid encoded challenge"}})");
+    case Error::PASSWORD_ERROR:
+        sendResponse(bev, req, Status::KeyEexists, {});
         return;
-    }
-
-    const char* ptr = challenge.data() + inputpos;
-    while (inputpos < challenge.size() && challenge[inputpos] != '\0') {
-        inputpos++;
-    }
-    inputpos++;
-
-    if (inputpos > challenge.size()) {
-        sendResponse(bev,
-                     req,
-                     cb::mcbp::Status::Einval,
-                     R"({"error":{"context":"Invalid encoded challenge"}})");
-        return;
-    }
-
-    const std::string user(ptr);
-    std::string password;
-
-    if (inputpos != challenge.size()) {
-        size_t pwlen = 0;
-        ptr = challenge.data() + inputpos;
-        while (inputpos < challenge.size() && challenge[inputpos] != '\0') {
-            inputpos++;
-            pwlen++;
+    case Error::OK:
+        if (!authentication_only) {
+            success_payload["rbac"][server_ctx->getUsername()] =
+                    std::move(rbac);
         }
-        password = std::string{ptr, pwlen};
+        sendResponse(bev, req, Status::Success, success_payload.dump());
+        return;
     }
 
-    UserEntry ue;
-    users.withRLock([&user, &ue](auto& userdb) {
-        for (const auto& u : userdb) {
-            if (u.username == user) {
-                ue = u;
-                return;
+    sendResponse(bev,
+                 req,
+                 Status::Einternal,
+                 R"({"error":{"context":"Internal error"}})");
+}
+
+void AuthProviderService::onAuthenticateStart(bufferevent* bev,
+                                              const cb::mcbp::Request& req,
+                                              const nlohmann::json& json) {
+    PwDbEntry user_entry;
+    auto lookup_user =
+            [this,
+             &user_entry](const std::string& username) -> sasl::pwdb::User {
+        PwDbEntry entry;
+        users.withRLock([&username, &entry](auto& userdb) {
+            for (const auto& e : userdb) {
+                if (e->user_entry.username == username) {
+                    entry = *e;
+                    return;
+                }
             }
+        });
+        if (entry.user.isDummy()) {
+            return sasl::pwdb::User{};
         }
-    });
 
-    if (ue.username.empty()) {
-        sendResponse(bev, req, cb::mcbp::Status::KeyEnoent, {});
-    } else if (password == ue.password) {
-        nlohmann::json payload;
-        payload["rbac"][ue.username] = ue.authz;
-        sendResponse(bev, req, cb::mcbp::Status::Success, payload.dump());
-    } else {
-        // Invalid username password combo
-        sendResponse(bev, req, cb::mcbp::Status::KeyEexists, {});
+        user_entry = entry;
+        return entry.user;
+    };
+
+    nlohmann::json success_payload;
+
+    auto server_ctx =
+            std::make_unique<cb::sasl::server::ServerContext>(lookup_user);
+    auto [status, challenge] = server_ctx->start(
+            json["mechanism"],
+            cb::sasl::server::listmech(),
+            cb::base64::decode(json.at("challenge").get<std::string>()));
+
+    handleSaslResponse(bev,
+                       req,
+                       json.value("authentication-only", true),
+                       std::move(server_ctx),
+                       std::move(user_entry.user_entry.authz),
+                       status,
+                       challenge);
+}
+
+void AuthProviderService::onAuthenticateStep(bufferevent* bev,
+                                             const cb::mcbp::Request& req,
+                                             const nlohmann::json& json) {
+    using namespace cb::sasl;
+    using namespace cb::mcbp;
+
+    auto iter = active_auth.find(json["context"]);
+    if (iter == active_auth.end()) {
+        sendResponse(bev,
+                     req,
+                     Status::Einval,
+                     R"({"error":{"context":"Unknown context"}})");
+        return;
     }
+
+    auto& server_ctx = iter->second->server_context;
+    auto [status, challenge] = server_ctx->step(
+            base64::decode(json.at("challenge").get<std::string>()));
+
+    auto prune = folly::makeGuard([this, &iter] { active_auth.erase(iter); });
+    handleSaslResponse(bev,
+                       req,
+                       json.value("authentication-only", true),
+                       std::move(server_ctx),
+                       std::move(iter->second->json),
+                       status,
+                       challenge);
 }
 
 void AuthProviderService::onGetAuthorization(bufferevent* bev,
@@ -322,8 +407,8 @@ void AuthProviderService::onGetAuthorization(bufferevent* bev,
     UserEntry ue;
     users.withRLock([&user, &ue](auto& userdb) {
         for (const auto& u : userdb) {
-            if (u.username == user) {
-                ue = u;
+            if (u->user_entry.username == user) {
+                ue = u->user_entry;
                 return;
             }
         }
@@ -341,7 +426,7 @@ void AuthProviderService::onGetAuthorization(bufferevent* bev,
 void AuthProviderService::sendResponse(bufferevent* bev,
                                        const mcbp::Request& req,
                                        cb::mcbp::Status status,
-                                       const std::string& payload) {
+                                       std::string_view payload) {
     std::vector<uint8_t> backing(sizeof(cb::mcbp::Header) + payload.size());
     cb::mcbp::ResponseBuilder builder(backing);
     builder.setMagic(cb::mcbp::Magic::ServerResponse);
