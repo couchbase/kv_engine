@@ -519,8 +519,15 @@ template void Configuration::addValueChangedFunc(
         std::string_view, std::function<void(std::string_view)>);
 
 // Explicit instantiations for addParameter for supported types.
-template void Configuration::addParameter(std::string_view, bool, bool);
-template void Configuration::addParameter(std::string_view, size_t, bool);
-template void Configuration::addParameter(std::string_view, ssize_t, bool);
-template void Configuration::addParameter(std::string_view, float, bool);
-template void Configuration::addParameter(std::string_view, std::string, bool);
+#define INSTANTIATE_TEMPLATES(T)                             \
+    template void Configuration::addParameter(               \
+            std::string_view, T, T, std::optional<T>, bool); \
+    template void Configuration::addParameter(std::string_view, T, bool)
+
+INSTANTIATE_TEMPLATES(bool);
+INSTANTIATE_TEMPLATES(size_t);
+INSTANTIATE_TEMPLATES(ssize_t);
+INSTANTIATE_TEMPLATES(float);
+INSTANTIATE_TEMPLATES(std::string);
+
+#undef INSTANTIATE_TEMPLATES

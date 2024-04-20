@@ -318,8 +318,8 @@ protected:
      * @param key the key to specify
      * @param defaultOnPrem default value if we're running in an on-prem context
      * @param defaultServerless default value if we're running in an serverless
+     *        context
      * @param defaultTSAN optional override if compiled with thread-sanitizer
-     * context
      * @param dynamic True if this parameter can be changed at runtime,
      *        False if the value cannot be changed once object is constructed.
      */
