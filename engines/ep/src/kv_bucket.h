@@ -1115,7 +1115,7 @@ public:
      * @return one of the replication-throttle states, depending on the memory
      *  state of the bucket.
      */
-    ReplicationThrottleStatus getReplicationThrottleStatus() const;
+    ReplicationThrottleStatus getReplicationThrottleStatus();
 
     /**
      * @return whether OOM conditions on the bucket can trigger disconnection of
@@ -1127,7 +1127,7 @@ public:
      * @return The difference between the replication-threshold and the current
      *  mem usage. Capped at 0 on the negatives.
      */
-    size_t getMemAvailableForReplication() const;
+    size_t getMemAvailableForReplication();
 
 protected:
     /**

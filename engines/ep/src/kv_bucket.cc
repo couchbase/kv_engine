@@ -3368,8 +3368,7 @@ size_t KVBucket::getNumCheckpointDestroyers() const {
     return ckptDestroyerTasks.rlock()->size();
 }
 
-KVBucket::ReplicationThrottleStatus KVBucket::getReplicationThrottleStatus()
-        const {
+KVBucket::ReplicationThrottleStatus KVBucket::getReplicationThrottleStatus() {
     if (getMemAvailableForReplication() > 0) {
         return ReplicationThrottleStatus::Process;
     }
@@ -3377,7 +3376,11 @@ KVBucket::ReplicationThrottleStatus KVBucket::getReplicationThrottleStatus()
                                         : ReplicationThrottleStatus::Pause;
 }
 
-size_t KVBucket::getMemAvailableForReplication() const {
+size_t KVBucket::getMemAvailableForReplication() {
+    if (isCheckpointMemoryStateFull(verifyCheckpointMemoryState())) {
+        return 0;
+    }
+
     const auto& stats = engine.getEpStats();
     const auto memoryUsed = stats.getEstimatedTotalMemoryUsed();
     const auto bucketQuota = stats.getMaxDataSize();
