@@ -324,6 +324,10 @@ public:
         return tag;
     }
 
+    [[nodiscard]] std::string getHostname() const {
+        return host;
+    }
+
     /// Set a new timeout value for the read timeouts
     void setReadTimeout(std::chrono::seconds tmo) {
         timeout = tmo;
