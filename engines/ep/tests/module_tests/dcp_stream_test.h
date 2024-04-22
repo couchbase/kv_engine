@@ -173,6 +173,8 @@ protected:
             const std::optional<cb::durability::Requirements>& durReqs,
             bool compressed = false);
 
+    enum class OOMLevel { Bucket, Checkpoint };
+
     /**
      * Verify that PassiveStream is capable of forcing inbound DCP traffic
      * regardless of any OOM condition
@@ -181,7 +183,8 @@ protected:
      * @param hasValue Used for verifying empty/non-empty tombstones
      */
     void testProcessMessageBypassMemCheck(DcpResponse::Event event,
-                                          bool hasValue);
+                                          bool hasValue,
+                                          OOMLevel oomLevel);
 
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
