@@ -135,21 +135,27 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
 void BackfillManager::addStats(DcpProducer& conn,
                                const AddStatFn& add_stat,
                                const CookieIface* c) {
-    std::lock_guard<std::mutex> lh(lock);
-    conn.addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
+    std::unique_lock<std::mutex> lh(lock);
+    auto bufferCopy = buffer;
+    auto initializingBackfillsSize = initializingBackfills.size();
+    auto activeBackfillsSize = activeBackfills.size();
+    auto snoozingBackfillsSize = snoozingBackfills.size();
+    auto pendingBackfillsSize = pendingBackfills.size();
+    auto order = scheduleOrder;
+    lh.unlock();
+
     conn.addStat(
-            "backfill_buffer_next_read_size", buffer.nextReadSize, add_stat, c);
-    conn.addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
-    conn.addStat("backfill_buffer_full", buffer.full, add_stat, c);
+            "backfill_buffer_bytes_read", bufferCopy.bytesRead, add_stat, c);
+    conn.addStat("backfill_buffer_max_bytes", bufferCopy.maxBytes, add_stat, c);
+    conn.addStat("backfill_buffer_full", bufferCopy.full, add_stat, c);
     conn.addStat("backfill_num_initializing",
-                 initializingBackfills.size(),
+                 initializingBackfillsSize,
                  add_stat,
                  c);
-    conn.addStat("backfill_num_active", activeBackfills.size(), add_stat, c);
-    conn.addStat(
-            "backfill_num_snoozing", snoozingBackfills.size(), add_stat, c);
-    conn.addStat("backfill_num_pending", pendingBackfills.size(), add_stat, c);
-    conn.addStat("backfill_order", to_string(scheduleOrder), add_stat, c);
+    conn.addStat("backfill_num_active", activeBackfillsSize, add_stat, c);
+    conn.addStat("backfill_num_snoozing", snoozingBackfillsSize, add_stat, c);
+    conn.addStat("backfill_num_pending", pendingBackfillsSize, add_stat, c);
+    conn.addStat("backfill_order", to_string(order), add_stat, c);
 }
 
 BackfillManager::~BackfillManager() {
@@ -206,11 +212,20 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
     }
 
     if (managerTask && !managerTask->isdead()) {
-        ExecutorPool::get()->wake(managerTask->getId());
+        auto id = managerTask->getId();
+        lh.unlock();
+        ExecutorPool::get()->wake(id);
     } else {
-        managerTask = std::make_shared<BackfillManagerTask>(
+        // Reducing the lock scope of this branch, only dropping the lock once
+        // assigned to managerTask - so we don't get multiple schedules seeing
+        // !managerTask. However call schedule with a locally scoped newTask
+        // because managerTask could become reset once the lock is released.
+        // See ::backfill()
+        auto newTask = std::make_shared<BackfillManagerTask>(
                 kvBucket.getEPEngine(), shared_from_this());
-        ExecutorPool::get()->schedule(managerTask);
+        managerTask = newTask;
+        lh.unlock();
+        ExecutorPool::get()->schedule(newTask);
     }
     return result;
 }
@@ -249,7 +264,7 @@ bool BackfillManager::bytesCheckAndRead(size_t bytes) {
 }
 
 void BackfillManager::bytesSent(size_t bytes) {
-    std::lock_guard<std::mutex> lh(lock);
+    std::unique_lock<std::mutex> lh(lock);
     if (bytes > buffer.bytesRead) {
         throw std::invalid_argument(
                 "BackfillManager::bytesSent: bytes "
@@ -279,7 +294,9 @@ void BackfillManager::bytesSent(size_t bytes) {
             buffer.nextReadSize = 0;
             buffer.full = false;
             if (managerTask) {
-                ExecutorPool::get()->wake(managerTask->getId());
+                auto id = managerTask->getId();
+                lh.unlock();
+                ExecutorPool::get()->wake(id);
             }
         }
     }
@@ -297,6 +314,7 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     if (kvBucket.isMemUsageAboveBackfillThreshold()) {
+        lh.unlock();
         EP_LOG_INFO_RAW(
                 "DCP backfilling task temporarily suspended "
                 "because the current memory usage is too high");
@@ -445,17 +463,20 @@ BackfillManager::dequeueNextBackfill(std::unique_lock<std::mutex>&) {
 }
 
 void BackfillManager::wakeUpTask() {
-    std::lock_guard<std::mutex> lh(lock);
-    if (managerTask) {
-        ExecutorPool::get()->wake(managerTask->getId());
+    std::unique_lock<std::mutex> lh(lock);
+    if (!managerTask) {
+        return;
     }
+    auto id = managerTask->getId();
+    lh.unlock();
+    ExecutorPool::get()->wake(id);
 }
 
 bool BackfillManager::removeBackfill(uint64_t backfillUID) {
     std::array<std::reference_wrapper<std::list<UniqueDCPBackfillPtr>>, 3>
             lists{{pendingBackfills, activeBackfills, initializingBackfills}};
 
-    std::lock_guard<std::mutex> lh(lock);
+    std::unique_lock<std::mutex> lh(lock);
     for (auto& ref : lists) {
         auto& list = ref.get();
         for (auto itr = list.begin(); itr != list.end(); itr++) {
@@ -465,6 +486,7 @@ bool BackfillManager::removeBackfill(uint64_t backfillUID) {
                 // Insertion into the pending list does not increment the
                 // tracker stat, so skip for pending
                 if (&ref.get() != &pendingBackfills) {
+                    lh.unlock();
                     backfillTracker.decrNumRunningBackfills();
                 }
                 return true;
@@ -477,6 +499,7 @@ bool BackfillManager::removeBackfill(uint64_t backfillUID) {
          itr++) {
         if (itr->second->getUID() == backfillUID) {
             snoozingBackfills.erase(itr);
+            lh.unlock();
             backfillTracker.decrNumRunningBackfills();
             return true;
         }

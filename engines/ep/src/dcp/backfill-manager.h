@@ -258,7 +258,7 @@ public:
      */
     bool removeBackfill(uint64_t backfillUID);
 
-    std::string to_string(ScheduleOrder order);
+    static std::string to_string(ScheduleOrder order);
 
     /// The name of the BackfillManager, used for logging etc
     const std::string name;
