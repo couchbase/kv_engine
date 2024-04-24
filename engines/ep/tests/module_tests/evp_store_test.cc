@@ -3077,7 +3077,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
     }
 
     // Drive all the tasks through the queue
-    auto runTasks = [=](TaskQueue& queue) {
+    auto runTasks = [this](TaskQueue& queue) {
         while (queue.getFutureQueueSize() > 0 ||
                queue.getReadyQueueSize() > 0) {
             ObjectRegistry::onSwitchThread(engine.get());
