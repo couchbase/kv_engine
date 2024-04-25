@@ -354,10 +354,7 @@ static void ioctl_get_executor(Cookie& cookie) {
     cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw;
     std::string value;
     if (ret == cb::engine_errc::success) {
-        auto& req = cookie.getRequest();
-        auto key_data = req.getKey();
-        const std::string key(reinterpret_cast<const char*>(key_data.data()),
-                              key_data.size());
+        const std::string key(cookie.getRequest().getKeyString());
         ret = ioctl_get_property(cookie, key, value, datatype);
     }
 
@@ -393,12 +390,8 @@ static void ioctl_set_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (ret == cb::engine_errc::success) {
         auto& req = cookie.getRequest();
-        auto key_data = req.getKey();
-        auto val_data = req.getValue();
-        const std::string key(reinterpret_cast<const char*>(key_data.data()),
-                              key_data.size());
-        const std::string value(reinterpret_cast<const char*>(val_data.data()),
-                                val_data.size());
+        const std::string key(req.getKeyString());
+        const std::string value(req.getValueString());
 
         ret = ioctl_set_property(cookie, key, value);
     }
@@ -601,13 +594,11 @@ static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
 
 static void update_user_permissions_executor(Cookie& cookie) {
     auto& request = cookie.getRequest();
-    auto value = request.getValue();
+    auto value = request.getValueString();
     auto status = cb::mcbp::Status::Success;
 
     try {
-        cb::rbac::updateExternalUser(
-                std::string{reinterpret_cast<const char*>(value.data()),
-                            value.size()});
+        cb::rbac::updateExternalUser(value);
     } catch (const nlohmann::json::exception& error) {
         cookie.setErrorContext(error.what());
         status = cb::mcbp::Status::Einval;
