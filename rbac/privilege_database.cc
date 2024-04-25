@@ -698,7 +698,7 @@ bool mayAccessBucket(const UserIdent& user, const std::string& bucket) {
     return false;
 }
 
-void updateExternalUser(const std::string& descr) {
+void updateExternalUser(const std::string_view descr) {
     // Parse the JSON and create the UserEntry object before grabbing
     // the write lock!
     auto json = nlohmann::json::parse(descr);
