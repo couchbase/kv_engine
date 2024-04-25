@@ -2207,9 +2207,8 @@ void ActiveStream::completeBackfillInner(
                 "{} items from memory, lastReadSeqno:{}, "
                 "lastSentSeqnoAdvance:{}, lastSentSnapStartSeqno:{}, "
                 "lastSentSnapEndSeqno:{}, pendingBackfill:{}, "
-                "numBackfillPauses:{}. Total "
-                "runtime {} "
-                "({} item/s, {} MB/s)",
+                "numBackfillPauses:{}. Total runtime {} "
+                "({} item/s, {})",
                 logPrefix,
                 backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
                 diskItemsRead,
@@ -2223,9 +2222,7 @@ void ActiveStream::completeBackfillInner(
                 numBackfillPauses.load(),
                 cb::time2text(runtime),
                 diskItemsRead ? int(diskItemsRead / runtimeSecs) : 0,
-                diskBytesRead
-                        ? int((diskBytesRead / runtimeSecs) / (1024 * 1024))
-                        : 0);
+                cb::calculateThroughput(diskBytesRead, runtime));
         } else {
             log(spdlog::level::level_enum::warn,
                 "{} ActiveStream::completeBackfillInner: "
