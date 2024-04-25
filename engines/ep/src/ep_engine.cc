@@ -717,6 +717,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setBfilterKeyCount(std::stoull(val));
         } else if (key == "pager_sleep_time_ms") {
             configuration.setPagerSleepTimeMs(std::stoull(val));
+        } else if (key == "paging_visitor_pause_check_count") {
+            configuration.setPagingVisitorPauseCheckCount(std::stoull(val));
         } else if (key == "item_eviction_age_percentage") {
             configuration.setItemEvictionAgePercentage(std::stoull(val));
         } else if (key == "item_eviction_freq_counter_age_threshold") {
