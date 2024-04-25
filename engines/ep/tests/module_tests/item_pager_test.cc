@@ -22,6 +22,7 @@
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
+#include "item_pager.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "learning_age_and_mfu_based_eviction.h"
@@ -46,6 +47,15 @@ using namespace std::string_literals;
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
+
+/// 1 GiB (base 2)
+static constexpr size_t GiB = 1024ULL * 1024 * 1024;
+
+// Comparing durations as ints gives better GTest output
+template <typename T>
+static constexpr auto countMilliseconds(T x) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(x).count();
+}
 
 /**
  * Test fixture for bucket quota tests.
@@ -493,6 +503,20 @@ protected:
     /// Has the item pager been scheduled to run?
     bool itemPagerScheduled = false;
 };
+
+TEST_P(STItemPagerTest, MaxVisitorDuration) {
+    auto& stats = engine->getEpStats();
+    StrictQuotaItemPager pager(*engine, stats, 1);
+
+    stats.setMaxDataSize(0);
+    EXPECT_EQ(125, countMilliseconds(pager.maxExpectedVisitorDuration()));
+
+    stats.setMaxDataSize(10 * GiB);
+    EXPECT_EQ(125, countMilliseconds(pager.maxExpectedVisitorDuration()));
+
+    stats.setMaxDataSize(100 * GiB);
+    EXPECT_EQ(575, countMilliseconds(pager.maxExpectedVisitorDuration()));
+}
 
 TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
     // MB-50423:
@@ -2043,6 +2067,20 @@ void STExpiryPagerTest::expiredItemsDeleted() {
     }
     EXPECT_EQ(cb::engine_errc::no_such_key, getKeyFn(key_2))
             << "Key with TTL:20 should be removed.";
+}
+
+TEST_P(STExpiryPagerTest, MaxVisitorDuration) {
+    auto& stats = engine->getEpStats();
+    ExpiredItemPager pager(*engine, stats, 0, 0, 1);
+
+    stats.setMaxDataSize(0);
+    EXPECT_EQ(55, countMilliseconds(pager.maxExpectedVisitorDuration()));
+
+    stats.setMaxDataSize(10 * GiB);
+    EXPECT_EQ(55, countMilliseconds(pager.maxExpectedVisitorDuration()));
+
+    stats.setMaxDataSize(100 * GiB);
+    EXPECT_EQ(235, countMilliseconds(pager.maxExpectedVisitorDuration()));
 }
 
 // Test that when the expiry pager runs, all expired items are deleted.
