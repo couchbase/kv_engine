@@ -14,7 +14,7 @@
 #include "couchfile.h"
 
 #include <engines/ep/src/collections/collections_types.h>
-#include <include/memcached/dockey.h>
+#include <memcached/dockey_view.h>
 
 namespace Collections {
 

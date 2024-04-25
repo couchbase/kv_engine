@@ -21,7 +21,7 @@ extern "C" {
 
 void validateKeyMapping(std::string_view caller,
                         cb::ErrorHandlingMethod errorHandlingMethod,
-                        DocKey key,
+                        DocKeyView key,
                         Vbid vbid,
                         size_t maxVbuckets) {
     auto crc = crc32buf(key.data(), key.size());

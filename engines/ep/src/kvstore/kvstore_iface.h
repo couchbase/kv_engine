@@ -266,7 +266,7 @@ public:
 
     using CreateItemCB =
             std::function<std::pair<cb::engine_errc, std::unique_ptr<Item>>(
-                    const DocKey& key,
+                    const DocKeyView& key,
                     size_t nbytes,
                     uint32_t flags,
                     time_t exptime,

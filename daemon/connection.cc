@@ -1914,7 +1914,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
 
 cb::engine_errc Connection::deletionInner(const ItemIface& item,
                                           cb::const_byte_buffer packet,
-                                          const DocKey& key) {
+                                          const DocKeyView& key) {
     try {
         copyToOutputStream(
                 {reinterpret_cast<const char*>(packet.data()), packet.size()},
@@ -2395,7 +2395,7 @@ cb::engine_errc Connection::seqno_acknowledged(uint32_t opaque,
 
 cb::engine_errc Connection::commit(uint32_t opaque,
                                    Vbid vbucket,
-                                   const DocKey& key_,
+                                   const DocKeyView& key_,
                                    uint64_t prepare_seqno,
                                    uint64_t commit_seqno) {
     cb::mcbp::request::DcpCommitPayload extras(prepare_seqno, commit_seqno);
@@ -2419,7 +2419,7 @@ cb::engine_errc Connection::commit(uint32_t opaque,
 
 cb::engine_errc Connection::abort(uint32_t opaque,
                                   Vbid vbucket,
-                                  const DocKey& key_,
+                                  const DocKeyView& key_,
                                   uint64_t prepared_seqno,
                                   uint64_t abort_seqno) {
     cb::mcbp::request::DcpAbortPayload extras(prepared_seqno, abort_seqno);

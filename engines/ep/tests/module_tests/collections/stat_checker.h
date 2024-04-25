@@ -12,7 +12,7 @@
 #pragma once
 
 #include "vbucket_fwd.h"
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <functional>
 #include <string>
 

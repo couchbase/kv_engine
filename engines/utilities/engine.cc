@@ -58,7 +58,7 @@ cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {
 }
 
 cb::EngineErrorItemPair EngineIface::get_replica(CookieIface& cookie,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  Vbid vbucket) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
 }

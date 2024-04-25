@@ -81,7 +81,7 @@ RangeScanDataHandler::cancelOnFrontendThread() {
     });
 }
 
-RangeScanDataHandler::Status RangeScanDataHandler::handleKey(DocKey key) {
+RangeScanDataHandler::Status RangeScanDataHandler::handleKey(DocKeyView key) {
     auto locked = scannedData.lock();
     locked->pendingReadBytes += key.size();
 

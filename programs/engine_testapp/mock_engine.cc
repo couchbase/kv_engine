@@ -92,7 +92,7 @@ void MockEngine::destroy(const bool force) {
 }
 
 cb::unique_item_ptr MockEngine::allocateItem(CookieIface& cookie,
-                                             const DocKey& key,
+                                             const DocKeyView& key,
                                              size_t nbytes,
                                              size_t priv_nbytes,
                                              uint32_t flags,
@@ -120,7 +120,7 @@ cb::unique_item_ptr MockEngine::allocateItem(CookieIface& cookie,
 
 cb::engine_errc MockEngine::remove(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
@@ -142,7 +142,7 @@ void MockEngine::release(ItemIface& item) {
 }
 
 cb::EngineErrorItemPair MockEngine::get(CookieIface& cookie,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         Vbid vbucket,
                                         DocStateFilter documentStateFilter) {
     auto engine_fn = [this,
@@ -157,7 +157,7 @@ cb::EngineErrorItemPair MockEngine::get(CookieIface& cookie,
 }
 
 cb::EngineErrorItemPair MockEngine::get_replica(CookieIface& cookie,
-                                                const DocKey& key,
+                                                const DocKeyView& key,
                                                 Vbid vbucket) {
     auto engine_fn = [this, &cookie, k = std::cref(key), vbucket]() {
         return the_engine->get_replica(cookie, k, vbucket);
@@ -177,7 +177,7 @@ cb::EngineErrorItemPair MockEngine::get_random_document(CookieIface& cookie,
 
 cb::EngineErrorItemPair MockEngine::get_if(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<bool(const item_info&)>& filter) {
     auto engine_fn = [this, &cookie, k = std::cref(key), vbucket, filter]() {
@@ -188,7 +188,7 @@ cb::EngineErrorItemPair MockEngine::get_if(
 
 cb::EngineErrorItemPair MockEngine::get_and_touch(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         uint32_t expiryTime,
         const std::optional<cb::durability::Requirements>& durability) {
@@ -206,7 +206,7 @@ cb::EngineErrorItemPair MockEngine::get_and_touch(
 
 cb::EngineErrorItemPair MockEngine::get_locked(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         std::chrono::seconds lock_timeout) {
     auto engine_fn =
@@ -218,7 +218,7 @@ cb::EngineErrorItemPair MockEngine::get_locked(
 }
 
 cb::EngineErrorMetadataPair MockEngine::get_meta(CookieIface& cookie,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  Vbid vbucket) {
     auto engine_fn = [this, &cookie, k = std::cref(key), vbucket]() {
         return the_engine->get_meta(cookie, k, vbucket);
@@ -228,7 +228,7 @@ cb::EngineErrorMetadataPair MockEngine::get_meta(CookieIface& cookie,
 }
 
 cb::engine_errc MockEngine::unlock(CookieIface& cookie,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    Vbid vbucket,
                                    uint64_t cas) {
     auto engine_fn = [this, &cookie, k = std::cref(key), vbucket, cas]() {
@@ -386,7 +386,7 @@ cb::engine_errc MockEngine::wait_for_seqno_persistence(CookieIface& cookie,
 }
 
 cb::engine_errc MockEngine::evict_key(CookieIface& cookie,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       Vbid vbucket) {
     auto engine_fn = [this, &cookie, k = std::cref(key), vbucket]() {
         return the_engine->evict_key(cookie, k, vbucket);
@@ -396,7 +396,7 @@ cb::engine_errc MockEngine::evict_key(CookieIface& cookie,
 
 cb::engine_errc MockEngine::observe(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
@@ -505,7 +505,7 @@ cb::engine_errc MockEngine::snapshot_marker(
 
 cb::engine_errc MockEngine::mutation(CookieIface& cookie,
                                      uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -553,7 +553,7 @@ cb::engine_errc MockEngine::mutation(CookieIface& cookie,
 
 cb::engine_errc MockEngine::deletion(CookieIface& cookie,
                                      uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -589,7 +589,7 @@ cb::engine_errc MockEngine::deletion(CookieIface& cookie,
 
 cb::engine_errc MockEngine::expiration(CookieIface& cookie,
                                        uint32_t opaque,
-                                       const DocKey& key,
+                                       const DocKeyView& key,
                                        cb::const_byte_buffer value,
                                        uint8_t datatype,
                                        uint64_t cas,
@@ -666,7 +666,7 @@ cb::engine_errc MockEngine::system_event(CookieIface& cookie,
 
 cb::engine_errc MockEngine::prepare(CookieIface& cookie,
                                     uint32_t opaque,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     cb::const_byte_buffer value,
                                     uint8_t datatype,
                                     uint64_t cas,
@@ -707,7 +707,7 @@ cb::engine_errc MockEngine::seqno_acknowledged(CookieIface& cookie,
 cb::engine_errc MockEngine::commit(CookieIface& cookie,
                                    uint32_t opaque,
                                    Vbid vbucket,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    uint64_t prepared_seqno,
                                    uint64_t commit_seqno) {
     return the_engine_dcp->commit(
@@ -717,7 +717,7 @@ cb::engine_errc MockEngine::commit(CookieIface& cookie,
 cb::engine_errc MockEngine::abort(CookieIface& cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
-                                  const DocKey& key,
+                                  const DocKeyView& key,
                                   uint64_t prepared_seqno,
                                   uint64_t abort_seqno) {
     return the_engine_dcp->abort(

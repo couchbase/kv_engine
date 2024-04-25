@@ -145,7 +145,7 @@ public:
                               cb::mcbp::DcpStreamEndStatus status) override;
 
     cb::engine_errc mutation(uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -159,7 +159,7 @@ public:
                              uint8_t nru) override;
 
     cb::engine_errc deletion(uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -169,7 +169,7 @@ public:
                              cb::const_byte_buffer meta) override;
 
     cb::engine_errc deletionV2(uint32_t opaque,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                cb::const_byte_buffer value,
                                uint8_t datatype,
                                uint64_t cas,
@@ -179,7 +179,7 @@ public:
                                uint32_t delete_time) override;
 
     cb::engine_errc expiration(uint32_t opaque,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                cb::const_byte_buffer value,
                                uint8_t datatype,
                                uint64_t cas,
@@ -235,7 +235,7 @@ public:
                                 cb::const_byte_buffer eventData) override;
 
     cb::engine_errc prepare(uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             cb::const_byte_buffer value,
                             uint8_t datatype,
                             uint64_t cas,
@@ -251,13 +251,13 @@ public:
 
     cb::engine_errc commit(uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepare_seqno,
                            uint64_t commit_seqno) override;
 
     cb::engine_errc abort(uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepareSeqno,
                           uint64_t abortSeqno) override;
 
@@ -454,7 +454,7 @@ protected:
      * shared method handles both.
      */
     cb::engine_errc deletion(uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -473,7 +473,7 @@ protected:
      */
     cb::engine_errc processMutationOrPrepare(Vbid vbucket,
                                              uint32_t opaque,
-                                             const DocKey& key,
+                                             const DocKeyView& key,
                                              queued_item item,
                                              cb::const_byte_buffer meta,
                                              size_t baseMsgBytes);
@@ -490,7 +490,7 @@ protected:
      */
     cb::engine_errc toMainDeletion(DeleteType origin,
                                    uint32_t opaque,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    cb::const_byte_buffer value,
                                    uint8_t datatype,
                                    uint64_t cas,

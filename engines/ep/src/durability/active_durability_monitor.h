@@ -22,7 +22,7 @@
 
 #include <unordered_set>
 
-struct DocKey;
+struct DocKeyView;
 class EPStats;
 class PassiveDurabilityMonitor;
 struct vbucket_state;
@@ -370,7 +370,7 @@ public:
      * @param key Key to drop
      * @param seqno Expected seqno of the SyncWrite we are dropping
      */
-    void eraseSyncWrite(const DocKey& key, int64_t seqno);
+    void eraseSyncWrite(const DocKeyView& key, int64_t seqno);
 
 protected:
     void toOStream(std::ostream& os) const override;

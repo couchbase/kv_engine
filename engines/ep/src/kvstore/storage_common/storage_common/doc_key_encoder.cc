@@ -10,7 +10,7 @@
 
 #include "doc_key_encoder.h"
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/systemevent.h>
 
 std::string encodeDocKey(std::string_view key,
@@ -41,7 +41,7 @@ std::string encodeDocKey(std::string_view key,
     }
     CollectionID cid(numericCollection);
 
-    ret.append(DocKey::makeWireEncodedString(cid, std::string(key)));
+    ret.append(DocKeyView::makeWireEncodedString(cid, std::string(key)));
 
     return ret;
 }

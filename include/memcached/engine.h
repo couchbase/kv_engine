@@ -83,7 +83,7 @@ class CancellationToken;
  * engine.
  */
 
-struct DocKey;
+struct DocKeyView;
 struct ServerBucketIface;
 struct ServerCoreIface;
 
@@ -286,14 +286,15 @@ struct EngineIface {
      *   * `cb::engine_errc::too_busy` Too busy to serve the request,
      *                                 back off and try again.
      */
-    [[nodiscard]] virtual cb::unique_item_ptr allocateItem(CookieIface& cookie,
-                                                           const DocKey& key,
-                                                           size_t nbytes,
-                                                           size_t priv_nbytes,
-                                                           uint32_t flags,
-                                                           rel_time_t exptime,
-                                                           uint8_t datatype,
-                                                           Vbid vbucket) = 0;
+    [[nodiscard]] virtual cb::unique_item_ptr allocateItem(
+            CookieIface& cookie,
+            const DocKeyView& key,
+            size_t nbytes,
+            size_t priv_nbytes,
+            uint32_t flags,
+            rel_time_t exptime,
+            uint8_t datatype,
+            Vbid vbucket) = 0;
 
     /**
      * Remove an item.
@@ -310,7 +311,7 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::engine_errc remove(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
@@ -339,14 +340,14 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::EngineErrorItemPair get(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             DocStateFilter documentStateFilter) = 0;
 
     /// Same as get, except that it only allows alive documents
     /// from a _REPLICA_ vbucket
     [[nodiscard]] virtual cb::EngineErrorItemPair get_replica(
-            CookieIface& cookie, const DocKey& key, Vbid vbucket);
+            CookieIface& cookie, const DocKeyView& key, Vbid vbucket);
 
     /// Get a random document from the provided collection
     [[nodiscard]] virtual cb::EngineErrorItemPair get_random_document(
@@ -370,7 +371,7 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<bool(const item_info&)>& filter) = 0;
 
@@ -384,7 +385,7 @@ struct EngineIface {
      * @return  Pair (cb::engine_errc::success, Metadata) if all goes well
      */
     [[nodiscard]] virtual cb::EngineErrorMetadataPair get_meta(
-            CookieIface& cookie, const DocKey& key, Vbid vbucket) = 0;
+            CookieIface& cookie, const DocKeyView& key, Vbid vbucket) = 0;
 
     /**
      * Evict a document from memory.
@@ -395,7 +396,7 @@ struct EngineIface {
      * @return The status of the operation
      */
     [[nodiscard]] virtual cb::engine_errc evict_key(CookieIface& cookie,
-                                                    const DocKey& key,
+                                                    const DocKeyView& key,
                                                     Vbid vbucket) {
         return cb::engine_errc::not_supported;
     }
@@ -413,7 +414,7 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::EngineErrorItemPair get_locked(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             std::chrono::seconds lock_timeout) = 0;
 
@@ -428,7 +429,7 @@ struct EngineIface {
      * @return cb::engine_errc::success if all goes well
      */
     [[nodiscard]] virtual cb::engine_errc unlock(CookieIface& cookie,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  Vbid vbucket,
                                                  uint64_t cas) = 0;
 
@@ -444,7 +445,7 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::EngineErrorItemPair get_and_touch(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             uint32_t expirytime,
             const std::optional<cb::durability::Requirements>& durability) = 0;
@@ -462,7 +463,7 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::engine_errc observe(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint) {

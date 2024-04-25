@@ -15,7 +15,7 @@
 
 #include <fmt/ostream.h>
 #include <mcbp/protocol/unsigned_leb128.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/fmt.h>
 
@@ -39,14 +39,14 @@ std::string makeCollectionIdIntoString(CollectionID collection) {
                        leb128.size());
 }
 
-CollectionID getCollectionIDFromKey(const DocKey& key) {
+CollectionID getCollectionIDFromKey(const DocKeyView& key) {
     if (!key.isInSystemEventCollection()) {
         throw std::invalid_argument("getCollectionIDFromKey: non-system key");
     }
     return SystemEventFactory::getCollectionIDFromKey(key);
 }
 
-ScopeID getScopeIDFromKey(const DocKey& key) {
+ScopeID getScopeIDFromKey(const DocKeyView& key) {
     if (!key.isInSystemEventCollection()) {
         throw std::invalid_argument("getScopeIDFromKey: non-system key");
     }

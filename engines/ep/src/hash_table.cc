@@ -551,7 +551,7 @@ const HashTable::table_type::value_type& HashTable::unlocked_getBucket(
             std::to_string(int(position.table)));
 }
 
-HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
+HashTable::FindInnerResult HashTable::findInner(const DocKeyView& key) {
     if (!isActive()) {
         throw std::logic_error(
                 "HashTable::find: Cannot call on a "
@@ -563,7 +563,7 @@ HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
 }
 
 HashTable::UnlockedFindResult HashTable::unlocked_find(
-        const HashBucketLock& hbl, const DocKey& key) const {
+        const HashBucketLock& hbl, const DocKeyView& key) const {
     // Scan through all elements in the hash bucket chain looking for Committed
     // and Pending items with the same key.
     StoredValue* foundCmt = nullptr;
@@ -1159,7 +1159,7 @@ StoredValue* HashTable::selectSVForRead(TrackReference trackReference,
 }
 
 HashTable::FindROResult HashTable::findForRead(
-        const DocKey& key,
+        const DocKeyView& key,
         TrackReference trackReference,
         WantsDeleted wantsDeleted,
         const ForGetReplicaOp fetchRequestedForReplicaItem) {
@@ -1174,7 +1174,7 @@ HashTable::FindROResult HashTable::findForRead(
     return {sv, std::move(result.lock)};
 }
 
-HashTable::FindResult HashTable::findForWrite(const DocKey& key,
+HashTable::FindResult HashTable::findForWrite(const DocKeyView& key,
                                               WantsDeleted wantsDeleted) {
     auto result = findInner(key);
 
@@ -1202,7 +1202,7 @@ HashTable::FindResult HashTable::findForWrite(const DocKey& key,
     return {result.committedSV, std::move(result.lock)};
 }
 
-HashTable::FindResult HashTable::findForSyncWrite(const DocKey& key) {
+HashTable::FindResult HashTable::findForSyncWrite(const DocKeyView& key) {
     auto result = findInner(key);
 
     if (result.pendingSV) {
@@ -1227,7 +1227,7 @@ HashTable::FindResult HashTable::findForSyncWrite(const DocKey& key) {
     return {result.committedSV, std::move(result.lock)};
 }
 
-HashTable::FindResult HashTable::findForSyncReplace(const DocKey& key) {
+HashTable::FindResult HashTable::findForSyncReplace(const DocKeyView& key) {
     auto result = findInner(key);
 
     if (result.pendingSV) {
@@ -1258,19 +1258,19 @@ HashTable::FindResult HashTable::findForSyncReplace(const DocKey& key) {
     return {result.committedSV, std::move(result.lock)};
 }
 
-HashTable::FindUpdateResult HashTable::findForUpdate(const DocKey& key) {
+HashTable::FindUpdateResult HashTable::findForUpdate(const DocKeyView& key) {
     auto result = findInner(key);
 
     StoredValueProxy prepare{std::move(result.lock), result.pendingSV};
     return {std::move(prepare), result.committedSV, *this};
 }
 
-HashTable::FindResult HashTable::findOnlyCommitted(const DocKey& key) {
+HashTable::FindResult HashTable::findOnlyCommitted(const DocKeyView& key) {
     auto result = findInner(key);
     return {result.committedSV, std::move(result.lock)};
 }
 
-HashTable::FindResult HashTable::findOnlyPrepared(const DocKey& key) {
+HashTable::FindResult HashTable::findOnlyPrepared(const DocKeyView& key) {
     auto result = findInner(key);
     return {result.pendingSV, std::move(result.lock)};
 }

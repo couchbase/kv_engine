@@ -77,7 +77,7 @@ public:
 
         // Setup a Document
         doc.info.id =
-                DocKey::makeWireEncodedString(CollectionID::Default, "key");
+                DocKeyView::makeWireEncodedString(CollectionID::Default, "key");
         doc.info.cas = nextCas();
         generateDocumentValue(getValue());
     }

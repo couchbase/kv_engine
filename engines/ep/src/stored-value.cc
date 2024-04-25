@@ -224,7 +224,7 @@ bool StoredValue::del(DeleteSource delSource) {
     }
 }
 
-size_t StoredValue::getRequiredStorage(const DocKey& key) {
+size_t StoredValue::getRequiredStorage(const DocKeyView& key) {
     return sizeof(StoredValue) + SerialisedDocKey::getObjectSize(key.size());
 }
 
@@ -690,7 +690,7 @@ bool OrderedStoredValue::operator==(const OrderedStoredValue& other) const {
     return StoredValue::operator==(other);
 }
 
-size_t OrderedStoredValue::getRequiredStorage(const DocKey& key) {
+size_t OrderedStoredValue::getRequiredStorage(const DocKeyView& key) {
     return sizeof(OrderedStoredValue) + SerialisedDocKey::getObjectSize(key);
 }
 

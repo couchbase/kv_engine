@@ -14,7 +14,7 @@
 
 #include <boost/functional/hash.hpp>
 #include <folly/Synchronized.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/vbucket.h>

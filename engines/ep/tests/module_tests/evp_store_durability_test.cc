@@ -387,7 +387,7 @@ protected:
     /**
      * Method to get and check a replica's value
      */
-    void checkReplicaValue(DocKey key,
+    void checkReplicaValue(DocKeyView key,
                            std::string value,
                            get_options_t options) {
         auto getReplicaValue = store->getReplica(key, vbid, cookie, options);
@@ -405,7 +405,7 @@ protected:
      * @param key of the pending item
      * @param value of the pending item
      */
-    void storePreparedMaybeVisibleItem(DocKey key, std::string& value) {
+    void storePreparedMaybeVisibleItem(DocKeyView key, std::string& value) {
         using namespace cb::durability;
         auto& vb = *store->getVBucket(vbid);
 
@@ -4682,7 +4682,7 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
     uint64_t hint;
     auto res = engine->observe(
             *cookie,
-            DocKey{keyCommitted, DocKeyEncodesCollectionId::No},
+            DocKeyView{keyCommitted, DocKeyEncodesCollectionId::No},
             Vbid{0},
             [](auto, auto) {},
             hint);
@@ -4692,7 +4692,7 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
     // the entire Observe to fail
     res = engine->observe(
             *cookie,
-            DocKey{keyMaybeVisible, DocKeyEncodesCollectionId::No},
+            DocKeyView{keyMaybeVisible, DocKeyEncodesCollectionId::No},
             Vbid{0},
             [](auto, auto) {},
             hint);

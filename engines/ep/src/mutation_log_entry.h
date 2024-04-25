@@ -62,7 +62,7 @@ public:
         return DocKeyEncodesCollectionId::No;
     }
 
-    explicit operator DocKey() const {
+    explicit operator DocKeyView() const {
         return {bytes, length, DocKeyEncodesCollectionId::No};
     }
 
@@ -418,7 +418,7 @@ public:
     static MutationLogEntryV3* newEntry(uint8_t* buf,
                                         MutationLogType t,
                                         Vbid vb,
-                                        const DocKey& k) {
+                                        const DocKeyView& k) {
         return new (buf) MutationLogEntryV3(t, vb, k);
     }
 
@@ -531,7 +531,7 @@ private:
     friend std::ostream& operator<<(std::ostream& out,
                                     const MutationLogEntryV3& e);
 
-    MutationLogEntryV3(MutationLogType t, Vbid vb, const DocKey& k)
+    MutationLogEntryV3(MutationLogType t, Vbid vb, const DocKeyView& k)
         : _vbucket(vb.hton()), magic(MagicMarker), _type(t), _key(k) {
         // Assert that _key is the final member
         static_assert(

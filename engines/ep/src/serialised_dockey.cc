@@ -28,7 +28,7 @@ bool SerialisedDocKey::isInDefaultCollection() const {
     return data()[0] == CollectionID::Default;
 }
 
-bool SerialisedDocKey::operator==(const DocKey& rhs) const {
+bool SerialisedDocKey::operator==(const DocKeyView& rhs) const {
     // Does 'rhs' encode a collection-ID
     if (rhs.getEncoding() == DocKeyEncodesCollectionId::Yes) {
         // compare size and then the entire key

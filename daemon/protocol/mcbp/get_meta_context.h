@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include <memcached/dockey.h>
 #include "steppable_command_context.h"
 
 /**

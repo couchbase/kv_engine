@@ -46,7 +46,7 @@ DiskDocKey makeDiskDocKey(const std::string& string,
 }
 
 Item make_item(Vbid vbid,
-               const DocKey& key,
+               const DocKeyView& key,
                const std::string& value,
                uint32_t exptime,
                protocol_binary_datatype_t datatype) {
@@ -93,7 +93,7 @@ queued_item makeAbortedItem(StoredDocKey key, const std::string& value) {
 }
 
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
-                                           const DocKey& key,
+                                           const DocKeyView& key,
                                            const std::string& body,
                                            protocol_binary_datatype_t datatype,
                                            bool shouldCompress,
@@ -124,7 +124,7 @@ std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                   vbid);
 }
 
-bool queueNewItem(VBucket& vbucket, DocKey key) {
+bool queueNewItem(VBucket& vbucket, DocKeyView key) {
     queued_item qi{new Item(key,
                             vbucket.getId(),
                             queue_op::mutation,

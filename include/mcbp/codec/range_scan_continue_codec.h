@@ -15,7 +15,7 @@
 #include <optional>
 #include <string>
 
-struct DocKey;
+struct DocKeyView;
 struct item_info;
 
 namespace cb::mcbp::response {
@@ -38,7 +38,7 @@ public:
      * @param v The vector into which the encoded data is appended
      * @param key The key to encode into v
      */
-    static void encode(std::vector<uint8_t>& v, const DocKey& key);
+    static void encode(std::vector<uint8_t>& v, const DocKeyView& key);
 
 private:
     std::string_view payload;

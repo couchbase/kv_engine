@@ -82,7 +82,7 @@ public:
      * - If the key applies to a collection, the collection must exist and
      *   must not be in the process of deletion.
      */
-    bool doesKeyContainValidCollection(DocKey key) const {
+    bool doesKeyContainValidCollection(DocKeyView key) const {
         return manifest->doesKeyContainValidCollection(key);
     }
 
@@ -103,7 +103,7 @@ public:
      *
      * @return true if the key belongs to a deleted collection.
      */
-    bool isLogicallyDeleted(DocKey key, int64_t seqno) const {
+    bool isLogicallyDeleted(DocKeyView key, int64_t seqno) const {
         return manifest->isLogicallyDeleted(key, seqno);
     }
 
@@ -320,12 +320,14 @@ public:
      */
     CachingReadHandle(const Manifest* m,
                       Manifest::mutex_type& lock,
-                      DocKey key,
+                      DocKeyView key,
                       Manifest::AllowSystemKeys tag)
         : ReadHandle(m, lock), itr(m->getManifestEntry(key, tag)), key(key) {
     }
 
-    CachingReadHandle(const Manifest* m, Manifest::mutex_type& lock, DocKey key)
+    CachingReadHandle(const Manifest* m,
+                      Manifest::mutex_type& lock,
+                      DocKeyView key)
         : ReadHandle(m, lock), itr(m->getManifestEntry(key)), key(key) {
     }
 
@@ -350,7 +352,7 @@ public:
     /**
      * @return the key used in construction
      */
-    DocKey getKey() const {
+    DocKeyView getKey() const {
         return key;
     }
 
@@ -561,7 +563,7 @@ protected:
     /**
      * The key used in construction of this handle.
      */
-    DocKey key;
+    DocKeyView key;
 };
 
 /**

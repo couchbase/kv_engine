@@ -16,7 +16,7 @@
  * docs directory.
  */
 #include <cbsasl/domain.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json_fwd.hpp>
 #include <bitset>

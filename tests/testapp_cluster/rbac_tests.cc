@@ -118,11 +118,11 @@ void RbacSeqnosTests::SetUp() {
     conn->selectBucket("default");
     conn->setFeature(cb::mcbp::Feature::Collections, true);
     defaultCollectionHighSeqno =
-            conn->store(DocKey::makeWireEncodedString(CollectionID::Default,
-                                                      "RbacSeqnosTests"),
+            conn->store(DocKeyView::makeWireEncodedString(CollectionID::Default,
+                                                          "RbacSeqnosTests"),
                         Vbid(0),
                         "Default");
-    highSeqno = conn->store(DocKey::makeWireEncodedString(
+    highSeqno = conn->store(DocKeyView::makeWireEncodedString(
                                     CollectionEntry::fruit, "RbacSeqnosTests"),
                             Vbid(0),
                             "APPLE");

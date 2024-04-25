@@ -22,7 +22,7 @@
 
 class ActiveDurabilityMonitor;
 class CollectionID;
-struct DocKey;
+struct DocKeyView;
 class RollbackResult;
 struct vbucket_state;
 class VBucket;
@@ -148,7 +148,7 @@ public:
      * @param key Key to drop
      * @param seqno Expected seqno of the SyncWrite we are dropping
      */
-    void eraseSyncWrite(const DocKey& key, int64_t seqno);
+    void eraseSyncWrite(const DocKeyView& key, int64_t seqno);
 
     void notifyDroppedCollection(CollectionID cid, int64_t seqno);
 

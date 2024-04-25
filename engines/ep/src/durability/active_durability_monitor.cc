@@ -23,7 +23,7 @@
 
 #include <folly/concurrency/UnboundedQueue.h>
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <spdlog/fmt/ostr.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
@@ -1059,7 +1059,8 @@ void ActiveDurabilityMonitor::abort(VBucketStateLockRef vbStateLock,
     s->totalAborted++;
 }
 
-void ActiveDurabilityMonitor::eraseSyncWrite(const DocKey& key, int64_t seqno) {
+void ActiveDurabilityMonitor::eraseSyncWrite(const DocKeyView& key,
+                                             int64_t seqno) {
     auto s = state.wlock();
 
     // Need to find the write we want to drop

@@ -548,7 +548,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(
     folly::assume_unreachable();
 }
 
-void PassiveDurabilityMonitor::eraseSyncWrite(const DocKey& key,
+void PassiveDurabilityMonitor::eraseSyncWrite(const DocKeyView& key,
                                               int64_t seqno) {
     auto s = state.wlock();
 

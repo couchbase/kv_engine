@@ -17,7 +17,7 @@
 #include <memcached/vbucket.h>
 
 class CookieIface;
-struct DocKey;
+struct DocKeyView;
 
 namespace cb::durability {
 class Requirements;
@@ -346,7 +346,7 @@ struct DcpMessageProducersIface {
      */
     [[nodiscard]] virtual cb::engine_errc commit(uint32_t opaque,
                                                  Vbid vbucket,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  uint64_t prepare_seqno,
                                                  uint64_t commit_seqno) = 0;
     /**
@@ -356,7 +356,7 @@ struct DcpMessageProducersIface {
      */
     [[nodiscard]] virtual cb::engine_errc abort(uint32_t opaque,
                                                 Vbid vbucket,
-                                                const DocKey& key,
+                                                const DocKeyView& key,
                                                 uint64_t prepared_seqno,
                                                 uint64_t abort_seqno) = 0;
     /**
@@ -535,7 +535,7 @@ struct DcpIface {
      */
     [[nodiscard]] virtual cb::engine_errc mutation(CookieIface& cookie,
                                                    uint32_t opaque,
-                                                   const DocKey& key,
+                                                   const DocKeyView& key,
                                                    cb::const_byte_buffer value,
                                                    uint8_t datatype,
                                                    uint64_t cas,
@@ -566,7 +566,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc deletion(
             CookieIface& cookie,
             uint32_t opaque,
-            const DocKey& key,
+            const DocKeyView& key,
             cb::const_byte_buffer value,
             uint8_t datatype,
             uint64_t cas,
@@ -593,7 +593,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc deletion_v2(
             CookieIface& cookie,
             uint32_t opaque,
-            const DocKey& key,
+            const DocKeyView& key,
             cb::const_byte_buffer value,
             uint8_t datatype,
             uint64_t cas,
@@ -622,7 +622,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc expiration(
             CookieIface& cookie,
             uint32_t opaque,
-            const DocKey& key,
+            const DocKeyView& key,
             cb::const_byte_buffer value,
             uint8_t datatype,
             uint64_t cas,
@@ -710,7 +710,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc prepare(
             CookieIface& cookie,
             uint32_t opaque,
-            const DocKey& key,
+            const DocKeyView& key,
             cb::const_byte_buffer value,
             uint8_t datatype,
             uint64_t cas,
@@ -754,7 +754,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc commit(CookieIface& cookie,
                                                  uint32_t opaque,
                                                  Vbid vbucket,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  uint64_t prepared_seqno,
                                                  uint64_t commit_seqno) = 0;
     /**
@@ -766,7 +766,7 @@ struct DcpIface {
     [[nodiscard]] virtual cb::engine_errc abort(CookieIface& cookie,
                                                 uint32_t opaque,
                                                 Vbid vbucket,
-                                                const DocKey& key,
+                                                const DocKeyView& key,
                                                 uint64_t prepared_seqno,
                                                 uint64_t abort_seqno) = 0;
 };

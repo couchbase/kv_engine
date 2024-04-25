@@ -31,7 +31,7 @@ namespace Collections::VB {
  *         the CollectionID.
  */
 static std::pair<std::optional<SystemEvent>, std::optional<CollectionID>>
-getCollectionEventAndCollectionID(const DocKey& key) {
+getCollectionEventAndCollectionID(const DocKeyView& key) {
     if (key.isInSystemEventCollection()) {
         auto [event, id] = SystemEventFactory::getTypeAndID(key);
         switch (event) {
@@ -214,7 +214,7 @@ bool FlushAccounting::checkAndMaybeProcessSystemEvent(
     return isDelete == IsDeleted::Yes;
 }
 
-bool FlushAccounting::updateStats(const DocKey& key,
+bool FlushAccounting::updateStats(const DocKeyView& key,
                                   uint64_t seqno,
                                   IsCommitted isCommitted,
                                   IsDeleted isDelete,
@@ -263,7 +263,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
 }
 
 FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t seqno,
         IsCommitted isCommitted,
         IsDeleted isDelete,
@@ -403,7 +403,7 @@ FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
     return result;
 }
 
-void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,
+void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKeyView& key,
                                                     uint64_t seqno,
                                                     bool isDelete) {
     const auto [event, cid] = getCollectionEventAndCollectionID(key);

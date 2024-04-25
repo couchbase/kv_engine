@@ -276,7 +276,7 @@ struct hash<ScopeID> {
 } // namespace std
 
 /**
- * A DocKey views a key (non-owning). It can view a key with or without
+ * A DocKeyView views a key (non-owning). It can view a key with or without
  * defined collection-ID. Keys with a collection-ID, encode the collection-ID
  * as a unsigned_leb128 prefix in the key bytes. This enum defines if the
  * DocKey is viewing a unsigned_leb128 prefixed key (Yes) or not (No)
@@ -343,7 +343,7 @@ struct DocKeyInterface {
  * the engine-API. All API commands working with "keys" must specify the
  * data, length and if the data contain an encoded CollectionID
  */
-struct DocKey : DocKeyInterface<DocKey> {
+struct DocKeyView : DocKeyInterface<DocKeyView> {
     /**
      * Standard constructor - creates a view onto key/nkey
      *
@@ -351,7 +351,9 @@ struct DocKey : DocKeyInterface<DocKey> {
      * @param nkey The length of the data, which can be 0 if encoding is No
      * @param encoding Does the data include/encode a collection-ID
      */
-    DocKey(const uint8_t* key, size_t nkey, DocKeyEncodesCollectionId encoding)
+    DocKeyView(const uint8_t* key,
+               size_t nkey,
+               DocKeyEncodesCollectionId encoding)
         : buffer(key, nkey), encoding(encoding) {
         if (encoding == DocKeyEncodesCollectionId::Yes) {
             if (nkey == 0) {
@@ -375,27 +377,27 @@ struct DocKey : DocKeyInterface<DocKey> {
      * C-string constructor - only for use with null terminated strings and
      * creates a view onto key/strlen(key).
      */
-    DocKey(const char* key, DocKeyEncodesCollectionId encoding)
-        : DocKey(reinterpret_cast<const uint8_t*>(key),
-                 std::strlen(key),
-                 encoding) {
+    DocKeyView(const char* key, DocKeyEncodesCollectionId encoding)
+        : DocKeyView(reinterpret_cast<const uint8_t*>(key),
+                     std::strlen(key),
+                     encoding) {
     }
 
     /**
      * std::string_view constructor, views the data()/size() of the key
      */
-    DocKey(std::string_view key, DocKeyEncodesCollectionId encoding)
-        : DocKey(reinterpret_cast<const uint8_t*>(key.data()),
-                 key.size(),
-                 encoding) {
+    DocKeyView(std::string_view key, DocKeyEncodesCollectionId encoding)
+        : DocKeyView(reinterpret_cast<const uint8_t*>(key.data()),
+                     key.size(),
+                     encoding) {
     }
 
     /**
      * Disallow rvalue strings as we would view something which would soon be
      * out of scope.
      */
-    DocKey(const std::string&& key,
-           DocKeyEncodesCollectionId encoding) = delete;
+    DocKeyView(const std::string&& key,
+               DocKeyEncodesCollectionId encoding) = delete;
 
     /// Convert to a std::string_view, including the leb128 CollectionID prefix
     explicit operator std::string_view() const {
@@ -407,15 +409,15 @@ struct DocKey : DocKeyInterface<DocKey> {
         return std::string(reinterpret_cast<const char*>(data()), size());
     }
 
-    int compare(const DocKey& rhs) const {
+    int compare(const DocKeyView& rhs) const {
         return buffer.compare(rhs.buffer);
     }
 
-    bool operator==(const DocKey& rhs) const {
+    bool operator==(const DocKeyView& rhs) const {
         return buffer == rhs.buffer;
     }
 
-    bool operator!=(const DocKey& rhs) const {
+    bool operator!=(const DocKeyView& rhs) const {
         return !(*this == rhs);
     }
 
@@ -464,7 +466,7 @@ struct DocKey : DocKeyInterface<DocKey> {
      * prefix. If this was already viewing a key without any encoded
      * collection-ID, then this is returned.
      */
-    DocKey makeDocKeyWithoutCollectionID() const;
+    DocKeyView makeDocKeyWithoutCollectionID() const;
 
     /**
      * Intended for debug use only

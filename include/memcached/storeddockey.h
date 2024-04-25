@@ -13,7 +13,7 @@
 
 #include <memcached/storeddockey_fwd.h>
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -47,7 +47,7 @@ public:
      *
      * @param key DocKey that is to be copied-in
      */
-    explicit StoredDocKeyT(const DocKey& key)
+    explicit StoredDocKeyT(const DocKeyView& key)
         : StoredDocKeyT(key, allocator_type()) {
     }
 
@@ -56,7 +56,7 @@ public:
      *
      * @param key DocKey that is to be copied-in
      */
-    StoredDocKeyT(const DocKey& key, allocator_type allocator);
+    StoredDocKeyT(const DocKeyView& key, allocator_type allocator);
 
     /**
      * Create a StoredDocKey from another, essentially wrapping a DocKey
@@ -64,7 +64,7 @@ public:
      * @param key data that is to be copied-in
      * @param cid CollectionID to give to the new key
      */
-    StoredDocKeyT(const DocKey& key, CollectionID cid);
+    StoredDocKeyT(const DocKeyView& key, CollectionID cid);
 
     /**
      * Create a StoredDocKey from a std::string_view
@@ -107,7 +107,7 @@ public:
      * @return a DocKey that views this StoredDocKey but without any
      * collection-ID prefix.
      */
-    DocKey makeDocKeyWithoutCollectionID() const;
+    DocKeyView makeDocKeyWithoutCollectionID() const;
 
     /**
      * Intended for debug use only
@@ -131,11 +131,11 @@ public:
         return keydata < rhs.keydata;
     }
 
-    bool operator==(const DocKey& rhs) const {
+    bool operator==(const DocKeyView& rhs) const {
         return keydata == StoredDocKeyT(rhs).keydata;
     }
 
-    bool operator!=(const DocKey& rhs) const {
+    bool operator!=(const DocKeyView& rhs) const {
         return !(*this == rhs);
     }
 
@@ -166,7 +166,7 @@ public:
     // Add no lint to allow implicit casting to class DocKey as we use this to
     // implicitly cast to other forms of DocKeys thought out code.
     // NOLINTNEXTLINE(google-explicit-constructor)
-    operator DocKey() const {
+    operator DocKeyView() const {
         return {keydata, DocKeyEncodesCollectionId::Yes};
     }
 

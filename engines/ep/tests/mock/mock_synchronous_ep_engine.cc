@@ -240,7 +240,7 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
 
 cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         Vbid vbucket,
-        DocKey key,
+        DocKeyView key,
         cb::const_byte_buffer value,
         ItemMetaData itemMeta,
         bool isDeleted,
@@ -271,8 +271,8 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
                        emd);
 }
 
-DocKey SynchronousEPEngine::public_makeDocKey(CookieIface& cookie,
-                                              const std::string& key) const {
+DocKeyView SynchronousEPEngine::public_makeDocKey(
+        CookieIface& cookie, const std::string& key) const {
     const auto buf = cb::const_byte_buffer{
             reinterpret_cast<const uint8_t*>(key.data()), key.size()};
     return makeDocKey(cookie, buf);

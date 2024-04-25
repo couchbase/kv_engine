@@ -98,9 +98,9 @@ TEST_P(CollectionsPersistentParameterizedTest, namespace_separation) {
     // Use the event factory to get an event which we'll borrow the key from
     auto se = SystemEventFactory::makeCollectionEvent(
             CollectionEntry::meat, {}, {});
-    DocKey key(se->getKey().data(),
-               se->getKey().size(),
-               DocKeyEncodesCollectionId::No);
+    DocKeyView key(se->getKey().data(),
+                   se->getKey().size(),
+                   DocKeyEncodesCollectionId::No);
 
     store_item(vbid, key, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2475,12 +2475,13 @@ public:
     }
 
     void operation_test(
-            std::function<void(Vbid, DocKey, std::string)> storeFunc,
+            std::function<void(Vbid, DocKeyView, std::string)> storeFunc,
             bool warmup);
 };
 
 void CollectionsExpiryLimitTest::operation_test(
-        std::function<void(Vbid, DocKey, std::string)> storeFunc, bool warmup) {
+        std::function<void(Vbid, DocKeyView, std::string)> storeFunc,
+        bool warmup) {
     CollectionsManifest cm;
     // meat collection defines no expiry (overriding bucket ttl)
     cm.add(CollectionEntry::meat, std::chrono::seconds(0));
@@ -2548,7 +2549,7 @@ void CollectionsExpiryLimitTest::operation_test(
 }
 
 TEST_P(CollectionsExpiryLimitTest, set) {
-    auto func = [this](Vbid vb, DocKey k, std::string v) {
+    auto func = [this](Vbid vb, DocKeyView k, std::string v) {
         auto item = make_item(vb, k, v);
         EXPECT_EQ(0, item.getExptime());
         EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
@@ -2557,7 +2558,7 @@ TEST_P(CollectionsExpiryLimitTest, set) {
 }
 
 TEST_P(CollectionsExpiryLimitTest, add) {
-    auto func = [this](Vbid vb, DocKey k, std::string v) {
+    auto func = [this](Vbid vb, DocKeyView k, std::string v) {
         auto item = make_item(vb, k, v);
         EXPECT_EQ(0, item.getExptime());
         EXPECT_EQ(cb::engine_errc::success, store->add(item, cookie));
@@ -2566,7 +2567,7 @@ TEST_P(CollectionsExpiryLimitTest, add) {
 }
 
 TEST_P(CollectionsExpiryLimitTest, replace) {
-    auto func = [this](Vbid vb, DocKey k, std::string v) {
+    auto func = [this](Vbid vb, DocKeyView k, std::string v) {
         auto item = make_item(vb, k, v);
         EXPECT_EQ(0, item.getExptime());
         EXPECT_EQ(cb::engine_errc::success, store->add(item, cookie));
@@ -2576,7 +2577,7 @@ TEST_P(CollectionsExpiryLimitTest, replace) {
 }
 
 TEST_P(CollectionsExpiryLimitTest, set_with_meta) {
-    auto func = [this](Vbid vb, DocKey k, std::string v) {
+    auto func = [this](Vbid vb, DocKeyView k, std::string v) {
         auto item = make_item(vb, k, v);
         item.setCas(1);
         EXPECT_EQ(0, item.getExptime());
@@ -2598,7 +2599,7 @@ TEST_P(CollectionsExpiryLimitTest, set_with_meta) {
 }
 
 TEST_P(CollectionsExpiryLimitTest, gat) {
-    auto func = [this](Vbid vb, DocKey k, std::string v) {
+    auto func = [this](Vbid vb, DocKeyView k, std::string v) {
         Item item = store_item(vb, k, v, 0);
 
         // re touch to 0
@@ -4478,7 +4479,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
     // in the HashTable::clear_UNLOCKED code being tested
     auto k3 = StoredDocKey{"2", CollectionEntry::defaultC};
 
-    auto getHashTableBucketNum = [&vb0](const DocKey& k) {
+    auto getHashTableBucketNum = [&vb0](const DocKeyView& k) {
         return vb0->ht.getLockedBucket(k).getBucketNum();
     };
 

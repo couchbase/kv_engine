@@ -72,16 +72,16 @@ public:
 TEST_F(CollectionsTests, TestBasicOperations) {
     auto conn = getConnection();
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                         "TestBasicOperations"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
+                                             "TestBasicOperations"),
            MutationType::Add);
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                         "TestBasicOperations"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
+                                             "TestBasicOperations"),
            MutationType::Set);
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                         "TestBasicOperations"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
+                                             "TestBasicOperations"),
            MutationType::Replace);
 }
 
@@ -97,7 +97,7 @@ TEST_F(CollectionsTests, TestInvalidCollection) {
          illegalCollection++) {
         try {
             mutate(*conn,
-                   DocKey::makeWireEncodedString(
+                   DocKeyView::makeWireEncodedString(
                            CollectionID(illegalCollection,
                                         CollectionID::SkipIDVerificationTag{}),
                            "TestInvalidCollection"),
@@ -111,7 +111,7 @@ TEST_F(CollectionsTests, TestInvalidCollection) {
     try {
         // collection 1000 is unknown
         mutate(*conn,
-               DocKey::makeWireEncodedString(1000, "TestInvalidCollection"),
+               DocKeyView::makeWireEncodedString(1000, "TestInvalidCollection"),
                MutationType::Add);
         FAIL() << "UnknownCollection not detected";
     } catch (const ConnectionError& e) {
@@ -134,10 +134,10 @@ static BinprotSubdocCommand subdocInsertXattrPath(const std::string& key,
 
 void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,
                                       const std::string& key) {
-    auto fruit = DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                               "TestBasicRbac");
-    auto vegetable = DocKey::makeWireEncodedString(CollectionEntry::vegetable,
+    auto fruit = DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
                                                    "TestBasicRbac");
+    auto vegetable = DocKeyView::makeWireEncodedString(
+            CollectionEntry::vegetable, "TestBasicRbac");
 
     // Check subdoc, privilege checks happen in 2 places
     // 1) we're checking we can do the xattr write
@@ -197,16 +197,16 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     auto conn = getConnection();
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::defaultC,
-                                         "TestBasicRbac"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::defaultC,
+                                             "TestBasicRbac"),
            MutationType::Add);
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                         "TestBasicRbac"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
+                                             "TestBasicRbac"),
            MutationType::Add);
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                         "TestBasicRbac"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
+                                             "TestBasicRbac"),
            MutationType::Add);
 
     // I'm allowed to read from the default collection and read and write
@@ -216,17 +216,17 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     testSubdocRbac(*conn, "TestBasicRbac");
 
-    conn->get(DocKey::makeWireEncodedString(CollectionEntry::defaultC,
-                                            "TestBasicRbac"),
+    conn->get(DocKeyView::makeWireEncodedString(CollectionEntry::defaultC,
+                                                "TestBasicRbac"),
               Vbid{0});
-    conn->get(DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                            "TestBasicRbac"),
+    conn->get(DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
+                                                "TestBasicRbac"),
               Vbid{0});
 
     // I cannot get from the vegetable collection
     try {
-        conn->get(DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                                "TestBasicRbac"),
+        conn->get(DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
+                                                    "TestBasicRbac"),
                   Vbid{0});
         FAIL() << "Should not be able to fetch in vegetable collection";
     } catch (const ConnectionError& error) {
@@ -240,14 +240,14 @@ TEST_F(CollectionsTests, TestBasicRbac) {
 
     // I'm only allowed to write in Fruit
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::fruit,
-                                         "TestBasicRbac"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::fruit,
+                                             "TestBasicRbac"),
            MutationType::Set);
     for (auto c : std::vector<CollectionID>{
                  {CollectionEntry::defaultC, CollectionEntry::vegetable}}) {
         try {
             mutate(*conn,
-                   DocKey::makeWireEncodedString(c, "TestBasicRbac"),
+                   DocKeyView::makeWireEncodedString(c, "TestBasicRbac"),
                    MutationType::Set);
             FAIL() << "Should only be able to store in the fruit collection";
         } catch (const ConnectionError& error) {
@@ -318,8 +318,8 @@ TEST_F(CollectionsTests, ResurrectCollection) {
     // Store a key to the collection
     auto conn = getConnection();
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                         "Generation1"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
+                                             "Generation1"),
            MutationType::Add);
 
     auto bucket = cluster->getBucket("default");
@@ -329,22 +329,22 @@ TEST_F(CollectionsTests, ResurrectCollection) {
     cluster->collections.add(CollectionEntry::vegetable);
     bucket->setCollectionManifest(cluster->collections.getJson());
     mutate(*conn,
-           DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                         "Generation2"),
+           DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
+                                             "Generation2"),
            MutationType::Add);
 
     // Generation 1 is lost, the first drop was accepted and the keys created
     // before the resurrection of vegetable are dropped.
     try {
-        conn->get(DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                                "Generation1"),
+        conn->get(DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
+                                                    "Generation1"),
                   Vbid{0});
         FAIL() << "Should not be able to fetch in Generation1 key";
     } catch (const ConnectionError& error) {
         ASSERT_TRUE(error.isNotFound()) << to_string(error.getReason());
     }
-    conn->get(DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                            "Generation2"),
+    conn->get(DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
+                                                "Generation2"),
               Vbid{0});
 }
 

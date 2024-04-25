@@ -78,7 +78,7 @@ public:
      *                             the document is persisted to disk
      */
     static void upsert(MemcachedConnection& conn,
-                       const DocKey& id,
+                       const DocKeyView& id,
                        std::string value,
                        bool wait_for_persistence) {
         Document doc;
@@ -124,7 +124,7 @@ public:
             // all the keys should be in the fruits collection
             for (const auto& k : keys) {
                 const auto [collection, key] =
-                        DocKey(k.c_str(), DocKeyEncodesCollectionId::Yes)
+                        DocKeyView(k.c_str(), DocKeyEncodesCollectionId::Yes)
                                 .getIdAndKey();
                 const auto kv = std::string_view{
                         reinterpret_cast<const char*>(key.data()), key.size()};

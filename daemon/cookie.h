@@ -13,7 +13,7 @@
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/cookie_iface.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac.h>
 #include <memcached/tracer.h>
@@ -246,7 +246,7 @@ public:
      * @throws std::invalid_argument if the packet is of an invalid type
      * @throws std::logic_error if the packet is a response
      */
-    const DocKey getRequestKey() const;
+    const DocKeyView getRequestKey() const;
 
     void auditDocumentAccess(cb::audit::document::Operation operation) override;
 

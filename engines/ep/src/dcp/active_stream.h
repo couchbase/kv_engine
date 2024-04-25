@@ -427,7 +427,7 @@ public:
 
     static std::string to_string(StreamState type);
 
-    bool collectionAllowed(DocKey key) const;
+    bool collectionAllowed(DocKeyView key) const;
 
     /**
      * reassess the streams required privileges and call endStream if required

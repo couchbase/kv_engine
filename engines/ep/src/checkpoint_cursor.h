@@ -13,7 +13,7 @@
 #include "checkpoint_iterator.h"
 #include "checkpoint_types.h"
 
-struct DocKey;
+struct DocKeyView;
 
 /**
  * A checkpoint cursor, representing the current position in a Checkpoint
@@ -80,7 +80,7 @@ public:
         return isValid;
     }
 
-    DocKey getKey() const;
+    DocKeyView getKey() const;
 
     bool isDroppable() const {
         return droppable == Droppable::Yes;

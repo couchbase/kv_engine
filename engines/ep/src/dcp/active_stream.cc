@@ -2668,7 +2668,7 @@ std::string ActiveStream::to_string(StreamState st) {
                                 std::to_string(int(st)));
 }
 
-bool ActiveStream::collectionAllowed(DocKey key) const {
+bool ActiveStream::collectionAllowed(DocKeyView key) const {
     return filter.check(key);
 }
 

@@ -45,7 +45,7 @@ static int do_item_replace(struct default_engine* engine,
 static void item_free(struct default_engine *engine, hash_item *it);
 
 static bool hash_key_create(hash_key* hkey,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             struct default_engine* engine);
 
 static void hash_key_destroy(hash_key* hkey);
@@ -635,7 +635,7 @@ static cb::engine_errc do_store_item(struct default_engine* engine,
  * Allocates a new item.
  */
 hash_item* item_alloc(struct default_engine* engine,
-                      const DocKey& key,
+                      const DocKeyView& key,
                       int flags,
                       rel_time_t exptime,
                       int nbytes,
@@ -662,7 +662,7 @@ hash_item* item_alloc(struct default_engine* engine,
  */
 hash_item* item_get(struct default_engine* engine,
                     CookieIface* cookie,
-                    const DocKey& key,
+                    const DocKeyView& key,
                     DocStateFilter document_state) {
     hash_item *it;
     hash_key hkey;
@@ -834,7 +834,7 @@ cb::engine_errc do_item_get_locked(struct default_engine* engine,
 cb::engine_errc item_get_locked(struct default_engine* engine,
                                 CookieIface* cookie,
                                 hash_item** it,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 rel_time_t locktime) {
     hash_key hkey;
 
@@ -904,7 +904,7 @@ static cb::engine_errc do_item_unlock(struct default_engine* engine,
 
 cb::engine_errc item_unlock(struct default_engine* engine,
                             CookieIface* cookie,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             uint64_t cas) {
     hash_key hkey;
 
@@ -981,7 +981,7 @@ cb::engine_errc do_item_get_and_touch(struct default_engine* engine,
 cb::engine_errc item_get_and_touch(struct default_engine* engine,
                                    CookieIface* cookie,
                                    hash_item** it,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    rel_time_t exptime) {
     hash_key hkey;
 
@@ -1190,7 +1190,7 @@ bool item_start_scrub(struct default_engine *engine)
 }
 
 static bool hash_key_create(hash_key* hkey,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             struct default_engine* engine) {
     // Drop the collection-prefix if it exists, this call will create a view
     // on the logical key allowing [0][key] and [key] to be equal, here we will

@@ -94,7 +94,7 @@ namespace document {
 enum class Operation;
 
 /// Add a document operation for the provided key
-void add(Cookie& c, Operation operation, const DocKey& key);
+void add(Cookie& c, Operation operation, const DocKeyView& key);
 } // namespace document
 } // namespace cb::audit
 

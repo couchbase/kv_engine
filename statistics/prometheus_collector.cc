@@ -13,12 +13,11 @@
 
 #include <fmt/format.h>
 #include <hdrhistogram/hdrhistogram.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <statistics/labelled_collector.h>
 
 #include <cmath>
-#include <utility>
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                                       const HistogramData& hist,

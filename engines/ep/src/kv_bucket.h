@@ -87,19 +87,19 @@ public:
                             CookieIface* cookie,
                             cb::StoreIfPredicate predicate = {}) override;
 
-    GetValue get(const DocKey& key,
+    GetValue get(const DocKeyView& key,
                  Vbid vbucket,
                  CookieIface* cookie,
                  get_options_t options) override;
 
     GetValue getRandomKey(CollectionID cid, CookieIface& cookie) override;
 
-    GetValue getReplica(const DocKey& key,
+    GetValue getReplica(const DocKeyView& key,
                         Vbid vbucket,
                         CookieIface* cookie,
                         get_options_t options) override;
 
-    cb::engine_errc getMetaData(const DocKey& key,
+    cb::engine_errc getMetaData(const DocKeyView& key,
                                 Vbid vbucket,
                                 CookieIface* cookie,
                                 ItemMetaData& metadata,
@@ -123,13 +123,13 @@ public:
                             CookieIface* cookie,
                             EnforceMemCheck enforceMemCheck) override;
 
-    GetValue getAndUpdateTtl(const DocKey& key,
+    GetValue getAndUpdateTtl(const DocKeyView& key,
                              Vbid vbucket,
                              CookieIface* cookie,
                              time_t exptime) override;
 
     cb::engine_errc deleteItem(
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             CookieIface* cookie,
@@ -137,7 +137,7 @@ public:
             ItemMetaData* itemMeta,
             mutation_descr_t& mutInfo) override;
 
-    cb::engine_errc deleteWithMeta(const DocKey& key,
+    cb::engine_errc deleteWithMeta(const DocKeyView& key,
                                    uint64_t& cas,
                                    uint64_t* seqno,
                                    Vbid vbucket,
@@ -407,21 +407,23 @@ public:
 
     Warmup* getSecondaryWarmup() const override;
 
-    cb::engine_errc getKeyStats(const DocKey& key,
+    cb::engine_errc getKeyStats(const DocKeyView& key,
                                 Vbid vbucket,
                                 CookieIface& cookie,
                                 key_stats& kstats,
                                 WantsDeleted wantsDeleted) override;
 
-    std::string validateKey(const DocKey& key, Vbid vbucket, Item& diskItem) override;
+    std::string validateKey(const DocKeyView& key,
+                            Vbid vbucket,
+                            Item& diskItem) override;
 
-    GetValue getLocked(const DocKey& key,
+    GetValue getLocked(const DocKeyView& key,
                        Vbid vbucket,
                        rel_time_t currentTime,
                        std::chrono::seconds lockTimeout,
                        CookieIface* cookie) override;
 
-    cb::engine_errc unlockKey(const DocKey& key,
+    cb::engine_errc unlockKey(const DocKeyView& key,
                               Vbid vbucket,
                               uint64_t cas,
                               rel_time_t currentTime,
@@ -447,7 +449,7 @@ public:
 
     void setRW(size_t shardId, std::unique_ptr<KVStoreIface> rw) override;
 
-    cb::engine_errc evictKey(const DocKey& key,
+    cb::engine_errc evictKey(const DocKeyView& key,
                              Vbid vbucket,
                              const char** msg) override;
 
@@ -550,7 +552,7 @@ public:
         bfilterResidencyThreshold = to;
     }
 
-    bool isMetaDataResident(VBucketPtr &vb, const DocKey& key) override;
+    bool isMetaDataResident(VBucketPtr& vb, const DocKeyView& key) override;
 
     void logQTime(const GlobalTask& taskType,
                   std::string_view threadName,
@@ -1196,7 +1198,7 @@ protected:
                       IsMutationOp isMutationOp,
                       std::string_view debugOpcode);
 
-    GetValue getInternal(const DocKey& key,
+    GetValue getInternal(const DocKeyView& key,
                          Vbid vbucket,
                          CookieIface* cookie,
                          ForGetReplicaOp getReplicaItem,

@@ -219,7 +219,7 @@ private:
 class VKeyStatBGFetchTask : public EpTask {
 public:
     VKeyStatBGFetchTask(EventuallyPersistentEngine& e,
-                        const DocKey& k,
+                        const DocKeyView& k,
                         Vbid vbid,
                         uint64_t s,
                         CookieIface& c,

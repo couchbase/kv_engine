@@ -1072,7 +1072,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
     /* Stream Expiries */
     for (uint64_t i = start; i <= end; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
         checkeq(cb::engine_errc::success,
                 dcp->expiration(*cookie,
                                 opaque,
@@ -1193,7 +1193,7 @@ extern "C" {
                     "snapshot marker failed");
 
             const std::string key = ss.str();
-            const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+            const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
             checkeq(cb::engine_errc::success,
                     ctx->dcp->mutation(*cookie,
                                        stream_opaque,
@@ -2443,7 +2443,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                                  {} /*maxVisibleSeqno*/),
             "Failed to send marker!");
 
-    const DocKey docKey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView docKey("key", DocKeyEncodesCollectionId::No);
     checkeq(cb::engine_errc::success,
             dcp->mutation(*cookie,
                           stream_opaque,
@@ -3265,7 +3265,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
 
     for (int i = 1; i <= items; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3396,7 +3396,7 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
             "snapshot marker failed");
     for (int i = 1; i <= 5; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3430,7 +3430,7 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
             "snapshot marker failed");
     for (int i = 6; i <= 10; i++) {
         const std::string key{"key" + std::to_string(i)};
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3549,7 +3549,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
     // Send items for snapshot
     for (auto i = 0; i < snapshotNumItems; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3631,7 +3631,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
     uint64_t i;
     for (i = 1; i <= 4; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -3664,7 +3664,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
 
     // Consumer processes 5th mutation
     const std::string key("key" + std::to_string(i));
-    const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+    const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
     checkeq(cb::engine_errc::stream_not_found,
             dcp->mutation(*cookie,
                           stream_opaque,
@@ -3770,7 +3770,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
 
     for (int i = 1; i <= 20; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -4676,7 +4676,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
             "Consumer flow ctl snapshot marker bytes not accounted correctly");
 
     // Ensure that we don't accept invalid opaque values
-    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     checkeq(cb::engine_errc::opaque_no_match,
             dcp->mutation(*cookie,
                           opaque + 1,
@@ -4805,7 +4805,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
             "Failed to send snapshot marker");
 
     const std::string key{"key"};
-    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
     checkeq(cb::engine_errc::opaque_no_match,
             dcp->deletion(*cookie,
@@ -4896,7 +4896,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
             "Failed to send snapshot marker");
 
     const std::string key{"key"};
-    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     // verify that we don't accept invalid opaque id's
     checkeq(cb::engine_errc::opaque_no_match,
             dcp->expiration(*cookie,
@@ -6191,7 +6191,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
         checkeq(dcp->mutation(*cookie,
                               stream_opaque,
                               docKey,
@@ -6211,7 +6211,8 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
     }
 
     // Send a mutation and a deletion both out-of-sequence
-    const DocKey key{(const uint8_t*)"key", 3, DocKeyEncodesCollectionId::No};
+    const DocKeyView key{
+            (const uint8_t*)"key", 3, DocKeyEncodesCollectionId::No};
     checkeq(dcp->mutation(*cookie,
                           stream_opaque,
                           key,
@@ -6228,7 +6229,8 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                           INITIAL_NRU_VALUE),
             cb::engine_errc::out_of_range,
             "Mutation should've returned ERANGE!");
-    const DocKey key5{(const uint8_t*)"key5", 4, DocKeyEncodesCollectionId::No};
+    const DocKeyView key5{
+            (const uint8_t*)"key5", 4, DocKeyEncodesCollectionId::No};
     checkeq(dcp->deletion(*cookie,
                           stream_opaque,
                           key5,
@@ -6242,7 +6244,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
             cb::engine_errc::out_of_range,
             "Deletion should've returned ERANGE!");
 
-    const DocKey docKey20{
+    const DocKeyView docKey20{
             (const uint8_t*)"key20", 5, DocKeyEncodesCollectionId::No};
     cb::engine_errc err = dcp->mutation(*cookie,
                                         stream_opaque,
@@ -6318,7 +6320,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+        const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
         checkeq(dcp->mutation(*cookie1,
                               stream_opaque,
                               docKey,
@@ -6386,7 +6388,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 5; i <= 15; i++) {
         const std::string key("key_" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         cb::engine_errc err = dcp->mutation(*cookie2,
                                             stream_opaque,
                                             docKey,
@@ -6444,7 +6446,7 @@ static enum test_result test_dcp_invalid_mutation_deletion(EngineIface* h) {
 
     // Mutation(s) or deletion(s) with seqno 0 are invalid!
     const std::string key("key");
-    DocKey docKey{key, DocKeyEncodesCollectionId::No};
+    DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{(const uint8_t*)"value", 5};
 
     checkeq(dcp->mutation(*cookie,
@@ -6519,7 +6521,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
             "Failed to send snapshot marker!");
     for (int i = 1; i <= 10; i++) {
         const std::string key("key" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -6857,7 +6859,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
     std::string value{"value"};
     for (unsigned int ii = 0; ii < 2; ii++) {
         const std::string key{prefix + std::to_string(ii)};
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -6881,7 +6883,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
 
     // Delete one of them (to allow us to test DCP deletion).
     const std::string delete_key{prefix + "0"};
-    const DocKey docKey{delete_key, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{delete_key, DocKeyEncodesCollectionId::No};
 
     // Stream the delete in a new snapshot since a snapshot cannot have
     // duplicate items.
@@ -7081,7 +7083,7 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
             dcp->snapshot_marker(
                     *cookie, stream_opaque, Vbid(0), seqno, seqno, {}, {}, {}),
             "Failed to send snapshot marker");
-    const DocKey docKey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView docKey("key", DocKeyEncodesCollectionId::No);
     const std::string value = "value";
     checkeq(cb::engine_errc::success,
             dcp->mutation(*cookie,
@@ -7162,7 +7164,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
             "Failed to send snapshot marker!");
 
     const std::string key("key");
-    const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+    const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
     checkeq(cb::engine_errc::success,
             dcp->mutation(*cookie,
                           stream_opaque,
@@ -7506,7 +7508,7 @@ static enum test_result test_mb19982(EngineIface* h) {
 
     for (int i = 1; i <= num_items; i++) {
         const std::string key("key-" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,
@@ -7618,7 +7620,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                  0 /*HCS*/,
                                  {} /*maxVisibleSeqno*/),
             "snapshot_marker returned an error");
-    const DocKey docKey1{"syncw", DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey1{"syncw", DocKeyEncodesCollectionId::No};
     checkeq(cb::engine_errc::success,
             dcp->prepare(*cookie,
                          opaque,
@@ -7752,7 +7754,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
 
     for (int i = 1; i <= num_items; i++) {
         const std::string key("key-" + std::to_string(i));
-        const DocKey docKey(key, DocKeyEncodesCollectionId::No);
+        const DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
         checkeq(cb::engine_errc::success,
                 dcp->mutation(*cookie,
                               stream_opaque,

@@ -434,7 +434,7 @@ cb::engine_errc MockDcpMessageProducers::seqno_acknowledged(
 
 cb::engine_errc MockDcpMessageProducers::commit(uint32_t opaque,
                                                 Vbid vbucket,
-                                                const DocKey& key,
+                                                const DocKeyView& key,
                                                 uint64_t prepare_seqno,
                                                 uint64_t commit_seqno) {
     clear_dcp_data();
@@ -456,7 +456,7 @@ cb::engine_errc MockDcpMessageProducers::commit(uint32_t opaque,
 
 cb::engine_errc MockDcpMessageProducers::abort(uint32_t opaque,
                                                Vbid vbucket,
-                                               const DocKey& key,
+                                               const DocKeyView& key,
                                                uint64_t prepared_seqno,
                                                uint64_t abort_seqno) {
     clear_dcp_data();

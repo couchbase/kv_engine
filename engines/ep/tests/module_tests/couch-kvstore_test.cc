@@ -219,7 +219,7 @@ public:
         EXPECT_EQ(cb::engine_errc::success, result.getStatus());
 
         if (result.item->isDeleted()) {
-            DocKey dk = result.item->getKey();
+            DocKeyView dk = result.item->getKey();
             EXPECT_EQ(expectedId, dk.getCollectionID());
             auto noCollection = dk.makeDocKeyWithoutCollectionID();
             // create a string from the logical-key, i.e. +1 and skip the

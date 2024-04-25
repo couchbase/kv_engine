@@ -305,7 +305,7 @@ cb::engine_errc del(EngineIface* h,
     }
 
     auto ret = h->remove(*cookie,
-                         DocKey(key, DocKeyEncodesCollectionId::No),
+                         DocKeyView(key, DocKeyEncodesCollectionId::No),
                          *cas,
                          vbucket,
                          {},
@@ -425,7 +425,7 @@ void evict_key(EngineIface* h,
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     const auto status = h->evict_key(
-            *cookie, DocKey{key, DocKeyEncodesCollectionId::No}, vbucketId);
+            *cookie, DocKeyView{key, DocKeyEncodesCollectionId::No}, vbucketId);
 
     if (expectError) {
         checkeq(cb::engine_errc::key_already_exists,
@@ -469,8 +469,11 @@ cb::EngineErrorItemPair gat(EngineIface* h,
                             Vbid vb,
                             uint32_t exp) {
     auto* cookie = testHarness->create_cookie(h);
-    auto ret = h->get_and_touch(
-            *cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
+    auto ret = h->get_and_touch(*cookie,
+                                DocKeyView(key, DocKeyEncodesCollectionId::No),
+                                vb,
+                                exp,
+                                {});
     testHarness->destroy_cookie(cookie);
 
     if (ret.first == cb::engine_errc::success) {
@@ -511,7 +514,7 @@ cb::EngineErrorItemPair getl(EngineIface* h,
         create_cookie = true;
     }
     auto ret = h->get_locked(*cookie,
-                             DocKey(key, DocKeyEncodesCollectionId::No),
+                             DocKeyView(key, DocKeyEncodesCollectionId::No),
                              vb,
                              std::chrono::seconds{lock_timeout});
     if (create_cookie) {
@@ -531,7 +534,7 @@ bool get_meta(EngineIface* h,
               std::string_view key,
               cb::EngineErrorMetadataPair& out,
               CookieIface* cookie) {
-    DocKey docKey(key, DocKeyEncodesCollectionId::No);
+    DocKeyView docKey(key, DocKeyEncodesCollectionId::No);
     bool cookie_create = false;
     if (cookie == nullptr) {
         cookie = testHarness->create_cookie(h);
@@ -554,7 +557,7 @@ cb::engine_errc observe(EngineIface* h,
     auto cookie = std::make_unique<MockCookie>();
     uint64_t hint;
     return h->observe(*cookie,
-                      DocKey{key, DocKeyEncodesCollectionId::No},
+                      DocKeyView{key, DocKeyEncodesCollectionId::No},
                       vb,
                       callback,
                       hint);
@@ -1069,8 +1072,12 @@ cb::engine_errc touch(EngineIface* h,
                       Vbid vb,
                       uint32_t exp) {
     auto* cookie = testHarness->create_cookie(h);
-    auto result = h->get_and_touch(
-            *cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, exp, {});
+    auto result =
+            h->get_and_touch(*cookie,
+                             DocKeyView(key, DocKeyEncodesCollectionId::No),
+                             vb,
+                             exp,
+                             {});
     testHarness->destroy_cookie(cookie);
 
     // Update the global cas value (used by some tests)
@@ -1095,7 +1102,7 @@ cb::engine_errc unl(EngineIface* h,
         create_cookie = true;
     }
     auto ret = h->unlock(
-            *cookie, DocKey(key, DocKeyEncodesCollectionId::No), vb, cas);
+            *cookie, DocKeyView(key, DocKeyEncodesCollectionId::No), vb, cas);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1640,7 +1647,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
     try {
         ret = {cb::engine_errc::success,
                h->allocateItem(*cookie,
-                               DocKey(key, DocKeyEncodesCollectionId::No),
+                               DocKeyView(key, DocKeyEncodesCollectionId::No),
                                nbytes,
                                0,
                                flags,
@@ -1671,7 +1678,7 @@ cb::EngineErrorItemPair get(EngineIface* h,
     }
 
     auto ret = h->get(*cookie,
-                      DocKey(key, DocKeyEncodesCollectionId::No),
+                      DocKeyView(key, DocKeyEncodesCollectionId::No),
                       vb,
                       documentStateFilter);
 

@@ -13,7 +13,7 @@
 
 #include "diskdockey.h"
 #include "ep_task.h"
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
 #include <optional>
@@ -27,7 +27,7 @@ class FetchAllKeysTask : public EpTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine& e,
                      CookieIface& c,
-                     const DocKey start_key_,
+                     const DocKeyView start_key_,
                      Vbid vbucket,
                      uint32_t count_,
                      std::optional<CollectionID> collection);

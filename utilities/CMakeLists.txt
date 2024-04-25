@@ -21,7 +21,7 @@ add_library(mcd_util STATIC
             connection_iface.cc
             cookie_iface.cc
             dcp_stream_id.cc
-            dockey.cc
+            dockey_view.cc
             durability_spec.cc
             engine_errc_2_mcbp.cc
             engine_errc_2_mcbp.h

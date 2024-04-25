@@ -225,7 +225,7 @@ cb::engine_errc DcpMsgProducersBorderGuard::seqno_acknowledged(
 }
 cb::engine_errc DcpMsgProducersBorderGuard::commit(uint32_t opaque,
                                                    Vbid vbucket,
-                                                   const DocKey& key,
+                                                   const DocKeyView& key,
                                                    uint64_t prepare_seqno,
                                                    uint64_t commit_seqno) {
     NonBucketAllocationGuard guard;
@@ -233,7 +233,7 @@ cb::engine_errc DcpMsgProducersBorderGuard::commit(uint32_t opaque,
 }
 cb::engine_errc DcpMsgProducersBorderGuard::abort(uint32_t opaque,
                                                   Vbid vbucket,
-                                                  const DocKey& key,
+                                                  const DocKeyView& key,
                                                   uint64_t prepared_seqno,
                                                   uint64_t abort_seqno) {
     NonBucketAllocationGuard guard;

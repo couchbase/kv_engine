@@ -19,7 +19,7 @@ std::ostream& operator<<(std::ostream& os, const StoredDocKey& key) {
 
 template <template <class, class...> class Allocator>
 StoredDocKeyT<Allocator>::StoredDocKeyT(
-        const DocKey& key,
+        const DocKeyView& key,
         typename StoredDocKeyT<Allocator>::allocator_type allocator)
     : keydata(allocator) {
     if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
@@ -44,7 +44,8 @@ StoredDocKeyT<Allocator>::StoredDocKeyT(std::string_view key,
 }
 
 template <template <class, class...> class Allocator>
-StoredDocKeyT<Allocator>::StoredDocKeyT(const DocKey& key, CollectionID cid) {
+StoredDocKeyT<Allocator>::StoredDocKeyT(const DocKeyView& key,
+                                        CollectionID cid) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
     keydata.resize(key.size() + leb128.size());
     std::copy(key.begin(),
@@ -69,7 +70,7 @@ bool StoredDocKeyT<Allocator>::isInDefaultCollection() const {
 }
 
 template <template <class, class...> class Allocator>
-DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
+DocKeyView StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
     auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});
     return {decoded.second.data(),
@@ -79,7 +80,7 @@ DocKey StoredDocKeyT<Allocator>::makeDocKeyWithoutCollectionID() const {
 
 template <template <class, class...> class Allocator>
 std::string StoredDocKeyT<Allocator>::to_string() const {
-    return DocKey(*this).to_string();
+    return DocKeyView(*this).to_string();
 }
 
 template class StoredDocKeyT<std::allocator>;

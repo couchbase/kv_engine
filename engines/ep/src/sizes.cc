@@ -160,11 +160,11 @@ int main(int, char **) {
     display("OrderedStoredValue (with 1 byte key)",
             sizeof(OrderedStoredValue),
             OrderedStoredValue::getRequiredStorage(
-                    DocKey("1", DocKeyEncodesCollectionId::No)));
+                    DocKeyView("1", DocKeyEncodesCollectionId::No)));
     display("OrderedStoredValue (with 15 byte key)",
             sizeof(OrderedStoredValue),
-            OrderedStoredValue::getRequiredStorage(
-                    DocKey("1234567890abcde", DocKeyEncodesCollectionId::No)));
+            OrderedStoredValue::getRequiredStorage(DocKeyView(
+                    "1234567890abcde", DocKeyEncodesCollectionId::No)));
     display("PersistenceCallback", sizeof(PersistenceCallback));
     display("ProbabilisticCounter<uint8_t>",
             sizeof(ProbabilisticCounter<uint8_t>));
@@ -172,11 +172,11 @@ int main(int, char **) {
     display("StoredValue (with 1 byte key)",
             sizeof(StoredValue),
             StoredValue::getRequiredStorage(
-                    DocKey("1", DocKeyEncodesCollectionId::No)));
+                    DocKeyView("1", DocKeyEncodesCollectionId::No)));
     display("StoredValue (with 15 byte key)",
             sizeof(StoredValue),
-            StoredValue::getRequiredStorage(
-                    DocKey("1234567890abcde", DocKeyEncodesCollectionId::No)));
+            StoredValue::getRequiredStorage(DocKeyView(
+                    "1234567890abcde", DocKeyEncodesCollectionId::No)));
     display("VBucket", sizeof(VBucket));
     display("VBucketMap", sizeof(VBucketMap));
     display("value_t", sizeof(value_t));

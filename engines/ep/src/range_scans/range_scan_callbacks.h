@@ -56,7 +56,7 @@ public:
      * @param key A key read from a Key only scan
      * @return A "Status" which determines the next "step" for the scan
      */
-    virtual Status handleKey(DocKey key) = 0;
+    virtual Status handleKey(DocKeyView key) = 0;
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
@@ -125,7 +125,7 @@ class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
     RangeScanDataHandler(EventuallyPersistentEngine& engine, bool keyOnly);
 
-    Status handleKey(DocKey key) override;
+    Status handleKey(DocKeyView key) override;
 
     Status handleItem(std::unique_ptr<Item> item) override;
 

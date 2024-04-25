@@ -110,17 +110,17 @@ protected:
 
     /// Public access to processSoftDelete() method.
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
-            const DocKey& key,
+            const DocKeyView& key,
             VBQueueItemCtx ctx = VBQueueItemCtx{CanDeduplicate::Yes});
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
             HashTable::FindUpdateResult& htRes,
             StoredValue& v,
             VBQueueItemCtx ctx = VBQueueItemCtx{CanDeduplicate::Yes});
 
-    bool public_deleteStoredValue(const DocKey& key);
+    bool public_deleteStoredValue(const DocKeyView& key);
 
     std::pair<MutationStatus, GetValue> public_getAndUpdateTtl(
-            const DocKey& key, time_t exptime);
+            const DocKeyView& key, time_t exptime);
 
     std::tuple<MutationStatus, StoredValue*, VBNotifyCtx>
     public_processExpiredItem(HashTable::FindUpdateResult& htRes,
@@ -128,7 +128,7 @@ protected:
                               ExpireBy expirySource);
 
     StoredValue* public_addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                           const DocKey& key);
+                                           const DocKeyView& key);
 
     SWCompleteTrace swCompleteTrace;
 

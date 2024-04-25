@@ -46,7 +46,7 @@ public:
           testHook(hook) {
     }
 
-    Status handleKey(DocKey key) override {
+    Status handleKey(DocKeyView key) override {
         checkKeyIsUnique(key);
         scannedKeys.emplace_back(key);
         return testHook(scannedKeys.size());
@@ -86,7 +86,7 @@ public:
         // none
     }
 
-    void checkKeyIsUnique(DocKey key) {
+    void checkKeyIsUnique(DocKeyView key) {
         auto [itr, emplaced] = allKeys.emplace(key);
         EXPECT_TRUE(emplaced) << "Duplicate key returned " << key.to_string();
     }
@@ -1440,7 +1440,7 @@ public:
         : callbackCounter(callbackCounter) {
     }
 
-    Status handleKey(DocKey key) override {
+    Status handleKey(DocKeyView key) override {
         ++callbackCounter;
         return Status::OK;
     }
@@ -2047,7 +2047,7 @@ public:
         : callback(std::move(cb)) {
     }
 
-    Status handleKey(DocKey key) override {
+    Status handleKey(DocKeyView key) override {
         return Status::OK;
     }
 

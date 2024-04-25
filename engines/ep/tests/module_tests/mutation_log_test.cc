@@ -163,7 +163,7 @@ TEST_F(MutationLogTest, SyncSet) {
     EXPECT_EQ(FLUSH_COMMIT_1, ml.getFlushConfig());
 }
 
-static bool loaderFun(void* arg, Vbid vb, const DocKey& k) {
+static bool loaderFun(void* arg, Vbid vb, const DocKeyView& k) {
     auto* sets = reinterpret_cast<std::set<StoredDocKey> *>(arg);
     sets[vb.get()].insert(StoredDocKey(k));
     return true;
@@ -696,9 +696,10 @@ MATCHER_P(_key, expected, "") {
 }
 
 // helper to call a std::function passed in arg for each mutation log entry.
-bool mutationLogCB(void* arg, Vbid vbid, const DocKey& key) {
+bool mutationLogCB(void* arg, Vbid vbid, const DocKeyView& key) {
     const auto& func =
-            *reinterpret_cast<std::function<bool(Vbid, const DocKey&)>*>(arg);
+            *reinterpret_cast<std::function<bool(Vbid, const DocKeyView&)>*>(
+                    arg);
     return func(vbid, key);
 }
 
@@ -728,7 +729,7 @@ TEST_F(MutationLogTest, readPreMadHatterAccessLog) {
 
     using namespace testing;
     // mutation log callback - called for each entry read.
-    StrictMock<MockFunction<bool(Vbid, const DocKey&)>> cb;
+    StrictMock<MockFunction<bool(Vbid, const DocKeyView&)>> cb;
 
     {
         // mark that the following EXPECT_CALLs must be triggered in order.

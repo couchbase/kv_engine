@@ -72,7 +72,8 @@ public:
     }
 
     cb::engine_errc getInternalHelper(
-            const DocKey& key, get_options_t options = get_options_t::NONE) {
+            const DocKeyView& key,
+            get_options_t options = get_options_t::NONE) {
         return getInternal(key, vbid, cookie, ForGetReplicaOp::No, options)
                 .getStatus();
     }
@@ -244,13 +245,13 @@ public:
         return store->set(*makeCommittedItem(docKey, {}), cookie);
     }
 
-    cb::engine_errc storeSet(const DocKey& docKey, bool xattrBody = false) {
+    cb::engine_errc storeSet(const DocKeyView& docKey, bool xattrBody = false) {
         return store->set(
                 *makeCompressibleItem(vbid, docKey, {}, 0, false, xattrBody),
                 cookie);
     }
 
-    cb::engine_errc del(const DocKey& docKey) {
+    cb::engine_errc del(const DocKeyView& docKey) {
         uint64_t cas = 0;
         using namespace cb::durability;
         mutation_descr_t delInfo;

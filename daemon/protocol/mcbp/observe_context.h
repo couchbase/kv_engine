@@ -10,12 +10,9 @@
 #pragma once
 
 #include "steppable_command_context.h"
-
-#include <mcbp/protocol/status.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/vbucket.h>
 #include <deque>
-#include <utility>
 
 /**
  * ObserveCommandContext is used to implement the observe command
@@ -34,5 +31,5 @@ protected:
     State state = State::Initialize;
     std::stringstream output;
     uint64_t persist_time_hint;
-    std::deque<std::pair<Vbid, DocKey>> keys;
+    std::deque<std::pair<Vbid, DocKeyView>> keys;
 };

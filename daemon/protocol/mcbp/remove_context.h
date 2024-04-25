@@ -14,7 +14,6 @@
 
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
-#include <memcached/dockey.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
 

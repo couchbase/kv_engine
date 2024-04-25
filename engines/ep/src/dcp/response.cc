@@ -159,7 +159,7 @@ CommitSyncWrite::CommitSyncWrite(uint32_t opaque,
                                  Vbid vbucket,
                                  uint64_t preparedSeqno,
                                  uint64_t commitSeqno,
-                                 const DocKey& key,
+                                 const DocKeyView& key,
                                  DocKeyEncodesCollectionId includeCollectionID)
     : DcpResponse(Event::Commit, opaque, cb::mcbp::DcpStreamId{}),
       vbucket(vbucket),
@@ -172,7 +172,7 @@ CommitSyncWriteConsumer::CommitSyncWriteConsumer(uint32_t opaque,
                                                  Vbid vbucket,
                                                  uint64_t preparedSeqno,
                                                  uint64_t commitSeqno,
-                                                 const DocKey& key)
+                                                 const DocKeyView& key)
     : CommitSyncWrite(opaque,
                       vbucket,
                       preparedSeqno,
@@ -193,7 +193,7 @@ uint32_t CommitSyncWrite::getMessageSize() const {
 
 AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
                                Vbid vbucket,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                uint64_t preparedSeqno,
                                uint64_t abortSeqno,
                                DocKeyEncodesCollectionId includeCollectionID)
@@ -206,7 +206,7 @@ AbortSyncWrite::AbortSyncWrite(uint32_t opaque,
 
 AbortSyncWriteConsumer::AbortSyncWriteConsumer(uint32_t opaque,
                                                Vbid vbucket,
-                                               const DocKey& key,
+                                               const DocKeyView& key,
                                                uint64_t preparedSeqno,
                                                uint64_t abortSeqno)
     : AbortSyncWrite(opaque,

@@ -4053,7 +4053,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
 
     // Store an item with exptime != 0
     const std::string key = "key";
-    const auto docKey = DocKey{key, DocKeyEncodesCollectionId::No};
+    const auto docKey = DocKeyView{key, DocKeyEncodesCollectionId::No};
     store_item(vbid,
                docKey,
                value,
@@ -6284,7 +6284,7 @@ TEST_P(StreamTest, sync_writes_denied) {
 TEST_P(STPassiveStreamPersistentTest, enusre_extended_dcp_status_work) {
     uint32_t opaque = 0;
     const std::string keyStr("key");
-    DocKey key(keyStr, DocKeyEncodesCollectionId::No);
+    DocKeyView key(keyStr, DocKeyEncodesCollectionId::No);
 
     // check error code when stream isn't present for vbucket 99
     EXPECT_EQ(cb::engine_errc::no_such_key,

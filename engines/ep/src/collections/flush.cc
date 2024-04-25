@@ -699,7 +699,7 @@ bool Flush::isOpen(CollectionID cid) const {
     return false;
 }
 
-bool Flush::updateStats(const DocKey& key,
+bool Flush::updateStats(const DocKeyView& key,
                         uint64_t seqno,
                         IsCommitted isCommitted,
                         IsDeleted isDelete,
@@ -715,7 +715,7 @@ bool Flush::updateStats(const DocKey& key,
 }
 
 FlushAccounting::UpdateStatsResult Flush::updateStats(
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t seqno,
         IsCommitted isCommitted,
         IsDeleted isDelete,

@@ -77,7 +77,7 @@ public:
      *                            compaction callbacks?
      * @return if the collection disk size stat now reflects the new item size
      */
-    bool updateStats(const DocKey& key,
+    bool updateStats(const DocKeyView& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
@@ -115,7 +115,7 @@ public:
      * @return flags reporting if this operation was logically an insert,
      *         and if the new value is now reflected in the disk size stat.
      */
-    UpdateStatsResult updateStats(const DocKey& key,
+    UpdateStatsResult updateStats(const DocKeyView& key,
                                   uint64_t seqno,
                                   IsCommitted isCommitted,
                                   IsDeleted isDelete,
@@ -134,7 +134,7 @@ public:
      * @param seqno The seqno of the item flushed
      * @param isDelete alive/delete stats of the item flushed
      */
-    void maybeUpdatePersistedHighSeqno(const DocKey& key,
+    void maybeUpdatePersistedHighSeqno(const DocKeyView& key,
                                        uint64_t seqno,
                                        bool isDelete);
 

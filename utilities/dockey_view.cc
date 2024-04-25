@@ -10,7 +10,7 @@
  */
 
 #include <mcbp/protocol/unsigned_leb128.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/systemevent.h>
 #include <platform/socket.h>
 #include <spdlog/fmt/fmt.h>
@@ -118,7 +118,7 @@ ScopeID ScopeIDNetworkOrder::to_host() const {
     return ScopeID(ntohl(value));
 }
 
-std::string DocKey::to_string() const {
+std::string DocKeyView::to_string() const {
     CollectionID cid = CollectionID::Default;
     cb::const_byte_buffer key{data(), size()};
 
@@ -168,7 +168,7 @@ std::string DocKey::to_string() const {
     return fmt::format(FMT_STRING("cid:{:#x}:{}"), uint32_t(cid), remainingKey);
 }
 
-std::string DocKey::toPrintableString() const {
+std::string DocKeyView::toPrintableString() const {
     std::string buffer(getBuffer());
     for (auto& ii : buffer) {
         if (!std::isgraph(ii)) {
@@ -178,7 +178,7 @@ std::string DocKey::toPrintableString() const {
     return buffer;
 }
 
-CollectionID DocKey::getCollectionID() const {
+CollectionID DocKeyView::getCollectionID() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         auto cid = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer)
                            .first;
@@ -188,7 +188,7 @@ CollectionID DocKey::getCollectionID() const {
 }
 
 // Inspect the leb128 key prefixes without doing a full leb decode
-bool DocKey::isInSystemEventCollection() const {
+bool DocKeyView::isInSystemEventCollection() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         // Note: when encoding == Yes the size is 2 bytes at a minimum. This is
         // as mcbp_validators will fail 0-byte logical keys, thus we always have
@@ -202,21 +202,21 @@ bool DocKey::isInSystemEventCollection() const {
 }
 
 // Inspect the leb128 key prefixes without doing a full leb decode
-bool DocKey::isInDefaultCollection() const {
+bool DocKeyView::isInDefaultCollection() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         return data()[0] == CollectionID::Default;
     }
     return true;
 }
 
-std::pair<CollectionID, cb::const_byte_buffer> DocKey::getIdAndKey() const {
+std::pair<CollectionID, cb::const_byte_buffer> DocKeyView::getIdAndKey() const {
     if (encoding == DocKeyEncodesCollectionId::Yes) {
         return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(buffer);
     }
     return {CollectionID::Default, {data(), size()}};
 }
 
-DocKey DocKey::makeDocKeyWithoutCollectionID() const {
+DocKeyView DocKeyView::makeDocKeyWithoutCollectionID() const {
     if (getEncoding() == DocKeyEncodesCollectionId::Yes) {
         auto decoded = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(buffer);
         return {decoded.data(), decoded.size(), DocKeyEncodesCollectionId::No};
@@ -224,8 +224,8 @@ DocKey DocKey::makeDocKeyWithoutCollectionID() const {
     return *this;
 }
 
-std::string DocKey::makeWireEncodedString(CollectionID cid,
-                                          const std::string& key) {
+std::string DocKeyView::makeWireEncodedString(CollectionID cid,
+                                              const std::string& key) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb(uint32_t{cid});
     std::string ret;
     std::copy(leb.begin(), leb.end(), std::back_inserter(ret));

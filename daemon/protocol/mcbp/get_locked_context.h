@@ -12,9 +12,7 @@
 #include "steppable_command_context.h"
 
 #include <daemon/cookie.h>
-#include <memcached/dockey.h>
 #include <memcached/engine.h>
-#include <memcached/protocol_binary.h>
 
 class ItemDissector;
 

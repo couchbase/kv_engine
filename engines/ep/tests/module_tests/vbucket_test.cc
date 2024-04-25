@@ -248,8 +248,8 @@ AddStatus VBucketTestBase::public_processAdd(Item& itm,
 }
 
 std::pair<MutationStatus, StoredValue*>
-VBucketTestBase::public_processSoftDelete(const DocKey& key,
-        VBQueueItemCtx ctx) {
+VBucketTestBase::public_processSoftDelete(const DocKeyView& key,
+                                          VBQueueItemCtx ctx) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto htRes = vbucket->ht.findForUpdate(key);
@@ -283,7 +283,7 @@ VBucketTestBase::public_processSoftDelete(HashTable::FindUpdateResult& htRes,
     return {status, deletedSV};
 }
 
-bool VBucketTestBase::public_deleteStoredValue(const DocKey& key) {
+bool VBucketTestBase::public_deleteStoredValue(const DocKeyView& key) {
     auto hbl_sv = lockAndFind(StoredDocKey(key));
     if (!hbl_sv.second) {
         return false;
@@ -292,7 +292,7 @@ bool VBucketTestBase::public_deleteStoredValue(const DocKey& key) {
 }
 
 std::pair<MutationStatus, GetValue> VBucketTestBase::public_getAndUpdateTtl(
-        const DocKey& key, time_t exptime) {
+        const DocKeyView& key, time_t exptime) {
     // Need to take the collections read handle before the hbl
     auto cHandle = vbucket->lockCollections(key);
     auto hbl = lockAndFind(StoredDocKey(key));
@@ -309,7 +309,7 @@ VBucketTestBase::public_processExpiredItem(
 }
 
 StoredValue* VBucketTestBase::public_addTempStoredValue(
-        const HashTable::HashBucketLock& hbl, const DocKey& key) {
+        const HashTable::HashBucketLock& hbl, const DocKeyView& key) {
     auto res = vbucket->addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
     EXPECT_EQ(TempAddStatus::BgFetch, res.status);
     return res.storedValue;

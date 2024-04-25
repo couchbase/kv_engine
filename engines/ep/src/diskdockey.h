@@ -12,7 +12,8 @@
 
 #include <string>
 
-struct DocKey;
+struct DocKeyView;
+
 class Item;
 
 /**
@@ -36,7 +37,7 @@ public:
      * @param key DocKey that is to be copied-in
      * @param prepared Prefix for prepared SyncWrite?
      */
-    explicit DiskDocKey(const DocKey& key, bool prepared = false);
+    explicit DiskDocKey(const DocKeyView& key, bool prepared = false);
 
     /**
      * Create a DiskDocKey from an Item.
@@ -84,7 +85,7 @@ public:
      * Explicitly convert to a DocKey, ignoring any DurabilityPrepare prefix
      * which may be present.
      */
-    DocKey getDocKey() const;
+    DocKeyView getDocKey() const;
 
     /**
      * @returns true if the DocKey refers to a committed (not DurabilityPrepare)

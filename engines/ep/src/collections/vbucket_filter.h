@@ -131,7 +131,7 @@ public:
      * @param cid The collection-ID to check.
      * @return if the key should be allowed to be sent on the DcpStream
      */
-    bool check(DocKey key) const {
+    bool check(DocKeyView key) const {
         // passthrough, everything is allowed.
         if (isPassThroughFilter()) {
             return true;
@@ -314,7 +314,7 @@ protected:
     bool checkAndUpdateSlow(Item& item);
 
     /// Non-inline slow path of check(key)
-    bool checkSlow(DocKey key) const;
+    bool checkSlow(DocKeyView key) const;
 
     /**
      * Remove the collection of the item from the filter

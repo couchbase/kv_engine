@@ -1124,7 +1124,7 @@ cb::engine_errc STParameterizedBucketTest::snapshot(
 
 cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
                                                     uint32_t opaque,
-                                                    const DocKey& key,
+                                                    const DocKeyView& key,
                                                     uint64_t seqno) {
     return consumer.mutation(opaque,
                              key,
@@ -1143,7 +1143,7 @@ cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
 
 cb::engine_errc STParameterizedBucketTest::deletion(DcpConsumer& consumer,
                                                     uint32_t opaque,
-                                                    const DocKey& key,
+                                                    const DocKeyView& key,
                                                     uint64_t seqno) {
     return consumer.deletion(opaque,
                              key,
@@ -1158,7 +1158,7 @@ cb::engine_errc STParameterizedBucketTest::deletion(DcpConsumer& consumer,
 
 cb::engine_errc STParameterizedBucketTest::prepare(DcpConsumer& consumer,
                                                    uint32_t opaque,
-                                                   const DocKey& key,
+                                                   const DocKeyView& key,
                                                    uint64_t seqno) {
     return consumer.prepare(opaque,
                             key,
@@ -1178,7 +1178,7 @@ cb::engine_errc STParameterizedBucketTest::prepare(DcpConsumer& consumer,
 
 cb::engine_errc STParameterizedBucketTest::commit(DcpConsumer& consumer,
                                                   uint32_t opaque,
-                                                  const DocKey& key,
+                                                  const DocKeyView& key,
                                                   uint64_t prepareSeqno,
                                                   uint64_t seqno) {
     return consumer.commit(opaque, vbid, key, prepareSeqno, seqno);
@@ -1186,7 +1186,7 @@ cb::engine_errc STParameterizedBucketTest::commit(DcpConsumer& consumer,
 
 cb::engine_errc STParameterizedBucketTest::abort(DcpConsumer& consumer,
                                                  uint32_t opaque,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  uint64_t prepareSeqno,
                                                  uint64_t seqno) {
     return consumer.abort(opaque, vbid, key, prepareSeqno, seqno);
@@ -2911,7 +2911,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     std::copy(
             body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
 
-    const DocKey docKey{key, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
                                 data.size()};
 

@@ -92,7 +92,7 @@ size_t EphemeralVBucket::getNumSystemItems() const {
     return ht.getNumSystemItems();
 }
 
-void EphemeralVBucket::completeStatsVKey(const DocKey& key,
+void EphemeralVBucket::completeStatsVKey(const DocKeyView& key,
                                          const GetValue& gcb) {
     throw std::logic_error(
             "EphemeralVBucket::completeStatsVKey() is not valid call. "
@@ -320,7 +320,7 @@ std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
     return seqList->makeRangeIterator(isBackfill);
 }
 
-bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
+bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKeyView& key,
                                              int64_t bySeqno) const {
     if (key.isInSystemEventCollection() &&
         !SystemEventFactory::isModifyCollection(key)) {
@@ -371,7 +371,7 @@ size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
 
     // Callback applied to non-stale items at SeqList::purgeTombstones, pending
     // Prepares included.
-    auto droppedCollectionCallback = [this](const DocKey& key,
+    auto droppedCollectionCallback = [this](const DocKeyView& key,
                                             int64_t bySeqno) {
         if (isKeyLogicallyDeleted(key, bySeqno)) {
             dropKey(key, bySeqno);
@@ -812,7 +812,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
 
 VBNotifyCtx EphemeralVBucket::addNewAbort(
         const HashTable::HashBucketLock& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         int64_t prepareSeqno,
         int64_t abortSeqno,
         const Collections::VB::CachingReadHandle& cHandle) {
@@ -864,7 +864,7 @@ void EphemeralVBucket::updateSeqListPostAbort(
 }
 
 cb::engine_errc EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
-                                          const DocKey& key,
+                                          const DocKeyView& key,
                                           const StoredValue& v,
                                           CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
@@ -877,7 +877,7 @@ cb::engine_errc EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
 
 cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
         HashTable::HashBucketLock&& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
@@ -892,7 +892,7 @@ cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
 std::unique_ptr<CompactionBGFetchItem>
 EphemeralVBucket::createBgFetchForCompactionExpiry(
         const HashTable::HashBucketLock& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         const Item& item) {
     throw std::logic_error(
             "EphemeralVBucket::createBgFetchForCompactionExpiry() is not "
@@ -903,7 +903,9 @@ EphemeralVBucket::createBgFetchForCompactionExpiry(
 }
 
 void EphemeralVBucket::bgFetchForCompactionExpiry(
-        HashTable::HashBucketLock& hbl, const DocKey& key, const Item& item) {
+        HashTable::HashBucketLock& hbl,
+        const DocKeyView& key,
+        const Item& item) {
     throw std::logic_error(
             "EphemeralVBucket::bgFetchForCompactionExpiry() is not valid. "
             "Called on " +
@@ -913,7 +915,7 @@ void EphemeralVBucket::bgFetchForCompactionExpiry(
 
 GetValue EphemeralVBucket::getInternalNonResident(
         HashTable::HashBucketLock&& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         QueueBgFetch queueBgFetch,
@@ -962,7 +964,7 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
     return getNumInMemoryDeletes();
 }
 
-void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
+void EphemeralVBucket::dropKey(const DocKeyView& key, int64_t bySeqno) {
     // if there is a pending item which will need removing from the DM,
     // store its seqno here for use after the HT lock has been released.
     int64_t prepareSeqno = 0;

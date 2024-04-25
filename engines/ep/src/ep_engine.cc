@@ -229,7 +229,7 @@ void EventuallyPersistentEngine::destroy(const bool force) {
 
 cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         size_t nbytes,
         size_t priv_nbytes,
         uint32_t flags,
@@ -250,7 +250,7 @@ cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
 
 cb::engine_errc EventuallyPersistentEngine::remove(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
@@ -279,7 +279,7 @@ void EventuallyPersistentEngine::release(ItemIface& itm) {
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
     auto options = static_cast<get_options_t>(
@@ -306,7 +306,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_replica(
-        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface& cookie, const DocKeyView& key, Vbid vbucket) {
     return acquireEngine(this)->getReplicaInner(cookie, key, vbucket);
 }
 
@@ -317,7 +317,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_random_document(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<bool(const item_info&)>& filter) {
     return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
@@ -325,7 +325,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         uint32_t expiry_time,
         const std::optional<cb::durability::Requirements>& durability) {
@@ -338,7 +338,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         std::chrono::seconds lock_timeout) {
     return acquireEngine(this)->getLockedInner(
@@ -346,7 +346,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
 }
 
 cb::engine_errc EventuallyPersistentEngine::unlock(CookieIface& cookie,
-                                                   const DocKey& key,
+                                                   const DocKeyView& key,
                                                    Vbid vbucket,
                                                    uint64_t cas) {
     return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
@@ -1086,7 +1086,7 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
 }
 
 cb::engine_errc EventuallyPersistentEngine::evictKey(CookieIface& cookie,
-                                                     const DocKey& key,
+                                                     const DocKeyView& key,
                                                      Vbid vbucket) {
     EP_LOG_DEBUG("Manually evicting object with key {}",
                  cb::UserDataView(key.to_string()));
@@ -1175,7 +1175,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getReplicaInner(
-        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface& cookie, const DocKeyView& key, Vbid vbucket) {
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
@@ -1442,7 +1442,7 @@ cb::engine_errc EventuallyPersistentEngine::snapshot_marker(
 cb::engine_errc EventuallyPersistentEngine::mutation(
         CookieIface& cookie,
         uint32_t opaque,
-        const DocKey& key,
+        const DocKeyView& key,
         cb::const_byte_buffer value,
         uint8_t datatype,
         uint64_t cas,
@@ -1480,7 +1480,7 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
 cb::engine_errc EventuallyPersistentEngine::deletion(
         CookieIface& cookie,
         uint32_t opaque,
-        const DocKey& key,
+        const DocKeyView& key,
         cb::const_byte_buffer value,
         uint8_t datatype,
         uint64_t cas,
@@ -1504,7 +1504,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion(
 cb::engine_errc EventuallyPersistentEngine::deletion_v2(
         CookieIface& cookie,
         uint32_t opaque,
-        const DocKey& key,
+        const DocKeyView& key,
         cb::const_byte_buffer value,
         uint8_t datatype,
         uint64_t cas,
@@ -1528,7 +1528,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion_v2(
 cb::engine_errc EventuallyPersistentEngine::expiration(
         CookieIface& cookie,
         uint32_t opaque,
-        const DocKey& key,
+        const DocKeyView& key,
         cb::const_byte_buffer value,
         uint8_t datatype,
         uint64_t cas,
@@ -1608,7 +1608,7 @@ cb::engine_errc EventuallyPersistentEngine::system_event(
 cb::engine_errc EventuallyPersistentEngine::prepare(
         CookieIface& cookie,
         uint32_t opaque,
-        const DocKey& key,
+        const DocKeyView& key,
         cb::const_byte_buffer value,
         uint8_t datatype,
         uint64_t cas,
@@ -1652,7 +1652,7 @@ cb::engine_errc EventuallyPersistentEngine::seqno_acknowledged(
 cb::engine_errc EventuallyPersistentEngine::commit(CookieIface& cookie,
                                                    uint32_t opaque,
                                                    Vbid vbucket,
-                                                   const DocKey& key,
+                                                   const DocKeyView& key,
                                                    uint64_t prepared_seqno,
                                                    uint64_t commit_seqno) {
     auto engine = acquireEngine(this);
@@ -1663,7 +1663,7 @@ cb::engine_errc EventuallyPersistentEngine::commit(CookieIface& cookie,
 cb::engine_errc EventuallyPersistentEngine::abort(CookieIface& cookie,
                                                   uint32_t opaque,
                                                   Vbid vbucket,
-                                                  const DocKey& key,
+                                                  const DocKeyView& key,
                                                   uint64_t preparedSeqno,
                                                   uint64_t abortSeqno) {
     auto engine = acquireEngine(this);
@@ -1727,7 +1727,7 @@ bool EventuallyPersistentEngine::get_item_info(const ItemIface& itm,
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
-        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface& cookie, const DocKeyView& key, Vbid vbucket) {
     return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
 }
 
@@ -2386,7 +2386,7 @@ KVStoreIface::CreateItemCB EventuallyPersistentEngine::getCreateItemCallback() {
     // EPEngine functions are not accessible wihtin KVStore, therefore
     // createItem is passed via callback, i.e. we don't create a
     // new item if it will cause memory to exceed the mutation watermark.
-    return [this](const DocKey& key,
+    return [this](const DocKeyView& key,
                   const size_t nbytes,
                   const uint32_t flags,
                   const rel_time_t exptime,
@@ -2410,7 +2410,7 @@ KVStoreIface::CreateItemCB EventuallyPersistentEngine::getCreateItemCallback() {
 }
 
 std::pair<cb::engine_errc, std::unique_ptr<Item>>
-EventuallyPersistentEngine::createItem(const DocKey& key,
+EventuallyPersistentEngine::createItem(const DocKeyView& key,
                                        size_t nbytes,
                                        uint32_t flags,
                                        rel_time_t exptime,
@@ -2441,7 +2441,7 @@ EventuallyPersistentEngine::createItem(const DocKey& key,
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
-        const DocKey& key,
+        const DocKeyView& key,
         const size_t nbytes,
         const size_t priv_nbytes,
         const uint32_t flags,
@@ -2480,7 +2480,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
 
 cb::engine_errc EventuallyPersistentEngine::removeInner(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         std::optional<cb::durability::Requirements> durability,
@@ -2550,7 +2550,7 @@ void EventuallyPersistentEngine::itemRelease(ItemIface* itm) {
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         get_options_t options) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
@@ -2579,7 +2579,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         uint32_t exptime) {
     time_t expiry_time = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
@@ -2616,7 +2616,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<bool(const item_info&)>& filter) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
@@ -2695,7 +2695,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         std::chrono::seconds lock_timeout) {
     if (lock_timeout.count() == 0 || lock_timeout > getGetlMaxTimeout()) {
@@ -2715,7 +2715,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface& cookie,
-                                                        const DocKey& key,
+                                                        const DocKeyView& key,
                                                         Vbid vbucket,
                                                         uint64_t cas) {
     auto ret =
@@ -4539,7 +4539,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
         Vbid vbid,
-        const DocKey& key,
+        const DocKeyView& key,
         bool validate) {
     auto rv = checkCollectionAccess(cookie,
                                     vbid,
@@ -5660,7 +5660,7 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
 
 cb::engine_errc EventuallyPersistentEngine::handleObserve(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
@@ -5714,7 +5714,7 @@ cb::engine_errc EventuallyPersistentEngine::handleObserve(
 
 cb::engine_errc EventuallyPersistentEngine::observe(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
@@ -5849,7 +5849,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
-        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface& cookie, const DocKeyView& key, Vbid vbucket) {
     uint32_t deleted;
     uint8_t datatype;
     ItemMetaData itemMeta;
@@ -5980,13 +5980,13 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
     return datatype;
 }
 
-DocKey EventuallyPersistentEngine::makeDocKey(CookieIface& cookie,
-                                              cb::const_byte_buffer key) const {
-    return DocKey{key.data(),
-                  key.size(),
-                  cookie.isCollectionsSupported()
-                          ? DocKeyEncodesCollectionId::Yes
-                          : DocKeyEncodesCollectionId::No};
+DocKeyView EventuallyPersistentEngine::makeDocKey(
+        CookieIface& cookie, cb::const_byte_buffer key) const {
+    return DocKeyView{key.data(),
+                      key.size(),
+                      cookie.isCollectionsSupported()
+                              ? DocKeyEncodesCollectionId::Yes
+                              : DocKeyEncodesCollectionId::No};
 }
 
 cb::engine_errc EventuallyPersistentEngine::setWithMeta(
@@ -6118,7 +6118,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 
 cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         Vbid vbucket,
-        DocKey key,
+        DocKeyView key,
         cb::const_byte_buffer value,
         ItemMetaData itemMeta,
         bool isDeleted,
@@ -6394,7 +6394,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 
 cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         Vbid vbucket,
-        DocKey key,
+        DocKeyView key,
         ItemMetaData itemMeta,
         uint64_t& cas,
         uint64_t* seqno,
@@ -6699,7 +6699,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         count = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     }
 
-    DocKey start_key = makeDocKey(cookie, request.getKey());
+    DocKeyView start_key = makeDocKey(cookie, request.getKey());
     auto privTestResult =
             checkCollectionAccess(cookie,
                                   request.getVBucket(),
@@ -7538,7 +7538,7 @@ cb::engine_errc EventuallyPersistentEngine::wait_for_seqno_persistence(
 }
 
 cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,
-                                                      const DocKey& key,
+                                                      const DocKeyView& key,
                                                       Vbid vbucket) {
     return acquireEngine(this)->evictKey(cookie, key, vbucket);
 }

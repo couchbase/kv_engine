@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include "dockey.h"
+#include "dockey_view.h"
 #include "engine_common.h"
 #include "engine_error.h"
 #include "protocol_binary.h"

@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-struct DocKey;
+struct DocKeyView;
 
 enum bfilter_status_t {
     BFILTER_DISABLED,
@@ -38,8 +38,8 @@ public:
     bfilter_status_t getStatus();
     std::string getStatusString() const;
 
-    void addKey(const DocKey& key);
-    bool maybeKeyExists(const DocKey& key);
+    void addKey(const DocKeyView& key);
+    bool maybeKeyExists(const DocKeyView& key);
 
     size_t getNumOfKeysInFilter() const;
 
@@ -54,7 +54,7 @@ protected:
     size_t estimateFilterSize(size_t key_count, double false_positive_prob);
     size_t estimateNoOfHashes(size_t key_count);
 
-    uint64_t hashDocKey(const DocKey& key, uint32_t iteration);
+    uint64_t hashDocKey(const DocKeyView& key, uint32_t iteration);
 
     const size_t filterSize;
     const size_t noOfHashes;

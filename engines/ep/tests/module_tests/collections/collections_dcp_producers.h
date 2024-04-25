@@ -74,13 +74,13 @@ public:
 
     cb::engine_errc commit(uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepare_seqno,
                            uint64_t commit_seqno) override;
 
     cb::engine_errc abort(uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepare_seqno,
                           uint64_t abort_seqno) override;
 

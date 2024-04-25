@@ -232,11 +232,11 @@ public:
         collections_support = enable;
     }
 
-    DocKey makeDocKey(cb::const_byte_buffer key) const {
-        return DocKey{key.data(),
-                      key.size(),
-                      isCollectionsSupported() ? DocKeyEncodesCollectionId::Yes
-                                               : DocKeyEncodesCollectionId::No};
+    DocKeyView makeDocKey(cb::const_byte_buffer key) const {
+        return {key.data(),
+                key.size(),
+                isCollectionsSupported() ? DocKeyEncodesCollectionId::Yes
+                                         : DocKeyEncodesCollectionId::No};
     }
 
     bool isDuplexSupported() const {
@@ -753,13 +753,13 @@ public:
 
     cb::engine_errc commit(uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepare_seqno,
                            uint64_t commit_seqno) override;
 
     cb::engine_errc abort(uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
 
@@ -938,7 +938,7 @@ protected:
     // Shared DCP_DELETION write function for the v1/v2 commands.
     cb::engine_errc deletionInner(const ItemIface& item,
                                   cb::const_byte_buffer packet,
-                                  const DocKey& key);
+                                  const DocKeyView& key);
 
     /**
      * Add the provided packet to the send pipe for the connection

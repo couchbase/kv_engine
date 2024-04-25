@@ -733,24 +733,24 @@ public:
                     cb::mcbp::request::DcpSnapshotMarkerFlag::Checkpoint);
     cb::engine_errc mutation(DcpConsumer& consumer,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              uint64_t seqno);
     cb::engine_errc deletion(DcpConsumer& consumer,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              uint64_t seqno);
     cb::engine_errc prepare(DcpConsumer& consumer,
                             uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             uint64_t seqno);
     cb::engine_errc commit(DcpConsumer& consumer,
                            uint32_t opaque,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepareSeqno,
                            uint64_t seqno);
     cb::engine_errc abort(DcpConsumer& consumer,
                           uint32_t opaque,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepareSeqno,
                           uint64_t seqno);
     cb::engine_errc createCollection(DcpConsumer& consumer,

@@ -51,7 +51,7 @@ std::string_view RangeScanContinueKeyPayload::next() {
 }
 
 void RangeScanContinueKeyPayload::encode(std::vector<uint8_t>& v,
-                                         const DocKey& key) {
+                                         const DocKeyView& key) {
     auto strippedKey = key.makeDocKeyWithoutCollectionID();
     cb::mcbp::unsigned_leb128<size_t> lebSize(strippedKey.size());
     std::copy(lebSize.begin(), lebSize.end(), std::back_inserter(v));

@@ -59,7 +59,7 @@ public:
     }
 
     /// Allow testing access to StoredValue::getRequiredStorage
-    static size_t public_getRequiredStorage(const DocKey& key) {
+    static size_t public_getRequiredStorage(const DocKeyView& key) {
         return Factory::value_type::getRequiredStorage(key);
     }
 

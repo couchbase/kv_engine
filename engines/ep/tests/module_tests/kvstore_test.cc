@@ -1099,7 +1099,7 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
     ASSERT_EQ(2, results.size());
 
     auto checkItem = [this, filter](Item& item,
-                                    DocKey expectedKey,
+                                    DocKeyView expectedKey,
                                     std::string_view expectedValue) {
         const auto expectedDatatype = filter == ValueFilter::VALUES_COMPRESSED
                                               ? PROTOCOL_BINARY_DATATYPE_SNAPPY

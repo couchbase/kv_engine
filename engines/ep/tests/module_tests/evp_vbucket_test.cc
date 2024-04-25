@@ -30,7 +30,7 @@ void EPVBucketTest::TearDown() {
 }
 
 size_t EPVBucketTest::public_queueBGFetchItem(
-        const DocKey& key,
+        const DocKeyView& key,
         std::unique_ptr<BGFetchItem> fetchItem,
         BgFetcher& bgFetcher) {
     return dynamic_cast<EPVBucket&>(*vbucket).queueBGFetchItem(

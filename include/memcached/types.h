@@ -11,7 +11,7 @@
 
 #include <fmt/ostream.h>
 #include <mcbp/protocol/datatype.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <sys/types.h>
 #include <chrono>
 #include <cstdint>
@@ -64,7 +64,7 @@ public:
     virtual ~ItemIface() = default;
 
     /// Return the Item's key.
-    virtual DocKey getDocKey() const = 0;
+    virtual DocKeyView getDocKey() const = 0;
 
     /// Return the Item's datatype.
     virtual protocol_binary_datatype_t getDataType() const = 0;
@@ -182,7 +182,7 @@ struct item_info {
     /**
      * Item's DocKey
      */
-    DocKey key{nullptr, 0, DocKeyEncodesCollectionId::No};
+    DocKeyView key{nullptr, 0, DocKeyEncodesCollectionId::No};
 };
 
 /* Information to uniquely identify (and order) a mutation. */

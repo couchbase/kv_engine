@@ -30,7 +30,7 @@ public:
 
     void SetUp() override;
     void TearDown() override;
-    size_t public_queueBGFetchItem(const DocKey& key,
+    size_t public_queueBGFetchItem(const DocKeyView& key,
                                    std::unique_ptr<BGFetchItem> fetchItem,
                                    BgFetcher& bgFetcher);
 };

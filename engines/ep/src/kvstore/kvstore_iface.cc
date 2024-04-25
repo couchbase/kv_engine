@@ -13,7 +13,7 @@
 #include "item.h"
 
 KVStoreIface::CreateItemCB KVStoreIface::getDefaultCreateItemCallback() {
-    return [](const DocKey& key,
+    return [](const DocKeyView& key,
               size_t nbytes,
               uint32_t flags,
               time_t exptime,

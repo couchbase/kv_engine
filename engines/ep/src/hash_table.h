@@ -24,7 +24,7 @@
 #include <functional>
 
 class AbstractStoredValueFactory;
-struct DocKey;
+struct DocKeyView;
 class EPStats;
 class HashTableVisitor;
 class HashTableDepthVisitor;
@@ -852,7 +852,7 @@ public:
      *         - a (locked) HashBucketLock for the key's hash bucket.
      */
     FindROResult findForRead(
-            const DocKey& key,
+            const DocKeyView& key,
             TrackReference trackReference = TrackReference::Yes,
             WantsDeleted wantsDeleted = WantsDeleted::No,
             ForGetReplicaOp fetchRequestedForReplicaItem = ForGetReplicaOp::No);
@@ -1015,7 +1015,7 @@ public:
      *         subsequently needs to insert a StoredValue for this key, to
      *         avoid unlocking and re-locking the mutex.
      */
-    FindResult findForWrite(const DocKey& key,
+    FindResult findForWrite(const DocKeyView& key,
                             WantsDeleted wantsDeleted = WantsDeleted::Yes);
 
     /**
@@ -1038,18 +1038,18 @@ public:
      *         subsequently needs to insert a StoredValue for this key, to
      *         avoid unlocking and re-locking the mutex.
      */
-    FindResult findForSyncWrite(const DocKey& key);
+    FindResult findForSyncWrite(const DocKeyView& key);
 
     /// @return Same as findForSyncWrite but only returns completed prepare if
     ///         a committed StoredValue exists.
-    FindResult findForSyncReplace(const DocKey& key);
+    FindResult findForSyncReplace(const DocKeyView& key);
 
     /**
      * @return A pair of StoredValues (pending and committed) so that we can
      *         check the existing values and update accordingly when
      *         performing a normal write or committing a SyncWrite
      */
-    FindUpdateResult findForUpdate(const DocKey& key);
+    FindUpdateResult findForUpdate(const DocKeyView& key);
 
     /**
      * Find only a Committed item with the specified key. If no Committed item
@@ -1079,7 +1079,7 @@ public:
      *         - a pointer to a StoredValue -- NULL if not found
      *         - a (locked) HashBucketLock for the key's hash bucket.
      */
-    FindResult findOnlyCommitted(const DocKey& key);
+    FindResult findOnlyCommitted(const DocKeyView& key);
 
     /**
      * Find only a Prepared item with the specified key. If no prepared item
@@ -1108,7 +1108,7 @@ public:
      *         - a pointer to a StoredValue -- NULL if not found
      *         - a (locked) HashBucketLock for the key's hash bucket.
      */
-    FindResult findOnlyPrepared(const DocKey& key);
+    FindResult findOnlyPrepared(const DocKeyView& key);
 
     /**
      * Find a StoredValue with the same key and status (prepared / committed)
@@ -1311,7 +1311,7 @@ public:
      * @param s the key
      * @return HashBucektLock which contains a lock and the hash bucket number
      */
-    inline HashBucketLock getLockedBucket(const DocKey& key) {
+    inline HashBucketLock getLockedBucket(const DocKeyView& key) {
         if (!isActive()) {
             throw std::logic_error("HashTable::getLockedBucket: Cannot call on a "
                     "non-active object");
@@ -1464,7 +1464,7 @@ public:
      * @return pair of pointers, null when nothing found.
      */
     UnlockedFindResult unlocked_find(const HashBucketLock& hbl,
-                                     const DocKey& key) const;
+                                     const DocKeyView& key) const;
 
     /**
      * Releases an item(StoredValue) in the hash table, but does not delete it.
@@ -1710,7 +1710,7 @@ protected:
      *         - a HashBucketLock for the hash bucket of the found key. If
      * not found then HashBucketLock is empty.
      */
-    FindInnerResult findInner(const DocKey& key);
+    FindInnerResult findInner(const DocKeyView& key);
 
     /**
      * Select the StoredValue that should be used for read cases based on the

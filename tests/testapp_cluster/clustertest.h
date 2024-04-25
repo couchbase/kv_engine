@@ -11,7 +11,7 @@
 #pragma once
 
 #include <folly/portability/GTest.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/vbucket.h>
 
 class MemcachedConnection;

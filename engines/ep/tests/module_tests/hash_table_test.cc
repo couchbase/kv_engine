@@ -120,7 +120,7 @@ HashTableTest::HashTableTest() : defaultHtSize(Configuration().getHtSize()) {
     initialize_time_functions(get_mock_server_api()->core);
 }
 
-bool HashTableTest::del(HashTable& ht, const DocKey& key) {
+bool HashTableTest::del(HashTable& ht, const DocKeyView& key) {
     auto htRes = ht.findForWrite(key);
     if (!htRes.storedValue) {
         return false;

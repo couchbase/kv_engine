@@ -218,12 +218,12 @@ public:
                            uint64_t maxVisibleSeqno,
                            uint64_t maxPrepareSeqno) override;
 
-    cb::engine_errc statsVKey(const DocKey& key,
+    cb::engine_errc statsVKey(const DocKeyView& key,
                               Vbid vbucket,
                               CookieIface& cookie) override;
 
     void completeStatsVKey(CookieIface& cookie,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
 

@@ -13,7 +13,6 @@
 
 #include "statistics/labelled_collector.h"
 #include <hdrhistogram/hdrhistogram.h>
-#include <memcached/dockey.h>
 
 #include <string_view>
 

@@ -323,7 +323,7 @@ TEST_F(CollectionsRbacCollection, CollectionStreamPrivsLost) {
 
     // Poke a mutation in, second snapshot will be created that triggers the end
     connNoStream->store(
-            DocKey::makeWireEncodedString(CollectionEntry::vegetable, "k1"),
+            DocKeyView::makeWireEncodedString(CollectionEntry::vegetable, "k1"),
             Vbid(0),
             "v1");
 

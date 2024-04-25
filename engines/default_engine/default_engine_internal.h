@@ -99,7 +99,7 @@ struct default_engine : public EngineIface {
     void destroy(bool force) override;
 
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
                                      uint32_t flags,
@@ -109,7 +109,7 @@ struct default_engine : public EngineIface {
 
     cb::engine_errc remove(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
@@ -118,33 +118,33 @@ struct default_engine : public EngineIface {
     void release(ItemIface& item) override;
 
     cb::EngineErrorItemPair get(CookieIface& cookie,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<bool(const item_info&)>& filter) override;
 
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
-                                         const DocKey& key,
+                                         const DocKeyView& key,
                                          Vbid vbucket) override;
 
     cb::EngineErrorItemPair get_locked(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             std::chrono::seconds lock_timeout) override;
 
     cb::engine_errc unlock(CookieIface& cookie,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            Vbid vbucket,
                            uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             uint32_t expirytime,
             const std::optional<cb::durability::Requirements>& durability)

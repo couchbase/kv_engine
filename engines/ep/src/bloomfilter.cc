@@ -45,7 +45,7 @@ size_t BloomFilter::estimateNoOfHashes(size_t key_count) {
     return round(((double) filterSize / key_count) * (log(2.0)));
 }
 
-uint64_t BloomFilter::hashDocKey(const DocKey& key, uint32_t iteration) {
+uint64_t BloomFilter::hashDocKey(const DocKeyView& key, uint32_t iteration) {
     uint64_t result = 0;
     auto hashable = key.getIdAndKey();
     uint32_t seed = iteration + (uint32_t(hashable.first) * noOfHashes);
@@ -105,7 +105,7 @@ std::string BloomFilter::getStatusString() const {
     return "UNKNOWN";
 }
 
-void BloomFilter::addKey(const DocKey& key) {
+void BloomFilter::addKey(const DocKeyView& key) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         bool overlap = true;
         for (uint32_t i = 0; i < noOfHashes; i++) {
@@ -121,7 +121,7 @@ void BloomFilter::addKey(const DocKey& key) {
     }
 }
 
-bool BloomFilter::maybeKeyExists(const DocKey& key) {
+bool BloomFilter::maybeKeyExists(const DocKeyView& key) {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         for (uint32_t i = 0; i < noOfHashes; i++) {
             uint64_t result = hashDocKey(key, i);

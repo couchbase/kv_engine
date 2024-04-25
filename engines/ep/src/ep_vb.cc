@@ -438,7 +438,7 @@ uint64_t EPVBucket::getHistoryDiskSize() {
     }
 }
 
-cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
+cb::engine_errc EPVBucket::statsVKey(const DocKeyView& key,
                                      CookieIface& cookie,
                                      EventuallyPersistentEngine& engine) {
     folly::SharedMutex::ReadHolder rlh(getStateLock());
@@ -484,7 +484,7 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
     }
 }
 
-void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
+void EPVBucket::completeStatsVKey(const DocKeyView& key, const GetValue& gcb) {
     folly::SharedMutex::ReadHolder rlh(getStateLock());
 
     auto cHandle = lockCollections(key);
@@ -650,7 +650,7 @@ size_t EPVBucket::getPageableMemUsage() {
     }
 }
 
-size_t EPVBucket::queueBGFetchItem(const DocKey& key,
+size_t EPVBucket::queueBGFetchItem(const DocKeyView& key,
                                    std::unique_ptr<BGFetchItem> fetch,
                                    BgFetcher& bgFetcher) {
     // While a DiskDocKey supports both the committed and prepared namespaces,
@@ -783,7 +783,7 @@ VBNotifyCtx EPVBucket::abortStoredValue(
 
 VBNotifyCtx EPVBucket::addNewAbort(
         const HashTable::HashBucketLock& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         int64_t prepareSeqno,
         int64_t abortSeqno,
         const Collections::VB::CachingReadHandle& cHandle) {
@@ -794,7 +794,7 @@ VBNotifyCtx EPVBucket::addNewAbort(
 }
 
 cb::engine_errc EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    const StoredValue& v,
                                    CookieIface* cookie,
                                    EventuallyPersistentEngine& engine,
@@ -832,7 +832,7 @@ cb::engine_errc EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
 cb::engine_errc EPVBucket::addTempItemAndBGFetch(
         HashTable::HashBucketLock&& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
@@ -854,7 +854,7 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
 std::unique_ptr<CompactionBGFetchItem>
 EPVBucket::createBgFetchForCompactionExpiry(
         const HashTable::HashBucketLock& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         const Item& item) {
     auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
     switch (rv.status) {
@@ -868,7 +868,7 @@ EPVBucket::createBgFetchForCompactionExpiry(
 }
 
 void EPVBucket::bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
-                                           const DocKey& key,
+                                           const DocKeyView& key,
                                            const Item& item) {
     auto bgFetchItem = createBgFetchForCompactionExpiry(hbl, key, item);
     if (!bgFetchItem) {
@@ -909,7 +909,7 @@ void EPVBucket::updateBGStats(
 }
 
 GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
-                                           const DocKey& key,
+                                           const DocKeyView& key,
                                            CookieIface* cookie,
                                            EventuallyPersistentEngine& engine,
                                            QueueBgFetch queueBgFetch,
@@ -1026,7 +1026,7 @@ size_t EPVBucket::getNumPersistedDeletes() const {
     return shard->getRWUnderlying()->getNumPersistedDeletes(getId());
 }
 
-void EPVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
+void EPVBucket::dropKey(const DocKeyView& key, int64_t bySeqno) {
     // dropKey must not generate expired items as it's used for erasing a
     // collection.
 

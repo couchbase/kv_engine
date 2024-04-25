@@ -14,7 +14,7 @@
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/unsigned_leb128.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 
 TEST(DcpResponseTest, DcpCommit_getMessageSize) {
     std::string key("key"); // tests will see 'key\0'

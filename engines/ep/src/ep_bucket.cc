@@ -60,13 +60,13 @@
  * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
  */
-class BloomFilterCallback : public Callback<Vbid&, const DocKey&, bool&> {
+class BloomFilterCallback : public Callback<Vbid&, const DocKeyView&, bool&> {
 public:
     explicit BloomFilterCallback(KVBucket& eps) : store(eps) {
     }
 
     void callback(Vbid& vbucketId,
-                  const DocKey& key,
+                  const DocKeyView& key,
                   bool& isDeleted) override {
         VBucketPtr vb = store.getVBucket(vbucketId);
         if (vb) {
@@ -1773,7 +1773,7 @@ VBucketPtr EPBucket::makeVBucket(
             VBucket::DeferredDeleter(engine)};
 }
 
-cb::engine_errc EPBucket::statsVKey(const DocKey& key,
+cb::engine_errc EPBucket::statsVKey(const DocKeyView& key,
                                     Vbid vbucket,
                                     CookieIface& cookie) {
     VBucketPtr vb = getVBucket(vbucket);
@@ -1785,7 +1785,7 @@ cb::engine_errc EPBucket::statsVKey(const DocKey& key,
 }
 
 void EPBucket::completeStatsVKey(CookieIface& cookie,
-                                 const DocKey& key,
+                                 const DocKeyView& key,
                                  Vbid vbid,
                                  uint64_t bySeqNum) {
     GetValue gcb = getROUnderlying(vbid)->get(DiskDocKey{key}, vbid);

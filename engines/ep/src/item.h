@@ -70,7 +70,7 @@ public:
      * Used when a value already exists, and the Item should refer to that
      * value.
      */
-    Item(const DocKey& k,
+    Item(const DocKeyView& k,
          const uint32_t fl,
          const time_t exp,
          const value_t& val,
@@ -90,7 +90,7 @@ public:
      *           then no data is copied in.
      *  The remaining arguments specify various optional attributes.
      */
-    Item(const DocKey& k,
+    Item(const DocKeyView& k,
          const uint32_t fl,
          const time_t exp,
          const void* dta,
@@ -102,7 +102,7 @@ public:
          uint64_t sno = 1,
          std::optional<uint8_t> freqCount = {});
 
-    Item(const DocKey& k,
+    Item(const DocKeyView& k,
          const Vbid vb,
          queue_op o,
          const uint64_t revSeq,
@@ -115,7 +115,7 @@ public:
 
     static Item* makeDeletedItem(
             DeleteSource cause,
-            const DocKey& k,
+            const DocKeyView& k,
             const uint32_t fl,
             const time_t exp,
             const void* dta,
@@ -183,7 +183,7 @@ public:
         return key;
     }
 
-    DocKey getDocKey() const override {
+    DocKeyView getDocKey() const override {
         return key;
     }
 

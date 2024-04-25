@@ -227,7 +227,7 @@ public:
      * Attempt to lookup the scope-id of the "key" (using the collection-ID)
      * @return an optional ScopeID, undefined if nothing found
      */
-    std::optional<ScopeID> getScopeID(const DocKey& key) const;
+    std::optional<ScopeID> getScopeID(const DocKeyView& key) const;
 
     /**
      * Attempt to lookup the scope-id of the "key" (using the collection-ID)

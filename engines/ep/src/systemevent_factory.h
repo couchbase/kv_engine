@@ -103,13 +103,13 @@ public:
      * Given a key from makeCollectionEventKey/makeCollectionEvent, returns the
      * collection ID that was used in the key's construction.
      */
-    static CollectionID getCollectionIDFromKey(const DocKey& key);
+    static CollectionID getCollectionIDFromKey(const DocKeyView& key);
 
     /**
      * Given a key from makeScopeEvent returns the scope ID that was used in the
      * key's construction.
      */
-    static ScopeID getScopeIDFromKey(const DocKey& key);
+    static ScopeID getScopeIDFromKey(const DocKeyView& key);
 
     /**
      * Given a key from makeCollectionEventKey, makeCollectionEvent or
@@ -117,7 +117,7 @@ public:
      * key. A second buffer is returned that is the key data after the type.
      */
     static std::pair<SystemEvent, cb::const_byte_buffer> getSystemEventType(
-            const DocKey& key);
+            const DocKeyView& key);
 
     /**
      * Given a key from makeCollectionEventKey, makeCollectionEvent or
@@ -125,14 +125,15 @@ public:
      * key and the ID (as a u32) which is embedded in the key. Called can
      * switch on the event to determine if the ID is Scope or Collection
      */
-    static std::pair<SystemEvent, uint32_t> getTypeAndID(const DocKey& key);
+    static std::pair<SystemEvent, uint32_t> getTypeAndID(const DocKeyView& key);
 
     /**
      * Given a key which the caller knows isSystemCollection return an optional
      * which stores the ID of the modified collection iff the key represent a
      * ModifyCollection event.
      */
-    static std::optional<CollectionID> isModifyCollection(const DocKey& key);
+    static std::optional<CollectionID> isModifyCollection(
+            const DocKeyView& key);
 
 private:
     /**
@@ -145,7 +146,7 @@ private:
      * @param seqno An OptionalSeqno - if defined the returned Item will have
      *        the seqno value set as its bySeqno.
      */
-    static std::unique_ptr<Item> make(const DocKey& key,
+    static std::unique_ptr<Item> make(const DocKeyView& key,
                                       SystemEvent se,
                                       cb::const_byte_buffer data,
                                       OptionalSeqno seqno);

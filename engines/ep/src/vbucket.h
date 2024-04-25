@@ -688,10 +688,10 @@ public:
      */
     void createFilter(size_t key_count, double probability);
     void initTempFilter(size_t key_count, double probability);
-    void addToFilter(const DocKey& key);
-    virtual bool maybeKeyExistsInFilter(const DocKey& key);
+    void addToFilter(const DocKeyView& key);
+    virtual bool maybeKeyExistsInFilter(const DocKeyView& key);
     bool isTempFilterAvailable();
-    void addToTempFilter(const DocKey& key);
+    void addToTempFilter(const DocKeyView& key);
     void swapFilter();
     void clearFilter();
     void setFilterStatus(bfilter_status_t to);
@@ -788,7 +788,8 @@ public:
      * @return a CachingReadHandle which the caller should test is valid with
      *         CachingReadHandle::valid
      */
-    Collections::VB::CachingReadHandle lockCollections(const DocKey& key) const;
+    Collections::VB::CachingReadHandle lockCollections(
+            const DocKeyView& key) const;
 
     /**
      * Update the Collections::VB::Manifest and the VBucket.
@@ -1024,7 +1025,7 @@ public:
      *
      * @return VBReturnCtx indicates notifyCtx and operation result
      */
-    virtual cb::engine_errc statsVKey(const DocKey& key,
+    virtual cb::engine_errc statsVKey(const DocKeyView& key,
                                       CookieIface& cookie,
                                       EventuallyPersistentEngine& engine) = 0;
 
@@ -1035,7 +1036,8 @@ public:
      * @param gcb Bgfetch cbk obj containing the item from disk
      *
      */
-    virtual void completeStatsVKey(const DocKey& key, const GetValue& gcb) = 0;
+    virtual void completeStatsVKey(const DocKeyView& key,
+                                   const GetValue& gcb) = 0;
 
     /**
      * Set (add new or update) an item into in-memory structure like
@@ -1485,7 +1487,7 @@ public:
      *     must be provided if the operation needs to be notified to a client
      */
     cb::engine_errc commit(VBucketStateLockRef vbStateLock,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepareSeqno,
                            std::optional<int64_t> commitSeqno,
                            const Collections::VB::CachingReadHandle& cHandle,
@@ -1506,7 +1508,7 @@ public:
      *     must be provided if the operation needs to be notified to a client
      */
     cb::engine_errc abort(VBucketStateLockRef vbStateLock,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepareSeqno,
                           std::optional<int64_t> abortSeqno,
                           const Collections::VB::CachingReadHandle& cHandle,
@@ -1665,7 +1667,7 @@ public:
      * @paran key key to drop
      * @param bySeqno The seqno of the key to drop
      */
-    virtual void dropKey(const DocKey& key, int64_t bySeqno) = 0;
+    virtual void dropKey(const DocKeyView& key, int64_t bySeqno) = 0;
 
     /**
      * Drops the key from the DM so we can purge a collection
@@ -1673,7 +1675,7 @@ public:
      * @param key pending key
      * @param seqno The seqno of the pending key to drop
      */
-    void dropPendingKey(const DocKey& key, int64_t seqno);
+    void dropPendingKey(const DocKeyView& key, int64_t seqno);
 
     /**
      * Get the number of deleted items that are "persisted".
@@ -2123,7 +2125,7 @@ protected:
      * @param abortSeqno The desired seqno of the abort
      * @return the abort item
      */
-    queued_item createNewAbortedItem(const DocKey& key,
+    queued_item createNewAbortedItem(const DocKeyView& key,
                                      int64_t prepareSeqno,
                                      int64_t abortSeqno);
 
@@ -2144,7 +2146,7 @@ protected:
      *         (BgFetch) then includes the pointer to the created temp item.
      */
     AddTempSVResult addTempStoredValue(const HashTable::HashBucketLock& hbl,
-                                       const DocKey& key,
+                                       const DocKeyView& key,
                                        EnforceMemCheck enforceMemCheck);
 
     /**
@@ -2436,7 +2438,7 @@ private:
      */
     virtual VBNotifyCtx addNewAbort(
             const HashTable::HashBucketLock& hbl,
-            const DocKey& key,
+            const DocKeyView& key,
             int64_t prepareSeqno,
             int64_t abortSeqno,
             const Collections::VB::CachingReadHandle& cHandle) = 0;
@@ -2457,7 +2459,7 @@ private:
      */
     virtual cb::engine_errc addTempItemAndBGFetch(
             HashTable::HashBucketLock&& hbl,
-            const DocKey& key,
+            const DocKeyView& key,
             CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             bool metadataOnly) = 0;
@@ -2477,7 +2479,7 @@ private:
      * queued, cb::engine_errc::temporary_failure otherwise
      */
     virtual cb::engine_errc bgFetch(HashTable::HashBucketLock&& hbl,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     const StoredValue& v,
                                     CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
@@ -2493,7 +2495,7 @@ private:
      */
     [[nodiscard]] virtual std::unique_ptr<CompactionBGFetchItem>
     createBgFetchForCompactionExpiry(const HashTable::HashBucketLock& hbl,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      const Item& item) = 0;
 
     /**
@@ -2504,7 +2506,7 @@ private:
      * @param item Reference to the item that is currnetly being compacted
      */
     virtual void bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
-                                            const DocKey& key,
+                                            const DocKeyView& key,
                                             const Item& item) = 0;
 
     /**
@@ -2522,7 +2524,7 @@ private:
      * @return the result of the operation
      */
     virtual GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
-                                            const DocKey& key,
+                                            const DocKeyView& key,
                                             CookieIface* cookie,
                                             EventuallyPersistentEngine& engine,
                                             QueueBgFetch queueBgFetch,

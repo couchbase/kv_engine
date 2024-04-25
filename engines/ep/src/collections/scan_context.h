@@ -17,7 +17,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-struct DocKey;
+struct DocKeyView;
 
 namespace Collections {
 
@@ -79,7 +79,7 @@ public:
      * @param seqno the seqno of the key
      * @return true if the key@seqno belongs to a dropped collection
      */
-    bool isLogicallyDeleted(const DocKey& key,
+    bool isLogicallyDeleted(const DocKeyView& key,
                             bool isDeleted,
                             uint64_t seqno) const;
 

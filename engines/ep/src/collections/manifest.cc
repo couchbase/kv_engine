@@ -664,7 +664,7 @@ std::optional<ScopeID> Manifest::getScopeID(std::string_view path) const {
     return {};
 }
 
-std::optional<ScopeID> Manifest::getScopeID(const DocKey& key) const {
+std::optional<ScopeID> Manifest::getScopeID(const DocKeyView& key) const {
     return getScopeID(key.getCollectionID());
 }
 

@@ -55,7 +55,8 @@ class Request;
 
 enum class GetMetaOnly { Yes, No };
 
-using BloomFilterCBPtr = std::shared_ptr<Callback<Vbid&, const DocKey&, bool&>>;
+using BloomFilterCBPtr =
+        std::shared_ptr<Callback<Vbid&, const DocKeyView&, bool&>>;
 using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, time_t&>>;
 
 

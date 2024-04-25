@@ -273,7 +273,7 @@ public:
         return ::testing::AssertionSuccess();
     }
 
-    ::testing::AssertionResult doesKeyContainValidCollection(DocKey key) {
+    ::testing::AssertionResult doesKeyContainValidCollection(DocKeyView key) {
         if (!active.lock().doesKeyContainValidCollection(key)) {
             return ::testing::AssertionFailure() << "active failed the key";
         } else if (!replica.lock().doesKeyContainValidCollection(key)) {
@@ -282,7 +282,8 @@ public:
         return ::testing::AssertionSuccess();
     }
 
-    ::testing::AssertionResult isLogicallyDeleted(DocKey key, int64_t seqno) {
+    ::testing::AssertionResult isLogicallyDeleted(DocKeyView key,
+                                                  int64_t seqno) {
         if (!active.lock().isLogicallyDeleted(key, seqno)) {
             return ::testing::AssertionFailure()
                    << "active failed the key seqno:" << seqno << "\n"

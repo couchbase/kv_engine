@@ -510,7 +510,7 @@ std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
 /**
  * MutationLogHarvester::apply callback type.
  */
-using mlCallback = bool (*)(void*, Vbid, const DocKey&);
+using mlCallback = bool (*)(void*, Vbid, const DocKeyView&);
 using mlCallbackWithQueue = bool (*)(Vbid,
                                      const std::set<StoredDocKey>&,
                                      void*);

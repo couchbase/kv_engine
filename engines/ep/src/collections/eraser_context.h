@@ -32,7 +32,7 @@ public:
      * @param key The key of the deleted value (will returns if not system)
      * @param se The flags...SystemEvent of the value
      */
-    void processSystemEvent(const DocKey& key, SystemEvent se);
+    void processSystemEvent(const DocKeyView& key, SystemEvent se);
 
     /**
      * @return true if the on-disk collection meta-data should be updated

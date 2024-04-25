@@ -1298,7 +1298,7 @@ static enum test_result test_get_replica_active_state(EngineIface* h) {
           "Failed to set vbucket active state");
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
-                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           DocKeyView("k0", DocKeyEncodesCollectionId::No),
                            Vbid{0})
                     .first,
             "Get Replica Failed");
@@ -1322,7 +1322,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
           "Failed to set vbucket pending state");
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
-                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           DocKeyView("k0", DocKeyEncodesCollectionId::No),
                            Vbid{0})
                     .first,
             "Should have returned NOT_MY_VBUCKET for pending state");
@@ -1347,7 +1347,7 @@ static enum test_result test_get_replica_dead_state(EngineIface* h) {
           "Failed to set vbucket dead state");
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
-                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           DocKeyView("k0", DocKeyEncodesCollectionId::No),
                            Vbid{0})
                     .first,
             "Get Replica Failed");
@@ -1370,7 +1370,7 @@ static enum test_result test_get_replica(EngineIface* h) {
           "Failed to set vbucket replica state");
 
     auto [status, item] = h->get_replica(
-            *cookie, DocKey("k0", DocKeyEncodesCollectionId::No), Vbid{0});
+            *cookie, DocKeyView("k0", DocKeyEncodesCollectionId::No), Vbid{0});
     checkeq(cb::engine_errc::success, status, "Get Replica Failed");
     checkeq("replicadata"sv,
             item->getValueView(),
@@ -1394,7 +1394,7 @@ static enum test_result test_get_replica_non_resident(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
             h->get_replica(*cookie,
-                           DocKey("key", DocKeyEncodesCollectionId::No),
+                           DocKeyView("key", DocKeyEncodesCollectionId::No),
                            Vbid{0})
                     .first,
             "Get Replica Failed");
@@ -1408,7 +1408,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
-                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           DocKeyView("k0", DocKeyEncodesCollectionId::No),
                            Vbid{0})
                     .first,
             "Get Replica Failed");
@@ -4149,10 +4149,10 @@ static enum test_result test_value_eviction(EngineIface* h) {
     const auto eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    const auto status =
-            h->evict_key(*cookie,
-                         DocKey{"missing-key", DocKeyEncodesCollectionId::No},
-                         Vbid{0});
+    const auto status = h->evict_key(
+            *cookie,
+            DocKeyView{"missing-key", DocKeyEncodesCollectionId::No},
+            Vbid{0});
 
     if (eviction_policy == "value_only") {
         checkeq(cb::engine_errc::no_such_key,
@@ -4885,7 +4885,7 @@ static enum test_result test_observe_not_my_vbucket(EngineIface* h) {
     uint64_t hint;
     checkeq(cb::engine_errc::not_my_vbucket,
             h->observe(*cookie,
-                       DocKey{"key", DocKeyEncodesCollectionId::No},
+                       DocKeyView{"key", DocKeyEncodesCollectionId::No},
                        Vbid{1},
                        {},
                        hint),

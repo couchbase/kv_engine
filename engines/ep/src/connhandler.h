@@ -28,7 +28,7 @@
 
 // forward decl
 class BucketLogger;
-struct DocKey;
+struct DocKeyView;
 class EPStats;
 class EventuallyPersistentEngine;
 class Stream;
@@ -120,7 +120,7 @@ public:
                                       cb::mcbp::DcpStreamEndStatus status);
 
     virtual cb::engine_errc mutation(uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -134,7 +134,7 @@ public:
                                      uint8_t nru);
 
     virtual cb::engine_errc deletion(uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -144,7 +144,7 @@ public:
                                      cb::const_byte_buffer meta);
 
     virtual cb::engine_errc deletionV2(uint32_t opaque,
-                                       const DocKey& key,
+                                       const DocKeyView& key,
                                        cb::const_byte_buffer value,
                                        uint8_t datatype,
                                        uint64_t cas,
@@ -154,7 +154,7 @@ public:
                                        uint32_t delete_time);
 
     virtual cb::engine_errc expiration(uint32_t opaque,
-                                       const DocKey& key,
+                                       const DocKeyView& key,
                                        cb::const_byte_buffer value,
                                        uint8_t datatype,
                                        uint64_t cas,
@@ -220,7 +220,7 @@ public:
 
     /// Receive a prepare message.
     virtual cb::engine_errc prepare(uint32_t opaque,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     cb::const_byte_buffer value,
                                     uint8_t datatype,
                                     uint64_t cas,
@@ -237,14 +237,14 @@ public:
     /// Receive a commit message.
     virtual cb::engine_errc commit(uint32_t opaque,
                                    Vbid vbucket,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    uint64_t prepare_seqno,
                                    uint64_t commit_seqno);
 
     /// Receive an abort message.
     virtual cb::engine_errc abort(uint32_t opaque,
                                   Vbid vbucket,
-                                  const DocKey& key,
+                                  const DocKeyView& key,
                                   uint64_t prepareSeqno,
                                   uint64_t abortSeqno);
 

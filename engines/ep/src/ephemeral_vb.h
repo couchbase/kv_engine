@@ -76,15 +76,15 @@ public:
         return 0;
     }
 
-    cb::engine_errc statsVKey(const DocKey& key,
+    cb::engine_errc statsVKey(const DocKeyView& key,
                               CookieIface& cookie,
                               EventuallyPersistentEngine& engine) override {
         return cb::engine_errc::not_supported;
     }
 
-    void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
+    void completeStatsVKey(const DocKeyView& key, const GetValue& gcb) override;
 
-    bool maybeKeyExistsInFilter(const DocKey& key) override {
+    bool maybeKeyExistsInFilter(const DocKeyView& key) override {
         /* There is no disk to indicate that a key may exist */
         return false;
     }
@@ -216,7 +216,7 @@ public:
      */
     size_t getNumPersistedDeletes() const override;
 
-    void dropKey(const DocKey& key, int64_t bySeqno) override;
+    void dropKey(const DocKeyView& key, int64_t bySeqno) override;
 
     /**
      * Add a system event Item to the vbucket and return its seqno.
@@ -248,7 +248,7 @@ public:
      * @param bySeqno The seqno of the key
      * @return true if the key is logically deleted
      */
-    bool isKeyLogicallyDeleted(const DocKey& key, int64_t bySeqno) const;
+    bool isKeyLogicallyDeleted(const DocKeyView& key, int64_t bySeqno) const;
 
     uint64_t getMaxVisibleSeqno() const;
 
@@ -325,7 +325,7 @@ private:
 
     VBNotifyCtx addNewAbort(
             const HashTable::HashBucketLock& hbl,
-            const DocKey& key,
+            const DocKeyView& key,
             int64_t prepareSeqno,
             int64_t abortSeqno,
             const Collections::VB::CachingReadHandle& cHandle) override;
@@ -348,29 +348,29 @@ private:
                                 int64_t prepareSeqno);
 
     cb::engine_errc bgFetch(HashTable::HashBucketLock&& hbl,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             const StoredValue& v,
                             CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
-                                          const DocKey& key,
+                                          const DocKeyView& key,
                                           CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
     [[nodiscard]] std::unique_ptr<CompactionBGFetchItem>
     createBgFetchForCompactionExpiry(const HashTable::HashBucketLock& hbl,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      const Item& item) override;
 
     void bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     const Item& item) override;
 
     GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,

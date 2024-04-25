@@ -38,7 +38,7 @@ std::atomic<uint64_t> Item::casCounter(1);
  */
 static constexpr uint16_t unsetFreqCount = std::numeric_limits<uint16_t>::max();
 
-Item::Item(const DocKey& k,
+Item::Item(const DocKeyView& k,
            const uint32_t fl,
            const time_t exp,
            const value_t& val,
@@ -66,7 +66,7 @@ Item::Item(const DocKey& k,
     ObjectRegistry::onCreateItem(this);
 }
 
-Item::Item(const DocKey& k,
+Item::Item(const DocKeyView& k,
            const uint32_t fl,
            const time_t exp,
            const void* dta,
@@ -97,7 +97,7 @@ Item::Item(const DocKey& k,
     ObjectRegistry::onCreateItem(this);
 }
 
-Item::Item(const DocKey& k,
+Item::Item(const DocKeyView& k,
            const Vbid vb,
            queue_op o,
            const uint64_t revSeq,

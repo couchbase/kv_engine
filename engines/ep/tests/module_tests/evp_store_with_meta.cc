@@ -1286,7 +1286,7 @@ TEST_P(SnappyWithMetaTest, xattrPruneUserKeysOnDelete1) {
     uint8_t snappy = GetParam() ? PROTOCOL_BINARY_DATATYPE_SNAPPY : 0;
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
-    DocKey key{mykey, DocKeyEncodesCollectionId::No};
+    DocKeyView key{mykey, DocKeyEncodesCollectionId::No};
     auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,
@@ -1353,7 +1353,7 @@ TEST_P(XattrWithMetaTest, xattrPruneUserKeysOnDelete2) {
 
     ItemMetaData itemMeta{1, 1, 0, expiry};
     std::string mykey = "mykey";
-    DocKey key{mykey, DocKeyEncodesCollectionId::No};
+    DocKeyView key{mykey, DocKeyEncodesCollectionId::No};
     auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::SetWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_XATTR | snappy,
                                    vbid /*vbucket*/,

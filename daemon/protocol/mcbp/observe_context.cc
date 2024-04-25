@@ -79,11 +79,11 @@ cb::engine_errc ObserveCommandContext::initialize() {
             return cb::engine_errc::invalid_arguments;
         }
 
-        DocKey key{data + offset,
-                   keylen,
-                   cookie.isCollectionsSupported()
-                           ? DocKeyEncodesCollectionId::Yes
-                           : DocKeyEncodesCollectionId::No};
+        DocKeyView key{data + offset,
+                       keylen,
+                       cookie.isCollectionsSupported()
+                               ? DocKeyEncodesCollectionId::Yes
+                               : DocKeyEncodesCollectionId::No};
         offset += keylen;
         keys.emplace_back(vb_id, std::move(key));
     }

@@ -90,7 +90,7 @@ public:
     std::unique_ptr<KVBucket> public_makeMockBucket(Configuration& config);
 
     cb::engine_errc public_setWithMeta(Vbid vbucket,
-                                       DocKey key,
+                                       DocKeyView key,
                                        cb::const_byte_buffer value,
                                        ItemMetaData itemMeta,
                                        bool isDeleted,
@@ -105,7 +105,8 @@ public:
                                        GenerateCas genCas,
                                        cb::const_byte_buffer emd);
 
-    DocKey public_makeDocKey(CookieIface& cookie, const std::string& key) const;
+    DocKeyView public_makeDocKey(CookieIface& cookie,
+                                 const std::string& key) const;
 
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);

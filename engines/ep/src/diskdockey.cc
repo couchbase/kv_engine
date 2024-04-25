@@ -14,7 +14,7 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <sstream>
 
-DiskDocKey::DiskDocKey(const DocKey& key, bool prepared) {
+DiskDocKey::DiskDocKey(const DocKeyView& key, bool prepared) {
     uint8_t keyOffset = 0;
     if (prepared) {
         // 1 byte for Prepare prefix
@@ -46,7 +46,7 @@ std::size_t DiskDocKey::hash() const {
     return std::hash<std::string>()(keydata);
 }
 
-DocKey DiskDocKey::getDocKey() const {
+DocKeyView DiskDocKey::getDocKey() const {
     // Skip past Prepared prefix if present.
     const auto decoded = cb::mcbp::unsigned_leb128<CollectionIDType>::decode(
             {data(), size()});

@@ -488,7 +488,7 @@ TEST_P(EPBucketTest, MB_21976) {
 }
 
 TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
-    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView dockey("key", DocKeyEncodesCollectionId::No);
     const int numTouchCmds = 2;
     auto expiryTime = time(nullptr) + 1000;
 
@@ -523,7 +523,7 @@ TEST_P(EPBucketTest, TouchCmdDuringBgFetch) {
 }
 
 TEST_P(EPBucketTest, checkIfResidentAfterBgFetch) {
-    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView dockey("key", DocKeyEncodesCollectionId::No);
 
     //Store an item
     store_item(vbid, dockey, "value");
@@ -1607,7 +1607,7 @@ TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterPositive) {
  * returns an item
  */
 TEST_P(EPBucketTest, getDeletedItemWithNoValue) {
-    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView dockey("key", DocKeyEncodesCollectionId::No);
 
     // Store an item
     store_item(vbid, dockey, "value");
@@ -1658,7 +1658,7 @@ TEST_P(EPBucketTest, getDeletedItemWithNoValue) {
  * returns an item
  */
 TEST_P(EPBucketTest, getDeletedItemWithValue) {
-    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView dockey("key", DocKeyEncodesCollectionId::No);
 
     // Store an item
     store_item(vbid, dockey, "value");
@@ -1704,7 +1704,7 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
     engine->setCompressionMode("passive");
 
     // Setup: Store item then evict.
-    const DocKey dockey("key", DocKeyEncodesCollectionId::No);
+    const DocKeyView dockey("key", DocKeyEncodesCollectionId::No);
     store_item(vbid,
                dockey,
                "\"A JSON value which repeated strings so will compress "

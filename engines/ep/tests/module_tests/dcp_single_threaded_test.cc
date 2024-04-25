@@ -258,7 +258,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
     EXPECT_EQ(2, manager.getOpenCheckpointId());
 
     /* Send a mutation */
-    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(1 /*opaque*/,
                                  docKey,
@@ -827,9 +827,9 @@ TEST_P(STDcpTest, test_mb24424_deleteResponse) {
     ASSERT_TRUE(stream->isActive());
 
     std::string key = "key";
-    const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
-                        key.size(),
-                        DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                            key.size(),
+                            DocKeyEncodesCollectionId::No};
     std::array<uint8_t, 1> extMeta;
     extMeta[0] = uint8_t(PROTOCOL_BINARY_DATATYPE_JSON);
     cb::const_byte_buffer meta{extMeta.data(), extMeta.size()};
@@ -883,9 +883,9 @@ TEST_P(STDcpTest, test_mb24424_mutationResponse) {
 
     std::string key = "key";
     std::string data = R"({"json":"yes"})";
-    const DocKey docKey{reinterpret_cast<const uint8_t*>(key.data()),
-                        key.size(),
-                        DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{reinterpret_cast<const uint8_t*>(key.data()),
+                            key.size(),
+                            DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),
                                 data.size()};
     std::array<uint8_t, 1> extMeta;
@@ -957,7 +957,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        {} /*maxVisibleSeq*/));
 
     /* Send an item for replication */
-    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  docKey,

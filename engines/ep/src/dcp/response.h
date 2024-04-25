@@ -692,7 +692,7 @@ public:
                     Vbid vbucket,
                     uint64_t preparedSeqno,
                     uint64_t commitSeqno,
-                    const DocKey& key,
+                    const DocKeyView& key,
                     DocKeyEncodesCollectionId includeCollectionID);
 
 public:
@@ -742,7 +742,7 @@ public:
                             Vbid vbucket,
                             uint64_t preparedSeqno,
                             uint64_t commitSeqno,
-                            const DocKey& key);
+                            const DocKeyView& key);
 
 protected:
     bool isEqual(const DcpResponse& rsp) const override {
@@ -758,7 +758,7 @@ class AbortSyncWrite : public DcpResponse {
 public:
     AbortSyncWrite(uint32_t opaque,
                    Vbid vbucket,
-                   const DocKey& key,
+                   const DocKeyView& key,
                    uint64_t preparedSeqno,
                    uint64_t abortSeqno,
                    DocKeyEncodesCollectionId includeCollectionID);
@@ -806,7 +806,7 @@ class AbortSyncWriteConsumer : public AbortSyncWrite {
 public:
     AbortSyncWriteConsumer(uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t preparedSeqno,
                            uint64_t abortSeqno);
 

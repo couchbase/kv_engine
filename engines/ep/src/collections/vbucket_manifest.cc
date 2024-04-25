@@ -902,7 +902,7 @@ Manifest::ManifestChanges Manifest::processManifest(
     return rv;
 }
 
-bool Manifest::doesKeyContainValidCollection(const DocKey& key) const {
+bool Manifest::doesKeyContainValidCollection(const DocKeyView& key) const {
     return map.count(key.getCollectionID()) > 0;
 }
 
@@ -916,7 +916,7 @@ Visibility Manifest::getScopeVisibility(ScopeID sid) const {
 }
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
-        const DocKey& key, AllowSystemKeys) const {
+        const DocKeyView& key, AllowSystemKeys) const {
     CollectionID lookup = key.getCollectionID();
     if (lookup == CollectionID::SystemEvent) {
         lookup = getCollectionIDFromKey(key);
@@ -925,7 +925,7 @@ Manifest::container::const_iterator Manifest::getManifestEntry(
 }
 
 Manifest::container::const_iterator Manifest::getManifestEntry(
-        const DocKey& key) const {
+        const DocKeyView& key) const {
     return map.find(key.getCollectionID());
 }
 
@@ -934,7 +934,7 @@ Manifest::container::const_iterator Manifest::getManifestIterator(
     return map.find(id);
 }
 
-bool Manifest::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
+bool Manifest::isLogicallyDeleted(const DocKeyView& key, int64_t seqno) const {
     CollectionID lookup = key.getCollectionID();
     if (lookup == CollectionID::SystemEvent) {
         // Check what the system event relates to (scope/collection).
@@ -1903,11 +1903,11 @@ ReadHandle Manifest::lock() const {
     return {this, rwlock};
 }
 
-CachingReadHandle Manifest::lock(DocKey key) const {
+CachingReadHandle Manifest::lock(DocKeyView key) const {
     return {this, rwlock, key};
 }
 
-CachingReadHandle Manifest::lock(DocKey key,
+CachingReadHandle Manifest::lock(DocKeyView key,
                                  Manifest::AllowSystemKeys tag) const {
     return {this, rwlock, key, tag};
 }

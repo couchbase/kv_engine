@@ -459,7 +459,7 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
 cb::engine_errc DcpConsumer::processMutationOrPrepare(
         Vbid vbucket,
         uint32_t opaque,
-        const DocKey& key,
+        const DocKeyView& key,
         queued_item item,
         cb::const_byte_buffer meta,
         size_t msgBytes) {
@@ -487,7 +487,7 @@ cb::engine_errc DcpConsumer::processMutationOrPrepare(
 }
 
 cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       cb::const_byte_buffer value,
                                       uint8_t datatype,
                                       uint64_t cas,
@@ -529,7 +529,7 @@ cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
 }
 
 cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       cb::const_byte_buffer value,
                                       uint8_t datatype,
                                       uint64_t cas,
@@ -551,7 +551,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
 }
 
 cb::engine_errc DcpConsumer::deletionV2(uint32_t opaque,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         cb::const_byte_buffer value,
                                         uint8_t datatype,
                                         uint64_t cas,
@@ -573,7 +573,7 @@ cb::engine_errc DcpConsumer::deletionV2(uint32_t opaque,
 }
 
 cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       cb::const_byte_buffer value,
                                       uint8_t datatype,
                                       uint64_t cas,
@@ -696,7 +696,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
 }
 
 cb::engine_errc DcpConsumer::expiration(uint32_t opaque,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         cb::const_byte_buffer value,
                                         uint8_t datatype,
                                         uint64_t cas,
@@ -719,7 +719,7 @@ cb::engine_errc DcpConsumer::expiration(uint32_t opaque,
 
 cb::engine_errc DcpConsumer::toMainDeletion(DeleteType origin,
                                             uint32_t opaque,
-                                            const DocKey& key,
+                                            const DocKeyView& key,
                                             cb::const_byte_buffer value,
                                             uint8_t datatype,
                                             uint64_t cas,
@@ -1900,7 +1900,7 @@ cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,
 }
 
 cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -2008,7 +2008,7 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
 
 cb::engine_errc DcpConsumer::commit(uint32_t opaque,
                                     Vbid vbucket,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     uint64_t prepare_seqno,
                                     uint64_t commit_seqno) {
     lastMessageTime = ep_uptime_now();
@@ -2027,7 +2027,7 @@ cb::engine_errc DcpConsumer::commit(uint32_t opaque,
 
 cb::engine_errc DcpConsumer::abort(uint32_t opaque,
                                    Vbid vbucket,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    uint64_t prepareSeqno,
                                    uint64_t abortSeqno) {
     lastMessageTime = ep_uptime_now();

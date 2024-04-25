@@ -261,7 +261,7 @@ public:
      *
      * @param key A key read from a Key only scan
      */
-    void handleKey(DocKey key);
+    void handleKey(DocKeyView key);
 
     enum Source { Memory, Disk };
 

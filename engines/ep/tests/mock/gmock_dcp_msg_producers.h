@@ -173,7 +173,7 @@ public:
                 commit,
                 (uint32_t opaque,
                  Vbid vbucket,
-                 const DocKey& key,
+                 const DocKeyView& key,
                  uint64_t prepare_seqno,
                  uint64_t commit_seqno),
                 (override));
@@ -182,7 +182,7 @@ public:
                 abort,
                 (uint32_t opaque,
                  Vbid vbucket,
-                 const DocKey& key,
+                 const DocKeyView& key,
                  uint64_t prepared_seqno,
                  uint64_t abort_seqno),
                 (override));

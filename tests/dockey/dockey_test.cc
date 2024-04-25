@@ -10,7 +10,7 @@
  */
 
 #include <folly/portability/GTest.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 
 #include <array>
 
@@ -27,35 +27,35 @@ TEST_F(DocKeyTest, invalid) {
     std::array<char, 4> data2 = {{0, 'k', 'e', 'y'}};
     std::string_view buf{data2.data(), 0};
 
-    std::unique_ptr<DocKey> ptr;
-    EXPECT_THROW(ptr = std::make_unique<DocKey>(
+    std::unique_ptr<DocKeyView> ptr;
+    EXPECT_THROW(ptr = std::make_unique<DocKeyView>(
                          data1.data(), 0, DocKeyEncodesCollectionId::Yes),
                  std::invalid_argument);
 
-    EXPECT_THROW(ptr = std::make_unique<DocKey>(
+    EXPECT_THROW(ptr = std::make_unique<DocKeyView>(
                          nullptr, 4, DocKeyEncodesCollectionId::Yes),
                  std::invalid_argument);
 
-    EXPECT_THROW(
-            ptr = std::make_unique<DocKey>(buf, DocKeyEncodesCollectionId::Yes),
-            std::invalid_argument);
+    EXPECT_THROW(ptr = std::make_unique<DocKeyView>(
+                         buf, DocKeyEncodesCollectionId::Yes),
+                 std::invalid_argument);
 
     EXPECT_NO_THROW(
-            ptr = std::make_unique<DocKey>(
+            ptr = std::make_unique<DocKeyView>(
                     data1.data(), data1.size(), DocKeyEncodesCollectionId::No));
     EXPECT_NO_THROW(
-            ptr = std::make_unique<DocKey>(data1.data(),
-                                           data1.size(),
-                                           DocKeyEncodesCollectionId::Yes));
-    EXPECT_NO_THROW(ptr = std::make_unique<DocKey>(
+            ptr = std::make_unique<DocKeyView>(data1.data(),
+                                               data1.size(),
+                                               DocKeyEncodesCollectionId::Yes));
+    EXPECT_NO_THROW(ptr = std::make_unique<DocKeyView>(
                             nullptr, 0, DocKeyEncodesCollectionId::No));
 }
 
-// A DocKey can view nothing (len:0) if it does no encode a collection
+// A DocKeyView can view nothing (len:0) if it does no encode a collection
 TEST_F(DocKeyTest, zeroLength) {
     std::array<uint8_t, 4> data1 = {{0, 'k', 'e', 'y'}};
     // Safe to construct and we expect that it behaves ok
-    DocKey key(data1.data(), 0, DocKeyEncodesCollectionId::No);
+    DocKeyView key(data1.data(), 0, DocKeyEncodesCollectionId::No);
     EXPECT_EQ(0, key.size());
     EXPECT_EQ(CollectionID::Default, key.getCollectionID());
     EXPECT_FALSE(key.isInSystemEventCollection());
@@ -74,10 +74,10 @@ TEST_F(DocKeyTest, zeroLength) {
     EXPECT_EQ(DocKeyEncodesCollectionId::No, key2.getEncoding());
 }
 
-// A DocKey can view nothing (null,len:0) if it does not encode a collection
+// A DocKeyView can view nothing (null,len:0) if it does not encode a collection
 // There are some places in the code which construct with no data pointer
 TEST_F(DocKeyTest, nullZeroLength) {
-    DocKey key(nullptr, 0, DocKeyEncodesCollectionId::No);
+    DocKeyView key(nullptr, 0, DocKeyEncodesCollectionId::No);
     EXPECT_EQ(0, key.size());
     EXPECT_EQ(CollectionID::Default, key.getCollectionID());
     EXPECT_FALSE(key.isInSystemEventCollection());
@@ -99,7 +99,8 @@ TEST_F(DocKeyTest, nullZeroLength) {
 void DocKeyTest::golden(cb::const_byte_buffer buffer,
                         size_t logicalKeyLen,
                         CollectionID encoded) {
-    DocKey key(buffer.data(), buffer.size(), DocKeyEncodesCollectionId::Yes);
+    DocKeyView key(
+            buffer.data(), buffer.size(), DocKeyEncodesCollectionId::Yes);
     EXPECT_EQ(buffer.size(), key.size());
     EXPECT_EQ(encoded, key.getCollectionID());
     if (encoded == CollectionID::Default) {
@@ -132,7 +133,7 @@ TEST_F(DocKeyTest, golden) {
 }
 
 void DocKeyTest::golden(cb::const_byte_buffer buffer) {
-    DocKey key(buffer.data(), buffer.size(), DocKeyEncodesCollectionId::No);
+    DocKeyView key(buffer.data(), buffer.size(), DocKeyEncodesCollectionId::No);
     EXPECT_EQ(buffer.size(), key.size());
     EXPECT_EQ(CollectionID::Default, key.getCollectionID());
     EXPECT_FALSE(key.isInSystemEventCollection());
@@ -161,9 +162,10 @@ TEST_F(DocKeyTest, golden_nocollection_encoded) {
 TEST_F(DocKeyTest, no_prepare) {
     std::array<uint8_t, 4> data1 = {
             {CollectionID::DurabilityPrepare, 'k', 'e', 'y'}};
-    DocKey validKey(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
+    DocKeyView validKey(
+            data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
     try {
-        DocKey invalidKey(data1.data(), 0, DocKeyEncodesCollectionId::Yes);
+        DocKeyView invalidKey(data1.data(), 0, DocKeyEncodesCollectionId::Yes);
         FAIL() << "Expected constructor to throw an exception";
     } catch (const std::invalid_argument&) {
         // do nothing - expected to throw
@@ -177,10 +179,10 @@ TEST_F(DocKeyTest, to_string) {
     std::array<uint8_t, 6> data4 = {
             {CollectionID::SystemEvent, 0, 8, 'k', 'e', 'y'}};
 
-    DocKey key1(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
-    DocKey key2(data2.data(), data2.size(), DocKeyEncodesCollectionId::Yes);
-    DocKey key3(data3.data(), data3.size(), DocKeyEncodesCollectionId::Yes);
-    DocKey key4(data4.data(), data4.size(), DocKeyEncodesCollectionId::Yes);
+    DocKeyView key1(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
+    DocKeyView key2(data2.data(), data2.size(), DocKeyEncodesCollectionId::Yes);
+    DocKeyView key3(data3.data(), data3.size(), DocKeyEncodesCollectionId::Yes);
+    DocKeyView key4(data4.data(), data4.size(), DocKeyEncodesCollectionId::Yes);
 
     EXPECT_EQ("cid:0x0:key", key1.to_string());
     EXPECT_EQ("cid:0x0:key", key2.to_string());

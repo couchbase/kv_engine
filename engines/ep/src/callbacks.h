@@ -13,7 +13,7 @@
 
 #include "diskdockey.h"
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
 

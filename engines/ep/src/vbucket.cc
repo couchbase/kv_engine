@@ -890,7 +890,7 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
 
 cb::engine_errc VBucket::commit(
         VBucketStateLockRef vbStateLock,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> commitSeqno,
         const Collections::VB::CachingReadHandle& cHandle,
@@ -973,7 +973,7 @@ cb::engine_errc VBucket::commit(
 
 cb::engine_errc VBucket::abort(
         VBucketStateLockRef vbStateLock,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> abortSeqno,
         const Collections::VB::CachingReadHandle& cHandle,
@@ -1171,7 +1171,7 @@ void VBucket::initTempFilter(size_t key_count, double probability) {
     }
 }
 
-void VBucket::addToFilter(const DocKey& key) {
+void VBucket::addToFilter(const DocKeyView& key) {
     std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         bFilter->addKey(key);
@@ -1187,7 +1187,7 @@ void VBucket::addToFilter(const DocKey& key) {
     }
 }
 
-bool VBucket::maybeKeyExistsInFilter(const DocKey& key) {
+bool VBucket::maybeKeyExistsInFilter(const DocKeyView& key) {
     std::lock_guard<std::mutex> lh(bfMutex);
     if (bFilter) {
         return bFilter->maybeKeyExists(key);
@@ -1208,7 +1208,7 @@ bool VBucket::isTempFilterAvailable() {
     }
 }
 
-void VBucket::addToTempFilter(const DocKey& key) {
+void VBucket::addToTempFilter(const DocKeyView& key) {
     // Keys will be added to only the temp filter during
     // compaction.
     std::lock_guard<std::mutex> lh(bfMutex);
@@ -1465,7 +1465,7 @@ VBNotifyCtx VBucket::queueAbortForUnseenPrepare(queued_item item,
     return queueItem(item, ctx);
 }
 
-queued_item VBucket::createNewAbortedItem(const DocKey& key,
+queued_item VBucket::createNewAbortedItem(const DocKeyView& key,
                                           int64_t prepareSeqno,
                                           int64_t abortSeqno) {
     auto item = make_STRCPtr<Item>(key,
@@ -1907,7 +1907,7 @@ Collections::VB::ReadHandle VBucket::lockCollections() const {
 }
 
 Collections::VB::CachingReadHandle VBucket::lockCollections(
-        const DocKey& key) const {
+        const DocKeyView& key) const {
     return manifest->lock(key);
 }
 
@@ -2605,7 +2605,7 @@ std::unique_ptr<CompactionBGFetchItem> VBucket::processExpiredItem(
                 cb::UserDataView(ss.str()).getSanitizedValue());
     }
 
-    const DocKey& key = it.getKey();
+    const DocKeyView& key = it.getKey();
 
     // Must obtain collection handle and hold it to ensure any queued item is
     // interlocked with collection membership changes.
@@ -4017,7 +4017,7 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
 
 VBucket::AddTempSVResult VBucket::addTempStoredValue(
         const HashTable::HashBucketLock& hbl,
-        const DocKey& key,
+        const DocKeyView& key,
         EnforceMemCheck enforceMemCheck) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
@@ -4341,7 +4341,7 @@ uint64_t VBucket::getMaxVisibleSeqno() const {
     return checkpointManager->getMaxVisibleSeqno();
 }
 
-void VBucket::dropPendingKey(const DocKey& key, int64_t seqno) {
+void VBucket::dropPendingKey(const DocKeyView& key, int64_t seqno) {
     folly::SharedMutex::ReadHolder vbStateLh(getStateLock());
     switch (state) {
     case vbucket_state_active:

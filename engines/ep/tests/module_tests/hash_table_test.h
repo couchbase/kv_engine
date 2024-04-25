@@ -14,7 +14,7 @@
 #include <folly/portability/GTest.h>
 
 class AbstractStoredValueFactory;
-struct DocKey;
+struct DocKeyView;
 class HashTable;
 
 extern EPStats global_stats;
@@ -28,7 +28,7 @@ public:
      * @param key the storage key of the value to delete
      * @return true if the item existed before this call
      */
-    static bool del(HashTable& ht, const DocKey& key);
+    static bool del(HashTable& ht, const DocKeyView& key);
 
     static std::unique_ptr<AbstractStoredValueFactory> makeFactory(
             bool isOrdered = false);

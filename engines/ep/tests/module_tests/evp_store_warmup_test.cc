@@ -518,9 +518,9 @@ TEST_F(WarmupTest, MB_32577) {
                                       /*maxVisibleSeqno*/ {}));
 
     // create a DocKey object for the delete request
-    const DocKey docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
-                        keyName.size(),
-                        DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{reinterpret_cast<const uint8_t*>(keyName.data()),
+                            keyName.size(),
+                            DocKeyEncodesCollectionId::No};
 
     // Try and delete the doc
     EXPECT_EQ(cb::engine_errc::success,
@@ -832,12 +832,12 @@ protected:
 
     // Helper method - fetches the given Item via engine->get(); issuing a
     // BG fetch and second get() if necessary.
-    GetValue getItemFetchFromDiskIfNeeded(const DocKey& key,
+    GetValue getItemFetchFromDiskIfNeeded(const DocKeyView& key,
                                           DocumentState docState);
 
     // Helper method - fetches the Item from disk by evicting the item then
     // running a bgfetch
-    GetValue getItemFromDisk(const DocKey& key, DocumentState docState);
+    GetValue getItemFromDisk(const DocKeyView& key, DocumentState docState);
 
     enum class Resolution : uint8_t { Commit, Abort };
 
@@ -978,7 +978,7 @@ void DurabilityWarmupTest::storeMutation(const std::string& key,
 }
 
 GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
-        const DocKey& key, DocumentState docState) {
+        const DocKeyView& key, DocumentState docState) {
     const auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
     auto gv = engine->getKVBucket()->get(key, vbid, cookie, options);
@@ -991,7 +991,7 @@ GetValue DurabilityWarmupTest::getItemFetchFromDiskIfNeeded(
     return gv;
 }
 
-GetValue DurabilityWarmupTest::getItemFromDisk(const DocKey& key,
+GetValue DurabilityWarmupTest::getItemFromDisk(const DocKeyView& key,
                                                DocumentState docState) {
     // Evict the key if it exists so that we read from disk. Hit the vBucket
     // level function (rather than the KVBucket level one) to ensure that this

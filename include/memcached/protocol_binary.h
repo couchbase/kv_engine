@@ -8,7 +8,7 @@
  */
 #pragma once
 
-#include "dockey.h"
+#include "dockey_view.h"
 
 #include <gsl/gsl-lite.hpp>
 #include <memcached/vbucket.h>

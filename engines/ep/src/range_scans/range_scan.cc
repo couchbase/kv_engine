@@ -547,7 +547,7 @@ std::chrono::seconds RangeScan::getRemainingTime(
                             (createTime + timeLimit) - now()));
 }
 
-void RangeScan::handleKey(DocKey key) {
+void RangeScan::handleKey(DocKeyView key) {
     incrementItemCounters(key.size());
     switch (handler->handleKey(key)) {
     case RangeScanDataHandler::Status::OK:

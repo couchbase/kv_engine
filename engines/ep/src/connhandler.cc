@@ -99,7 +99,7 @@ cb::engine_errc ConnHandler::streamEnd(uint32_t opaque,
 }
 
 cb::engine_errc ConnHandler::mutation(uint32_t opaque,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       cb::const_byte_buffer value,
                                       uint8_t datatype,
                                       uint64_t cas,
@@ -118,7 +118,7 @@ cb::engine_errc ConnHandler::mutation(uint32_t opaque,
 }
 
 cb::engine_errc ConnHandler::deletion(uint32_t opaque,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       cb::const_byte_buffer value,
                                       uint8_t datatype,
                                       uint64_t cas,
@@ -133,7 +133,7 @@ cb::engine_errc ConnHandler::deletion(uint32_t opaque,
 }
 
 cb::engine_errc ConnHandler::deletionV2(uint32_t opaque,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         cb::const_byte_buffer value,
                                         uint8_t datatype,
                                         uint64_t cas,
@@ -148,7 +148,7 @@ cb::engine_errc ConnHandler::deletionV2(uint32_t opaque,
 }
 
 cb::engine_errc ConnHandler::expiration(uint32_t opaque,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         cb::const_byte_buffer value,
                                         uint8_t datatype,
                                         uint64_t cas,
@@ -255,7 +255,7 @@ cb::engine_errc ConnHandler::systemEvent(uint32_t opaque,
 }
 
 cb::engine_errc ConnHandler::prepare(uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -276,7 +276,7 @@ cb::engine_errc ConnHandler::prepare(uint32_t opaque,
 
 cb::engine_errc ConnHandler::commit(uint32_t opaque,
                                     Vbid vbucket,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     uint64_t prepare_seqno,
                                     uint64_t commit_seqno) {
     logger->warn(
@@ -287,7 +287,7 @@ cb::engine_errc ConnHandler::commit(uint32_t opaque,
 
 cb::engine_errc ConnHandler::abort(uint32_t opaque,
                                    Vbid vbucket,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    uint64_t prepareSeqno,
                                    uint64_t abortSeqno) {
     logger->warn(

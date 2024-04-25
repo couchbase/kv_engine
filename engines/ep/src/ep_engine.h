@@ -154,7 +154,7 @@ public:
             ThreadPoolConfig::StorageThreadCount num) override;
     void cancel_all_operations_in_ewb_state() override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
                                      uint32_t flags,
@@ -163,41 +163,41 @@ public:
                                      Vbid vbucket) override;
     cb::engine_errc remove(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
     void release(ItemIface& itm) override;
     cb::EngineErrorItemPair get(CookieIface& cookie,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_replica(CookieIface& cookie,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         Vbid vbucket) override;
     cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
                                                 CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<bool(const item_info&)>& filter) override;
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
-                                         const DocKey& key,
+                                         const DocKeyView& key,
                                          Vbid vbucket) override;
     cb::EngineErrorItemPair get_locked(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             std::chrono::seconds lock_timeout) override;
     cb::engine_errc unlock(CookieIface& cookie,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            Vbid vbucket,
                            uint64_t cas) override;
     cb::EngineErrorItemPair get_and_touch(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             uint32_t expirytime,
             const std::optional<cb::durability::Requirements>& durability)
@@ -297,7 +297,7 @@ public:
                                                uint64_t seqno,
                                                Vbid vbid) override;
     cb::engine_errc evict_key(CookieIface& cookie,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               Vbid vbucket) override;
 
     /////////////////////////////////////////////////////////////
@@ -351,7 +351,7 @@ public:
             std::optional<uint64_t> max_visible_seqno) override;
     cb::engine_errc mutation(CookieIface& cookie,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -365,7 +365,7 @@ public:
                              uint8_t nru) override;
     cb::engine_errc deletion(CookieIface& cookie,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -375,7 +375,7 @@ public:
                              cb::const_byte_buffer meta) override;
     cb::engine_errc deletion_v2(CookieIface& cookie,
                                 uint32_t opaque,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 cb::const_byte_buffer value,
                                 uint8_t datatype,
                                 uint64_t cas,
@@ -385,7 +385,7 @@ public:
                                 uint32_t delete_time) override;
     cb::engine_errc expiration(CookieIface& cookie,
                                uint32_t opaque,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                cb::const_byte_buffer value,
                                uint8_t datatype,
                                uint64_t cas,
@@ -417,7 +417,7 @@ public:
                                  cb::const_byte_buffer eventData) override;
     cb::engine_errc prepare(CookieIface& cookie,
                             uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             cb::const_byte_buffer value,
                             uint8_t datatype,
                             uint64_t cas,
@@ -437,13 +437,13 @@ public:
     cb::engine_errc commit(CookieIface& cookie,
                            uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepared_seqno,
                            uint64_t commit_seqno) override;
     cb::engine_errc abort(CookieIface& cookie,
                           uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
     // End DcpIface ///////////////////////////////////////////////////////////
@@ -465,7 +465,7 @@ public:
      */
     cb::engine_errc removeInner(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             std::optional<cb::durability::Requirements> durability,
@@ -474,11 +474,11 @@ public:
     void itemRelease(ItemIface* itm);
 
     cb::EngineErrorItemPair getInner(CookieIface& cookie,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      Vbid vbucket,
                                      get_options_t options);
     cb::EngineErrorItemPair getReplicaInner(CookieIface& cookie,
-                                            const DocKey& key,
+                                            const DocKeyView& key,
                                             Vbid vbucket);
     cb::EngineErrorItemPair getRandomDocument(CookieIface& cookie,
                                               CollectionID cid);
@@ -500,22 +500,22 @@ public:
      */
     cb::EngineErrorItemPair getIfInner(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<bool(const item_info&)>& filter);
 
     cb::EngineErrorItemPair getAndTouchInner(CookieIface& cookie,
-                                             const DocKey& key,
+                                             const DocKeyView& key,
                                              Vbid vbucket,
                                              uint32_t expiry_time);
 
     cb::EngineErrorItemPair getLockedInner(CookieIface& cookie,
-                                           const DocKey& key,
+                                           const DocKeyView& key,
                                            Vbid vbucket,
                                            std::chrono::seconds lock_timeout);
 
     cb::engine_errc unlockInner(CookieIface& cookie,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 Vbid vbucket,
                                 uint64_t cas);
 
@@ -562,7 +562,7 @@ public:
                                  cb::mcbp::DcpAddStreamFlag flags);
 
     cb::EngineErrorMetadataPair getMetaInner(CookieIface& cookie,
-                                             const DocKey& key,
+                                             const DocKeyView& key,
                                              Vbid vbucket);
 
     cb::engine_errc setWithMeta(CookieIface& cookie,
@@ -652,12 +652,12 @@ public:
                                        CookieIface* cookie);
 
     cb::engine_errc evictKey(CookieIface& cookie,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              Vbid vbucket);
 
     cb::engine_errc observe(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint) override;
@@ -748,7 +748,7 @@ public:
 
     cb::engine_errc handleObserve(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint);
@@ -897,7 +897,7 @@ public:
      * the created item.
      */
     std::pair<cb::engine_errc, std::unique_ptr<Item>> createItem(
-            const DocKey& key,
+            const DocKeyView& key,
             size_t nbytes,
             uint32_t flags,
             rel_time_t exptime,
@@ -908,7 +908,7 @@ public:
             Vbid vbid,
             int64_t revSeq);
 
-    cb::EngineErrorItemPair itemAllocate(const DocKey& key,
+    cb::EngineErrorItemPair itemAllocate(const DocKeyView& key,
                                          const size_t nbytes,
                                          const size_t priv_nbytes,
                                          const uint32_t flags,
@@ -1187,7 +1187,7 @@ protected:
     cb::engine_errc doKeyStats(CookieIface& cookie,
                                const AddStatFn& add_stat,
                                Vbid vbid,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                bool validate = false);
 
     cb::engine_errc doDcpVbTakeoverStats(CookieIface& cookie,
@@ -1394,7 +1394,7 @@ protected:
      * @returns state of the operation as an cb::engine_errc
      */
     cb::engine_errc setWithMeta(Vbid vbucket,
-                                DocKey key,
+                                DocKeyView key,
                                 cb::const_byte_buffer value,
                                 ItemMetaData itemMeta,
                                 bool isDeleted,
@@ -1427,7 +1427,7 @@ protected:
      * @returns state of the operation as an cb::engine_errc
      */
     cb::engine_errc deleteWithMeta(Vbid vbucket,
-                                   DocKey key,
+                                   DocKeyView key,
                                    ItemMetaData itemMeta,
                                    uint64_t& cas,
                                    uint64_t* seqno,
@@ -1440,7 +1440,7 @@ protected:
                                    DeleteSource deleteSource);
 
     /// Make a DocKey from the key buffer
-    DocKey makeDocKey(CookieIface& cookie, cb::const_byte_buffer key) const;
+    DocKeyView makeDocKey(CookieIface& cookie, cb::const_byte_buffer key) const;
 
     cb::engine_errc processUnknownCommandInner(CookieIface& cookie,
                                                const cb::mcbp::Request& request,

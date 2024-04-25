@@ -97,11 +97,11 @@ public:
 
     uint64_t getHistoryDiskSize() override;
 
-    cb::engine_errc statsVKey(const DocKey& key,
+    cb::engine_errc statsVKey(const DocKeyView& key,
                               CookieIface& cookie,
                               EventuallyPersistentEngine& engine) override;
 
-    void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
+    void completeStatsVKey(const DocKeyView& key, const GetValue& gcb) override;
 
     cb::engine_errc evictKey(
             const char** msg,
@@ -216,7 +216,7 @@ public:
      * @paran key key to drop
      * @param bySeqno The seqno of the key to drop
      */
-    void dropKey(const DocKey& key, int64_t bySeqno) override;
+    void dropKey(const DocKeyView& key, int64_t bySeqno) override;
 
     /**
      * Add a system event Item to the vbucket and return its seqno.
@@ -357,7 +357,7 @@ protected:
      * Returns the number of pending background fetches after
      * adding the specified item.
      */
-    size_t queueBGFetchItem(const DocKey& key,
+    size_t queueBGFetchItem(const DocKeyView& key,
                             std::unique_ptr<BGFetchItem> fetch,
                             BgFetcher& bgFetcher);
 
@@ -397,31 +397,31 @@ private:
 
     VBNotifyCtx addNewAbort(
             const HashTable::HashBucketLock& hbl,
-            const DocKey& key,
+            const DocKeyView& key,
             int64_t prepareSeqno,
             int64_t abortSeqno,
             const Collections::VB::CachingReadHandle& cHandle) override;
 
     cb::engine_errc bgFetch(HashTable::HashBucketLock&& hbl,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             const StoredValue& v,
                             CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
-                                          const DocKey& key,
+                                          const DocKeyView& key,
                                           CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
     [[nodiscard]] std::unique_ptr<CompactionBGFetchItem>
     createBgFetchForCompactionExpiry(const HashTable::HashBucketLock& hbl,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      const Item& item) override;
 
     void bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     const Item& item) override;
 
     /**
@@ -437,7 +437,7 @@ private:
                        const std::chrono::steady_clock::time_point stop);
 
     GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,

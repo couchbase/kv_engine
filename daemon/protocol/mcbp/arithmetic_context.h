@@ -12,9 +12,7 @@
 
 #include "steppable_command_context.h"
 #include <daemon/memcached.h>
-#include <memcached/dockey.h>
 #include <memcached/engine.h>
-#include <platform/compress.h>
 
 class ItemDissector;
 

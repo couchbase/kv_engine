@@ -12,7 +12,7 @@
 #pragma once
 
 #include <gsl/gsl-lite.hpp>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 
 #include <memory>
 
@@ -60,10 +60,10 @@ public:
     }
 
     std::string to_string() const {
-        return DocKey(*this).to_string();
+        return DocKeyView(*this).to_string();
     }
 
-    bool operator==(const DocKey& rhs) const;
+    bool operator==(const DocKeyView& rhs) const;
 
     bool operator==(const SerialisedDocKey& rhs) const;
 
@@ -78,7 +78,7 @@ public:
      * Return how many bytes are needed to store the DocKey
      * @param key a DocKey that needs to be stored in a SerialisedDocKey
      */
-    static size_t getObjectSize(const DocKey key) {
+    static size_t getObjectSize(const DocKeyView key) {
         return getObjectSize(key.size());
     }
 
@@ -97,7 +97,7 @@ public:
     // Add no lint to allow implicit casting to class DocKey as we use this to
     // implicitly cast to other forms of DocKeys thought out code.
     // NOLINTNEXTLINE(google-explicit-constructor)
-    operator DocKey() const {
+    operator DocKeyView() const {
         return {bytes.data(), length, DocKeyEncodesCollectionId::Yes};
     }
 
@@ -106,7 +106,7 @@ public:
      * in test code only.
      */
     static std::unique_ptr<SerialisedDocKey, SerialisedDocKeyDelete> make(
-            DocKey key) {
+            DocKeyView key) {
         std::unique_ptr<SerialisedDocKey, SerialisedDocKeyDelete> rval(
                 reinterpret_cast<SerialisedDocKey*>(
                         new uint8_t[getObjectSize(key)]));
@@ -131,7 +131,7 @@ protected:
      * storage
      * @param key a DocKey to be copied in
      */
-    explicit SerialisedDocKey(const DocKey& key)
+    explicit SerialisedDocKey(const DocKeyView& key)
         : length(gsl::narrow_cast<uint8_t>(key.size())) {
         if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
             std::copy(key.data(),

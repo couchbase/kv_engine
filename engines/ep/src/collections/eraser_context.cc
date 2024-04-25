@@ -21,7 +21,7 @@ EraserContext::EraserContext(
     : ScanContext(nullptr, droppedCollections) {
 }
 
-void EraserContext::processSystemEvent(const DocKey& key, SystemEvent se) {
+void EraserContext::processSystemEvent(const DocKeyView& key, SystemEvent se) {
     if (se == SystemEvent::Collection) {
         // The system event we are processing could be:
         // 1) A deleted collection (so represents the end of dropped collection)

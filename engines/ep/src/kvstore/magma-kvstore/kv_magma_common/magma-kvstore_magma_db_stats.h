@@ -13,7 +13,7 @@
 #include "libmagma/magma.h"
 
 #include <folly/Synchronized.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/monotonic.h>
 

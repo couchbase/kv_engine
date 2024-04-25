@@ -48,11 +48,11 @@ struct ItemHolder : public ItemIface {
         }
     }
 
-    DocKey getDocKey() const override {
+    DocKeyView getDocKey() const override {
         auto key = item_get_key(item);
-        return DocKey{hash_key_get_client_key(key),
-                      hash_key_get_client_key_len(key),
-                      DocKeyEncodesCollectionId::No};
+        return {hash_key_get_client_key(key),
+                hash_key_get_client_key_len(key),
+                DocKeyEncodesCollectionId::No};
     }
 
     protocol_binary_datatype_t getDataType() const override {
@@ -243,7 +243,7 @@ void destroy_engine_instance(struct default_engine* engine) {
 }
 
 cb::unique_item_ptr default_engine::allocateItem(CookieIface& cookie,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  size_t nbytes,
                                                  size_t priv_nbytes,
                                                  uint32_t flags,
@@ -291,7 +291,7 @@ cb::unique_item_ptr default_engine::allocateItem(CookieIface& cookie,
 
 cb::engine_errc default_engine::remove(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
@@ -375,7 +375,7 @@ void default_engine::release(ItemIface& item) {
 
 cb::EngineErrorItemPair default_engine::get(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
     if (!handled_vbucket(this, vbucket)) {
@@ -400,7 +400,7 @@ cb::EngineErrorItemPair default_engine::get(
 
 cb::EngineErrorItemPair default_engine::get_if(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<bool(const item_info&)>& filter) {
     if (!handled_vbucket(this, vbucket)) {
@@ -435,7 +435,7 @@ cb::EngineErrorItemPair default_engine::get_if(
 
 cb::EngineErrorItemPair default_engine::get_and_touch(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         uint32_t expiry_time,
         const std::optional<cb::durability::Requirements>& durability) {
@@ -461,7 +461,7 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
 
 cb::EngineErrorItemPair default_engine::get_locked(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         std::chrono::seconds lock_timeout) {
     if (!handled_vbucket(this, vbucket)) {
@@ -491,7 +491,7 @@ cb::EngineErrorItemPair default_engine::get_locked(
 }
 
 cb::EngineErrorMetadataPair default_engine::get_meta(CookieIface& cookie,
-                                                     const DocKey& key,
+                                                     const DocKeyView& key,
                                                      Vbid vbucket) {
     if (!handled_vbucket(this, vbucket)) {
         return std::make_pair(cb::engine_errc::not_my_vbucket, item_info());
@@ -521,7 +521,7 @@ cb::EngineErrorMetadataPair default_engine::get_meta(CookieIface& cookie,
 }
 
 cb::engine_errc default_engine::unlock(CookieIface& cookie,
-                                       const DocKey& key,
+                                       const DocKeyView& key,
                                        Vbid vbucket,
                                        uint64_t cas) {
     VBUCKET_GUARD(this, vbucket);

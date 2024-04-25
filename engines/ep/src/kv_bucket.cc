@@ -548,7 +548,7 @@ void KVBucket::wakeUpFlusher() {
     // Nothing do to - no flusher in this class
 }
 
-cb::engine_errc KVBucket::evictKey(const DocKey& key,
+cb::engine_errc KVBucket::evictKey(const DocKeyView& key,
                                    Vbid vbucket,
                                    const char** msg) {
     auto lr = lookupVBucket(vbucket);
@@ -666,8 +666,7 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     bgfetch->complete(engine, vb, fetchStartTime, key);
 }
 
-bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
-
+bool KVBucket::isMetaDataResident(VBucketPtr& vb, const DocKeyView& key) {
     if (!vb) {
         throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
     }
@@ -844,14 +843,14 @@ cb::engine_errc KVBucket::replace(Item& itm,
     return result;
 }
 
-GetValue KVBucket::get(const DocKey& key,
+GetValue KVBucket::get(const DocKeyView& key,
                        Vbid vbucket,
                        CookieIface* cookie,
                        get_options_t options) {
     return getInternal(key, vbucket, cookie, ForGetReplicaOp::No, options);
 }
 
-GetValue KVBucket::getReplica(const DocKey& key,
+GetValue KVBucket::getReplica(const DocKeyView& key,
                               Vbid vbucket,
                               CookieIface* cookie,
                               get_options_t options) {
@@ -1599,7 +1598,7 @@ KVBucket::operationPrologue(Vbid vbid,
     return std::make_tuple(std::move(vb), std::move(rlh));
 }
 
-GetValue KVBucket::getInternal(const DocKey& key,
+GetValue KVBucket::getInternal(const DocKeyView& key,
                                Vbid vbucket,
                                CookieIface* cookie,
                                const ForGetReplicaOp getReplicaItem,
@@ -1705,7 +1704,7 @@ GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
     return GetValue(nullptr, cb::engine_errc::no_such_key);
 }
 
-cb::engine_errc KVBucket::getMetaData(const DocKey& key,
+cb::engine_errc KVBucket::getMetaData(const DocKeyView& key,
                                       Vbid vbucket,
                                       CookieIface* cookie,
                                       ItemMetaData& metadata,
@@ -1847,7 +1846,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
     return rv;
 }
 
-GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
+GetValue KVBucket::getAndUpdateTtl(const DocKeyView& key,
                                    Vbid vbucket,
                                    CookieIface* cookie,
                                    time_t exptime) {
@@ -1888,7 +1887,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     }
 }
 
-GetValue KVBucket::getLocked(const DocKey& key,
+GetValue KVBucket::getLocked(const DocKeyView& key,
                              Vbid vbucket,
                              rel_time_t currentTime,
                              std::chrono::seconds lockTimeout,
@@ -1921,7 +1920,7 @@ GetValue KVBucket::getLocked(const DocKey& key,
     return result;
 }
 
-cb::engine_errc KVBucket::unlockKey(const DocKey& key,
+cb::engine_errc KVBucket::unlockKey(const DocKeyView& key,
                                     Vbid vbucket,
                                     uint64_t cas,
                                     rel_time_t currentTime,
@@ -1992,7 +1991,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
     folly::assume_unreachable();
 }
 
-cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
+cb::engine_errc KVBucket::getKeyStats(const DocKeyView& key,
                                       Vbid vbucket,
                                       CookieIface& cookie,
                                       struct key_stats& kstats,
@@ -2014,7 +2013,7 @@ cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
     return vb->getKeyStats(rlh, cookie, engine, kstats, wantsDeleted, cHandle);
 }
 
-std::string KVBucket::validateKey(const DocKey& key,
+std::string KVBucket::validateKey(const DocKeyView& key,
                                   Vbid vbucket,
                                   Item& diskItem) {
     VBucketPtr vb = getVBucket(vbucket);
@@ -2091,7 +2090,7 @@ std::string KVBucket::validateKey(const DocKey& key,
 }
 
 cb::engine_errc KVBucket::deleteItem(
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         CookieIface* cookie,
@@ -2140,7 +2139,7 @@ cb::engine_errc KVBucket::deleteItem(
     return result;
 }
 
-cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
+cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
                                          uint64_t& cas,
                                          uint64_t* seqno,
                                          Vbid vbucket,

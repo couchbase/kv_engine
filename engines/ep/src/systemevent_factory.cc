@@ -22,7 +22,7 @@
 
 #include <memory>
 
-std::unique_ptr<Item> SystemEventFactory::make(const DocKey& key,
+std::unique_ptr<Item> SystemEventFactory::make(const DocKeyView& key,
                                                SystemEvent se,
                                                cb::const_byte_buffer data,
                                                OptionalSeqno seqno) {
@@ -102,7 +102,7 @@ SystemEventFactory::makeCollectionEventKeyPairForRangeScan(CollectionID cid) {
     return {DiskDocKey{start}, DiskDocKey{end.data(), end.size()}};
 }
 
-CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKey& key) {
+CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKeyView& key) {
     // Input key is made up of a sequence of prefixes as per makeCollectionEvent
     // or makeModifyCollectionEvent
     // This function skips (1), checks (2) and returns 3
@@ -113,7 +113,7 @@ CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKey& key) {
     return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(se.second).first;
 }
 
-ScopeID SystemEventFactory::getScopeIDFromKey(const DocKey& key) {
+ScopeID SystemEventFactory::getScopeIDFromKey(const DocKeyView& key) {
     // logic same as getCollectionIDFromKey, but the event type is expected to
     // be a scope event.
     auto se = getSystemEventType(key);
@@ -122,7 +122,7 @@ ScopeID SystemEventFactory::getScopeIDFromKey(const DocKey& key) {
 }
 
 std::pair<SystemEvent, cb::const_byte_buffer>
-SystemEventFactory::getSystemEventType(const DocKey& key) {
+SystemEventFactory::getSystemEventType(const DocKeyView& key) {
     // Input key is made up of a sequence of prefixes.
     // (1) System (system namespace of 0x01)
     // (2) SystemEvent type (scope 0x1 or collection 0x0)
@@ -135,7 +135,7 @@ SystemEventFactory::getSystemEventType(const DocKey& key) {
 }
 
 std::pair<SystemEvent, uint32_t> SystemEventFactory::getTypeAndID(
-        const DocKey& key) {
+        const DocKeyView& key) {
     // Input key is made up of a sequence of prefixes.
     // (1) System (system namespace of 0x01)
     // (2) SystemEvent type (scope 0x1 or collection 0x0)
@@ -146,7 +146,7 @@ std::pair<SystemEvent, uint32_t> SystemEventFactory::getTypeAndID(
 }
 
 std::optional<CollectionID> SystemEventFactory::isModifyCollection(
-        const DocKey& key) {
+        const DocKeyView& key) {
     auto [event, id] = SystemEventFactory::getTypeAndID(key);
     if (event != SystemEvent::ModifyCollection) {
         return {};

@@ -24,7 +24,7 @@ struct MockEngine : public EngineIface, public DcpIface {
     void destroy(bool force) override;
     void disconnect(CookieIface& cookie) override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
                                      uint32_t flags,
@@ -34,7 +34,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc remove(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
@@ -43,38 +43,38 @@ struct MockEngine : public EngineIface, public DcpIface {
     void release(ItemIface& item) override;
 
     cb::EngineErrorItemPair get(CookieIface& cookie,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_replica(CookieIface& cookie,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         Vbid vbucket) override;
     cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
                                                 CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<bool(const item_info&)>& filter) override;
 
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
-                                         const DocKey& key,
+                                         const DocKeyView& key,
                                          Vbid vbucket) override;
 
     cb::EngineErrorItemPair get_locked(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             std::chrono::seconds lock_timeout) override;
 
     cb::engine_errc unlock(CookieIface& cookie,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            Vbid vbucket,
                            uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             uint32_t expiryTime,
             const std::optional<cb::durability::Requirements>& durability)
@@ -82,7 +82,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc observe(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint) override;
@@ -169,7 +169,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                                                uint64_t seqno,
                                                Vbid vbid) override;
     cb::engine_errc evict_key(CookieIface& cookie,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               Vbid vbucket) override;
 
     // DcpIface implementation ////////////////////////////////////////////////
@@ -229,7 +229,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             std::optional<uint64_t> max_visible_seqno) override;
     cb::engine_errc mutation(CookieIface& cookie,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -244,7 +244,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc deletion(CookieIface& cookie,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -255,7 +255,7 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc expiration(CookieIface& cookie,
                                uint32_t opaque,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                cb::const_byte_buffer value,
                                uint8_t datatype,
                                uint64_t cas,
@@ -293,7 +293,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                                  cb::const_byte_buffer eventData) override;
     cb::engine_errc prepare(CookieIface& cookie,
                             uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             cb::const_byte_buffer value,
                             uint8_t datatype,
                             uint64_t cas,
@@ -313,13 +313,13 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::engine_errc commit(CookieIface& cookie,
                            uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepared_seqno,
                            uint64_t commit_seqno) override;
     cb::engine_errc abort(CookieIface& cookie,
                           uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
 

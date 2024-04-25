@@ -25,7 +25,7 @@
 #include <functional>
 #include <unordered_map>
 
-struct DocKey;
+struct DocKeyView;
 
 namespace Collections {
 
@@ -211,10 +211,10 @@ std::string makeCollectionIdIntoString(CollectionID collection);
  *        event
  * @return the ID which was in the event
  */
-CollectionID getCollectionIDFromKey(const DocKey& key);
+CollectionID getCollectionIDFromKey(const DocKeyView& key);
 
 /// Same as getCollectionIDFromKey but for events changing scopes
-ScopeID getScopeIDFromKey(const DocKey& key);
+ScopeID getScopeIDFromKey(const DocKeyView& key);
 
 /**
  * Callback function for processing against dropped collections in an ephemeral
@@ -223,7 +223,7 @@ ScopeID getScopeIDFromKey(const DocKey& key);
  * @param DocKey the key of the item we should process
  * @param int64_t the seqno of the item
  */
-using IsDroppedEphemeralCb = std::function<bool(const DocKey&, int64_t)>;
+using IsDroppedEphemeralCb = std::function<bool(const DocKeyView&, int64_t)>;
 
 /**
  * A function for determining if a collection is visible

@@ -164,7 +164,7 @@ public:
      * @return CachingReadHandle, an iterator is held on the collection
      *         container
      */
-    CachingReadHandle lock(DocKey key) const;
+    CachingReadHandle lock(DocKeyView key) const;
 
     /**
      * @param key The key to use in look-ups. This variant of 'lock' accepts
@@ -178,7 +178,7 @@ public:
      *         'system-event' keys which will be 'split' to get the collection
      *         of the event.
      */
-    CachingReadHandle lock(DocKey key, AllowSystemKeys tag) const;
+    CachingReadHandle lock(DocKeyView key, AllowSystemKeys tag) const;
 
     /**
      * Read lock and return a StatsHandle - lookup only requires a collection-ID
@@ -650,7 +650,7 @@ protected:
      * - If the key applies to a collection, the collection must exist and must
      *   not be in the process of deletion.
      */
-    bool doesKeyContainValidCollection(const DocKey& key) const;
+    bool doesKeyContainValidCollection(const DocKeyView& key) const;
 
     /**
      * Does the manifest contain the scope?
@@ -667,7 +667,7 @@ protected:
      *
      * @return true if the key belongs to a deleted collection.
      */
-    bool isLogicallyDeleted(const DocKey& key, int64_t seqno) const;
+    bool isLogicallyDeleted(const DocKeyView& key, int64_t seqno) const;
 
     /**
      * Perform the job of isLogicallyDeleted, but with an iterator for the
@@ -965,14 +965,14 @@ protected:
      * Get a manifest entry for the collection associated with the key. Can
      * return map.end() for unknown collections.
      */
-    container::const_iterator getManifestEntry(const DocKey& key,
+    container::const_iterator getManifestEntry(const DocKeyView& key,
                                                AllowSystemKeys tag) const;
 
     /**
      * Get a manifest entry for the collection associated with the key. Can
      * return map.end() for unknown collections.
      */
-    container::const_iterator getManifestEntry(const DocKey& key) const;
+    container::const_iterator getManifestEntry(const DocKeyView& key) const;
 
     /**
      * Get a map iterator for the collection. Can return map.end() for unknown

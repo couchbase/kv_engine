@@ -1285,7 +1285,7 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
                 dcp.mutation(
                         *passiveCookie,
                         opaque,
-                        DocKey(key, DocKeyEncodesCollectionId::No),
+                        DocKeyView(key, DocKeyEncodesCollectionId::No),
                         cb::const_byte_buffer(
                                 reinterpret_cast<const uint8_t*>("value"), 5),
                         PROTOCOL_BINARY_RAW_BYTES,

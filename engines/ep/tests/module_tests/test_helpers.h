@@ -83,7 +83,7 @@ class VBucket;
 /// Creates an item with the given vbucket id, key and value.
 Item make_item(
         Vbid vbid,
-        const DocKey& key,
+        const DocKeyView& key,
         const std::string& value,
         uint32_t exptime = 0,
         protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON);
@@ -109,7 +109,7 @@ queued_item makeCommittedviaPrepareItem(StoredDocKey key, std::string value);
 queued_item makeDeletedItem(StoredDocKey key);
 
 std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
-                                           const DocKey& key,
+                                           const DocKeyView& key,
                                            const std::string& value,
                                            protocol_binary_datatype_t datatype,
                                            bool shouldCompress,
@@ -134,7 +134,7 @@ DiskDocKey makeDiskDocKey(const std::string& string,
 
 // Creates a new item with the given key and queues it into the given VBucket.
 // manager.
-bool queueNewItem(VBucket& vbucket, DocKey key);
+bool queueNewItem(VBucket& vbucket, DocKeyView key);
 
 /**
  * Create an XATTR document using the supplied string as the body

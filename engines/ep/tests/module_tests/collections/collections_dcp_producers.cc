@@ -322,7 +322,7 @@ cb::engine_errc CollectionsDcpTestProducers::prepare(
 
 cb::engine_errc CollectionsDcpTestProducers::commit(uint32_t opaque,
                                                     Vbid vbucket,
-                                                    const DocKey& key,
+                                                    const DocKeyView& key,
                                                     uint64_t prepare_seqno,
                                                     uint64_t commit_seqno) {
     auto ret = cb::engine_errc::success;
@@ -337,7 +337,7 @@ cb::engine_errc CollectionsDcpTestProducers::commit(uint32_t opaque,
 
 cb::engine_errc CollectionsDcpTestProducers::abort(uint32_t opaque,
                                                    Vbid vbucket,
-                                                   const DocKey& key,
+                                                   const DocKeyView& key,
                                                    uint64_t prepare_seqno,
                                                    uint64_t abort_seqno) {
     auto ret = cb::engine_errc::success;

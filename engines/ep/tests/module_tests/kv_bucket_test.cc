@@ -191,7 +191,7 @@ void KVBucketTest::reinitialise(std::string config, bool force) {
 }
 
 Item KVBucketTest::store_item(Vbid vbid,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               const std::string& value,
                               uint32_t exptime,
                               const std::vector<cb::engine_errc>& expected,
@@ -217,7 +217,7 @@ Item KVBucketTest::store_item(Vbid vbid,
 
 Item KVBucketTest::store_pending_item(
         Vbid vbid,
-        const DocKey& key,
+        const DocKeyView& key,
         const std::string& value,
         uint32_t exptime,
         const std::vector<cb::engine_errc>& expected,
@@ -230,7 +230,7 @@ Item KVBucketTest::store_pending_item(
 
 Item KVBucketTest::store_deleted_item(
         Vbid vbid,
-        const DocKey& key,
+        const DocKeyView& key,
         const std::string& value,
         uint32_t exptime,
         const std::vector<cb::engine_errc>& expected,
@@ -249,7 +249,7 @@ Item KVBucketTest::store_deleted_item(
 ::testing::AssertionResult KVBucketTest::store_items(
         int nitems,
         Vbid vbid,
-        const DocKey& key,
+        const DocKeyView& key,
         const std::string& value,
         uint32_t exptime,
         protocol_binary_datatype_t datatype) {
@@ -273,7 +273,7 @@ Item KVBucketTest::store_deleted_item(
 
 ::testing::AssertionResult KVBucketTest::store_item_replica(
         Vbid vbid,
-        const DocKey& key,
+        const DocKeyView& key,
         const std::string& value,
         uint64_t seqno,
         uint32_t exptime,
@@ -398,7 +398,7 @@ size_t KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {
     return vb.checkpointManager->expelUnreferencedCheckpointItems().count;
 }
 
-void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
+void KVBucketTest::delete_item(Vbid vbid, const DocKeyView& key) {
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
     EXPECT_EQ(cb::engine_errc::success,
@@ -411,13 +411,13 @@ void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
                                 mutation_descr));
 }
 
-void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
+void KVBucketTest::evict_key(Vbid vbid, const DocKeyView& key) {
     const char* msg;
     EXPECT_EQ(cb::engine_errc::success, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 
-GetValue KVBucketTest::getInternal(const DocKey& key,
+GetValue KVBucketTest::getInternal(const DocKeyView& key,
                                    Vbid vbucket,
                                    CookieIface* cookie,
                                    const ForGetReplicaOp getReplicaItem,
@@ -1381,7 +1381,7 @@ TEST_F(KVBucketTest, ExpiryConfigChangeWakesTask) {
 }
 
 void KVBucketTest::storeAndDeleteItem(Vbid vbid,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       std::string value) {
     Item item = store_item(vbid,
                            key,
@@ -1395,7 +1395,7 @@ void KVBucketTest::storeAndDeleteItem(Vbid vbid,
 }
 
 cb::engine_errc KVBucketTest::getMeta(Vbid vbid,
-                                      const DocKey key,
+                                      const DocKeyView key,
                                       CookieIface* cookie,
                                       ItemMetaData& itemMeta,
                                       uint32_t& deleted,

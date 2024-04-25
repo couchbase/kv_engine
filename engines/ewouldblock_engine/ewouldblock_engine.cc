@@ -97,7 +97,7 @@ public:
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
                                      uint32_t flags,
@@ -106,48 +106,48 @@ public:
                                      Vbid vbucket) override;
     cb::engine_errc remove(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
     void release(ItemIface& item) override;
     cb::EngineErrorItemPair get(CookieIface& cookie,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
                                                 CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<bool(const item_info&)>& filter) override;
     cb::EngineErrorItemPair get_and_touch(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             uint32_t exptime,
             const std::optional<cb::durability::Requirements>& durability)
             override;
     cb::EngineErrorItemPair get_locked(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             std::chrono::seconds lock_timeout) override;
     cb::engine_errc unlock(CookieIface& cookie,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            Vbid vbucket,
                            uint64_t cas) override;
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
-                                         const DocKey& key,
+                                         const DocKeyView& key,
                                          Vbid vbucket) override;
     cb::engine_errc evict_key(CookieIface& cookie,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               Vbid vbucket) override;
     cb::engine_errc observe(
             CookieIface& cookie,
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint) override;
@@ -288,7 +288,7 @@ public:
             std::optional<uint64_t> max_visible_seqno) override;
     cb::engine_errc mutation(CookieIface& cookie,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -302,7 +302,7 @@ public:
                              uint8_t nru) override;
     cb::engine_errc deletion(CookieIface& cookie,
                              uint32_t opaque,
-                             const DocKey& key,
+                             const DocKeyView& key,
                              cb::const_byte_buffer value,
                              uint8_t datatype,
                              uint64_t cas,
@@ -312,7 +312,7 @@ public:
                              cb::const_byte_buffer meta) override;
     cb::engine_errc deletion_v2(CookieIface& cookie,
                                 uint32_t opaque,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 cb::const_byte_buffer value,
                                 uint8_t datatype,
                                 uint64_t cas,
@@ -322,7 +322,7 @@ public:
                                 uint32_t delete_time) override;
     cb::engine_errc expiration(CookieIface& cookie,
                                uint32_t opaque,
-                               const DocKey& key,
+                               const DocKeyView& key,
                                cb::const_byte_buffer value,
                                uint8_t datatype,
                                uint64_t cas,
@@ -354,7 +354,7 @@ public:
                                  cb::const_byte_buffer eventData) override;
     cb::engine_errc prepare(CookieIface& cookie,
                             uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             cb::const_byte_buffer value,
                             uint8_t datatype,
                             uint64_t cas,
@@ -374,13 +374,13 @@ public:
     cb::engine_errc commit(CookieIface& cookie,
                            uint32_t opaque,
                            Vbid vbucket,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            uint64_t prepared_seqno,
                            uint64_t commit_seqno) override;
     cb::engine_errc abort(CookieIface& cookie,
                           uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
 
@@ -928,7 +928,7 @@ cb::engine_errc EWB_Engine::set_traffic_control_mode(CookieIface& cookie,
 }
 
 cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,
-                                             const DocKey& key,
+                                             const DocKeyView& key,
                                              size_t nbytes,
                                              size_t priv_nbytes,
                                              uint32_t flags,
@@ -952,7 +952,7 @@ cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,
 
 cb::engine_errc EWB_Engine::remove(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
@@ -972,7 +972,7 @@ void EWB_Engine::release(ItemIface& item) {
 }
 
 cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         Vbid vbucket,
                                         DocStateFilter documentStateFilter) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -996,7 +996,7 @@ cb::EngineErrorItemPair EWB_Engine::get_random_document(CookieIface& cookie,
 
 cb::EngineErrorItemPair EWB_Engine::get_if(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<bool(const item_info&)>& filter) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -1009,7 +1009,7 @@ cb::EngineErrorItemPair EWB_Engine::get_if(
 
 cb::EngineErrorItemPair EWB_Engine::get_and_touch(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         uint32_t exptime,
         const std::optional<cb::durability::Requirements>& durability) {
@@ -1024,7 +1024,7 @@ cb::EngineErrorItemPair EWB_Engine::get_and_touch(
 
 cb::EngineErrorItemPair EWB_Engine::get_locked(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         std::chrono::seconds lock_timeout) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -1036,7 +1036,7 @@ cb::EngineErrorItemPair EWB_Engine::get_locked(
 }
 
 cb::engine_errc EWB_Engine::unlock(CookieIface& cookie,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    Vbid vbucket,
                                    uint64_t cas) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -1048,7 +1048,7 @@ cb::engine_errc EWB_Engine::unlock(CookieIface& cookie,
 }
 
 cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
-                                                 const DocKey& key,
+                                                 const DocKeyView& key,
                                                  Vbid vbucket) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET_META, &cookie, err)) {
@@ -1059,14 +1059,14 @@ cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
 }
 
 cb::engine_errc EWB_Engine::evict_key(CookieIface& cookie,
-                                      const DocKey& key,
+                                      const DocKeyView& key,
                                       Vbid vbucket) {
     return real_engine->evict_key(cookie, key, vbucket);
 }
 
 cb::engine_errc EWB_Engine::observe(
         CookieIface& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
@@ -1510,7 +1510,7 @@ cb::engine_errc EWB_Engine::snapshot_marker(
 
 cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
                                      uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -1544,7 +1544,7 @@ cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
 
 cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
                                      uint32_t opaque,
-                                     const DocKey& key,
+                                     const DocKeyView& key,
                                      cb::const_byte_buffer value,
                                      uint8_t datatype,
                                      uint64_t cas,
@@ -1570,7 +1570,7 @@ cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
 
 cb::engine_errc EWB_Engine::deletion_v2(CookieIface& cookie,
                                         uint32_t opaque,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         cb::const_byte_buffer value,
                                         uint8_t datatype,
                                         uint64_t cas,
@@ -1596,7 +1596,7 @@ cb::engine_errc EWB_Engine::deletion_v2(CookieIface& cookie,
 
 cb::engine_errc EWB_Engine::expiration(CookieIface& cookie,
                                        uint32_t opaque,
-                                       const DocKey& key,
+                                       const DocKeyView& key,
                                        cb::const_byte_buffer value,
                                        uint8_t datatype,
                                        uint64_t cas,
@@ -1695,7 +1695,7 @@ cb::engine_errc EWB_Engine::system_event(CookieIface& cookie,
 
 cb::engine_errc EWB_Engine::prepare(CookieIface& cookie,
                                     uint32_t opaque,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     cb::const_byte_buffer value,
                                     uint8_t datatype,
                                     uint64_t cas,
@@ -1742,7 +1742,7 @@ cb::engine_errc EWB_Engine::seqno_acknowledged(CookieIface& cookie,
 cb::engine_errc EWB_Engine::commit(CookieIface& cookie,
                                    uint32_t opaque,
                                    Vbid vbucket,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    uint64_t prepared_seqno,
                                    uint64_t commit_seqno) {
     if (!real_engine_dcp) {
@@ -1756,7 +1756,7 @@ cb::engine_errc EWB_Engine::commit(CookieIface& cookie,
 cb::engine_errc EWB_Engine::abort(CookieIface& cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
-                                  const DocKey& key,
+                                  const DocKeyView& key,
                                   uint64_t prepared_seqno,
                                   uint64_t abort_seqno) {
     if (!real_engine_dcp) {
@@ -1954,7 +1954,7 @@ cb::engine_errc EWB_Engine::setItemCas(CookieIface* cookie,
     }
 
     auto rv = real_engine->get(*cookie,
-                               DocKey{key, DocKeyEncodesCollectionId::No},
+                               DocKeyView{key, DocKeyEncodesCollectionId::No},
                                Vbid(0),
                                DocStateFilter::Alive);
     if (rv.first != cb::engine_errc::success) {

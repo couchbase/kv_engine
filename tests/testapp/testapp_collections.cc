@@ -52,8 +52,8 @@ protected:
             }
         });
 
-        key = DocKey::makeWireEncodedString(CollectionEntry::systemCollection,
-                                            name);
+        key = DocKeyView::makeWireEncodedString(
+                CollectionEntry::systemCollection, name);
 
         if (!user) {
             user = userConnection->clone();

@@ -170,7 +170,7 @@ struct items {
  * @return a pointer to an item on success NULL otherwise
  */
 hash_item* item_alloc(struct default_engine* engine,
-                      const DocKey& key,
+                      const DocKeyView& key,
                       int flags,
                       rel_time_t exptime,
                       int nbytes,
@@ -188,7 +188,7 @@ hash_item* item_alloc(struct default_engine* engine,
  */
 hash_item* item_get(struct default_engine* engine,
                     CookieIface* cookie,
-                    const DocKey& key,
+                    const DocKeyView& key,
                     const DocStateFilter state);
 
 /**
@@ -218,7 +218,7 @@ hash_item* item_get(struct default_engine* engine,
 cb::engine_errc item_get_locked(struct default_engine* engine,
                                 CookieIface* cookie,
                                 hash_item** it,
-                                const DocKey& key,
+                                const DocKeyView& key,
                                 rel_time_t locktime);
 
 /**
@@ -234,7 +234,7 @@ cb::engine_errc item_get_locked(struct default_engine* engine,
 cb::engine_errc item_get_and_touch(struct default_engine* engine,
                                    CookieIface* cookie,
                                    hash_item** it,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    rel_time_t exptime);
 
 /**
@@ -248,7 +248,7 @@ cb::engine_errc item_get_and_touch(struct default_engine* engine,
  */
 cb::engine_errc item_unlock(struct default_engine* engine,
                             CookieIface* cookie,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             uint64_t cas);
 
 /**

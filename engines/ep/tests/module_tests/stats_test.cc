@@ -1092,7 +1092,7 @@ TEST_P(DatatypeStatTest, datatypeExpireItem) {
 
 
 TEST_P(DatatypeStatTest, datatypeEviction) {
-    const DocKey key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
+    const DocKeyView key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
     Vbid vbid = Vbid(0);
     setDatatypeItem(
             store,
@@ -1443,7 +1443,7 @@ TEST_F(EPStatsTest, testEPStatsReset) {
 TEST_P(DatatypeStatTest, MB23892) {
     // This test checks that updating a document with a different datatype is
     // safe to do after an eviction (where the blob is now null)
-    const DocKey key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
+    const DocKeyView key = {"jsonXattrDoc", DocKeyEncodesCollectionId::No};
     Vbid vbid = Vbid(0);
     setDatatypeItem(
             store,

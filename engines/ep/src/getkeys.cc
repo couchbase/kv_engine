@@ -97,7 +97,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
 static constexpr uint32_t FetchAllKeysLimit = 100000U;
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
                                    CookieIface& c,
-                                   const DocKey start_key_,
+                                   const DocKeyView start_key_,
                                    Vbid vbucket,
                                    uint32_t count_,
                                    std::optional<CollectionID> collection)

@@ -54,7 +54,7 @@ void CheckpointCursor::invalidate() {
     isValid = false;
 }
 
-DocKey CheckpointCursor::getKey() const {
+DocKeyView CheckpointCursor::getKey() const {
     return (*currentPos)->getKey();
 }
 

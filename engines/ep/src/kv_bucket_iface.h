@@ -161,7 +161,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue get(const DocKey& key,
+    virtual GetValue get(const DocKeyView& key,
                          Vbid vbucket,
                          CookieIface* cookie,
                          get_options_t options) = 0;
@@ -186,7 +186,7 @@ public:
      * @return a GetValue representing the result of the request
      */
     virtual GetValue getReplica(
-            const DocKey& key,
+            const DocKeyView& key,
             Vbid vbucket,
             CookieIface* cookie,
             get_options_t options = static_cast<get_options_t>(
@@ -203,7 +203,7 @@ public:
      * @param[out] deleted specifies whether or not the key is deleted
      * @param[out] datatype specifies the datatype of the item
      */
-    virtual cb::engine_errc getMetaData(const DocKey& key,
+    virtual cb::engine_errc getMetaData(const DocKeyView& key,
                                         Vbid vbucket,
                                         CookieIface* cookie,
                                         ItemMetaData& metadata,
@@ -261,7 +261,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    virtual GetValue getAndUpdateTtl(const DocKey& key,
+    virtual GetValue getAndUpdateTtl(const DocKeyView& key,
                                      Vbid vbucket,
                                      CookieIface* cookie,
                                      time_t exptime) = 0;
@@ -276,16 +276,16 @@ public:
      *
      * @return a status resulting form executing the method
      */
-    virtual cb::engine_errc statsVKey(const DocKey& key,
+    virtual cb::engine_errc statsVKey(const DocKeyView& key,
                                       Vbid vbucket,
                                       CookieIface& cookie) = 0;
 
     virtual void completeStatsVKey(CookieIface& cookie,
-                                   const DocKey& key,
+                                   const DocKeyView& key,
                                    Vbid vbid,
                                    uint64_t bySeqNum) = 0;
 
-    virtual cb::engine_errc evictKey(const DocKey& key,
+    virtual cb::engine_errc evictKey(const DocKeyView& key,
                                      Vbid vbucket,
                                      const char** msg) = 0;
 
@@ -303,7 +303,7 @@ public:
      * @return the result of the operation
      */
     virtual cb::engine_errc deleteItem(
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t& cas,
             Vbid vbucket,
             CookieIface* cookie,
@@ -335,7 +335,7 @@ public:
      *  processing
      * @return the result of the delete operation
      */
-    virtual cb::engine_errc deleteWithMeta(const DocKey& key,
+    virtual cb::engine_errc deleteWithMeta(const DocKeyView& key,
                                            uint64_t& cas,
                                            uint64_t* seqno,
                                            Vbid vbucket,
@@ -599,23 +599,23 @@ public:
      *                     marked as deleted. If no then will return
      *                     cb::engine_errc::no_such_key for deleted items.
      */
-    virtual cb::engine_errc getKeyStats(const DocKey& key,
+    virtual cb::engine_errc getKeyStats(const DocKeyView& key,
                                         Vbid vbucket,
                                         CookieIface& cookie,
                                         key_stats& kstats,
                                         WantsDeleted wantsDeleted) = 0;
 
-    virtual std::string validateKey(const DocKey& key,
+    virtual std::string validateKey(const DocKeyView& key,
                                     Vbid vbucket,
                                     Item& diskItem) = 0;
 
-    virtual GetValue getLocked(const DocKey& key,
+    virtual GetValue getLocked(const DocKeyView& key,
                                Vbid vbucket,
                                rel_time_t currentTime,
                                std::chrono::seconds lockTimeout,
                                CookieIface* cookie) = 0;
 
-    virtual cb::engine_errc unlockKey(const DocKey& key,
+    virtual cb::engine_errc unlockKey(const DocKeyView& key,
                                       Vbid vbucket,
                                       uint64_t cas,
                                       rel_time_t currentTime,
@@ -698,8 +698,7 @@ public:
 
     virtual void setBfiltersResidencyThreshold(float to) = 0;
 
-    virtual bool isMetaDataResident(VBucketPtr &vb,
-                                    const DocKey& key) = 0;
+    virtual bool isMetaDataResident(VBucketPtr& vb, const DocKeyView& key) = 0;
 
     virtual void logQTime(const GlobalTask& taskType,
                           std::string_view threadName,
@@ -961,7 +960,7 @@ protected:
      *
      * @return the result of the operation
      */
-    virtual GetValue getInternal(const DocKey& key,
+    virtual GetValue getInternal(const DocKeyView& key,
                                  Vbid vbucket,
                                  CookieIface* cookie,
                                  ForGetReplicaOp getReplicaItem,

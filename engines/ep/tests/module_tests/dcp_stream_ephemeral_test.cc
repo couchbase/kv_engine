@@ -386,7 +386,7 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeqno*/));
 
-    const auto keyA = DocKey("keyA", DocKeyEncodesCollectionId::No);
+    const auto keyA = DocKeyView("keyA", DocKeyEncodesCollectionId::No);
     if (durReqs) {
         // Receive SyncDelete:1
         const std::string value("value");
@@ -469,7 +469,7 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
     // Receive MUT:5 for a different key.
     // This step is necessary for the TombstonePurger to touch DEL:4, as it
     // would skip it if it's the latest item in the SeqList
-    const auto keyB = DocKey("keyB", DocKeyEncodesCollectionId::No);
+    const auto keyB = DocKeyView("keyB", DocKeyEncodesCollectionId::No);
     const std::string value("value");
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};

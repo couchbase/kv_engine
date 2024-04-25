@@ -1992,19 +1992,19 @@ static test_result get_if(EngineIface* h) {
 
     auto* cookie = testHarness->create_cookie(h);
     auto doc = h->get_if(*cookie,
-                         DocKey(key, DocKeyEncodesCollectionId::No),
+                         DocKeyView(key, DocKeyEncodesCollectionId::No),
                          Vbid(0),
                          [](const item_info&) { return true; });
     check(doc.second, "document should be found");
 
     doc = h->get_if(*cookie,
-                    DocKey(key, DocKeyEncodesCollectionId::No),
+                    DocKeyView(key, DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return false; });
     check(!doc.second, "document should not be found");
 
     doc = h->get_if(*cookie,
-                    DocKey("no", DocKeyEncodesCollectionId::No),
+                    DocKeyView("no", DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return true; });
     check(!doc.second, "non-existing document should not be found");
@@ -2014,7 +2014,7 @@ static test_result get_if(EngineIface* h) {
             "Failed remove with value");
 
     doc = h->get_if(*cookie,
-                    DocKey(key, DocKeyEncodesCollectionId::No),
+                    DocKeyView(key, DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return true; });
     check(!doc.second, "deleted document should not be found");

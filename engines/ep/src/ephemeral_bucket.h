@@ -41,7 +41,7 @@ public:
 
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
-    cb::engine_errc evictKey(const DocKey& key,
+    cb::engine_errc evictKey(const DocKeyView& key,
                              Vbid vbucket,
                              const char** msg) override {
         return cb::engine_errc::not_supported;
@@ -101,14 +101,14 @@ public:
     void notifyFlusher(const Vbid vbid) override {
     }
 
-    cb::engine_errc statsVKey(const DocKey& key,
+    cb::engine_errc statsVKey(const DocKeyView& key,
                               Vbid vbucket,
                               CookieIface& cookie) override {
         return cb::engine_errc::not_supported;
     }
 
     void completeStatsVKey(CookieIface& cookie,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
 

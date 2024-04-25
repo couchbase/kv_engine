@@ -262,7 +262,7 @@ bool Filter::checkAndUpdateSlow(Item& item) {
     return allowed;
 }
 
-bool Filter::checkSlow(DocKey key) const {
+bool Filter::checkSlow(DocKeyView key) const {
     bool allowed = false;
     if (key.isInSystemEventCollection() && !isLegacyFilter()) {
         // For a collection filter, we could figure out from the entire DocKey

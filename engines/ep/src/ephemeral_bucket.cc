@@ -321,7 +321,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
 }
 
 void EphemeralBucket::completeStatsVKey(CookieIface& cookie,
-                                        const DocKey& key,
+                                        const DocKeyView& key,
                                         Vbid vbid,
                                         uint64_t bySeqNum) {
     throw std::logic_error(

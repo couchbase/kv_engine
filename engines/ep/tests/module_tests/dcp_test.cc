@@ -1228,7 +1228,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     consumer->streamEnd(/*opaque*/ 0, vbid, cb::mcbp::DcpStreamEndStatus::Ok);
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for streamEnd";
-    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     consumer->mutation(0, // opaque
                        docKey,
                        {}, // value
@@ -2701,7 +2701,7 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
                                        {} /*maxVisibleSeq*/));
-    const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
+    const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
 
     // Receive a mutation
     // Note: Only paused connections are added to the pending notifications

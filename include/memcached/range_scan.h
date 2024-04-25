@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/engine_error.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/range_scan_optional_configuration.h>

@@ -12,7 +12,7 @@
 
 #include "ep_types.h"
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/vbucket.h>
 
 /**
@@ -26,6 +26,6 @@
  */
 void validateKeyMapping(std::string_view caller,
                         cb::ErrorHandlingMethod errorHandlingMethod,
-                        DocKey key,
+                        DocKeyView key,
                         Vbid vbid,
                         size_t maxVbuckets);

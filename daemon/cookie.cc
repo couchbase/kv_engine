@@ -390,7 +390,7 @@ void Cookie::sendResponse(cb::engine_errc status,
             cb::mcbp::to_status(status), extras, key, value, datatype, casval);
 }
 
-const DocKey Cookie::getRequestKey() const {
+const DocKeyView Cookie::getRequestKey() const {
     return connection.makeDocKey(getRequest().getKey());
 }
 

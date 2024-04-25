@@ -113,7 +113,7 @@ protected:
      * @param second_xattr_path An optional second XAttr pair
      * @param second_xattr_value An optional second XAttr value
      */
-    void upsert(DocKey id,
+    void upsert(DocKeyView id,
                 std::string value,
                 std::string xattr_path = {},
                 std::string xattr_value = {},
@@ -141,7 +141,7 @@ protected:
      * @return The size of the document (key + value including the encoded
      *         xattr blob)
      */
-    size_t calculateDocumentSize(const DocKey& key,
+    size_t calculateDocumentSize(const DocKeyView& key,
                                  std::string_view value,
                                  std::string_view xp = {},
                                  std::string_view xv = {},
@@ -216,7 +216,7 @@ protected:
     /// Operating on a document which isn't a numeric value should
     /// account for 0 ru's and fail
     void testArithmeticBadValue(ClientOpcode opcode,
-                                DocKey id,
+                                DocKeyView id,
                                 std::string value,
                                 std::string xattr_path = {},
                                 std::string xattr_value = {}) {
@@ -233,7 +233,7 @@ protected:
     /// When creating a value as part of incr/decr it should not cost any
     /// RU, but 1 WU for a normal create, and 2 WU for durable writes.
     void testArithmeticCreateValue(ClientOpcode opcode,
-                                   DocKey id,
+                                   DocKeyView id,
                                    bool durable) {
         auto cmd = BinprotIncrDecrCommand{
                 opcode, std::string{id}, Vbid{0}, 1ULL, 0ULL, 0};
@@ -265,7 +265,7 @@ protected:
     // to the RU/WU units.
     // For durable writes it costs 2x WU
     void testArithmetic(ClientOpcode opcode,
-                        DocKey id,
+                        DocKeyView id,
                         std::string xattr_path,
                         std::string xattr_value,
                         bool durable) {
@@ -302,7 +302,7 @@ protected:
     //        size ru
     // Durable reads should cost twice
     void testDelete(ClientOpcode opcode,
-                    DocKey id,
+                    DocKeyView id,
                     std::string value,
                     std::string user_xattr_path,
                     std::string user_xattr_value,
@@ -385,9 +385,9 @@ protected:
         return value;
     }
 
-    void testWithMeta(cb::mcbp::ClientOpcode opcode, const DocKey& id);
+    void testWithMeta(cb::mcbp::ClientOpcode opcode, const DocKeyView& id);
     void testReturnMeta(cb::mcbp::request::ReturnMetaType type,
-                        DocKey id,
+                        DocKeyView id,
                         bool success);
 
     void testRangeScan(bool keyOnly);
@@ -395,7 +395,7 @@ protected:
     std::unique_ptr<MemcachedConnection> conn;
 };
 
-void MeteringTest::upsert(DocKey id,
+void MeteringTest::upsert(DocKeyView id,
                           std::string value,
                           std::string xattr_path,
                           std::string xattr_value,
@@ -1485,7 +1485,7 @@ TEST_P(MeteringTest, MeterGetKeys) {
 
     const auto rsp = conn->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::GetKeys,
-            DocKey::makeWireEncodedString(getTestCollection(), {"\0", 1})});
+            DocKeyView::makeWireEncodedString(getTestCollection(), {"\0", 1})});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getData().empty());
     EXPECT_FALSE(rsp.getWriteUnits());
@@ -3125,7 +3125,7 @@ TEST_P(MeteringTest, TTL_Expiry_Compaction) {
 void MeteringTest::testRangeScan(bool keyOnly) {
     Document doc;
     doc.value = "value";
-    doc.info.id = DocKey::makeWireEncodedString(getTestCollection(), "key");
+    doc.info.id = DocKeyView::makeWireEncodedString(getTestCollection(), "key");
     auto mInfo = conn->mutate(doc, Vbid(0), MutationType::Set);
 
     auto start = cb::base64::encode("key", false);
@@ -3199,7 +3199,7 @@ TEST_P(MeteringTest, RangeScanValue) {
 }
 
 void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode,
-                                const DocKey& id) {
+                                const DocKeyView& id) {
     Document doc;
     doc.info.id = std::string{id};
     doc.info.cas = 0xdeadbeef;
@@ -3253,7 +3253,7 @@ TEST_P(MeteringTest, DelWithMeta) {
 }
 
 void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
-                                  DocKey id,
+                                  DocKeyView id,
                                   bool success) {
     Document document;
     document.info.id = std::string{id};

@@ -473,7 +473,7 @@ void addSessionTerminated(const Connection& c) {
 
 namespace document {
 
-void add(Cookie& cookie, Operation operation, const DocKey& key) {
+void add(Cookie& cookie, Operation operation, const DocKeyView& key) {
     uint32_t id = 0;
     switch (operation) {
     case Operation::Read:

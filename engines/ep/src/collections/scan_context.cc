@@ -41,7 +41,7 @@ ScanContext::ScanContext(
     }
 }
 
-bool ScanContext::isLogicallyDeleted(const DocKey& key,
+bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
                                      bool isDeleted,
                                      uint64_t seqno) const {
     if (!canCheckOpenMap && dropped.empty()) {

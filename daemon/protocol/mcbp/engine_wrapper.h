@@ -47,7 +47,7 @@ bool bucket_get_item_info(Connection& c,
                           item_info& item_info_);
 
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
-                                            const DocKey& key,
+                                            const DocKeyView& key,
                                             Vbid vbucket);
 
 cb::engine_errc bucket_store(
@@ -71,7 +71,7 @@ cb::EngineErrorCasPair bucket_store_if(
 
 cb::engine_errc bucket_remove(
         Cookie& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         uint64_t& cas,
         Vbid vbucket,
         const std::optional<cb::durability::Requirements>& durability,
@@ -79,12 +79,12 @@ cb::engine_errc bucket_remove(
 
 cb::EngineErrorItemPair bucket_get(
         Cookie& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
 cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
-                                           const DocKey& key,
+                                           const DocKeyView& key,
                                            Vbid vbucket);
 
 cb::EngineErrorItemPair bucket_get_random_document(Cookie& cookie,
@@ -92,13 +92,13 @@ cb::EngineErrorItemPair bucket_get_random_document(Cookie& cookie,
 
 cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<bool(const item_info&)>& filter);
 
 cb::EngineErrorItemPair bucket_get_and_touch(
         Cookie& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         uint32_t expiration,
         const std::optional<cb::durability::Requirements>& durability);
@@ -110,17 +110,17 @@ size_t bucket_get_max_item_size(Cookie& cookie);
 float bucket_min_compression_ratio(Cookie& cookie);
 
 cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
-                                          const DocKey& key,
+                                          const DocKeyView& key,
                                           Vbid vbucket,
                                           std::chrono::seconds lock_timeout);
 
 cb::engine_errc bucket_unlock(Cookie& cookie,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               Vbid vbucket,
                               uint64_t cas);
 
 cb::unique_item_ptr bucket_allocate(Cookie& cookie,
-                                    const DocKey& key,
+                                    const DocKeyView& key,
                                     size_t nbytes,
                                     size_t priv_nbytes,
                                     uint32_t flags,
@@ -142,14 +142,14 @@ cb::engine_errc bucket_stop_persistence(Cookie& cookie);
 cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
                                                 TrafficControlMode mode);
 cb::engine_errc bucket_evict_key(Cookie& cookie,
-                                 const DocKey& key,
+                                 const DocKeyView& key,
                                  Vbid vbucket);
 cb::engine_errc bucket_wait_for_seqno_persistence(Cookie& cookie,
                                                   uint64_t seqno,
                                                   Vbid vbid);
 cb::engine_errc bucket_observe(
         Cookie& cookie,
-        const DocKey& key,
+        const DocKeyView& key,
         Vbid vbucket,
         const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint);
@@ -225,7 +225,7 @@ cb::engine_errc dcpControl(Cookie& cookie,
  */
 cb::engine_errc dcpDeletion(Cookie& cookie,
                             uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             cb::const_byte_buffer value,
                             uint8_t datatype,
                             uint64_t cas,
@@ -251,7 +251,7 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
  */
 cb::engine_errc dcpDeletionV2(Cookie& cookie,
                               uint32_t opaque,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               cb::const_byte_buffer value,
                               uint8_t datatype,
                               uint64_t cas,
@@ -277,7 +277,7 @@ cb::engine_errc dcpDeletionV2(Cookie& cookie,
  */
 cb::engine_errc dcpExpiration(Cookie& cookie,
                               uint32_t opaque,
-                              const DocKey& key,
+                              const DocKeyView& key,
                               cb::const_byte_buffer value,
                               uint8_t datatype,
                               uint64_t cas,
@@ -321,7 +321,7 @@ cb::engine_errc dcpGetFailoverLog(Cookie& cookie,
  */
 cb::engine_errc dcpMutation(Cookie& cookie,
                             uint32_t opaque,
-                            const DocKey& key,
+                            const DocKeyView& key,
                             cb::const_byte_buffer value,
                             uint8_t datatype,
                             uint64_t cas,
@@ -470,7 +470,7 @@ cb::engine_errc dcpSystemEvent(Cookie& cookie,
 
 cb::engine_errc dcpPrepare(Cookie& cookie,
                            uint32_t opaque,
-                           const DocKey& key,
+                           const DocKeyView& key,
                            cb::const_byte_buffer value,
                            uint8_t datatype,
                            uint64_t cas,
@@ -492,14 +492,14 @@ cb::engine_errc dcpSeqnoAcknowledged(Cookie& cookie,
 cb::engine_errc dcpCommit(Cookie& cookie,
                           uint32_t opaque,
                           Vbid vbucket,
-                          const DocKey& key,
+                          const DocKeyView& key,
                           uint64_t prepared_seqno,
                           uint64_t commit_seqno);
 
 cb::engine_errc dcpAbort(Cookie& cookie,
                          uint32_t opaque,
                          Vbid vbucket,
-                         const DocKey& key,
+                         const DocKeyView& key,
                          uint64_t prepared_seqno,
                          uint64_t abort_seqno);
 

@@ -71,7 +71,7 @@ public:
      *                            compaction callbacks?
      * @return if the collection disk size stat now reflects the new item size
      */
-    bool updateStats(const DocKey& key,
+    bool updateStats(const DocKeyView& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
@@ -98,7 +98,7 @@ public:
      *         and old generation of the collection).
      */
     FlushAccounting::UpdateStatsResult updateStats(
-            const DocKey& key,
+            const DocKeyView& key,
             uint64_t seqno,
             IsCommitted isCommitted,
             IsDeleted isDelete,
@@ -109,7 +109,6 @@ public:
             CompactionCallbacks compactionCallbacks =
                     CompactionCallbacks::LatestRevision);
 
-
     /**
      * Update the collection high-seqno (only if the flushed item is higher)
      *
@@ -117,7 +116,7 @@ public:
      * @param seqno The seqno of the item flushed
      * @param isDelete alive/delete stats of the item flushed
      */
-    void maybeUpdatePersistedHighSeqno(const DocKey& key,
+    void maybeUpdatePersistedHighSeqno(const DocKeyView& key,
                                        uint64_t seqno,
                                        bool isDelete) {
         flushAccounting.maybeUpdatePersistedHighSeqno(key, seqno, isDelete);

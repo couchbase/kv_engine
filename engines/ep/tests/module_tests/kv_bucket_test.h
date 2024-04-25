@@ -23,7 +23,7 @@
 #include "kv_bucket.h"
 
 #include <folly/portability/GTest.h>
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine_error.h>
 #include <memcached/storeddockey_fwd.h>
@@ -78,7 +78,7 @@ public:
     // Stores an item into the given vbucket. Returns the item stored.
     Item store_item(
             Vbid vbid,
-            const DocKey& key,
+            const DocKeyView& key,
             const std::string& value,
             uint32_t exptime = 0,
             const std::vector<cb::engine_errc>& expected =
@@ -90,7 +90,7 @@ public:
     // Stores a tombstone that can have a value
     Item store_deleted_item(
             Vbid vbid,
-            const DocKey& key,
+            const DocKeyView& key,
             const std::string& value,
             uint32_t exptime = 0,
             const std::vector<cb::engine_errc>& expected =
@@ -105,7 +105,7 @@ public:
     [[nodiscard]] ::testing::AssertionResult store_items(
             int nitems,
             Vbid vbid,
-            const DocKey& key,
+            const DocKeyView& key,
             const std::string& value,
             uint32_t exptime = 0,
             protocol_binary_datatype_t datatype =
@@ -117,7 +117,7 @@ public:
      */
     [[nodiscard]] ::testing::AssertionResult store_item_replica(
             Vbid vbid,
-            const DocKey& key,
+            const DocKeyView& key,
             const std::string& value,
             uint64_t seqno,
             uint32_t exptime = 0,
@@ -131,7 +131,7 @@ public:
      */
     Item store_pending_item(
             Vbid vbid,
-            const DocKey& key,
+            const DocKeyView& key,
             const std::string& value,
             uint32_t exptime = 0,
             const std::vector<cb::engine_errc>& expected =
@@ -197,7 +197,7 @@ public:
     /* Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */
-    void delete_item(Vbid vbid, const DocKey& key);
+    void delete_item(Vbid vbid, const DocKeyView& key);
 
     /**
      * Store and delete a given key
@@ -206,15 +206,17 @@ public:
      * @param key    key that needs to be stored and deleted
      * @param value  value for the key
      */
-    void storeAndDeleteItem(Vbid vbid, const DocKey& key, std::string value);
+    void storeAndDeleteItem(Vbid vbid,
+                            const DocKeyView& key,
+                            std::string value);
 
     /* Evict the given key from memory according to the current eviction
      * strategy. Verifies it was successfully evicted.
      */
-    void evict_key(Vbid vbid, const DocKey& key);
+    void evict_key(Vbid vbid, const DocKeyView& key);
 
     /// Exposes the normally-protected getInternal method from the store.
-    GetValue getInternal(const DocKey& key,
+    GetValue getInternal(const DocKeyView& key,
                          Vbid vbucket,
                          CookieIface* cookie,
                          ForGetReplicaOp getReplicaItem,
@@ -235,7 +237,7 @@ public:
      * @result engine error code signifying result of the operation
      */
     cb::engine_errc getMeta(Vbid vbid,
-                            const DocKey key,
+                            const DocKeyView key,
                             CookieIface* cookie,
                             ItemMetaData& itemMeta,
                             uint32_t& deleted,

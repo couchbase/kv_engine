@@ -31,13 +31,14 @@ TEST(StoredDocKeyTest, trackedByAllocator) {
 
     // Expect 0 bytes alloc for small string due to SSO
     StoredDocKeyT<MemoryTrackingAllocator> key1(
-            DocKey("small", DocKeyEncodesCollectionId::Yes), allocator);
+            DocKeyView("small", DocKeyEncodesCollectionId::Yes), allocator);
     EXPECT_EQ(0, allocator.getBytesAllocated());
 
     // Expect alloc for string >> 24 bytes
     StoredDocKeyT<MemoryTrackingAllocator> key2(
-            DocKey("long - - - - - - - - - - - - - - - - - - - - - - - - - ",
-                   DocKeyEncodesCollectionId::Yes), // Simplifies accounting
+            DocKeyView(
+                    "long - - - - - - - - - - - - - - - - - - - - - - - - - ",
+                    DocKeyEncodesCollectionId::Yes), // Simplifies accounting
             allocator);
 
     // We can't calculate the exact allocation as it may differ across
@@ -68,7 +69,8 @@ TEST_P(StoredDocKeyTest, constructors) {
     // prefixed key - i.e. a collection-aware key
     std::array<uint8_t, 5> keyRaw{
             {uint8_t(uint32_t{GetParam()}), 'k', 'e', 'y', '!'}};
-    DocKey docKey(keyRaw.data(), keyRaw.size(), DocKeyEncodesCollectionId::Yes);
+    DocKeyView docKey(
+            keyRaw.data(), keyRaw.size(), DocKeyEncodesCollectionId::Yes);
     StoredDocKey key3(docKey);
 
     // Very important that the both objects return the same hash and ==
@@ -108,7 +110,7 @@ TEST(StoredDocKey, no_encoded_collectionId) {
     // Test construction from a DocKey which is a view onto a key with no
     // encoded prefix
     uint8_t keyRaw[4] = {'k', 'e', 'y', '!'};
-    DocKey docKey(keyRaw, 4, DocKeyEncodesCollectionId::No);
+    DocKeyView docKey(keyRaw, 4, DocKeyEncodesCollectionId::No);
     StoredDocKey key3(docKey);
 
     // Very important that the both objects return the same hash and ==
@@ -160,8 +162,8 @@ TEST_P(StoredDocKeyTest, assignment) {
 TEST_P(StoredDocKeyTestCombi, hash) {
     StoredDocKey key1("key1", std::get<0>(GetParam()));
     StoredDocKey key2("key1", std::get<1>(GetParam()));
-    DocKey docKey1(key1);
-    DocKey docKey2(key2);
+    DocKeyView docKey1(key1);
+    DocKeyView docKey2(key2);
     auto serialKey1 = SerialisedDocKey::make(key1);
     auto serialKey2 = SerialisedDocKey::make(key2);
     if (std::get<0>(GetParam()) != std::get<1>(GetParam())) {

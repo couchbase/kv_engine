@@ -11,7 +11,7 @@
 
 #include <statistics/labelled_collector.h>
 
-#include <memcached/dockey.h>
+#include <memcached/dockey_view.h>
 
 LabelledStatCollector::LabelledStatCollector(const StatCollector& parent,
                                              const Labels& labels)

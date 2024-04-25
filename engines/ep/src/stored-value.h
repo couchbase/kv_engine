@@ -326,7 +326,7 @@ public:
      * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
-    bool hasKey(const DocKey& k) const {
+    bool hasKey(const DocKeyView& k) const {
         return getKey() == k;
     }
 
@@ -827,7 +827,7 @@ public:
     bool operator!=(const StoredValue& other) const;
 
     /// Return how many bytes are need to store item given key as a StoredValue
-    static size_t getRequiredStorage(const DocKey& key);
+    static size_t getRequiredStorage(const DocKeyView& key);
 
     /**
      * @return the deletion source of the stored value
@@ -1246,7 +1246,7 @@ public:
      * @param k the key we're checking
      * @return true if this item's key is equal to k
      */
-    bool hasKey(const DocKey& k) const {
+    bool hasKey(const DocKeyView& k) const {
         return getKey() == k;
     }
 
@@ -1341,7 +1341,7 @@ public:
 
     /// Return how many bytes are need to store item with given key as an
     /// OrderedStoredValue
-    static size_t getRequiredStorage(const DocKey& key);
+    static size_t getRequiredStorage(const DocKeyView& key);
 
     /**
      * Class-specific deallocation function. See comments on

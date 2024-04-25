@@ -110,7 +110,7 @@ public:
     }
 
     cb::unique_item_ptr allocateItem(CookieIface&,
-                                     const DocKey&,
+                                     const DocKeyView&,
                                      size_t,
                                      size_t,
                                      uint32_t,
@@ -121,7 +121,7 @@ public:
     }
 
     cb::engine_errc remove(CookieIface&,
-                           const DocKey&,
+                           const DocKeyView&,
                            uint64_t&,
                            Vbid,
                            const std::optional<cb::durability::Requirements>&,
@@ -133,7 +133,7 @@ public:
     }
 
     cb::EngineErrorItemPair get(CookieIface&,
-                                const DocKey&,
+                                const DocKeyView&,
                                 Vbid,
                                 DocStateFilter) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
@@ -141,27 +141,27 @@ public:
 
     cb::EngineErrorItemPair get_if(
             CookieIface&,
-            const DocKey&,
+            const DocKeyView&,
             Vbid,
             const std::function<bool(const item_info&)>&) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
     cb::EngineErrorMetadataPair get_meta(CookieIface&,
-                                         const DocKey&,
+                                         const DocKeyView&,
                                          Vbid) override {
         return {cb::engine_errc::failed, {}};
     }
 
     cb::EngineErrorItemPair get_locked(CookieIface&,
-                                       const DocKey&,
+                                       const DocKeyView&,
                                        Vbid,
                                        std::chrono::seconds) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
     cb::engine_errc unlock(CookieIface&,
-                           const DocKey&,
+                           const DocKeyView&,
                            Vbid,
                            uint64_t) override {
         return cb::engine_errc::failed;
@@ -169,7 +169,7 @@ public:
 
     cb::EngineErrorItemPair get_and_touch(
             CookieIface&,
-            const DocKey&,
+            const DocKeyView&,
             Vbid,
             uint32_t,
             const std::optional<cb::durability::Requirements>&) override {

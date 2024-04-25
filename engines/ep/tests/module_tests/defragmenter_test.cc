@@ -80,7 +80,7 @@ void DefragmenterTest::setDocs(size_t docSize, size_t num_docs) {
         // jemalloc bin)
         snprintf(keyScratch, sizeof(keyScratch), keyPattern, i);
         // Use DocKey to minimize heap pollution
-        Item item(DocKey(keyScratch, DocKeyEncodesCollectionId::No),
+        Item item(DocKeyView(keyScratch, DocKeyEncodesCollectionId::No),
                   0,
                   0,
                   data.data(),
@@ -103,8 +103,8 @@ void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
             snprintf(keyScratch, sizeof(keyScratch), keyPattern, i);
             auto* item =
                     vbucket->ht
-                            .findForRead(DocKey(keyScratch,
-                                                DocKeyEncodesCollectionId::No))
+                            .findForRead(DocKeyView(
+                                    keyScratch, DocKeyEncodesCollectionId::No))
                             .storedValue;
             ASSERT_NE(nullptr, item);
 
@@ -124,7 +124,7 @@ void DefragmenterTest::fragment(size_t num_docs, size_t& num_remaining) {
                 // Use DocKey to minimize heap pollution
                 snprintf(keyScratch, sizeof(keyScratch), keyPattern, doc_id);
                 auto res = vbucket->ht.findForWrite(
-                        DocKey(keyScratch, DocKeyEncodesCollectionId::No));
+                        DocKeyView(keyScratch, DocKeyEncodesCollectionId::No));
                 ASSERT_TRUE(res.storedValue);
                 vbucket->ht.unlocked_del(res.lock, *res.storedValue);
                 page_to_key.second.pop_back();
