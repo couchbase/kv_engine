@@ -3464,6 +3464,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                       epstats.numOpsGetMetaOnSetWithMeta);
     collector.addStat(Key::ep_workload_pattern,
                       workload->stringOfWorkLoadPattern());
+    collector.addStat(Key::ep_num_invalid_cas, epstats.numInvalidCas);
 
     // these metrics do expose some duplicated information - for the sake
     // of supportability and understandability this is deemed acceptable

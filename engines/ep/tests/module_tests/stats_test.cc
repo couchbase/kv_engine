@@ -1197,6 +1197,7 @@ protected:
         stats.numOpsSetRetMeta.store(nonDefaultCounterValue);
         stats.numOpsDelRetMeta.store(nonDefaultCounterValue);
         stats.numOpsGetMetaOnSetWithMeta.store(nonDefaultCounterValue);
+        stats.numInvalidCas.store(nonDefaultCounterValue);
         stats.alogNumItems.store(nonDefaultCounterValue);
         stats.alogTime.store(nonDefaultCounterValue);
         stats.alogRuntime.store(nonDefaultCounterValue);
@@ -1347,6 +1348,7 @@ protected:
         EXPECT_EQ(initializedValue, stats.numOpsSetRetMeta);
         EXPECT_EQ(initializedValue, stats.numOpsDelRetMeta);
         EXPECT_EQ(initializedValue, stats.numOpsGetMetaOnSetWithMeta);
+        EXPECT_EQ(initializedValue, stats.numInvalidCas);
         EXPECT_EQ(initializedValue, stats.alogNumItems);
         EXPECT_EQ(initializedValue, stats.alogRuntime);
         EXPECT_EQ(initializedValue, stats.rollbackCount);

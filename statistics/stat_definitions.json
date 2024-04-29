@@ -2495,6 +2495,13 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_num_invalid_cas",
+        "description": "The total number of invalid CAS values.",
+        "unit": "none",
+        "type": "counter",
+        "added": "8.0.0"
+    },
+    {
         "key": "get_hits",
         "description": "The number of successful get operations",
         "unit": "none",
