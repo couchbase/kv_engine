@@ -65,6 +65,8 @@ public:
 
     bool operator==(const DocKey& rhs) const;
 
+    bool operator==(const SerialisedDocKey& rhs) const;
+
     /**
      * Return how many bytes are (or need to be) allocated to this object
      */
