@@ -58,14 +58,6 @@ using protocol_binary_datatype_t = uint8_t;
 #define BODY_ONLY_DATATYPE_MASK \
     uint8_t(PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
-/*
- * Bitmask that defines the datatypes that can be resident in memory. For
- * example, DATATYPE_COMPRESSED is excluded as resident items are not
- * compressed.
- * This is useful for efficiently storing statistics about datatypes.
- */
-#define RESIDENT_DATATYPE_MASK uint8_t(5);
-
 std::string to_string(cb::mcbp::Datatype datatype);
 nlohmann::json to_json(cb::mcbp::Datatype datatype);
 
