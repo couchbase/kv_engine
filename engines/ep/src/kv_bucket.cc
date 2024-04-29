@@ -1716,6 +1716,7 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     }
 
     if (!isWithinCasThreshold(vb, itm.getCas())) {
+        ++stats.numInvalidCas;
         if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
             // force failure due to invalid CAS
             return cb::engine_errc::key_already_exists;
@@ -1778,6 +1779,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
 
     auto generateCas = GenerateCas::No;
     if (!isWithinCasThreshold(vb, itm.getCas())) {
+        ++stats.numInvalidCas;
         if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
             // force failure due to invalid CAS
             return cb::engine_errc::key_already_exists;
@@ -2148,6 +2150,7 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
     }
 
     if (!isWithinCasThreshold(vb, itemMeta.cas)) {
+        ++stats.numInvalidCas;
         if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
             // force failure due to invalid CAS
             return cb::engine_errc::key_already_exists;

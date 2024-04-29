@@ -6978,6 +6978,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_num_ops_set_meta",
               "ep_num_ops_set_meta_res_fail",
               "ep_num_ops_set_ret_meta",
+              "ep_num_invalid_cas",
               "ep_num_pager_runs",
               "ep_num_value_ejects",
               "ep_num_workers",
