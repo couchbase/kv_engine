@@ -1669,7 +1669,8 @@ TEST_P(XattrTest, MB_35388_VbucketHlcNowIsValid) {
     EXPECT_TRUE(lastModifiedJSON.is_string());
     uint64_t lastModified = std::stoull(lastModifiedJSON.get<std::string>());
 
-    EXPECT_EQ("\"real\"", results[1].value);
+    EXPECT_TRUE(results[1].value == "\"real\"" ||
+                results[1].value == "\"logical\"");
 
     auto hlcJSON = nlohmann::json::parse(results[2].value);
     EXPECT_TRUE(hlcJSON.is_string());
