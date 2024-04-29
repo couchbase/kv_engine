@@ -2197,7 +2197,6 @@ void ActiveStream::completeBackfillInner(
             const auto diskItemsRead = backfillItems.disk.load();
             const auto runtimeSecs =
                     std::chrono::duration<double>(runtime).count();
-            Expects(runtimeSecs != 0.0);
             log(spdlog::level::level_enum::info,
                 "{} {}Backfill complete. {} items consisting of {} bytes read "
                 "from disk, "
@@ -2206,7 +2205,7 @@ void ActiveStream::completeBackfillInner(
                 "lastSentSnapEndSeqno:{}, pendingBackfill:{}, "
                 "numBackfillPauses:{}. Total "
                 "runtime {} "
-                "({} item/s, {} MB/s)",
+                "({:.0f} item/s, {:.0f} MB/s)",
                 logPrefix,
                 backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
                 diskItemsRead,
@@ -2219,10 +2218,9 @@ void ActiveStream::completeBackfillInner(
                 pendingBackfill ? "True" : "False",
                 numBackfillPauses.load(),
                 cb::time2text(runtime),
-                diskItemsRead ? int(diskItemsRead / runtimeSecs) : 0,
-                diskBytesRead
-                        ? int((diskBytesRead / runtimeSecs) / (1024 * 1024))
-                        : 0);
+                diskItemsRead ? (diskItemsRead / runtimeSecs) : 0.0,
+                diskBytesRead ? ((diskBytesRead / runtimeSecs) / (1024 * 1024))
+                              : 0.0);
         } else {
             log(spdlog::level::level_enum::warn,
                 "{} ActiveStream::completeBackfillInner: "
