@@ -23,9 +23,10 @@
 
 #include <set>
 
+using cb::mcbp::Feature;
 // We can't use a set of enums that easily in an unordered_set.. just use an
 // ordered for now..
-using FeatureSet = std::set<cb::mcbp::Feature>;
+using FeatureSet = std::set<Feature>;
 
 /**
  * Try to see if the provided vector of features contais a certain feature
@@ -34,7 +35,7 @@ using FeatureSet = std::set<cb::mcbp::Feature>;
  * @param feature The feature to check for
  * @return true if it contains the feature, false otherwise
  */
-bool containsFeature(const FeatureSet& features, cb::mcbp::Feature feature) {
+bool containsFeature(const FeatureSet& features, Feature feature) {
     return features.find(feature) != features.end();
 }
 
@@ -52,44 +53,44 @@ void buildRequestVector(FeatureSet& requested,
                         cb::sized_buffer<const uint16_t> input) {
     for (const auto& value : input) {
         const uint16_t in = ntohs(value);
-        const auto feature = cb::mcbp::Feature(in);
+        const auto feature = Feature(in);
 
         switch (feature) {
-        case cb::mcbp::Feature::Invalid:
-        case cb::mcbp::Feature::Invalid2:
-        case cb::mcbp::Feature::TLS:
+        case Feature::Invalid:
+        case Feature::Invalid2:
+        case Feature::TLS:
             // known, but we don't support them
             break;
-        case cb::mcbp::Feature::TCPNODELAY:
-        case cb::mcbp::Feature::TCPDELAY:
-        case cb::mcbp::Feature::MUTATION_SEQNO:
-        case cb::mcbp::Feature::XATTR:
-        case cb::mcbp::Feature::JSON:
-        case cb::mcbp::Feature::SNAPPY:
-        case cb::mcbp::Feature::XERROR:
-        case cb::mcbp::Feature::SELECT_BUCKET:
-        case cb::mcbp::Feature::Collections:
-        case cb::mcbp::Feature::SnappyEverywhere:
-        case cb::mcbp::Feature::PreserveTtl:
-        case cb::mcbp::Feature::Duplex:
-        case cb::mcbp::Feature::ClustermapChangeNotification:
-        case cb::mcbp::Feature::UnorderedExecution:
-        case cb::mcbp::Feature::Tracing:
-        case cb::mcbp::Feature::AltRequestSupport:
-        case cb::mcbp::Feature::SyncReplication:
-        case cb::mcbp::Feature::VAttr:
-        case cb::mcbp::Feature::PiTR:
-        case cb::mcbp::Feature::SubdocCreateAsDeleted:
-        case cb::mcbp::Feature::SubdocDocumentMacroSupport:
-        case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
-        case cb::mcbp::Feature::ReportUnitUsage:
-        case cb::mcbp::Feature::NonBlockingThrottlingMode:
-        case cb::mcbp::Feature::SubdocReplicaRead:
-        case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
-        case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
-        case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
-        case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
-        case cb::mcbp::Feature::SubdocBinaryXattr:
+        case Feature::TCPNODELAY:
+        case Feature::TCPDELAY:
+        case Feature::MUTATION_SEQNO:
+        case Feature::XATTR:
+        case Feature::JSON:
+        case Feature::SNAPPY:
+        case Feature::XERROR:
+        case Feature::SELECT_BUCKET:
+        case Feature::Collections:
+        case Feature::SnappyEverywhere:
+        case Feature::PreserveTtl:
+        case Feature::Duplex:
+        case Feature::ClustermapChangeNotification:
+        case Feature::UnorderedExecution:
+        case Feature::Tracing:
+        case Feature::AltRequestSupport:
+        case Feature::SyncReplication:
+        case Feature::VAttr:
+        case Feature::PiTR:
+        case Feature::SubdocCreateAsDeleted:
+        case Feature::SubdocDocumentMacroSupport:
+        case Feature::SubdocReplaceBodyWithXattr:
+        case Feature::ReportUnitUsage:
+        case Feature::NonBlockingThrottlingMode:
+        case Feature::SubdocReplicaRead:
+        case Feature::GetClusterConfigWithKnownVersion:
+        case Feature::DedupeNotMyVbucketClustermap:
+        case Feature::ClustermapChangeNotificationBrief:
+        case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        case Feature::SubdocBinaryXattr:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -104,63 +105,63 @@ void buildRequestVector(FeatureSet& requested,
     // Run through the requested array and make sure we don't have
     // illegal combinations
     for (const auto& feature : requested) {
-        switch (cb::mcbp::Feature(feature)) {
-        case cb::mcbp::Feature::Invalid:
-        case cb::mcbp::Feature::TLS:
-        case cb::mcbp::Feature::MUTATION_SEQNO:
-        case cb::mcbp::Feature::XATTR:
-        case cb::mcbp::Feature::XERROR:
-        case cb::mcbp::Feature::SELECT_BUCKET:
-        case cb::mcbp::Feature::Invalid2:
-        case cb::mcbp::Feature::SNAPPY:
-        case cb::mcbp::Feature::JSON:
-        case cb::mcbp::Feature::Tracing:
-        case cb::mcbp::Feature::AltRequestSupport:
-        case cb::mcbp::Feature::SyncReplication:
-        case cb::mcbp::Feature::Duplex:
-        case cb::mcbp::Feature::UnorderedExecution:
-        case cb::mcbp::Feature::Collections:
-        case cb::mcbp::Feature::SnappyEverywhere:
-        case cb::mcbp::Feature::PreserveTtl:
-        case cb::mcbp::Feature::PiTR:
-        case cb::mcbp::Feature::SubdocCreateAsDeleted:
-        case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
-        case cb::mcbp::Feature::ReportUnitUsage:
-        case cb::mcbp::Feature::NonBlockingThrottlingMode:
-        case cb::mcbp::Feature::SubdocReplicaRead:
-        case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
-        case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
-        case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
-        case cb::mcbp::Feature::SubdocBinaryXattr:
+        switch (Feature(feature)) {
+        case Feature::Invalid:
+        case Feature::TLS:
+        case Feature::MUTATION_SEQNO:
+        case Feature::XATTR:
+        case Feature::XERROR:
+        case Feature::SELECT_BUCKET:
+        case Feature::Invalid2:
+        case Feature::SNAPPY:
+        case Feature::JSON:
+        case Feature::Tracing:
+        case Feature::AltRequestSupport:
+        case Feature::SyncReplication:
+        case Feature::Duplex:
+        case Feature::UnorderedExecution:
+        case Feature::Collections:
+        case Feature::SnappyEverywhere:
+        case Feature::PreserveTtl:
+        case Feature::PiTR:
+        case Feature::SubdocCreateAsDeleted:
+        case Feature::SubdocReplaceBodyWithXattr:
+        case Feature::ReportUnitUsage:
+        case Feature::NonBlockingThrottlingMode:
+        case Feature::SubdocReplicaRead:
+        case Feature::GetClusterConfigWithKnownVersion:
+        case Feature::DedupeNotMyVbucketClustermap:
+        case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        case Feature::SubdocBinaryXattr:
             // No other dependency
             break;
 
-        case cb::mcbp::Feature::TCPNODELAY:
+        case Feature::TCPNODELAY:
             // cannot co-exist with TCPDELAY
-            if (containsFeature(requested, cb::mcbp::Feature::TCPDELAY)) {
+            if (containsFeature(requested, Feature::TCPDELAY)) {
                 throw std::invalid_argument(
                         "TCPNODELAY cannot co-exist with TCPDELAY");
             }
             break;
-        case cb::mcbp::Feature::TCPDELAY:
+        case Feature::TCPDELAY:
             // cannot co-exist with TCPNODELAY
-            if (containsFeature(requested, cb::mcbp::Feature::TCPNODELAY)) {
+            if (containsFeature(requested, Feature::TCPNODELAY)) {
                 throw std::invalid_argument(
                         "TCPDELAY cannot co-exist with TCPNODELAY");
             }
             break;
-        case cb::mcbp::Feature::ClustermapChangeNotification:
-        case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
+        case Feature::ClustermapChangeNotification:
+        case Feature::ClustermapChangeNotificationBrief:
             // Needs duplex
-            if (!containsFeature(requested, cb::mcbp::Feature::Duplex)) {
+            if (!containsFeature(requested, Feature::Duplex)) {
                 throw std::invalid_argument(to_string(feature) +
                                             " needs Duplex");
             }
             break;
-        case cb::mcbp::Feature::SubdocDocumentMacroSupport:
-        case cb::mcbp::Feature::VAttr:
+        case Feature::SubdocDocumentMacroSupport:
+        case Feature::VAttr:
             // Needs XATTR
-            if (!containsFeature(requested, cb::mcbp::Feature::XATTR)) {
+            if (!containsFeature(requested, Feature::XATTR)) {
                 throw std::invalid_argument(to_string(feature) +
                                             " needs XATTR");
             }
@@ -171,8 +172,8 @@ void buildRequestVector(FeatureSet& requested,
     // Make sure that we only enable the "brief" version if the client
     // asked for both
     if (containsFeature(requested,
-                        cb::mcbp::Feature::ClustermapChangeNotificationBrief)) {
-        requested.erase(cb::mcbp::Feature::ClustermapChangeNotification);
+                        Feature::ClustermapChangeNotificationBrief)) {
+        requested.erase(Feature::ClustermapChangeNotification);
     }
 }
 
@@ -272,49 +273,49 @@ void process_hello_packet_executor(Cookie& cookie) {
         bool added = false;
 
         switch (feature) {
-        case cb::mcbp::Feature::Invalid:
-        case cb::mcbp::Feature::Invalid2:
-        case cb::mcbp::Feature::TLS:
+        case Feature::Invalid:
+        case Feature::Invalid2:
+        case Feature::TLS:
             // Not implemented
             LOG_INFO("{}: {} requested unsupported feature {}",
                      connection.getId(),
                      connection.getDescription(),
                      to_string(feature));
             break;
-        case cb::mcbp::Feature::TCPNODELAY:
-        case cb::mcbp::Feature::TCPDELAY:
-            connection.setTcpNoDelay(feature == cb::mcbp::Feature::TCPNODELAY);
+        case Feature::TCPNODELAY:
+        case Feature::TCPDELAY:
+            connection.setTcpNoDelay(feature == Feature::TCPNODELAY);
             added = true;
             break;
 
-        case cb::mcbp::Feature::MUTATION_SEQNO:
+        case Feature::MUTATION_SEQNO:
             connection.setSupportsMutationExtras(true);
             added = true;
             break;
-        case cb::mcbp::Feature::XATTR:
+        case Feature::XATTR:
             if (Settings::instance().isXattrEnabled() ||
                 connection.isInternal()) {
-                connection.enableDatatype(cb::mcbp::Feature::XATTR);
+                connection.enableDatatype(Feature::XATTR);
                 added = true;
             }
             break;
-        case cb::mcbp::Feature::JSON:
+        case Feature::JSON:
             if (Settings::instance().isDatatypeJsonEnabled()) {
-                connection.enableDatatype(cb::mcbp::Feature::JSON);
+                connection.enableDatatype(Feature::JSON);
                 added = true;
             }
             break;
-        case cb::mcbp::Feature::SNAPPY:
+        case Feature::SNAPPY:
             if (Settings::instance().isDatatypeSnappyEnabled()) {
-                connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+                connection.enableDatatype(Feature::SNAPPY);
                 added = true;
             }
             break;
-        case cb::mcbp::Feature::XERROR:
+        case Feature::XERROR:
             connection.setXerrorSupport(true);
             added = true;
             break;
-        case cb::mcbp::Feature::Collections: {
+        case Feature::Collections: {
             auto& bucket = connection.getBucket();
             // Abort if the engine cannot support collections
             if (bucket.supports(cb::engine::Feature::Collections)) {
@@ -322,32 +323,32 @@ void process_hello_packet_executor(Cookie& cookie) {
                 added = true;
             }
         } break;
-        case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
+        case Feature::DedupeNotMyVbucketClustermap:
             connection.setDedupeNmvbMaps(true);
             added = true;
             break;
-        case cb::mcbp::Feature::SnappyEverywhere:
+        case Feature::SnappyEverywhere:
             if (Settings::instance().isDatatypeSnappyEnabled()) {
                 connection.setSupportsSnappyEverywhere(true);
-                connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+                connection.enableDatatype(Feature::SNAPPY);
                 added = true;
             }
             break;
-        case cb::mcbp::Feature::Duplex:
+        case Feature::Duplex:
             connection.setDuplexSupported(true);
             added = true;
             break;
-        case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
+        case Feature::ClustermapChangeNotificationBrief:
             connection.setClustermapChangeNotification(
                     ClustermapChangeNotification::Brief);
             added = true;
             break;
-        case cb::mcbp::Feature::ClustermapChangeNotification:
+        case Feature::ClustermapChangeNotification:
             connection.setClustermapChangeNotification(
                     ClustermapChangeNotification::Full);
             added = true;
             break;
-        case cb::mcbp::Feature::UnorderedExecution:
+        case Feature::UnorderedExecution:
             if (connection.isDCP()) {
                 LOG_INFO(
                         "{}: {} Unordered execution is not supported for "
@@ -360,7 +361,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
 
-        case cb::mcbp::Feature::Tracing:
+        case Feature::Tracing:
             if (Settings::instance().isTracingEnabled()) {
                 connection.setTracingEnabled(true);
                 added = true;
@@ -372,29 +373,29 @@ void process_hello_packet_executor(Cookie& cookie) {
             }
             break;
 
-        case cb::mcbp::Feature::ReportUnitUsage:
+        case Feature::ReportUnitUsage:
             if (cb::serverless::isEnabled()) {
                 connection.setReportUnitUsage(true);
                 added = true;
             }
             break;
-        case cb::mcbp::Feature::NonBlockingThrottlingMode:
+        case Feature::NonBlockingThrottlingMode:
             connection.setNonBlockingThrottlingMode(true);
             added = true;
             break;
-        case cb::mcbp::Feature::PreserveTtl:
-        case cb::mcbp::Feature::VAttr:
-        case cb::mcbp::Feature::SubdocDocumentMacroSupport:
-        case cb::mcbp::Feature::PiTR:
-        case cb::mcbp::Feature::SubdocCreateAsDeleted:
-        case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
-        case cb::mcbp::Feature::SubdocReplicaRead:
-        case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
-        case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
-        case cb::mcbp::Feature::SubdocBinaryXattr:
-        case cb::mcbp::Feature::SELECT_BUCKET:
-        case cb::mcbp::Feature::AltRequestSupport:
-        case cb::mcbp::Feature::SyncReplication:
+        case Feature::PreserveTtl:
+        case Feature::VAttr:
+        case Feature::SubdocDocumentMacroSupport:
+        case Feature::PiTR:
+        case Feature::SubdocCreateAsDeleted:
+        case Feature::SubdocReplaceBodyWithXattr:
+        case Feature::SubdocReplicaRead:
+        case Feature::GetClusterConfigWithKnownVersion:
+        case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        case Feature::SubdocBinaryXattr:
+        case Feature::SELECT_BUCKET:
+        case Feature::AltRequestSupport:
+        case Feature::SyncReplication:
             // Informative features don't need special handling
             added = true;
             break;
