@@ -2604,7 +2604,10 @@ KVStoreIface* KVBucket::getOneRWUnderlying() {
 }
 
 TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
-    std::unique_lock<std::mutex> vbset(vbsetMutex);
+    std::unique_lock<std::mutex> vbset(vbsetMutex, std::try_to_lock);
+    if (!vbset.owns_lock()) {
+        return TaskStatus::Reschedule; // Reschedule a vbucket rollback task.
+    }
 
     auto vb = getLockedVBucket(vbid, std::try_to_lock);
 
