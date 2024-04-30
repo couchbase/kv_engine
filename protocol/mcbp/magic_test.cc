@@ -27,9 +27,10 @@ TEST(Magic, to_string) {
         auto magic = cb::mcbp::Magic(ii);
         auto entry = magicBlueprint.find(magic);
         if (entry == magicBlueprint.end()) {
-            EXPECT_THROW(to_string(magic), std::invalid_argument);
+            EXPECT_EQ(fmt::format("unknown_{:#x}", static_cast<uint8_t>(magic)),
+                      fmt::format("{}", magic));
         } else {
-            EXPECT_EQ(entry->second, to_string(entry->first));
+            EXPECT_EQ(entry->second, fmt::format("{}", entry->first));
         }
     }
 }

@@ -24,7 +24,7 @@ nlohmann::json Response::to_json(bool validated) const {
 
     nlohmann::json ret;
     auto m = cb::mcbp::Magic(magic);
-    ret["magic"] = ::to_string(m);
+    ret["magic"] = m;
 
     if (is_client_magic(m)) {
         ret["opcode"] = ::to_string(getClientOpcode());

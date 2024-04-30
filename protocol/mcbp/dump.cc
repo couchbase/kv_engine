@@ -171,7 +171,7 @@ protected:
         const auto* bytes = reinterpret_cast<const uint8_t*>(&request);
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : " << cb::to_hex(bytes[0]) << " ("
-            << to_string(request.getMagic()) << ")" << std::endl;
+            << fmt::format("{}", request.getMagic()) << ")" << std::endl;
         out << "    Opcode       (1)    : " << cb::to_hex(bytes[1]) << " (";
         if (cb::mcbp::is_client_magic(request.getMagic())) {
             out << to_string(request.getClientOpcode()) << ")" << std::endl;
@@ -412,7 +412,7 @@ protected:
         const auto* bytes = reinterpret_cast<const uint8_t*>(&response);
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : " << cb::to_hex(bytes[0]) << " ("
-            << to_string(response.getMagic()) << ")" << std::endl;
+            << fmt::format("{}", response.getMagic()) << ")" << std::endl;
         out << "    Opcode       (1)    : " << cb::to_hex(bytes[1]) << " (";
         if (cb::mcbp::is_client_magic(response.getMagic())) {
             out << to_string(response.getClientOpcode()) << ")" << std::endl;

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -10,6 +9,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <string>
 
@@ -18,7 +18,7 @@ namespace cb::mcbp {
  * Definition of the legal "magic" values used in a packet.
  * See section 3.1 Magic byte
  */
-enum class Magic : uint8_t {
+enum class [[nodiscard]] Magic : uint8_t {
     /// Request packet from client to server
     ClientRequest = 0x80,
     /// The alternative request packet containing frame extras
@@ -33,11 +33,14 @@ enum class Magic : uint8_t {
     ServerResponse = 0x83
 };
 
+[[nodiscard]] std::string format_as(Magic);
+void to_json(nlohmann::json&, const Magic&);
+
 /**
  * Test to see if the provided magic value is a legal value or not
  * (in the case it is generated from a uint8_t received over the network).
  */
-bool is_legal(Magic magic);
+[[nodiscard]] bool is_legal(Magic magic);
 
 /**
  * Test to check if the magic represents one of the available request
@@ -45,7 +48,7 @@ bool is_legal(Magic magic);
  *
  * @throws std::invalid_argument for invalid magic
  */
-bool is_request(Magic magic);
+[[nodiscard]] bool is_request(Magic magic);
 
 /**
  * Test to check if the magic represents one of the available response
@@ -53,7 +56,7 @@ bool is_request(Magic magic);
  *
  * @throws std::invalid_argument for invalid magic
  */
-inline bool is_response(Magic magic) {
+[[nodiscard]] inline bool is_response(Magic magic) {
     return !is_request(magic);
 }
 
@@ -62,14 +65,14 @@ inline bool is_response(Magic magic) {
  *
  * @throws std::invalid_argument for invalid magic
  */
-bool is_client_magic(Magic magic);
+[[nodiscard]] bool is_client_magic(Magic magic);
 
 /**
  * Return true if the magic represents one of the server magics.
  *
  * @throws std::invalid_argument for invalid magic
  */
-inline bool is_server_magic(Magic magic) {
+[[nodiscard]] inline bool is_server_magic(Magic magic) {
     return !is_client_magic(magic);
 }
 
@@ -78,8 +81,6 @@ inline bool is_server_magic(Magic magic) {
  *
  * @throws std::invalid_argument for invalid magic
  */
-bool is_alternative_encoding(Magic magic);
+[[nodiscard]] bool is_alternative_encoding(Magic magic);
 
 } // namespace cb::mcbp
-
-std::string to_string(cb::mcbp::Magic magic);

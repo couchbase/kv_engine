@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -9,33 +8,37 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <fmt/format.h>
 #include <mcbp/protocol/magic.h>
+#include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <stdexcept>
 #include <string>
 
-std::string to_string(cb::mcbp::Magic magic) {
+namespace cb::mcbp {
+
+std::string format_as(Magic magic) {
     switch (magic) {
-    case cb::mcbp::Magic::ClientRequest:
+    case Magic::ClientRequest:
         return "ClientRequest";
-    case cb::mcbp::Magic::AltClientRequest:
+    case Magic::AltClientRequest:
         return "AltClientRequest";
-    case cb::mcbp::Magic::ClientResponse:
+    case Magic::ClientResponse:
         return "ClientResponse";
-    case cb::mcbp::Magic::AltClientResponse:
+    case Magic::AltClientResponse:
         return "AltClientResponse";
-    case cb::mcbp::Magic::ServerRequest:
+    case Magic::ServerRequest:
         return "ServerRequest";
-    case cb::mcbp::Magic::ServerResponse:
+    case Magic::ServerResponse:
         return "ServerResponse";
     }
 
-    throw std::invalid_argument(
-            "to_string(cb::mcbp::Magic magic): Invalid value: " +
-            std::to_string(uint8_t(magic)));
+    return fmt::format("unknown_{:#x}", static_cast<uint8_t>(magic));
 }
 
-namespace cb::mcbp {
+void to_json(nlohmann::json& json, const Magic& magic) {
+    json = format_as(magic);
+}
 
 bool is_legal(Magic magic) {
     switch (magic) {
