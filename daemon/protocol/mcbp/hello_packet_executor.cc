@@ -22,6 +22,7 @@
 #include <serverless/config.h>
 
 #include <set>
+#include <span>
 
 using cb::mcbp::Feature;
 // We can't use a set of enums that easily in an unordered_set.. just use an
@@ -39,7 +40,7 @@ using FeatureSet = std::set<Feature>;
  * @param input The input array
  */
 void buildRequestVector(FeatureSet& requested,
-                        cb::sized_buffer<const uint16_t> input) {
+                        std::span<const uint16_t> input) {
     for (const auto& value : input) {
         const uint16_t in = ntohs(value);
         const auto feature = static_cast<Feature>(in);
@@ -173,7 +174,7 @@ void process_hello_packet_executor(Cookie& cookie) {
 
     std::string_view key = req.getKeyString();
     auto valuebuf = req.getValue();
-    const cb::sized_buffer<const uint16_t> input{
+    const std::span<const uint16_t> input{
             reinterpret_cast<const uint16_t*>(valuebuf.data()),
             valuebuf.size() / 2};
 

@@ -18,6 +18,7 @@
 #include <cctype>
 #include <cstring>
 #include <iomanip>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -293,7 +294,7 @@ protected:
                     "HelloRequest::dumpValue(): value must be in words");
         }
 
-        cb::sized_buffer<const uint16_t> features = {
+        std::span<const uint16_t> features = {
                 reinterpret_cast<const uint16_t*>(value.data()),
                 value.size() / 2};
         ptrdiff_t first =
@@ -471,7 +472,7 @@ protected:
                     "HelloResponse::dumpValue(): value must be in words");
         }
 
-        cb::sized_buffer<const uint16_t> features = {
+        std::span<const uint16_t> features = {
                 reinterpret_cast<const uint16_t*>(value.data()),
                 value.size() / 2};
         ptrdiff_t first =
