@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -9,81 +8,84 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <fmt/format.h>
 #include <mcbp/protocol/feature.h>
-#include <stdexcept>
+#include <nlohmann/json.hpp>
 #include <string>
 
-std::string to_string(cb::mcbp::Feature feature) {
+std::string cb::mcbp::format_as(Feature feature) {
     switch (feature) {
-    case cb::mcbp::Feature::Invalid:
+    case Feature::Invalid:
         return "Invalid";
-    case cb::mcbp::Feature::TLS:
+    case Feature::TLS:
         return "TLS";
-    case cb::mcbp::Feature::TCPNODELAY:
+    case Feature::TCPNODELAY:
         return "TCP nodelay";
-    case cb::mcbp::Feature::MUTATION_SEQNO:
+    case Feature::MUTATION_SEQNO:
         return "Mutation seqno";
-    case cb::mcbp::Feature::TCPDELAY:
+    case Feature::TCPDELAY:
         return "TCP delay";
-    case cb::mcbp::Feature::XATTR:
+    case Feature::XATTR:
         return "XATTR";
-    case cb::mcbp::Feature::XERROR:
+    case Feature::XERROR:
         return "XERROR";
-    case cb::mcbp::Feature::SELECT_BUCKET:
+    case Feature::SELECT_BUCKET:
         return "Select bucket";
-    case cb::mcbp::Feature::Invalid2:
+    case Feature::Invalid2:
         return "Invalid2";
-    case cb::mcbp::Feature::SNAPPY:
+    case Feature::SNAPPY:
         return "Snappy";
-    case cb::mcbp::Feature::JSON:
+    case Feature::JSON:
         return "JSON";
-    case cb::mcbp::Feature::Duplex:
+    case Feature::Duplex:
         return "Duplex";
-    case cb::mcbp::Feature::ClustermapChangeNotification:
+    case Feature::ClustermapChangeNotification:
         return "Clustermap change notification";
-    case cb::mcbp::Feature::UnorderedExecution:
+    case Feature::UnorderedExecution:
         return "Unordered execution";
-    case cb::mcbp::Feature::Tracing:
+    case Feature::Tracing:
         return "Tracing";
-    case cb::mcbp::Feature::AltRequestSupport:
+    case Feature::AltRequestSupport:
         return "AltRequestSupport";
-    case cb::mcbp::Feature::SyncReplication:
+    case Feature::SyncReplication:
         return "SyncReplication";
-    case cb::mcbp::Feature::Collections:
+    case Feature::Collections:
         return "Collections";
-    case cb::mcbp::Feature::SnappyEverywhere:
+    case Feature::SnappyEverywhere:
         return "SnappyEverywhere";
-    case cb::mcbp::Feature::PreserveTtl:
+    case Feature::PreserveTtl:
         return "PreserveTtl";
-    case cb::mcbp::Feature::VAttr:
+    case Feature::VAttr:
         return "VAttr";
-    case cb::mcbp::Feature::PiTR:
+    case Feature::PiTR:
         return "PiTR";
-    case cb::mcbp::Feature::SubdocCreateAsDeleted:
+    case Feature::SubdocCreateAsDeleted:
         return "SubdocCreateAsDeleted";
-    case cb::mcbp::Feature::SubdocDocumentMacroSupport:
+    case Feature::SubdocDocumentMacroSupport:
         return "SubdocDocumentMacroSupport";
-    case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
+    case Feature::SubdocReplaceBodyWithXattr:
         return "SubdocReplaceBodyWithXattr";
-    case cb::mcbp::Feature::ReportUnitUsage:
+    case Feature::ReportUnitUsage:
         return "ReportUnitUsage";
-    case cb::mcbp::Feature::NonBlockingThrottlingMode:
+    case Feature::NonBlockingThrottlingMode:
         return "NonBlockingThrottlingMode";
-    case cb::mcbp::Feature::SubdocReplicaRead:
+    case Feature::SubdocReplicaRead:
         return "SubdocReplicaRead";
-    case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
+    case Feature::GetClusterConfigWithKnownVersion:
         return "GetClusterConfigWithKnownVersion";
-    case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
+    case Feature::DedupeNotMyVbucketClustermap:
         return "DedupeNotMyVbucketClustermap";
-    case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
+    case Feature::ClustermapChangeNotificationBrief:
         return "ClustermapChangeNotificationBrief";
-    case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+    case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         return "SubdocAllowsAccessOnMultipleXattrKeys";
-    case cb::mcbp::Feature::SubdocBinaryXattr:
+    case Feature::SubdocBinaryXattr:
         return "SubdocBinaryXattr";
     }
 
-    throw std::invalid_argument(
-            "to_string(cb::mcbp::Feature): unknown feature: " +
-            std::to_string(uint16_t(feature)));
+    return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));
+}
+
+void cb::mcbp::to_json(nlohmann::json& json, const Feature& feature) {
+    json = format_as(feature);
 }

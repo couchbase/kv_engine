@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <string>
 
@@ -24,7 +25,7 @@ namespace cb::mcbp {
  * is linked with general xattr support and the ability to set the xattr
  * datatype bit using set_with_meta.
  */
-enum class Feature : uint16_t {
+enum class [[nodiscard]] Feature : uint16_t {
     /// Previously DATATYPE, now retired
     Invalid = 0x01,
     /// The client wants to TLS and send STARTTLS (Never implemented)
@@ -158,6 +159,7 @@ enum class Feature : uint16_t {
     SubdocBinaryXattr = 0x21,
 };
 
-} // namespace cb::mcbp
+[[nodiscard]] std::string format_as(Feature feature);
+void to_json(nlohmann::json&, const Feature&);
 
-std::string to_string(cb::mcbp::Feature feature);
+} // namespace cb::mcbp

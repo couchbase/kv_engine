@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -53,7 +52,7 @@ void buildRequestVector(FeatureSet& requested,
                         cb::sized_buffer<const uint16_t> input) {
     for (const auto& value : input) {
         const uint16_t in = ntohs(value);
-        const auto feature = Feature(in);
+        const auto feature = static_cast<Feature>(in);
 
         switch (feature) {
         case Feature::Invalid:
@@ -140,30 +139,34 @@ void buildRequestVector(FeatureSet& requested,
             // cannot co-exist with TCPDELAY
             if (containsFeature(requested, Feature::TCPDELAY)) {
                 throw std::invalid_argument(
-                        "TCPNODELAY cannot co-exist with TCPDELAY");
+                        fmt::format("{} cannot co-exist with {}",
+                                    Feature::TCPNODELAY,
+                                    Feature::TCPDELAY));
             }
             break;
         case Feature::TCPDELAY:
             // cannot co-exist with TCPNODELAY
             if (containsFeature(requested, Feature::TCPNODELAY)) {
                 throw std::invalid_argument(
-                        "TCPDELAY cannot co-exist with TCPNODELAY");
+                        fmt::format("{} cannot co-exist with {}",
+                                    Feature::TCPDELAY,
+                                    Feature::TCPNODELAY));
             }
             break;
         case Feature::ClustermapChangeNotification:
         case Feature::ClustermapChangeNotificationBrief:
             // Needs duplex
             if (!containsFeature(requested, Feature::Duplex)) {
-                throw std::invalid_argument(to_string(feature) +
-                                            " needs Duplex");
+                throw std::invalid_argument(
+                        fmt::format("{} needs {}", feature, Feature::Duplex));
             }
             break;
         case Feature::SubdocDocumentMacroSupport:
         case Feature::VAttr:
             // Needs XATTR
             if (!containsFeature(requested, Feature::XATTR)) {
-                throw std::invalid_argument(to_string(feature) +
-                                            " needs XATTR");
+                throw std::invalid_argument(
+                        fmt::format("{} needs {}", feature, Feature::XATTR));
             }
             break;
         }
@@ -184,9 +187,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     log_buffer.reserve(512);
     log_buffer.append("HELO ");
 
-    auto keybuf = req.getKey();
-    std::string_view key{reinterpret_cast<const char*>(keybuf.data()),
-                         keybuf.size()};
+    std::string_view key = req.getKeyString();
     auto valuebuf = req.getValue();
     const cb::sized_buffer<const uint16_t> input{
             reinterpret_cast<const uint16_t*>(valuebuf.data()),
@@ -198,8 +199,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     if (connection.getNumberOfCookies() > 1) {
         LOG_INFO(
                 "{}: {} Changing options via HELO is not possible with "
-                "multiple "
-                "commands in flight",
+                "multiple commands in flight",
                 connection.getId(),
                 connection.getDescription());
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
@@ -280,7 +280,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             LOG_INFO("{}: {} requested unsupported feature {}",
                      connection.getId(),
                      connection.getDescription(),
-                     to_string(feature));
+                     feature);
             break;
         case Feature::TCPNODELAY:
         case Feature::TCPDELAY:
@@ -403,7 +403,7 @@ void process_hello_packet_executor(Cookie& cookie) {
 
         if (added) {
             out.push_back(htons(uint16_t(feature)));
-            log_buffer.append(to_string(feature));
+            log_buffer.append(format_as(feature));
             log_buffer.append(", ");
         }
     }

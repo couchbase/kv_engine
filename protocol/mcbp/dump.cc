@@ -301,15 +301,9 @@ protected:
                 value.data() - reinterpret_cast<const uint8_t*>(&header);
         out << "    Body                :" << std::endl;
         for (auto& val : features) {
-            std::string text;
-            try {
-                text = to_string(cb::mcbp::Feature(ntohs(val)));
-            } catch (...) {
-                text = std::to_string(ntohs(val));
-            }
-
-            out << "                 (" << first << "-" << first + 1
-                << "): " << text << std::endl;
+            out << "                 (" << first << "-" << first + 1 << "): "
+                << fmt::format("{}", static_cast<cb::mcbp::Feature>(ntohs(val)))
+                << std::endl;
             first += 2;
         }
     }
@@ -485,15 +479,9 @@ protected:
                 value.data() - reinterpret_cast<const uint8_t*>(&header);
         out << "    Body                :" << std::endl;
         for (auto& val : features) {
-            std::string text;
-            try {
-                text = to_string(cb::mcbp::Feature(ntohs(val)));
-            } catch (...) {
-                text = std::to_string(ntohs(val));
-            }
-
-            out << "                 (" << first << "-" << first + 1
-                << "): " << text << std::endl;
+            out << "                 (" << first << "-" << first + 1 << "): "
+                << fmt::format("{}", static_cast<cb::mcbp::Feature>(ntohs(val)))
+                << std::endl;
             first += 2;
         }
     }

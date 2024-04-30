@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -8,6 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <fmt/format.h>
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/feature.h>
 #include <stdexcept>
@@ -56,8 +56,8 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::SubdocBinaryXattr, "SubdocBinaryXattr"}}};
 
 TEST(to_string, LegalValues) {
-    for (const auto& entry : featureBlueprint) {
-        EXPECT_EQ(entry.second, to_string(entry.first));
+    for (const auto& [feature, name] : featureBlueprint) {
+        EXPECT_EQ(name, fmt::format("{}", feature));
     }
 }
 
@@ -69,9 +69,10 @@ TEST(to_string, LegalValues) {
 TEST(to_string, IllegalValues) {
     auto end = uint32_t(std::numeric_limits<uint16_t>::max()) + 1;
     for (uint32_t ii = 0; ii < end; ++ii) {
-        auto feature = cb::mcbp::Feature(ii);
+        auto feature = static_cast<cb::mcbp::Feature>(ii);
         if (featureBlueprint.find(feature) == featureBlueprint.end()) {
-            EXPECT_THROW(to_string(feature), std::invalid_argument);
+            EXPECT_EQ(fmt::format("unknown_{:#x}", ii),
+                      fmt::format("{}", feature));
         }
     }
 }

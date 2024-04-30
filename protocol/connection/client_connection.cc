@@ -1650,19 +1650,16 @@ void MemcachedConnection::setFeatures(
     }
 
     // Verify that I was able to set all of them
-    std::stringstream ss;
-    ss << "[";
+    nlohmann::json missing = nlohmann::json::array();
 
     for (const auto& feature : features) {
         if (!hasFeature(feature)) {
-            ss << ::to_string(feature) << ",";
+            missing.emplace_back(feature);
         }
     }
 
-    auto missing = ss.str();
-    if (missing.size() > 1) {
-        missing.back() = ']';
-        throw std::runtime_error("Failed to enable: " + missing);
+    if (!missing.empty()) {
+        throw std::runtime_error("Failed to enable: " + missing.dump());
     }
 }
 
@@ -1677,9 +1674,10 @@ void MemcachedConnection::setFeature(cb::mcbp::Feature feature, bool enabled) {
     applyFeatures(currFeatures);
 
     if (enabled && !hasFeature(feature)) {
-        throw std::runtime_error("Failed to enable " + ::to_string(feature));
-    } else if (!enabled && hasFeature(feature)) {
-        throw std::runtime_error("Failed to disable " + ::to_string(feature));
+        throw std::runtime_error(fmt::format("Failed to enable {}", feature));
+    }
+    if (!enabled && hasFeature(feature)) {
+        throw std::runtime_error(fmt::format("Failed to disable {}", feature));
     }
 }
 
