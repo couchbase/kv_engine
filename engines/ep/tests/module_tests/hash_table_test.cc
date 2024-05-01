@@ -438,6 +438,22 @@ TEST_F(HashTableTest, IncrementalResize) {
     EXPECT_EQ(17, ht.getSize());
 }
 
+TEST_F(HashTableTest, ClearRemovesFromBothTables) {
+    HashTable ht(global_stats, makeFactory(), 7, 2, 0);
+    auto keys = generateKeys(16);
+    storeMany(ht, keys);
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(13));
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    verifyFound(ht, keys);
+    ht.clear();
+    for (const auto& key : keys) {
+        auto res = ht.findForRead(key);
+        EXPECT_FALSE(res.storedValue);
+    }
+    EXPECT_EQ(NeedsRevisit::YesNow, ht.continueIncrementalResize());
+    EXPECT_EQ(NeedsRevisit::No, ht.continueIncrementalResize());
+}
+
 class AccessGenerator : public Generator<bool> {
 public:
     AccessGenerator(std::vector<StoredDocKey> k, HashTable& h)

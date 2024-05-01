@@ -185,7 +185,8 @@ void HashTable::clear(bool deactivate) {
                     "non-active object");
         }
     }
-    MultiLockHolder mlh(mutexes);
+    MultiLockHolder mlh1(mutexes);
+    MultiLockHolder mlh2(resizingMutexes);
     clear_UNLOCKED(deactivate);
 }
 
@@ -196,19 +197,21 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
 
     // Account collection sizes so we can adjust the collection mem_used
     std::unordered_map<CollectionID, size_t> memUsedAdjustment;
-    for (auto& chain : values) {
-        if (chain) {
-            for (StoredValue* sv = chain.get().get(); sv != nullptr;
-                 sv = sv->getNext().get().get()) {
-                auto [itr, emplaced] = memUsedAdjustment.try_emplace(
-                        sv->getKey().getCollectionID(), sv->size());
-                if (!emplaced) {
-                    itr->second += sv->size();
+    for (auto* table : {&values, &resizingTemporaryValues}) {
+        for (auto& chain : *table) {
+            if (chain) {
+                for (StoredValue* sv = chain.get().get(); sv != nullptr;
+                     sv = sv->getNext().get().get()) {
+                    auto [itr, emplaced] = memUsedAdjustment.try_emplace(
+                            sv->getKey().getCollectionID(), sv->size());
+                    if (!emplaced) {
+                        itr->second += sv->size();
+                    }
                 }
             }
-        }
 
-        chain.reset();
+            chain.reset();
+        }
     }
 
     for (const auto& [cid, size] : memUsedAdjustment) {
