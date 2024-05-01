@@ -16,11 +16,11 @@
 #include <folly/io/IOBuf.h>
 #include <xattr/utils.h>
 
-uint32_t GetLockedCommandContext::get_exptime(
+std::chrono::seconds GetLockedCommandContext::get_exptime(
         const cb::mcbp::Request& request) {
     auto extras = request.getExtdata();
     if (extras.empty()) {
-        return 0;
+        return std::chrono::seconds{0};
     }
 
     if (extras.size() != sizeof(uint32_t)) {
@@ -29,7 +29,7 @@ uint32_t GetLockedCommandContext::get_exptime(
     }
 
     const auto* exp = reinterpret_cast<const uint32_t*>(extras.data());
-    return ntohl(*exp);
+    return std::chrono::seconds{ntohl(*exp)};
 }
 
 GetLockedCommandContext::GetLockedCommandContext(Cookie& cookie)

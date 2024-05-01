@@ -459,10 +459,11 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
     return cb::makeEngineErrorItemPair(ret, new ItemHolder(this, it), this);
 }
 
-cb::EngineErrorItemPair default_engine::get_locked(CookieIface& cookie,
-                                                   const DocKey& key,
-                                                   Vbid vbucket,
-                                                   uint32_t lock_timeout) {
+cb::EngineErrorItemPair default_engine::get_locked(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::chrono::seconds lock_timeout) {
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }
@@ -474,18 +475,18 @@ cb::EngineErrorItemPair default_engine::get_locked(CookieIface& cookie,
 
     // memcached buckets don't offer any way for the user to configure
     // the lock settings.
-    static const uint32_t default_lock_timeout = 15;
-    static const uint32_t max_lock_timeout = 30;
+    static const std::chrono::seconds default_lock_timeout{15};
+    static const std::chrono::seconds max_lock_timeout{30};
 
-    if (lock_timeout == 0 || lock_timeout > max_lock_timeout) {
+    if (lock_timeout.count() == 0 || lock_timeout > max_lock_timeout) {
         lock_timeout = default_lock_timeout;
     }
 
     // Convert the lock timeout to an absolute time
-    lock_timeout += server.core->get_current_time();
+    auto timeout = server.core->get_current_time() + lock_timeout.count();
 
     hash_item* it = nullptr;
-    auto ret = item_get_locked(this, &cookie, &it, key, lock_timeout);
+    auto ret = item_get_locked(this, &cookie, &it, key, timeout);
     return cb::makeEngineErrorItemPair(ret, new ItemHolder(this, it), this);
 }
 

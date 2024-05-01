@@ -82,12 +82,12 @@ private:
      * @param req the input message
      * @return The lock timeout value.
      */
-    static uint32_t get_exptime(const cb::mcbp::Request& request);
+    static std::chrono::seconds get_exptime(const cb::mcbp::Request& request);
 
     /// The VBucket where the document should be located in
     const Vbid vbucket;
     /// The timeout value for the lock
-    const uint32_t lock_timeout;
+    const std::chrono::seconds lock_timeout;
     /// The actual item (looked up in getItem, and valid in sendResponse)
     std::unique_ptr<ItemDissector> item_dissector;
     /// The current state in the state machine

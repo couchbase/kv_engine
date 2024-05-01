@@ -513,7 +513,7 @@ cb::EngineErrorItemPair getl(EngineIface* h,
     auto ret = h->get_locked(*cookie,
                              DocKey(key, DocKeyEncodesCollectionId::No),
                              vb,
-                             lock_timeout);
+                             std::chrono::seconds{lock_timeout});
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
     }

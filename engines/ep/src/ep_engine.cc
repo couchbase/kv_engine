@@ -339,7 +339,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        uint32_t lock_timeout) {
+        std::chrono::seconds lock_timeout) {
     return acquireEngine(this)->getLockedInner(
             cookie, key, vbucket, lock_timeout);
 }
@@ -2003,9 +2003,9 @@ EpEngineValueChangeListener::EpEngineValueChangeListener(
 void EpEngineValueChangeListener::sizeValueChanged(std::string_view key,
                                                    size_t value) {
     if (key.compare("getl_max_timeout") == 0) {
-        engine.setGetlMaxTimeout(value);
+        engine.setGetlMaxTimeout(std::chrono::seconds(value));
     } else if (key.compare("getl_default_timeout") == 0) {
-        engine.setGetlDefaultTimeout(value);
+        engine.setGetlDefaultTimeout(std::chrono::seconds(value));
     } else if (key.compare("max_item_size") == 0) {
         engine.setMaxItemSize(value);
     } else if (key.compare("max_item_privileged_bytes") == 0) {
@@ -2206,11 +2206,12 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             "max_item_privileged_bytes",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
-    getlDefaultTimeout = configuration.getGetlDefaultTimeout();
+    getlDefaultTimeout =
+            std::chrono::seconds{configuration.getGetlDefaultTimeout()};
     configuration.addValueChangedListener(
             "getl_default_timeout",
             std::make_unique<EpEngineValueChangeListener>(*this));
-    getlMaxTimeout = configuration.getGetlMaxTimeout();
+    getlMaxTimeout = std::chrono::seconds{configuration.getGetlMaxTimeout()};
     configuration.addValueChangedListener(
             "getl_max_timeout",
             std::make_unique<EpEngineValueChangeListener>(*this));
@@ -2679,20 +2680,20 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        uint32_t lock_timeout) {
-    auto default_timeout = static_cast<uint32_t>(getGetlDefaultTimeout());
+        std::chrono::seconds lock_timeout) {
+    auto default_timeout = getGetlDefaultTimeout();
 
-    if (lock_timeout == 0) {
+    if (lock_timeout.count() == 0) {
         lock_timeout = default_timeout;
-    } else if (lock_timeout > static_cast<uint32_t>(getGetlMaxTimeout())) {
+    } else if (lock_timeout > getGetlMaxTimeout()) {
         EP_LOG_WARN(
                 "{}: EventuallyPersistentEngine::get_locked: Illegal value for "
-                "lock timeout specified for {}: {}. Using default "
-                "value: {}",
+                "lock timeout specified for {}: {}s. Using default "
+                "value: {}s",
                 cookie.getConnectionId(),
                 cb::tagUserData(key.to_string()),
-                lock_timeout,
-                default_timeout);
+                lock_timeout.count(),
+                default_timeout.count());
 
         lock_timeout = default_timeout;
     }

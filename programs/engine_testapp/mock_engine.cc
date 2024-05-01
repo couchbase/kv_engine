@@ -204,10 +204,11 @@ cb::EngineErrorItemPair MockEngine::get_and_touch(
     return do_blocking_engine_call<cb::unique_item_ptr>(cookie, engine_fn);
 }
 
-cb::EngineErrorItemPair MockEngine::get_locked(CookieIface& cookie,
-                                               const DocKey& key,
-                                               Vbid vbucket,
-                                               uint32_t lock_timeout) {
+cb::EngineErrorItemPair MockEngine::get_locked(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::chrono::seconds lock_timeout) {
     auto engine_fn =
             [this, &cookie, k = std::cref(key), vbucket, lock_timeout]() {
                 return the_engine->get_locked(cookie, k, vbucket, lock_timeout);

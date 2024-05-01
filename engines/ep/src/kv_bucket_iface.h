@@ -612,7 +612,7 @@ public:
     virtual GetValue getLocked(const DocKey& key,
                                Vbid vbucket,
                                rel_time_t currentTime,
-                               uint32_t lockTimeout,
+                               std::chrono::seconds lockTimeout,
                                CookieIface* cookie) = 0;
 
     virtual cb::engine_errc unlockKey(const DocKey& key,

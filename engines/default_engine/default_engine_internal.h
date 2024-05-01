@@ -131,10 +131,11 @@ struct default_engine : public EngineIface {
                                          const DocKey& key,
                                          Vbid vbucket) override;
 
-    cb::EngineErrorItemPair get_locked(CookieIface& cookie,
-                                       const DocKey& key,
-                                       Vbid vbucket,
-                                       uint32_t lock_timeout) override;
+    cb::EngineErrorItemPair get_locked(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::chrono::seconds lock_timeout) override;
 
     cb::engine_errc unlock(CookieIface& cookie,
                            const DocKey& key,

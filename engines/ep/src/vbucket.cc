@@ -3171,7 +3171,7 @@ cb::engine_errc VBucket::getKeyStats(
 }
 
 GetValue VBucket::getLocked(rel_time_t currentTime,
-                            uint32_t lockTimeout,
+                            std::chrono::seconds lockTimeout,
                             CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             const Collections::VB::CachingReadHandle& cHandle) {
@@ -3203,7 +3203,7 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
         }
 
         // acquire lock and increment cas value
-        v->lock(currentTime + lockTimeout, nextHLCCas());
+        v->lock(currentTime + lockTimeout.count(), nextHLCCas());
 
         auto it = v->toItem(getId());
         it->setCas(v->getCasForWrite(currentTime));

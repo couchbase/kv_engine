@@ -1465,7 +1465,7 @@ public:
      * @return the result of the operation (contains locked item on success)
      */
     GetValue getLocked(rel_time_t currentTime,
-                       uint32_t lockTimeout,
+                       std::chrono::seconds lockTimeout,
                        CookieIface* cookie,
                        EventuallyPersistentEngine& engine,
                        const Collections::VB::CachingReadHandle& cHandle);

@@ -1891,7 +1891,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
 GetValue KVBucket::getLocked(const DocKey& key,
                              Vbid vbucket,
                              rel_time_t currentTime,
-                             uint32_t lockTimeout,
+                             std::chrono::seconds lockTimeout,
                              CookieIface* cookie) {
     Expects(cookie);
     auto lr = lookupVBucket(vbucket);

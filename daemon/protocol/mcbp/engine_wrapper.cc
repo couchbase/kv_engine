@@ -321,7 +321,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(
 cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           const DocKey& key,
                                           Vbid vbucket,
-                                          uint32_t lock_timeout) {
+                                          std::chrono::seconds lock_timeout) {
     auto& c = cookie.getConnection();
     auto ret =
             c.getBucketEngine().get_locked(cookie, key, vbucket, lock_timeout);

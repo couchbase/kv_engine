@@ -186,10 +186,11 @@ public:
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override;
-    cb::EngineErrorItemPair get_locked(CookieIface& cookie,
-                                       const DocKey& key,
-                                       Vbid vbucket,
-                                       uint32_t lock_timeout) override;
+    cb::EngineErrorItemPair get_locked(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::chrono::seconds lock_timeout) override;
     cb::engine_errc unlock(CookieIface& cookie,
                            const DocKey& key,
                            Vbid vbucket,
@@ -511,7 +512,7 @@ public:
     cb::EngineErrorItemPair getLockedInner(CookieIface& cookie,
                                            const DocKey& key,
                                            Vbid vbucket,
-                                           uint32_t lock_timeout);
+                                           std::chrono::seconds lock_timeout);
 
     cb::engine_errc unlockInner(CookieIface& cookie,
                                 const DocKey& key,
@@ -759,11 +760,11 @@ public:
     cb::engine_errc handleTrafficControlCmd(CookieIface& cookie,
                                             TrafficControlMode mode);
 
-    size_t getGetlDefaultTimeout() const {
+    std::chrono::seconds getGetlDefaultTimeout() const {
         return getlDefaultTimeout;
     }
 
-    size_t getGetlMaxTimeout() const {
+    std::chrono::seconds getGetlMaxTimeout() const {
         return getlMaxTimeout;
     }
 
@@ -1074,11 +1075,11 @@ protected:
         maxItemPrivilegedBytes = value;
     }
 
-    void setGetlDefaultTimeout(size_t value) {
+    void setGetlDefaultTimeout(std::chrono::seconds value) {
         getlDefaultTimeout = value;
     }
 
-    void setGetlMaxTimeout(size_t value) {
+    void setGetlMaxTimeout(std::chrono::seconds value) {
         getlMaxTimeout = value;
     }
 
@@ -1581,8 +1582,8 @@ protected:
     std::unique_ptr<CheckpointConfig> checkpointConfig;
     size_t maxItemSize;
     size_t maxItemPrivilegedBytes;
-    size_t getlDefaultTimeout;
-    size_t getlMaxTimeout;
+    std::chrono::seconds getlDefaultTimeout;
+    std::chrono::seconds getlMaxTimeout;
     size_t maxFailoverEntries;
     std::atomic<bool> trafficEnabled;
     // Indicates whether we are sharing quota with any other buckets.

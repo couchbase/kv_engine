@@ -112,7 +112,7 @@ float bucket_min_compression_ratio(Cookie& cookie);
 cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
                                           const DocKey& key,
                                           Vbid vbucket,
-                                          uint32_t lock_timeout);
+                                          std::chrono::seconds lock_timeout);
 
 cb::engine_errc bucket_unlock(Cookie& cookie,
                               const DocKey& key,

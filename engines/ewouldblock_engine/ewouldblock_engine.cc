@@ -130,10 +130,11 @@ public:
             uint32_t exptime,
             const std::optional<cb::durability::Requirements>& durability)
             override;
-    cb::EngineErrorItemPair get_locked(CookieIface& cookie,
-                                       const DocKey& key,
-                                       Vbid vbucket,
-                                       uint32_t lock_timeout) override;
+    cb::EngineErrorItemPair get_locked(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::chrono::seconds lock_timeout) override;
     cb::engine_errc unlock(CookieIface& cookie,
                            const DocKey& key,
                            Vbid vbucket,
@@ -1021,10 +1022,11 @@ cb::EngineErrorItemPair EWB_Engine::get_and_touch(
     }
 }
 
-cb::EngineErrorItemPair EWB_Engine::get_locked(CookieIface& cookie,
-                                               const DocKey& key,
-                                               Vbid vbucket,
-                                               uint32_t lock_timeout) {
+cb::EngineErrorItemPair EWB_Engine::get_locked(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::chrono::seconds lock_timeout) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::LOCK, &cookie, err)) {
         return cb::makeEngineErrorItemPair(err);

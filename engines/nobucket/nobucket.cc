@@ -83,7 +83,7 @@ public:
     cb::EngineErrorItemPair get_locked(CookieIface&,
                                        const DocKey&,
                                        Vbid,
-                                       uint32_t) override {
+                                       std::chrono::seconds) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 

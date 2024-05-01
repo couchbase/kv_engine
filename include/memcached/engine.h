@@ -415,7 +415,7 @@ struct EngineIface {
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            uint32_t lock_timeout) = 0;
+            std::chrono::seconds lock_timeout) = 0;
 
     /**
      * Unlock an item.
