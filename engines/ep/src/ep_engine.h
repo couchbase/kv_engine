@@ -1024,6 +1024,8 @@ public:
      */
     void setDcpConsumerBufferRatio(float ratio);
 
+    float getDcpConsumerBufferRatio() const;
+
     /**
      * Returns the quota sharing manager.
      */

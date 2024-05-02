@@ -6725,6 +6725,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_checkpoint_memory_recovery_upper_mark",
               "ep_checkpoint_memory_recovery_lower_mark",
               "ep_checkpoint_memory_quota",
+              "ep_checkpoint_consumer_limit",
               "ep_checkpoint_memory_recovery_upper_mark_bytes",
               "ep_checkpoint_memory_recovery_lower_mark_bytes",
               "ep_checkpoint_max_size",

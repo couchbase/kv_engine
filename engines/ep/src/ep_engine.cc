@@ -3291,6 +3291,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                       kvBucket->getCheckpointPendingDestructionMemoryUsage());
 
     collector.addStat(Key::ep_checkpoint_memory_quota, kvBucket->getCMQuota());
+    collector.addStat(Key::ep_checkpoint_consumer_limit,
+                      kvBucket->getCheckpointConsumerLimit());
     collector.addStat(Key::ep_checkpoint_memory_recovery_upper_mark_bytes,
                       kvBucket->getCMRecoveryUpperMarkBytes());
     collector.addStat(Key::ep_checkpoint_memory_recovery_lower_mark_bytes,
@@ -7536,6 +7538,13 @@ void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
     if (dcpFlowControlManager) {
         dcpFlowControlManager->setDcpConsumerBufferRatio(ratio);
     }
+}
+
+float EventuallyPersistentEngine::getDcpConsumerBufferRatio() const {
+    if (!dcpFlowControlManager) {
+        return 0;
+    }
+    return dcpFlowControlManager->getDcpConsumerBufferRatio();
 }
 
 QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {

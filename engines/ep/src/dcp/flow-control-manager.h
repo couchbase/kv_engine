@@ -41,6 +41,8 @@ public:
 
     void setDcpConsumerBufferRatio(float ratio);
 
+    float getDcpConsumerBufferRatio() const;
+
     size_t getNumConsumers() const;
 
 protected:
