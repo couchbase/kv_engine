@@ -2681,21 +2681,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         const DocKey& key,
         Vbid vbucket,
         std::chrono::seconds lock_timeout) {
-    auto default_timeout = getGetlDefaultTimeout();
-
-    if (lock_timeout.count() == 0) {
-        lock_timeout = default_timeout;
-    } else if (lock_timeout > getGetlMaxTimeout()) {
-        EP_LOG_WARN(
-                "{}: EventuallyPersistentEngine::get_locked: Illegal value for "
-                "lock timeout specified for {}: {}s. Using default "
-                "value: {}s",
-                cookie.getConnectionId(),
-                cb::tagUserData(key.to_string()),
-                lock_timeout.count(),
-                default_timeout.count());
-
-        lock_timeout = default_timeout;
+    if (lock_timeout.count() == 0 || lock_timeout > getGetlMaxTimeout()) {
+        lock_timeout = getGetlDefaultTimeout();
     }
 
     auto result = kvBucket->getLocked(
