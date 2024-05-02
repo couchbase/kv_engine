@@ -2466,7 +2466,7 @@ Extra data:
          /              |               |               |               |
         |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
         +---------------+---------------+---------------+---------------+
-       0| Expiration                                                    |
+       0| Expiration (seconds)                                          |
         +---------------+---------------+---------------+---------------+
         Total 4 bytes
 
@@ -2476,11 +2476,21 @@ Response (if found):
 * MAY have key.
 * MAY have value.
 
-The Extras contains an optional expiration time. If one is not provided or if
-the value provided is 0, the default lock timeout is used. The configuration
-parameter is getl_default_timeout.
+Extras defines a 4-byte value which represent the duration in seconds that the
+lock will remain held, the lock expiration time. After this amount of time has
+elapsed the server will automatically release the lock, the lock is released in
+a lazy manner when certain functions happen to visit the locked document. The
+extras is optional and if not included in the request, the request will behave as
+if a value of 0 was specified.
 
-The maximum timeout is set by the getl_max_timeout configuration parameter.
+When the command executes the expiration input is checked as follows.
+
+* If expiration is 0 then server will use the default timeout.
+* If expiration is > maximum then the server will use the default timeout.
+* Else input expiration is used.
+
+The default and maximum expiration values are defined by the configuration,
+parameters getl_default_timeout and getl_max_timeout.
 
 Added in CB Server v1.6.3 (d86d4d9c746266449d39cbb89904b86a4e6e6796).
 
