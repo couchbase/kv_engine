@@ -103,19 +103,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
         const auto value = obj.value();
         using namespace std::string_view_literals;
 
-        if (key == "always_collect_trace_info"sv) {
-            if (!value.get<bool>()) {
-                LOG_INFO_RAW(
-                        "It is no longer possible to disable trace info. See "
-                        "MB-60932");
-            }
-        } else if (key == "rbac_file"sv) {
+        if (key == "rbac_file"sv) {
             setRbacFile(value.get<std::string>());
-        } else if (key == "privilege_debug"sv) {
-            if (value.get<bool>()) {
-                LOG_INFO_RAW(
-                        "Ignore privilege_debug=true; no longer supported");
-            }
         } else if (key == "audit_file"sv) {
             setAuditFile(value.get<std::string>());
         } else if (key == "deployment_model"sv) {
