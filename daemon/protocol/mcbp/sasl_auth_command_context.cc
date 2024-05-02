@@ -169,6 +169,10 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 cb::UserDataView(serverContext.getUser().name),
                 mechanism,
                 cookie.getEventId());
+        audit_auth_failure(connection,
+                           serverContext.getUser(),
+                           "No RBAC profile",
+                           &cookie);
         return authFailure(error);
 
     case cb::sasl::Error::AUTH_PROVIDER_DIED:
