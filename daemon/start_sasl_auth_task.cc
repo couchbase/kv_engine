@@ -51,7 +51,6 @@ void StartSaslAuthTask::successfull_external_auth() {
     try {
         error = cb::sasl::Error::OK;
         externalAuthManager->login(serverContext.getUsername());
-        serverContext.setDomain(cb::sasl::Domain::External);
     } catch (const std::exception& e) {
         LOG_WARNING(R"({} successfull_external_auth() failed. UUID[{}] "{}")",
                     cookie.getConnectionId(),
