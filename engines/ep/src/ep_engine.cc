@@ -6838,13 +6838,7 @@ ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(
         CookieIface& cookie) {
     auto* iface = cookie.getConnectionIface().getDcpConnHandler();
     if (iface) {
-        auto* handler = dynamic_cast<ConnHandler*>(iface);
-        if (handler) {
-            return handler;
-        }
-        throw std::logic_error(
-                "EventuallyPersistentEngine::tryGetConnHandler(): The "
-                "registered connection handler is not a ConnHandler");
+        return static_cast<ConnHandler*>(iface); // NOLINT
     }
 
     return nullptr;
