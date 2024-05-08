@@ -32,6 +32,8 @@ public:
 
     std::chrono::microseconds maxExpectedDuration() const override;
 
+    void notifyCompressionModeChange();
+
 private:
     /// Duration (in seconds) the compressor should sleep for between
     /// iterations.

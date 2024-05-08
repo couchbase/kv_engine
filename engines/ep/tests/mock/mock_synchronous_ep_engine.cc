@@ -89,7 +89,6 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     maxItemSize = configuration.getMaxItemSize();
 
-    setCompressionMode(configuration.getCompressionMode());
     setConflictResolutionMode(configuration.getConflictResolutionType());
 
     allowSanitizeValueInDeletion =
@@ -166,6 +165,7 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
 
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));
+    engine->setCompressionMode(engine->getConfiguration().getCompressionMode());
 
     engine->setMaxDataSize(engine->getConfiguration().getMaxSize());
 

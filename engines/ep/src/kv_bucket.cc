@@ -3338,6 +3338,12 @@ void KVBucket::processBucketQuotaChange(size_t desiredQuota) {
     bucketQuotaChangeTask->notifyNewQuotaChange(desiredQuota);
 }
 
+void KVBucket::processCompressionModeChange() {
+    if (itemCompressorTask) {
+        itemCompressorTask->notifyCompressionModeChange();
+    }
+}
+
 float KVBucket::getMutationMemRatio() const {
     return mutationMemRatio;
 }

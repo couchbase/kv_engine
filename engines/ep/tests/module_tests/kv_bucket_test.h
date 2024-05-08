@@ -420,6 +420,8 @@ public:
      */
     void setupPrimaryWarmupOnly();
 
+    bool itemCompressorTaskIsSleepingForever() const;
+
 private:
     /**
      * Destroy the test objects - e.g. engine/store/cookie

@@ -35,6 +35,7 @@
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
+#include "item_compressor.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "lambda_task.h"
@@ -698,6 +699,10 @@ void KVBucketTest::setupPrimaryWarmupOnly() {
             "warmup_min_items_threshold=100;"
             "secondary_warmup_min_memory_threshold=0;"
             "secondary_warmup_min_items_threshold=0;";
+}
+
+bool KVBucketTest::itemCompressorTaskIsSleepingForever() const {
+    return store->itemCompressorTask->isSleepingForever();
 }
 
 class KVBucketParamTest : public STParameterizedBucketTest {

@@ -27,7 +27,8 @@ ItemCompressorTask::ItemCompressorTask(EventuallyPersistentEngine& e,
 
 bool ItemCompressorTask::run() {
     TRACE_EVENT0("ep-engine/task", "ItemCompressorTask");
-    if (engine->getCompressionMode() == BucketCompressionMode::Active) {
+    auto compressionMode = engine->getCompressionMode();
+    if (compressionMode == BucketCompressionMode::Active) {
         // Get our pause/resume visitor. If we didn't finish the previous pass,
         // then resume from where we last were, otherwise create a new visitor
         // starting from the beginning.
@@ -60,7 +61,7 @@ bool ItemCompressorTask::run() {
         const auto deadline = start + getChunkDuration();
         visitor.setDeadline(deadline);
         visitor.clearStats();
-        visitor.setCompressionMode(engine->getCompressionMode());
+        visitor.setCompressionMode(compressionMode);
         visitor.setMinCompressionRatio(engine->getMinCompressionRatio());
 
         // Do it - set off the visitor.
@@ -103,7 +104,12 @@ bool ItemCompressorTask::run() {
         }
     }
 
-    snooze(getSleepTime());
+    if (compressionMode == BucketCompressionMode::Active) {
+        snooze(getSleepTime());
+    } else {
+        snooze(INT_MAX);
+    }
+
     if (engine->getEpStats().isShutdown) {
         return false;
     }
@@ -140,4 +146,8 @@ std::chrono::milliseconds ItemCompressorTask::getChunkDuration() const {
 
 ItemCompressorVisitor& ItemCompressorTask::getItemCompressorVisitor() {
     return dynamic_cast<ItemCompressorVisitor&>(prAdapter->getHTVisitor());
+}
+
+void ItemCompressorTask::notifyCompressionModeChange() {
+    ExecutorPool::get()->wake(getId());
 }

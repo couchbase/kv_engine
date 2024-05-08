@@ -2528,6 +2528,7 @@ public:
         config_string += "compression_mode=active";
         STValueEvictionExpiryPagerTest::SetUp();
         store->enableItemCompressor();
+        store->processCompressionModeChange();
         initialNonIoTasks++;
     }
 

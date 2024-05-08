@@ -31,6 +31,7 @@
 class CheckpointDestroyerTask;
 class CheckpointMemRecoveryTask;
 class BucketQuotaChangeTask;
+class ItemCompressorTask;
 class DurabilityCompletionTask;
 class EPStats;
 class ExpiredItemPager;
@@ -1038,6 +1039,8 @@ public:
      */
     void processBucketQuotaChange(size_t desiredQuota);
 
+    void processCompressionModeChange();
+
     /**
      * @return The mutation memory ratio. See member variable for details.
      */
@@ -1352,7 +1355,7 @@ protected:
 
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;
-    ExTask itemCompressorTask;
+    std::shared_ptr<ItemCompressorTask> itemCompressorTask;
     // The itemFreqDecayerTask is used to decay the frequency count of items
     // stored in the hash table.  This is required to ensure that all the
     // frequency counts do not become saturated.

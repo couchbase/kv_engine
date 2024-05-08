@@ -7309,6 +7309,7 @@ void EventuallyPersistentEngine::setCompressionMode(
             EP_LOG_INFO(R"(Transitioning from "{}"->"{}" compression mode)",
                         to_string(oldCompressionMode),
                         compressModeStr);
+            kvBucket->processCompressionModeChange();
         }
     } catch (const std::invalid_argument& e) {
         EP_LOG_WARN("{}", e.what());
