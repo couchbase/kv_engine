@@ -156,6 +156,18 @@ TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
     EXPECT_EQ(beforeValueSize, blob->valueSize());
 }
 
+// MB-61790: Ensure the flag is read correctly
+TYPED_TEST(ValueTest, isCompressible) {
+    auto sv = this->factory(
+        make_item(Vbid(0),
+                  makeStoredDocKey("key"),
+                  "value"),
+        {});
+    EXPECT_TRUE(sv->isCompressible());
+    sv->setUncompressible();
+    EXPECT_FALSE(sv->isCompressible());
+}
+
 TYPED_TEST(ValueTest, metaDataSize) {
     // Check metadata size reports correctly.
     EXPECT_EQ(this->getFixedSize() + /*key*/ 3 + /*len*/ 1 +
