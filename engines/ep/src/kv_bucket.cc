@@ -3174,6 +3174,11 @@ size_t KVBucket::getCMQuota() const {
     return stats.getMaxDataSize() * checkpointMemoryRatio;
 }
 
+size_t KVBucket::getCheckpointConsumerLimit() const {
+    return getCMQuota() +
+           engine.getDcpConsumerBufferRatio() * stats.getMaxDataSize();
+}
+
 size_t KVBucket::getCMRecoveryUpperMarkBytes() const {
     return getCMQuota() * checkpointMemoryRecoveryUpperMark;
 }

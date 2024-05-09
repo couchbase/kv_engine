@@ -922,6 +922,14 @@ public:
     size_t getCMQuota() const;
 
     /**
+     * @return The Checkpoint memory quota + DCP consumer buffer quota (in
+     * bytes). In a tmp-oom scenario, DCP consumers continue to process
+     * mutations and the actual memory used is a little higher until DCP
+     * consumer buffer quota is hit too.
+     */
+    size_t getCheckpointConsumerLimit() const;
+
+    /**
      * @return The Checkpoint memory recovery threshold (in bytes). That is the
      * level of CM mem-usage that triggers memory recovery.
      */

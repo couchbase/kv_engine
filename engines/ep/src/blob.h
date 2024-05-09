@@ -61,7 +61,8 @@ public:
      * Get the size of this Blob's value.
      */
     size_t valueSize() const {
-        return size & ~(0x80000000);
+        // Only the high bit ever changes, so we can relax the memory order.
+        return size.load(std::memory_order_relaxed) & ~uncompressibleFlag;
     }
 
     /**
@@ -94,8 +95,10 @@ public:
     /**
      * Check if the given data is compressible
      */
-    bool isCompressible() {
-        return ~(size & 0x80000000);
+    bool isCompressible() const {
+        // We don't care about reads/writes of the flag being reordered
+        // with respect to other reads/writes.
+        return !(size.load(std::memory_order_relaxed) & uncompressibleFlag);
     }
 
     /**
@@ -103,7 +106,9 @@ public:
      * This should be fine given that the maximum value we support is 20 MiB
      */
     void setUncompressible() {
-        size |= 0x80000000;
+        // We don't care about reads/writes of the flag being reordered
+        // with respect to other reads/writes.
+        size.fetch_or(uncompressibleFlag, std::memory_order_relaxed);
     }
 
     /**
@@ -148,6 +153,9 @@ public:
 private:
     //Ensure Blob size of 12 bytes by padding by 3.
     static constexpr int paddingSize{3};
+
+    // Highest bit of size set when Blob marked as uncompressible.
+    static constexpr uint32_t uncompressibleFlag = 0x80000000;
 
 protected:
     /* Constructor.

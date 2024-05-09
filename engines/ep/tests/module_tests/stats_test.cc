@@ -1542,3 +1542,33 @@ TEST_F(StatTest, testConnAggStats) {
 
     destroy_mock_cookie(mCookie);
 }
+
+class CheckpointMemQuotaTest : public StatTest {
+    void SetUp() override {
+        config_string +=
+                "checkpoint_memory_ratio=0.2;"
+                "dcp_consumer_buffer_ratio=0.05";
+        StatTest::SetUp();
+    }
+};
+
+TEST_F(CheckpointMemQuotaTest, CheckpointMemQuotaStat) {
+    using namespace cb::prometheus;
+    using namespace cb::stats;
+    std::unordered_map<std::string, prometheus::MetricFamily> statsMap;
+    PrometheusStatCollector collector(statsMap);
+    auto bucketCollector = collector.forBucket("foo");
+    auto quota = 5 * 1024 * 1024;
+    engine->setMaxDataSize(quota);
+
+    auto rc = engine->get_prometheus_stats(bucketCollector, MetricGroup::Low);
+    EXPECT_EQ(rc, cb::engine_errc::success);
+    EXPECT_NE(statsMap.end(),
+              statsMap.find("ep_checkpoint_consumer_limit_bytes"));
+    auto metricValue = statsMap["ep_checkpoint_consumer_limit_bytes"]
+                               .metric[0]
+                               .untyped.value;
+    auto checkpointMemRatio = store->getCheckpointMemoryRatio();
+    auto consumerBufferRatio = engine->getDcpConsumerBufferRatio();
+    EXPECT_EQ(quota * (checkpointMemRatio + consumerBufferRatio), metricValue);
+}

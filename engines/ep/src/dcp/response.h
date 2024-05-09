@@ -58,6 +58,15 @@ public:
     }
 
     /**
+     * Virtual method with the sole purpose of removing the need for
+     * calling dynamic_cast<MutationResponse> on the returned response
+     * object.
+     */
+    virtual bool isMutationResponse() const {
+        return false;
+    }
+
+    /**
      * Not all DcpResponse sub-classes have a seqno. MutationResponse (events
      * Mutation, Deletion and Expiration), SystemEventMessage (SystemEvent) and
      * Durability Commit/Abort have a seqno and would return an OptionalSeqno
@@ -472,6 +481,10 @@ public:
           includeDeletedUserXattrs(includeDeletedUserXattrs),
           includeCollectionID(includeCollectionID),
           enableExpiryOutput(enableExpiryOut) {
+    }
+
+    bool isMutationResponse() const override {
+        return true;
     }
 
     const queued_item& getItem() const {

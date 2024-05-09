@@ -73,6 +73,23 @@ public:
      */
     void tearDownHashBucketVisit() override;
 
+    /**
+     * Overrides InterruptableVBucketVisitor::needsToRevisitLast to indicate
+     * whether the vBucket which was just visited needs to be visited again.
+     * When the HashTable visitor indicates a pause, we yield the vBucket visit,
+     * and need to revisit.
+     */
+    NeedsRevisit needsToRevisitLast() override {
+        // Even if we need to pause on the very first HT bucket, we will
+        // continue from the next. When the HT visit completes, we reset
+        // the position. Hence, we use the position to determine whether
+        // there was a pause.
+        if (hashTablePosition != HashTable::Position{}) {
+            return NeedsRevisit::YesNow;
+        }
+        return NeedsRevisit::No;
+    }
+
 protected:
     /**
      * Derived visitors should not touch the item.
@@ -100,6 +117,12 @@ protected:
         return isPausingAllowed;
     }
 
+    /**
+     * @param hbl HashBucketLock for the item currently visiting
+     * @return false if enough time has elapsed
+     */
+    bool shouldContinueHashTableVisit(const HashTable::HashBucketLock& hbl);
+
     // The current vbucket that the eviction algorithm is operating on.
     // Only valid while inside visitBucket().
     VBucket* currentBucket{nullptr};
@@ -111,6 +134,9 @@ protected:
     // visits. Will contain a nullptr if we aren't currently locking anything.
     Collections::VB::ReadHandle readHandle;
 
+    // The position in the HashTable to continue visiting from
+    HashTable::Position hashTablePosition;
+
     KVBucket& store;
     EPStats& stats;
 
@@ -120,6 +146,15 @@ private:
     time_t startTime;
     std::shared_ptr<cb::Semaphore> pagerSemaphore;
     const bool isPausingAllowed;
+
+    // Expected number of times the PagingVisitor will check the pause
+    // condition per vBucket. Used to determine how many HashTable visits to
+    // make before checking.
+    const size_t pagingVisitorPauseCheckCount;
+
+    // Number of HashTable visits since the last pause check.
+    // Used to determine when to check for pausing.
+    size_t htVisitsSincePauseCheck = 0;
 
     /**
      * Flag used to identify if memory usage was above the backfill threshold

@@ -722,6 +722,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setBfilterKeyCount(std::stoull(val));
         } else if (key == "pager_sleep_time_ms") {
             configuration.setPagerSleepTimeMs(std::stoull(val));
+        } else if (key == "paging_visitor_pause_check_count") {
+            configuration.setPagingVisitorPauseCheckCount(std::stoull(val));
         } else if (key == "item_eviction_age_percentage") {
             configuration.setItemEvictionAgePercentage(std::stoull(val));
         } else if (key == "item_eviction_freq_counter_age_threshold") {
@@ -3311,6 +3313,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                       kvBucket->getCheckpointPendingDestructionMemoryUsage());
 
     collector.addStat(Key::ep_checkpoint_memory_quota, kvBucket->getCMQuota());
+    collector.addStat(Key::ep_checkpoint_consumer_limit,
+                      kvBucket->getCheckpointConsumerLimit());
     collector.addStat(Key::ep_checkpoint_memory_recovery_upper_mark_bytes,
                       kvBucket->getCMRecoveryUpperMarkBytes());
     collector.addStat(Key::ep_checkpoint_memory_recovery_lower_mark_bytes,
@@ -6848,13 +6852,7 @@ ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(
         CookieIface& cookie) {
     auto* iface = cookie.getConnectionIface().getDcpConnHandler();
     if (iface) {
-        auto* handler = dynamic_cast<ConnHandler*>(iface);
-        if (handler) {
-            return handler;
-        }
-        throw std::logic_error(
-                "EventuallyPersistentEngine::tryGetConnHandler(): The "
-                "registered connection handler is not a ConnHandler");
+        return static_cast<ConnHandler*>(iface); // NOLINT
     }
 
     return nullptr;
@@ -7550,6 +7548,13 @@ void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
     if (dcpFlowControlManager) {
         dcpFlowControlManager->setDcpConsumerBufferRatio(ratio);
     }
+}
+
+float EventuallyPersistentEngine::getDcpConsumerBufferRatio() const {
+    if (!dcpFlowControlManager) {
+        return 0;
+    }
+    return dcpFlowControlManager->getDcpConsumerBufferRatio();
 }
 
 QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
