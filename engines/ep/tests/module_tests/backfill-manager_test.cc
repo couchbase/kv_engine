@@ -416,3 +416,48 @@ TEST_F(BackfillManagerTest, SnoozingQNotifiesTrackerOnDtor) {
     // Test: Destroy the backfill manager while backfill still in snoozingQ.
     backfillMgr.reset();
 }
+
+class BackfillManagerParamTest : public BackfillManagerTest {
+protected:
+    void drainRatioOutOfRange(float testedVal);
+};
+
+TEST_F(BackfillManagerParamTest, DrainRatio) {
+    const auto newVal = 0.2f;
+    ASSERT_NE(newVal,
+              engine->getConfiguration().getDcpBackfillByteDrainRatio());
+
+    BackfillManagerTest::TearDown();
+    config_string = "dcp_backfill_byte_drain_ratio=" + std::to_string(newVal);
+    BackfillManagerTest::SetUp();
+    EXPECT_EQ(newVal,
+              engine->getConfiguration().getDcpBackfillByteDrainRatio());
+}
+
+void BackfillManagerParamTest::drainRatioOutOfRange(float testedVal) {
+    ASSERT_NE(engine->getConfiguration().getDcpBackfillByteDrainRatio(),
+              testedVal);
+    try {
+        BackfillManagerTest::TearDown();
+        config_string =
+                "dcp_backfill_byte_drain_ratio=" + std::to_string(testedVal);
+        BackfillManagerTest::SetUp();
+        FAIL();
+    } catch (const std::exception& e) {
+        EXPECT_THAT(e.what(), testing::HasSubstr("Unable to parse config"));
+
+        // Test-fixture expects an instance to clean up. Plus, the ExecutorPool
+        // was instantiated and needs to shutdown before bringing it up again.
+        ExecutorPool::shutdown();
+        config_string.clear();
+        BackfillManagerTest::SetUp();
+    }
+}
+
+TEST_F(BackfillManagerParamTest, DrainRatio_LowerThanMin) {
+    drainRatioOutOfRange(-0.1f);
+}
+
+TEST_F(BackfillManagerParamTest, DrainRatio_HigherThanMax) {
+    drainRatioOutOfRange(1.1);
+}
