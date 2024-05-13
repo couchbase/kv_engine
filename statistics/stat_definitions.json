@@ -925,48 +925,56 @@
         "key": "ep_warmup_key_count",
         "unit": "none",
         "description": "Number of keys warmed up",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_value_count",
         "unit": "none",
         "description": "Number of values warmed up",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_min_item_threshold",
         "unit": "none",
         "description": "The minimum number of items that needs to be warmed up before external data mutations is allowed. This is in % of the number of items.",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_keys_time",
         "unit": "microseconds",
         "description": "Time (\u00b5s) spent by warming keys",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_estimated_key_count",
         "unit": "none",
         "description": "Estimated number of keys in database",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_estimate_time",
         "unit": "microseconds",
         "description": "Total time spent in the estimate item count phase of warmup",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_access_log",
         "unit": "none",
         "description": "Number of keys present in access log",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_estimated_value_count",
         "unit": "none",
         "description": "Estimated number of values in database",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
@@ -2359,6 +2367,7 @@
         "description": "The total number of mutation operations (all buckets)",
         "unit": "none",
         "type": "counter",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
@@ -2366,6 +2375,7 @@
         "description": "The total number of data retrieval operations (all buckets)",
         "unit": "none",
         "type": "counter",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
@@ -2373,6 +2383,7 @@
         "description": "The sum of cmd_total_sets and cmd_total_gets (all buckets)",
         "unit": "none",
         "type": "counter",
+        "prometheus": false,
         "added": "7.0.0"
     },
 /* aggregates over multiple operations for a single bucket */
@@ -2576,12 +2587,14 @@
         "key": "rejected_conns",
         "description": "The number of connections rejected due to hitting the maximum number of connections",
         "unit": "none",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
         "key": "threads",
         "description": "The number of threads used to serve clients",
         "unit": "none",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
@@ -3280,10 +3293,8 @@
         "key": "vb_evictable_mfu",
         "unit": "none",
         "cbstat": "vb_{state}_evictable_mfu",
-        "prometheus": {
-            "family": "vb_evictable_mfu"
-        },
         "description": "Histogram of the per-VBucket tracking MFU values of items which are currently evictable",
+        "prometheus": false,
         "added": "7.6.0"
     },
     {
@@ -3892,15 +3903,6 @@
         "description": "The uid of the last manifest accepted from the cluster, only returned when all scopes are requested (no name or id provided)",
         "added": "7.0.0"
     },
-    /* TODO: remove as it is unused */
-    {
-        "key": "manifest_force",
-        "unit": "none",
-        "cbstat": "force",
-        "description": "Whether the manifest was set by ns_server with the force flag",
-        "stability": "internal",
-        "added": "7.0.0"
-    },
     {
         "key": "collection_name",
         "unit": "none",
@@ -3950,6 +3952,7 @@
         "cbstat": "data_limit",
         "description": "The configured data limit for the scope (not used)",
         "stability": "internal",
+        "prometheus": false,
         "added": "7.1.0"
     },
     {
@@ -3957,6 +3960,7 @@
         "unit": "none",
         "cbstat": "collections",
         "description": "Number of collections in the scope",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
