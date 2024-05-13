@@ -103,33 +103,19 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
 BackfillManager::BackfillManager(KVBucket& kvBucket,
                                  KVStoreScanTracker& scanTracker,
                                  std::string name,
-                                 size_t scanByteLimit,
-                                 size_t scanItemLimit,
-                                 size_t backfillByteLimit)
+                                 const Configuration& config)
     : name(std::move(name)),
       kvBucket(kvBucket),
       scanTracker(scanTracker),
       managerTask(nullptr) {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
-    scanBuffer.maxBytes = scanByteLimit;
-    scanBuffer.maxItems = scanItemLimit;
+    scanBuffer.maxBytes = config.getDcpScanByteLimit();
+    scanBuffer.maxItems = config.getDcpScanItemLimit();
 
     buffer.bytesRead = 0;
-    buffer.maxBytes = backfillByteLimit;
+    buffer.maxBytes = config.getDcpBackfillByteLimit();
     buffer.full = false;
-}
-
-BackfillManager::BackfillManager(KVBucket& kvBucket,
-                                 KVStoreScanTracker& scanTracker,
-                                 std::string name,
-                                 const Configuration& config)
-    : BackfillManager(kvBucket,
-                      scanTracker,
-                      std::move(name),
-                      config.getDcpScanByteLimit(),
-                      config.getDcpScanItemLimit(),
-                      config.getDcpBackfillByteLimit()) {
 }
 
 void BackfillManager::addStats(DcpProducer& conn,
