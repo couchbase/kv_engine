@@ -68,6 +68,12 @@
         "startid": 49152,
         "file": "goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json"
       }
+    },
+    {
+      "sync_gateway": {
+        "startid": 53248,
+        "file": "kv_engine/auditd/etc/sync_gateway_descriptor.json"
+      }
     }
   ]
 }
