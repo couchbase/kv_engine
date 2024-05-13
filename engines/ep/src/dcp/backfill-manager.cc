@@ -116,6 +116,7 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
     buffer.bytesRead = 0;
     buffer.maxBytes = config.getDcpBackfillByteLimit();
     buffer.full = false;
+    buffer.drainRatio = config.getDcpBackfillByteDrainRatio();
 }
 
 void BackfillManager::addStats(DcpProducer& conn,
@@ -261,7 +262,8 @@ void BackfillManager::bytesSent(size_t bytes) {
     buffer.bytesRead -= bytes;
 
     // Clear the full-flag if the buffer usage has dropped below the limit
-    if (buffer.full && buffer.bytesRead < buffer.maxBytes) {
+    if (buffer.full &&
+        buffer.bytesRead < buffer.maxBytes * (1.0 - buffer.drainRatio)) {
         buffer.full = false;
         if (managerTask) {
             auto id = managerTask->getId();
@@ -512,4 +514,18 @@ void BackfillManager::setBackfillByteLimit(size_t bytes) {
 size_t BackfillManager::getBackfillByteLimit() const {
     std::lock_guard<std::mutex> lh(lock);
     return buffer.maxBytes;
+}
+
+size_t BackfillManager::getBackfillBytesRead() const {
+    std::lock_guard<std::mutex> lh(lock);
+    return buffer.bytesRead;
+}
+
+double BackfillManager::getBackfillBytesDrainRatio() const {
+    return buffer.drainRatio;
+}
+
+bool BackfillManager::isBufferFull() const {
+    std::lock_guard<std::mutex> lh(lock);
+    return buffer.full;
 }

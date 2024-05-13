@@ -250,6 +250,12 @@ public:
 
     size_t getBackfillByteLimit() const;
 
+    size_t getBackfillBytesRead() const;
+
+    double getBackfillBytesDrainRatio() const;
+
+    bool isBufferFull() const;
+
     /// The name of the BackfillManager, used for logging etc
     const std::string name;
 
@@ -273,6 +279,11 @@ protected:
          */
         size_t maxBytes;
         bool full;
+        /**
+         * Minimum ratio of maxBytes that must be drained before un-pausing a
+         * paused BackfillTask.
+         */
+        double drainRatio;
     } buffer;
 
     /**

@@ -417,6 +417,34 @@ TEST_F(BackfillManagerTest, SnoozingQNotifiesTrackerOnDtor) {
     backfillMgr.reset();
 }
 
+TEST_F(BackfillManagerTest, BackfillBuffer) {
+    const auto& config = engine->getConfiguration();
+    const auto drainRatio = config.getDcpBackfillByteDrainRatio();
+    ASSERT_EQ(drainRatio, backfillMgr->getBackfillBytesDrainRatio());
+    ASSERT_EQ(0, backfillMgr->getBackfillBytesRead());
+    EXPECT_FALSE(backfillMgr->isBufferFull());
+
+    const auto bufferSize = config.getDcpBackfillByteLimit();
+    ASSERT_EQ(bufferSize, backfillMgr->getBackfillByteLimit());
+    // Fill up the buffer
+    EXPECT_FALSE(backfillMgr->bytesCheckAndRead(bufferSize));
+
+    // Now simulate that 1 byte is released from the buffer, which makes the
+    // buffer physically non-full
+    backfillMgr->bytesSent(1);
+    EXPECT_EQ(bufferSize - 1, backfillMgr->getBackfillBytesRead());
+    // Still, we consider the buffer logically full as we haven't released
+    // drain-ratio yet
+    EXPECT_TRUE(backfillMgr->isBufferFull());
+
+    // Now release at least drain_ratio
+    const double toRelease = bufferSize * drainRatio;
+    backfillMgr->bytesSent(toRelease);
+    EXPECT_EQ(bufferSize - 1 - toRelease, backfillMgr->getBackfillBytesRead());
+    // Buffer logically non-full
+    EXPECT_FALSE(backfillMgr->isBufferFull());
+}
+
 class BackfillManagerParamTest : public BackfillManagerTest {
 protected:
     void drainRatioOutOfRange(float testedVal);
