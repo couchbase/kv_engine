@@ -174,6 +174,9 @@ void PagingVisitor::tearDownHashBucketVisit() {
 
 bool PagingVisitor::shouldContinueHashTableVisit(
         const HashTable::HashBucketLock&) {
+    if (pagingVisitorPauseCheckCount <= 1) {
+        return true;
+    }
     const auto threshold =
             currentBucket->ht.getSize() / pagingVisitorPauseCheckCount;
     if (++htVisitsSincePauseCheck >= threshold) {
