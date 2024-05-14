@@ -66,6 +66,10 @@ void DcpFlowControlManager::setDcpConsumerBufferRatio(float ratio) {
     updateConsumersBufferSize(*consumers.wlock());
 }
 
+float DcpFlowControlManager::getDcpConsumerBufferRatio() const {
+    return dcpConsumerBufferRatio;
+}
+
 size_t DcpFlowControlManager::getNumConsumers() const {
     return consumers.wlock()->size();
 }

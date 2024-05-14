@@ -812,8 +812,9 @@ cb::engine_errc DcpProducer::step(bool throttled,
     std::unique_ptr<Item> itmCpy;
     totalUncompressedDataSize.fetch_add(resp->getMessageSize());
 
-    auto* mutationResponse = dynamic_cast<MutationResponse*>(resp.get());
-    if (mutationResponse) {
+    MutationResponse* mutationResponse = nullptr;
+    if (resp->isMutationResponse()) {
+        mutationResponse = static_cast<MutationResponse*>(resp.get()); // NOLINT
         itmCpy = std::make_unique<Item>(*mutationResponse->getItem());
         if (isCompressionEnabled()) {
             /**

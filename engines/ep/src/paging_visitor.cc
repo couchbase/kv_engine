@@ -44,6 +44,9 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       startTime(ep_real_time()),
       pagerSemaphore(std::move(pagerSemaphore)),
       isPausingAllowed(pause),
+      pagingVisitorPauseCheckCount(s.getEPEngine()
+                                           .getConfiguration()
+                                           .getPagingVisitorPauseCheckCount()),
       wasAboveBackfillThreshold(s.isMemUsageAboveBackfillThreshold()),
       taskStart(std::chrono::steady_clock::now()) {
     setVBucketFilter(vbFilter);
@@ -169,6 +172,17 @@ void PagingVisitor::tearDownHashBucketVisit() {
     vbStateLock.unlock();
 }
 
+bool PagingVisitor::shouldContinueHashTableVisit(
+        const HashTable::HashBucketLock&) {
+    const auto threshold =
+            currentBucket->ht.getSize() / pagingVisitorPauseCheckCount;
+    if (++htVisitsSincePauseCheck >= threshold) {
+        htVisitsSincePauseCheck = 0;
+        return shouldInterrupt() != ExecutionState::Pause;
+    }
+    return true;
+}
+
 ExpiredPagingVisitor::ExpiredPagingVisitor(
         KVBucket& s,
         EPStats& st,
@@ -197,7 +211,7 @@ bool ExpiredPagingVisitor::visit(const HashTable::HashBucketLock& lh,
         return true;
     }
     maybeExpire(v);
-    return true;
+    return shouldContinueHashTableVisit(lh);
 }
 
 void ExpiredPagingVisitor::visitBucket(VBucket& vb) {
@@ -207,7 +221,10 @@ void ExpiredPagingVisitor::visitBucket(VBucket& vb) {
         currentBucket = &vb;
         // EvictionPolicy is not required when running expiry item
         // pager
-        vb.ht.visit(*this);
+        hashTablePosition = vb.ht.pauseResumeVisit(*this, hashTablePosition);
+        if (hashTablePosition == vb.ht.endPosition()) {
+            hashTablePosition = {};
+        }
         currentBucket = nullptr;
     }
 }
@@ -245,7 +262,7 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
         return true;
     }
     if (maybeExpire(v)) {
-        return true;
+        return shouldContinueHashTableVisit(lh);
     }
 
     auto vbState = currentBucket->getState();
@@ -256,7 +273,7 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
         // and will definitely be dropped, regardless of the desired eviction
         // ratio.
         doEviction(lh, &v, true /*isDropped*/);
-        return true;
+        return shouldContinueHashTableVisit(lh);
     }
 
     /*
@@ -299,17 +316,19 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
                 storedValueFreqCounter, age, vbState);
     }
 
-    return true;
+    return shouldContinueHashTableVisit(lh);
 }
 
 void ItemPagingVisitor::visitBucket(VBucket& vb) {
     update();
 
     if (shouldStopPaging()) {
+        hashTablePosition = {};
         return;
     }
 
     if (!vBucketFilter(vb.getId())) {
+        hashTablePosition = {};
         return;
     }
 
@@ -317,7 +336,10 @@ void ItemPagingVisitor::visitBucket(VBucket& vb) {
     evictionStrategy->setupVBucketVisit(vb.getNumItems());
 
     currentBucket = &vb;
-    vb.ht.visit(*this);
+    hashTablePosition = vb.ht.pauseResumeVisit(*this, hashTablePosition);
+    if (hashTablePosition == vb.ht.endPosition()) {
+        hashTablePosition = {};
+    }
     currentBucket = nullptr;
 
     evictionStrategy->tearDownVBucketVisit(vb.getState());

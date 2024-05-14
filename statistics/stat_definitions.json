@@ -3524,6 +3524,12 @@
         "added": "7.1.0"
     },
     {
+        "key": "ep_checkpoint_consumer_limit",
+        "unit": "bytes",
+        "description": "Max allocation allowed in all checkpoints (including the dcp consumer buffer quota)",
+        "added": "7.6.2"
+    },
+    {
         "key": "ep_checkpoint_memory_recovery_upper_mark_bytes",
         "unit": "none",
         "description": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint",

@@ -800,7 +800,7 @@ public:
      * @param cookie the cookie to look up
      * @return the pointer to the connection handler if found, nullptr otherwise
      */
-    ConnHandler* tryGetConnHandler(CookieIface& cookie);
+    static ConnHandler* tryGetConnHandler(CookieIface& cookie);
 
     /**
      * Get the connection handler for the provided cookie. This method differs
@@ -816,7 +816,7 @@ public:
      * @return the connection handler
      * @throws std::logic_error if the cookie don't have a connection handler
      */
-    ConnHandler& getConnHandler(CookieIface& cookie);
+    static ConnHandler& getConnHandler(CookieIface& cookie);
 
     /*
      * Explicitly trigger the defragmenter task. Provided to facilitate
@@ -1024,6 +1024,8 @@ public:
      * @param ratio
      */
     void setDcpConsumerBufferRatio(float ratio);
+
+    float getDcpConsumerBufferRatio() const;
 
     /**
      * Returns the quota sharing manager.

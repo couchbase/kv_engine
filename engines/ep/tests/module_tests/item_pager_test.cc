@@ -518,6 +518,129 @@ TEST_P(STItemPagerTest, MaxVisitorDuration) {
     EXPECT_EQ(575, countMilliseconds(pager.maxExpectedVisitorDuration()));
 }
 
+/**
+ * Simulates a VBCBAdaptor and counts the number of vBucket visits.
+ * @param pv PagingVisitor to drive
+ * @param vb vBucket to visit
+ * @return number of times the vBucket was visited
+ */
+static size_t countPagingVisitorVisits(PagingVisitor& pv, VBucket& vb) {
+    size_t numVisits = 0;
+    pv.begin();
+    do {
+        pv.visitBucket(vb);
+        ++numVisits;
+    } while (pv.needsToRevisitLast() != NeedsRevisit::No);
+    pv.complete();
+    return numVisits;
+}
+
+TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
+    // Define mock visitors that adjust the time so the time condition for
+    // pausing is always true, and count the number of times HT visits continued
+    // or were paused.
+
+    class MockExpiredPagingVisitor : public ExpiredPagingVisitor {
+    public:
+        using ExpiredPagingVisitor::ExpiredPagingVisitor;
+
+        bool visit(const HashTable::HashBucketLock& lh,
+                   StoredValue& v) override {
+            chunkStart -= 25ms;
+            bool ret = ExpiredPagingVisitor::visit(lh, v);
+            if (ret) {
+                ++numContinue;
+            } else {
+                ++numPause;
+            }
+            return ret;
+        }
+
+        size_t numPause = 0;
+        size_t numContinue = 0;
+    };
+
+    class MockItemPagingVisitor : public ItemPagingVisitor {
+    public:
+        using ItemPagingVisitor::ItemPagingVisitor;
+
+        bool visit(const HashTable::HashBucketLock& lh,
+                   StoredValue& v) override {
+            chunkStart -= 25ms;
+            bool ret = ItemPagingVisitor::visit(lh, v);
+            if (ret) {
+                ++numContinue;
+            } else {
+                ++numPause;
+            }
+            return ret;
+        }
+
+        size_t numPause = 0;
+        size_t numContinue = 0;
+    };
+
+    if (!isPersistent()) {
+        GTEST_SKIP();
+    }
+
+    auto& config = engine->getConfiguration();
+    // Reduce the count so that we don't check the pause condition every time
+    config.setPagingVisitorPauseCheckCount(5);
+    // Age is not relevant to this test, increase the MFU threshold
+    // under which age is ignored
+    config.setItemEvictionFreqCounterAgeThreshold(255);
+
+    auto expirySemaphore = std::make_shared<cb::Semaphore>();
+    MockExpiredPagingVisitor expiryVisitor(*store,
+                                           engine->getEpStats(),
+                                           expirySemaphore,
+                                           true,
+                                           VBucketFilter());
+
+    auto pagingSemaphore = std::make_shared<cb::Semaphore>();
+    MockItemPagingVisitor pagingVisitor(
+            *store,
+            engine->getEpStats(),
+            ItemEvictionStrategy::evict_everything(),
+            pagingSemaphore,
+            true,
+            VBucketFilter());
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& stats = engine->getEpStats();
+    auto aboveHWM = [&stats]() {
+        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+    };
+
+    size_t itemCount = 0;
+    while (!aboveHWM()) {
+        itemCount += populateVbsUntil({vbid}, aboveHWM);
+    }
+    EXPECT_GT(itemCount, 0);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // We expect to pause at least once, so the vBucket will need to be visited
+    // more than once. We also limit how often we check the pause condition,
+    // so we expect the number of visits to be less than the HT size. This also
+    // means that not every HT visit will indicate a pause.
+
+    size_t numVisits = countPagingVisitorVisits(expiryVisitor, *vb);
+    EXPECT_GT(numVisits, 1);
+    EXPECT_LT(numVisits, vb->ht.getSize());
+    EXPECT_GT(expiryVisitor.numPause, 0);
+    EXPECT_GT(expiryVisitor.numContinue, 0);
+
+    numVisits = countPagingVisitorVisits(pagingVisitor, *vb);
+    EXPECT_GT(numVisits, 1);
+    EXPECT_LT(numVisits, vb->ht.getSize());
+    EXPECT_GT(pagingVisitor.numPause, 0);
+    EXPECT_GT(pagingVisitor.numContinue, 0);
+}
+
 TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
     // MB-50423:
     //  A request for a deleted value (e.g., to read system xattrs) bgfetches a
