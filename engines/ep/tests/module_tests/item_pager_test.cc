@@ -360,6 +360,8 @@ protected:
         if (!config_string.empty()) {
             config_string += ";";
         }
+        // Disable pausing mid-vbucket by default
+        config_string += "paging_visitor_pause_check_count=1;";
         config_string +=
                 "concurrent_pagers=" + std::to_string(getNumConcurrentPagers());
         config_string += ";expiry_pager_concurrency=" +
@@ -585,7 +587,8 @@ TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
     }
 
     auto& config = engine->getConfiguration();
-    // Reduce the count so that we don't check the pause condition every time
+    // Enable pausing mid-vbucket, but reduce the count from the config default,
+    // so that we don't check the pause condition every time
     config.setPagingVisitorPauseCheckCount(5);
     // Age is not relevant to this test, increase the MFU threshold
     // under which age is ignored
@@ -2067,9 +2070,12 @@ protected:
         if (!config_string.empty()) {
             config_string += ";";
         }
+        // Disable pausing mid-vbucket by default
         // enable expiry pager - this adds one to the expected number of nonIO
         // tasks
-        config_string += "exp_pager_enabled=true";
+        config_string +=
+                "paging_visitor_pause_check_count=1;"
+                "exp_pager_enabled=true";
         ++initialNonIoTasks;
         STBucketQuotaTest::SetUp();
 
