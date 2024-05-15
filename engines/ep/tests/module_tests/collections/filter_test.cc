@@ -316,7 +316,7 @@ class CollectionsTestFilter : public Collections::VB::Filter {
 public:
     CollectionsTestFilter(std::optional<std::string_view> jsonFilter,
                           const Collections::VB::Manifest& manifest,
-                          const CookieIface* cookie,
+                          CookieIface* cookie,
                           EventuallyPersistentEngine& engine)
         : Collections::VB::Filter(jsonFilter, manifest, *cookie, engine) {
     }

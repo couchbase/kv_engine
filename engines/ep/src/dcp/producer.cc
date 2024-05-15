@@ -30,12 +30,15 @@
 #include "kv_bucket.h"
 #include "objectregistry.h"
 #include "snappy-c.h"
+#include "trace_helpers.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
 #include <fmt/chrono.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>
+#include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
+#include <platform/scope_timer.h>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 
@@ -295,6 +298,90 @@ void DcpProducer::cancelCheckpointCreatorTask() {
     }
 }
 
+std::variant<bool, cb::engine_errc> DcpProducer::checkAndMaybeEraseStream(
+        Vbid vbid, cb::mcbp::DcpStreamId sid) {
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamFindMap, true);
+
+    auto found = streams->find(vbid.get());
+    if (found != streams->end()) {
+        // vbid is already mapped. found.second is a
+        // shared_ptr<StreamContainer>
+        if (found->second) {
+            auto handle = found->second->wlock();
+            for (; !handle.end(); handle.next()) {
+                auto& sp = handle.get(); // get the shared_ptr<Stream>
+                if (sp->compareStreamId(sid)) {
+                    // Error if found and active
+                    if (sp->isActive()) {
+                        logger->warn(
+                                "({}) Stream ({}) request failed"
+                                " because a stream already exists for this "
+                                "vbucket",
+                                vbid,
+                                sid.to_string());
+                        return cb::engine_errc::key_already_exists;
+                    } else {
+                        // Found a 'dead' stream which can be replaced.
+                        handle.erase();
+
+                        // Don't need to add an entry to vbucket-to-conns
+                        // map
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
+std::variant<std::vector<vbucket_failover_t>, cb::engine_errc>
+DcpProducer::doRollbackCheck(VBucket& vb,
+                             const Collections::VB::Filter& filter,
+                             uint64_t highSeqno,
+                             uint64_t start_seqno,
+                             uint64_t end_seqno,
+                             uint64_t vbucket_uuid,
+                             uint64_t snap_start_seqno,
+                             uint64_t snap_end_seqno,
+                             uint64_t purgeSeqno,
+                             uint32_t flags,
+                             uint64_t* rollback_seqno) {
+    // Timing for failover table as this has an internal mutex
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(
+            *getCookie(), Code::StreamCheckRollback, true);
+    std::pair<bool, std::string> need_rollback =
+            vb.failovers->needsRollback(start_seqno,
+                                        highSeqno,
+                                        vbucket_uuid,
+                                        snap_start_seqno,
+                                        snap_end_seqno,
+                                        purgeSeqno,
+                                        flags & DCP_ADD_STREAM_STRICT_VBUUID,
+                                        getHighSeqnoOfCollections(filter, vb),
+                                        rollback_seqno);
+
+    if (need_rollback.first) {
+        logger->warn(
+                "({}) Stream request requires rollback to seqno:{} "
+                "because {}. Client requested seqnos:{{{},{}}} "
+                "snapshot:{{{},{}}} uuid:{}",
+                vb.getId(),
+                *rollback_seqno,
+                need_rollback.second,
+                start_seqno,
+                end_seqno,
+                snap_start_seqno,
+                snap_end_seqno,
+                vbucket_uuid);
+        return cb::engine_errc::rollback;
+    }
+
+    return vb.failovers->getFailoverLog();
+}
+
 cb::engine_errc DcpProducer::streamRequest(
         uint32_t flags,
         uint32_t opaque,
@@ -401,37 +488,11 @@ cb::engine_errc DcpProducer::streamRequest(
 
     // Check if this vbid can be added to this producer connection, and if
     // the vb connection map needs updating (if this is a new VB).
-    bool callAddVBConnByVBId = true;
-    auto found = streams->find(vbucket.get());
-    if (found != streams->end()) {
-        // vbid is already mapped. found.second is a shared_ptr<StreamContainer>
-        if (found->second) {
-            auto handle = found->second->wlock();
-            for (; !handle.end(); handle.next()) {
-                auto& sp = handle.get(); // get the shared_ptr<Stream>
-                if (sp->compareStreamId(filter.getStreamId())) {
-                    // Error if found and active
-                    if (sp->isActive()) {
-                        logger->warn(
-                                "({}) Stream ({}) request failed"
-                                " because a stream already exists for this "
-                                "vbucket",
-                                vbucket,
-                                filter.getStreamId().to_string());
-                        return cb::engine_errc::key_already_exists;
-                    } else {
-                        // Found a 'dead' stream which can be replaced.
-                        handle.erase();
-
-                        // Don't need to add an entry to vbucket-to-conns map
-                        callAddVBConnByVBId = false;
-
-                        break;
-                    }
-                }
-            }
-        }
+    auto checkResult = checkAndMaybeEraseStream(vbucket, filter.getStreamId());
+    if (std::holds_alternative<cb::engine_errc>(checkResult)) {
+        return std::get<cb::engine_errc>(checkResult);
     }
+    bool callAddVBConnByVBId = std::get<bool>(checkResult);
 
     auto purgeSeqno = vb->getPurgeSeqno();
     if (flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
@@ -440,35 +501,24 @@ cb::engine_errc DcpProducer::streamRequest(
         purgeSeqno = 0;
     }
 
-    std::pair<bool, std::string> need_rollback =
-            vb->failovers->needsRollback(start_seqno,
-                                         vb->getHighSeqno(),
-                                         vbucket_uuid,
-                                         snap_start_seqno,
-                                         snap_end_seqno,
-                                         purgeSeqno,
-                                         flags & DCP_ADD_STREAM_STRICT_VBUUID,
-                                         getHighSeqnoOfCollections(filter, *vb),
-                                         rollback_seqno);
-
-    if (need_rollback.first) {
-        logger->warn(
-                "({}) Stream request requires rollback to seqno:{} "
-                "because {}. Client requested seqnos:{{{},{}}} "
-                "snapshot:{{{},{}}} uuid:{}",
-                vbucket,
-                *rollback_seqno,
-                need_rollback.second,
-                start_seqno,
-                end_seqno,
-                snap_start_seqno,
-                snap_end_seqno,
-                vbucket_uuid);
-        return cb::engine_errc::rollback;
+    // Read once as this requires checkpoint lock to obtain
+    const auto highSeqno = vb->getHighSeqno();
+    auto rollbackResult = doRollbackCheck(*vb,
+                                          filter,
+                                          highSeqno,
+                                          start_seqno,
+                                          end_seqno,
+                                          vbucket_uuid,
+                                          snap_start_seqno,
+                                          snap_end_seqno,
+                                          purgeSeqno,
+                                          flags,
+                                          rollback_seqno);
+    if (std::holds_alternative<cb::engine_errc>(rollbackResult)) {
+        return std::get<cb::engine_errc>(rollbackResult);
     }
-
-    std::vector<vbucket_failover_t> failoverEntries =
-            vb->failovers->getFailoverLog();
+    auto failoverEntries =
+            std::get<std::vector<vbucket_failover_t>>(rollbackResult);
 
     if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
         end_seqno = vb->getHighSeqno();
@@ -2049,6 +2099,10 @@ DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<ActiveStream>& stream) {
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(
+            *getCookie(), Code::StreamUpdateMap, true);
+
     updateStreamsMapHook();
 
     auto found = streams->find(vbid.get());
@@ -2137,7 +2191,11 @@ bool DcpProducer::isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() const {
 }
 
 std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
-        const Collections::VB::Filter& filter, VBucket& vbucket) const {
+        const Collections::VB::Filter& filter, VBucket& vbucket) {
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(
+            *getCookie(), Code::StreamGetCollectionHighSeq, true);
+
     if (filter.isPassThroughFilter()) {
         return std::nullopt;
     }

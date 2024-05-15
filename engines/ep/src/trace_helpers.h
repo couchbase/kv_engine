@@ -74,8 +74,14 @@ public:
         : TracerStopwatch(cookie2traceable(cookie), code) {
     }
 
+    TracerStopwatch(cb::tracing::Traceable& traceable,
+                    const cb::tracing::Code code,
+                    bool alwaysTrace)
+        : traceable(&traceable), code(code), alwaysTrace(alwaysTrace) {
+    }
+
     ~TracerStopwatch() {
-        if (traceable && traceable->isTracingEnabled()) {
+        if (traceable && (traceable->isTracingEnabled() || alwaysTrace)) {
             NonBucketAllocationGuard guard;
             auto& tracer = traceable->getTracer();
             const auto spanId = tracer.begin(code, startTime);
@@ -101,6 +107,7 @@ public:
 protected:
     cb::tracing::Traceable* const traceable;
     const cb::tracing::Code code;
+    bool alwaysTrace{false};
 
     cb::tracing::Clock::time_point startTime;
     cb::tracing::Clock::time_point stopTime;
