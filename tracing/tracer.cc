@@ -172,6 +172,16 @@ MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
         return "sync_write.ack_remote";
     case Code::SelectBucket:
         return "select_bucket";
+    case Code::StreamFilterCreate:
+        return "stream_req.filter";
+    case Code::StreamCheckRollback:
+        return "stream_req.rollback";
+    case Code::StreamGetCollectionHighSeq:
+        return "stream_req.get_collection_seq";
+    case Code::StreamFindMap:
+        return "stream_req.find_map";
+    case Code::StreamUpdateMap:
+        return "stream_req.update_map";
     }
     return "unknown tracecode";
 }

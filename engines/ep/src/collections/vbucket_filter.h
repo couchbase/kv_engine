@@ -94,7 +94,7 @@ public:
      */
     Filter(std::optional<std::string_view> jsonFilter,
            const ::Collections::VB::Manifest& manifest,
-           const CookieIface& cookie,
+           CookieIface& cookie,
            const EventuallyPersistentEngine& engine);
 
     /**

@@ -17,11 +17,14 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/response.h"
 #include "ep_engine.h"
+#include "trace_helpers.h"
 
 #include <json_utilities.h>
 #include <memcached/rbac/privileges.h>
+#include <memcached/tracer.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
+#include <platform/scope_timer.h>
 #include <statistics/cbstat_collector.h>
 #include <memory>
 
@@ -29,8 +32,10 @@ namespace Collections::VB {
 
 Filter::Filter(std::optional<std::string_view> jsonFilter,
                const Collections::VB::Manifest& manifest,
-               const CookieIface& cookie,
+               CookieIface& cookie,
                const EventuallyPersistentEngine& engine) {
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(cookie, Code::StreamFilterCreate, true);
     cb::engine_errc status = cb::engine_errc::success;
     uint64_t manifestUid{0};
     // If the jsonFilter is not initialised we are building a filter for a
