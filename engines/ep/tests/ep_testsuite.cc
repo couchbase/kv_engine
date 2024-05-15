@@ -3440,13 +3440,24 @@ static enum test_result test_access_scanner(EngineIface* h) {
     name = name + ".0";
     std::string prev(name + ".old");
 
-    /* Get the resident ratio down to below 95% - point at which access.log
-     * generation occurs.
-     */
+    const auto quota = get_stat<uint64_t>(h, "ep_max_size");
+    // Note: Touching this code for MB-61875. The following comment is legacy
+    // from previous development and I don't get what residency calculation
+    // the comment refers too. I guess that whatever that was at the time, our
+    // logic in the ItemPager has chenged over time and this comment might
+    // be invalid at this point.
+    //
+    // Ensure we have at least 1000 items, ie enough to give us 0.1% granularity
+    // in any residency calculations.
+    const size_t minNumItems = 1000;
+    // MB-61875: This test might store less that minNumItems on some envs.
+    // Let's just make computations as if we want to load 10x minNumItems, so
+    // we minimize the possibility that we drop under minNumItems.
+    const auto valueSize = quota / (minNumItems * 10);
+    const std::string value(valueSize, 'x');
+
+    // Get the RR down to below 95% for generating a access.log file
     int num_items = 0;
-    // Size chosen to create ~2000 items (i.e. 2x more than we sanity-check below)
-    // with the given max_size for this test.
-    const std::string value(2000, 'x');
     while (true) {
         // Gathering stats on every store is expensive, just check every 100 iterations
         if ((num_items % 100) == 0) {
@@ -3477,9 +3488,6 @@ static enum test_result test_access_scanner(EngineIface* h) {
 
     }
 
-    // Sanity check - ensure we have enough vBucket quota (max_size)
-    // such that we have 1000 items - enough to give us 0.1%
-    // granuarity in any residency calculations. */
     if (num_items < 1000) {
         std::cerr << "Error: test_access_scanner: "
             "expected at least 1000 items after filling vbucket, "
