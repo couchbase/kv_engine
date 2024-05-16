@@ -33,6 +33,5 @@ public:
      * @return true if the given task (of the given type) is scheduled,
      *     false otherwise
      */
-    bool isTaskScheduled(const task_type_t queueType,
-                         const std::string& taskName);
+    bool isTaskScheduled(const TaskType queueType, const std::string& taskName);
 };

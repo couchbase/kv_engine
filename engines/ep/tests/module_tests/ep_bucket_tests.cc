@@ -247,7 +247,7 @@ TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
 
     // TEST
     // We expect task2 to run first because it should have an earlier wake time
-    TaskQueue& lpWriteQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    TaskQueue& lpWriteQ = *task_executor->getLpTaskQ(TaskType::Writer);
     runNextTask(lpWriteQ, "Task uid:" + std::to_string(task2->getId()));
     runNextTask(lpWriteQ, "Task uid:" + std::to_string(task1->getId()));
 }
@@ -275,7 +275,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
         }
     };
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
 
     // New task with a massive sleep
     ExTask task = std::make_shared<TestTask>(*engine, 99999.0);
@@ -285,21 +285,21 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     task_executor->schedule(task);
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
-              task_executor->getNumReadyTasksOfType(AUXIO_TASK_IDX));
+              task_executor->getNumReadyTasksOfType(TaskType::AuxIO));
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
 
     // Wake task, but stays in futureQueue (fetch can now move it)
     task_executor->wake(task->getId());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
-              task_executor->getNumReadyTasksOfType(AUXIO_TASK_IDX));
+              task_executor->getNumReadyTasksOfType(TaskType::AuxIO));
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
 
     runNextTask(lpAuxioQ);
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
     EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
-              task_executor->getNumReadyTasksOfType(AUXIO_TASK_IDX));
+              task_executor->getNumReadyTasksOfType(TaskType::AuxIO));
     EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
 }
@@ -382,7 +382,7 @@ TEST_F(SingleThreadedEPBucketTest, DcpConsumerTaskYields) {
  * a taskqueue.
  */
 TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     ExTask hpTask = std::make_shared<TestTask>(engine->getTaskable(),
                                                TaskId::PendingOpsNotification);
@@ -399,7 +399,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
 
     // Check 1 task is ready
     EXPECT_EQ(1, task_executor->getTotReadyTasks());
-    EXPECT_EQ(1, task_executor->getNumReadyTasksOfType(NONIO_TASK_IDX));
+    EXPECT_EQ(1, task_executor->getNumReadyTasksOfType(TaskType::NonIO));
 
     runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
 
@@ -413,7 +413,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
 
     // Check 1 task is ready
     EXPECT_EQ(1, task_executor->getTotReadyTasks());
-    EXPECT_EQ(1, task_executor->getNumReadyTasksOfType(NONIO_TASK_IDX));
+    EXPECT_EQ(1, task_executor->getNumReadyTasksOfType(TaskType::NonIO));
     runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
 }
 
@@ -421,7 +421,7 @@ TEST_F(SingleThreadedEPBucketTest, MB18953_taskWake) {
  * MB-20735 waketime is not correctly picked up on reschedule
  */
 TEST_F(SingleThreadedEPBucketTest, MB20735_rescheduleWaketime) {
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     class SnoozingTestTask : public TestTask {
     public:
@@ -512,7 +512,7 @@ TEST_F(SingleThreadedEPBucketTest, ItemFreqDecayerTaskTest) {
         store_item(vbid, key, "value");
     }
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     auto itemFreqDecayerTask =
             std::make_shared<MockItemFreqDecayerTask>(*engine, 50);
 
@@ -577,7 +577,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     );
 
     // Manually drive the backfill (not using notifyAndStepToCheckpoint)
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     // backfill:create()
     runNextTask(lpAuxioQ);
     // backfill:scan()

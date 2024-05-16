@@ -939,7 +939,7 @@ TEST_P(NexusKVStoreAbortingTest,
 
     // Run and persist the state
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO));
 
     // Before the fix the compaction was a success for couchstore as the file
     // now exists on disk but a failure for magma as the delayed deletion of the
@@ -957,7 +957,7 @@ TEST_P(NexusKVStoreAbortingTest,
 
     // Delete the vBucket and remove the files from disk
     store->deleteVBucket(vbid, cookie);
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO));
 
     // Set the state to allow the next compaction to run (we need a vBucket in
     // memory) but don't persist it.

@@ -837,7 +837,7 @@ TYPED_TEST(ExecutorPoolTest, ReturnTrueWithoutSnoozeUpdatesWakeTime) {
 /* This test creates an ExecutorPool, and attempts to verify that calls to
  * setNumWriters are able to dynamically create more workers than were present
  * at initialisation. A ThreadGate is used to confirm that two tasks
- * of type WRITER_TASK_IDX can run concurrently
+ * of type TaskType::Writer can run concurrently
  *
  */
 TYPED_TEST(ExecutorPoolTest, increase_workers) {
@@ -961,18 +961,18 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
     for (const auto& task : tasks) {
         const auto type = GlobalTask::getTaskType(task->getTaskId());
         switch (type) {
-        case WRITER_TASK_IDX:
-        case AUXIO_TASK_IDX:
+        case TaskType::Writer:
+        case TaskType::AuxIO:
             EXPECT_EQ(expectedHighPriority, task->threadPriority)
                     << "for task: " << task->getDescription();
             break;
-        case READER_TASK_IDX:
-        case NONIO_TASK_IDX:
+        case TaskType::Reader:
+        case TaskType::NonIO:
             EXPECT_EQ(defaultPriority, task->threadPriority)
                     << "for task: " << task->getDescription();
             break;
         default:
-            FAIL() << "Unexpected task type: " << type;
+            FAIL() << "Unexpected task type: " << to_string(type);
         }
     }
 

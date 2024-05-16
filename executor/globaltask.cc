@@ -153,7 +153,7 @@ TaskPriority GlobalTask::getTaskPriority(TaskId id) {
 /*
  * Generate a switch statement from tasks.def.h that maps TaskId to task type
  */
-task_type_t GlobalTask::getTaskType(TaskId id) {
+TaskType GlobalTask::getTaskType(TaskId id) {
     switch (id) {
 #define TASK(name, type, prio) \
     case TaskId::name: {       \

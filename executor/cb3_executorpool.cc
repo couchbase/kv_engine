@@ -26,22 +26,22 @@
 
 size_t CB3ExecutorPool::getNumNonIO() const {
     return calcNumNonIO(ThreadPoolConfig::NonIoThreadCount(
-            numWorkers[NONIO_TASK_IDX].load()));
+            numWorkers[static_cast<size_t>(TaskType::NonIO)].load()));
 }
 
 size_t CB3ExecutorPool::getNumAuxIO() const {
     return calcNumAuxIO(ThreadPoolConfig::AuxIoThreadCount(
-            numWorkers[AUXIO_TASK_IDX].load()));
+            numWorkers[static_cast<size_t>(TaskType::AuxIO)].load()));
 }
 
 size_t CB3ExecutorPool::getNumWriters() const {
-    return calcNumWriters(
-            ThreadPoolConfig::ThreadCount(numWorkers[WRITER_TASK_IDX].load()));
+    return calcNumWriters(ThreadPoolConfig::ThreadCount(
+            numWorkers[static_cast<size_t>(TaskType::Writer)].load()));
 }
 
 size_t CB3ExecutorPool::getNumReaders() const {
-    return calcNumReaders(
-            ThreadPoolConfig::ThreadCount(numWorkers[READER_TASK_IDX].load()));
+    return calcNumReaders(ThreadPoolConfig::ThreadCount(
+            numWorkers[static_cast<size_t>(TaskType::Reader)].load()));
 }
 
 CB3ExecutorPool::CB3ExecutorPool(
@@ -64,10 +64,14 @@ CB3ExecutorPool::CB3ExecutorPool(
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;
     }
-    numWorkers[WRITER_TASK_IDX] = static_cast<int>(maxWriters);
-    numWorkers[READER_TASK_IDX] = static_cast<int>(maxReaders);
-    numWorkers[AUXIO_TASK_IDX] = static_cast<int>(maxAuxIO);
-    numWorkers[NONIO_TASK_IDX] = static_cast<int>(maxNonIO);
+    numWorkers[static_cast<size_t>(TaskType::Writer)] =
+            static_cast<int>(maxWriters);
+    numWorkers[static_cast<size_t>(TaskType::Reader)] =
+            static_cast<int>(maxReaders);
+    numWorkers[static_cast<size_t>(TaskType::AuxIO)] =
+            static_cast<int>(maxAuxIO);
+    numWorkers[static_cast<size_t>(TaskType::NonIO)] =
+            static_cast<int>(maxNonIO);
 }
 
 CB3ExecutorPool::~CB3ExecutorPool() {
@@ -94,18 +98,19 @@ TaskQueue* CB3ExecutorPool::_nextTask(CB3ExecutorThread& t, uint8_t tick) {
         return nullptr;
     }
 
-    task_type_t myq = t.taskType;
+    TaskType myq = t.taskType;
+    auto myqIdx = static_cast<size_t>(myq);
     TaskQueue* checkQ; // which TaskQueue set should be polled first
     TaskQueue* checkNextQ; // which set of TaskQueue should be polled next
     TaskQueue* toggle = nullptr;
     if (!(tick % LOW_PRIORITY_FREQ)) { // if only 1 Q set, both point to it
-        checkQ = isLowPrioQset ? lpTaskQ[myq]
-                               : (isHiPrioQset ? hpTaskQ[myq] : nullptr);
-        checkNextQ = isHiPrioQset ? hpTaskQ[myq] : checkQ;
+        checkQ = isLowPrioQset ? lpTaskQ[myqIdx]
+                               : (isHiPrioQset ? hpTaskQ[myqIdx] : nullptr);
+        checkNextQ = isHiPrioQset ? hpTaskQ[myqIdx] : checkQ;
     } else {
-        checkQ = isHiPrioQset ? hpTaskQ[myq]
-                              : (isLowPrioQset ? lpTaskQ[myq] : nullptr);
-        checkNextQ = isLowPrioQset ? lpTaskQ[myq] : checkQ;
+        checkQ = isHiPrioQset ? hpTaskQ[myqIdx]
+                              : (isLowPrioQset ? lpTaskQ[myqIdx] : nullptr);
+        checkNextQ = isLowPrioQset ? lpTaskQ[myqIdx] : checkQ;
     }
     while (t.state == EXECUTOR_RUNNING) {
         if (checkQ && checkQ->fetchNextTask(t)) {
@@ -131,56 +136,56 @@ TaskQueue* CB3ExecutorPool::nextTask(CB3ExecutorThread& t, uint8_t tick) {
     return tq;
 }
 
-void CB3ExecutorPool::addWork(size_t newWork, task_type_t qType) {
+void CB3ExecutorPool::addWork(size_t newWork, TaskType qType) {
     if (newWork) {
         totReadyTasks.fetch_add(newWork);
-        numReadyTasks[qType].fetch_add(newWork);
+        numReadyTasks[static_cast<size_t>(qType)].fetch_add(newWork);
     }
 }
 
-void CB3ExecutorPool::lessWork(task_type_t qType) {
-    if (numReadyTasks[qType].load() == 0) {
+void CB3ExecutorPool::lessWork(TaskType qType) {
+    if (numReadyTasks[static_cast<size_t>(qType)].load() == 0) {
         throw std::logic_error(
                 "CB3ExecutorPool::lessWork: number of ready "
                 "tasks on qType " +
-                std::to_string(qType) + " is zero");
+                to_string(qType) + " is zero");
     }
-    numReadyTasks[qType]--;
+    numReadyTasks[static_cast<size_t>(qType)]--;
     totReadyTasks--;
 }
 
-void CB3ExecutorPool::startWork(task_type_t taskType) {
-    if (taskType == NO_TASK_TYPE || taskType == NUM_TASK_GROUPS) {
+void CB3ExecutorPool::startWork(TaskType taskType) {
+    if (taskType == TaskType::None || taskType == TaskType::Count) {
         throw std::logic_error(
                 "CB3ExecutorPool::startWork: worker is starting task with "
                 "invalid "
                 "type {" +
-                std::to_string(taskType) + "}");
+                to_string(taskType) + "}");
     } else {
-        ++curWorkers[taskType];
+        ++curWorkers[static_cast<size_t>(taskType)];
         LOG_TRACE(
                 "Taking up work in task "
                 "type:{{{}}} "
                 "current:{{{}}}, max:{{{}}}",
                 taskType,
-                curWorkers[taskType].load(),
-                numWorkers[taskType].load());
+                curWorkers[static_cast<size_t>(taskType)].load(),
+                numWorkers[static_cast<size_t>(taskType)].load());
     }
 }
 
-void CB3ExecutorPool::doneWork(task_type_t taskType) {
-    if (taskType == NO_TASK_TYPE || taskType == NUM_TASK_GROUPS) {
+void CB3ExecutorPool::doneWork(TaskType taskType) {
+    if (taskType == TaskType::None || taskType == TaskType::Count) {
         throw std::logic_error(
                 "CB3ExecutorPool::doneWork: worker is finishing task with "
                 "invalid "
                 "type {" +
-                std::to_string(taskType) + "}");
+                to_string(taskType) + "}");
     } else {
-        --curWorkers[taskType];
+        --curWorkers[static_cast<size_t>(taskType)];
         // Record that a thread is done working on a particular queue type
         LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
                   taskType,
-                  numWorkers[taskType].load());
+                  numWorkers[static_cast<size_t>(taskType)].load());
     }
 }
 
@@ -282,13 +287,14 @@ bool CB3ExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
     return rv;
 }
 
-TaskQueue* CB3ExecutorPool::_getTaskQueue(const Taskable& t, task_type_t qidx) {
+TaskQueue* CB3ExecutorPool::_getTaskQueue(const Taskable& t, TaskType qType) {
+    auto qidx = static_cast<size_t>(qType);
     TaskQueue* q = nullptr;
     size_t curNumThreads = 0;
 
     bucket_priority_t bucketPriority = t.getWorkloadPriority();
 
-    if (qidx < 0 || static_cast<size_t>(qidx) >= numTaskSets) {
+    if (qidx < 0 || qidx >= numTaskSets) {
         throw std::invalid_argument(
                 "CB3ExecutorPool::_getTaskQueue: qidx "
                 "(which is " +
@@ -400,8 +406,8 @@ void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
         if (!(*whichQset)) {
             taskQ->reserve(numTaskSets);
             for (size_t i = 0; i < numTaskSets; ++i) {
-                taskQ->push_back(
-                        new TaskQueue(this, (task_type_t)i, queueName));
+                taskQ->push_back(new TaskQueue(
+                        this, static_cast<TaskType>(i), queueName));
             }
             *whichQset = true;
         }
@@ -418,7 +424,7 @@ void CB3ExecutorPool::registerTaskable(Taskable& taskable) {
     _registerTaskable(taskable);
 }
 
-void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
+void CB3ExecutorPool::_adjustWorkers(TaskType type, size_t desiredNumItems) {
     std::string typeName{to_string(type)};
 
     // vector of threads which have been stopped
@@ -482,7 +488,7 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
             }
         }
 
-        numWorkers[type] = desiredNumItems;
+        numWorkers[static_cast<size_t>(type)] = desiredNumItems;
     } // release mutex
 
     // MB-22938 wake all threads to avoid blocking if a thread is sleeping
@@ -505,7 +511,7 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
     }
 }
 
-void CB3ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
+void CB3ExecutorPool::adjustWorkers(TaskType type, size_t newCount) {
     cb::NoArenaGuard guard;
     _adjustWorkers(type, newCount);
 }
@@ -516,10 +522,10 @@ bool CB3ExecutorPool::_startWorkers() {
     size_t numAuxIO = getNumAuxIO();
     size_t numNonIO = getNumNonIO();
 
-    _adjustWorkers(READER_TASK_IDX, numReaders);
-    _adjustWorkers(WRITER_TASK_IDX, numWriters);
-    _adjustWorkers(AUXIO_TASK_IDX, numAuxIO);
-    _adjustWorkers(NONIO_TASK_IDX, numNonIO);
+    _adjustWorkers(TaskType::Reader, numReaders);
+    _adjustWorkers(TaskType::Writer, numWriters);
+    _adjustWorkers(TaskType::AuxIO, numAuxIO);
+    _adjustWorkers(TaskType::NonIO, numNonIO);
 
     return true;
 }
@@ -587,7 +593,7 @@ void CB3ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
         }
 
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
-            TaskQueue* sleepQ = getSleepQ(idx);
+            TaskQueue* sleepQ = getSleepQ(static_cast<TaskType>(idx));
             size_t wakeAll = threadQ.size();
             sleepQ->doWake(wakeAll);
         }

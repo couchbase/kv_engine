@@ -73,7 +73,7 @@ protected:
                         engine->getKVBucket()->deleteVBucket(Vbid(i), nullptr))
                         << "Couldn't delete vbid:" << i;
                 executorPool->runNextTask(
-                        AUXIO_TASK_IDX,
+                        TaskType::AuxIO,
                         "Removing (dead) vb:" + std::to_string(i) +
                                 " from memory and disk");
             }

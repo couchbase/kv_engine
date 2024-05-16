@@ -4988,7 +4988,7 @@ TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     // now the task should be ready to run
     EXPECT_LE(task->getWaketime(), std::chrono::steady_clock::now());
 
-    auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIOQueue = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIOQueue, "Destroying closed unreferenced checkpoints");
 
     // checkpoint has been destroyed, EPStats counter has already been updated
@@ -5111,7 +5111,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
                   std::chrono::steady_clock::now());
     }
 
-    auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIOQueue = *task_executor->getLpTaskQ(TaskType::NonIO);
     // check that expected tasks have been notified, and run them
     for (size_t i = 0; i < locked->size(); ++i) {
         const auto& task = locked->at(i);

@@ -130,7 +130,7 @@ protected:
 
         // Sanity check - should be no nonIO tasks ready to run,
         // and two in futureQ EphTombstoneHTCleaner and ItemPager)
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         auto expectedFutureQueueSize = isEphemeral ? 2 : 1;
         EXPECT_EQ(expectedFutureQueueSize, lpNonioQ.getFutureQueueSize());
@@ -256,7 +256,7 @@ protected:
      */
     void eviction() {
         auto& stats = engine->getEpStats();
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
         auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
         auto lower = static_cast<double>(stats.mem_low_wat);

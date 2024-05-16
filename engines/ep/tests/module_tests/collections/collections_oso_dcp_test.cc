@@ -240,7 +240,7 @@ TEST_P(CollectionsOSODcpTest, NoCursorRegisteredForDeadStream) {
     ASSERT_EQ(cm.getNumCursors(), initialCursors - 1);
 
     // step the backfill tasks, may attempt to register a cursor
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     // backfill:create() -> fails to register cursor, state change to done
     runNextTask(lpAuxioQ);
     // run backfill:done()
@@ -281,7 +281,7 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
         if (backfillWillPause) {
             // backfill paused, step does nothing
             EXPECT_EQ(cb::engine_errc::would_block, result);
-            auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+            auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
             runNextTask(lpAuxioQ);
             EXPECT_EQ(cb::engine_errc::success,
                       producer->stepWithBorderGuard(*producers));
@@ -717,7 +717,7 @@ TEST_P(CollectionsOSODcpTest, cursor_dropped) {
     // Backfill scheduled, we will manually run and cursor drop in between
     // create/scan
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     // backfill:create()
     runNextTask(lpAuxioQ);
 

@@ -281,7 +281,7 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
 
     // Manually run the reader queue so that the warmup tasks execute whilst we
     // perform the interlocked operations
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     EXPECT_EQ(nullptr, store->getVBuckets().getBucket(vbid));
     auto* setVBStateCookie = create_mock_cookie(engine.get());
     auto* getFailoverCookie = create_mock_cookie(engine.get());
@@ -467,7 +467,7 @@ TEST_F(WarmupTest, MB_32577) {
     // Run though all the warmup tasks till LoadingCollectionCounts task
     // at this point we want to stop as this is when we want to send a delete
     // request using DCP
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     while (store->isWarmupLoadingData()) {
         if (warmupPtr->getWarmupState() ==
             WarmupState::State::LoadingCollectionCounts) {
@@ -1911,7 +1911,7 @@ TEST_P(DurabilityWarmupTest, SetStateDeadWithWarmedUpPrepare) {
 
     // No task scheduled because no prepare has a cookie (so cannot be notified)
     EXPECT_EQ(0,
-              task_executor->getLpTaskQ()[NONIO_TASK_IDX]->getReadyQueueSize());
+              task_executor->getLpTaskQ(TaskType::NonIO)->getReadyQueueSize());
 }
 
 // Test actually covers an issue seen in MB-34956, the issue was just the lack
@@ -2390,7 +2390,7 @@ TEST_P(MB_34718_WarmupTest, getTest) {
     // once we have ran the new warmup stage which puts the fully initialised VB
     // into the vbMap, before warmup has reached that stage we expect the GET to
     // faile with NMVB.
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     bool keepRunningReaderTasks = true;
     while (keepRunningReaderTasks) {
         runNextTask(readerQueue);
@@ -2547,7 +2547,7 @@ public:
     }
 
     TaskQueue& getReaderQueue() {
-        return *task_executor->getLpTaskQ()[READER_TASK_IDX];
+        return *task_executor->getLpTaskQ(TaskType::Reader);
     }
 
     KVBucket* getKVBucket() {
@@ -2725,12 +2725,12 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
     auto* flusher = bucket->getFlusher(vbid);
     EXPECT_EQ("initializing", std::string(flusher->stateName()));
 
-    auto& writerQueue = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    auto& writerQueue = *task_executor->getLpTaskQ(TaskType::Writer);
     EXPECT_EQ(0, writerQueue.getFutureQueueSize());
 
     // Warmup - run past the PopulateVBucketMap step which is the one that
     // we care about
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
 
@@ -2898,7 +2898,7 @@ TEST_F(WarmupTest, CrashWarmupAfterInitialize) {
         do {
             CheckedExecutor executor(
                     task_executor,
-                    *task_executor->getLpTaskQ()[READER_TASK_IDX]);
+                    *task_executor->getLpTaskQ(TaskType::Reader));
             // run the task
             executor.runCurrentTask();
             executor.completeCurrentTask();
@@ -2940,7 +2940,7 @@ TEST_P(DurabilityWarmupTest, RollbackDuringWarmup) {
 
     resetEngineAndEnableWarmup();
     auto* warmupPtr = store->getPrimaryWarmup();
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     // Bring the vb back.
     do {
         runNextTask(readerQueue);
@@ -3042,7 +3042,7 @@ protected:
         };
 
         // Test: Advance warmup until no more tasks remain.
-        auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+        auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
         CheckedExecutor executor(task_executor, readerQueue);
         do {
             executor.runCurrentTask();
@@ -3211,7 +3211,7 @@ TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
     // 3. Schedule the access scanner to be run, and then run the access
     // scanners tasks so that the documents are added to the access log
     ASSERT_TRUE(store->runAccessScannerTask());
-    auto& auxioQueue = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& auxioQueue = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(auxioQueue);
     runNextTask(auxioQueue);
     runNextTask(auxioQueue);

@@ -59,7 +59,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
     // fails
     std::filesystem::remove_all(test_dbname);
 
-    auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    auto& lpWriterQ = *task_executor->getLpTaskQ(TaskType::Writer);
     runNextTask(lpWriterQ);
 
     EXPECT_EQ(cb::engine_errc::cannot_apply_collections_manifest,

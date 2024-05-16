@@ -2126,7 +2126,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
 
     // Ensure background AuxIO task to actually delete VBucket from disk is run.
     if (persistent()) {
-        auto& auxIoQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+        auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
         runNextTask(auxIoQ, "Removing (dead) vb:0 from memory and disk");
 
         // vBucket should be gone from disk - attempts to read should fail.
@@ -3538,7 +3538,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     // readyQ.
     GMockDcpMsgProducers producers;
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIO,
                 "Process checkpoint(s) for DCP producer "
                 "test_producer->test_consumer");
@@ -4993,7 +4993,7 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
     // Core test
     // Backfill generates a [0, 1] complete snapshot even if on disk replica is
     // in a partial [0, 2] snapshot.
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(lpAuxioQ); // init + scan
     ASSERT_EQ(2, readyQ.size());
     // marker

@@ -703,10 +703,8 @@ void KVBucket::logQTime(const GlobalTask& task,
     // tasks, and 10 seconds a generous (but hopefully not overly common)
     // schedule overhead for AUX_IO tasks.
     const auto taskType = GlobalTask::getTaskType(task.getTaskId());
-    if ((taskType == task_type_t::NONIO_TASK_IDX &&
-         enqTime > std::chrono::seconds(1)) ||
-        (taskType == task_type_t::AUXIO_TASK_IDX &&
-         enqTime > std::chrono::seconds(10))) {
+    if ((taskType == TaskType::NonIO && enqTime > std::chrono::seconds(1)) ||
+        (taskType == TaskType::AuxIO && enqTime > std::chrono::seconds(10))) {
         EP_LOG_WARN(
                 "Slow scheduling for {} task '{}' on thread {}. "
                 "Schedule overhead: {}",

@@ -14,7 +14,7 @@
 
 #include <memory>
 
-bool MockExecutorPool::isTaskScheduled(const task_type_t queueType,
+bool MockExecutorPool::isTaskScheduled(const TaskType queueType,
                                        const std::string& taskName) {
     std::lock_guard<std::mutex> lh(tMutex);
     for (const auto& it : taskLocator) {

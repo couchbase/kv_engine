@@ -23,7 +23,7 @@ class TaskQueue {
     friend class CB3ExecutorPool;
 
 public:
-    TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm);
+    TaskQueue(CB3ExecutorPool* m, TaskType t, const char* nm);
     ~TaskQueue();
 
     void schedule(ExTask& task);
@@ -58,7 +58,7 @@ public:
 
     const std::string getName() const;
 
-    task_type_t getQueueType() const {
+    TaskType getQueueType() const {
         return queueType;
     }
 
@@ -86,7 +86,7 @@ private:
 
     SyncObject mutex;
     const std::string name;
-    task_type_t queueType;
+    TaskType queueType;
     CB3ExecutorPool* manager;
     size_t sleepers; // number of threads sleeping in this taskQueue
 

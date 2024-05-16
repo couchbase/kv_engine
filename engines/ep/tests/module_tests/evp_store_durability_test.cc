@@ -2583,7 +2583,7 @@ TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
 
     // When the task runs, it should not segfault due to the vBucket having
     // been deleted.
-    auto& taskQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& taskQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(taskQ, "Notify clients of Sync Write Ambiguous vb:0");
     runNextTask(taskQ, task->getDescription());
 }
@@ -2619,7 +2619,7 @@ void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
 
     // We have set state to dead but we have not yet run the notification task
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(lpAuxioQ);
 
     // We should have told client the SyncWrite is ambiguous
@@ -2738,17 +2738,17 @@ TEST_P(DurabilityBucketTest, SetDeadAndReorderTasks) {
     // Run the tasks in a specific order, RespondAmbiguous is always last but
     // we must pull it from the TaskQ now so we can run the next NonIO first
     CheckedExecutor ambiguous(task_executor,
-                              *task_executor->getLpTaskQ()[NONIO_TASK_IDX]);
+                              *task_executor->getLpTaskQ(TaskType::NonIO));
 
     if (isPersistent()) {
         // If this is persistent the VB deletion occurs on AuxIO and the
         // RespondAmbiguous task is on NonIO. They must run in AuxIO, NonIO
         // order
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                     "Removing (dead) vb:0 from memory and disk");
     } else {
         // For ephemeral run the NonIO task now.
-        runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
+        runNextTask(*task_executor->getLpTaskQ(TaskType::NonIO),
                     "Removing (dead) vb:0 from memory");
     }
 
@@ -2797,7 +2797,7 @@ TEST_P(DurabilityBucketTest, DeleteVbucket) {
     EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid));
 
     // There has to be a task to run (fails here without the fix)
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(lpAuxioQ);
 
     ASSERT_TRUE(mock_cookie_notified(mockCookie));

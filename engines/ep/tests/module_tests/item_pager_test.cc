@@ -387,7 +387,7 @@ protected:
 
         // Sanity check - should be no nonIO tasks ready to run,
         // and expected number in futureQ.
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
@@ -414,7 +414,7 @@ protected:
     }
 
     void runPagingAdapterTask() {
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         if (isCrossBucketHtQuotaSharing()) {
             // The cross-bucket adapter runs one task per vBucket so we schedule
             // it until completed
@@ -439,7 +439,7 @@ protected:
      * the Expiry pager (Ephemeral-fail_new_data).
      */
     void runHighMemoryPager() {
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
@@ -779,7 +779,7 @@ TEST_P(STItemPagerTest, ItemPagerRunPeriodically) {
     // Check initial sleep time of ItemPager - advance time by item pager
     // sleep period, and run the next NonIO task.
     // This should be the initial item pager run.
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
     EXPECT_GE(lpNonioQ.getFutureQueueSize(), 1);
     // Run the next task, advancing time by just over the item pager period,
@@ -919,7 +919,7 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     if (ephemeralFailNewData()) {
         return;
     }
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     const Vbid activeVB = Vbid(0);
     const Vbid pendingVB = Vbid(1);
@@ -1433,7 +1433,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
             ((store->getVBucket(replicaVb)->getPageableMemUsage() * 3) / 4));
 
     // Run the item pager
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     // This creates the paging visitor
     runNextTask(lpNonioQ, itemPagerTaskName());
     runPagingAdapterTask();
@@ -1529,7 +1529,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
 
     ASSERT_GT(stats.getPreciseTotalMemoryUsed(), stats.mem_high_wat.load());
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     // run the item pager. This creates the paging visitor
     ASSERT_NO_THROW(runNextTask(lpNonioQ, itemPagerTaskName()));
@@ -2081,7 +2081,7 @@ protected:
 
         // Sanity check - should be no nonIO tasks ready to run, and initial
         // count in futureQ.
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
     }
@@ -2093,7 +2093,7 @@ protected:
         // just one of as we only have one vBucket online.
         // Trigger expiry pager - note the main task just spawns individual
         // tasks per vBucket - we also need to execute one of them.
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         runNextTask(lpNonioQ, "Paging expired items.");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
         auto pagers = std::min(
@@ -2543,7 +2543,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     // behaviour
     ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat.load());
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     // run the item pager. It should _not_ create and schedule a PagingVisitor
     runNextTask(lpNonioQ, itemPagerTaskName());
 
@@ -2662,7 +2662,7 @@ public:
     }
 
     void runItemCompressor() {
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         runNextTask(lpNonioQ, "Item Compressor");
     }
 };
@@ -2893,7 +2893,7 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
     // make sure the item pager has been notified while we're above the HWM
     store->attemptToFreeMemory();
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
     ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
@@ -2938,7 +2938,7 @@ TEST_P(MultiPagingVisitorTest, ExpiryPagerCreatesMultiplePagers) {
 
     initialNonIoTasks++;
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
     ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 

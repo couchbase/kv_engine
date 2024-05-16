@@ -223,7 +223,7 @@ public:
      * Lookup the task type for TaskId id.
      * The data used is generated from tasks.def.h
      */
-    static task_type_t getTaskType(TaskId id);
+    static TaskType getTaskType(TaskId id);
 
     /*
      * A vector of all TaskId generated from tasks.def.h

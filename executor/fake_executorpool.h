@@ -51,6 +51,10 @@ public:
         return lpTaskQ;
     }
 
+    TaskQueue* getLpTaskQ(TaskType t) const {
+        return lpTaskQ[static_cast<size_t>(t)];
+    }
+
     /*
      * Mark all tasks as cancelled and remove the from the locator.
      */
@@ -89,7 +93,7 @@ public:
     /*
      * Check if task with given name exists
      */
-    bool isTaskScheduled(task_type_t queueType, std::string_view name) {
+    bool isTaskScheduled(TaskType queueType, std::string_view name) {
         std::lock_guard<std::mutex> lh(tMutex);
         for (auto& it : taskLocator) {
             auto description = it.second.first->getDescription();
@@ -108,8 +112,8 @@ public:
         return totReadyTasks;
     }
 
-    size_t getNumReadyTasksOfType(task_type_t qType) {
-        return numReadyTasks[qType];
+    size_t getNumReadyTasksOfType(TaskType qType) {
+        return numReadyTasks[static_cast<size_t>(qType)];
     }
 
     std::map<size_t, TaskQpair> getTaskLocator() {
@@ -120,7 +124,7 @@ public:
      * Runs the next task with the expected name from the given task queue.
      * The task is run synchronously in the current thread.
      */
-    void runNextTask(task_type_t taskType, std::string expectedTask);
+    void runNextTask(TaskType taskType, std::string expectedTask);
 
 private:
     void cancelAll_UNLOCKED() {
@@ -303,9 +307,10 @@ private:
     std::function<void(bool)> checker;
 };
 
-inline void SingleThreadedExecutorPool::runNextTask(task_type_t taskType,
+inline void SingleThreadedExecutorPool::runNextTask(TaskType taskType,
                                                     std::string expectedTask) {
-    CheckedExecutor executor(this, *getLpTaskQ()[taskType]);
+    CheckedExecutor executor(this,
+                             *getLpTaskQ()[static_cast<size_t>(taskType)]);
     executor.runCurrentTask(expectedTask);
     executor.completeCurrentTask();
 }

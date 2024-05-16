@@ -46,13 +46,13 @@ static Node Node3 = 3;
 static TaskQueue* getLpAuxQ() {
     auto* task_executor =
             reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
-    return task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    return task_executor->getLpTaskQ(TaskType::AuxIO);
 }
 
 static TaskQueue* getLpNonIoQ() {
     auto* task_executor =
             reinterpret_cast<SingleThreadedExecutorPool*>(ExecutorPool::get());
-    return task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    return task_executor->getLpTaskQ(TaskType::NonIO);
 }
 
 /**

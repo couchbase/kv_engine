@@ -376,7 +376,7 @@ TEST_P(CollectionsSyncWriteParamTest,
     CollectionsDcpTest::internalSetUp();
     producer->closeStream(0, vbid);
     // clear out the backfill task that was scheduled, it will finish
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO));
 
     // Swap to the collection dcp producers which support mutations and prepares
     producers = std::make_unique<CollectionsDcpTestProducers>();

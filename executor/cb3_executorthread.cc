@@ -213,7 +213,7 @@ void CB3ExecutorThread::cancelCurrentTask(CB3ExecutorPool& manager) {
     manager.cancel(uid, true);
 }
 
-task_type_t CB3ExecutorThread::getTaskType() const {
+TaskType CB3ExecutorThread::getTaskType() const {
     return taskType;
 }
 

@@ -228,19 +228,19 @@ std::string getDescription() {
 ### Schedule your task to the desired queue.
 ```
 ExTask myNewTask = new MyNewTask(&engine);
-myNewTaskId = ExecutorPool::get()->schedule(myNewTask, NONIO_TASK_IDX);
+myNewTaskId = ExecutorPool::get()->schedule(myNewTask, TaskType::NonIO);
 ```
 
 The 4 task queue types are:
-* Readers -  `READER_TASK_IDX`
+* Readers -  `TaskType::Reader`
  * Tasks that should primarily only read from 'disk'. They generally read from
 the vbucket database files, for example background fetch of a non-resident document.
-* Writers (they are allowed to read too) `WRITER_TASK_IDX`
+* Writers (they are allowed to read too) `TaskType::Writer`
  * Tasks that should primarily only write to 'disk'. They generally write to
 the vbucket database files, for example when flushing the write queue.
-* Auxilliary IO `AUXIO_TASK_IDX`
+* Auxilliary IO `TaskType::AuxIO`
  * Tasks that read and write 'disk', but not necessarily the vbucket data files.
-* Non IO `NONIO_TASK_IDX`
+* Non IO `TaskType::NonIO`
  * Tasks that do not perform 'disk' I/O.
 
 ### Utilise `snooze`

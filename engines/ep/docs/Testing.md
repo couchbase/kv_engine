@@ -76,7 +76,7 @@ for example using `runNextTask`:
 
 ```C++
 // Obtain a reference to a particular task queue - e.g. writer
-auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+auto& lpWriterQ = *task_executor->getLpTaskQ(TaskType::Writer);
 // Run the next task (synchronously in the current thread).
 runNextTask(lpWriterQ);
 ```

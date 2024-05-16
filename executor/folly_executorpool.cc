@@ -631,13 +631,16 @@ struct FollyExecutorPool::State {
      * @returns counts of how many tasks are waiting to run
      * (isScheduled() == true) for each task group.
      */
-    std::array<int, NUM_TASK_GROUPS> getWaitingTasksPerGroup() {
-        std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup{};
+    std::array<int, static_cast<size_t>(TaskType::Count)>
+    getWaitingTasksPerGroup() {
+        std::array<int, static_cast<size_t>(TaskType::Count)>
+                waitingTasksPerGroup{};
         for (const auto& owner : taskOwners) {
             for (const auto& task : owner.second.locator) {
                 if (task.second->isScheduled()) {
-                    const auto type = GlobalTask::getTaskType(
-                            task.second->task->getTaskId());
+                    const auto type =
+                            static_cast<size_t>(GlobalTask::getTaskType(
+                                    task.second->task->getTaskId()));
                     waitingTasksPerGroup[type]++;
                 }
             }
@@ -688,7 +691,7 @@ FollyExecutorPool::FollyExecutorPool(
      *    Linux where it's only the current thread), hence calling
      *    setpriority() would be pointless.
      */
-    auto makeThreadFactory = [](std::string prefix, task_type_t taskType) {
+    auto makeThreadFactory = [](std::string prefix, TaskType taskType) {
         return std::make_shared<CBRegisteredThreadFactory>(
 #if defined(__linux__)
                 std::make_shared<CBPriorityThreadFactory>(
@@ -703,13 +706,13 @@ FollyExecutorPool::FollyExecutorPool(
             1, std::make_shared<folly::NamedThreadFactory>("SchedulerPool"));
 
     readerPool = std::make_unique<CancellableCPUExecutor>(
-            maxReaders, makeThreadFactory("ReaderPool", READER_TASK_IDX));
+            maxReaders, makeThreadFactory("ReaderPool", TaskType::Reader));
     writerPool = std::make_unique<CancellableCPUExecutor>(
-            maxWriters, makeThreadFactory("WriterPool", WRITER_TASK_IDX));
+            maxWriters, makeThreadFactory("WriterPool", TaskType::Writer));
     auxPool = std::make_unique<CancellableCPUExecutor>(
-            maxAuxIO, makeThreadFactory("AuxIoPool", AUXIO_TASK_IDX));
+            maxAuxIO, makeThreadFactory("AuxIoPool", TaskType::AuxIO));
     nonIoPool = std::make_unique<CancellableCPUExecutor>(
-            maxNonIO, makeThreadFactory("NonIoPool", NONIO_TASK_IDX));
+            maxNonIO, makeThreadFactory("NonIoPool", TaskType::NonIO));
 }
 
 FollyExecutorPool::~FollyExecutorPool() {
@@ -1095,7 +1098,7 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
     // The counting is done on the eventbase thread given it would be
     // racy to directly access the taskOwners from this thread.
     auto* eventBase = futurePool->getEventBase();
-    std::array<int, NUM_TASK_GROUPS> waitingTasksPerGroup;
+    std::array<int, static_cast<size_t>(TaskType::Count)> waitingTasksPerGroup;
     eventBase->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &waitingTasksPerGroup] {
                 waitingTasksPerGroup = state->getWaitingTasksPerGroup();
@@ -1105,19 +1108,19 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
     // type) - report that as low priority.
     fmt::memory_buffer buf;
     add_casted_stat("ep_workload:LowPrioQ_Writer:InQsize",
-                    waitingTasksPerGroup[WRITER_TASK_IDX],
+                    waitingTasksPerGroup[static_cast<size_t>(TaskType::Writer)],
                     add_stat,
                     cookie);
     add_casted_stat("ep_workload:LowPrioQ_Reader:InQsize",
-                    waitingTasksPerGroup[READER_TASK_IDX],
+                    waitingTasksPerGroup[static_cast<size_t>(TaskType::Reader)],
                     add_stat,
                     cookie);
     add_casted_stat("ep_workload:LowPrioQ_AuxIO:InQsize",
-                    waitingTasksPerGroup[AUXIO_TASK_IDX],
+                    waitingTasksPerGroup[static_cast<size_t>(TaskType::AuxIO)],
                     add_stat,
                     cookie);
     add_casted_stat("ep_workload:LowPrioQ_NonIO:InQsize",
-                    waitingTasksPerGroup[NONIO_TASK_IDX],
+                    waitingTasksPerGroup[static_cast<size_t>(TaskType::NonIO)],
                     add_stat,
                     cookie);
 
@@ -1139,20 +1142,19 @@ void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                     cookie);
 }
 
-CancellableCPUExecutor* FollyExecutorPool::getPoolForTaskType(
-        task_type_t type) {
+CancellableCPUExecutor* FollyExecutorPool::getPoolForTaskType(TaskType type) {
     switch (type) {
-    case NO_TASK_TYPE:
+    case TaskType::None:
         folly::assume_unreachable();
-    case WRITER_TASK_IDX:
+    case TaskType::Writer:
         return writerPool.get();
-    case READER_TASK_IDX:
+    case TaskType::Reader:
         return readerPool.get();
-    case AUXIO_TASK_IDX:
+    case TaskType::AuxIO:
         return auxPool.get();
-    case NONIO_TASK_IDX:
+    case TaskType::NonIO:
         return nonIoPool.get();
-    case NUM_TASK_GROUPS:
+    case TaskType::Count:
         folly::assume_unreachable();
     }
     folly::assume_unreachable();

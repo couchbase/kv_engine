@@ -56,7 +56,7 @@ public:
         ASSERT_EQ(cb::engine_errc::success,
                   engine->getKVBucket()->deleteVBucket(vbid, nullptr))
                 << "Couldn't delete vb";
-        executorPool->runNextTask(AUXIO_TASK_IDX,
+        executorPool->runNextTask(TaskType::AuxIO,
                                   "Removing (dead) vb:0 from memory and disk");
 
         EngineFixture::TearDown(state);
@@ -68,7 +68,7 @@ public:
         // things that need to run now from the future queue to
         // the ready queue it's easier to just run until we have
         // nothing else to run (i.e. CheckedExecutor throws)
-        auto q = executorPool->getLpTaskQ()[NONIO_TASK_IDX];
+        auto q = executorPool->getLpTaskQ(TaskType::NonIO);
         try {
             while (true) {
                 CheckedExecutor executor(executorPool, *q);

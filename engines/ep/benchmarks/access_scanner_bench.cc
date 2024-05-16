@@ -87,8 +87,8 @@ BENCHMARK_DEFINE_F(AccessLogBenchEngine, MemoryOverhead)
     while (state.KeepRunning()) {
         if (state.range(0) == 1) {
             executorPool->wake(task->getId());
-            executorPool->runNextTask(AUXIO_TASK_IDX, "Generating access log");
-            executorPool->runNextTask(AUXIO_TASK_IDX,
+            executorPool->runNextTask(TaskType::AuxIO, "Generating access log");
+            executorPool->runNextTask(TaskType::AuxIO,
                                       "Item Access Scanner no vbucket "
                                       "assigned");
         }

@@ -340,7 +340,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
 
     store->rollback(vbid, 0 /* rollbackSeqno */);
 
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIO, "Removing (dead) vb:0 from memory");
 
     // Rollback reset the vBucket and HashTable
@@ -518,7 +518,7 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
 
     const char* vbDeleteTaskName = "Removing (dead) vb:0 from memory";
     ASSERT_FALSE(
-            task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
+            task_executor->isTaskScheduled(TaskType::NonIO, vbDeleteTaskName));
 
     /* Bin the vbucket. This will eventually lead to the destruction of
      * the seqList. If the vb were to be destroyed *now*,
@@ -532,13 +532,13 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
 
     // vb can't yet be deleted, there is a range iterator over it still!
     EXPECT_FALSE(
-            task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
+            task_executor->isTaskScheduled(TaskType::NonIO, vbDeleteTaskName));
 
     // Now bin the producer
     producer->cancelCheckpointCreatorTask();
     /* Checkpoint processor task finishes up and releases its producer
        reference */
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(lpNonIoQ, "Process checkpoint(s) for DCP producer " + testName);
 
     engine->getDcpConnMap().shutdownAllConnections();
@@ -548,12 +548,12 @@ TEST_F(SingleThreadedEphemeralTest, RangeIteratorVBDeleteRaceTest) {
     // run the backfill task so the backfill can reach state
     // backfill_finished and be destroyed destroying the range iterator
     // in the process
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
 
     // Now the backfill is gone, the evb can be deleted
     EXPECT_TRUE(
-            task_executor->isTaskScheduled(NONIO_TASK_IDX, vbDeleteTaskName));
+            task_executor->isTaskScheduled(TaskType::NonIO, vbDeleteTaskName));
 }
 
 TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
@@ -763,7 +763,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
     bucket->enableTombstonePurgerTask();
     bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
 
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     /* Run the HTCleaner and EphTombstoneStaleItemDeleter tasks. We expect
        pause and resume of EphTombstoneStaleItemDeleter atleast once and we run
        until all the deleted items across all the vbuckets are purged */
@@ -804,7 +804,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
     auto* bucket = dynamic_cast<EphemeralBucket*>(store);
     bucket->enableTombstonePurgerTask();
     bucket->attemptToFreeMemory(); // This wakes up the HTCleaner
-    auto& queue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& queue = *task_executor->getLpTaskQ(TaskType::NonIO);
     const std::string expectedTaskName = "Eph tombstone hashtable cleaner";
     runNextTask(queue, expectedTaskName);
 

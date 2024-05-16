@@ -135,7 +135,7 @@ public:
                 ASSERT_EQ(cb::engine_errc::success,
                           engine->getKVBucket()->deleteVBucket(Vbid(vbid),
                                                                nullptr));
-                executorPool->runNextTask(AUXIO_TASK_IDX,
+                executorPool->runNextTask(TaskType::AuxIO,
                                           "Removing (dead) " +
                                                   to_string(Vbid(vbid)) +
                                                   " from memory and disk");
@@ -252,7 +252,7 @@ public:
         auto& epBucket = *static_cast<EPBucket*>(engine->getKVBucket());
         epBucket.initializeWarmupTask();
         epBucket.startWarmupTask();
-        auto& readerQueue = *executorPool->getLpTaskQ()[READER_TASK_IDX];
+        auto& readerQueue = *executorPool->getLpTaskQ(TaskType::Reader);
         while (!epBucket.isPrimaryWarmupComplete()) {
             CheckedExecutor executor(executorPool, readerQueue);
             // Run the tasks

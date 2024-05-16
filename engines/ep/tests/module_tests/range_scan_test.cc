@@ -345,7 +345,7 @@ cb::rangescan::Id RangeScanTest::createScan(
                                                            samplingConfig})
                       .first);
     // Now run via auxio task
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanCreateTask");
 
     EXPECT_EQ(expectedStatus, mock_waitfor_cookie(cookie));
@@ -388,7 +388,7 @@ void RangeScanTest::continueRangeScan(cb::rangescan::Id id,
               vb->continueRangeScan(*cookie, params))
             << "Failure for scheduling";
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     auto ioCompleteStatus = mock_waitfor_cookie(cookie);
@@ -463,14 +463,14 @@ void RangeScanTest::testRangeScan(
     // the IO task once more so that it can destruct on an IO task - this is
     // because the destruct closes the KVStore objects (maybe doing IO). Run
     // this task now so we don't get blocked in magma shutdown
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 }
 
 class RangeScanCreateAndContinueTest : public RangeScanTest {
 public:
     void TearDown() override {
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                     "RangeScanContinueTask");
         RangeScanTest::TearDown();
     }
@@ -811,7 +811,7 @@ TEST_P(RangeScanCreateAndContinueTest, create_cancel) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
     EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     // Nothing read
@@ -845,7 +845,7 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
 
     // Task will run and cancel the scan, it will reschedule until nothing is
     // found in the ReadyScans queue (so 1 reschedule for this test).
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     // Scan cancels. No keys/items read and the status isn't seen as cancelled
@@ -1172,7 +1172,7 @@ TEST_P(RangeScanCreateAndContinueTest, scan_cancels_after_create) {
                                                            {}})
                       .first);
     // Now run via auxio task
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanCreateTask");
 
     EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie));
@@ -1225,7 +1225,7 @@ TEST_P(RangeScanCreateTest, scan_detects_vbucket_change) {
     EXPECT_TRUE(store->resetVBucket(vbid));
 
     // Need to poke a few functions to get the create ready to run.
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "Removing (dead) vb:0 from memory and disk");
 
     // Force a state change to active, generating a new UUID. As the collection
@@ -1235,7 +1235,7 @@ TEST_P(RangeScanCreateTest, scan_detects_vbucket_change) {
     setVBucketState(vbid, vbucket_state_active);
     flushVBucket(vbid); // ensures vb on disk has the new uuid
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanCreateTask");
 
     // task detected the vbucket has changed and aborted
@@ -1284,7 +1284,7 @@ TEST_P(RangeScanCreateAndContinueTest,
     EXPECT_TRUE(store->resetVBucket(vbid));
 
     // Need to poke a few functions to get the create ready to run.
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "Removing (dead) vb:0 from memory and disk");
 
     // Force a state change to active, generating a new Vbucket UUID.
@@ -1292,7 +1292,7 @@ TEST_P(RangeScanCreateAndContinueTest,
 
     // No need to flush in this test as only in memory VB can be inspected for
     // the uuid change
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     // The scan task detected that it was cancelled
@@ -1422,7 +1422,7 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_when_yielding) {
     };
 
     // scan!
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     // The cancel is detected yet, so scan yields
@@ -1509,7 +1509,7 @@ RangeScanTest::setupConcurrencyMaxxed() {
                   store->continueRangeScan(*scan.second, continueParams));
     }
     // Check only AUXIO - 1 tasks were scheduled to handle the scans
-    auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto* q = task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(task_executor->getNumAuxIO() - 1, q->getFutureQueueSize());
     EXPECT_EQ(0, q->getReadyQueueSize());
     return scans;
@@ -1528,7 +1528,7 @@ TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed) {
 
     // Still -1 tasks, yet everything can run (tasks will reschedule to ensure
     // all scans get picked up)
-    auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto* q = task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(task_executor->getNumAuxIO() - 1, q->getFutureQueueSize());
     for (const auto& scan : scans) {
         runNextTask(*q, "RangeScanContinueTask");
@@ -1560,7 +1560,7 @@ TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_cancel_only) {
                   store->cancelRangeScan(vbid, scan, *cookie));
     }
 
-    auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto* q = task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(task_executor->getNumAuxIO() - 1, q->getFutureQueueSize());
 
     for (const auto& scan : scans) {
@@ -1583,7 +1583,7 @@ TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_and_reduce) {
     getEPBucket().getReadyRangeScans()->setConcurrentTaskLimit(1);
 
     // Run n - 1 tasks, none of these will scan, all will exit
-    auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto* q = task_executor->getLpTaskQ(TaskType::AuxIO);
     for (size_t ii = 0, iterations = q->getFutureQueueSize() - 1;
          ii < iterations;
          ii++) {
@@ -1638,7 +1638,7 @@ TEST_P(RangeScanCreateAndContinueTest, dropped_collection_for_continue) {
 
     // And a task was still scheduled because the scan has been cancelled as
     // a side affect
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     // uuid2 - we just attempt to cancel. The collection has gone, but that's
@@ -1647,7 +1647,7 @@ TEST_P(RangeScanCreateAndContinueTest, dropped_collection_for_continue) {
               store->cancelRangeScan(vbid, uuid2, *cookie));
 
     // And the second scan cancels on the AUXIO task
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 }
 
@@ -1669,9 +1669,8 @@ TEST_P(RangeScanCreateAndContinueTest, lose_access_to_scan) {
     EXPECT_EQ(cb::engine_errc::no_access,
               store->cancelRangeScan(vbid, uuid, *cookie));
 
-    EXPECT_EQ(
-            0,
-            task_executor->getLpTaskQ()[AUXIO_TASK_IDX]->getFutureQueueSize());
+    EXPECT_EQ(0,
+              task_executor->getLpTaskQ(TaskType::AuxIO)->getFutureQueueSize());
 
     // validate scan still exists and runs
     MockCookie::setCheckPrivilegeFunction({});
@@ -1679,7 +1678,7 @@ TEST_P(RangeScanCreateAndContinueTest, lose_access_to_scan) {
     EXPECT_EQ(cb::engine_errc::would_block,
               store->continueRangeScan(*cookie, continueParams));
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     if (isKeyOnly()) {
@@ -1765,9 +1764,9 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
               store->cancelRangeScan(vbid, uuid2, *cookie));
 
     // Task runs twice to drive scans to close files i.e. cancel
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 }
 
@@ -1862,7 +1861,7 @@ TEST_P(RangeScanTestSimple, MB_53184) {
                   {"\0", 1}, // from min
                   {"c", cb::rangescan::KeyType::Exclusive});
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 
     // Run a second exclusive end similar to the MB, this test-case was fine
@@ -1917,7 +1916,7 @@ TEST_F(RangeScanOwnerTest, cancelRangeScansExceedingDuration) {
         now += tick;
         return now;
     });
-    auto* nonIOQueue = task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto* nonIOQueue = task_executor->getLpTaskQ(TaskType::NonIO);
     auto initialQueueSize = nonIOQueue->getFutureQueueSize();
 
     auto t5 = addScan(rangeScans); // now() = T5
@@ -1967,7 +1966,7 @@ TEST_F(RangeScanOwnerTest, cancelRangeScansExceedingDuration) {
     // task still queued, but is dead (was cancelled)
     EXPECT_EQ(initialQueueSize + 1, nonIOQueue->getFutureQueueSize());
     CheckedExecutor executor(task_executor,
-                             *task_executor->getLpTaskQ()[NONIO_TASK_IDX]);
+                             *task_executor->getLpTaskQ(TaskType::NonIO));
     EXPECT_TRUE(executor.getCurrentTask()->isdead());
     EXPECT_EQ("RangeScanTimeoutTask for vb:0",
               executor.getCurrentTask()->getDescription());
@@ -2015,7 +2014,7 @@ TEST_P(RangeScanTestSimple, limitRangeScans) {
 
     EXPECT_EQ(1, store->getKVStoreScanTracker().getNumRunningRangeScans());
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
     EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningRangeScans());
 }

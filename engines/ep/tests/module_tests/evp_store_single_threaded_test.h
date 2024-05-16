@@ -228,10 +228,10 @@ public:
             cb::engine_errc status1 = cb::engine_errc::would_block);
 
     /// @return the size of the future queue for the given task type
-    size_t getFutureQueueSize(task_type_t type) const;
+    size_t getFutureQueueSize(TaskType type) const;
 
     /// @return the size of the ready queue for the given task type
-    size_t getReadyQueueSize(task_type_t type) const;
+    size_t getReadyQueueSize(TaskType type) const;
 
     /*
      * Set the stats isShutdown and attempt to drive all tasks to cancel for

@@ -16,7 +16,7 @@
 #include <platform/cb_arena_malloc.h>
 #include <cmath>
 
-TaskQueue::TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm)
+TaskQueue::TaskQueue(CB3ExecutorPool* m, TaskType t, const char* nm)
     : name(nm), queueType(t), manager(m), sleepers(0) {
     // EMPTY
 }

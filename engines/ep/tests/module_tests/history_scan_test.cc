@@ -416,7 +416,7 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
     // to reproduce an issue from MB-56452 run the backfill manually so a flush
     // can be interleaved. This makes a checkpoint eligible for removal during
     // the markDisksnaphot callbacks
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     // backfill:create()
     runNextTask(lpAuxioQ);
 
@@ -1054,7 +1054,7 @@ TEST_P(HistoryScanTest, MB_56565) {
     // is currently unreferenced.
     store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "s4");
     store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "s5");
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, stream->getLastReadSeqno());
     auto cursor = stream->getCursor().lock();
     ASSERT_TRUE(cursor);

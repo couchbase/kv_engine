@@ -61,7 +61,7 @@ public:
     }
 
     void runPrimaryAndEnableTraffic() {
-        auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+        auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
         auto* kvBucket = engine->getKVBucket();
         auto& epBucket = getEPBucket();
 
@@ -135,7 +135,7 @@ TEST_P(SecondaryWarmupTest, GoldenPath) {
     EXPECT_FALSE(secondary->hasOOMFailure());
 
     // Now we should be able to step more and find secondary warmup continues
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     while (!epBucket.getSecondaryWarmup()->isComplete()) {
         runNextTask(readerQueue);
     }
@@ -163,7 +163,7 @@ TEST_P(SecondaryWarmupTest, WritingAndWarming) {
     runPrimaryAndEnableTraffic();
     ASSERT_TRUE(epBucket.getSecondaryWarmup());
 
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     const auto* warmup = epBucket.getSecondaryWarmup();
 
     // Add a hook which is called from the loading callback, yet before Warmup

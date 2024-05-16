@@ -45,7 +45,7 @@ public:
     void generateAccessLog() {
         // Generate the access logs
         ASSERT_TRUE(store->runAccessScannerTask());
-        auto& auxioQueue = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+        auto& auxioQueue = *task_executor->getLpTaskQ(TaskType::AuxIO);
         runNextTask(auxioQueue);
         runNextTask(auxioQueue);
         runNextTask(auxioQueue);
@@ -253,7 +253,7 @@ TEST_P(AccessLogTest, ReadAndWarmup) {
     ASSERT_TRUE(getEPBucket().startBgFetcher());
 
     // Step warmup until LoadingAccessLog
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     auto* warmup = store->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
     while (warmup->getWarmupState() != WarmupState::State::LoadingAccessLog) {

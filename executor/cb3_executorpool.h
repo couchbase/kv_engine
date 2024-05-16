@@ -105,16 +105,16 @@ public:
 
     ~CB3ExecutorPool() override;
 
-    void addWork(size_t newWork, task_type_t qType);
+    void addWork(size_t newWork, TaskType qType);
 
-    void lessWork(task_type_t qType);
+    void lessWork(TaskType qType);
 
-    void startWork(task_type_t taskType);
+    void startWork(TaskType taskType);
 
-    void doneWork(task_type_t taskType);
+    void doneWork(TaskType taskType);
 
-    bool trySleep(task_type_t task_type) {
-        if (!numReadyTasks[task_type]) {
+    bool trySleep(TaskType task_type) {
+        if (!numReadyTasks[static_cast<size_t>(task_type)]) {
             numSleepers++;
             return true;
         }
@@ -127,8 +127,9 @@ public:
 
     TaskQueue* nextTask(CB3ExecutorThread& t, uint8_t tick);
 
-    TaskQueue* getSleepQ(unsigned int curTaskType) {
-        return isHiPrioQset ? hpTaskQ[curTaskType] : lpTaskQ[curTaskType];
+    TaskQueue* getSleepQ(TaskType curTaskType) {
+        return isHiPrioQset ? hpTaskQ[static_cast<size_t>(curTaskType)]
+                            : lpTaskQ[static_cast<size_t>(curTaskType)];
     }
 
     bool cancel(size_t taskId, bool remove = false) override;
@@ -142,7 +143,7 @@ public:
      * @param type the type of task for which to adjust the workers
      * @param newCount Target number of worker threads
      */
-    void adjustWorkers(task_type_t type, size_t newCount);
+    void adjustWorkers(TaskType type, size_t newCount);
 
     bool snoozeAndWait(size_t taskId, double tosleep) override;
 
@@ -188,27 +189,27 @@ public:
     }
 
     void setNumReaders(ThreadPoolConfig::ThreadCount v) override {
-        adjustWorkers(READER_TASK_IDX, calcNumReaders(v));
+        adjustWorkers(TaskType::Reader, calcNumReaders(v));
     }
 
     void setNumReadersExactly(uint16_t v) override {
-        adjustWorkers(READER_TASK_IDX, v);
+        adjustWorkers(TaskType::Reader, v);
     }
 
     size_t getNumReadersExactly() const override {
-        return numWorkers[READER_TASK_IDX].load();
+        return numWorkers[static_cast<size_t>(TaskType::Reader)].load();
     }
 
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override {
-        adjustWorkers(WRITER_TASK_IDX, calcNumWriters(v));
+        adjustWorkers(TaskType::Writer, calcNumWriters(v));
     }
 
     void setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) override {
-        adjustWorkers(AUXIO_TASK_IDX, calcNumAuxIO(v));
+        adjustWorkers(TaskType::AuxIO, calcNumAuxIO(v));
     }
 
     void setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) override {
-        adjustWorkers(NONIO_TASK_IDX, calcNumNonIO(v));
+        adjustWorkers(TaskType::NonIO, calcNumNonIO(v));
     }
 
     size_t getNumReadyTasks() const override {
@@ -242,7 +243,7 @@ protected:
      * @param type Thread type to change
      * @param desiredNumItems Number of threads we want to result in.
      */
-    void _adjustWorkers(task_type_t type, size_t desiredNumItems);
+    void _adjustWorkers(TaskType type, size_t desiredNumItems);
 
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task);
@@ -251,10 +252,10 @@ protected:
     std::vector<ExTask> _stopTaskGroup(task_gid_t taskGID,
                                        std::unique_lock<std::mutex>& lh,
                                        bool force);
-    TaskQueue* _getTaskQueue(const Taskable& t, task_type_t qidx);
+    TaskQueue* _getTaskQueue(const Taskable& t, TaskType qType);
     void _stopAndJoinThreads();
 
-    const size_t numTaskSets{NUM_TASK_GROUPS};
+    const size_t numTaskSets{static_cast<size_t>(TaskType::Count)};
 
     std::atomic<size_t> totReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex

@@ -1083,7 +1083,7 @@ public:
                 *reinterpret_cast<cb::mcbp::Response*>(msg.data())));
 
         // consumer must of scheduled a RollbackTask (writer task)
-        auto& lpWriteQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+        auto& lpWriteQ = *task_executor->getLpTaskQ(TaskType::Writer);
         ASSERT_EQ(1, lpWriteQ.getFutureQueueSize());
         runNextTask(lpWriteQ);
     }

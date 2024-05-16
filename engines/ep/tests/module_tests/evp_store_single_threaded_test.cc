@@ -178,9 +178,10 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
     ep->getEpStats().isShutdown = true;
     task_executor->cancelAndClearAll();
 
-    for (task_type_t t :
-         {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
-
+    for (auto t : {TaskType::Writer,
+                   TaskType::Reader,
+                   TaskType::AuxIO,
+                   TaskType::NonIO}) {
         // Define a lambda to drive all tasks from the queue, if hpTaskQ
         // is implemented then trivial to add a second call to runTasks.
         auto runTasks = [this](TaskQueue& queue) {
@@ -188,7 +189,7 @@ void SingleThreadedKVBucketTest::shutdownAndPurgeTasks(
                 runNextTask(queue);
             }
         };
-        runTasks(*task_executor->getLpTaskQ()[t]);
+        runTasks(*task_executor->getLpTaskQ(t));
     }
 }
 
@@ -224,9 +225,10 @@ size_t SingleThreadedKVBucketTest::loadUpToOOM(VbucketOp op) {
 
 void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
     task_executor->cancelAll();
-    for (task_type_t t :
-        {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
-
+    for (auto t : {TaskType::Writer,
+                   TaskType::Reader,
+                   TaskType::AuxIO,
+                   TaskType::NonIO}) {
         // Define a lambda to drive all tasks from the queue, if hpTaskQ
         // is implemented then trivial to add a second call to runTasks.
         auto runTasks = [this](TaskQueue& queue) {
@@ -234,12 +236,12 @@ void SingleThreadedKVBucketTest::cancelAndPurgeTasks() {
                 runNextTask(queue);
             }
         };
-        runTasks(*task_executor->getLpTaskQ()[t]);
+        runTasks(*task_executor->getLpTaskQ(t));
     }
 }
 
 void SingleThreadedKVBucketTest::runReadersUntilPrimaryWarmedUp() {
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     while (engine->getKVBucket()->isWarmupLoadingData()) {
         runNextTask(readerQueue);
     }
@@ -253,7 +255,7 @@ void SingleThreadedKVBucketTest::runReadersUntilWarmedUp() {
         return;
     }
 
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     while (!secondary->isComplete()) {
         runNextTask(readerQueue);
     }
@@ -342,7 +344,7 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
 
 void SingleThreadedKVBucketTest::runBackfill() {
     // Run the backfill task, which has a number of steps to complete
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     // backfill:create()->scan->complete all in one run.
     // we'd only need extra runs when a backfill yields for memory pressure
     runNextTask(lpAuxioQ);
@@ -485,7 +487,7 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
         bucket->scheduleTombstonePurgerTask();
         bucket->attemptToFreeMemory(); // this wakes up the HTCleaner task
 
-        auto& lpAuxioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         // 2 tasks to run to complete a purge
         // EphTombstoneHTCleaner
         // EphTombstoneStaleItemDeleter
@@ -549,12 +551,12 @@ bool SingleThreadedKVBucketTest::isNexusMagmaPrimary() const {
            engine->getConfiguration().getNexusPrimaryBackend() == "magma";
 }
 
-size_t SingleThreadedKVBucketTest::getFutureQueueSize(task_type_t type) const {
-    return (*task_executor->getLpTaskQ()[type]).getFutureQueueSize();
+size_t SingleThreadedKVBucketTest::getFutureQueueSize(TaskType type) const {
+    return (*task_executor->getLpTaskQ(type)).getFutureQueueSize();
 }
 
-size_t SingleThreadedKVBucketTest::getReadyQueueSize(task_type_t type) const {
-    return (*task_executor->getLpTaskQ()[type]).getReadyQueueSize();
+size_t SingleThreadedKVBucketTest::getReadyQueueSize(TaskType type) const {
+    return (*task_executor->getLpTaskQ(type)).getReadyQueueSize();
 }
 
 void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
@@ -585,7 +587,7 @@ void SingleThreadedKVBucketTest::purgeTombstonesBefore(uint64_t purgeSeqno) {
 void SingleThreadedKVBucketTest::runEphemeralHTCleaner() {
     auto& bucket = dynamic_cast<EphemeralBucket&>(*store);
     bucket.enableTombstonePurgerTask();
-    auto& queue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& queue = *task_executor->getLpTaskQ(TaskType::NonIO);
     bucket.attemptToFreeMemory(); // This wakes up the HTCleaner
     runNextTask(queue, "Eph tombstone hashtable cleaner");
     // Scheduled by HTCleaner
@@ -617,7 +619,7 @@ cb::engine_errc SingleThreadedKVBucketTest::setCollections(
         return status;
     }
 
-    auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    auto& lpWriterQ = *task_executor->getLpTaskQ(TaskType::Writer);
 
     runNextTask(lpWriterQ);
 
@@ -1348,7 +1350,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
     producer->scheduleCheckpointProcessorTask();
 
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize())
             << "Expected to have ActiveStreamCheckpointProcessorTask in NonIO "
                "Queue";
@@ -1445,7 +1447,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     // re-registers the cursor; we still have an
     // ActiveStreamCheckpointProcessorTask outstanding with the vb in the queue.
     EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
 
     // Run the ActiveStreamCheckpointProcessorTask; which should re-schedule
@@ -1529,8 +1531,8 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     producer->scheduleCheckpointProcessorTask();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize())
             << "Expected to have ActiveStreamCheckpointProcessorTask in NonIO "
                "Queue";
@@ -1898,9 +1900,9 @@ TEST_P(STParamPersistentBucketTest, MB22960_cursor_dropping_data_loss) {
     // intended.
     ckpt_mgr.removeCursor(*mock_stream->getCursor().lock());
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
     // backfill:create()
     runNextTask(lpAuxioQ);
@@ -2095,9 +2097,9 @@ TEST_P(STParamPersistentBucketTest,
     // schedule the backfill
     mock_stream->next(*producer);
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     EXPECT_EQ(1, lpNonIoQ.getFutureQueueSize());
     runBackfill();
 
@@ -2229,7 +2231,7 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
     // steps [[2]] and [[3]] running then an exception is thrown (and client
     // disconnected).
     EXPECT_TRUE(store->resetVBucket(vbid));
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
     // [[3]] Ok, let's see if we can get DCP takeover stats.
@@ -2266,7 +2268,7 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
               getEPBucket().flushVBucket(vbid));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead);
-    auto& lpNonIoQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonIoQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     {
         // Create a Mock Dcp producer
@@ -2675,15 +2677,15 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     VBucketPtr vb = store->getVBuckets().getBucket(vbid);
     CheckpointManager& ckpt_mgr = *vb->checkpointManager;
     ckpt_mgr.createNewCheckpoint();
-    auto lpWriterQ = task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    auto lpWriterQ = task_executor->getLpTaskQ(TaskType::Writer);
     EXPECT_EQ(0, lpWriterQ->getFutureQueueSize());
     EXPECT_EQ(0, lpWriterQ->getReadyQueueSize());
 
-    auto lpAuxioQ = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto lpAuxioQ = task_executor->getLpTaskQ(TaskType::AuxIO);
     EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
 
-    auto lpNonIoQ = task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto lpNonIoQ = task_executor->getLpTaskQ(TaskType::NonIO);
     // Initially one ConnManagerTask on NonIO queue.
     const size_t numInitialNonIoTasks = 1;
     EXPECT_EQ(numInitialNonIoTasks, lpNonIoQ->getFutureQueueSize());
@@ -3607,7 +3609,7 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
     EXPECT_TRUE(as0->isBackfilling());
 
     // 7) Backfill now starts up, but should quickly cancel
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO));
 
     // Stream is now dead
     EXPECT_FALSE(vb0Stream->isActive());
@@ -3709,7 +3711,7 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
     // 6) Backfill now starts up, but should quickly cancel if
     //    ignorePurgedTombstones is false - but should be valid if
     //    ignorePurgedTombstones is true.
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(lpAuxioQ);
 
     EXPECT_EQ(ignorePurgedTombstones, vb0Stream->isActive());
@@ -4848,7 +4850,7 @@ void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
     vb.reset();
     resetEngineAndEnableWarmup("", true /*unclean*/);
 
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
 
@@ -4928,7 +4930,7 @@ TEST_P(STParamPersistentBucketTest,
         engine->scheduleCompaction(vbid, config, cookie);
         std::string taskDescription =
                 "Compact DB file " + std::to_string(vbid.get());
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+        runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                     taskDescription);
     });
 }
@@ -5393,7 +5395,7 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
     mock_stream->transitionStateToBackfilling();
     ASSERT_TRUE(mock_stream->isBackfilling());
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
 
     // Now start the backfilling task - mark disk snapshot
     runNextTask(lpAuxioQ, "Backfilling items for MockDcpBackfillManager");
@@ -5962,7 +5964,7 @@ void STParamPersistentBucketTest::testCancelCompaction(
             runNextTask(queue);
         }
     };
-    runTasks(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    runTasks(*task_executor->getLpTaskQ(TaskType::AuxIO));
 
     EXPECT_EQ(0, engine->getEpStats().compactionFailed);
     EXPECT_EQ(1, engine->getEpStats().compactionAborted);
@@ -6200,7 +6202,7 @@ TEST_P(STParamPersistentBucketTest, EWouldBlockedVKeyStatsDontLeakItems) {
                       *vkeyCookie, args, {}, [](auto, auto, const auto&) {}));
 
     // Fetch the item from disk
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     CheckedExecutor executor(task_executor, readerQueue);
     do {
         executor.runCurrentTask();
@@ -6370,7 +6372,7 @@ TEST_P(WarmupSTSingleShardTest, WarmupBackillYieldForwardProgress) {
     resetEngineAndEnableWarmup(
             "warmup_backfill_scan_chunk_duration=0;access_scanner_enabled="
             "false");
-    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
 

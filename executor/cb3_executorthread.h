@@ -68,9 +68,7 @@ public:
         std::chrono::steady_clock::time_point timepoint;
     };
 
-    CB3ExecutorThread(CB3ExecutorPool* m,
-                      task_type_t type,
-                      const std::string nm)
+    CB3ExecutorThread(CB3ExecutorPool* m, TaskType type, const std::string nm)
         : manager(m),
           taskType(type),
           name(nm),
@@ -129,7 +127,7 @@ public:
     }
 
     /// @return the threads' type.
-    task_type_t getTaskType() const;
+    TaskType getTaskType() const;
 
     /// Return the threads' OS priority.
     int getPriority() const;
@@ -139,7 +137,7 @@ protected:
 
     std::thread thread;
     CB3ExecutorPool* manager;
-    task_type_t taskType;
+    TaskType taskType;
     const std::string name;
     std::atomic<executor_state_t> state;
 

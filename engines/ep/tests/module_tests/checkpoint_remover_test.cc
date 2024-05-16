@@ -258,7 +258,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     ASSERT_EQ(stats.itemsExpelledFromCheckpoints, 0);
 
     // run the remover to trigger expelling
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIO, "CheckpointMemRecoveryTask:0");
     runNextTask(nonIO, "CheckpointMemRecoveryTask:1");
 
@@ -1026,7 +1026,7 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     EXPECT_LT(postDetachGlobalMemUsage, preDetachGlobalMemUsage);
 
     // Run the Destroyer
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIO, "Destroying closed unreferenced checkpoints");
 
     // The checkpoints have been released, the Destroyer should have no
@@ -1111,7 +1111,7 @@ TEST_P(CheckpointRemoverTest, CheckpointCreationSchedulesDcpStep) {
     // recovery runs first and creates the checkpoint
     ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
     store->wakeUpCheckpointMemRecoveryTask();
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIO, "CheckpointMemRecoveryTask:0");
     runNextTask(nonIO, "CheckpointMemRecoveryTask:1");
     ASSERT_GT(stats.itemsRemovedFromCheckpoints, 0);
@@ -1217,7 +1217,7 @@ TEST_P(CheckpointRemoverTest, NoCMRecoveryIfPendingDeallocEnough) {
     EXPECT_EQ(cb::engine_errc::no_memory, store->set(item, cookie));
 
     // Recover
-    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIO = *task_executor->getLpTaskQ(TaskType::NonIO);
     ASSERT_GT(bucket.getCheckpointPendingDestructionMemoryUsage(), 0);
     runNextTask(nonIO, "Destroying closed unreferenced checkpoints");
     ASSERT_EQ(0, bucket.getCheckpointPendingDestructionMemoryUsage());

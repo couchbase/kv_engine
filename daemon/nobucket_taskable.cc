@@ -47,10 +47,8 @@ void NoBucketTaskable::logQTime(const GlobalTask& task,
                                 std::string_view threadName,
                                 std::chrono::steady_clock::duration enqTime) {
     const auto taskType = GlobalTask::getTaskType(task.getTaskId());
-    if ((taskType == task_type_t::NONIO_TASK_IDX &&
-         enqTime > std::chrono::seconds(1)) ||
-        (taskType == task_type_t::AUXIO_TASK_IDX &&
-         enqTime > std::chrono::seconds(10))) {
+    if ((taskType == TaskType::NonIO && enqTime > std::chrono::seconds(1)) ||
+        (taskType == TaskType::AuxIO && enqTime > std::chrono::seconds(10))) {
         LOG_WARNING(
                 "Slow scheduling for {} task '{}' on thread {}. Schedule "
                 "overhead: {}",

@@ -87,13 +87,13 @@ public:
     }
 
     void runQuotaChangeTaskOnce() {
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         // run the task.
         runNextTask(lpNonioQ, "Changing bucket quota");
     }
 
     void runItemPagerTask() {
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         // run the task.
         runNextTask(lpNonioQ, "Paging out items.");
     }
@@ -387,7 +387,7 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
     // ItemPager will have been woken by the BucketQuotaChangeTask after it sets
     // the new watermark values. ItemPager is a multi-phase task though and it
     // will schedule the next stages now (which actually do the eviction).
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(lpNonioQ, "Paging out items.");
 
     // Quota task is up next because it snoozes for the configured duration
@@ -433,7 +433,7 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
             // ItemPager (which reschedules itself if memory usage is still
             // above the HWM after a full iteration). As a result, we can't
             // check the task that ran.
-            auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+            auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
             runNextTask(lpNonioQ);
         }
     }

@@ -202,7 +202,7 @@ public:
 
 private:
     /// @returns the CPU pool to use for the given task type.
-    CancellableCPUExecutor* getPoolForTaskType(task_type_t type);
+    CancellableCPUExecutor* getPoolForTaskType(TaskType type);
 
     /// Reschedule the given task based on it's current sleepTime and if
     /// the task is dead (or should run again).

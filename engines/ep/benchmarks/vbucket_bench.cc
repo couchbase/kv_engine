@@ -79,7 +79,7 @@ protected:
             ASSERT_EQ(cb::engine_errc::success,
                       engine->getKVBucket()->deleteVBucket(vbid, nullptr));
             executorPool->runNextTask(
-                    AUXIO_TASK_IDX,
+                    TaskType::AuxIO,
                     "Removing (dead) vb:0 from memory and disk");
         }
         EngineFixture::TearDown(state);
@@ -264,7 +264,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
                 // Deferred deletion is running, wait until complete
                 EXPECT_EQ(cb::engine_errc::would_block, result);
                 executorPool->runNextTask(
-                        AUXIO_TASK_IDX,
+                        TaskType::AuxIO,
                         "Removing (dead) vb:0 from memory and disk");
             }
             engine->getKVBucket()->setVBucketState(vbid, vbucket_state_active);

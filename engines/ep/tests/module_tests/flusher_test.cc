@@ -42,13 +42,13 @@ protected:
 
         // Create flusher and advance to running state.
         flusher->start();
-        task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+        task_executor->runNextTask(TaskType::Writer, flusherName);
     }
 
     void TearDown() override {
         // Cleanup; stop flusher and run it once to have it complete.
         flusher->stop();
-        task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+        task_executor->runNextTask(TaskType::Writer, flusherName);
 
         engine.reset();
         ExecutorPool::shutdown();
@@ -88,10 +88,10 @@ TEST_F(FlusherTest, MissingWakeupBeforeSnooze) {
     // for vBucket 0, but should _also_ re-schedule the Flusher to run a second
     // time given a new FlushEvent was scheduled just after Flusher::flushVB
     // completed (via stepPreSnoozeHook).
-    task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+    task_executor->runNextTask(TaskType::Writer, flusherName);
 
     // Check the Flusher is indeed ready to run a second time.
-    task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+    task_executor->runNextTask(TaskType::Writer, flusherName);
 }
 
 /**
@@ -116,7 +116,7 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     // in this test so just run the flusher to clear the queue to set up for the
     // rest of the test
     while (flusher->getLPQueueSize() != 0) {
-        task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+        task_executor->runNextTask(TaskType::Writer, flusherName);
     }
     ASSERT_EQ(0, flusher->getLPQueueSize());
 
@@ -135,7 +135,7 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     ASSERT_EQ(1, hpVBucket->getHighPriorityChkSize());
 
     // Run the flusher
-    task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+    task_executor->runNextTask(TaskType::Writer, flusherName);
     // hpVBucket is still in high-priority queue as we have never
     // received and flushed any seqno:1
     ASSERT_EQ(1, hpVBucket->getHighPriorityChkSize());
@@ -160,6 +160,6 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     ASSERT_EQ(1, flusher->getLPQueueSize());
 
     // Run the FLusher again, should drain the low-priority queue
-    task_executor->runNextTask(WRITER_TASK_IDX, flusherName);
+    task_executor->runNextTask(TaskType::Writer, flusherName);
     ASSERT_EQ(0, flusher->getLPQueueSize());
 }

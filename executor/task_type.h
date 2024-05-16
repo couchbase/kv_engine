@@ -13,35 +13,35 @@
 #include <stdexcept>
 #include <string>
 
-enum task_type_t {
-    NO_TASK_TYPE = -1,
-    WRITER_TASK_IDX = 0,
-    READER_TASK_IDX = 1,
-    AUXIO_TASK_IDX = 2,
-    NONIO_TASK_IDX = 3,
-    NUM_TASK_GROUPS = 4 // keep this as last element of the enum
+enum class TaskType {
+    None = -1,
+    Writer = 0,
+    Reader = 1,
+    AuxIO = 2,
+    NonIO = 3,
+    Count = 4 // keep this as last element of the enum
 };
 
-static inline std::string to_string(const task_type_t type) {
+static inline std::string to_string(const TaskType type) {
     switch (type) {
-    case WRITER_TASK_IDX:
+    case TaskType::Writer:
         return "Writer";
-    case READER_TASK_IDX:
+    case TaskType::Reader:
         return "Reader";
-    case AUXIO_TASK_IDX:
+    case TaskType::AuxIO:
         return "AuxIO";
-    case NONIO_TASK_IDX:
+    case TaskType::NonIO:
         return "NonIO";
-    case NO_TASK_TYPE:
-        return "NO_TASK_TYPE";
-    case NUM_TASK_GROUPS:
-        return "NUM_TASK_GROUPS";
+    case TaskType::None:
+        return "None";
+    case TaskType::Count:
+        return "Count";
     default:
         throw std::invalid_argument("to_string(task_type_t) unknown type:{" +
                                     std::to_string(int(type)) + "}");
     }
 }
 
-inline auto format_as(const task_type_t type) {
+inline auto format_as(const TaskType type) {
     return to_string(type);
 }

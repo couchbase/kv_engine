@@ -159,7 +159,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 
     // The abort will have scheduled a task to process the checkpoint.
-    auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& nonIOQueue = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(nonIOQueue,
                 "Process checkpoint(s) for DCP producer test_producer");
 

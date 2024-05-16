@@ -30,7 +30,7 @@ public:
     }
 
     void runNextTask() {
-        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         SingleThreadedKVBucketTest::runNextTask(lpNonioQ);
     }
 };

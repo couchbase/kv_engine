@@ -2434,7 +2434,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
                                                    -1 /* taskTime */,
                                                    1 /* concurrency */);
     static_cast<ExpiredItemPager*>(task.get())->run();
-    runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::NonIO),
                 "Expired item remover no vbucket assigned");
 
     std::vector<queued_item> items;
@@ -3244,7 +3244,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys("default0", {}, getAllKeysResponseHandler));
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys("default0", {}, getAllKeysResponseHandler));
@@ -3266,7 +3266,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys("default0", {10}, getAllKeysResponseHandler));
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys("default0", {10}, getAllKeysResponseHandler));
@@ -3280,7 +3280,7 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysStartHalfWay) {
     // All keys default2 and after from default collection
     EXPECT_EQ(cb::engine_errc::would_block,
               sendGetKeys("default2", {}, getAllKeysResponseHandler));
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys("default2", {}, getAllKeysResponseHandler));
@@ -3311,7 +3311,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
                                                       CollectionEntry::meat),
                           {},
                           getAllKeysResponseHandler));
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(makeCollectionEncodedString("meat2",
@@ -3345,7 +3345,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
             sendGetKeys(makeCollectionEncodedString("", CollectionEntry::meat),
                         {},
                         getAllKeysResponseHandler));
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(
             cb::engine_errc::success,
@@ -3368,7 +3368,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
                                                       CollectionEntry::meat),
                           {},
                           getAllKeysResponseHandler));
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(makeCollectionEncodedString("default4",
@@ -3408,7 +3408,7 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // GetKeys task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
@@ -3420,7 +3420,7 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // GetKeys task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
@@ -3547,7 +3547,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
-            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            *task_executor->getLpTaskQ(TaskType::Reader),
             "Fetching item from disk for vkey stat: key{cid:0x0:defKey} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
@@ -3561,7 +3561,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
-            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            *task_executor->getLpTaskQ(TaskType::Reader),
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
@@ -3575,7 +3575,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
-            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            *task_executor->getLpTaskQ(TaskType::Reader),
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
@@ -3598,7 +3598,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     auto ret = engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler);
     if (isFullEviction()) {
         EXPECT_EQ(cb::engine_errc::would_block, ret);
-        runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+        runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                     "Fetching item from disk for vkey stat: key{cid:0x0:beef2} "
                     "vb:0");
         EXPECT_EQ(
@@ -3685,7 +3685,7 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // GetKeys task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
+    runNextTask(*task_executor->getLpTaskQ(TaskType::Reader),
                 "Running the ALL_DOCS api on vb:0");
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -3776,7 +3776,7 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
-            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            *task_executor->getLpTaskQ(TaskType::Reader),
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
@@ -3789,7 +3789,7 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
-            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            *task_executor->getLpTaskQ(TaskType::Reader),
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
@@ -4407,7 +4407,7 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
     // the compaction manually.
     store->scheduleCompaction(vbid, {}, nullptr, std::chrono::seconds(0));
     std::string task = "Compact DB file " + std::to_string(vbid.get());
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX], task);
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO), task);
 
     // Meat should still be there - before the fix dropped size would be 0
     auto dropped = store->getRWUnderlying(vbid)->getDroppedCollections(vbid);
@@ -4511,9 +4511,9 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
         EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid1));
         // Run the deletion task
         if (ephemeral()) {
-            runNextTask(*task_executor->getLpTaskQ()[NONIO_TASK_IDX]);
+            runNextTask(*task_executor->getLpTaskQ(TaskType::NonIO));
         } else {
-            runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+            runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO));
         }
     }
 

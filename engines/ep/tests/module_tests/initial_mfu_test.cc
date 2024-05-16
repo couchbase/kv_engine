@@ -114,7 +114,7 @@ TEST_P(InitialMFUTest, SetsToInitialValueWhenTransitioningToLearning) {
 
     engine->getConfiguration().setItemEvictionStrategy("learning_age_and_mfu");
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
     runNextTask(lpNonioQ, "Initial Item MFU updater");
 
     EXPECT_EQ(Item::initialFreqCount, store->getInitialMFU());

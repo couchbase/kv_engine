@@ -209,7 +209,7 @@ size_t ExecutorPool::calcNumNonIO(
     }
 }
 
-int ExecutorPool::getThreadPriority(task_type_t taskType) {
+int ExecutorPool::getThreadPriority(TaskType taskType) {
     // Decrease the priority of Writer and AuxIO threads to lessen their impact on
     // other threads (esp front-end workers which should be prioritized ahead
     // of non-critical path Writer tasks (both Flusher and Compaction) or AuxIO
@@ -230,15 +230,15 @@ int ExecutorPool::getThreadPriority(task_type_t taskType) {
     //   Linux where it's only the current thread), hence calling setpriority()
     //   would be pointless.
     switch (taskType) {
-    case WRITER_TASK_IDX:
-    case AUXIO_TASK_IDX:
+    case TaskType::Writer:
+    case TaskType::AuxIO:
         // Linux uses the range -20..19 (highest..lowest).
         return 19;
-    case READER_TASK_IDX:
-    case NONIO_TASK_IDX:
+    case TaskType::Reader:
+    case TaskType::NonIO:
         return 0;
-    case NO_TASK_TYPE:
-    case NUM_TASK_GROUPS:
+    case TaskType::None:
+    case TaskType::Count:
         // These are both invalid taskTypes.
         folly::assume_unreachable();
     }

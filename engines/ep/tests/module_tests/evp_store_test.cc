@@ -478,7 +478,7 @@ TEST_P(EPBucketTest, MB_21976) {
     EXPECT_EQ(cb::engine_errc::would_block,
               store->deleteVBucket(vbid, deleteCookie));
 
-    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    auto& lpAuxioQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
     runNextTask(lpAuxioQ, "Removing (dead) vb:0 from memory and disk");
 
     // Cookie should be notified with not_my_vbucket.
@@ -3088,7 +3088,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
     EXPECT_EQ(2, store->getVBucket(vbid)->ht.getNumItems());
     EXPECT_EQ(0, store->getVBucket(vbid)->ht.getNumTempItems());
 
-    runTasks(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    runTasks(*task_executor->getLpTaskQ(TaskType::AuxIO));
 
     if (!engine->getConfiguration().isCompactionExpiryFetchInline()) {
         runBGFetcherTask();

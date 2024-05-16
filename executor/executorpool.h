@@ -259,7 +259,7 @@ public:
      * @param taskType
      * @return priority to use, as passed to setpriority().
      */
-    static int getThreadPriority(task_type_t taskType);
+    static int getThreadPriority(TaskType taskType);
 
     /************** Testing *************************************************/
 
