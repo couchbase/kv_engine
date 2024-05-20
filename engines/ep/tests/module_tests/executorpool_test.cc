@@ -334,6 +334,26 @@ TYPED_TEST(ExecutorPoolTest, CanSetDefaultTaskableOnlyOnce) {
     this->pool->unregisterTaskable(*taskable, false);
 }
 
+TYPED_TEST(ExecutorPoolTest, CurrentTask) {
+    NiceMock<MockTaskable> taskable;
+
+    TaskType contextTaskType = TaskType::None;
+    auto task = std::make_shared<LambdaTask>(
+            taskable,
+            TaskId::ItemPager,
+            0,
+            false,
+            [&contextTaskType](LambdaTask& task) -> bool {
+                contextTaskType = GlobalTask::getCurrentTaskType();
+                throw std::runtime_error("throw test");
+            });
+
+    EXPECT_EQ(TaskType::None, GlobalTask::getCurrentTaskType());
+    EXPECT_THROW(task->execute(""), std::runtime_error);
+    EXPECT_EQ(TaskType::None, GlobalTask::getCurrentTaskType());
+    EXPECT_EQ(TaskType::NonIO, contextTaskType);
+}
+
 /// Test that tasks are run immediately when they are woken.
 TYPED_TEST(ExecutorPoolTest, Wake) {
     this->makePool(1);
