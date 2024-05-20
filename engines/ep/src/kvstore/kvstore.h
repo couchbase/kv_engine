@@ -40,6 +40,7 @@
 class BucketLogger;
 class CookieIface;
 class EPStats;
+class FileOpsTracker;
 class Item;
 class KVStore;
 class KVStoreConfig;
@@ -673,6 +674,8 @@ public:
  */
 class KVStore : public KVStoreIface {
 public:
+    KVStore();
+
     ~KVStore() override;
 
     /**
@@ -986,6 +989,11 @@ protected:
     KVStoreStats st;
     std::vector<std::unique_ptr<vbucket_state>> cachedVBStates;
     cb::RelaxedAtomic<uint16_t> cachedValidVBCount;
+
+    /**
+     * FileOpsTracker to use for this KVStore.
+     */
+    FileOpsTracker& fileOpsTracker;
 
     /**
      * Callback function to be invoked when the underlying KVStore needs to

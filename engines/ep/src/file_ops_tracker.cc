@@ -12,6 +12,7 @@
 
 #include "ep_time.h"
 #include "executor/globaltask.h"
+#include <fmt/format.h>
 #include <folly/system/ThreadName.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
@@ -22,6 +23,25 @@ FileOp::FileOp(Type type) : FileOp(type, 0) {
 
 FileOp::FileOp(Type type, size_t nbytes)
     : type(type), nbytes(nbytes), startTime{ep_uptime_now()} {
+}
+
+std::string to_string(FileOp::Type type) {
+    switch (type) {
+    case FileOp::Type::None:
+        return "None";
+    case FileOp::Type::Read:
+        return "Read";
+    case FileOp::Type::Write:
+        return "Write";
+    case FileOp::Type::Sync:
+        return "Sync";
+    case FileOp::Type::Open:
+        return "Open";
+    case FileOp::Type::Close:
+        return "Close";
+    }
+    throw std::invalid_argument(
+            fmt::format("Invalid FileOp value: {}", static_cast<int>(type)));
 }
 
 FileOpsTrackerScopeGuard::FileOpsTrackerScopeGuard(FileOpsTracker& tracker)

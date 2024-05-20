@@ -18,6 +18,7 @@
 #include "collections/vbucket_manifest.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
+#include "file_ops_tracker.h"
 #include "item.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
@@ -360,6 +361,9 @@ nlohmann::json KVStore::getPersistedStats() const {
     }
 
     return json;
+}
+
+KVStore::KVStore() : fileOpsTracker(FileOpsTracker::instance()) {
 }
 
 KVStore::~KVStore() = default;
