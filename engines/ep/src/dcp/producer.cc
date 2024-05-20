@@ -452,7 +452,7 @@ cb::engine_errc DcpProducer::streamRequest(
 
     const auto needsRollback = vb->failovers->needsRollback(
             start_seqno,
-            vb->getHighSeqno(),
+            highSeqno,
             vbucket_uuid,
             snap_start_seqno,
             snap_end_seqno,
@@ -506,7 +506,7 @@ cb::engine_errc DcpProducer::streamRequest(
     }
 
     if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
+        end_seqno = vb->getPersistenceSeqno();
     } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
         logger->warn("DCP connections with PiTR enabled must enable DISKONLY");
         return cb::engine_errc::invalid_arguments;
@@ -529,7 +529,7 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::out_of_range;
     }
 
-    if (start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
+    if (start_seqno > static_cast<uint64_t>(highSeqno)) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the vb highSeqno "
@@ -538,7 +538,7 @@ cb::engine_errc DcpProducer::streamRequest(
                 logHeader(),
                 vbucket,
                 start_seqno,
-                vb->getHighSeqno(),
+                highSeqno,
                 flags,
                 vbucket_uuid,
                 snap_start_seqno,
