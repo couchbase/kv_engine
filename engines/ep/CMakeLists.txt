@@ -338,6 +338,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ext_meta_parser.cc
             src/event_driven_timeout_task.cc
             src/failover-table.cc
+            src/file_ops_tracker.cc
             src/flusher.cc
             src/getkeys.cc
             src/hash_table.cc
