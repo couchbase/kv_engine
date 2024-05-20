@@ -387,9 +387,10 @@ CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
       base_ops(ops) {
-    statCollectingFileOps = getCouchstoreStatsOps(fsStats, base_ops);
+    statCollectingFileOps =
+            getCouchstoreStatsOps(fsStats, fileOpsTracker, base_ops);
     statCollectingFileOpsCompaction =
-            getCouchstoreStatsOps(fsStatsCompaction, base_ops);
+            getCouchstoreStatsOps(fsStatsCompaction, fileOpsTracker, base_ops);
 
     // To save memory only allocate counters for the number of vBuckets that
     // this shard will have to deal with

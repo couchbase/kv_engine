@@ -189,10 +189,13 @@ add_sanitizers(ep-engine_ep_unit_tests)
 kv_enable_pch(ep-engine_ep_unit_tests)
 
 cb_add_test_executable(ep-engine_couch-fs-stats_test
-        ${EventuallyPersistentEngine_SOURCE_DIR}/src/kvstore/couch-kvstore/couch-fs-stats.cc
-        ${EventuallyPersistentEngine_SOURCE_DIR}/src/configuration.h
         module_tests/couch-fs-stats_test.cc
         ${Couchstore_SOURCE_DIR}/src/crc32.cc
+        ${EventuallyPersistentEngine_SOURCE_DIR}/src/configuration.h
+        ${EventuallyPersistentEngine_SOURCE_DIR}/src/ep_time.cc
+        ${EventuallyPersistentEngine_SOURCE_DIR}/src/file_ops_tracker.cc
+        ${EventuallyPersistentEngine_SOURCE_DIR}/src/kvstore/couch-kvstore/couch-fs-stats.cc
+        ${Memcached_SOURCE_DIR}/executor/globaltask.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
 kv_enable_pch(ep-engine_couch-fs-stats_test)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
@@ -204,6 +207,7 @@ target_link_libraries(ep-engine_couch-fs-stats_test PRIVATE
         GTest::gtest_main
         GTest::gmock
         mcd_util
+        mock_server
         platform
         hdrhistogram
         phosphor)

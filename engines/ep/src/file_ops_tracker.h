@@ -68,6 +68,8 @@ struct FileOp {
     TimePoint startTime{};
 };
 
+std::string to_string(FileOp::Type opType);
+
 class FileOpsTracker;
 
 class FileOpsTrackerScopeGuard {
