@@ -343,7 +343,7 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                high_seqno,
                                vb_manifest_uid);
     registerStream(stream);
-    ready.lock()->push_back(vbucket);
+    readyStreamsVBQueue.lock()->push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
     pendingAddStream = false;
 
@@ -1425,7 +1425,7 @@ std::string DcpConsumer::getProcessorTaskStatusStr() const {
 }
 
 std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
-    auto locked = ready.lock();
+    auto locked = readyStreamsVBQueue.lock();
 
     unPause();
     while (!locked->empty()) {
@@ -1465,7 +1465,7 @@ std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {
 
 void DcpConsumer::notifyStreamReady(Vbid vbucket) {
     {
-        auto locked = ready.lock();
+        auto locked = readyStreamsVBQueue.lock();
         auto iter = std::find(locked->begin(), locked->end(), vbucket);
         if (iter != locked->end()) {
             return;

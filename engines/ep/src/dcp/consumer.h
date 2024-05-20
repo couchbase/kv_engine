@@ -559,7 +559,10 @@ protected:
     VBReadyQueue bufferedVBQueue;
     std::atomic<bool> processorNotification;
 
-    folly::Synchronized<std::list<Vbid>, std::mutex> ready;
+    /**
+     * Queue of vbuckets which have streams with items ready to pick up.
+     */
+    folly::Synchronized<std::list<Vbid>, std::mutex> readyStreamsVBQueue;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
     using PassiveStreamMap =
