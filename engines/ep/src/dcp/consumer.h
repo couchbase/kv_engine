@@ -549,7 +549,14 @@ protected:
     size_t processorTaskId;
     std::atomic<enum ProcessUnackedBytesResult> processorTaskState;
 
-    VBReadyQueue vbReady;
+    /**
+     * Queue of vbuckets which needed to "buffer" items (stop acking DCP
+     * messages until the system memory usage allows these items to be
+     * processed).
+     *
+     * Stats are generated with the prefix "dcp_buffered_ready_queue_".
+     */
+    VBReadyQueue bufferedVBQueue;
     std::atomic<bool> processorNotification;
 
     folly::Synchronized<std::list<Vbid>, std::mutex> ready;

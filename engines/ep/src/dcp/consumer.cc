@@ -148,7 +148,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       opaqueCounter(0),
       processorTaskId(0),
       processorTaskState(all_processed),
-      vbReady(engine.getConfiguration().getMaxVbuckets()),
+      bufferedVBQueue(engine.getConfiguration().getMaxVbuckets()),
       processorNotification(false),
       backoffs(0),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
@@ -1271,7 +1271,8 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("processor_task_state", getProcessorTaskStatusStr(), add_stat, c);
     flowControl.addStats(add_stat, c);
 
-    vbReady.addStats(getName() + ":dcp_buffered_ready_queue_", add_stat, c);
+    bufferedVBQueue.addStats(
+            getName() + ":dcp_buffered_ready_queue_", add_stat, c);
     addStat("processor_notification",
             processorNotification.load(),
             add_stat,
@@ -1316,12 +1317,12 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
         switch (engine_.getKVBucket()->getReplicationThrottleStatus()) {
         case KVBucket::ReplicationThrottleStatus::Pause:
             backoffs++;
-            vbReady.pushUnique(stream->getVBucket());
+            bufferedVBQueue.pushUnique(stream->getVBucket());
             return cannot_process;
 
         case KVBucket::ReplicationThrottleStatus::Disconnect:
             backoffs++;
-            vbReady.pushUnique(stream->getVBucket());
+            bufferedVBQueue.pushUnique(stream->getVBucket());
             logger->warn(
                     "{} Processor task indicating disconnection "
                     "as there is no memory to complete replication",
@@ -1348,7 +1349,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
 
     // The stream may not be done yet so must go back in the ready queue
     if (bytesProcessed > 0) {
-        vbReady.pushUnique(stream->getVBucket());
+        bufferedVBQueue.pushUnique(stream->getVBucket());
         if (rval == stop_processing) {
             return stop_processing;
         }
@@ -1361,7 +1362,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
 ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
     ProcessUnackedBytesResult process_ret = all_processed;
     Vbid vbucket = Vbid(0);
-    while (vbReady.popFront(vbucket)) {
+    while (bufferedVBQueue.popFront(vbucket)) {
         auto stream = findStream(vbucket);
 
         if (!stream) {
@@ -1377,11 +1378,11 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
         case cannot_process:
             // If items for current vbucket weren't processed,
             // re-add current vbucket
-            if (vbReady.size() > 0) {
+            if (bufferedVBQueue.size() > 0) {
                 // If there are more vbuckets in queue, sleep(0).
                 process_ret = more_to_process;
             }
-            vbReady.pushUnique(vbucket);
+            bufferedVBQueue.pushUnique(vbucket);
             return process_ret;
         case more_to_process:
             return process_ret;
@@ -1394,8 +1395,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
 }
 
 void DcpConsumer::notifyVbucketReady(Vbid vbucket) {
-    if (vbReady.pushUnique(vbucket) &&
-        notifiedProcessor(true)) {
+    if (bufferedVBQueue.pushUnique(vbucket) && notifiedProcessor(true)) {
         ExecutorPool::get()->wake(processorTaskId);
     }
 }
