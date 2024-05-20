@@ -99,6 +99,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/executorpool_test.cc
         module_tests/failover_table_test.cc
         module_tests/file_cache_test.cc
+        module_tests/file_ops_tracker_test.cc
         module_tests/flusher_test.cc
         module_tests/futurequeue_test.cc
         module_tests/hash_table_eviction_test.cc
