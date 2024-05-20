@@ -12,6 +12,7 @@
 #include "globaltask.h"
 #include "taskable.h"
 #include <fmt/format.h>
+#include <folly/ScopeGuard.h>
 #include <utilities/debug_variable.h>
 #include <climits>
 
@@ -21,6 +22,8 @@ static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
 
 static_assert(TaskPriority::ItemPager < TaskPriority::BackfillManagerTask,
               "ItemPager not less than BackfillManagerTask");
+
+thread_local task_type_t GlobalTask::currentTaskType{NO_TASK_TYPE};
 
 std::atomic<size_t> GlobalTask::task_id_counter(1);
 
@@ -32,6 +35,7 @@ GlobalTask::GlobalTask(Taskable& t,
       state(TASK_RUNNING),
       uid(nextTaskId()),
       taskId(taskId),
+      taskType(getTaskType(taskId)),
       taskable(t),
       totalRuntime(0),
       previousRuntime(0),
@@ -51,6 +55,10 @@ bool GlobalTask::execute(std::string_view threadName) {
     // Put the taskable name on the stack so we know which bucket's task was
     // running if we happen to crash.
     cb::DebugVariable taskableName(cb::toCharArrayN<32>(taskable.getName()));
+
+    auto resetTaskTypeAtExit =
+            folly::makeGuard([]() { currentTaskType = NO_TASK_TYPE; });
+    currentTaskType = taskType;
 
     // Call GlobalTask::run(), noting the result.
     // If true: Read GlobalTask::wakeTime. If "now", then re-queue
@@ -172,6 +180,10 @@ task_type_t GlobalTask::getTaskType(TaskId id) {
 
 std::string GlobalTask::getTaskIdString(TaskId id) {
     return fmt::format("{}[{}]", getTaskName(id), to_string(getTaskType(id)));
+}
+
+task_type_t GlobalTask::getCurrentTaskType() {
+    return currentTaskType;
 }
 
 std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)>
