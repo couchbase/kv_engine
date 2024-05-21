@@ -896,55 +896,42 @@
         "key": "ep_secondary_warmup_status",
         "unit": "none",
         "description": "Status of secondary warmup (complete or running)",
+        "prometheus": false,
         "added": "8.0.0"
     },
     {
         "key": "ep_secondary_warmup_state",
         "unit": "none",
         "description": "The state reached by secondary warmup",
+        "prometheus": false,
         "added": "8.0.0"
     },
     {
         "key": "ep_secondary_warmup_time",
         "unit": "microseconds",
         "description": "Time (\u00b5s) spent by warming data during Secondary warm-up",
-        "added": "8.0.0"
-    },
-
-    {
-        "key": "ep_secondary_warmup_key_count",
-        "unit": "none",
-        "description": "Number of keys warmed up by secondary warmup",
-        "added": "8.0.0"
-    },
-    {
-        "key": "ep_secondary_warmup_value_count",
-        "unit": "none",
-        "description": "Number of values warmed up by secondary warmup",
+        "prometheus": false,
         "added": "8.0.0"
     },
     {
         "key": "ep_secondary_warmup_keys_time",
         "unit": "microseconds",
         "description": "Time (\u00b5s) spent by warming keys",
+        "prometheus": false,
         "added": "8.0.0"
     },
     {
-        "key": "ep_secondary_warmup_estimated_key_count",
-        "unit": "none",
-        "description":"To facilitate warm-up progress tracking this value represents how many keys need to be loaded to reach 100% keys loaded. This count is useful for progress tracking for Value Eviction buckets during the \"loading keys\" state and the ratio of ep_warmup_key_count and this provides insight into progress.",
-        "added": "8.0.0"
-    },
-        {
         "key": "ep_secondary_warmup_access_log",
         "unit": "none",
         "description":"Stat only reported if secondary warmup encountered a corrupt access log",
+        "prometheus": false,
         "added": "8.0.0"
     },
-        {
+    {
         "key": "ep_secondary_warmup_estimated_value_count",
         "unit": "none",
         "description":"To facilitate warm-up progress tracking this value represents how many values need to be loaded to reach 100% of values loaded. This counter is only initialised when warm-up reaches the \"loading access log\", \"loading k/v pairs\" or \"loading data\" state and the ratio of ep_warmup_value_count and this provides insight into progress.",
+        "prometheus": false,
         "added": "8.0.0"
     },
     {
@@ -4054,7 +4041,7 @@
         "unit": "none",
         "cbstat": "flush_uid",
         "description": "The last manifest-uid triggering a flush",
-        "added": "8.0",
+        "added": "8.0.0",
         "stability": "internal"
     },
     {
