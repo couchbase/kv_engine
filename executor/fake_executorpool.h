@@ -52,6 +52,7 @@ public:
     }
 
     TaskQueue* getLpTaskQ(TaskType t) const {
+        Expects(t != TaskType::None);
         return lpTaskQ[static_cast<size_t>(t)];
     }
 
