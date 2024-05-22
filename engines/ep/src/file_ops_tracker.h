@@ -13,6 +13,7 @@
 #include "executor/task_type.h"
 #include <folly/Synchronized.h>
 #include <folly/ThreadLocal.h>
+#include <utilities/testing_hook.h>
 #include <chrono>
 
 /**
@@ -149,6 +150,9 @@ public:
     /// Visits tracked threads with pending IO (threads with no pending IO are
     /// not visited).
     void visitThreads(Visitor visitor);
+
+    /// For testing only.
+    TestingHook<const FileOp&> startHook{nullptr};
 
 private:
     /// Obtains the ThreadSlot with the correct NoArena guard.

@@ -10,25 +10,30 @@
 
 #include "magma-kvstore_fs.h"
 
+#include "file_ops_tracker.h"
+
 #include <libmagma/file.h>
 #include <libmagma/status.h>
 
 class MagmaFile : public magma::File {
 public:
-    MagmaFile(std::unique_ptr<magma::File> baseFile)
-        : baseFile(std::move(baseFile)) {
+    MagmaFile(FileOpsTracker& tracker, std::unique_ptr<magma::File> baseFile)
+        : tracker(tracker), baseFile(std::move(baseFile)) {
     }
 
     magma::Status Open(const int openFlags = OpenFlags::ReadWrite |
                                              OpenFlags::Create) override {
+        auto g = tracker.startWithScopeGuard(FileOp::open());
         return baseFile->Open(openFlags);
     }
 
     magma::Status Size(size_t* size) override {
+        auto g = tracker.startWithScopeGuard(FileOp::read(0));
         return baseFile->Size(size);
     }
 
     magma::Status LastModificationTime(time_t* time) override {
+        auto g = tracker.startWithScopeGuard(FileOp::read(0));
         return baseFile->LastModificationTime(time);
     }
 
@@ -36,42 +41,52 @@ public:
                        size_t len,
                        char* dst,
                        size_t* n) override {
+        auto g = tracker.startWithScopeGuard(FileOp::read(len));
         return baseFile->Read(offset, len, dst, n);
     }
 
     magma::Status Write(int64_t offset, const char* src, size_t len) override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(len));
         return baseFile->Write(offset, src, len);
     }
 
     magma::Status Sync() override {
+        auto g = tracker.startWithScopeGuard(FileOp::sync());
         return baseFile->Sync();
     }
 
     magma::Status Close() override {
+        auto g = tracker.startWithScopeGuard(FileOp::close());
         return baseFile->Close();
     }
 
     magma::Status Destroy(magma::FileRemover removeAll) override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->Destroy(std::move(removeAll));
     }
 
     magma::Status Copy(const std::string& newPath) override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->Copy(newPath);
     }
 
     magma::Status Mmap(char** retPtr) override {
+        auto g = tracker.startWithScopeGuard(FileOp::open());
         return baseFile->Mmap(retPtr);
     }
 
     magma::Status Munmap() override {
+        auto g = tracker.startWithScopeGuard(FileOp::close());
         return baseFile->Munmap();
     }
 
     void SetAccessPattern(AccessPattern ap) override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         baseFile->SetAccessPattern(ap);
     }
 
     void ReadAhead(int64_t offset, size_t len) override {
+        auto g = tracker.startWithScopeGuard(FileOp::read(len));
         baseFile->ReadAhead(offset, len);
     }
 
@@ -82,14 +97,17 @@ public:
     }
 
     size_t GetBlockSize() override {
+        auto g = tracker.startWithScopeGuard(FileOp::read(0));
         return baseFile->GetBlockSize();
     }
 
     magma::Status Preallocate(size_t size, bool keepSize) override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->Preallocate(size, keepSize);
     }
 
     magma::Status Truncate(size_t size) override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->Truncate(size);
     }
 
@@ -98,79 +116,92 @@ public:
     }
 
     magma::Status Lock() override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->Lock();
     }
 
     std::pair<magma::Status, bool> TryLock() override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->TryLock();
     }
 
     magma::Status Unlock() override {
+        auto g = tracker.startWithScopeGuard(FileOp::write(0));
         return baseFile->Unlock();
     }
 
 private:
+    FileOpsTracker& tracker;
     std::unique_ptr<magma::File> baseFile;
 };
 
 std::unique_ptr<magma::File> getMagmaTrackingFile(
-        std::unique_ptr<magma::File> baseFile) {
-    return std::make_unique<MagmaFile>(std::move(baseFile));
+        FileOpsTracker& tracker, std::unique_ptr<magma::File> baseFile) {
+    return std::make_unique<MagmaFile>(tracker, std::move(baseFile));
 }
 
 class MagmaDirectory : public magma::Directory {
 public:
-    MagmaDirectory(std::unique_ptr<magma::Directory> baseDir)
-        : baseDir(std::move(baseDir)) {
+    MagmaDirectory(FileOpsTracker& tracker,
+                   std::unique_ptr<magma::Directory> baseDir)
+        : tracker(tracker), baseDir(std::move(baseDir)) {
     }
 
     magma::Status Open(OpenMode mode) override {
+        auto g = tracker.startWithScopeGuard(FileOp::open());
         return baseDir->Open(mode);
     }
     magma::Status Sync() override {
+        auto g = tracker.startWithScopeGuard(FileOp::sync());
         return baseDir->Sync();
     }
 
 private:
+    FileOpsTracker& tracker;
     std::unique_ptr<magma::Directory> baseDir;
 };
 
 std::unique_ptr<magma::Directory> getMagmaTrackingDirectory(
-        std::unique_ptr<magma::Directory> baseDir) {
-    return std::make_unique<MagmaDirectory>(std::move(baseDir));
+        FileOpsTracker& tracker, std::unique_ptr<magma::Directory> baseDir) {
+    return std::make_unique<MagmaDirectory>(tracker, std::move(baseDir));
 }
 
-magma::FileSystem getMagmaTrackingFileSystem(magma::FileSystem baseFs) {
+magma::FileSystem getMagmaTrackingFileSystem(FileOpsTracker& tracker,
+                                             magma::FileSystem baseFs) {
     magma::FileSystem fs;
 
     Expects(baseFs.MakeFile);
-    fs.MakeFile = [wrapped = baseFs.MakeFile](
+    fs.MakeFile = [&tracker, wrapped = baseFs.MakeFile](
                           const auto& path) -> std::unique_ptr<magma::File> {
-        return getMagmaTrackingFile(wrapped(path));
+        return getMagmaTrackingFile(tracker, wrapped(path));
     };
 
     Expects(baseFs.MakeDirectory);
     fs.MakeDirectory =
-            [wrapped = baseFs.MakeDirectory](
+            [&tracker, wrapped = baseFs.MakeDirectory](
                     const auto& path) -> std::unique_ptr<magma::Directory> {
-        return getMagmaTrackingDirectory(wrapped(path));
+        return getMagmaTrackingDirectory(tracker, wrapped(path));
     };
 
     // The following members may not be initialised for a read-only FileSystem.
 
     if (baseFs.RemoveAllWithCallback) {
         fs.RemoveAllWithCallback =
-                [wrapped = baseFs.RemoveAllWithCallback](
+                [&tracker, wrapped = baseFs.RemoveAllWithCallback](
                         const std::string& path,
                         bool blocking,
                         std::function<void(magma::Status)> callback)
-                -> magma::Status { return wrapped(path, blocking, callback); };
-    }
+                -> magma::Status {
+            auto g = tracker.startWithScopeGuard(FileOp::write(0));
+            return wrapped(path, blocking, callback);
+        };
+    };
 
     if (baseFs.Rename) {
-        fs.Rename = [wrapped = baseFs.Rename](
+        fs.Rename = [&tracker, wrapped = baseFs.Rename](
                             const std::string& oldFilePath,
                             const std::string& newFilePath) -> magma::Status {
+            auto g = tracker.startWithScopeGuard(FileOp::write(0));
             return wrapped(oldFilePath, newFilePath);
         };
     }

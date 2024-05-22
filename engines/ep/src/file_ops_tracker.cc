@@ -124,6 +124,9 @@ FileOpsTracker::ThreadSlot& FileOpsTracker::getThreadSlot() {
 
 void FileOpsTracker::start(const FileOp& op) {
     Expects(op.type != FileOp::Type::None);
+    if (startHook) {
+        startHook(op);
+    }
     getThreadSlot().currentRequest = op;
 }
 

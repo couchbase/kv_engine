@@ -12,6 +12,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #include "collections/collection_persisted_stats.h"
 #include "configuration.h"
+#include "file_ops_tracker.h"
 #include "kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "kvstore/magma-kvstore/magma-kvstore_iorequest.h"
@@ -46,12 +47,17 @@ protected:
                                                      config.getBackend(),
                                                      workload.getNumShards(),
                                                      0 /*shardId*/);
-        kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+        kvstore = createStore(*kvstoreConfig);
     }
 
     void TearDown() override {
         kvstore.reset();
         KVStoreTest::TearDown();
+    }
+
+    virtual std::unique_ptr<MockMagmaKVStore> createStore(
+            MagmaKVStoreConfig& config) {
+        return std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
     }
 
     std::unique_ptr<MagmaKVStoreConfig> kvstoreConfig;
@@ -977,6 +983,44 @@ TEST_F(MagmaKVStoreTest, diskSizeUpdateTracking) {
         EXPECT_GE(getCollectionDiskSize(), minExpectedSize);
         EXPECT_LT(getCollectionDiskSize(), largerExpectedSize);
     }
+}
+
+MATCHER_P(FileOpTypeMatcher,
+          expectedType,
+          fmt::format("Check the type of the FileOp matches '{}'",
+                      to_string(expectedType))) {
+    return arg.type == expectedType;
+}
+
+class MagmaKVStoreFileOpsTest : public MagmaKVStoreTest {
+public:
+    void TearDown() override {
+        tracker->startHook = nullptr;
+        MagmaKVStoreTest::TearDown();
+        tracker.reset();
+    }
+
+    std::unique_ptr<MockMagmaKVStore> createStore(
+            MagmaKVStoreConfig& config) override {
+        tracker = std::make_unique<FileOpsTracker>();
+        config.setFileOpsTracker(*tracker);
+        return std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+    }
+
+    std::unique_ptr<FileOpsTracker> tracker;
+};
+
+/// Vverify that the tracking FileSystem implementation is used.
+TEST_F(MagmaKVStoreFileOpsTest, usesFileOpsTracker) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    StrictMock<MockFunction<void(const FileOp&)>> cb;
+    tracker->startHook = cb.AsStdFunction();
+
+    EXPECT_CALL(cb, Call(FileOpTypeMatcher(FileOp::Type::Write)));
+    EXPECT_CALL(cb, Call(FileOpTypeMatcher(FileOp::Type::Sync)));
+
+    doWrite(1, true /*success*/);
 }
 
 class MagmaKVStoreHistoryTest : public MagmaKVStoreTest {

@@ -13,6 +13,7 @@
 
 #include "configuration.h"
 #include "error_handler.h"
+#include "file_ops_tracker.h"
 #include "magma-kvstore.h"
 #include "magma-kvstore_fs.h"
 
@@ -126,7 +127,11 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaSeqTreeIndexBlockSize = config.getMagmaSeqTreeIndexBlockSize();
     magmaKeyTreeDataBlockSize = config.getMagmaKeyTreeDataBlockSize();
     magmaKeyTreeIndexBlockSize = config.getMagmaKeyTreeIndexBlockSize();
-    magmaCfg.FSHook = [](auto& fs) { fs = getMagmaTrackingFileSystem(fs); };
+
+    fileOpsTracker = &FileOpsTracker::instance();
+    magmaCfg.FSHook = [this](auto& fs) {
+        fs = getMagmaTrackingFileSystem(*fileOpsTracker, fs);
+    };
 
     config.addValueChangedListener(
             "magma_enable_block_cache",

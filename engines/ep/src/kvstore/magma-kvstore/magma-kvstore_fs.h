@@ -13,4 +13,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <libmagma/file.h>
 
-magma::FileSystem getMagmaTrackingFileSystem(magma::FileSystem baseFs);
+class FileOpsTracker;
+
+magma::FileSystem getMagmaTrackingFileSystem(FileOpsTracker& tracker,
+                                             magma::FileSystem baseFs);
