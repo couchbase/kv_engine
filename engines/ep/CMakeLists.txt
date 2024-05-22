@@ -34,6 +34,7 @@ IF (EP_USE_MAGMA)
     SET(MAGMA_KVSTORE_SOURCE
             src/kvstore/magma-kvstore/magma-kvstore.cc
             src/kvstore/magma-kvstore/magma-kvstore_config.cc
+            src/kvstore/magma-kvstore/magma-kvstore_fs.cc
             src/kvstore/magma-kvstore/magma-memory-tracking-proxy.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
