@@ -1231,6 +1231,7 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
 
     VBucketPtr vb = vbuckets.getBucket(lookup.getVBucketId());
     if (!vb) {
+        setStatus(cb::engine_errc::not_my_vbucket);
         return;
     }
 
