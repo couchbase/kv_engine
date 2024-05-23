@@ -16,6 +16,8 @@
 #include <folly/system/ThreadName.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
+#include <relaxed_atomic.h>
+#include <atomic>
 #include <memory>
 
 FileOp::FileOp(Type type) : FileOp(type, 0) {
@@ -81,6 +83,8 @@ struct FileOpsTracker::ThreadSlot {
     const TaskType threadType;
     /// The name of the thread. Effectively const and allocated under NoArena.
     std::string threadName;
+    /// The number of bytes written since the last Sync.
+    cb::RelaxedAtomic<uint64_t> nbytesSinceSync{0};
     /**
      * The request currently pending on the thread.
      * There will almost never be contention here, so use a regular mutex.
@@ -122,12 +126,18 @@ FileOpsTracker::ThreadSlot& FileOpsTracker::getThreadSlot() {
     return **threadSlot;
 }
 
-void FileOpsTracker::start(const FileOp& op) {
+void FileOpsTracker::start(FileOp op) {
     Expects(op.type != FileOp::Type::None);
     if (startHook) {
         startHook(op);
     }
-    getThreadSlot().currentRequest = op;
+    auto& slot = getThreadSlot();
+    if (op.type == FileOp::Type::Sync) {
+        op.nbytes = slot.nbytesSinceSync.exchange(0);
+    } else if (op.nbytes) {
+        slot.nbytesSinceSync += op.nbytes;
+    }
+    slot.currentRequest = op;
 }
 
 FileOpsTrackerScopeGuard FileOpsTracker::startWithScopeGuard(const FileOp& op) {
