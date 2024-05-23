@@ -726,9 +726,13 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     // couchstore fetches value + addition overhead = ~1.3MiB
     // We want an additional 1MiB for fetching the first item successfully
     // Magma requires an addition 1MiB overhead than couchstore.
+    // This test was failing intermittently on CV for
+    // magma_persistent_full_eviction. The additional 0.3MiB is to ensure that
+    // the test passes consistently as full eviction requires greater overhead
+    // to include metadata.
     if (engine->getConfiguration().getBackend() == "magma") {
         engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
-                               (4 * valueSize));
+                               (4.3 * valueSize));
     } else {
         engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
                                (3 * valueSize));
