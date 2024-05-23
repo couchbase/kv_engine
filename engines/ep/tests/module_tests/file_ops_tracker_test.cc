@@ -119,3 +119,24 @@ TEST_F(FileOpsTrackerTest, Interleaving) {
         EXPECT_EQ(FileOp::Type::Read, std::get<2>(requests[i]).type);
     }
 }
+
+TEST_F(FileOpsTrackerTest, SyncNBytes) {
+    // Check that Sync nbytes counts the cumulative non-sync bytes.
+    tracker->startWithScopeGuard(FileOp::write(100));
+    tracker->startWithScopeGuard(FileOp::write(100));
+    tracker->startWithScopeGuard(FileOp::write(100));
+    {
+        auto g = tracker->startWithScopeGuard(FileOp::sync());
+        auto [type, thread, op] = getRequests().at(0);
+        EXPECT_EQ(FileOp::Type::Sync, op.type);
+        EXPECT_EQ(300, op.nbytes);
+    }
+    // Check that it gets reset.
+    tracker->startWithScopeGuard(FileOp::write(100));
+    {
+        auto g = tracker->startWithScopeGuard(FileOp::sync());
+        auto [type, thread, op] = getRequests().at(0);
+        EXPECT_EQ(FileOp::Type::Sync, op.type);
+        EXPECT_EQ(100, op.nbytes);
+    }
+}

@@ -63,7 +63,9 @@ struct FileOp {
     /// The type of this pending request.
     Type type{Type::None};
     /// The approximate size of the request. Set to 0 bytes, if the size of the
-    /// request cannot be determined (open/close/unlink/sync).
+    /// request cannot be determined (open/close/unlink). For sync requests, the
+    /// value is set by the tracker and is determined to be the cumulative
+    /// nbytes since the last sync.
     size_t nbytes{0};
     /// The time at which this request is considered to have started.
     TimePoint startTime{};
@@ -134,7 +136,7 @@ public:
     FileOpsTracker& operator=(FileOpsTracker&&) = delete;
 
     /// Track an IO request starting on the calling thread.
-    void start(const FileOp& op);
+    void start(FileOp op);
 
     /// Track an IO request starting on the calling thread and return a scope
     /// guard which completes it on exit.
