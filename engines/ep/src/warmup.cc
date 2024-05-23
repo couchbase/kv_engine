@@ -88,13 +88,10 @@ public:
 private:
     bool shouldEject() const;
 
-    void purge();
-
     VBucketMap& vbuckets;
     EPStats& stats;
     EPBucket& epstore;
     Warmup& warmup;
-    bool hasPurged = false;
     std::optional<const std::chrono::steady_clock::duration>
             deltaDeadlineFromNow;
     std::chrono::steady_clock::time_point deadline;
@@ -1064,107 +1061,88 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     }
 
     bool stopLoading = false;
-    if (i && !warmup.isFinishedLoading()) {
-        VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
-        if (!vb) {
-            setStatus(cb::engine_errc::not_my_vbucket);
-            return;
+
+    if (warmup.isFinishedLoading()) {
+        setStatus(cb::engine_errc::cancelled);
+        return;
+    }
+
+    VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
+    if (!vb) {
+        setStatus(cb::engine_errc::not_my_vbucket);
+        return;
+    }
+
+    if (i->getCas() == static_cast<uint64_t>(-1)) {
+        if (val.isPartial()) {
+            i->setCas(0);
+        } else {
+            i->setCas(vb->nextHLCCas());
         }
-        bool succeeded(false);
-        int retry = 2;
-        do {
-            if (i->getCas() == static_cast<uint64_t>(-1)) {
-                if (val.isPartial()) {
-                    i->setCas(0);
-                } else {
-                    i->setCas(vb->nextHLCCas());
-                }
-            }
+    }
 
-            auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
-            if (!epVb) {
-                setStatus(cb::engine_errc::not_my_vbucket);
-                return;
-            }
+    auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
+    if (!epVb) {
+        setStatus(cb::engine_errc::not_my_vbucket);
+        return;
+    }
 
-            const auto res = epVb->insertFromWarmup(*i,
-                                                    shouldEject(),
-                                                    val.isPartial(),
-                                                    true /*check mem_used*/);
-            switch (res) {
-            case MutationStatus::NoMem:
-                if (retry == 2) {
-                    if (hasPurged) {
-                        if (++stats.warmOOM == 1) {
-                            EP_LOG_WARN(
-                                    "LoadStorageKVPairCallback::callback(): {} "
-                                    "Warmup dataload failure: max_size too "
-                                    "low.",
-                                    vb->getId());
-                        }
-                    } else {
-                        EP_LOG_WARN(
-                                "LoadStorageKVPairCallback::callback(): {} "
-                                "Emergency startup purge to free space for "
-                                "load.",
-                                vb->getId());
-                        purge();
-                    }
-                } else {
-                    EP_LOG_WARN(
-                            "LoadStorageKVPairCallback::callback(): {} "
-                            "Cannot store an item after emergency purge.",
-                            vb->getId());
-                    ++stats.warmOOM;
-                }
-                break;
-            case MutationStatus::InvalidCas:
-                EP_LOG_DEBUG(
-                        "LoadStorageKVPairCallback::callback(): {} "
-                        "Value changed in memory before restore from disk. "
-                        "Ignored disk value for: key{{{}}}.",
-                        vb->getId(),
-                        i->getKey());
-                ++stats.warmDups;
-                succeeded = true;
-                break;
-            case MutationStatus::NotFound:
-                succeeded = true;
-                break;
-            default:
-                throw std::logic_error(
-                        "LoadStorageKVPairCallback::callback: "
-                        "Unexpected result from HashTable::insert: " +
-                        std::to_string(static_cast<uint16_t>(res)));
-            }
-        } while (!succeeded && retry-- > 0);
+    const auto res = epVb->insertFromWarmup(
+            *i, shouldEject(), val.isPartial(), true /*check mem_used*/);
+    switch (res) {
+    case MutationStatus::NoMem:
+        EP_LOG_DEBUG(
+                "LoadStorageKVPairCallback::callback(): {} "
+                "NoMem",
+                vb->getId());
+        ++stats.warmOOM;
+        break;
+    case MutationStatus::InvalidCas:
+        EP_LOG_DEBUG(
+                "LoadStorageKVPairCallback::callback(): {} "
+                "Value changed in memory before restore from disk. "
+                "Ignored disk value for: key{{{}}}.",
+                vb->getId(),
+                i->getKey());
+        ++stats.warmDups;
+        break;
+    case MutationStatus::NotFound:
+        break;
+    default:
+        throw std::logic_error(
+                "LoadStorageKVPairCallback::callback: "
+                "Unexpected result from HashTable::insert: " +
+                std::to_string(static_cast<uint16_t>(res)));
+    }
 
-        if (shouldCheckIfWarmupThresholdReached) {
-            stopLoading = warmup.hasReachedThreshold();
+    if (shouldCheckIfWarmupThresholdReached) {
+        stopLoading = warmup.hasReachedThreshold();
+    }
+
+    switch (warmupState) {
+    case WarmupState::State::KeyDump:
+        // Another shard may have triggered OOM so alway check and stop
+        if (stats.warmOOM) {
+            warmup.setOOMFailure();
+            stopLoading = true;
         }
 
-        switch (warmupState) {
-        case WarmupState::State::KeyDump:
-            if (stats.warmOOM) {
-                warmup.setOOMFailure();
-                stopLoading = true;
-            } else {
-                warmup.incrementKeys();
-            }
-            break;
-        case WarmupState::State::LoadingData:
-        case WarmupState::State::LoadingAccessLog:
-            if (epstore.getItemEvictionPolicy() == EvictionPolicy::Full) {
-                warmup.incrementKeys();
-            }
-            warmup.incrementValues();
-            break;
-        default:
+        // Even if stopping, a key may of loaded on this shard, check the
+        // insertFromWarmup result
+        if (res == MutationStatus::NotFound) {
             warmup.incrementKeys();
-            warmup.incrementValues();
         }
-    } else {
-        stopLoading = true;
+        break;
+    case WarmupState::State::LoadingData:
+    case WarmupState::State::LoadingAccessLog:
+        if (epstore.getItemEvictionPolicy() == EvictionPolicy::Full) {
+            warmup.incrementKeys();
+        }
+        warmup.incrementValues();
+        break;
+    default:
+        warmup.incrementKeys();
+        warmup.incrementValues();
     }
 
     if (stopLoading) {
@@ -1181,47 +1159,6 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
 
 bool LoadStorageKVPairCallback::shouldEject() const {
     return stats.getEstimatedTotalMemoryUsed() >= stats.mem_low_wat;
-}
-
-void LoadStorageKVPairCallback::purge() {
-    class EmergencyPurgeVisitor : public VBucketVisitor,
-                                  public HashTableVisitor {
-    public:
-        explicit EmergencyPurgeVisitor(EPBucket& store) : epstore(store) {
-        }
-
-        void visitBucket(VBucket& vb) override {
-            if (vBucketFilter(vb.getId())) {
-                currentBucket = &vb;
-                vb.ht.visit(*this);
-                currentBucket = nullptr;
-            }
-        }
-
-        bool visit(const HashTable::HashBucketLock& lh,
-                   StoredValue& v) override {
-            StoredValue* vPtr = &v;
-            currentBucket->ht.unlocked_ejectItem(
-                    lh, vPtr, epstore.getItemEvictionPolicy());
-            return true;
-        }
-
-    private:
-        EPBucket& epstore;
-        // The current vbucket that the visitor is operating on. Only valid
-        // while inside visitBucket().
-        VBucket* currentBucket{nullptr};
-    };
-
-    auto vbucketIds(vbuckets.getBuckets());
-    EmergencyPurgeVisitor epv(epstore);
-    for (auto vbid : vbucketIds) {
-        VBucketPtr vb = vbuckets.getBucket(vbid);
-        if (vb) {
-            epv.visitBucket(*vb);
-        }
-    }
-    hasPurged = true;
 }
 
 void LoadValueCallback::callback(CacheLookup& lookup) {
