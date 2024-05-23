@@ -34,6 +34,7 @@
 #include "error_handler.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
+#include "file_ops_tracker.h"
 #include "flusher.h"
 #include "getkeys.h"
 #include "hash_table_stat_visitor.h"
@@ -1954,6 +1955,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     getEpStats().arena = arena;
 
     serverApi = getServerApiFunc();
+    fileOpsTracker = &FileOpsTracker::instance();
 
     // Switch back to "no-bucket" engine (same as before ctor was invoked),
     // so caller doesn't see an unexpected change in current engine. (Note
@@ -5229,6 +5231,77 @@ void EventuallyPersistentEngine::doDiskFailureStats(
     }
 }
 
+cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
+        CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
+    using namespace cb::stats;
+    using std::to_string;
+
+    if (!cb_isPrefix(key, "disk-slowness ")) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    auto arg = key.substr(key.find(' ') + 1);
+    uint32_t thresholdSeconds;
+    if (!safe_strtoul(arg, thresholdSeconds)) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    // The oldest pending request that is above the threshold.
+    std::optional<std::tuple<task_type_t, std::string, FileOp>> slowestOp;
+    int numTotal = 0;
+    int numSlow = 0;
+
+    // Current point in time.
+    auto now = ep_uptime_now();
+    std::chrono::seconds threshold(thresholdSeconds);
+    // Visit all threads performing IO and record any file ops taking longer
+    // than the threshold.
+    fileOpsTracker->visitThreads(
+            [now, threshold, &numTotal, &numSlow, &slowestOp](
+                    auto type, auto thread, const auto& op) {
+                if (type != READER_TASK_IDX && type != WRITER_TASK_IDX) {
+                    return;
+                }
+                auto elapsed = now - op.startTime;
+
+                // Track the slowest operation.
+                if (!slowestOp ||
+                    op.startTime < std::get<2>(*slowestOp).startTime) {
+                    slowestOp = {type, std::string(thread), op};
+                }
+
+                ++numTotal;
+                if (elapsed >= threshold) {
+                    ++numSlow;
+                }
+            });
+
+    add_stat("pending_disk_op_num", to_string(numTotal), cookie);
+    add_stat("pending_disk_op_slow_threshold",
+             to_string(threshold.count()),
+             cookie);
+    add_stat("pending_disk_op_slow_num", to_string(numSlow), cookie);
+    if (!slowestOp) {
+        return cb::engine_errc::success;
+    }
+
+    const auto& [taskType, thread, op] = *slowestOp;
+    auto slowestDuration =
+            std::chrono::duration_cast<std::chrono::duration<double>>(
+                    now - op.startTime);
+
+    nlohmann::json slowestOpJson{
+            {"type", to_string(op.type)},
+            {"nbytes", op.nbytes},
+            {"duration", slowestDuration.count()},
+            {"thread", thread},
+            {"thread_type", to_string(taskType)},
+    };
+
+    add_stat("pending_disk_op_max_time", slowestOpJson.dump(), cookie);
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
         CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
@@ -5424,6 +5497,10 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (cb_isPrefix(key, "disk-failures")) {
         doDiskFailureStats(bucketCollector);
         return cb::engine_errc::success;
+    }
+    if (cb_isPrefix(key, "disk-slowness")) {
+        return doDiskSlownessStats(
+                c, add_stat, std::string(key.data(), key.size()));
     }
     if (key[0] == '_') {
         return doPrivilegedStats(c, add_stat, key);

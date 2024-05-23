@@ -48,6 +48,7 @@ enum class ConflictResolutionMode;
 class DcpConnMap;
 class DcpFlowControlManager;
 class ItemMetaData;
+class FileOpsTracker;
 class KVBucket;
 class PrometheusStatCollector;
 class StatCollector;
@@ -1240,6 +1241,10 @@ protected:
 
     void doDiskFailureStats(const BucketStatCollector& collector);
 
+    cb::engine_errc doDiskSlownessStats(CookieIface& cookie,
+                                        const AddStatFn& add_stat,
+                                        std::string_view key);
+
     cb::engine_errc doPrivilegedStats(CookieIface& cookie,
                                       const AddStatFn& add_stat,
                                       std::string_view statKey);
@@ -1552,6 +1557,7 @@ public:
 
 protected:
     ServerApi* serverApi;
+    FileOpsTracker* fileOpsTracker{nullptr};
 
     // Engine statistics. First concrete member as a number of other members
     // refer to it so needs to be constructed first (and destructed last).

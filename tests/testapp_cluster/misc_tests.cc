@@ -411,6 +411,10 @@ TEST_F(BasicClusterTest, AllStatGroups) {
             // ENOENT.
             key += " test_key 0";
             break;
+        case StatGroupId::DiskSlowness:
+            // Requires a threshold in seconds.
+            key += " 1";
+            break;
         case StatGroupId::DurabilityMonitor:
         case StatGroupId::_CheckpointDump:
         case StatGroupId::_HashDump:
