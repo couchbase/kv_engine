@@ -439,9 +439,9 @@ public:
         } catch (std::exception& e) {
             EP_LOG_CRITICAL(
                     "Warmup({}) WarmupBackfillTask::run(): caught exception "
-                    "while running "
-                    "backfill - aborting warmup: {}",
+                    "while running backfill in State::{} - aborting warmup: {}",
                     warmup.getName(),
+                    to_string(warmup.getWarmupState()),
                     e.what());
             finishTask(false);
             return false;
