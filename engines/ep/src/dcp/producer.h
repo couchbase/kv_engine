@@ -408,6 +408,21 @@ public:
 
     size_t getBackfillByteLimit() const;
 
+    std::variant<bool, cb::engine_errc> checkAndMaybeEraseStream(
+            Vbid vbid, cb::mcbp::DcpStreamId sid);
+    std::variant<std::vector<vbucket_failover_t>, cb::engine_errc>
+    doRollbackCheck(VBucket& vb,
+                    const Collections::VB::Filter& filter,
+                    uint64_t highSeqno,
+                    uint64_t start_seqno,
+                    uint64_t end_seqno,
+                    uint64_t vbucket_uuid,
+                    uint64_t snap_start_seqno,
+                    uint64_t snap_end_seqno,
+                    uint64_t purgeSeqno,
+                    uint32_t flags,
+                    uint64_t* rollback_seqno);
+
     // MB-37702: Test hook set via mock class.
     TestingHook<> closeAllStreamsHook;
 
@@ -430,7 +445,7 @@ protected:
      * @return high seqno of all the collection in the filter.
      */
     std::optional<uint64_t> getHighSeqnoOfCollections(
-            const Collections::VB::Filter& filter, VBucket& vbucket) const;
+            const Collections::VB::Filter& filter, VBucket& vbucket);
 
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.

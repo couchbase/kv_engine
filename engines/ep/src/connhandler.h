@@ -349,6 +349,10 @@ public:
         return cookie.load();
     }
 
+    CookieIface* getCookie() {
+        return cookie.load();
+    }
+
     bool doDisconnect() {
         return disconnect.load();
     }
