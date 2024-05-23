@@ -581,9 +581,7 @@ TEST_F(HashTableTest, ConcurrentAccessIncrementalResizeDel) {
 }
 
 TEST_F(HashTableTest, CoreLocalMemoryOverhead) {
-    const auto getOverhead = []() {
-        return global_stats.coreLocal.get()->memOverhead.load();
-    };
+    const auto getOverhead = []() { return global_stats.getMemOverhead(); };
     const auto initialOverhead = getOverhead();
     {
         HashTable ht(global_stats, makeFactory(), 7, 3, 0);
