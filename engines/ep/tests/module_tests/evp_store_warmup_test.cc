@@ -3263,3 +3263,86 @@ TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
     EXPECT_EQ(0, epStats.alogRuntime);
     EXPECT_EQ(0, epStats.accessScannerSkips);
 }
+
+// MB-62000
+TEST_F(WarmupTest, DoNotWarmupIntoNewVbucket) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key1"), "");
+    store_item(vbid, makeStoredDocKey("key2"), "");
+    flush_vbucket_to_disk(vbid, 2);
+
+    // Get ready to warmup with primary only and chunk_duration=0 so 1 step
+    // loads 1 key
+    resetEngineAndEnableWarmup(
+            "item_eviction_policy=value_only;"
+            "warmup_backfill_scan_chunk_duration=0;"
+            "warmup_min_memory_threshold=100;"
+            "warmup_min_items_threshold=100;"
+            "secondary_warmup_min_memory_threshold=0;"
+            "secondary_warmup_min_items_threshold=0;"
+            "max_num_shards=1");
+
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
+    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
+
+    // Run warmup until KeyDump
+    while (warmup->getWarmupState() != WarmupState::State::KeyDump) {
+        runNextTask(readerQueue);
+    }
+
+    auto& epStats = engine->getEpStats();
+    EXPECT_EQ(0, epStats.warmedUpKeys);
+    EXPECT_EQ(0, epStats.warmedUpValues);
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // Step once
+    runNextTask(readerQueue, "Warmup - key dump shard 0");
+
+    EXPECT_EQ(1, epStats.warmedUpKeys);
+    EXPECT_EQ(0, epStats.warmedUpValues);
+    EXPECT_EQ(1, vb->getNumItems());
+
+    // new vbucket
+    engine->getKVBucket()->deleteVBucket(vbid);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Step again
+    runNextTask(readerQueue, "Warmup - key dump shard 0");
+
+    vb = engine->getKVBucket()->getVBucket(vbid);
+    // No keys. Before weak_ptr changes (MB-62000), this would fail as a key
+    // is loaded into the new vbucket
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // And run to end
+    runReadersUntilWarmedUp();
+
+    // Still no keys
+    EXPECT_EQ(0, vb->getNumItems());
+
+    // warmup still loaded 2 keys as this single-threaded test hasn't performed
+    // all steps to fully delete the old vbucket, i.e. the weak_ptr is still
+    // promoted - but the new vbucket is not affected
+    EXPECT_EQ(2, epStats.warmedUpKeys);
+
+    // Before fixing MB-62000, one of these keys was readable!
+    uint32_t deleted = 0;
+    uint8_t dtype = 0;
+    ItemMetaData meta;
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->getMetaData(makeStoredDocKey("key1"),
+                                 vbid,
+                                 cookie,
+                                 meta,
+                                 deleted,
+                                 dtype));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->getMetaData(makeStoredDocKey("key2"),
+                                 vbid,
+                                 cookie,
+                                 meta,
+                                 deleted,
+                                 dtype));
+}

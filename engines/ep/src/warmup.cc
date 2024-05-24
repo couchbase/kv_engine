@@ -87,8 +87,6 @@ public:
 
 private:
     bool shouldEject() const;
-
-    VBucketMap& vbuckets;
     EPStats& stats;
     EPBucket& epstore;
     Warmup& warmup;
@@ -109,15 +107,13 @@ using CacheLookupCallBackPtr = std::unique_ptr<StatusCallback<CacheLookup>>;
 
 class LoadValueCallback : public StatusCallback<CacheLookup> {
 public:
-    LoadValueCallback(VBucketMap& vbMap, WarmupState::State warmupState)
-        : vbuckets(vbMap), warmupState(warmupState) {
+    LoadValueCallback(Warmup& warmup) : warmup(warmup) {
     }
 
     void callback(CacheLookup& lookup) override;
 
 private:
-    VBucketMap& vbuckets;
-    WarmupState::State warmupState;
+    Warmup& warmup;
 };
 
 // Warmup Tasks ///////////////////////////////////////////////////////////////
@@ -354,6 +350,13 @@ public:
         chunkStart = std::chrono::steady_clock::now();
     }
 
+    /**
+     * Visiting was cancelled, e.g VB deleted
+     */
+    void cancel() {
+        currentScanCtx.reset();
+    }
+
     bool visit(VBucket& vb) override;
 
 private:
@@ -406,7 +409,8 @@ public:
                              100),
           currentNumBackfillTasks(threadTaskCount),
           visitor(bucket, *this),
-          vbsToVisit(warmup.shardVbIds[shardId]) {
+          vbsToVisit(warmup.shardVbIds[shardId]),
+          currentVb(vbsToVisit.begin()) {
         warmup.addToTaskSet(uid);
     }
 
@@ -430,10 +434,18 @@ public:
         }
 
         visitor.begin();
-        auto& kvBucket = *engine->getKVBucket();
         try {
-            visitPos = kvBucket.pauseResumeVisit(visitor, visitPos, vbsToVisit);
-        } catch (std::exception& e) {
+            for (; currentVb != vbsToVisit.end(); ++currentVb) {
+                auto vb = warmup.tryAndGetVbucket(*currentVb);
+                if (vb) {
+                    if (!visitor.visit(*vb)) {
+                        break;
+                    }
+                } else {
+                    visitor.cancel();
+                }
+            }
+        } catch (const std::exception& e) {
             EP_LOG_CRITICAL(
                     "Warmup({}) WarmupBackfillTask::run(): caught exception "
                     "while running backfill in State::{} - aborting warmup: {}",
@@ -443,7 +455,8 @@ public:
             finishTask(false);
             return false;
         }
-        if (visitPos >= vbsToVisit.size()) {
+
+        if (currentVb == vbsToVisit.end()) {
             finishTask(true);
             return false;
         }
@@ -463,7 +476,7 @@ public:
     virtual ValueFilter getValueFilter() const = 0;
 
     /**
-     * Function for sub-class to configured if LoadStorageKVPairCallback should
+     * Function for sub-class to determine if LoadStorageKVPairCallback should
      * check hasWarmupReachedThresholds after every loaded key.
      */
     virtual bool shouldCheckIfWarmupThresholdReached() const = 0;
@@ -500,8 +513,8 @@ private:
     const std::chrono::milliseconds maxExpectedRuntime;
     std::atomic<size_t>& currentNumBackfillTasks;
     WarmupVbucketVisitor visitor;
-    size_t visitPos = 0;
-    std::vector<Vbid> vbsToVisit;
+    const std::vector<Vbid> vbsToVisit;
+    std::vector<Vbid>::const_iterator currentVb;
 };
 
 bool WarmupVbucketVisitor::visit(VBucket& vb) {
@@ -758,8 +771,7 @@ public:
     };
 
     CacheLookupCallBackPtr makeCacheLookupCallback() const override {
-        return std::make_unique<LoadValueCallback>(warmup.store.vbMap,
-                                                   warmup.getWarmupState());
+        return std::make_unique<LoadValueCallback>(warmup);
     };
 };
 
@@ -793,8 +805,7 @@ public:
     };
 
     CacheLookupCallBackPtr makeCacheLookupCallback() const override {
-        return std::make_unique<LoadValueCallback>(warmup.store.vbMap,
-                                                   warmup.getWarmupState());
+        return std::make_unique<LoadValueCallback>(warmup);
     };
 };
 
@@ -1027,8 +1038,7 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
         WarmupState::State warmupState,
         std::optional<const std::chrono::steady_clock::duration>
                 deltaDeadlineFromNow)
-    : vbuckets(ep.vbMap),
-      stats(ep.getEPEngine().getEpStats()),
+    : stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
       warmup(warmup),
       deltaDeadlineFromNow(std::move(deltaDeadlineFromNow)),
@@ -1067,7 +1077,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         return;
     }
 
-    VBucketPtr vb = vbuckets.getBucket(i->getVBucketId());
+    auto vb = warmup.tryAndGetVbucket(i->getVBucketId());
     if (!vb) {
         setStatus(cb::engine_errc::not_my_vbucket);
         return;
@@ -1165,7 +1175,7 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
     // If not value-eviction (LoadingData), then skip attempting to check for
     // value already resident, given we assume nothing has been loaded for this
     // document yet.
-    if (warmupState != WarmupState::State::LoadingData) {
+    if (warmup.getWarmupState() != WarmupState::State::LoadingData) {
         setStatus(cb::engine_errc::success);
         return;
     }
@@ -1179,7 +1189,7 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    VBucketPtr vb = vbuckets.getBucket(lookup.getVBucketId());
+    auto vb = warmup.tryAndGetVbucket(lookup.getVBucketId());
     if (!vb) {
         setStatus(cb::engine_errc::not_my_vbucket);
         return;
@@ -1231,6 +1241,7 @@ Warmup::Warmup(Warmup& warmup,
       shardVbStates(std::move(warmup.shardVbStates)),
       shardVbIds(std::move(warmup.shardVbIds)),
       estimatedKeyCount(warmup.getEstimatedKeyCount()),
+      weakVbMap(std::move(warmup.weakVbMap)),
       name(std::move(name)) {
     setup(memoryThreshold, itemsThreshold);
     // Jump into the state machine at CheckForAccessLog to begin loading data.
@@ -1455,6 +1466,9 @@ void Warmup::createVBuckets(uint16_t shardId) {
             // to the bucket's vbMap once the vbuckets are fully initialised
             // from KVStore data
             warmedUpVbuckets.lock()->insert(std::make_pair(vbid.get(), vb));
+            // Capture a weak_ptr reference to the vb, all data loading steps
+            // will access the VBucket via a weak_ptr.
+            weakVbMap.lock()->insert(std::make_pair(vbid.get(), vb));
         }
 
         // Pass the max deleted seqno for each vbucket.
@@ -1712,7 +1726,9 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         // flushers.
         store.startFlusher();
 
+        // Can now drop the shared_ptrs from Warmup
         warmedUpVbuckets.lock()->clear();
+
         // Once we have populated the VBMap we can release operations that are
         // waiting for the VBuckets to of been loaded E.g. setVBState
         // and GetFailoverLog
@@ -2000,6 +2016,28 @@ void Warmup::transition(WarmupState::State to, bool force) {
 }
 
 VBucketPtr Warmup::lookupVBucket(Vbid vbid) const {
+    switch (state.getState()) {
+    case WarmupState::State::LoadingCollectionCounts:
+    case WarmupState::State::EstimateDatabaseItemCount:
+    case WarmupState::State::LoadPreparedSyncWrites:
+    case WarmupState::State::PopulateVBucketMap:
+        break;
+    case WarmupState::State::Initialize:
+    case WarmupState::State::CreateVBuckets:
+    case WarmupState::State::KeyDump:
+    case WarmupState::State::CheckForAccessLog:
+    case WarmupState::State::LoadingAccessLog:
+    case WarmupState::State::LoadingKVPairs:
+    case WarmupState::State::LoadingData:
+    case WarmupState::State::Done:
+        throw std::runtime_error(
+                fmt::format("Warmup({})::lookupVBucket({}): called for illegal "
+                            "warmup state:{}",
+                            getName(),
+                            vbid,
+                            to_string(state.getState())));
+    }
+
     auto locked = warmedUpVbuckets.lock();
     auto it = locked->find(vbid.get());
     if (it == locked->end()) {
@@ -2263,4 +2301,38 @@ void Warmup::logStats() const {
             valuesPerSecond,
             cb::size2human(bytes),
             cb::calculateThroughput(bytes, time));
+}
+
+VBucketPtr Warmup::tryAndGetVbucket(Vbid vbid) const {
+    switch (state.getState()) {
+    case WarmupState::State::Initialize:
+    case WarmupState::State::CreateVBuckets:
+    case WarmupState::State::LoadingCollectionCounts:
+    case WarmupState::State::EstimateDatabaseItemCount:
+    case WarmupState::State::LoadPreparedSyncWrites:
+    case WarmupState::State::PopulateVBucketMap:
+        throw std::runtime_error(
+                fmt::format("Warmup({})::tryAndGetVbucket({}): called for "
+                            "illegal warmup state:{}",
+                            getName(),
+                            vbid,
+                            to_string(state.getState())));
+    case WarmupState::State::KeyDump:
+    case WarmupState::State::CheckForAccessLog:
+    case WarmupState::State::LoadingAccessLog:
+    case WarmupState::State::LoadingKVPairs:
+    case WarmupState::State::LoadingData:
+    case WarmupState::State::Done:
+        break;
+    }
+
+    auto weak = weakVbMap.withLock([vbid](const auto& map) {
+        auto itr = map.find(vbid);
+        if (itr == map.end()) {
+            return std::weak_ptr<VBucket>();
+        }
+        return itr->second;
+    });
+
+    return weak.lock();
 }

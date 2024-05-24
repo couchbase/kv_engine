@@ -1007,12 +1007,6 @@ protected:
     virtual LoadPreparedSyncWritesResult loadPreparedSyncWrites(
             VBucket& vb) = 0;
 
-    // During the warmup phase we might want to enable external traffic
-    // at a given point in time.. The LoadStorageKvPairCallback will be
-    // triggered whenever we want to check if we could enable traffic..
-    friend class LoadStorageKVPairCallback;
-
-    friend class Warmup;
     friend class PersistenceCallback;
     friend class VBCBAdaptor;
 };

@@ -278,14 +278,15 @@ public:
      * already done such loading). This object will begin warmup from the
      * CheckForAccessLog phase.
      *
-     * @param warmup Parts of this object are copied/moved into the new Warmup.
+     * @param primaryWarmup Parts of this object are copied/moved into the this
+     *        Warmup.
      * @param memoryThreshold see setMemoryThreshold - value is passed to that
      *        function
      * @param itemsThreshold see setItemThreshold - value is passed to that
      *        function
      * @param name A name used in logging
      */
-    Warmup(Warmup& warmup,
+    Warmup(Warmup& primaryWarmup,
            size_t memoryThreshold,
            size_t itemsThreshold,
            std::string name);
@@ -465,6 +466,15 @@ public:
     size_t getValues() const;
 
     /**
+     * Warmup holds weak_ptr references to all VBuckets that are being warmed
+     * up. weak_ptr::lock and return a shared_ptr<VBucket which the caller must
+     * check for validity.
+     * @return VBucketPtr (shared_ptr<VBucket>) which may or may not point to a
+     *         VBucket.
+     */
+    VBucketPtr tryAndGetVbucket(Vbid vbid) const;
+
+    /**
      * Testing hook which if set is called every time warmup transitions to
      * a new state.
      */
@@ -592,6 +602,15 @@ private:
     /**
      * Helper method to return the given vBucket setup in the CreateVBuckets
      * phase. Returns an empty pointer if no such vBucket created.
+     *
+     * This function is only valid for use in certain Warmup phases, once
+     * Warmup reaches PopulateVBucketMap this container of VBuckets is cleared.
+     *
+     * After passing PopulateVBucketMap Warmup::tryAndGetVbucket should be used
+     *
+     * This function checks the WarmupState is valid and throws if invalid
+     *
+     * @throws throw std::runtime_error WarmupState is invalid
      */
     VBucketPtr lookupVBucket(Vbid vbid) const;
 
@@ -670,6 +689,17 @@ private:
     using VBMap = folly::Synchronized<std::unordered_map<uint16_t, VBucketPtr>,
                                       std::mutex>;
     VBMap warmedUpVbuckets;
+
+    /**
+     * Once warmup is running, obtain VBucketPtr only from the weak map to avoid
+     * using a VBucketPtr which wasn't the one that warmup started with, e.g.
+     * in between pause/resume of KeyDump/LoadingData it is possible for a VB
+     * to be deleted and recreated.
+     */
+    using WeakVBMap = folly::Synchronized<
+            std::unordered_map<Vbid, std::weak_ptr<VBucket>>,
+            std::mutex>;
+    WeakVBMap weakVbMap;
 
     std::vector<std::vector<std::unique_ptr<MutationLog>>> accessLog;
 
