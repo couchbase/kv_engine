@@ -74,6 +74,16 @@ enum class Code : uint8_t {
     SyncWriteAckRemote,
     /// Time spent in Select Bucket
     SelectBucket,
+    /// Time spent building a DCP stream filter
+    StreamFilterCreate,
+    /// Time spent checking for rollback
+    StreamCheckRollback,
+    /// Time spent looking for the high-seqno of a collection
+    StreamGetCollectionHighSeq,
+    /// Time spent looking for an existing stream in map
+    StreamFindMap,
+    /// Time spent updating stream map
+    StreamUpdateMap,
     /// Time spent in running the SASL start/step call on the executor
     /// thread
     Sasl,

@@ -30,14 +30,17 @@
 #include "learning_age_and_mfu_based_eviction.h"
 #include "objectregistry.h"
 #include "snappy-c.h"
+#include "trace_helpers.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
+#include <memcached/tracer.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
+#include <platform/scope_timer.h>
 #include <platform/timeutils.h>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
@@ -496,6 +499,8 @@ std::pair<cb::engine_errc, bool> DcpProducer::shouldAddVBToProducerConnection(
         Vbid vbucket, const Collections::VB::Filter& filter) {
     // Check if this vbid can be added to this producer connection, and if
     // the vb connection map needs updating (if this is a new VB).
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamFindMap);
     bool callAddVBConnByVBId = true;
     auto found = streams->find(vbucket.get());
     if (found != streams->end()) {
@@ -535,6 +540,9 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
         VBucket& vb,
         const Collections::VB::Filter& filter,
         uint64_t* rollback_seqno) {
+    // Timing for failover table as this has an internal mutex
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamCheckRollback);
     const Vbid vbucket = vb.getId();
 
     auto purgeSeqno = vb.getPurgeSeqno();
@@ -2294,6 +2302,9 @@ DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<ActiveStream>& stream) {
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamUpdateMap);
+
     updateStreamsMapHook();
 
     auto found = streams->find(vbid.get());
@@ -2382,7 +2393,11 @@ bool DcpProducer::isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() const {
 }
 
 std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
-        const Collections::VB::Filter& filter, VBucket& vbucket) const {
+        const Collections::VB::Filter& filter, VBucket& vbucket) {
+    using cb::tracing::Code;
+    ScopeTimer1<TracerStopwatch> timer(*getCookie(),
+                                       Code::StreamGetCollectionHighSeq);
+
     if (filter.isPassThroughFilter()) {
         return std::nullopt;
     }
