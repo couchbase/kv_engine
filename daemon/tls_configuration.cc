@@ -150,7 +150,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     cb::openssl::unique_ssl_ctx_ptr ret{SSL_CTX_new(SSLv23_server_method())};
     auto* server_ctx = ret.get();
     SSL_CTX_set_dh_auto(server_ctx, 1);
-    long options = decode_ssl_protocol(minimum_version);
+    auto options = decode_ssl_protocol(minimum_version);
     if (cipher_order) {
         options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
     }

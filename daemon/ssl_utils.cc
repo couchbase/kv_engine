@@ -14,9 +14,9 @@
 #include <openssl/ssl.h>
 #include <stdexcept>
 
-long decode_ssl_protocol(std::string_view protocol) {
+uint64_t decode_ssl_protocol(std::string_view protocol) {
     // MB-41757 - Disable renegotiation
-    long disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
+    uint64_t disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
 
     // MB-57002: Disable issuing session tickets to client for session
     // resumption, as (a) KV-Engine doesn't fully enable them, (b) neither

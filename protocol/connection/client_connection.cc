@@ -584,8 +584,8 @@ intptr_t MemcachedConnection::getServerConnectionId() {
     return st.front()["socket"].get<size_t>();
 }
 
-long tls_protocol_to_options(TlsVersion protocol) {
-    long disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
+uint64_t tls_protocol_to_options(TlsVersion protocol) {
+    uint64_t disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
     switch (protocol) {
     case TlsVersion::Any:
         disallow &= ~(SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_3);
