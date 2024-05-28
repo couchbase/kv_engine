@@ -1077,6 +1077,18 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "dcp_backfill_byte_drain_ratio": {
+            "default": "0.25",
+            "descr": "What ratio of the dcp_backfill_byte_limit must be drained for un-pausing a paused backfill",
+            "dynamic": false,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
         "dcp_backfill_in_progress_per_connection_limit": {
             "default": "64",
             "descr": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",

@@ -137,7 +137,11 @@ using ExTask = std::shared_ptr<GlobalTask>;
 struct BackfillScanBuffer {
     size_t bytesRead;
     size_t itemsRead;
+    // Maximum number of bytes a single scan() call can produce from disk before
+    // yielding.
     size_t maxBytes;
+    // Maximum number of items a single scan() call can produce from disk before
+    // yielding.
     size_t maxItems;
 };
 
@@ -145,31 +149,15 @@ class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
 public:
     /**
      * Construct a BackfillManager to manage backfills for a DCP Producer.
+     *
      * @param kvBucket Bucket DCP Producer belongs to (used to check memory
      *        usage and if Backfills should be paused).
      * @param scanTracker Object which tracks how many scans are
      *        in progress, and tells BackfillManager when it should
      *        set new backfills as pending.
      * @param name The name of the BackfillManager; used for logging etc.
-     * @param scanByteLimit Maximum number of bytes a single scan() call can
-     *        produce from disk before yielding.
-     * @param scanItemLimit Maximum number of items a single scan() call can
-     *        produce from disk before yielding.
-     * @param backfillByteLimit Maximum number of bytes allowed in backfill
-     *        buffer before pausing Backfills (until bytes are drained via
-     *        bytesSent()).
-     */
-    BackfillManager(KVBucket& kvBucket,
-                    KVStoreScanTracker& scanTracker,
-                    std::string name,
-                    size_t scanByteLimit,
-                    size_t scanItemLimit,
-                    size_t backfillByteLimit);
-
-    /**
-     * Construct a BackfillManager, using values for scanByteLimit,
-     * scanItemLimit and backfillByteLimit from the specified Configuration
-     * object.
+     * @param config The bucket configuration, for retrieving the backfill
+     *        params
      */
     BackfillManager(KVBucket& kvBucket,
                     KVStoreScanTracker& scanTracker,
@@ -262,6 +250,12 @@ public:
 
     size_t getBackfillByteLimit() const;
 
+    size_t getBackfillBytesRead() const;
+
+    double getBackfillBytesDrainRatio() const;
+
+    bool isBufferFull() const;
+
     /// The name of the BackfillManager, used for logging etc
     const std::string name;
 
@@ -279,8 +273,17 @@ protected:
      */
     struct {
         size_t bytesRead;
+        /**
+         *  Maximum number of bytes allowed in backfill buffer before pausing
+         *  Backfills (until bytes are drained via bytesSent()).
+         */
         size_t maxBytes;
         bool full;
+        /**
+         * Minimum ratio of maxBytes that must be drained before un-pausing a
+         * paused BackfillTask.
+         */
+        double drainRatio;
     } buffer;
 
     /**

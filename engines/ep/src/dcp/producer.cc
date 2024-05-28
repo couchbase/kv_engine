@@ -607,7 +607,7 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
     }
 
     if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::DiskOnly)) {
-        req.end_seqno = engine_.getKVBucket()->getLastPersistedSeqno(vbucket);
+        req.end_seqno = vb.getPersistenceSeqno();
     } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
         logger->warn("DCP connections with PiTR enabled must enable DISKONLY");
         return cb::engine_errc::invalid_arguments;

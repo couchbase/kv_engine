@@ -103,33 +103,20 @@ std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
 BackfillManager::BackfillManager(KVBucket& kvBucket,
                                  KVStoreScanTracker& scanTracker,
                                  std::string name,
-                                 size_t scanByteLimit,
-                                 size_t scanItemLimit,
-                                 size_t backfillByteLimit)
+                                 const Configuration& config)
     : name(std::move(name)),
       kvBucket(kvBucket),
       scanTracker(scanTracker),
       managerTask(nullptr) {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
-    scanBuffer.maxBytes = scanByteLimit;
-    scanBuffer.maxItems = scanItemLimit;
+    scanBuffer.maxBytes = config.getDcpScanByteLimit();
+    scanBuffer.maxItems = config.getDcpScanItemLimit();
 
     buffer.bytesRead = 0;
-    buffer.maxBytes = backfillByteLimit;
+    buffer.maxBytes = config.getDcpBackfillByteLimit();
     buffer.full = false;
-}
-
-BackfillManager::BackfillManager(KVBucket& kvBucket,
-                                 KVStoreScanTracker& scanTracker,
-                                 std::string name,
-                                 const Configuration& config)
-    : BackfillManager(kvBucket,
-                      scanTracker,
-                      std::move(name),
-                      config.getDcpScanByteLimit(),
-                      config.getDcpScanItemLimit(),
-                      config.getDcpBackfillByteLimit()) {
+    buffer.drainRatio = config.getDcpBackfillByteDrainRatio();
 }
 
 void BackfillManager::addStats(DcpProducer& conn,
@@ -275,7 +262,8 @@ void BackfillManager::bytesSent(size_t bytes) {
     buffer.bytesRead -= bytes;
 
     // Clear the full-flag if the buffer usage has dropped below the limit
-    if (buffer.full && buffer.bytesRead < buffer.maxBytes) {
+    if (buffer.full &&
+        buffer.bytesRead < buffer.maxBytes * (1.0 - buffer.drainRatio)) {
         buffer.full = false;
         if (managerTask) {
             auto id = managerTask->getId();
@@ -526,4 +514,18 @@ void BackfillManager::setBackfillByteLimit(size_t bytes) {
 size_t BackfillManager::getBackfillByteLimit() const {
     std::lock_guard<std::mutex> lh(lock);
     return buffer.maxBytes;
+}
+
+size_t BackfillManager::getBackfillBytesRead() const {
+    std::lock_guard<std::mutex> lh(lock);
+    return buffer.bytesRead;
+}
+
+double BackfillManager::getBackfillBytesDrainRatio() const {
+    return buffer.drainRatio;
+}
+
+bool BackfillManager::isBufferFull() const {
+    std::lock_guard<std::mutex> lh(lock);
+    return buffer.full;
 }
