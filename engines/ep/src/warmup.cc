@@ -560,32 +560,45 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
 
     auto scanStatus = kvstore->scan(*currentScanCtx);
     switch (scanStatus) {
-    case ScanStatus::Cancelled:
-        if (kvCallback.getStatus() == cb::engine_errc::cancelled) {
-            // Reached threshold and warmup is "cancelled" for the VB
-            EP_LOG_INFO(
-                    "Warmup({}): WarmupVbucketVisitor::visit(): {} shardId:{} "
-                    "lastReadSeqno:{} vbucket memory limit has been reached",
-                    backfillTask.getWarmup().getName(),
-                    vb.getId(),
-                    backfillTask.getShardId(),
-                    currentScanCtx->lastReadSeqno);
-        } else if (kvCallback.getStatus() == cb::engine_errc::not_my_vbucket) {
-            // Cancelled because the vBucket has gone away. We should continue
-            // scanning the next vBucket. Fall-through to success
-            EP_LOG_WARN(
-                    "Warmup({}): WarmupVbucketVisitor::visit(): {} shardId:{} "
-                    "scan cancelled, did the vBucket go away?",
-                    backfillTask.getWarmup().getName(),
-                    vb.getId(),
-                    backfillTask.getShardId());
-        } else {
+    case ScanStatus::Cancelled: {
+        const auto cacheCbStatus =
+                currentScanCtx->getCacheCallback().getStatus();
+        const auto valueCbStatus =
+                currentScanCtx->getValueCallback().getStatus();
+
+        // One callback must provide a !success status
+        if (cacheCbStatus == cb::engine_errc::success &&
+            valueCbStatus == cb::engine_errc::success) {
             throw std::logic_error(
-                    "WarmupVbucketVisitor::visit unexpected callback status:" +
-                    cb::to_string(kvCallback.getStatus()));
+                    "WarmupVbucketVisitor::visit scan cancelled but both "
+                    "callbacks report success");
         }
 
+        auto logCancelled = [this, &vb](cb::engine_errc status,
+                                        std::string_view who) {
+            if (status == cb::engine_errc::success) {
+                return;
+            } else if (status != cb::engine_errc::cancelled &&
+                       status != cb::engine_errc::not_my_vbucket) {
+                throw std::logic_error(
+                        "WarmupVbucketVisitor::visit unexpected callback "
+                        "status:" +
+                        cb::to_string(status));
+            }
+            EP_LOG_INFO_CTX("WarmupVbucketVisitor::visit(): scan cancelled",
+                            {"who", who},
+                            {"phase", backfillTask.getWarmup().getName()},
+                            {"vb", vb.getId().to_string()},
+                            {"shard", backfillTask.getShardId()},
+                            {"lastReadSeqno", currentScanCtx->lastReadSeqno},
+                            {"status", status});
+        };
+
+        logCancelled(valueCbStatus, "ValueCallback");
+        logCancelled(cacheCbStatus, "CacheCallback");
+
         [[fallthrough]]; // fallthrough to reset currentScanCtx and return true
+    }
     case ScanStatus::Success:
         // Finished or Cancelled backfill for this vbucket so we need to reset
         // currentScanCtx ready for any continuation with the next vbucket.
