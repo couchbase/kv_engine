@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <iosfwd>
 #include <system_error>
 
@@ -184,6 +185,11 @@ void PrintTo(engine_errc ev, ::std::ostream* os);
 std::ostream& operator<<(std::ostream& os, cb::engine_errc ec);
 inline auto format_as(engine_errc ec) {
     return to_string(ec);
+}
+
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, engine_errc ec) {
+    j = format_as(ec);
 }
 } // namespace cb
 

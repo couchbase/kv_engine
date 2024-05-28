@@ -10,6 +10,7 @@
  */
 
 #include <memcached/vbucket.h>
+#include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
 
 std::ostream& operator<<(std::ostream& os, const Vbid& d) {
@@ -18,4 +19,8 @@ std::ostream& operator<<(std::ostream& os, const Vbid& d) {
 
 std::string to_string(const Vbid& vbucket) {
     return vbucket.to_string();
+}
+
+void to_json(nlohmann::json& json, const Vbid& vbucket) {
+    json = vbucket.to_string();
 }

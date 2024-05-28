@@ -119,6 +119,11 @@ inline auto format_as(Vbid vb) {
     return vb.to_string();
 }
 
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, Vbid vb) {
+    j = vb.to_string();
+}
+
 namespace std {
 template <>
 struct hash<Vbid> {

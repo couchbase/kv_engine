@@ -145,7 +145,7 @@ void to_json(nlohmann::json& json, const SetCtrlTokenPayload& payload) {
 
 void to_json(nlohmann::json& json,
              const SetBucketDataLimitExceededPayload& payload) {
-    json = {{"status", ::to_string(payload.getStatus())}};
+    json = {{"status", payload.getStatus()}};
 }
 
 void to_json(nlohmann::json& json, const DcpOpenPayload& payload) {
@@ -168,7 +168,7 @@ void to_json(nlohmann::json& json, const DcpStreamReqPayload& payload) {
 }
 
 void to_json(nlohmann::json& json, const DcpStreamEndPayload& payload) {
-    json = {{"status", to_string(payload.getStatus())}};
+    json = {{"status", payload.getStatus()}};
 }
 
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerFlag& flags) {

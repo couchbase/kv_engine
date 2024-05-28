@@ -84,6 +84,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/ep_bucket_tests.cc
         module_tests/ep_bucket_magma_tests.cc
         module_tests/ep_engine_group_test.cc
+        module_tests/ep_types_log_test.cc
         module_tests/ep_unit_tests_main.cc
         module_tests/ephemeral_bucket_test.cc
         module_tests/ephemeral_vb_test.cc

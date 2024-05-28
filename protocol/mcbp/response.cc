@@ -41,7 +41,7 @@ nlohmann::json Response::to_json(bool validated) const {
     }
 
     ret["datatype"] = ::to_json(getDatatype());
-    ret["status"] = ::to_string(Status(getStatus()));
+    ret["status"] = Status(getStatus());
     ret["bodylen"] = getBodylen();
     ret["opaque"] = getOpaque();
     ret["cas"] = getCas();

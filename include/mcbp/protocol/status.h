@@ -351,6 +351,11 @@ bool is_known(Status status);
 bool isStatusSuccess(Status status);
 std::ostream& operator<<(std::ostream& out, cb::mcbp::Status status);
 std::string format_as(Status status);
+
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, cb::mcbp::Status status) {
+    j = format_as(status);
+}
 } // namespace cb::mcbp
 
 /**
