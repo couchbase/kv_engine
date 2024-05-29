@@ -239,10 +239,10 @@ VBucket::VBucket(Vbid i,
       persistenceSeqno(0),
       numHpVBReqs(0),
       manifest(std::move(manifest)),
-      id(i),
       state(newState),
       initialState(initState),
       bucket(bucket),
+      id(i),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             *this,
                                                             chkConfig,
@@ -1152,178 +1152,47 @@ bool VBucket::isResidentRatioUnderThreshold(float threshold) {
 }
 
 void VBucket::createFilter(size_t key_count, double probability) {
-    // Create the actual bloom filter upon vbucket creation during
-    // scenarios:
-    //      - Bucket creation
-    //      - Rebalance
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter == nullptr && tempFilter == nullptr) {
-        bFilter = std::make_unique<BloomFilter>(key_count, probability,
-                                        BFILTER_ENABLED);
-    } else {
-        EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", id);
-    }
-}
-
-void VBucket::initTempFilter(size_t key_count, double probability) {
-    // Create a temp bloom filter with status as COMPACTING,
-    // if the main filter is found to exist, set its state to
-    // COMPACTING as well.
-    std::lock_guard<std::mutex> lh(bfMutex);
-    tempFilter = std::make_unique<BloomFilter>(key_count, probability,
-                                     BFILTER_COMPACTING);
-    if (bFilter) {
-        bFilter->setStatus(BFILTER_COMPACTING);
-    }
+    return;
 }
 
 void VBucket::addToFilter(const DocKeyView& key) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        bFilter->addKey(key);
-    }
-
-    // If the temp bloom filter is not found to be nullptr,
-    // it means that compaction is running on the particular
-    // vbucket. Therefore add the key to the temp filter as
-    // well, as once compaction completes the temp filter
-    // will replace the main bloom filter.
-    if (tempFilter) {
-        tempFilter->addKey(key);
-    }
-}
-
-bool VBucket::maybeKeyExistsInFilter(const DocKeyView& key) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->maybeKeyExists(key);
-    } else {
-        // If filter doesn't exist, allow the BgFetch to go through.
-        return true;
-    }
-}
-
-bool VBucket::isTempFilterAvailable() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (tempFilter &&
-        (tempFilter->getStatus() == BFILTER_COMPACTING ||
-         tempFilter->getStatus() == BFILTER_ENABLED)) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
-void VBucket::addToTempFilter(const DocKeyView& key) {
-    // Keys will be added to only the temp filter during
-    // compaction.
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (tempFilter) {
-        tempFilter->addKey(key);
-    }
-}
-
-void VBucket::swapFilter() {
-    // Delete the main bloom filter and replace it with
-    // the temp filter that was populated during compaction,
-    // only if the temp filter's state is found to be either at
-    // COMPACTING or ENABLED (if in the case the user enables
-    // bloomfilters for some reason while compaction was running).
-    // Otherwise, it indicates that the filter's state was
-    // possibly disabled during compaction, therefore clear out
-    // the temp filter. If it gets enabled at some point, a new
-    // bloom filter will be made available after the next
-    // compaction.
-
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (tempFilter) {
-        bFilter.reset();
-
-        if (tempFilter->getStatus() == BFILTER_COMPACTING ||
-             tempFilter->getStatus() == BFILTER_ENABLED) {
-            bFilter = std::move(tempFilter);
-            bFilter->setStatus(BFILTER_ENABLED);
-        }
-        tempFilter.reset();
-    }
+    return;
 }
 
 void VBucket::clearFilter() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    bFilter.reset();
-    tempFilter.reset();
+    return;
 }
 
 void VBucket::setFilterStatus(bfilter_status_t to) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        bFilter->setStatus(to);
-    }
-    if (tempFilter) {
-        tempFilter->setStatus(to);
-    }
+    return;
 }
 
 std::string VBucket::getFilterStatusString() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->getStatusString();
-    } else if (tempFilter) {
-        return tempFilter->getStatusString();
-    } else {
-        return "DOESN'T EXIST";
-    }
+    return "DOESN'T EXIST";
 }
 
 size_t VBucket::getFilterSize() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->getFilterSize();
-    } else {
-        return 0;
-    }
+    return 0;
 }
 
 size_t VBucket::getNumOfKeysInFilter() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->getNumOfKeysInFilter();
-    } else {
-        return 0;
-    }
+    return 0;
 }
 
 size_t VBucket::getFilterMemoryFootprint() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    size_t memFootprint{0};
-    if (bFilter) {
-        memFootprint += bFilter->getMemoryFootprint();
-    }
-    if (tempFilter) {
-        memFootprint += tempFilter->getMemoryFootprint();
-    }
-    return memFootprint;
+    return 0;
 }
 
+/*
+ * We shouldn't be adding anything here - left around for backward compat
+ * & much be deprecated with a release-note.
+ */
 void VBucket::addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        addBloomFilterStats_UNLOCKED(add_stat, c, *bFilter);
-    } else if (tempFilter) {
-        addBloomFilterStats_UNLOCKED(add_stat, c, *tempFilter);
-    }
-}
-
-void VBucket::addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
-                                           CookieIface& c,
-                                           const BloomFilter& filter) {
-    addStat("bloom_filter", filter.getStatusString(), add_stat, c);
-    addStat("bloom_filter_size", filter.getFilterSize(), add_stat, c);
-    addStat("bloom_filter_key_count",
-            filter.getNumOfKeysInFilter(),
-            add_stat,
-            c);
-    addStat("bloom_filter_memory", filter.getMemoryFootprint(), add_stat, c);
+    addStat("bloom_filter", getFilterStatusString(), add_stat, c);
+    addStat("bloom_filter_size", getFilterSize(), add_stat, c);
+    addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
+    addStat("bloom_filter_memory", getFilterMemoryFootprint(), add_stat, c);
+    return;
 }
 
 VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {

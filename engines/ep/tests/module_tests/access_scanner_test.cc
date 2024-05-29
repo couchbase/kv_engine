@@ -108,8 +108,9 @@ TEST_P(AccessLogTest, WarmupWithAccessLog) {
     // This will mean that after the LoadingAccessLog warmup phase has loaded
     // the two items, warmup will not attempt LoadingData and the final expects
     // will be met.
-    resetEngineAndWarmup(buildNewWarmupConfig("warmup_min_items_threshold=50"));
-
+    const auto config = buildNewWarmupConfig("warmup_min_items_threshold=50") +
+                        ";" + "bfilter_enabled=false";
+    resetEngineAndWarmup(config);
     // Post-warmup should pass the same check as pre-warmup.
     // MB-59262 fails here as key1/key3 are resident and key2/key4 are not
     check();
@@ -248,8 +249,11 @@ TEST_P(AccessLogTest, ReadAndWarmup) {
 
     // Warmup and set the "chunk" to 0, this means that each key loaded will
     // yield and avoids any need to hack around with time.
-    resetEngineAndEnableWarmup(buildNewWarmupConfig(
-            "warmup_accesslog_load_duration=0;warmup_batch_size=1"));
+    const auto config =
+            buildNewWarmupConfig(
+                    "warmup_accesslog_load_duration=0;warmup_batch_size=1") +
+            ";" + "bfilter_enabled=false";
+    resetEngineAndEnableWarmup(config);
     ASSERT_TRUE(getEPBucket().startBgFetcher());
 
     // Step warmup until LoadingAccessLog

@@ -351,6 +351,34 @@ public:
         return historicalItemsFlushed.load();
     }
 
+    /**
+     * BloomFilter operations for vbucket
+     */
+    void createFilter(size_t key_count, double probability) override;
+    void initTempFilter(size_t key_count, double probability);
+    void addToFilter(const DocKeyView& key) override;
+    bool maybeKeyExistsInFilter(const DocKeyView& key) override;
+    bool isTempFilterAvailable();
+    void addToTempFilter(const DocKeyView& key);
+    void swapFilter();
+    void clearFilter() override;
+    void setFilterStatus(bfilter_status_t to) override;
+    std::string getFilterStatusString() override;
+    size_t getFilterSize() override;
+    size_t getNumOfKeysInFilter() override;
+    void addBloomFilterStats(const AddStatFn& add_stat,
+                             CookieIface& c) override;
+    void addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
+                                      CookieIface& c,
+                                      const BloomFilter& filter);
+
+    /**
+     * @returns The memory usage in bytes of the main bloom filter and
+     * temporary bloom filter if it exists.
+     */
+
+    size_t getFilterMemoryFootprint() override;
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -508,5 +536,12 @@ private:
     /// counter of items tagged with CanDeduplicate::No flushed
     cb::RelaxedAtomic<size_t> historicalItemsFlushed;
 
+    // Bloom Filter structures
+    std::mutex bfMutex;
+    std::unique_ptr<BloomFilter> bFilter;
+    std::unique_ptr<BloomFilter> tempFilter; // Used during compaction.
+
     friend class EPVBucketTest;
 };
+
+using EPVBucketPtr = std::shared_ptr<EPVBucket>;

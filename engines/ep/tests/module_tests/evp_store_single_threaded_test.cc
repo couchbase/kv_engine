@@ -4848,7 +4848,7 @@ void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
     // 2) Restart as though we had an unclean shutdown (creating a new failover
     //    table entry) and run the warmup up to the point of completion.
     vb.reset();
-    resetEngineAndEnableWarmup("", true /*unclean*/);
+    resetEngineAndEnableWarmup("bfilter_enabled=false", true /*unclean*/);
 
     auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
@@ -4975,7 +4975,7 @@ TEST_P(STParamPersistentBucketTest, BgFetcherMaintainsVbOrdering) {
     flushVBucketToDiskIfPersistent(secondVbid, 0);
 
     // Kill the bloom filter
-    resetEngineAndWarmup();
+    resetEngineAndWarmup("bfilter_enabled=false");
 
     auto key = makeStoredDocKey("key");
 
@@ -6293,7 +6293,7 @@ void STParamPersistentBucketTest::
 
     // Restart and warmup, checking that the invalid document does not cause
     // issues at warmup.
-    resetEngineAndWarmup();
+    resetEngineAndWarmup("bfilter_enabled=false");
     fetchDocAndCheck();
 
     // Finally trigger a rollback of the problematic document, and

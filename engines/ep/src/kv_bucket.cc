@@ -1077,14 +1077,6 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
     newvb->setFreqSaturatedCallback(
             [this] { itemFrequencyCounterSaturated(); });
 
-    Configuration& config = engine.getConfiguration();
-    if (config.isBfilterEnabled()) {
-        // Initialize bloom filters upon vbucket creation during
-        // bucket creation and rebalance
-        newvb->createFilter(config.getBfilterKeyCount(),
-                            config.getBfilterFpProb());
-    }
-
     // Before adding the VB to the map, notify KVStore of the create
     vbMap.getShardByVbId(vbid)->forEachKVStore(
             [vbid](KVStoreIface* kvs) { kvs->prepareToCreate(vbid); });

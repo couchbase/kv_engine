@@ -1000,6 +1000,9 @@ GetValue DurabilityWarmupTest::getItemFromDisk(const DocKeyView& key,
     auto vb = store->getVBucket(vbid);
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     vb->evictKey(&msg, rlh, vb->lockCollections(key));
+    // When a key is evicted, it's added to the bloom filter (full-eviction
+    // mode) - clear the filter here to make sure the doc is fetched from disk.
+    vb->clearFilter();
 
     // And get. Again, hit the vBucket level function rather than the KVBucket
     // one to run the get against both active and replica vBuckets.
@@ -2384,7 +2387,7 @@ TEST_P(MB_34718_WarmupTest, getTest) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     store_item(vbid, key, "meh", ep_real_time() + 3600);
     flush_vbucket_to_disk(vbid);
-    resetEngineAndEnableWarmup();
+    resetEngineAndEnableWarmup("bfilter_enabled=false");
 
     // Now run the reader tasks to the stage of interest, we will run the test
     // once we have ran the new warmup stage which puts the fully initialised VB
@@ -3141,7 +3144,8 @@ TEST_F(WarmupTest, WarmupZeroThreshold) {
             "warmup_min_memory_threshold=0;"
             "warmup_min_items_threshold=0;"
             "secondary_warmup_min_memory_threshold=0;"
-            "secondary_warmup_min_items_threshold=0";
+            "secondary_warmup_min_items_threshold=0;"
+            "bfilter_enabled=false";
 
     // 1. Create a vbucket and docs, persist them to disk
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);

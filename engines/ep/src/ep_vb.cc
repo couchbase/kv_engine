@@ -100,9 +100,16 @@ EPVBucket::EPVBucket(Vbid i,
               maxPrepareSeqno),
       shard(kvshard),
       rangeScans(static_cast<EPBucket*>(bucket), *this) {
+    if (config.isBfilterEnabled()) {
+        // Initialize bloom filters upon vbucket creation during
+        // bucket creation and rebalance
+        createFilter(config.getBfilterKeyCount(), config.getBfilterFpProb());
+    }
 }
 
 EPVBucket::~EPVBucket() {
+    // Clear out the bloomfilter(s)
+    // clearFilter();
     auto size = pendingBGFetches.lock()->size();
     if (size > 0) {
         EP_LOG_WARN("Have {} pending BG fetches while destroying vbucket",
@@ -1565,4 +1572,177 @@ EPVBucket::cancelRangeScansExceedingDuration(std::chrono::seconds duration) {
 
 void EPVBucket::cancelRangeScans() {
     rangeScans.cancelAllScans(dynamic_cast<EPBucket&>(*bucket));
+}
+
+void EPVBucket::createFilter(size_t key_count, double probability) {
+    // Create the actual bloom filter upon vbucket creation during
+    // scenarios:
+    //      - Bucket creation
+    //      - Rebalance
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter == nullptr && tempFilter == nullptr) {
+        bFilter = std::make_unique<BloomFilter>(
+                key_count, probability, BFILTER_ENABLED);
+    } else {
+        EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", id);
+    }
+}
+
+void EPVBucket::initTempFilter(size_t key_count, double probability) {
+    // Create a temp bloom filter with status as COMPACTING,
+    // if the main filter is found to exist, set its state to
+    // COMPACTING as well.
+    std::lock_guard<std::mutex> lh(bfMutex);
+    tempFilter = std::make_unique<BloomFilter>(
+            key_count, probability, BFILTER_COMPACTING);
+    if (bFilter) {
+        bFilter->setStatus(BFILTER_COMPACTING);
+    }
+}
+
+void EPVBucket::addToFilter(const DocKeyView& key) {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        bFilter->addKey(key);
+    }
+
+    // If the temp bloom filter is not found to be nullptr,
+    // it means that compaction is running on the particular
+    // vbucket. Therefore add the key to the temp filter as
+    // well, as once compaction completes the temp filter
+    // will replace the main bloom filter.
+    if (tempFilter) {
+        tempFilter->addKey(key);
+    }
+}
+
+bool EPVBucket::maybeKeyExistsInFilter(const DocKeyView& key) {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        return bFilter->maybeKeyExists(key);
+    } else {
+        return true;
+    }
+}
+
+bool EPVBucket::isTempFilterAvailable() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (tempFilter && (tempFilter->getStatus() == BFILTER_COMPACTING ||
+                       tempFilter->getStatus() == BFILTER_ENABLED)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void EPVBucket::addToTempFilter(const DocKeyView& key) {
+    // Keys will be added to only the temp filter during
+    // compaction.
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (tempFilter) {
+        tempFilter->addKey(key);
+    }
+}
+
+void EPVBucket::swapFilter() {
+    // Delete the main bloom filter and replace it with
+    // the temp filter that was populated during compaction,
+    // only if the temp filter's state is found to be either at
+    // COMPACTING or ENABLED (if in the case the user enables
+    // bloomfilters for some reason while compaction was running).
+    // Otherwise, it indicates that the filter's state was
+    // possibly disabled during compaction, therefore clear out
+    // the temp filter. If it gets enabled at some point, a new
+    // bloom filter will be made available after the next
+    // compaction.
+
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (tempFilter) {
+        bFilter.reset();
+
+        if (tempFilter->getStatus() == BFILTER_COMPACTING ||
+            tempFilter->getStatus() == BFILTER_ENABLED) {
+            bFilter = std::move(tempFilter);
+            bFilter->setStatus(BFILTER_ENABLED);
+        }
+        tempFilter.reset();
+    }
+}
+
+void EPVBucket::clearFilter() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    bFilter.reset();
+    tempFilter.reset();
+}
+
+void EPVBucket::setFilterStatus(bfilter_status_t to) {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        bFilter->setStatus(to);
+    }
+    if (tempFilter) {
+        tempFilter->setStatus(to);
+    }
+}
+
+std::string EPVBucket::getFilterStatusString() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        return bFilter->getStatusString();
+    } else if (tempFilter) {
+        return tempFilter->getStatusString();
+    } else {
+        return "DOESN'T EXIST";
+    }
+}
+
+size_t EPVBucket::getFilterSize() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        return bFilter->getFilterSize();
+    } else {
+        return 0;
+    }
+}
+
+size_t EPVBucket::getNumOfKeysInFilter() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        return bFilter->getNumOfKeysInFilter();
+    } else {
+        return 0;
+    }
+}
+
+size_t EPVBucket::getFilterMemoryFootprint() {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    size_t memFootprint{0};
+    if (bFilter) {
+        memFootprint += bFilter->getMemoryFootprint();
+    }
+    if (tempFilter) {
+        memFootprint += tempFilter->getMemoryFootprint();
+    }
+    return memFootprint;
+}
+
+void EPVBucket::addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c) {
+    std::lock_guard<std::mutex> lh(bfMutex);
+    if (bFilter) {
+        addBloomFilterStats_UNLOCKED(add_stat, c, *bFilter);
+    } else if (tempFilter) {
+        addBloomFilterStats_UNLOCKED(add_stat, c, *tempFilter);
+    }
+}
+
+void EPVBucket::addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
+                                             CookieIface& c,
+                                             const BloomFilter& filter) {
+    addStat("bloom_filter", filter.getStatusString(), add_stat, c);
+    addStat("bloom_filter_size", filter.getFilterSize(), add_stat, c);
+    addStat("bloom_filter_key_count",
+            filter.getNumOfKeysInFilter(),
+            add_stat,
+            c);
+    addStat("bloom_filter_memory", filter.getMemoryFootprint(), add_stat, c);
 }

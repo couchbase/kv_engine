@@ -342,16 +342,6 @@ std::string VBucketTest::PrintToStringParamName(
            ::to_string(std::get<1>(info.param));
 }
 
-// Check the existence of bloom filter after performing a
-// swap of existing filter with a temporary filter.
-TEST_P(VBucketTest, SwapFilter) {
-    this->vbucket->createFilter(1, 1.0);
-    ASSERT_FALSE(this->vbucket->isTempFilterAvailable());
-    ASSERT_NE("DOESN'T EXIST", this->vbucket->getFilterStatusString());
-    this->vbucket->swapFilter();
-    EXPECT_NE("DOESN'T EXIST", this->vbucket->getFilterStatusString());
-}
-
 TEST_P(VBucketTest, Add) {
     if (getEvictionPolicy() != EvictionPolicy::Value) {
         return;

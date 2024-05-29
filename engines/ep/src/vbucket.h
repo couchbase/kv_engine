@@ -690,24 +690,20 @@ public:
     /**
      * BloomFilter operations for vbucket
      */
-    void createFilter(size_t key_count, double probability);
-    void initTempFilter(size_t key_count, double probability);
-    void addToFilter(const DocKeyView& key);
-    virtual bool maybeKeyExistsInFilter(const DocKeyView& key);
-    bool isTempFilterAvailable();
-    void addToTempFilter(const DocKeyView& key);
-    void swapFilter();
-    void clearFilter();
-    void setFilterStatus(bfilter_status_t to);
-    std::string getFilterStatusString();
-    size_t getFilterSize();
-    size_t getNumOfKeysInFilter();
+    virtual void createFilter(size_t key_count, double probability);
+    virtual void addToFilter(const DocKeyView& key);
+    virtual bool maybeKeyExistsInFilter(const DocKeyView& key) = 0;
+    virtual void clearFilter();
+    virtual void setFilterStatus(bfilter_status_t to);
+    virtual std::string getFilterStatusString();
+    virtual size_t getFilterSize();
+    virtual size_t getNumOfKeysInFilter();
 
     /**
      * @returns The memory usage in bytes of the main bloom filter and
      * temporary bloom filter if it exists.
      */
-    size_t getFilterMemoryFootprint();
+    virtual size_t getFilterMemoryFootprint();
 
     uint64_t nextHLCCas() {
         return hlc.nextHLC();
@@ -2213,11 +2209,7 @@ protected:
                  CookieIface& c);
 
     // helper function to add stats for the current bloom filter
-    void addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c);
-
-    void addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
-                                      CookieIface& c,
-                                      const BloomFilter& filter);
+    virtual void addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c);
 
     /* This member holds the eviction policy used */
     const EvictionPolicy eviction;
@@ -2624,7 +2616,6 @@ private:
      */
     void removeAcksFromADM(const std::string& node);
 
-    Vbid id;
     std::atomic<vbucket_state_t>    state;
     folly::SharedMutex stateLock;
 
@@ -2632,6 +2623,7 @@ private:
 
 protected:
     KVBucket* const bucket;
+    Vbid id;
 
 public:
     /**
@@ -2697,10 +2689,6 @@ private:
      * receive the full disk snapshot, it deletes the vbucket files.
      */
     std::atomic<bool> receivingInitialDiskSnapshot;
-
-    std::mutex bfMutex;
-    std::unique_ptr<BloomFilter> bFilter;
-    std::unique_ptr<BloomFilter> tempFilter;    // Used during compaction.
 
     std::atomic<uint64_t> rollbackItemCount;
 

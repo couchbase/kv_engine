@@ -69,49 +69,58 @@ public:
                   const DocKeyView& key,
                   bool& isDeleted) override {
         VBucketPtr vb = store.getVBucket(vbucketId);
-        if (vb) {
-            /* Check if a temporary filter has been initialized. If not,
-             * initialize it. If initialization fails, throw an exception
-             * to the caller and let the caller deal with it.
+
+        if (!vb) {
+            return;
+        }
+
+        bool addToTempFilter = false;
+        if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
+            /**
+             * VALUE-ONLY EVICTION POLICY
+             * Consider deleted items only.
              */
-            bool tempFilterInitialized = vb->isTempFilterAvailable();
-            if (!tempFilterInitialized) {
-                tempFilterInitialized = initTempFilter(vbucketId);
+            if (isDeleted) {
+                addToTempFilter = true;
             }
-
-            if (!tempFilterInitialized) {
-                throw std::runtime_error(
-                        "BloomFilterCallback::callback: Failed "
-                        "to initialize temporary filter for " +
-                        vbucketId.to_string());
-            }
-
-            if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
-                /**
-                 * VALUE-ONLY EVICTION POLICY
-                 * Consider deleted items only.
-                 */
-                if (isDeleted) {
-                    vb->addToTempFilter(key);
-                }
+        } else {
+            /**
+             * FULL EVICTION POLICY
+             * If vbucket's resident ratio is found to be less than
+             * the residency threshold, consider all items, otherwise
+             * consider deleted and non-resident items only.
+             */
+            bool residentRatioLessThanThreshold =
+                    vb->isResidentRatioUnderThreshold(
+                            store.getBfiltersResidencyThreshold());
+            if (residentRatioLessThanThreshold) {
+                addToTempFilter = true;
             } else {
-                /**
-                 * FULL EVICTION POLICY
-                 * If vbucket's resident ratio is found to be less than
-                 * the residency threshold, consider all items, otherwise
-                 * consider deleted and non-resident items only.
-                 */
-                bool residentRatioLessThanThreshold =
-                        vb->isResidentRatioUnderThreshold(
-                                store.getBfiltersResidencyThreshold());
-                if (residentRatioLessThanThreshold) {
-                    vb->addToTempFilter(key);
-                } else {
-                    if (isDeleted || !store.isMetaDataResident(vb, key)) {
-                        vb->addToTempFilter(key);
-                    }
+                if (isDeleted || !store.isMetaDataResident(vb, key)) {
+                    addToTempFilter = true;
                 }
             }
+        }
+
+        EPVBucketPtr epVbPtr = std::static_pointer_cast<EPVBucket>(vb);
+        /* Check if a temporary filter has been initialized. If not,
+         * initialize it. If initialization fails, throw an exception
+         * to the caller and let the caller deal with it.
+         */
+        bool tempFilterInitialized = epVbPtr->isTempFilterAvailable();
+        if (!tempFilterInitialized) {
+            tempFilterInitialized = initTempFilter(vbucketId);
+        }
+
+        if (!tempFilterInitialized) {
+            throw std::runtime_error(
+                    "BloomFilterCallback::callback: Failed "
+                    "to initialize temporary filter for " +
+                    vbucketId.to_string());
+        }
+
+        if (addToTempFilter) {
+            epVbPtr->addToTempFilter(key);
         }
     }
 
@@ -187,7 +196,8 @@ bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
         estimated_count = initial_estimation;
     }
 
-    vb->initTempFilter(estimated_count, config.getBfilterFpProb());
+    std::static_pointer_cast<EPVBucket>(vb)->initTempFilter(
+            estimated_count, config.getBfilterFpProb());
 
     return true;
 }
@@ -1491,11 +1501,12 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
         break;
     }
 
+    auto& epVb = vb.getEPVbucket();
     if (getEPEngine().getConfiguration().isBfilterEnabled() &&
         result == CompactDBStatus::Success) {
-        vb->swapFilter();
+        epVb.swapFilter();
     } else {
-        vb->clearFilter();
+        epVb.clearFilter();
     }
 
     EP_LOG_INFO(
