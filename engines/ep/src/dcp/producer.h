@@ -489,7 +489,7 @@ protected:
      * @return high seqno of all the collection in the filter.
      */
     std::optional<uint64_t> getHighSeqnoOfCollections(
-            const Collections::VB::Filter& filter, VBucket& vbucket) const;
+            const Collections::VB::Filter& filter, VBucket& vbucket);
 
     /** We may disconnect if noop messages are enabled and the last time we
      *  received any message (including a noop) exceeds the dcpTimeout.
