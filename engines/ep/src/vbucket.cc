@@ -2651,6 +2651,9 @@ cb::engine_errc VBucket::add(
             return addTempItemAndBGFetch(
                     std::move(hbl), itm.getKey(), cookie, engine, true);
         case AddStatus::BgFetch:
+            Expects(v &&
+                    "VBucket::add: Expect a non-null StoredValue upon BgFetch "
+                    "result");
             return bgFetch(
                     std::move(hbl), itm.getKey(), *v, cookie, engine, true);
         case AddStatus::Success:
