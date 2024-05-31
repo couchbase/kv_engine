@@ -147,6 +147,10 @@ public:
     bool snapshotStats(const nlohmann::json& stats) override;
     void prepareToCreate(Vbid vbid) override;
     std::unique_ptr<KVStoreRevision> prepareToDelete(Vbid vbid) override;
+    bool keyMayExist(Vbid vbid, const DocKeyView& key) const override {
+        // not supported on Nexus
+        return true;
+    }
     std::unique_ptr<RollbackCtx> prepareToRollback(Vbid vbid) override;
     uint64_t getLastPersistedSeqno(Vbid vbid) override;
     void prepareForDeduplication(std::vector<queued_item>& items) override;

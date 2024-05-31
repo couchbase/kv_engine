@@ -133,6 +133,8 @@ public:
                       DomainAwareFetchBuffer& seqBuf,
                       magma::Slice& meta,
                       magma::Slice& value);
+    bool KeyMayExist(const magma::Magma::KVStoreID kvID,
+                     const magma::Slice& key);
     magma::Status GetDiskSnapshot(
             const magma::Magma::KVStoreID kvID,
             DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);

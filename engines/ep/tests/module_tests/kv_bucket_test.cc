@@ -1111,8 +1111,12 @@ TEST_P(KVBucketParamTest, SetWithMeta) {
     };
 
     auto rv = setWithMeta();
-    if (isMagma()) {
-        // Magma lacks bloom filters so needs to bg fetch
+    bool bFilterEnabled = engine->getConfiguration().isBfilterEnabled();
+
+    if (isPersistent() && !bFilterEnabled) {
+        // If the bloomfilter is disabled, a bgfetch task would have been
+        // scheduled & ewould_block returned.
+        EXPECT_EQ(cb::engine_errc::would_block, rv);
         auto vb = store->getVBucket(vbid);
         EXPECT_TRUE(vb->hasPendingBGFetchItems());
         runBGFetcherTask();
@@ -2638,6 +2642,20 @@ TEST_P(KVBucketParamTest, HashTableMinimumSize) {
     EXPECT_EQ(47, ht.minimumSize());
     EXPECT_EQ(47, ht.getSize());
 }
+
+#ifdef EP_USE_MAGMA
+TEST_P(KVBucketParamTest, BloomFilter) {
+    if (!isMagma()) {
+        GTEST_SKIP_("magma only");
+    }
+    auto docKey = makeStoredDocKey("foo");
+    auto item = store_item(vbid, docKey, "bar");
+    auto vb = store->getVBucket(vbid);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    EXPECT_TRUE(vb->maybeKeyExistsInFilter(docKey));
+}
+#endif
 
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,

@@ -794,6 +794,8 @@ public:
      */
     virtual void prepareToCreate(Vbid vbid) = 0;
 
+    virtual bool keyMayExist(Vbid vb, const DocKeyView& key) const = 0;
+
     /**
      * Prepare for delete of the vbucket file
      *
