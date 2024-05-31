@@ -178,11 +178,11 @@ bool AuditFile::open() {
     cb_assert(!file);
     cb_assert(open_time == 0);
 
-    open_file_name = cb::io::sanitizePath(log_directory + "/audit.log");
-    file.reset(fopen(open_file_name.c_str(), "wb"));
+    open_file_name = log_directory / "audit.log";
+    file.reset(fopen(open_file_name.generic_string().c_str(), "wb"));
     if (!file) {
         LOG_WARNING("Audit: open error on file {}: {}",
-                    open_file_name,
+                    open_file_name.generic_string(),
                     cb_strerror());
         return false;
     }
@@ -196,7 +196,7 @@ void AuditFile::close_and_rotate_log() {
     cb_assert(file);
     file.reset();
     if (current_size == 0) {
-        remove(open_file_name.c_str());
+        remove(open_file_name);
         open_time = 0;
         return;
     }
@@ -208,24 +208,24 @@ void AuditFile::close_and_rotate_log() {
 
     // move the audit_log to the archive.
     int count = 0;
-    std::string fname;
+    std::filesystem::path fname;
     do {
-        std::stringstream archive_file;
-        archive_file << log_directory << cb::io::DirectorySeparator << hostname
-                     << "-" << ts;
-        if (count != 0) {
-            archive_file << "-" << count;
+        if (count == 0) {
+            fname = log_directory /
+                    fmt::format("{}-{}-audit.log", hostname, ts);
+        } else {
+            fname = log_directory /
+                    fmt::format("{}-{}-{}-audit.log", hostname, ts, count);
         }
-
-        archive_file << "-audit.log";
-        fname.assign(archive_file.str());
         ++count;
-    } while (cb::io::isFile(fname));
+    } while (exists(fname));
 
-    if (rename(open_file_name.c_str(), fname.c_str()) != 0) {
+    std::error_code ec;
+    rename(open_file_name, fname, ec);
+    if (ec) {
         LOG_WARNING("Audit: rename error on file {}: {}",
-                    open_file_name,
-                    cb_strerror());
+                    open_file_name.generic_string(),
+                    ec.message());
     }
     open_time = 0;
 }
@@ -347,7 +347,7 @@ bool AuditFile::write_event_to_disk(const nlohmann::json& output) {
     return ret;
 }
 
-void AuditFile::set_log_directory(const std::string &new_directory) {
+void AuditFile::set_log_directory(const std::string& new_directory) {
     if (log_directory == new_directory) {
         // No change
         return;
@@ -357,9 +357,9 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
         close_and_rotate_log();
     }
 
-    log_directory.assign(new_directory);
+    log_directory = cb::io::makeExtendedLengthPath(new_directory);
     try {
-        std::filesystem::create_directories(log_directory);
+        create_directories(log_directory);
     } catch (const std::runtime_error& error) {
         // The directory does not exist and we failed to create
         // it. This is not a fatal error, but it does mean that the

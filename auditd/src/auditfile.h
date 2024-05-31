@@ -106,7 +106,7 @@ protected:
     [[nodiscard]] bool open();
     [[nodiscard]] bool time_to_rotate_log() const;
     void close_and_rotate_log();
-    void set_log_directory(const std::string &new_directory);
+    void set_log_directory(const std::string& new_directory);
     [[nodiscard]] bool is_empty() const {
         return (current_size == 0);
     }
@@ -131,8 +131,8 @@ protected:
 
     const std::string hostname;
     std::unique_ptr<FILE, FileDeleter> file;
-    std::string open_file_name;
-    std::string log_directory;
+    std::filesystem::path open_file_name;
+    std::filesystem::path log_directory;
     time_t open_time = 0;
     size_t current_size = 0;
     size_t max_log_size = 20 * 1024 * 1024;
