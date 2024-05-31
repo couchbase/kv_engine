@@ -2222,6 +2222,24 @@ DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
     return nullptr;
 }
 
+std::vector<DcpProducer::ContainerElement> DcpProducer::getStreams(Vbid vbid) {
+    auto streams = findStreams(vbid);
+    if (!streams) {
+        return {}; // empty
+    }
+    std::vector<ContainerElement> rv;
+    {
+        // scope for rlock, just iterate and copy (one allocation occurs for
+        // the container)
+        auto handle = streams->rlock();
+        rv.reserve(handle.size());
+        for (; !handle.end(); handle.next()) {
+            rv.emplace_back(handle.get());
+        }
+    }
+    return rv;
+}
+
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<ActiveStream>& stream) {

@@ -57,7 +57,7 @@ public:
                   CookieIface& c) const;
 
 private:
-    std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>> queuePop();
+    std::vector<std::shared_ptr<ActiveStream>> queuePop();
 
     bool queueEmpty() {
         return queue.empty();

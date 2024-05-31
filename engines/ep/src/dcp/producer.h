@@ -398,6 +398,12 @@ public:
      */
     StreamMapValue findStreams(Vbid vbid);
 
+    /**
+     * @return a vector of streams (shared_ptr<ActiveStream) which are
+     *         associated with the vbid
+     */
+    std::vector<ContainerElement> getStreams(Vbid vbid);
+
     std::string getConsumerName() const;
 
     bool isOutOfOrderSnapshotsEnabled() const;
