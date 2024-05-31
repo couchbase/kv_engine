@@ -45,14 +45,13 @@ bool ActiveStreamCheckpointProcessorTask::run() {
     size_t iterations = 0;
     do {
         auto streams = queuePop();
-
-        if (streams) {
-            for (auto rh = streams->rlock(); !rh.end(); rh.next()) {
-                auto* as = static_cast<ActiveStream*>(rh.get().get());
-                as->nextCheckpointItemTask();
-            }
-        } else {
+        if (streams.empty()) {
             break;
+        }
+
+        // Now process each ActiveStream
+        for (const auto& stream : streams) {
+            stream->nextCheckpointItemTask();
         }
         iterations++;
     } while (!queueEmpty() && iterations < iterationsBeforeYield);
@@ -93,20 +92,20 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
     add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
 }
 
-std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>>
+std::vector<std::shared_ptr<ActiveStream>>
 ActiveStreamCheckpointProcessorTask::queuePop() {
     Vbid vbid = Vbid(0);
     auto ready = queue.popFront(vbid);
     if (!ready) {
         // no item (i.e. queue empty).
-        return nullptr;
+        return {};
     }
 
     /* findStream acquires DcpProducer::streamsMutex, hence called
        without acquiring workQueueLock */
     auto producer = producerPtr.lock();
     if (producer) {
-        return producer->findStreams(vbid);
+        return producer->getStreams(vbid);
     }
-    return nullptr;
+    return {};
 }
