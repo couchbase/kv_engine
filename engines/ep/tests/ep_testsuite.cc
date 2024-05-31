@@ -7449,9 +7449,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                                    kvstoreStats.end());
             }
         }
-    } else if (isPersistentBucket(h)) {
-        // bloom filter stats only appear when enabled (currently all persistent
-        // except magma)
+    }
+
+    if (isPersistentBucket(h)) {
         auto& vb_details = statsKeys.at("vbucket-details 0");
         vb_details.insert(vb_details.end(),
                           {"vb_0:bloom_filter",
