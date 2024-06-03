@@ -261,9 +261,13 @@ void BackfillManager::bytesSent(size_t bytes) {
     }
     buffer.bytesRead -= bytes;
 
-    // Clear the full-flag if the buffer usage has dropped below the limit
-    if (buffer.full &&
-        buffer.bytesRead < buffer.maxBytes * (1.0 - buffer.drainRatio)) {
+    // Clear the full-flag if the buffer usage has dropped below the defined
+    // threshold. Note that for bytesRead==0 the buffer is empty regardless of
+    // any user-defined param.
+    const bool drainedEnough =
+            buffer.bytesRead == 0 ||
+            buffer.bytesRead < buffer.maxBytes * (1.0 - buffer.drainRatio);
+    if (buffer.full && drainedEnough) {
         buffer.full = false;
         if (managerTask) {
             auto id = managerTask->getId();

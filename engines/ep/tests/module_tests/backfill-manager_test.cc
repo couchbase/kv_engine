@@ -445,6 +445,29 @@ TEST_F(BackfillManagerTest, BackfillBuffer) {
     EXPECT_FALSE(backfillMgr->isBufferFull());
 }
 
+TEST_F(BackfillManagerTest, DrainFullBuffer) {
+    BackfillManagerTest::TearDown();
+    config_string = "dcp_backfill_byte_drain_ratio=1.0";
+    BackfillManagerTest::SetUp();
+
+    ASSERT_EQ(1.0f, backfillMgr->getBackfillBytesDrainRatio());
+    ASSERT_EQ(0, backfillMgr->getBackfillBytesRead());
+    EXPECT_FALSE(backfillMgr->isBufferFull());
+
+    // Fill up the buffer
+    ASSERT_FALSE(backfillMgr->isBufferFull());
+    const auto bufferSize =
+            engine->getConfiguration().getDcpBackfillByteLimit();
+    EXPECT_FALSE(backfillMgr->bytesCheckAndRead(bufferSize));
+    ASSERT_TRUE(backfillMgr->isBufferFull());
+
+    // Now simulate that all bytes released from the buffer
+    backfillMgr->bytesSent(bufferSize);
+    EXPECT_EQ(0, backfillMgr->getBackfillBytesRead());
+    // Buffer must be set non-full
+    EXPECT_FALSE(backfillMgr->isBufferFull());
+}
+
 class BackfillManagerParamTest : public BackfillManagerTest {
 protected:
     void drainRatioOutOfRange(float testedVal);
