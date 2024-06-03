@@ -212,14 +212,9 @@ public:
 
     void setMagmaEnableBlockCache(bool enable);
 
-    void setMakeDirectoryFn(magma::DirectoryConstructor fn) {
-        magmaCfg.FS.MakeDirectory = fn;
-    }
+    void setMakeDirectoryFn(magma::DirectoryConstructor fn);
 
-    void setReadOnly(bool readOnly) {
-        setReadOnlyHook();
-        magmaCfg.ReadOnly = readOnly;
-    }
+    void setReadOnly(bool readOnly);
 
     bool isReadOnly() const {
         return magmaCfg.ReadOnly;

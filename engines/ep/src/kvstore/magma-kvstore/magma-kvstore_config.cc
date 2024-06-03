@@ -14,6 +14,7 @@
 #include "configuration.h"
 #include "error_handler.h"
 #include "magma-kvstore.h"
+#include "magma-kvstore_fs.h"
 
 #include <memcached/server_core_iface.h>
 
@@ -125,6 +126,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaSeqTreeIndexBlockSize = config.getMagmaSeqTreeIndexBlockSize();
     magmaKeyTreeDataBlockSize = config.getMagmaKeyTreeDataBlockSize();
     magmaKeyTreeIndexBlockSize = config.getMagmaKeyTreeIndexBlockSize();
+    magmaCfg.FSHook = [](auto& fs) { fs = getMagmaTrackingFileSystem(fs); };
 
     config.addValueChangedListener(
             "magma_enable_block_cache",
@@ -246,4 +248,14 @@ void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
     if (store) {
         store->setMagmaKeyTreeIndexBlockSize(value);
     }
+}
+
+void MagmaKVStoreConfig::setMakeDirectoryFn(magma::DirectoryConstructor fn) {
+    Expects(getenv("MEMCACHED_UNIT_TESTS") != nullptr);
+    magmaCfg.FS.MakeDirectory = fn;
+}
+
+void MagmaKVStoreConfig::setReadOnly(bool readOnly) {
+    setReadOnlyHook();
+    magmaCfg.ReadOnly = readOnly;
 }
