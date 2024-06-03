@@ -3491,6 +3491,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_HistoryLogicalDiskSize", magmaStats->HistoryLogicalDiskSize);
     fill("magma_HistoryLogicalDataSize", magmaStats->HistoryLogicalDataSize);
     fill("magma_TotalDiskUsage", magmaStats->TotalDiskUsage);
+    fill("magma_WastedSpace", magmaStats->WastedSpace);
     fill("magma_CheckpointOverhead", magmaStats->CheckpointOverhead);
     fill("magma_ActiveDiskUsage", magmaStats->ActiveDiskUsage);
     fill("magma_WALDiskUsage", magmaStats->WalStats.DiskUsed);
