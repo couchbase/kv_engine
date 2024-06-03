@@ -418,6 +418,15 @@ public:
                     uint32_t flags,
                     uint64_t* rollback_seqno);
 
+    struct StreamAggStats {
+        size_t itemsRemaining{};
+        size_t readyQueueMemory{};
+        size_t backfillItemsDisk{};
+        size_t backfillItemsMemory{};
+    };
+
+    StreamAggStats getStreamAggStats() const;
+
     // MB-37702: Test hook set via mock class.
     TestingHook<> closeAllStreamsHook;
 
@@ -498,15 +507,6 @@ protected:
     std::unique_ptr<DcpResponse> getNextItem();
 
     size_t getItemsRemaining() const;
-
-    struct StreamAggStats {
-        size_t itemsRemaining{};
-        size_t readyQueueMemory{};
-        size_t backfillItemsDisk{};
-        size_t backfillItemsMemory{};
-    };
-
-    StreamAggStats getStreamAggStats() const;
 
     /**
      * Map the cb::mcbp::DcpStreamEndStatus to one the client can understand.
