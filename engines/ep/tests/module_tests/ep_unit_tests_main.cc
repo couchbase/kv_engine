@@ -19,6 +19,7 @@
 #include "ep_time.h"
 #include <engines/ep/src/environment.h>
 #include <folly/portability/GMock.h>
+#include <folly/portability/Stdlib.h>
 #include <getopt.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
@@ -134,6 +135,7 @@ int main(int argc, char **argv) {
     }
 
     putenv(allow_no_stats_env.data());
+    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
 
     cb::ArenaMalloc::setTCacheEnabled(threadCacheEnabled);
 
