@@ -627,7 +627,7 @@ STAT(vb_ht_item_memory_uncompressed,
      FMT("vb_{state}_ht_item_memory_uncompressed"),
      bytes,
      vb_ht_item_memory_uncompressed, )
-STAT(vb_ht_max_size, FMT("vb_{state}_ht_max_size"), bytes, vb_ht_max_size, )
+STAT(vb_ht_max_size, FMT("vb_{state}_ht_max_size"), none, vb_ht_max_size, )
 STAT(vb_ht_avg_size, FMT("vb_{state}_ht_avg_size"), none, vb_ht_avg_size, )
 STAT(vb_bloom_filter_memory,
      FMT("vb_{state}_bloom_filter_memory"),
