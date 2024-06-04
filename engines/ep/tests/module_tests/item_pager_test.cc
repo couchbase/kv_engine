@@ -1504,13 +1504,12 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
                 return store->getVBucket(replicaVB)->getPageableMemUsage() >
                        watermarkDiff * 0.5;
             });
-    EXPECT_GT(replicaItemCount, 0);
-
-    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
 
     // We don't care exactly how many were stored, just that it is a
     // "large enough" number for percentages to be somewhat useful
     EXPECT_GT(replicaItemCount, 0);
+
+    setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
 
     // Now fill the active VB until the high watermark is reached
     std::vector<Vbid> activeVbsToPopulate = {activeVB};
