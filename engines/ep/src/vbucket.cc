@@ -840,6 +840,12 @@ uint64_t VBucket::getQueueAge() {
                     .count() *
             dirtyQueueSize;
 
+    // Since the size and age are independent atomics, we might see an
+    // inconsistent snapshot, such as age updated more than size. Avoid
+    // potential overflow in that case.
+    if (currentAge < currDirtyQueueAge) {
+        return 0;
+    }
     // Return the time in milliseconds
     return (currentAge - currDirtyQueueAge);
 }
