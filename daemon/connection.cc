@@ -486,7 +486,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
 void Connection::addCpuTime(std::chrono::nanoseconds ns) {
     total_cpu_time += ns;
     min_sched_time = std::min(min_sched_time, ns);
-    max_sched_time = std::max(min_sched_time, ns);
+    max_sched_time = std::max(max_sched_time, ns);
 }
 
 void Connection::shutdownIfSendQueueStuck(

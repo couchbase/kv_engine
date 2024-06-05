@@ -70,6 +70,19 @@ TEST_F(ConnectionUnitTests, MB43374) {
     EXPECT_EQ("This  is  my life", msg);
 }
 
+TEST_F(ConnectionUnitTests, CpuTime) {
+    using namespace std::chrono_literals;
+    connection.addCpuTime(40ns);
+    connection.addCpuTime(30ns);
+    connection.addCpuTime(10ns);
+    connection.addCpuTime(20ns);
+
+    auto json = connection.to_json();
+    EXPECT_EQ("10", json["min_sched_time"]);
+    EXPECT_EQ("40", json["max_sched_time"]);
+    EXPECT_EQ("100", json["total_cpu_time"]);
+}
+
 TEST_F(ConnectionUnitTests, NotificationOrder) {
     // Test mimicking what would happen if a frontend thread was the last
     // owner of a ConnHandler. There may be pending callbacks from
