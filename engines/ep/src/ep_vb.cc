@@ -1579,9 +1579,11 @@ void EPVBucket::createFilter(size_t key_count, double probability) {
     // scenarios:
     //      - Bucket creation
     //      - Rebalance
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter == nullptr && tempFilter == nullptr) {
-        bFilter = std::make_unique<BloomFilter>(
+    auto bFilterDataLocked = bFilterData.lock();
+
+    if (bFilterDataLocked->bFilter == nullptr &&
+        bFilterDataLocked->tempFilter == nullptr) {
+        bFilterDataLocked->bFilter = std::make_unique<BloomFilter>(
                 key_count, probability, BFILTER_ENABLED);
     } else {
         EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", id);
@@ -1592,18 +1594,19 @@ void EPVBucket::initTempFilter(size_t key_count, double probability) {
     // Create a temp bloom filter with status as COMPACTING,
     // if the main filter is found to exist, set its state to
     // COMPACTING as well.
-    std::lock_guard<std::mutex> lh(bfMutex);
-    tempFilter = std::make_unique<BloomFilter>(
+
+    auto bFilterDataLocked = bFilterData.lock();
+    bFilterDataLocked->tempFilter = std::make_unique<BloomFilter>(
             key_count, probability, BFILTER_COMPACTING);
-    if (bFilter) {
-        bFilter->setStatus(BFILTER_COMPACTING);
+    if (bFilterDataLocked->bFilter) {
+        bFilterDataLocked->bFilter->setStatus(BFILTER_COMPACTING);
     }
 }
 
 void EPVBucket::addToFilter(const DocKeyView& key) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        bFilter->addKey(key);
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        bFilterDataLocked->bFilter->addKey(key);
     }
 
     // If the temp bloom filter is not found to be nullptr,
@@ -1611,24 +1614,25 @@ void EPVBucket::addToFilter(const DocKeyView& key) {
     // vbucket. Therefore add the key to the temp filter as
     // well, as once compaction completes the temp filter
     // will replace the main bloom filter.
-    if (tempFilter) {
-        tempFilter->addKey(key);
+    if (bFilterDataLocked->tempFilter) {
+        bFilterDataLocked->tempFilter->addKey(key);
     }
 }
 
 bool EPVBucket::maybeKeyExistsInFilter(const DocKeyView& key) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->maybeKeyExists(key);
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        return bFilterDataLocked->bFilter->maybeKeyExists(key);
     } else {
         return true;
     }
 }
 
 bool EPVBucket::isTempFilterAvailable() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (tempFilter && (tempFilter->getStatus() == BFILTER_COMPACTING ||
-                       tempFilter->getStatus() == BFILTER_ENABLED)) {
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->tempFilter &&
+        (bFilterDataLocked->tempFilter->getStatus() == BFILTER_COMPACTING ||
+         bFilterDataLocked->tempFilter->getStatus() == BFILTER_ENABLED)) {
         return true;
     } else {
         return false;
@@ -1638,9 +1642,9 @@ bool EPVBucket::isTempFilterAvailable() {
 void EPVBucket::addToTempFilter(const DocKeyView& key) {
     // Keys will be added to only the temp filter during
     // compaction.
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (tempFilter) {
-        tempFilter->addKey(key);
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->tempFilter) {
+        bFilterDataLocked->tempFilter->addKey(key);
     }
 }
 
@@ -1656,82 +1660,84 @@ void EPVBucket::swapFilter() {
     // bloom filter will be made available after the next
     // compaction.
 
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (tempFilter) {
-        bFilter.reset();
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->tempFilter) {
+        bFilterDataLocked->bFilter.reset();
 
-        if (tempFilter->getStatus() == BFILTER_COMPACTING ||
-            tempFilter->getStatus() == BFILTER_ENABLED) {
-            bFilter = std::move(tempFilter);
-            bFilter->setStatus(BFILTER_ENABLED);
+        if (bFilterDataLocked->tempFilter->getStatus() == BFILTER_COMPACTING ||
+            bFilterDataLocked->tempFilter->getStatus() == BFILTER_ENABLED) {
+            bFilterDataLocked->bFilter = std::move(bFilterDataLocked->tempFilter);
+            bFilterDataLocked->bFilter->setStatus(BFILTER_ENABLED);
         }
-        tempFilter.reset();
+        bFilterDataLocked->tempFilter.reset();
     }
 }
 
 void EPVBucket::clearFilter() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    bFilter.reset();
-    tempFilter.reset();
+    auto bFilterDataLocked = bFilterData.lock();
+    bFilterDataLocked->bFilter.reset();
+    bFilterDataLocked->tempFilter.reset();
 }
 
 void EPVBucket::setFilterStatus(bfilter_status_t to) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        bFilter->setStatus(to);
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        bFilterDataLocked->bFilter->setStatus(to);
     }
-    if (tempFilter) {
-        tempFilter->setStatus(to);
+    if (bFilterDataLocked->tempFilter) {
+        bFilterDataLocked->tempFilter->setStatus(to);
     }
 }
 
 std::string EPVBucket::getFilterStatusString() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->getStatusString();
-    } else if (tempFilter) {
-        return tempFilter->getStatusString();
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        return bFilterDataLocked->bFilter->getStatusString();
+    } else if (bFilterDataLocked->tempFilter) {
+        return bFilterDataLocked->tempFilter->getStatusString();
     } else {
         return "DOESN'T EXIST";
     }
 }
 
 size_t EPVBucket::getFilterSize() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->getFilterSize();
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        return bFilterDataLocked->bFilter->getFilterSize();
     } else {
         return 0;
     }
 }
 
 size_t EPVBucket::getNumOfKeysInFilter() {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        return bFilter->getNumOfKeysInFilter();
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        return bFilterDataLocked->bFilter->getNumOfKeysInFilter();
     } else {
         return 0;
     }
 }
 
 size_t EPVBucket::getFilterMemoryFootprint() {
-    std::lock_guard<std::mutex> lh(bfMutex);
+    auto bFilterDataLocked = bFilterData.lock();
     size_t memFootprint{0};
-    if (bFilter) {
-        memFootprint += bFilter->getMemoryFootprint();
+    if (bFilterDataLocked->bFilter) {
+        memFootprint += bFilterDataLocked->bFilter->getMemoryFootprint();
     }
-    if (tempFilter) {
-        memFootprint += tempFilter->getMemoryFootprint();
+    if (bFilterDataLocked->tempFilter) {
+        memFootprint += bFilterDataLocked->tempFilter->getMemoryFootprint();
     }
     return memFootprint;
 }
 
 void EPVBucket::addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c) {
-    std::lock_guard<std::mutex> lh(bfMutex);
-    if (bFilter) {
-        addBloomFilterStats_UNLOCKED(add_stat, c, *bFilter);
-    } else if (tempFilter) {
-        addBloomFilterStats_UNLOCKED(add_stat, c, *tempFilter);
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        addBloomFilterStats_UNLOCKED(
+                add_stat, c, *(bFilterDataLocked->bFilter));
+    } else if (bFilterDataLocked->tempFilter) {
+        addBloomFilterStats_UNLOCKED(
+                add_stat, c, *(bFilterDataLocked->tempFilter));
     }
 }
 

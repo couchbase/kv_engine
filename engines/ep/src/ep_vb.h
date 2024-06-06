@@ -536,10 +536,13 @@ private:
     /// counter of items tagged with CanDeduplicate::No flushed
     cb::RelaxedAtomic<size_t> historicalItemsFlushed;
 
-    // Bloom Filter structures
-    std::mutex bfMutex;
-    std::unique_ptr<BloomFilter> bFilter;
-    std::unique_ptr<BloomFilter> tempFilter; // Used during compaction.
+    struct BfilterData {
+        // Bloom Filter structures
+        std::unique_ptr<BloomFilter> bFilter;
+        std::unique_ptr<BloomFilter> tempFilter; // Used during compaction.
+    };
+
+    folly::Synchronized<BfilterData, std::mutex> bFilterData;
 
     friend class EPVBucketTest;
 };
