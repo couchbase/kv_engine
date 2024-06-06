@@ -367,10 +367,11 @@ DcpProducer::doRollbackCheck(VBucket& vb,
     if (needsRollback) {
         *rollbackSeqno = needsRollback->rollbackSeqno;
         logger->warn(
-                "({}) Stream request requires rollback to seqno:{} "
+                "({}) ({}) Stream request requires rollback to seqno:{} "
                 "because {}. Client requested seqnos:{{{},{}}} "
                 "snapshot:{{{},{}}} uuid:{}",
                 vb.getId(),
+                filter.getStreamId(),
                 *rollbackSeqno,
                 needsRollback->rollbackReason,
                 startSeqno,
