@@ -13,6 +13,7 @@
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
 #include "failover-table.h"
@@ -947,4 +948,118 @@ TEST_F(CollectionsDcpStreamsTest,
     // compaction is run the on disk doc count is 0
     runCollectionsEraser(replicaVB);
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
+}
+
+class CollectionsDcpStreamsTestWithDurationZero
+    : public CollectionsDcpStreamsTest {
+public:
+    void SetUp() override {
+        config_string += "dcp_producer_processor_run_duration_us=0";
+        CollectionsDcpStreamsTest::SetUp();
+    }
+};
+
+TEST_F(CollectionsDcpStreamsTestWithDurationZero, multi_stream_time_limited) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
+    setCollections(cookie, cm);
+
+    store_item(vbid, StoredDocKey{"k", CollectionEntry::fruit}, "v");
+    store_item(vbid, StoredDocKey{"k", CollectionEntry::dairy}, "v");
+
+    producer->enableMultipleStreamRequests();
+
+    createDcpStream({{R"({"sid":101, "collections":["9"]})"}});
+    createDcpStream({{R"({"sid":2018, "collections":["c"]})"}});
+    createDcpStream({{R"({"sid":218, "collections":["c"]})"}});
+
+    EXPECT_EQ(0, producer->getStreamAggStats().readyQueueMemory);
+
+    // With the test config setting duration to 0, multiple steps are needed
+    // to get all stream data moved into the readyQ
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
+
+    EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
+
+    // Now call run on the snapshot task to move checkpoint into DCP
+    // stream - only 1 stream can be processed with the time limit.
+    producer->getCheckpointSnapshotTask()->run();
+
+    auto memory = producer->getStreamAggStats().readyQueueMemory;
+    EXPECT_NE(0, memory);
+
+    // 1 stream was processed leaving 2
+    EXPECT_EQ(2, producer->getCheckpointSnapshotTask()->getStreamsSize());
+
+    producer->getCheckpointSnapshotTask()->run();
+    // 1 stream was processed leaving 2
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->getStreamsSize());
+
+    auto memory2 = producer->getStreamAggStats().readyQueueMemory;
+    EXPECT_GT(memory2, memory);
+    memory = memory2;
+
+    producer->getCheckpointSnapshotTask()->run();
+
+    // 1 stream was processed leaving 0
+    EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
+
+    memory2 = producer->getStreamAggStats().readyQueueMemory;
+    EXPECT_GT(memory2, memory);
+    memory = memory2;
+
+    producer->getCheckpointSnapshotTask()->run();
+    EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
+    memory2 = producer->getStreamAggStats().readyQueueMemory;
+    EXPECT_EQ(memory2, memory);
+}
+
+class CollectionsDcpStreamsTestWithHugeDuration
+    : public CollectionsDcpStreamsTest {
+public:
+    void SetUp() override {
+        using namespace std::chrono;
+        config_string +=
+                "dcp_producer_processor_run_duration_us=" +
+                std::to_string(duration_cast<microseconds>(hours(48)).count());
+        CollectionsDcpStreamsTest::SetUp();
+    }
+};
+
+// Test all streams are processed in one run (if time allows)
+TEST_F(CollectionsDcpStreamsTestWithHugeDuration, multi_stream) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
+    setCollections(cookie, cm);
+
+    store_item(vbid, StoredDocKey{"k", CollectionEntry::fruit}, "v");
+    store_item(vbid, StoredDocKey{"k", CollectionEntry::dairy}, "v");
+
+    producer->enableMultipleStreamRequests();
+
+    createDcpStream({{R"({"sid":101, "collections":["9"]})"}});
+    createDcpStream({{R"({"sid":2018, "collections":["c"]})"}});
+    createDcpStream({{R"({"sid":218, "collections":["c"]})"}});
+
+    EXPECT_EQ(0, producer->getStreamAggStats().readyQueueMemory);
+
+    // With the test config setting duration to 0, multiple steps are needed
+    // to get all stream data moved into the readyQ
+    EXPECT_EQ(1, producer->getCheckpointSnapshotTask()->queueSize());
+    EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
+
+    // Now call run on the snapshot task to move checkpoints into streams
+    producer->getCheckpointSnapshotTask()->run();
+
+    // Validate memory is increased from zero and that the streams container is
+    // empty.
+    auto memory = producer->getStreamAggStats().readyQueueMemory;
+    EXPECT_NE(0, memory);
+    EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
+
+    // Calling run again to check for no oddity, e.g. readyQueueMemory remains
+    // the same.
+    producer->getCheckpointSnapshotTask()->run();
+    EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
+    EXPECT_EQ(producer->getStreamAggStats().readyQueueMemory, memory);
 }

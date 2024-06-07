@@ -365,10 +365,11 @@ DcpProducer::doRollbackCheck(VBucket& vb,
 
     if (need_rollback.first) {
         logger->warn(
-                "({}) Stream request requires rollback to seqno:{} "
+                "({}) ({}) Stream request requires rollback to seqno:{} "
                 "because {}. Client requested seqnos:{{{},{}}} "
                 "snapshot:{{{},{}}} uuid:{}",
                 vb.getId(),
+                filter.getStreamId(),
                 *rollback_seqno,
                 need_rollback.second,
                 start_seqno,
@@ -2094,6 +2095,24 @@ DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
         return it->second;
     }
     return nullptr;
+}
+
+std::vector<DcpProducer::ContainerElement> DcpProducer::getStreams(Vbid vbid) {
+    auto streams = findStreams(vbid);
+    if (!streams) {
+        return {}; // empty
+    }
+    std::vector<ContainerElement> rv;
+    {
+        // scope for rlock, just iterate and copy (one allocation occurs for
+        // the container)
+        auto handle = streams->rlock();
+        rv.reserve(handle.size());
+        for (; !handle.end(); handle.next()) {
+            rv.emplace_back(handle.get());
+        }
+    }
+    return rv;
 }
 
 void DcpProducer::updateStreamsMap(Vbid vbid,

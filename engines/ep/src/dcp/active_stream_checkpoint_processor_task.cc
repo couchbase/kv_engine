@@ -26,8 +26,8 @@ ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
       description("Process checkpoint(s) for DCP producer " + p->getName()),
       queue(e.getConfiguration().getMaxVbuckets()),
       notified(false),
-      iterationsBeforeYield(
-              e.getConfiguration().getDcpProducerSnapshotMarkerYieldLimit()),
+      maxDuration(std::chrono::microseconds(
+              e.getConfiguration().getDcpProducerProcessorRunDurationUs())),
       producerPtr(p) {
 }
 
@@ -42,29 +42,42 @@ bool ActiveStreamCheckpointProcessorTask::run() {
     // Clear the notification flag
     notified.store(false);
 
-    size_t iterations = 0;
+    const auto start = std::chrono::steady_clock::now();
     do {
-        auto streams = queuePop();
-
-        if (streams) {
-            for (auto rh = streams->rlock(); !rh.end(); rh.next()) {
-                auto* as = static_cast<ActiveStream*>(rh.get().get());
-                as->nextCheckpointItemTask();
-            }
-        } else {
-            break;
+        if (streams.empty()) {
+            streams = queuePop();
         }
-        iterations++;
-    } while (!queueEmpty() && iterations < iterationsBeforeYield);
+    } while (!streams.empty() &&
+             ((processStreams(start) - start) < maxDuration) &&
+             moreStreamsAvailable());
 
     // Now check if we were re-notified or there are still checkpoints
     bool expected = true;
-    if (notified.compare_exchange_strong(expected, false) || !queueEmpty()) {
+    if (notified.compare_exchange_strong(expected, false) ||
+        moreStreamsAvailable()) {
         // wakeUp, essentially yielding and allowing other tasks a go
         wakeUp();
     }
 
     return true;
+}
+
+std::chrono::steady_clock::time_point
+ActiveStreamCheckpointProcessorTask::processStreams(
+        std::chrono::steady_clock::time_point start) {
+    std::chrono::steady_clock::time_point now = start;
+    while (!streams.empty()) {
+        auto& stream = *streams.back().get();
+        stream.nextCheckpointItemTask();
+        streams.pop_back();
+        // check current runtime of the task
+        now = std::chrono::steady_clock::now();
+        if ((now - start) > maxDuration) {
+            // time is up
+            break;
+        }
+    }
+    return now;
 }
 
 void ActiveStreamCheckpointProcessorTask::wakeup() {
@@ -93,20 +106,20 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
     add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
 }
 
-std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>>
+std::vector<std::shared_ptr<ActiveStream>>
 ActiveStreamCheckpointProcessorTask::queuePop() {
     Vbid vbid = Vbid(0);
     auto ready = queue.popFront(vbid);
     if (!ready) {
         // no item (i.e. queue empty).
-        return nullptr;
+        return {};
     }
 
     /* findStream acquires DcpProducer::streamsMutex, hence called
        without acquiring workQueueLock */
     auto producer = producerPtr.lock();
     if (producer) {
-        return producer->findStreams(vbid);
+        return producer->getStreams(vbid);
     }
-    return nullptr;
+    return {};
 }

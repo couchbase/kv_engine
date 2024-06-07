@@ -56,12 +56,31 @@ public:
                   const AddStatFn& add_stat,
                   const CookieIface* c) const;
 
-private:
-    std::shared_ptr<StreamContainer<std::shared_ptr<ActiveStream>>> queuePop();
-
-    bool queueEmpty() {
-        return queue.empty();
+    size_t getStreamsSize() const {
+        return streams.size();
     }
+
+private:
+    /**
+     * Pop the front of the queue and return the streams ready processing
+     * @return vector of ready ActiveStreams
+     */
+    std::vector<std::shared_ptr<ActiveStream>> queuePop();
+
+    bool moreStreamsAvailable() {
+        return !queue.empty();
+    }
+
+    /**
+     * For each stream in streams call nextCheckpointItemTask, each processed
+     * stream is removed from the streams vector.
+     * Processing will stop if the duration since start exceeds maxDuration.
+     *
+     * @param start A start time for use in duration calculations
+     * @return the last read time_point, i.e. "now"
+     */
+    std::chrono::steady_clock::time_point processStreams(
+            const std::chrono::steady_clock::time_point start);
 
     /// Human-readable description of this task.
     const std::string description;
@@ -81,7 +100,15 @@ private:
     VBReadyQueue queue;
 
     std::atomic<bool> notified;
-    const size_t iterationsBeforeYield;
+
+    // maximum duration for the run loop
+    const std::chrono::microseconds maxDuration;
 
     const std::weak_ptr<DcpProducer> producerPtr;
+
+    /**
+     * The container of streams that are to be worked on, allowing a yield if
+     * run exceeds maxDuration.
+     */
+    std::vector<std::shared_ptr<ActiveStream>> streams;
 };

@@ -1002,7 +1002,14 @@
     },
     "kv_ep_dcp_producer_snapshot_marker_yield_limit": {
         "added": "7.0.0",
-        "help": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
+        "help": "Deprecated - replaced by kv_ep_dcp_producer_processor_run_duration_us",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_producer_processor_run_duration_us": {
+        "added": "7.2.6",
+        "help": "The approximate maximum runtime in microseconds for ActiveStreamCheckpointProcessorTask",
         "stability": "volatile",
         "type": "gauge",
         "unit": "count"
