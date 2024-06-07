@@ -10,7 +10,7 @@
 
 #include "scram-sha.h"
 
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/digest.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/pwfile.h>
 #include <folly/portability/GTest.h>

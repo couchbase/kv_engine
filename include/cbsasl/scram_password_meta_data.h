@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <cbsasl/cbcrypto.h>
+#include <cbcrypto/digest.h>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <vector>

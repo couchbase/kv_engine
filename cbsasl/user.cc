@@ -8,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "cbcrypto.h"
+#include <cbcrypto/digest.h>
 #include <cbsasl/user.h>
 #include <folly/Synchronized.h>
 #include <memcached/limits.h>

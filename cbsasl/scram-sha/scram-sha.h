@@ -20,7 +20,7 @@
  * don't advertise the -PLUS)
  */
 
-#include "../cbcrypto.h"
+#include <cbcrypto/digest.h>
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <cbsasl/user.h>

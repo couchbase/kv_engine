@@ -1,5 +1,4 @@
 add_library(cbsasl STATIC
-            cbcrypto.cc
             client.cc
             context.cc
             domain.cc
@@ -30,6 +29,7 @@ target_link_libraries(cbsasl
         PUBLIC
                 platform
         PRIVATE
+                cbcrypto
                 fmt::fmt
                 phosphor
                 mcd_util
@@ -39,7 +39,6 @@ target_link_libraries(cbsasl
 add_sanitizers(cbsasl)
 
 cb_add_test_executable(cbsasl_unit_test
-                       cbcrypto_test.cc
                        client_server_test.cc
                        domain_test.cc
                        password_database_test.cc
