@@ -894,6 +894,48 @@ TEST_P(DCPLoopbackStreamTest,
             cb::mcbp::DcpAddStreamFlag::TakeOver, true);
 }
 
+TEST_P(DCPLoopbackStreamTest, TestReplicaMaxCasEqualsActive) {
+    auto vb = engine->getVBucket(vbid);
+    // mess-up vb:0 max_cas
+    vb->forceMaxCas(std::numeric_limits<uint64_t>::max() - 3);
+    // forceMaxCas path reads generates new CAS (for setVbState)
+    EXPECT_EQ(std::numeric_limits<uint64_t>::max() - 2, vb->getMaxCas());
+
+    EXPECT_EQ(cb::engine_errc::success, storeSet("a"));
+    EXPECT_EQ(cb::engine_errc::success, storeSet("b"));
+    flushNodeIfPersistent(Node0);
+    EXPECT_EQ(std::numeric_limits<uint64_t>::max(), vb->getMaxCas());
+    // Fix (setting to 1 is recommended fix)
+    vb->forceMaxCas(1);
+    EXPECT_EQ(cb::engine_errc::success, storeSet("c"));
+    flushNodeIfPersistent(Node0);
+    // max_cas must be less than the poisoned value and greater than fix.
+    EXPECT_LT(vb->getMaxCas(), std::numeric_limits<uint64_t>::max());
+    EXPECT_GT(vb->getMaxCas(), 1);
+
+    // Now VB has state
+    // max_cas=now
+    // seq:1 "a" cas=max - 1
+    // seq:2 "b" cas=max
+    // seq:3 "c" cas=now
+
+    // Setup: Create DCP producer and consumer connections.
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest({}).first);
+
+    // Memory stream is fine for the test
+    route0_1.transferSnapshotMarker(
+            0,
+            3,
+            DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Memory);
+    route0_1.transferMutation(makeStoredDocKey("a"), 1);
+    route0_1.transferMutation(makeStoredDocKey("b"), 2);
+    route0_1.transferMutation(makeStoredDocKey("c"), 3);
+
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    EXPECT_EQ(replicaVB->getMaxCas(), vb->getMaxCas());
+}
+
 /*
  * Test a similar scenario to testBackfillAndInMemoryDuplicatePrepares(), except
  * here we start in In-Memory and transition to backfilling via cursor dropping.

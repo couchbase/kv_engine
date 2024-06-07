@@ -114,7 +114,7 @@ public:
         }
     }
 
-    void setMaxHLCAndTrackDrift(uint64_t hlc) {
+    void trackDrift(uint64_t hlc) {
         auto timeNow = getMaskedTime();
 
         // Track the +/- difference between our time and their time
@@ -135,8 +135,16 @@ public:
         } else if(difference < (0 - int64_t(driftBehindThreshold))) {
             driftBehindExceeded++;
         }
+    }
 
+    void setMaxHLCAndTrackDrift(uint64_t hlc) {
+        trackDrift(hlc);
         setMaxHLC(hlc);
+    }
+
+    void forceMaxHLCAndTrackDrift(uint64_t hlc) {
+        trackDrift(hlc);
+        maxHLC = hlc;
     }
 
     void setMaxHLC(uint64_t hlc) {

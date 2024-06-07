@@ -1259,7 +1259,7 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
                                 StoredValue& v,
                                 const VBQueueItemCtx& ctx) {
     if (ctx.trackCasDrift == TrackCasDrift::Yes) {
-        setMaxCasAndTrackDrift(v.getCas());
+        setOrForceMaxCasAndTrackDrift(v.getCas());
     }
 
     // If we are queueing a SyncWrite StoredValue; extract the durability
@@ -1316,7 +1316,7 @@ VBNotifyCtx VBucket::queueAbort(const HashTable::HashBucketLock& hbl,
                                 int64_t prepareSeqno,
                                 const VBQueueItemCtx& ctx) {
     if (ctx.trackCasDrift == TrackCasDrift::Yes) {
-        setMaxCasAndTrackDrift(v.getCas());
+        setOrForceMaxCasAndTrackDrift(v.getCas());
     }
 
     queued_item item(v.toItemAbort(getId()));
@@ -4276,4 +4276,13 @@ bool VBucket::isHistoryRetentionEnabled() const {
 void VBucket::forceMaxCas(uint64_t cas) {
     hlc.forceMaxHLC(cas);
     checkpointManager->queueSetVBState();
+}
+
+void VBucket::setOrForceMaxCasAndTrackDrift(uint64_t cas) {
+    // Active tracks max_cas, whilst a replica must track the active.
+    if (state == vbucket_state_active) {
+        hlc.setMaxHLCAndTrackDrift(cas);
+    } else {
+        hlc.forceMaxHLCAndTrackDrift(cas);
+    }
 }
