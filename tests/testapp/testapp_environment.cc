@@ -630,6 +630,27 @@ public:
         }
     }
 
+    bool iterateAuditEvents(const std::function<bool(const nlohmann::json&)>&
+                                    callback) const override {
+        const auto files = cb::io::findFilesContaining(
+                mcd_env->getAuditLogDir(), "audit.log");
+        for (const auto& file : files) {
+            auto content = cb::io::loadFile(file);
+            auto lines = cb::string::split(content, '\n');
+            for (const auto& line : lines) {
+                try {
+                    if (callback(nlohmann::json::parse(line))) {
+                        // We're done
+                        return true;
+                    }
+                } catch (const nlohmann::json::exception&) {
+                    break;
+                }
+            }
+        }
+        return false;
+    }
+
 private:
     const std::filesystem::path test_directory;
     const std::filesystem::path isasl_file_name;

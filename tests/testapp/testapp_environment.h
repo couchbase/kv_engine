@@ -235,6 +235,14 @@ public:
             const std::function<bool(std::string_view line)>& callback)
             const = 0;
 
+    /// Iterate over the audit events and call the provided callback
+    /// with each entry. The callback may return true to terminate
+    /// iteration. The function returns if the callback terminated the
+    /// iteration or not
+    virtual bool iterateAuditEvents(
+            const std::function<bool(const nlohmann::json&)>& callback)
+            const = 0;
+
     virtual std::string getLogFilePattern() const = 0;
 
     /// Do we have support for IPv4 addresses on the machine

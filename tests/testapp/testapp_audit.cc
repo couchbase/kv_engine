@@ -74,39 +74,12 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpPlain),
                          ::testing::PrintToStringParamName());
 
-std::vector<nlohmann::json> AuditTest::splitJsonData(const std::string& input) {
-    std::vector<nlohmann::json> rval;
-    std::istringstream content(input);
-    while (content.good()) {
-        std::string line;
-        std::getline(content, line);
-        while (!line.empty() && std::isspace(line.back())) {
-            line.pop_back();
-        }
-        if (!line.empty()) {
-            try {
-                rval.emplace_back(nlohmann::json::parse(line));
-            } catch (const nlohmann::json::exception&) {
-                // Stop parsing this file
-                if (!content.eof()) {
-                    throw std::runtime_error(
-                            "splitJsonData: Invalid last entry");
-                }
-                break;
-            }
-        }
-    }
-    return rval;
-}
-
 std::vector<nlohmann::json> AuditTest::readAuditData() {
     std::vector<nlohmann::json> rval;
-    const auto files =
-            cb::io::findFilesContaining(mcd_env->getAuditLogDir(), "audit.log");
-    for (const auto& file : files) {
-        auto entries = splitJsonData(cb::io::loadFile(file));
-        std::move(entries.begin(), entries.end(), std::back_inserter(rval));
-    }
+    mcd_env->iterateAuditEvents([&rval](auto entry) {
+        rval.emplace_back(entry);
+        return false;
+    });
     return rval;
 }
 
@@ -115,12 +88,8 @@ void AuditTest::iterate(
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(5);
 
     do {
-        const auto auditEntries = readAuditData();
-        for (auto& entry : auditEntries) {
-            if (callback(entry)) {
-                // We're done
-                return;
-                }
+        if (mcd_env->iterateAuditEvents(callback)) {
+            return;
         }
         // Avoid busy-loop by backing off
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -194,24 +163,6 @@ int AuditTest::getAuditCount(const std::vector<nlohmann::json>& entries,
             entries.begin(), entries.end(), [id](const auto& entry) {
                 return entry.at("id").template get<int>() == id;
             });
-}
-
-/**
- * Add a unit test to verify that we're able to successfully detect any
- * garbled entries at the end of the file
- */
-TEST_P(AuditTest, splitJsonData) {
-    // We should accept windows style new line
-    EXPECT_EQ(4, splitJsonData("{}\r\n{}\r\n{}\r\n{}\r\n").size());
-    // And unix style
-    EXPECT_EQ(4, splitJsonData("{}\n{}\n{}\n{}\n").size());
-    // We should be able to parse the data if it doesn't include a newline
-    // at the end or leading / trailing while space and empty lines
-    EXPECT_EQ(4, splitJsonData("{}\n{}\n {} \n\r\n{}").size());
-    // We should allow (and ignore) a garbled entry at the end
-    EXPECT_EQ(4, splitJsonData("{}\n{}\n {} \n\r\n{}\n{\"foo\"").size());
-    // We should fail for garbled entries in the middle of the file
-    EXPECT_THROW(splitJsonData("{\"Foo: false}\n{}"), std::runtime_error);
 }
 
 /**

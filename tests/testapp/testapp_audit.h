@@ -30,8 +30,6 @@ public:
 
     static std::vector<nlohmann::json> readAuditData();
 
-    static std::vector<nlohmann::json> splitJsonData(const std::string& input);
-
     static bool searchAuditLogForID(int id,
                                     const std::string& username = "",
                                     const std::string& bucketname = "");
