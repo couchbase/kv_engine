@@ -23,37 +23,32 @@ Example JSON for bootstrapping memcached:
 
     {
       "@audit": {
-        "active": "audit:1",
+        "active": "fdcda290-fecd-4032-b8cd-7a23815fb934",
         "keys": [
           {
             "cipher": "AES-256-GCM",
-            "id": "audit:1",
-            "key": "srxK+AAGLy9xk4SUQNZ4tKLMJxM2o5fQRT/JoF7NM6E="
-          },
+            "id": "fdcda290-fecd-4032-b8cd-7a23815fb934",
+            "key": "hDYX36zHrP0/eApT7Gf3g2sQ9L5gubHSDeLQxg4v4kM="
+          }
         ]
       },
       "@config": {
-        "active": "config:5",
+        "active": "c7e26d06-88ed-43bc-9f66-87b60c037211",
         "keys": [
           {
             "cipher": "AES-256-GCM",
-            "id": "config:4",
-            "key": "/1v4qEtagYdVTZAN49PGtGWILx66Bpwxb00m5/pfPl4="
-          },
-          {
-            "cipher": "AES-256-GCM",
-            "id": "config:5",
-            "key": "cBWOote1S4mrGW6/5yYQGzCyL1Idp9nFn6ofLA/trXM="
+            "id": "c7e26d06-88ed-43bc-9f66-87b60c037211",
+            "key": "ZdA1gPe3Z4RRfC+r4xjBBCKYtYJ9dNOOLxNEC0zjKVY="
           }
         ]
       },
       "@logs": {
-        "active": "logs:2",
+        "active": "489cf03d-07f1-4e4c-be6f-01f227757937",
         "keys": [
           {
             "cipher": "AES-256-GCM",
-            "id": "logs:2",
-            "key": "fBSKnC3PrOjS2par7hd6yH7/0GA0GTQJ4Oj67XokNB8="
+            "id": "489cf03d-07f1-4e4c-be6f-01f227757937",
+            "key": "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="
           }
         ]
       }
@@ -78,58 +73,37 @@ The bootstrap keys should be passed as
 
 ## Create bucket
 
-Create bucket needs a new configuration parameter: `dek=<json>`. This allows
-for opening the database files.
+Create bucket needs a new configuration parameter: `encryption=<json>`.
+This allows for opening the database files.
+
+The format for the configuration string passed to memcached looks like:
+
+    key1=value;key2=value
+
+To include the character `;` in a value it must be escaped like `\;`.
+
+Is content would be:
+
+      {
+        "active": "489cf03d-07f1-4e4c-be6f-01f227757937",
+        "keys": [
+          {
+            "cipher": "AES-256-GCM",
+            "id": "489cf03d-07f1-4e4c-be6f-01f227757937",
+            "key": "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="
+          }
+        ]
+      }
+
+The field `"active"` indicates if encryption is enabled or not. If the bucket
+used to be encrypted and should migrate over to an unencrypted data storage
+the field would include all the keys it would need to open the existing
+database files, but `"active"` would be absent (or empty).
 
 ## SetActiveEncryptionKey
 
 The key field of the packet contains the entity to set the keys for (name of the
-bucket, `@logs`, `@config` etc). The value field contains the new key to add (and make
-it active).
-
-# Encrypted file format
-
-Each file is built up starting with a file header followed by multiple chunks.
-
-## File header
-
-The file header consists of two parts. A fixed size part and a variable
-size part. If the key id's is plain numbers we can make the file header
-fixed size containing the id in network byte order.
-
-### Fixed size
-
-    | offset | length | description     |
-    +--------+--------+-----------------+
-    | 0      | 5      | magic: \0CEF\0  |
-    | 5      | 1      | version         |
-    | 6      | 1      | id len          |
-
-    Total of 7 bytes
-
-### Variable size
-
-This is the number of bytes used for the key id
-
-### Example
-
-In the current implementation only supporting AES-256-GCM the header for the key
-`self:1` should look like:
-
-    Offset 0 | 00 43 45 46 00    | Magic: \0CEF\0
-    Offset 5 | 00                | Version: 0
-    Offset 6 | 06                | Id length 6
-    Offset 7 | 73 65 6c 66 3a 31 | self:1
-
-    Total 13 bytes
-
-## Chunk
-
-Each chunk contains a fixed two byte header containing the
-size (in network byte order) of the data which is encoded
-as:
-
-    nonce ++ ciphertext ++ tag
-
-In version 0 the size of the nonce is 12 bytes and the tag is 16
-bytes.
+bucket, `@logs`, `@config`, `@audit`). The value field contains the new key to
+add (and make it active), or *empty* to disable encryption (note that memcached
+will keep the other keys around in memory until it thinks it is safe to drop
+them)
