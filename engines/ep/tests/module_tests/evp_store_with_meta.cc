@@ -170,6 +170,9 @@ public:
             EXPECT_EQ(cb::engine_errc::invalid_arguments, callEngine(op, swm));
         } else if (expectedResponseStatus == cb::mcbp::Status::KeyEexists) {
             EXPECT_EQ(cb::engine_errc::key_already_exists, callEngine(op, swm));
+        } else if (expectedResponseStatus ==
+                   cb::mcbp::Status::CasValueInvalid) {
+            EXPECT_EQ(cb::engine_errc::cas_value_invalid, callEngine(op, swm));
         } else {
             EXPECT_EQ(cb::engine_errc::success, callEngine(op, swm));
             EXPECT_EQ(expectedResponseStatus, getAddResponseStatus());
@@ -444,7 +447,7 @@ TEST_P(AllWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  cb::mcbp::Status::KeyEexists,
+                  cb::mcbp::Status::CasValueInvalid,
                   cb::engine_errc::no_such_key);
 
     // -1 CAS in the item meta is invalid
@@ -453,7 +456,7 @@ TEST_P(AllWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   true /*set a value*/,
-                  cb::mcbp::Status::KeyEexists,
+                  cb::mcbp::Status::CasValueInvalid,
                   cb::engine_errc::no_such_key);
 }
 
@@ -464,7 +467,7 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   withValue /*set a value*/,
-                  cb::mcbp::Status::KeyEexists,
+                  cb::mcbp::Status::CasValueInvalid,
                   cb::engine_errc::no_such_key);
 
     // -1 CAS in the item meta is invalid
@@ -473,7 +476,7 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   itemMeta,
                   0, // no-options
                   withValue /*set a value*/,
-                  cb::mcbp::Status::KeyEexists,
+                  cb::mcbp::Status::CasValueInvalid,
                   cb::engine_errc::no_such_key);
 }
 

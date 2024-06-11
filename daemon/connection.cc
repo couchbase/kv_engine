@@ -379,6 +379,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
         return cb::engine_errc::too_big;
 
     case cb::engine_errc::locked:
+    case cb::engine_errc::cas_value_invalid:
         return cb::engine_errc::key_already_exists;
     case cb::engine_errc::locked_tmpfail:
     case cb::engine_errc::not_locked:

@@ -31,6 +31,7 @@ bool is_known(Status status) {
     case Status::EWouldThrottle:
     case Status::EConfigOnly:
     case Status::NotLocked:
+    case Status::CasValueInvalid:
     case Status::AuthStale:
     case Status::AuthError:
     case Status::AuthContinue:
@@ -129,6 +130,7 @@ bool isStatusSuccess(Status status) {
     case Status::EWouldThrottle:
     case Status::EConfigOnly:
     case Status::NotLocked:
+    case Status::CasValueInvalid:
     case Status::AuthStale:
     case Status::AuthError:
     case Status::Erange:
@@ -259,6 +261,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "EConfigOnly";
         case Status::NotLocked:
             return "NotLocked";
+        case Status::CasValueInvalid:
+            return "CasValueInvalid";
         case Status::AuthStale:
             return "AuthStale";
         case Status::AuthError:
@@ -422,6 +426,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Command can't be executed in a config-only bucket";
         case Status::NotLocked:
             return "Resource not locked";
+        case Status::CasValueInvalid:
+            return "Invalid cas value";
         case Status::AuthStale:
             return "Authentication stale. Please reauthenticate";
         case Status::AuthError:

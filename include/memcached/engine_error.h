@@ -152,6 +152,9 @@ enum class engine_errc {
     /// The requested resource is not locked
     not_locked = 0x2e,
 
+    /// CAS value used is invalid
+    cas_value_invalid = 0x2f,
+
     /** Generic failue. */
     failed = 0xff
 };

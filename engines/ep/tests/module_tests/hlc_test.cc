@@ -390,7 +390,7 @@ TEST_P(HLCInvalidStraegyTest, setWithMetaHLCInvalidStrategyTest) {
 
     uint64_t seqno;
     // setWithMeta will fail due to an invalid CAS value
-    EXPECT_EQ(cb::engine_errc::key_already_exists,
+    EXPECT_EQ(cb::engine_errc::cas_value_invalid,
               store->setWithMeta(std::ref(item),
                                  0,
                                  &seqno,
@@ -435,7 +435,7 @@ TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
     auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
     meta.cas = poisonedCas;
     // deleteWithMeta fails with an invalid CAS value
-    EXPECT_EQ(cb::engine_errc::key_already_exists,
+    EXPECT_EQ(cb::engine_errc::cas_value_invalid,
               store->deleteWithMeta(key,
                                     cas,
                                     nullptr,
@@ -486,7 +486,7 @@ TEST_P(HLCInvalidStraegyTest, prepareHLCInvalidStrategyTest) {
     item.setCas(poisonedCas);
 
     // prepare fails with an invalid CAS value
-    EXPECT_EQ(cb::engine_errc::key_already_exists,
+    EXPECT_EQ(cb::engine_errc::cas_value_invalid,
               store->prepare(item, cookie, EnforceMemCheck::Yes));
 
     // set hlc_invalid_strategy to replace

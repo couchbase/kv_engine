@@ -1,6 +1,6 @@
 {
     "version": 2,
-    "revision": 5,
+    "revision": 6,
     "errors": {
         "0": {
             "name": "SUCCESS",
@@ -113,6 +113,13 @@
         "e": {
             "name": "NOT_LOCKED",
             "desc": "Requested resource is not locked",
+            "attrs": [
+                "item-only"
+            ]
+        },
+        "f": {
+            "name": "CAS_VALUE_INVALID",
+            "desc": "The provided CAS value is invalid",
             "attrs": [
                 "item-only"
             ]

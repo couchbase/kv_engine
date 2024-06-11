@@ -1763,14 +1763,14 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
-        return cb::engine_errc::key_already_exists;
+        return cb::engine_errc::cas_value_invalid;
     }
 
     if (!isWithinCasThreshold(vb, itm.getCas())) {
         ++stats.numInvalidCas;
         if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
             // force failure due to invalid CAS
-            return cb::engine_errc::key_already_exists;
+            return cb::engine_errc::cas_value_invalid;
         }
         // invalidCasStrategy == InvalidCasStrategy::Replace
         genCas = GenerateCas::Yes;
@@ -1825,7 +1825,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
 
     // check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
-        return cb::engine_errc::key_already_exists;
+        return cb::engine_errc::cas_value_invalid;
     }
 
     auto generateCas = GenerateCas::No;
@@ -1833,7 +1833,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
         ++stats.numInvalidCas;
         if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
             // force failure due to invalid CAS
-            return cb::engine_errc::key_already_exists;
+            return cb::engine_errc::cas_value_invalid;
         }
         // invalidCasStrategy == InvalidCasStrategy::Replace
         generateCas = GenerateCas::Yes;
@@ -2184,14 +2184,14 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itemMeta.cas)) {
-        return cb::engine_errc::key_already_exists;
+        return cb::engine_errc::cas_value_invalid;
     }
 
     if (!isWithinCasThreshold(vb, itemMeta.cas)) {
         ++stats.numInvalidCas;
         if (getHlcInvalidStrategy() == InvalidCasStrategy::Error) {
             // force failure due to invalid CAS
-            return cb::engine_errc::key_already_exists;
+            return cb::engine_errc::cas_value_invalid;
         }
         // invalidCasStrategy == InvalidCasStrategy::Replace
         generateCas = GenerateCas::Yes;
