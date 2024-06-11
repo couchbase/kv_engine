@@ -944,6 +944,14 @@ public:
                     const nlohmann::json& payload,
                     const GetFrameInfoFunction& getFrameInfo = {});
 
+    /**
+     * Wait for the given seqno to be persisted to disk
+     *
+     * @param vbid The vbucketId of the seqno to wait for
+     * @param seqno The seqno number to wait for
+     */
+    void waitForSeqnoToPersist(Vbid vbid, uint64_t seqno);
+
     /// should the client automatically retry operations which fail
     /// with a tmpfail or not (note that this is only possible when
     /// the client object have the command frame available

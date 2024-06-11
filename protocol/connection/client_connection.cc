@@ -2275,6 +2275,20 @@ void MemcachedConnection::setVbucket(Vbid vbid,
     }
 }
 
+void MemcachedConnection::waitForSeqnoToPersist(Vbid vbid, uint64_t seqno) {
+    BinprotGenericCommand command(cb::mcbp::ClientOpcode::SeqnoPersistence);
+    command.setVBucket(vbid);
+    command.setExtrasValue(htonll(seqno));
+    auto rsp = execute(command);
+
+    if (!rsp.isSuccess()) {
+        throw ConnectionError(fmt::format("waitForSeqnoToPersist: Faled to "
+                                          "persist up to seqno {}",
+                                          seqno),
+                              rsp);
+    }
+}
+
 void MemcachedConnection::applyFrameInfos(
         BinprotCommand& command, const GetFrameInfoFunction& getFrameInfo) {
     if (getFrameInfo) {
