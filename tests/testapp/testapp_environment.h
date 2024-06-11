@@ -27,6 +27,10 @@ namespace cb::sasl::pwdb {
 class MutablePasswordDatabase;
 }
 
+namespace cb::dek {
+class Manager;
+}
+
 /**
  * The test bucket which tests are being run against.
  */
@@ -155,6 +159,12 @@ public:
      * @param exitcode The exit code from running all tests
      */
     virtual void terminate(int exitcode) = 0;
+
+    /**
+     *
+     * Get the data encryption key manager used in the test
+     */
+    virtual cb::dek::Manager& getDekManager() = 0;
 
     /**
      * Get the name of the configuration file used by the audit daemon.

@@ -33,6 +33,7 @@
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
 #include <cbsasl/mechanism.h>
+#include <dek/manager.h>
 #include <executor/executorpool.h>
 #include <fmt/chrono.h>
 #include <fmt/format.h>
@@ -815,6 +816,21 @@ int memcached_main(int argc, char** argv) {
     setup_libevent_locking();
 
     cb::net::initialize();
+
+    // We don't have the infrastructure to pass the keys on via stdin
+    // so lets just use an environment variable for now
+    if (getenv("MEMCACHED_UNIT_TESTS")) {
+        if (const char* env = getenv("BOOTSTRAP_DEK"); env != nullptr) {
+            try {
+                cb::dek::Manager::instance().reset(nlohmann::json::parse(env));
+            } catch (const std::exception& exception) {
+                FATAL_ERROR_CTX(
+                        EXIT_FAILURE,
+                        "Failed to initialize unit tests bootstrap keys",
+                        {"error", exception.what()});
+            }
+        }
+    }
 
     /* init settings */
     settings_init();

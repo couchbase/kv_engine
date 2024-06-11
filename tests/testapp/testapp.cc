@@ -11,6 +11,7 @@
 #include "testapp_binprot.h"
 
 #include <cbsasl/client.h>
+#include <dek/manager.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <folly/portability/SysTypes.h>
@@ -1333,6 +1334,10 @@ int main(int argc, char** argv) {
                   << std::endl;
         exit(EXIT_FAILURE);
     }
+
+    setenv("BOOTSTRAP_DEK",
+           mcd_env->getDekManager().to_json().dump().c_str(),
+           1);
 
     MemcachedConnection::setLookupUserPasswordFunction(
             [](const auto& user) { return mcd_env->getPassword(user); });

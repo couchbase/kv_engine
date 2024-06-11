@@ -10,14 +10,15 @@
  */
 #include "testapp_environment.h"
 #include <auditd/couchbase_audit_events.h>
+#include <cbcrypto/file_reader.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
+#include <dek/manager.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
-#include <platform/strerror.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/string_utilities.h>
@@ -490,7 +491,8 @@ public:
                       << "========================" << std::endl;
             for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
                 if (is_regular_file(p)) {
-                    auto content = cb::io::loadFile(p.path().generic_string());
+                    auto content = read_concurrent_updated_file(
+                            cb::dek::Entity::Logs, p);
                     if (content.size() > max_log_size) {
                         content = content.substr(content.find(
                                 '\n', content.size() - max_log_size));
@@ -529,6 +531,10 @@ public:
         }
 
         std::exit(exitcode);
+    }
+
+    cb::dek::Manager& getDekManager() override {
+        return *dek_manager;
     }
 
     std::string getAuditFilename() const override {
@@ -616,7 +622,8 @@ public:
                                  callback) const override {
         for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
             if (is_regular_file(p)) {
-                auto content = cb::io::loadFile(p.path().generic_string());
+                const auto content = read_concurrent_updated_file(
+                        cb::dek::Entity::Logs, p.path());
                 auto lines = cb::string::split(content, '\n');
                 for (auto line : lines) {
                     while (line.back() == '\r') {
@@ -656,6 +663,34 @@ public:
     }
 
 private:
+    /**
+     * Read a file which may be concurrently written do by someone else
+     * causing a "partial" read to occur (and in the case of an encrypted
+     * file this would be a problem as they're chunked).
+     *
+     * @param entity the entity used to locate the key
+     * @param path file to read
+     * @return the content up until we hit a partial read
+     */
+    [[nodiscard]] std::string read_concurrent_updated_file(
+            const cb::dek::Entity entity,
+            const std::filesystem::path& path) const {
+        std::string content;
+        try {
+            auto lookup = [this, entity](auto key) {
+                return dek_manager->lookup(entity, key);
+            };
+            auto file_reader = cb::crypto::FileReader::create(path, lookup, {});
+            std::string chunk;
+            while (!(chunk = file_reader->nextChunk()).empty()) {
+                content.append(chunk);
+            }
+        } catch (const std::underflow_error&) {
+            // We might have hit a partial log update...
+        }
+        return content;
+    }
+
     const std::filesystem::path test_directory;
     const std::filesystem::path isasl_file_name;
     const std::filesystem::path configuration_file;
@@ -665,6 +700,9 @@ private:
     const std::filesystem::path audit_log_dir;
     const std::filesystem::path minidump_dir;
     const std::filesystem::path log_dir;
+
+    std::unique_ptr<cb::dek::Manager> dek_manager = cb::dek::Manager::create();
+
     /// first entry is IPv4 addresses, second is IPv6
     /// (see cb::net::getIPAdresses)
     const std::pair<std::vector<std::string>, std::vector<std::string>>

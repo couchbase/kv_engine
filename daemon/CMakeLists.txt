@@ -145,6 +145,7 @@ target_link_libraries(memcached_daemon
                       ep
                       ewouldblock_engine
                       folly_io_callbacks
+                      mcd_dek
                       mcd_executor
                       mcd_tracing
                       mcbp
