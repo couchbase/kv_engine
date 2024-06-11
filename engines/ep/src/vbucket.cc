@@ -3169,7 +3169,8 @@ bool VBucket::removeItemFromMemory(const Item& item) {
 }
 
 void VBucket::dump(std::ostream& ostream) const {
-    ostream << "VBucket[" << this << "] with state: " << toString(getState())
+    ostream << "VBucket[" << this << "] " << getId()
+            << " with state: " << toString(getState())
             << " numItems:" << getNumItems()
             << " numNonResident:" << getNumNonResidentItems()
             << " ht: " << std::endl
