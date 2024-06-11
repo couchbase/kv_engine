@@ -48,9 +48,12 @@
 #include "settings.h"
 #include "ssl_utils.h"
 #include "subdocument.h"
+
+#include <dek/manager.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
+#include <platform/base64.h>
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/throttle_utilities.h>
@@ -529,6 +532,75 @@ static void set_node_throttle_properties_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 
+static void set_active_encryption_key_executor(Cookie& cookie) {
+    using cb::mcbp::Status;
+
+    const auto& req = cookie.getRequest();
+    auto entity = req.getKeyString();
+    auto payload = req.getValueString();
+
+    std::string cipher;
+    std::string id;
+    std::string key;
+    nlohmann::json json;
+
+    if (!payload.empty()) {
+        // The validator checked that the requested value was JSON
+        // so we should be able to just parse it.
+        json = nlohmann::json::parse(payload);
+        for (const auto& k : {"id", "cipher", "key"}) {
+            if (!json.contains(k) || !json[k].is_string()) {
+                cookie.setErrorContext(
+                        fmt::format("{} must be present and a string", k));
+                cookie.sendResponse(Status::Einval);
+                return;
+            }
+        }
+        cipher = json["cipher"].get<std::string>();
+        if (cipher != "AES-256-GCM") {
+            cookie.setErrorContext(
+                    R"(Unsupported cipher. must be "AES-256-GCM")");
+            cookie.sendResponse(Status::NotSupported);
+            return;
+        }
+
+        id = json["id"].get<std::string>();
+        key = cb::base64::decode(json["key"].get<std::string_view>());
+    }
+
+    if (entity.front() == '@') {
+        using namespace std::string_view_literals;
+        try {
+            if (payload.empty()) {
+                cb::dek::Manager::instance().setActive(
+                        cb::dek::to_entity(entity), {});
+            } else {
+                auto object = std::make_shared<cb::dek::DataEncryptionKey>();
+                *object = json;
+                cb::dek::Manager::instance().setActive(
+                        cb::dek::to_entity(entity), std::move(object));
+            }
+            cookie.sendResponse(Status::Success);
+        } catch (const std::invalid_argument&) {
+            cookie.sendResponse(Status::KeyEnoent);
+        }
+
+        return;
+    }
+
+    auto ret = cb::engine_errc::no_such_key;
+    BucketManager::instance().forEach([&ret, &entity, &id, &cipher, &key](
+                                              auto& bucket) -> bool {
+        if (bucket.name == entity) {
+            ret = bucket.getEngine().set_active_encryption_key(id, cipher, key);
+            return false;
+        }
+        return true;
+    });
+
+    cookie.sendResponse(ret);
+}
+
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
     std::string name(cookie.getRequestKey().getBuffer());
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
@@ -864,6 +936,8 @@ void initialize_mbcp_lookup_map() {
                   set_bucket_data_limit_exceeded_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
                   set_node_throttle_properties_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SetActiveEncryptionKey,
+                  set_active_encryption_key_executor);
     setup_handler(cb::mcbp::ClientOpcode::CreateBucket,
                   create_remove_bucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_executor);

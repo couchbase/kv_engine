@@ -792,6 +792,7 @@ TEST_P(MeteringTest, OpsMetered) {
         case ClientOpcode::SetBucketThrottleProperties:
         case ClientOpcode::SetBucketDataLimitExceeded:
         case ClientOpcode::SetNodeThrottleProperties:
+        case ClientOpcode::SetActiveEncryptionKey:
         case ClientOpcode::SetVbucket:
         case ClientOpcode::GetVbucket:
         case ClientOpcode::DelVbucket:

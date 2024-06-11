@@ -878,6 +878,13 @@ struct EngineIface {
             CookieIface& cookie, uint64_t seqno, Vbid vbid) {
         return cb::engine_errc::not_supported;
     }
+
+    [[nodiscard]] virtual cb::engine_errc set_active_encryption_key(
+            std::string_view id,
+            std::string_view cipher,
+            std::string_view key) {
+        return cb::engine_errc::not_supported;
+    }
 };
 
 namespace cb {

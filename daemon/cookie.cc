@@ -613,6 +613,7 @@ cb::mcbp::Status Cookie::validate() {
     case cb::mcbp::ClientOpcode::SetBucketThrottleProperties:
     case cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded:
     case cb::mcbp::ClientOpcode::SetNodeThrottleProperties:
+    case cb::mcbp::ClientOpcode::SetActiveEncryptionKey:
     case cb::mcbp::ClientOpcode::Rget_Unsupported:
     case cb::mcbp::ClientOpcode::Rset_Unsupported:
     case cb::mcbp::ClientOpcode::Rsetq_Unsupported:

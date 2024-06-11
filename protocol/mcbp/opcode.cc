@@ -64,6 +64,7 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -256,6 +257,7 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -452,6 +454,7 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -615,6 +618,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::RangeScanCreate:
     case ClientOpcode::GetClusterConfig:
         return true;
@@ -845,6 +849,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1013,6 +1018,7 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1202,6 +1208,7 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1424,6 +1431,7 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -1581,6 +1589,7 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
+    case ClientOpcode::SetActiveEncryptionKey:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1820,6 +1829,8 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "SET_BUCKET_DATA_LIMIT_EXCEEDED";
     case ClientOpcode::SetNodeThrottleProperties:
         return "SET_NODE_THROTTLE_PROPERTIES";
+    case ClientOpcode::SetActiveEncryptionKey:
+        return "SET_ACTIVE_ENCRYPTION_KEY";
     case ClientOpcode::Rget_Unsupported:
         return "RGET";
     case ClientOpcode::Rset_Unsupported:

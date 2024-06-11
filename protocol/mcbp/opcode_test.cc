@@ -68,6 +68,7 @@ const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
           "SET_BUCKET_DATA_LIMIT_EXCEEDED"},
          {ClientOpcode::SetNodeThrottleProperties,
           "SET_NODE_THROTTLE_PROPERTIES"},
+         {ClientOpcode::SetActiveEncryptionKey, "SET_ACTIVE_ENCRYPTION_KEY"},
          {ClientOpcode::Rget_Unsupported, "RGET"},
          {ClientOpcode::Rset_Unsupported, "RSET"},
          {ClientOpcode::Rsetq_Unsupported, "RSETQ"},
@@ -343,6 +344,7 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::SetBucketThrottleProperties,
                      ClientOpcode::SetBucketDataLimitExceeded,
                      ClientOpcode::SetNodeThrottleProperties,
+                     ClientOpcode::SetActiveEncryptionKey,
                      ClientOpcode::RangeScanCreate,
                      ClientOpcode::GetClusterConfig}},
                    "reorder");

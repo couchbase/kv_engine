@@ -1821,6 +1821,31 @@ static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status set_active_encryption_key_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::NonZero,
+                                               ExpectedValueLen::Any,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    auto payload = cookie.getHeader().getValueString();
+    if (payload.empty()) {
+        // An empty payload indicates that we want to turn off encryption
+        // at rest
+        return Status::Success;
+    }
+    if (!cookie.isValidJson(payload)) {
+        cookie.setErrorContext("Invalid payload for SetActiveEncryptionKey");
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
 static Status get_meta_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
@@ -2546,6 +2571,9 @@ McbpValidator::McbpValidator() {
 
     setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
           set_bucket_data_limit_exceeded_validator);
+
+    setup(ClientOpcode::SetActiveEncryptionKey,
+          set_active_encryption_key_validator);
 
     if (cb::serverless::isEnabled()) {
         setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,

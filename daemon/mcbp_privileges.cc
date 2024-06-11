@@ -184,6 +184,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* Shutdown the server */
     setup(cb::mcbp::ClientOpcode::Shutdown, require<Privilege::NodeSupervisor>);
 
+    setup(cb::mcbp::ClientOpcode::SetActiveEncryptionKey,
+          require<Privilege::NodeSupervisor>);
+
     setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
           require<Privilege::BucketThrottleManagement>);
     setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,

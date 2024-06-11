@@ -79,6 +79,7 @@ enum class ClientOpcode : uint8_t {
     SetBucketDataLimitExceeded = 0x2b,
 
     SetNodeThrottleProperties = 0x2c,
+    SetActiveEncryptionKey = 0x2d,
 
     /* These commands are used for range operations and exist within
      * this header for use in other projects.  Range operations are
