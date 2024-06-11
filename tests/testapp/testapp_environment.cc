@@ -384,7 +384,6 @@ public:
         // We need to set MEMCACHED_UNIT_TESTS to enable the use of
         // the ewouldblock engine..
         setenv("MEMCACHED_UNIT_TESTS", "true", 1);
-        setenv("MEMCACHED_TOP_KEYS", "10", 1);
 
         if (engineName == "default") {
             std::string config = "keep_deleted=true";
@@ -474,7 +473,6 @@ public:
 
     void terminate(int exitcode) override {
         unsetenv("MEMCACHED_UNIT_TESTS");
-        unsetenv("MEMCACHED_TOP_KEYS");
         unsetenv("CBSASL_PWFILE");
 
         // If exit-code != EXIT_SUCCESS it means that we had at least one
