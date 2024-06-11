@@ -159,6 +159,9 @@ enum class engine_errc {
     /// continue
     too_much_data_in_output_buffer = 0x2f,
 
+    /// CAS value used is invalid
+    cas_value_invalid = 0x30,
+
     /** Generic failue. */
     failed = 0xff
 };
