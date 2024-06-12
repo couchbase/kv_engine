@@ -649,8 +649,6 @@ protected:
                            Vbid vbid,
                            ValueFilter filter) const;
 
-    bool keyMayExist(Vbid vbid, const DocKeyView& key) const override;
-
     /**
      * MagmaCompactionCB is the class invoked by magma compactions,
      * both implicit and explicit. For explict compactions, which come

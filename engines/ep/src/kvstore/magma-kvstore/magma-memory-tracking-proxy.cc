@@ -226,12 +226,6 @@ magma::Status MagmaMemoryTrackingProxy::Get(const magma::Magma::KVStoreID kvID,
             kvID, key, idxBuf.getBuffer(), seqBuf.getBuffer(), meta, value);
 }
 
-bool MagmaMemoryTrackingProxy::KeyMayExist(const magma::Magma::KVStoreID kvID,
-                                           const magma::Slice& key) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->KeyMayExist(kvID, key);
-}
-
 magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
         const magma::Magma::KVStoreID kvID,
         DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {

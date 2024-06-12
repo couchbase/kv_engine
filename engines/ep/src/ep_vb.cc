@@ -100,17 +100,10 @@ EPVBucket::EPVBucket(Vbid i,
               maxPrepareSeqno),
       shard(kvshard),
       rangeScans(static_cast<EPBucket*>(bucket), *this) {
-    const std::string backend = config.getBackend();
     if (config.isBfilterEnabled()) {
-        if (backend == "couchdb" ||
-            (backend == "nexus" &&
-             config.getNexusPrimaryBackend() == "couchdb")) {
-            // Initialize bloom filters upon vbucket creation during
-            // bucket creation and rebalance
-            createFilter(config.getBfilterKeyCount(),
-                         config.getBfilterFpProb());
-        }
-        setKvStoreBfilterEnabled();
+        // Initialize bloom filters upon vbucket creation during
+        // bucket creation and rebalance
+        createFilter(config.getBfilterKeyCount(), config.getBfilterFpProb());
     }
 }
 
@@ -1597,10 +1590,6 @@ void EPVBucket::createFilter(size_t key_count, double probability) {
     }
 }
 
-void EPVBucket::setKvStoreBfilterEnabled() {
-    bFilterData.lock()->kvStoreBfilterEnabled = true;
-}
-
 void EPVBucket::initTempFilter(size_t key_count, double probability) {
     // Create a temp bloom filter with status as COMPACTING,
     // if the main filter is found to exist, set its state to
@@ -1631,37 +1620,12 @@ void EPVBucket::addToFilter(const DocKeyView& key) {
 }
 
 bool EPVBucket::maybeKeyExistsInFilter(const DocKeyView& key) {
-    enum class Status { KeyMayExist, KeyDoesNotExist, TryInKvStore };
-
-    auto status = bFilterData.withLock([&key](const auto& locked) {
-        if (locked.bFilter) {
-            // kv-engine maintains a bloom-filter only for couchstore, check if
-            // the key exists in that bloom-filter.
-            return locked.bFilter->maybeKeyExists(key)
-                           ? Status::KeyMayExist
-                           : Status::KeyDoesNotExist;
-        } else if (locked.kvStoreBfilterEnabled) {
-            return Status::TryInKvStore;
-        } else {
-            //  Force callers of this function to perform a bg-fetch task to
-            //  check if the key exists in corresponding kvstore. Execution
-            //  should never reach here for couchstore.
-            return Status::KeyMayExist;
-        }
-    });
-
-    switch (status) {
-    case Status::KeyMayExist:
+    auto bFilterDataLocked = bFilterData.lock();
+    if (bFilterDataLocked->bFilter) {
+        return bFilterDataLocked->bFilter->maybeKeyExists(key);
+    } else {
         return true;
-    case Status::KeyDoesNotExist:
-        return false;
-    case Status::TryInKvStore:
-        //  - magma maintains its own bloom-filter, check in the key exists in
-        //  that bloom-filter.
-        //  - couchstore always returns true.
-        return bucket->getROUnderlying(id)->keyMayExist(id, key);
     }
-    folly::assume_unreachable();
 }
 
 bool EPVBucket::isTempFilterAvailable() {
@@ -1723,7 +1687,6 @@ void EPVBucket::setFilterStatus(bfilter_status_t to) {
     if (bFilterDataLocked->tempFilter) {
         bFilterDataLocked->tempFilter->setStatus(to);
     }
-    bFilterDataLocked->kvStoreBfilterEnabled = (to == BFILTER_ENABLED);
 }
 
 std::string EPVBucket::getFilterStatusString() {
@@ -1775,15 +1738,6 @@ void EPVBucket::addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c) {
     } else if (bFilterDataLocked->tempFilter) {
         addBloomFilterStats_UNLOCKED(
                 add_stat, c, *(bFilterDataLocked->tempFilter));
-    } else {
-        addStat("bloom_filter",
-                bFilterDataLocked->kvStoreBfilterEnabled ? "ENABLED"
-                                                         : "DISABLED",
-                add_stat,
-                c);
-        addStat("bloom_filter_size", static_cast<size_t>(0), add_stat, c);
-        addStat("bloom_filter_key_count", static_cast<size_t>(0), add_stat, c);
-        addStat("bloom_filter_memory", static_cast<size_t>(0), add_stat, c);
     }
 }
 

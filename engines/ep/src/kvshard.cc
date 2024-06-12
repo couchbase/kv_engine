@@ -27,6 +27,15 @@ KVShard::KVShard(Configuration& config,
       vbuckets(std::ceil(float(config.getMaxVbuckets()) / numShards)) {
     const std::string backend = config.getBackend();
 
+#ifdef EP_USE_MAGMA
+    if (backend == "magma" ||
+        (backend == "nexus" && config.getNexusPrimaryBackend() == "magma")) {
+        // magma has its own bloom filters and should not use kv_engine's bloom
+        // filters. Should save some memory.
+        config.setBfilterEnabled(false);
+    }
+#endif
+
     kvConfig =
             KVStoreConfig::createKVStoreConfig(config, backend, numShards, id);
     rwStore = KVStoreFactory::create(*kvConfig);

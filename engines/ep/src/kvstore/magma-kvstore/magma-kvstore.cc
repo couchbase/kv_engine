@@ -1120,19 +1120,6 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
                         getDefaultCreateItemCallback());
 }
 
-bool MagmaKVStore::keyMayExist(Vbid vbid, const DocKeyView& key) const {
-    if (key.getEncoding() == DocKeyEncodesCollectionId::Yes) {
-        Slice keySlice = {reinterpret_cast<const char*>(key.data()),
-                          key.size()};
-        return magma->KeyMayExist(vbid.get(), keySlice);
-    } else {
-        StoredDocKey key1{key};
-        Slice keySlice = {reinterpret_cast<const char*>(key1.data()),
-                          key1.size()};
-        return magma->KeyMayExist(vbid.get(), keySlice);
-    }
-}
-
 using GetOperations = magma::OperationsList<Magma::GetOperation>;
 
 void MagmaKVStore::getMulti(Vbid vbid,

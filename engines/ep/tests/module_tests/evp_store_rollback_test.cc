@@ -56,8 +56,7 @@ class RollbackTest
     void SetUp() override {
         config_string += generateBackendConfig(std::get<0>(GetParam()));
         config_string +=
-                ";ht_locks=7;item_eviction_policy=" + getEvictionMode() +
-                ";bfilter_enabled=false";
+                ";ht_locks=7;item_eviction_policy=" + getEvictionMode();
 #ifdef EP_USE_MAGMA
         config_string += ";" + magmaRollbackConfig;
 #endif

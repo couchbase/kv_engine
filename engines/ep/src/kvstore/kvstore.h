@@ -748,14 +748,6 @@ public:
      */
     GetValue get(const DiskDocKey& key, Vbid vb) const;
 
-    bool keyMayExist(Vbid vbid, const DocKeyView& key) const override {
-        /*
-         * Defaults to true, so that the caller may schedule a bgfetch
-         * if needed.
-         */
-        return true;
-    };
-
     /**
      * Set the max bucket quota to the given size.
      *

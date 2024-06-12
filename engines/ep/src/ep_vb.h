@@ -500,13 +500,6 @@ private:
     void dropStoredValue(const HashTable::HashBucketLock& hbl,
                          StoredValue& value);
 
-    bool isBfilterEnabled();
-
-    /**
-     * When set to true, we check if a key exists in kvstore'es bloom-filter.
-     */
-    void setKvStoreBfilterEnabled();
-
     /**
      * Sets the collection info on the cookie for the given scan.
      * @return no_such_key if the scan does not exist, unknown_collection if the
@@ -547,11 +540,6 @@ private:
         // Bloom Filter structures
         std::unique_ptr<BloomFilter> bFilter;
         std::unique_ptr<BloomFilter> tempFilter; // Used during compaction.
-        /**
-         * Cache the bfilter_enabled config set on the Engine configuration.
-         * Gets updated via setFilterStatus().
-         */
-        bool kvStoreBfilterEnabled{false};
     };
 
     folly::Synchronized<BfilterData, std::mutex> bFilterData;
