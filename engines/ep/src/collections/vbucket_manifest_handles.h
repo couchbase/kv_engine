@@ -548,7 +548,7 @@ public:
     /**
      * Dump this VB::Manifest to std::cerr
      */
-    void dump();
+    void dump() const;
 
 protected:
     friend std::ostream& operator<<(std::ostream& os,
@@ -636,7 +636,7 @@ public:
         return itr->second.getName();
     }
 
-    void dump();
+    void dump() const;
 
 protected:
     friend std::ostream& operator<<(std::ostream& os,
@@ -865,7 +865,7 @@ public:
     /**
      * Dump this VB::Manifest to std::cerr
      */
-    void dump();
+    void dump() const;
 
 private:
     VBucketStateLockRef vbStateLock;

@@ -49,11 +49,11 @@ cb::engine_errc CachingReadHandle::handleWriteStatus(
     return cb::engine_errc::success;
 }
 
-void CachingReadHandle::dump() {
+void CachingReadHandle::dump() const {
     std::cerr << *manifest << std::endl;
 }
 
-void StatsReadHandle::dump() {
+void StatsReadHandle::dump() const {
     std::cerr << *manifest << std::endl;
 }
 
@@ -61,7 +61,7 @@ CanDeduplicate WriteHandle::getCanDeduplicate(CollectionID cid) const {
     return manifest.getCanDeduplicate(cid);
 }
 
-void WriteHandle::dump() {
+void WriteHandle::dump() const {
     std::cerr << manifest << std::endl;
 }
 
