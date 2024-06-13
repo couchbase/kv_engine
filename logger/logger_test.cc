@@ -12,8 +12,6 @@
 #include "logger_test_fixture.h"
 
 #include <memcached/engine.h>
-#include <platform/cbassert.h>
-
 #include <valgrind/valgrind.h>
 
 #ifndef WIN32
@@ -31,19 +29,6 @@ TEST_F(SpdloggerTest, FmtStyleFormatting) {
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
     EXPECT_EQ(1,
               countInFile(files.front(), "INFO FmtStyleFormatting deadbeef"));
-}
-
-/**
- * Most basic test. Open a logfile, write a log message, close the logfile and
- * check if the hooks appear in the file.
- */
-TEST_F(SpdloggerTest, BasicHooksTest) {
-    cb::logger::shutdown();
-
-    files = cb::io::findFilesWithPrefix(config.filename);
-    ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), openingHook));
-    EXPECT_EQ(1, countInFile(files.front(), closingHook));
 }
 
 /**
@@ -77,12 +62,6 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
 
     files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_LT(1, files.size());
-    for (auto& file : files) {
-        EXPECT_EQ(1, countInFile(file, openingHook))
-                << "Missing open hook in file: " << file;
-        EXPECT_EQ(1, countInFile(file, closingHook))
-                << "Missing closing hook in file: " << file;
-    }
 }
 
 #ifndef WIN32

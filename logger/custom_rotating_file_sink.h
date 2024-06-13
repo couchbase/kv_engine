@@ -3,7 +3,6 @@
 // Distributed under the MIT License (http://opensource.org/licenses/MIT)
 //
 
-/* -*- MODE: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017 Couchbase, Inc
  *
@@ -37,14 +36,8 @@ class file_helper;
  * Customised version of spdlog's rotating_file_sink with the following
  * modifications:
  *
- * 1 Adds open and closing tags in the file so that a concatenated version
- *   of all of the log files may be split back into its fragments again
- *
- * 2 Instead of renaming all of the files every time we're rotating to
+ * * Instead of renaming all the files every time we're rotating to
  *   the next file we start a new log file with a higher number
- *
- * TODO: If updating spdlog from v1.1.0, check if this class also needs
- *       updating.
  */
 template <class Mutex>
 class custom_rotating_file_sink : public spdlog::sinks::base_sink<Mutex> {
@@ -60,7 +53,6 @@ protected:
     void flush_() override;
 
 private:
-    void addHook(const std::string& hook);
     // Calculate the full filename to use the next time
     std::unique_ptr<spdlog::details::file_helper> openFile();
 
@@ -70,9 +62,6 @@ private:
     std::unique_ptr<spdlog::details::file_helper> _file_helper;
     std::unique_ptr<spdlog::pattern_formatter> formatter;
     unsigned long _next_file_id;
-
-    const std::string openingLogfile{"---------- Opening logfile: "};
-    const std::string closingLogfile{"---------- Closing logfile"};
 };
 
 using custom_rotating_file_sink_mt = custom_rotating_file_sink<std::mutex>;

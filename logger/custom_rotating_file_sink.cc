@@ -71,7 +71,6 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
             log_pattern, spdlog::pattern_time_type::local);
     _file_helper = openFile();
     _current_size = _file_helper->size(); // expensive. called only once
-    addHook(openingLogfile);
 }
 
 /* In addition to the functionality of spdlog's rotating_file_sink,
@@ -89,12 +88,10 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
     if (_current_size > _max_size) {
         try {
             auto next = openFile();
-            addHook(closingLogfile);
             std::swap(_file_helper, next);
             _current_size = _file_helper->size();
-            addHook(openingLogfile);
         } catch (...) {
-            // Keep on logging to the this file, but try swap at the next
+            // Keep on logging to this file, but try swap at the next
             // insert of data (didn't use the next file we need to
             // roll back the next_file_id to avoid getting a hole ;-)
             _next_file_id--;
@@ -105,29 +102,6 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
 template <class Mutex>
 void custom_rotating_file_sink<Mutex>::flush_() {
     _file_helper->flush();
-}
-
-/* Takes a message, formats it and writes it to file */
-template <class Mutex>
-void custom_rotating_file_sink<Mutex>::addHook(const std::string& hook) {
-    spdlog::details::log_msg msg;
-    msg.time = spdlog::details::os::now();
-    msg.level = spdlog::level::info;
-
-    std::string hookToAdd = hook;
-    if (hook == openingLogfile) {
-        hookToAdd.append(_file_helper->filename());
-    }
-
-    // Payload shouldn't contain anything yet, overwrite it
-    Expects(msg.payload.size() == 0);
-    msg.payload = hook;
-
-    spdlog::memory_buf_t formatted;
-    formatter->format(msg, formatted);
-    _current_size += formatted.size();
-
-    _file_helper->write(formatted);
 }
 
 template <class Mutex>
@@ -142,9 +116,7 @@ custom_rotating_file_sink<Mutex>::openFile() {
 }
 
 template <class Mutex>
-custom_rotating_file_sink<Mutex>::~custom_rotating_file_sink() {
-    addHook(closingLogfile);
-}
+custom_rotating_file_sink<Mutex>::~custom_rotating_file_sink() = default;
 
 template class custom_rotating_file_sink<std::mutex>;
 template class custom_rotating_file_sink<spdlog::details::null_mutex>;

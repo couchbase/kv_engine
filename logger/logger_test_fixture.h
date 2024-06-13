@@ -70,7 +70,4 @@ protected:
     std::vector<std::string> files;
 
     cb::logger::Config config;
-
-    const std::string openingHook = "---------- Opening logfile: ";
-    const std::string closingHook = "---------- Closing logfile";
 };
