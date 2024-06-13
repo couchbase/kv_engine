@@ -164,14 +164,7 @@ bool AuditImpl::configure() {
     LOG_DEBUG("Using audit Event filter: {}",
               event_filter.rlock()->to_json().dump());
     if (!auditfile.is_open()) {
-        try {
-            auditfile.cleanup_old_logfile(config.get_log_directory());
-        } catch (const std::exception& exception) {
-            LOG_WARNING(
-                    "Audit::configure(): Failed to clean up old log files: {}",
-                    exception.what());
-            return false;
-        }
+        auditfile.remove_audit_link(config.get_log_directory());
     }
 
     auditfile.reconfigure(config);

@@ -214,9 +214,10 @@ TEST_P(AuditTest, AuditConfigured) {
  */
 TEST_P(AuditTest, ValidateAuditLogFileCreated) {
     std::filesystem::path log_dir{mcd_env->getAuditLogDir()};
-    auto log = log_dir / "audit.log";
+    auto log = log_dir / "current-audit.log";
     // Audit should be enabled so the file should be there
     EXPECT_TRUE(exists(log));
+    EXPECT_TRUE(is_symlink(log));
     setEnabled(false);
     remove(log);
 

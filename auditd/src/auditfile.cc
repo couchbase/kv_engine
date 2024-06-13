@@ -23,6 +23,9 @@
 #include <sstream>
 #include <thread>
 
+/// The name of the link to the "current" audit trail
+static constexpr std::string_view current_audit_link_name = "current-audit.log";
+
 /// c++20 std::string::starts_with
 bool starts_with(std::string_view name, std::string_view prefix) {
     return name.find(prefix) == 0;
@@ -38,7 +41,8 @@ bool ends_with(std::string_view name, std::string_view suffix) {
 }
 
 void AuditFile::iterate_old_files(
-        const std::function<void(const std::filesystem::path&)>& callback) {
+        const std::function<void(const std::filesystem::path&)>& callback)
+        const {
     using namespace std::filesystem;
     for (const auto& p : directory_iterator(log_directory)) {
         try {
@@ -82,7 +86,7 @@ void AuditFile::prune_old_audit_files() {
     if (oldest == filesystem_now) {
         next_prune = now + *prune_age;
     } else {
-        auto age = duration_cast<seconds>(filesystem_now - oldest);
+        const auto age = duration_cast<seconds>(filesystem_now - oldest);
 
         // set next prune to a second after the oldest file expire
         next_prune = now + (*prune_age - age) + seconds(1);
@@ -92,13 +96,6 @@ void AuditFile::prune_old_audit_files() {
 bool AuditFile::maybe_rotate_files() {
     auto prune = folly::makeGuard([this] { prune_old_audit_files(); });
     if (is_open() && time_to_rotate_log()) {
-        if (is_empty()) {
-            // Given the audit log is empty on rotation instead of
-            // closing and then re-opening we can just keep open and
-            // update the open_time.
-            open_time = auditd_time();
-            return false;
-        }
         close_and_rotate_log();
         return true;
     }
@@ -126,10 +123,9 @@ void AuditFile::close() {
 uint32_t AuditFile::get_seconds_to_rotation() const {
     if (rotate_interval) {
         if (is_open()) {
-            time_t now = auditd_time();
-            const auto diff = (uint32_t)difftime(now, open_time);
-            return std::clamp(
-                    rotate_interval - diff, uint32_t(0), rotate_interval);
+            const auto now = auditd_time();
+            const auto diff = static_cast<uint32_t>(difftime(now, open_time));
+            return std::clamp(rotate_interval - diff, 0U, rotate_interval);
         }
         return rotate_interval;
     }
@@ -175,10 +171,29 @@ time_t AuditFile::auditd_time() {
 }
 
 bool AuditFile::open() {
-    cb_assert(!file);
-    cb_assert(open_time == 0);
+    Expects(!file && "The file shouldn't be open");
+    open_time = auditd_time();
+    auto ts = cb::time::timestamp(open_time).substr(0, 19);
+    std::replace(ts.begin(), ts.end(), ':', '-');
 
-    open_file_name = log_directory / "audit.log";
+    // If we for some reason need to rotate the file and there is already
+    // a pre-existing file with the filename: hostname-timestamp-audit.log
+    // lets use the name "hostname-timestamp-counter-audit.log".
+    // In order for this to happen in production you would generate
+    // so much audit data that you would rotate within the same second
+    int count = 0;
+    do {
+        if (count == 0) {
+            open_file_name = log_directory /
+                             fmt::format("{}-{}-audit.log", hostname, ts);
+        } else {
+            open_file_name =
+                    log_directory /
+                    fmt::format("{}-{}-{}-audit.log", hostname, ts, count);
+        }
+        ++count;
+    } while (exists(open_file_name));
+
     file.reset(fopen(open_file_name.generic_string().c_str(), "wb"));
     if (!file) {
         LOG_WARNING("Audit: open error on file {}: {}",
@@ -187,141 +202,44 @@ bool AuditFile::open() {
         return false;
     }
 
+    try {
+        remove_audit_link();
+        create_symlink(std::filesystem::path{"."} / open_file_name.filename(),
+                       log_directory / current_audit_link_name);
+    } catch (const std::exception& e) {
+        LOG_WARNING("Audit: Failed to create {} symbolic link: {}",
+                    current_audit_link_name,
+                    e.what());
+    }
+
     current_size = 0;
     open_time = auditd_time();
     return true;
 }
 
 void AuditFile::close_and_rotate_log() {
-    cb_assert(file);
+    Expects(file);
     file.reset();
+    open_time = 0;
+
+    remove_audit_link();
     if (current_size == 0) {
-        remove(open_file_name);
+        // no output written; just remove the file
+        remove_file(open_file_name);
         open_time = 0;
         return;
     }
 
     current_size = 0;
-
-    auto ts = cb::time::timestamp(open_time).substr(0, 19);
-    std::replace(ts.begin(), ts.end(), ':', '-');
-
-    // move the audit_log to the archive.
-    int count = 0;
-    std::filesystem::path fname;
-    do {
-        if (count == 0) {
-            fname = log_directory /
-                    fmt::format("{}-{}-audit.log", hostname, ts);
-        } else {
-            fname = log_directory /
-                    fmt::format("{}-{}-{}-audit.log", hostname, ts, count);
-        }
-        ++count;
-    } while (exists(fname));
-
-    std::error_code ec;
-    rename(open_file_name, fname, ec);
-    if (ec) {
-        LOG_WARNING("Audit: rename error on file {}: {}",
-                    open_file_name.generic_string(),
-                    ec.message());
-    }
-    open_time = 0;
 }
 
-static std::string tryGetTimestamp(const std::filesystem::path& path) {
-    // open the audit.log that needs archiving
-    auto str = cb::io::loadFile(path.generic_string());
-    // extract the first event
-    std::size_t found = str.find('\n');
-    if (found != std::string::npos) {
-        str.resize(found);
+void AuditFile::remove_audit_link(
+        const std::optional<std::filesystem::path>& log_path) const {
+    if (log_path) {
+        remove_file(*log_path / current_audit_link_name);
+    } else {
+        remove_file(log_directory / current_audit_link_name);
     }
-
-    nlohmann::json json;
-    try {
-        json = nlohmann::json::parse(str);
-    } catch (const nlohmann::json::exception&) {
-        throw std::runtime_error(
-                "AuditFile::tryGetTimestamp(): Failed to parse data in "
-                "audit file (invalid JSON)");
-    }
-
-    if (!json.contains("timestamp")) {
-        throw std::runtime_error(
-                "AuditFile::tryGetTimestamp(): \"timestamp\" not present "
-                "in first event");
-    }
-
-    return json["timestamp"].get<std::string>();
-}
-
-void AuditFile::cleanup_old_logfile(const std::string& log_path) {
-    std::filesystem::path directory(log_path);
-    auto original = directory / "audit.log";
-
-    if (!std::filesystem::exists(original) ||
-        std::filesystem::file_size(original) == 0) {
-        std::filesystem::remove_all(original);
-        return;
-    }
-
-    // try to pick out the timestamp
-    std::string ts;
-    try {
-        ts = tryGetTimestamp(original);
-        if (!is_timestamp_format_correct(ts)) {
-            throw std::runtime_error(
-                    "AuditFile::cleanup_old_logfile(): Incorrect format for "
-                    "\"timestamp\"");
-        }
-    } catch (const std::exception& exception) {
-        LOG_WARNING(
-                R"("{}" occurred while parsing "{}" while trying to determine timestamp. Using current time instead)",
-                exception.what(),
-                original.generic_string());
-        ts = cb::time::timestamp();
-    }
-
-    ts = ts.substr(0, 19);
-    std::replace(ts.begin(), ts.end(), ':', '-');
-
-    int counter = 0;
-    do {
-        // form the archive filename
-        std::string name;
-        if (counter) {
-            name = fmt::format("{}-{}-audit.log.{}", hostname, ts, counter);
-        } else {
-            name = fmt::format("{}-{}-audit.log", hostname, ts);
-        }
-        auto archive_file = directory / name;
-        if (!exists(archive_file)) {
-            // Retry the renaming the file up to 50 times and back off
-            // every time we see an error before propagating the exception
-            // up to the caller.
-            int retry = 50;
-            do {
-                try {
-                    std::filesystem::rename(original, archive_file);
-                    return;
-                } catch (const std::exception& exception) {
-                    LOG_WARNING(R"(Failed to rename "{}" to "{}": {})",
-                                original.generic_string(),
-                                archive_file.generic_string(),
-                                exception.what());
-                    if (--retry == 0) {
-                        // give up and let the caller deal with the problem
-                        throw;
-                    }
-                    // Back off and retry
-                    std::this_thread::sleep_for(std::chrono::milliseconds{50});
-                }
-            } while (true);
-        }
-        ++counter;
-    } while (true);
 }
 
 bool AuditFile::write_event_to_disk(const nlohmann::json& output) {
@@ -391,16 +309,14 @@ bool AuditFile::flush() {
     return true;
 }
 
-bool AuditFile::is_timestamp_format_correct(std::string_view data) {
-    if (data.length() < 19) {
-        return false;
+void AuditFile::remove_file(const std::filesystem::path& path) {
+    if (exists(path)) {
+        try {
+            remove(path);
+        } catch (const std::exception& exception) {
+            LOG_WARNING("Audit: Failed to remove \"{}\": {}",
+                        path.generic_string(),
+                        exception.what());
+        }
     }
-
-    return (isdigit(data[0]) && isdigit(data[1]) && isdigit(data[2]) &&
-            isdigit(data[3]) && data[4] == '-' && isdigit(data[5]) &&
-            isdigit(data[6]) && data[7] == '-' && isdigit(data[8]) &&
-            isdigit(data[9]) && data[10] == 'T' && isdigit(data[11]) &&
-            isdigit(data[12]) && data[13] == ':' && isdigit(data[14]) &&
-            isdigit(data[15]) && data[16] == ':' && isdigit(data[17]) &&
-            isdigit(data[18]));
 }

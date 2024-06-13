@@ -635,6 +635,10 @@ public:
         const auto files = cb::io::findFilesContaining(
                 mcd_env->getAuditLogDir(), "audit.log");
         for (const auto& file : files) {
+            std::filesystem::path path(file);
+            if (is_symlink(path)) {
+                continue;
+            }
             auto content = cb::io::loadFile(file);
             auto lines = cb::string::split(content, '\n');
             for (const auto& line : lines) {

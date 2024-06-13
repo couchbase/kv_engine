@@ -24,13 +24,13 @@
  * The AuditFile class is responsible for writing audit records to a file
  * and perform file rotation (and prune old audit files).
  *
- * The "current" audit file is named "audit.log", and as part of file
- * rotation it'll be renamed to "hostname-timestamp[-counter]-audit.log"
+ * The audit log is written to a file named
+ *    "hostname-timestamp[-counter]-audit.log"
  * (It is unlikely that the counter will be present, but in the theoretical
  * situation as part of size based rotation and a load where the size would
  * be reached within the second (causing an identical timestamp) the file
- * would already exist)
- *
+ * would already exist) and there is a symbolic link named "current-audit.log"
+ * pointing to the file we're currently writing to.
  */
 class AuditFile {
 public:
@@ -56,15 +56,11 @@ public:
     void close();
 
     /**
-     * Look in the log directory if a file named "audit.log" exists
-     * and try to move it to the correct name. This method is
-     * used during startup for "crash recovery".
-     *
-     * @param log_path the directory to search
-     * @throws std::system_error for file errors
-     * @throws std::runtime_error for json parsing exceptions
+     * Remove the link to the current audit file in the provided log_path
+     * (or the log directory if no value present)
      */
-    void cleanup_old_logfile(const std::string& log_path);
+    void remove_audit_link(
+            const std::optional<std::filesystem::path>& log_path = {}) const;
 
     /**
      * Write a json formatted object to the disk
@@ -112,7 +108,7 @@ protected:
     }
 
     [[nodiscard]] static time_t auditd_time();
-    [[nodiscard]] static bool is_timestamp_format_correct(std::string_view str);
+    static void remove_file(const std::filesystem::path& path);
 
     /**
      * Iterate over "old" audit log files (named hostname-<timestamp>-audit.log)
@@ -121,7 +117,8 @@ protected:
      * @param callback
      */
     void iterate_old_files(
-            const std::function<void(const std::filesystem::path&)>& callback);
+            const std::function<void(const std::filesystem::path&)>& callback)
+            const;
 
     struct FileDeleter {
         void operator()(FILE* fp) {
