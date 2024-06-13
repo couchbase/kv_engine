@@ -80,14 +80,14 @@ private:
 };
 
 class STParameterizedEvictionTest
-        : public SingleThreadedEPBucketTest,
-          public ::testing::WithParamInterface<
-                  std::tuple</*bucket_type*/ std::string,
-                             /*max_size*/ std::string,
-                             /*mem_low_wat*/ std::string,
-                             /*mem_high_wat*/ std::string,
-                             /*skew*/ double,
-                             /*noOfAccesses*/ uint32_t>> {};
+    : public SingleThreadedEPBucketTest,
+      public ::testing::WithParamInterface<
+              std::tuple</*bucket_type*/ std::string,
+                         /*max_size*/ std::string,
+                         /*mem_low_wat_percent*/ std::string,
+                         /*mem_high_wat_percent*/ std::string,
+                         /*skew*/ double,
+                         /*noOfAccesses*/ uint32_t>> {};
 
 class STHashTableEvictionTest : public STParameterizedEvictionTest {
 protected:
@@ -96,9 +96,9 @@ protected:
         config_string +=
                 "ht_size=24571;"
                 "max_size=" +
-                std::get<1>(GetParam()) + ";mem_low_wat=" +
-                std::get<2>(GetParam()) + ";mem_high_wat=" +
-                std::get<3>(GetParam());
+                std::get<1>(GetParam()) +
+                ";mem_low_wat_percent=" + std::get<2>(GetParam()) +
+                ";mem_high_wat_percent=" + std::get<3>(GetParam());
 
         config_string += ";bucket_type=" + std::get<0>(GetParam());
         isEphemeral = (std::get<0>(GetParam()) == "ephemeral");
@@ -373,8 +373,8 @@ TEST_P(STHashTableEvictionTest, DISABLED_STHashTableEvictionItemPagerTest) {
 
 static auto parameters =
         std::make_tuple(/*max_size*/ std::to_string(200 * 1024 * 1024),
-                        /*mem_low_wat*/ std::to_string(120 * 1024 * 1024),
-                        /*mem_high_wat*/ std::to_string(160 * 1024 * 1024),
+                        /*mem_low_wat_percent*/ "0.6",
+                        /*mem_high_wat_percent*/ "0.8",
                         /*skew*/ 0.9,
                         /*noOfAccesses*/ 20000000);
 

@@ -12,8 +12,10 @@
 #include "stats.h"
 
 #include "objectregistry.h"
+#include "utilities/math_utilities.h"
 
 #include <platform/cb_arena_malloc.h>
+#include <atomic>
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */
@@ -25,9 +27,7 @@ EPStats::EPStats()
     // timestamps, that should not be included in a reset() call, and so cannot
     // be initialized in that function.
     : mem_low_wat(0),
-      mem_low_wat_percent(0),
       mem_high_wat(0),
-      mem_high_wat_percent(0),
       desiredMaxDataSize(0),
       replicaHTMemory(0),
       replicaCheckpointOverhead(0),
@@ -187,12 +187,23 @@ void EPStats::dropCollectionStats(CollectionID cid) {
 
 void EPStats::setLowWaterMark(size_t value) {
     mem_low_wat.store(value);
-    mem_low_wat_percent.store((double)(value) / getMaxDataSize());
+}
+
+void EPStats::setLowWaterMarkPercent(float frac) {
+    mem_low_wat.store(cb::fractionOf(getEffectiveMaxDataSize(), frac));
 }
 
 void EPStats::setHighWaterMark(size_t value) {
     mem_high_wat.store(value);
-    mem_high_wat_percent.store((double)(value) / getMaxDataSize());
+}
+
+void EPStats::setHighWaterMarkPercent(float frac) {
+    mem_high_wat.store(cb::fractionOf(getEffectiveMaxDataSize(), frac));
+}
+
+size_t EPStats::getEffectiveMaxDataSize() const {
+    const size_t desiredQuota = desiredMaxDataSize.load();
+    return desiredQuota ? desiredQuota : maxDataSize.load();
 }
 
 size_t EPStats::getTotalEnqueued() const {

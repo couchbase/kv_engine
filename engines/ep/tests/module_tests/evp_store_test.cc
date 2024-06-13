@@ -2497,7 +2497,7 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
             VBucketFilter());
 
     // Drop the low watermark to ensure paging removes everything
-    engine->getConfiguration().setMemLowWat(0);
+    engine->getConfiguration().setMemLowWatPercent(0);
     // drop the mfu of the temp item to evict it immediately
     ht.findOnlyCommitted(key).storedValue->setFreqCounterValue(0);
     pv->visitBucket(*store.getVBucket(vbid));

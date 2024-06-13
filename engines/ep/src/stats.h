@@ -223,19 +223,27 @@ public:
 
     /**
      * Set the low water mark to the new value.
-     * Side effect is that the low water mark percentage is updated to the
-     * percentage of max_size
      * @param the new low watermark (in bytes)
      */
     void setLowWaterMark(size_t value);
 
     /**
+     * Set the low water mark to the new value.
+     * @param frac the new low watermark (as a ratio)
+     */
+    void setLowWaterMarkPercent(float frac);
+
+    /**
      * Set the high water mark to the new value.
-     * Side effect is that the high water mark percentage is updated to the
-     * percentage of max_size
      * @param the new high watermark (in bytes)
      */
     void setHighWaterMark(size_t value);
+
+    /**
+     * Set the high water mark to the new value.
+     * @param frac he new high watermark (as a ratio)
+     */
+    void setHighWaterMarkPercent(float frac);
 
     CoreLocalStats::Counter& getCoreLocalDiskQueueSize() {
         return coreLocal.get()->diskQueueSize;
@@ -317,13 +325,10 @@ public:
     //! Number of times we failed to delete a vbucket.
     Counter vbucketDeletionFail;
 
-    //! Beyond this point are config items
-    //! Pager low water mark.
+    //! Effective pager low water mark (may be adjusted during quota change).
     std::atomic<size_t> mem_low_wat;
-    std::atomic<double> mem_low_wat_percent;
-    //! Pager high water mark
+    //! Effective pager high water mark (may be adjusted during quota change).
     std::atomic<size_t> mem_high_wat;
-    std::atomic<double> mem_high_wat_percent;
 
     // The currently desired quota. This may not match the actual quota
     // (maxDataSize) if a quota change is in progress and we are reducing memory
@@ -639,6 +644,12 @@ public:
     std::unique_ptr<std::ostream> timingLog;
 
 protected:
+    /**
+     * If a quota change is in progress, returns the desired quota, else returns
+     * the current quota.
+     */
+    size_t getEffectiveMaxDataSize() const;
+
     //! Max allowable memory size.
     std::atomic<size_t> maxDataSize;
 

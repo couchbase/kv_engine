@@ -75,6 +75,11 @@
 #include <vector>
 
 class StatsValueChangeListener : public ValueChangedListener {
+private:
+    static constexpr const char* UnknownKeyMessage =
+            "StatsValueChangeListener failed to change value for unknown "
+            "variable";
+
 public:
     StatsValueChangeListener(EPStats& st, KVBucket& str)
         : stats(st), store(str) {
@@ -82,30 +87,22 @@ public:
     }
 
     void sizeValueChanged(std::string_view key, size_t value) override {
-        if (key == "mem_low_wat") {
-            stats.setLowWaterMark(value);
-        } else if (key == "mem_high_wat") {
-            stats.setHighWaterMark(value);
-        } else {
-            EP_LOG_WARN(
-                    "StatsValueChangeListener(size_t) failed to change value "
-                    "for "
-                    "unknown variable, {}",
-                    key);
-        }
+        EP_LOG_WARN_CTX(UnknownKeyMessage, {"type", "size_t"}, {"key", key});
     }
 
     void floatValueChanged(std::string_view key, float value) override {
-        if (key == "mem_used_merge_threshold_percent") {
+        if (key == "mem_low_wat_percent") {
+            stats.setLowWaterMarkPercent(value);
+            store.getEPEngine().updateLegacyMemWatermarksConfiguration();
+        } else if (key == "mem_high_wat_percent") {
+            stats.setHighWaterMarkPercent(value);
+            store.getEPEngine().updateLegacyMemWatermarksConfiguration();
+        } else if (key == "mem_used_merge_threshold_percent") {
             store.getEPEngine()
                     .getArenaMallocClient()
                     .setEstimateUpdateThreshold(stats.getMaxDataSize(), value);
         } else {
-            EP_LOG_WARN(
-                    "StatsValueChangeListener(float) failed to change value "
-                    "for "
-                    "unknown variable, {}",
-                    key);
+            EP_LOG_WARN_CTX(UnknownKeyMessage, {"type", "float"}, {"key", key});
         }
     }
 
@@ -344,10 +341,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             config.getDcpBackfillInProgressPerConnectionLimit());
 
     config.addValueChangedListener(
-            "mem_low_wat",
+            "mem_low_wat_percent",
             std::make_unique<StatsValueChangeListener>(stats, *this));
     config.addValueChangedListener(
-            "mem_high_wat",
+            "mem_high_wat_percent",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
     setMutationMemRatio(config.getMutationMemRatio());

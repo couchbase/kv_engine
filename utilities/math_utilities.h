@@ -9,6 +9,8 @@
  */
 #pragma once
 
+#include <cmath>
+
 namespace cb {
 
 /**
@@ -20,7 +22,7 @@ namespace cb {
  */
 template <typename T>
 auto fractionOf(T val, double frac) {
-    return static_cast<T>(static_cast<double>(val) * frac);
+    return static_cast<T>(std::round(static_cast<double>(val) * frac));
 }
 
 } // namespace cb

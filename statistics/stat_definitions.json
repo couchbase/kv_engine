@@ -417,18 +417,6 @@
         "description": "The resident set size of the engine's arena",
         "added": "7.6.0"
     },
-    {
-        "key": "ep_mem_low_wat_percent",
-        "unit": "percent",
-        "description": "Low water mark (as a percentage)",
-        "added": "7.0.0"
-    },
-    {
-        "key": "ep_mem_high_wat_percent",
-        "unit": "percent",
-        "description": "High water mark (as a percentage)",
-        "added": "7.0.0"
-    },
 /* TODO: it's not advised to have metric like:
  *   my_metric{label=a} 1
  *   my_metric{label=b} 6

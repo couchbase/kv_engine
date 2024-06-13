@@ -651,10 +651,16 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         if (key == "max_size" || key == "cache_size") {
             size_t vsize = std::stoull(val);
             kvBucket->processBucketQuotaChange(vsize);
-        } else if (key == "mem_low_wat") {
-            configuration.setMemLowWat(std::stoull(val));
-        } else if (key == "mem_high_wat") {
-            configuration.setMemHighWat(std::stoull(val));
+        } else if (key == "mem_low_wat" || key == "mem_high_wat") {
+            msg = fmt::format(
+                    "Setting of key '{}' is no longer supported "
+                    "using set flush param. Use the Buckets REST API instead.",
+                    key);
+            return cb::engine_errc::invalid_arguments;
+        } else if (key == "mem_low_wat_percent") {
+            configuration.setMemLowWatPercent(std::stof(val));
+        } else if (key == "mem_high_wat_percent") {
+            configuration.setMemHighWatPercent(std::stof(val));
         } else if (key == "backfill_mem_threshold") {
             configuration.setBackfillMemThreshold(std::stoull(val));
         } else if (key == "durability_min_level") {
@@ -2276,20 +2282,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     kvBucket = makeBucket(configuration);
 
-    // Seed the watermark percentages to the default 75/85% or the current ratio
-    if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        stats.mem_low_wat_percent.store(0.75);
-    } else {
-        stats.mem_low_wat_percent.store(double(configuration.getMemLowWat()) /
-                                        configuration.getMaxSize());
-    }
-
-    if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        stats.mem_high_wat_percent.store(0.85);
-    } else {
-        stats.mem_high_wat_percent.store(double(configuration.getMemHighWat()) /
-                                         configuration.getMaxSize());
-    }
+    stats.setLowWaterMarkPercent(configuration.getMemLowWatPercent());
+    stats.setHighWaterMarkPercent(configuration.getMemHighWatPercent());
+    updateLegacyMemWatermarksConfiguration();
 
     setMaxDataSize(configuration.getMaxSize());
 
@@ -3556,9 +3551,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
         collector.addStat(Key::ep_bucket_priority, "LOW");
     }
 
-    collector.addStat(Key::ep_mem_low_wat_percent, stats.mem_low_wat_percent);
-    collector.addStat(Key::ep_mem_high_wat_percent, stats.mem_high_wat_percent);
-
     collector.addStat(Key::ep_mem_tracker_enabled,
                       EPStats::isMemoryTrackingEnabled());
 
@@ -3692,12 +3684,12 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     add_casted_stat("ep_desired_max_size", desiredQuotaValue, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
     add_casted_stat("ep_mem_low_wat_percent",
-                    stats.mem_low_wat_percent,
+                    ((double)stats.mem_low_wat / stats.getMaxDataSize()),
                     add_stat,
                     cookie);
     add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
     add_casted_stat("ep_mem_high_wat_percent",
-                    stats.mem_high_wat_percent,
+                    ((double)stats.mem_high_wat / stats.getMaxDataSize()),
                     add_stat,
                     cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
@@ -7420,10 +7412,16 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
 }
 
 void EventuallyPersistentEngine::configureMemWatermarksForQuota(size_t quota) {
-    configuration.setMemLowWat(
-            cb::fractionOf(quota, stats.mem_low_wat_percent));
-    configuration.setMemHighWat(
-            cb::fractionOf(quota, stats.mem_high_wat_percent));
+    auto lowWaterMarkPercent = configuration.getMemLowWatPercent();
+    auto highWaterMarkPercent = configuration.getMemHighWatPercent();
+    stats.setLowWaterMark(cb::fractionOf(quota, lowWaterMarkPercent));
+    stats.setHighWaterMark(cb::fractionOf(quota, highWaterMarkPercent));
+    updateLegacyMemWatermarksConfiguration();
+}
+
+void EventuallyPersistentEngine::updateLegacyMemWatermarksConfiguration() {
+    configuration.setMemLowWat(stats.mem_low_wat);
+    configuration.setMemHighWat(stats.mem_high_wat);
 }
 
 void EventuallyPersistentEngine::configureStorageMemoryForQuota(size_t quota) {

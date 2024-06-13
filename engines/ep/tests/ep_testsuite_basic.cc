@@ -98,8 +98,8 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect larger high wat. percent");
 
-    set_param(h, EngineParamCategory::Flush, "mem_low_wat", "7000000");
-    set_param(h, EngineParamCategory::Flush, "mem_high_wat", "8000000");
+    set_param(h, EngineParamCategory::Flush, "mem_low_wat_percent", "0.7");
+    set_param(h, EngineParamCategory::Flush, "mem_high_wat_percent", "0.8");
 
     checkeq(7000000,
             get_int_stat(h, "ep_mem_low_wat"),
@@ -126,8 +126,8 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             get_float_stat(h, "ep_mem_high_wat_percent"),
             "Incorrect smaller high wat. percent");
 
-    set_param(h, EngineParamCategory::Flush, "mem_low_wat", "2500000");
-    set_param(h, EngineParamCategory::Flush, "mem_high_wat", "3500000");
+    set_param(h, EngineParamCategory::Flush, "mem_low_wat_percent", "0.5");
+    set_param(h, EngineParamCategory::Flush, "mem_high_wat_percent", "0.7");
 
     checkeq(2500000,
             get_int_stat(h, "ep_mem_low_wat"),
@@ -179,7 +179,7 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     // Finally check a new engine with explicit water marks results in the
     // expected percentages
     std::string newConfig(testHarness->get_current_testcase()->cfg);
-    newConfig += "mem_low_wat=550;mem_high_wat=660";
+    newConfig += "mem_low_wat_percent=0.55;mem_high_wat_percent=0.66";
 
     testHarness->reload_engine(&h, newConfig.c_str(), true, true);
 

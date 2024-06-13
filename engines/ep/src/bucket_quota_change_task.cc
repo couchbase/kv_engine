@@ -147,8 +147,10 @@ void BucketQuotaChangeTask::checkForNewQuotaChange() {
 
         // We have some new quota change to process, stop what we're doing
         // and start making the new change...
-        engine->getConfiguration().setMemLowWat(previousLowWatermark);
-        engine->getConfiguration().setMemHighWat(previousHighWatermark);
+        auto& stats = engine->getEpStats();
+        stats.setLowWaterMark(previousLowWatermark);
+        stats.setHighWaterMark(previousHighWatermark);
+        engine->updateLegacyMemWatermarksConfiguration();
     } else {
         EP_LOG_INFO("Starting quota change from {} to {}",
                     getCurrentBucketQuota(),
@@ -279,8 +281,7 @@ void BucketQuotaChangeTask::setDesiredQuota(size_t desiredQuota) {
     auto& stats = engine->getEpStats();
     stats.setMaxDataSize(desiredQuota);
 
-    stats.setLowWaterMark(stats.mem_low_wat);
-    stats.setHighWaterMark(stats.mem_high_wat);
+    engine->configureMemWatermarksForQuota(desiredQuota);
 
     auto& bucket = *engine->getKVBucket();
     bucket.autoConfigCheckpointMaxSize();

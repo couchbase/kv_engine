@@ -142,8 +142,13 @@ void cb::test::ClusterTest::setFlushParam(MemcachedConnection& conn,
 void cb::test::ClusterTest::setMemWatermarks(MemcachedConnection& conn,
                                              size_t memLowWat,
                                              size_t memHighWat) {
-    setFlushParam(conn, "mem_low_wat", std::to_string(memLowWat));
-    setFlushParam(conn, "mem_high_wat", std::to_string(memHighWat));
+    size_t quota = conn.stats("memory")["ep_max_size"];
+    setFlushParam(conn,
+                  "mem_low_wat_percent",
+                  std::to_string((double)memLowWat / quota));
+    setFlushParam(conn,
+                  "mem_high_wat_percent",
+                  std::to_string((double)memHighWat / quota));
     auto stats = getMemStats(conn);
     EXPECT_EQ(stats.lower, memLowWat);
     EXPECT_EQ(stats.upper, memHighWat);

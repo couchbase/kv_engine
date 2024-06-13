@@ -714,15 +714,15 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
 
     // Drop the lwn ensure memory usage is above it so paging proceeds.
     auto& config = engine->getConfiguration();
-    auto origLowWatermark = config.getMemLowWat();
-    config.setMemLowWat(0);
+    auto origLowWatermark = config.getMemLowWatPercent();
+    config.setMemLowWatPercent(0);
 
     // Drop the MFU of the item to let it be evicted now
     ht.findOnlyCommitted(key).storedValue->setFreqCounterValue(0);
 
     pv->visitBucket(*vb);
 
-    config.setMemLowWat(origLowWatermark);
+    config.setMemLowWatPercent(origLowWatermark);
 
     // Expect that the stored value is no longer present - even though this
     // is a value eviction bucket.

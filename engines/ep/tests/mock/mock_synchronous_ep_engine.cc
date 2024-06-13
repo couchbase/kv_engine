@@ -94,19 +94,9 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     allowSanitizeValueInDeletion =
             configuration.isAllowSanitizeValueInDeletion();
 
-    if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
-        stats.mem_low_wat_percent.store(0.75);
-    } else {
-        stats.mem_low_wat_percent.store(double(configuration.getMemLowWat()) /
-                                        configuration.getMaxSize());
-    }
-
-    if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
-        stats.mem_high_wat_percent.store(0.85);
-    } else {
-        stats.mem_high_wat_percent.store(double(configuration.getMemHighWat()) /
-                                         configuration.getMaxSize());
-    }
+    stats.setLowWaterMarkPercent(configuration.getMemLowWatPercent());
+    stats.setHighWaterMarkPercent(configuration.getMemHighWatPercent());
+    updateLegacyMemWatermarksConfiguration();
 
     configuration.addValueChangedListener(
             "dcp_consumer_buffer_ratio",

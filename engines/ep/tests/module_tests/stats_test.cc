@@ -1264,9 +1264,7 @@ protected:
         stats.vbucketDeletions.store(nonDefaultCounterValue);
         stats.vbucketDeletionFail.store(nonDefaultCounterValue);
         stats.mem_low_wat.store(nonDefaultCounterValue);
-        stats.mem_low_wat_percent.store(nonDefaultCounterValue);
         stats.mem_high_wat.store(nonDefaultCounterValue);
-        stats.mem_high_wat_percent.store(nonDefaultCounterValue);
         stats.memFreedByCheckpointItemExpel.store(nonDefaultCounterValue);
         stats.forceShutdown.store(nonDefaultBool);
         stats.bg_meta_fetched.store(nonDefaultCounterValue);
@@ -1387,9 +1385,7 @@ protected:
         }
 
         EXPECT_EQ(nonStatValue, stats.mem_low_wat);
-        EXPECT_EQ(nonStatValue, stats.mem_low_wat_percent);
         EXPECT_EQ(nonStatValue, stats.mem_high_wat);
-        EXPECT_EQ(nonStatValue, stats.mem_high_wat_percent);
         EXPECT_EQ(nonStatBool, stats.forceShutdown);
         EXPECT_EQ(nonStatValue, stats.alogTime);
         EXPECT_EQ(nonStatValue, stats.expPagerTime);

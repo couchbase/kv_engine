@@ -47,8 +47,10 @@ public:
 
         // Watermark percentages are the percentage of the current watermark
         // of the current quota
-        initialMemLowWatPercent = engine->getEpStats().mem_low_wat_percent;
-        initialMemHighWatPercent = engine->getEpStats().mem_high_wat_percent;
+        initialMemLowWatPercent =
+                engine->getConfiguration().getMemLowWatPercent();
+        initialMemHighWatPercent =
+                engine->getConfiguration().getMemHighWatPercent();
 
         // Save original checkpoint mem-recovery ratios.
         // They are set to temp values during the mem-recovery phase. Then at
@@ -117,16 +119,16 @@ public:
     }
 
     void setLowWatermark(double percentage) {
-        auto newValue = cb::fractionOf(getCurrentBucketQuota(), percentage);
         std::string msg;
-        engine->setFlushParam("mem_low_wat", std::to_string(newValue), msg);
+        engine->setFlushParam(
+                "mem_low_wat_percent", std::to_string(percentage), msg);
         initialMemLowWatPercent = percentage;
     }
 
     void setHighWatermark(double percentage) {
-        auto newValue = cb::fractionOf(getCurrentBucketQuota(), percentage);
         std::string msg;
-        engine->setFlushParam("mem_high_wat", std::to_string(newValue), msg);
+        engine->setFlushParam(
+                "mem_high_wat_percent", std::to_string(percentage), msg);
         initialMemHighWatPercent = percentage;
     }
 
@@ -136,14 +138,18 @@ public:
     }
 
     void checkWatermarkValues(size_t quotaValue) {
-        EXPECT_EQ(initialMemLowWatPercent,
-                  engine->getEpStats().mem_low_wat_percent);
-        EXPECT_EQ(cb::fractionOf(quotaValue, initialMemLowWatPercent),
-                  engine->getConfiguration().getMemLowWat());
-        EXPECT_EQ(initialMemHighWatPercent,
-                  engine->getEpStats().mem_high_wat_percent);
-        EXPECT_EQ(cb::fractionOf(quotaValue, initialMemHighWatPercent),
-                  engine->getConfiguration().getMemHighWat());
+        EXPECT_NEAR(initialMemLowWatPercent,
+                    engine->getConfiguration().getMemLowWatPercent(),
+                    1E-5);
+        EXPECT_NEAR(cb::fractionOf(quotaValue, initialMemLowWatPercent),
+                    engine->getEpStats().mem_low_wat,
+                    16);
+        EXPECT_NEAR(initialMemHighWatPercent,
+                    engine->getConfiguration().getMemHighWatPercent(),
+                    1E-5);
+        EXPECT_NEAR(cb::fractionOf(quotaValue, initialMemHighWatPercent),
+                    engine->getEpStats().mem_high_wat,
+                    16);
     }
 
     void checkMaxRunningBackfills(size_t quotaValue) {
@@ -262,7 +268,7 @@ public:
         // post-change values that we care about so add a further multiple of
         // 0.5.
         ASSERT_LT(0.9, engine->getConfiguration().getMutationMemRatio());
-        ASSERT_GT(0.9, engine->getEpStats().mem_high_wat_percent);
+        ASSERT_GT(0.9, engine->getConfiguration().getMemHighWatPercent());
         auto valueToHit = (0.9 * 0.5 * getCurrentBucketQuota());
         auto size =
                 valueToHit - engine->getEpStats().getPreciseTotalMemoryUsed();
@@ -295,10 +301,10 @@ public:
         // quota, check that those values have been updated now (and that quota
         // is still the same).
         EXPECT_EQ(cb::fractionOf(newQuota, initialMemLowWatPercent),
-                  engine->getConfiguration().getMemLowWat());
+                  engine->getEpStats().mem_low_wat);
 
         EXPECT_EQ(cb::fractionOf(newQuota, initialMemHighWatPercent),
-                  engine->getConfiguration().getMemHighWat());
+                  engine->getEpStats().mem_high_wat);
 
         checkMaxRunningBackfills(newQuota);
         checkStorageEngineQuota(newQuota);

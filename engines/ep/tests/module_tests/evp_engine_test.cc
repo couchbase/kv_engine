@@ -302,9 +302,18 @@ TEST_P(EPEngineParamTest, minCompressionRatioConfigTest) {
 TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
     Configuration& config = engine->getConfiguration();
 
+    // The following parameters are dynamic, but cannot be set via the SetParam
+    // opcode.
+    const std::set<std::string_view> deprecated{
+            "mem_low_wat",
+            "mem_high_wat",
+    };
+
     // For each dynamic config variable (should be possible to change at
     // runtime), attempt to set (to the same as it's current value).
-    config.visit([this](std::string_view key, bool dynamic, std::string value) {
+    config.visit([this, &deprecated](std::string_view key,
+                                     bool dynamic,
+                                     std::string value) {
         std::vector<std::string> handled;
         if (dynamic) {
             std::string msg;
@@ -330,7 +339,13 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
                 cb::engine_errc::success) {
                 handled.push_back("setVBucketParam");
             }
-            if (handled.empty()) {
+
+            if (deprecated.count(key)) {
+                EXPECT_EQ(0, handled.size())
+                        << "Dynamic config key \"" << key
+                        << "\" can no longer be set - actually settable via: ["
+                        << boost::algorithm::join(handled, ", ") << "]";
+            } else if (handled.empty()) {
                 ADD_FAILURE() << "Dynamic config key \"" << key
                               << "\" cannot be set via any of the set...Param "
                                  "methods.";
