@@ -744,13 +744,22 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
     size_t count = populateUntilOOM(vbid);
-    ASSERT_GE(count, 5) << "Too few documents stored";
+    // Make sure we have atleast one document saved, so that we can check at the
+    // end 'count' number of documents were paged out.
+    ASSERT_GT(count, 0) << "No Documents stored";
+
+    auto& stats = engine->getEpStats();
+    auto currMem = stats.getPreciseTotalMemoryUsed();
+
+    // Set the HWM 1 byte lower than the currMem usage, to force all the items
+    // to be paged out.
+
+    stats.setHighWaterMark(currMem - 1);
 
     runHighMemoryPager();
 
     // For all configurations except ephemeral fail_new_data, memory usage
     // should have dropped.
-    auto& stats = engine->getEpStats();
     auto vb = engine->getVBucket(vbid);
     if (ephemeralFailNewData()) {
         EXPECT_GT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load())
