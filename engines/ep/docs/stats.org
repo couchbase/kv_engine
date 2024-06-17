@@ -1235,6 +1235,9 @@ determining the values of stats containing "_slow_".
 | pending_disk_op_num            | current number of pending disk requests                     |
 | pending_disk_op_slow_num       | current number of pending disk requests above the threshold |
 
+For pending disk requests that are larger than the configured maximum document
+size, we scale the threshold by the multiple of the document size.
+
 ** Dispatcher Stats/JobLogs
 
 This provides the stats from AUX dispatcher and non-IO dispatcher, and
