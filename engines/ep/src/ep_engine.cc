@@ -5246,8 +5246,6 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
         return cb::engine_errc::invalid_arguments;
     }
 
-    // The oldest pending request that is above the threshold.
-    std::optional<std::tuple<task_type_t, std::string, FileOp>> slowestOp;
     int numTotal = 0;
     int numSlow = 0;
 
@@ -5257,18 +5255,12 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
     // Visit all threads performing IO and record any file ops taking longer
     // than the threshold.
     fileOpsTracker->visitThreads(
-            [now, threshold, &numTotal, &numSlow, &slowestOp](
+            [now, threshold, &numTotal, &numSlow](
                     auto type, auto thread, const auto& op) {
                 if (type != READER_TASK_IDX && type != WRITER_TASK_IDX) {
                     return;
                 }
                 auto elapsed = now - op.startTime;
-
-                // Track the slowest operation.
-                if (!slowestOp ||
-                    op.startTime < std::get<2>(*slowestOp).startTime) {
-                    slowestOp = {type, std::string(thread), op};
-                }
 
                 ++numTotal;
                 if (elapsed >= threshold) {
@@ -5277,28 +5269,7 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
             });
 
     add_stat("pending_disk_op_num", to_string(numTotal), cookie);
-    add_stat("pending_disk_op_slow_threshold",
-             to_string(threshold.count()),
-             cookie);
     add_stat("pending_disk_op_slow_num", to_string(numSlow), cookie);
-    if (!slowestOp) {
-        return cb::engine_errc::success;
-    }
-
-    const auto& [taskType, thread, op] = *slowestOp;
-    auto slowestDuration =
-            std::chrono::duration_cast<std::chrono::duration<double>>(
-                    now - op.startTime);
-
-    nlohmann::json slowestOpJson{
-            {"type", to_string(op.type)},
-            {"nbytes", op.nbytes},
-            {"duration", slowestDuration.count()},
-            {"thread", thread},
-            {"thread_type", to_string(taskType)},
-    };
-
-    add_stat("pending_disk_op_max_time", slowestOpJson.dump(), cookie);
     return cb::engine_errc::success;
 }
 

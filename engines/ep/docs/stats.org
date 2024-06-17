@@ -1230,25 +1230,7 @@ The threshold argument is required and controls the slowness threshold used for
 determining the values of stats containing "_slow_".
 
 | pending_disk_op_num            | current number of pending disk requests                     |
-| pending_disk_op_max_time       | information about current longest running request (as JSON) |
 | pending_disk_op_slow_num       | current number of pending disk requests above the threshold |
-| pending_disk_op_slow_threshold | the threshold argument as interpreted                       |
-
-The pending_disk_op_max_time object has the following shape:
-
-#+BEGIN_SRC typescript
-{
-  "type": "Open"|"Close"|"Sync"|"Read"|"Write",
-  "nbytes": number, // bytes involved in the request; 0 if not known
-  "duration": number, // time spent in the request in seconds
-  "thread": string, // name of the thread running the request
-  "thread_type": "Reader"|"Writer",
-}
-#+END_SRC
-
-If there are no pending disk requests, the key pending_disk_op_max_time is not
-emitted, the value for pending_disk_op_slow_threshold is as interpreted, and
-the values of all other keys are 0.
 
 ** Dispatcher Stats/JobLogs
 
