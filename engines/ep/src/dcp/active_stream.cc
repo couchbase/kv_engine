@@ -1942,12 +1942,12 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
     uint64_t backfillStart = lastReadSeqno.load() + 1;
     uint64_t backfillEnd;
-    bool tryBackfill;
+    bool requireBackfill{false};
 
     if (isDiskOnly()) {
         // if disk only, always backfill to the requested end seqno
         backfillEnd = end_seqno_;
-        tryBackfill = true;
+        requireBackfill = true;
     } else {
         /* not disk only - stream may require backfill but will transition to
          * in-memory afterward; register the cursor now.
@@ -1981,7 +1981,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         scheduleBackfillRegisterCursorHook();
 
         curChkSeqno = registerResult.nextSeqno;
-        tryBackfill = registerResult.tryBackfill;
+        requireBackfill = registerResult.tryBackfill;
         cursor = registerResult.takeCursor();
 
         log(spdlog::level::level_enum::info,
@@ -2017,55 +2017,58 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
     numBackfillPauses = 0;
 
-    if (tryBackfill && tryAndScheduleOSOBackfill(producer, *vbucket)) {
+    if (!requireBackfill) {
+        abortScheduleBackfill(reschedule, producer);
         return;
-    } else if (tryBackfill && (backfillUID = producer.scheduleBackfillManager(
-                                       *vbucket,
-                                       shared_from_this(),
-                                       backfillStart,
-                                       backfillEnd))) {
-        // Expect a non zero UID. 0 is reserved for "no backfill to remove"
-        Expects(backfillUID);
-        // backfill will be needed to catch up to the items in the
-        // CheckpointManager
-        log(spdlog::level::level_enum::info,
-            "{} Scheduling backfill "
-            "from {} to {}, uid:{}, reschedule "
-            "flag : {}",
-            logPrefix,
-            backfillStart,
-            backfillEnd,
-            backfillUID,
-            reschedule ? "True" : "False");
-
-        isBackfillTaskRunning.store(true);
-        /// Number of backfill items is unknown until the Backfill task
-        /// completes the scan phase - reset backfillRemaining counter.
-        backfillRemaining.reset();
-    } else {
-        // backfill not needed
-        if (isDiskOnly()) {
-            endStream(cb::mcbp::DcpStreamEndStatus::Ok);
-        } else if (isTakeoverStream()) {
-            transitionState(StreamState::TakeoverSend);
-        } else {
-            transitionState(StreamState::InMemory);
-        }
-        if (reschedule) {
-            /*
-             * It is not absolutely necessary to notify immediately as conn
-             * manager or an incoming item will cause a notification eventually,
-             * but wouldn't hurt to do so.
-             *
-             * Note: must not notify when we schedule a backfill for the first
-             * time (i.e. when reschedule is false) because the stream is not
-             * yet in producer conn list of streams.
-             */
-            notifyStreamReady(false /*force*/, &producer);
-        }
+    } else if (tryAndScheduleOSOBackfill(producer, *vbucket)) {
+        return;
     }
+
+    backfillUID = producer.scheduleBackfillManager(
+            *vbucket, shared_from_this(), backfillStart, backfillEnd);
+    // Expect a non zero UID. 0 is reserved for "no backfill to remove"
+    Expects(backfillUID);
+
+    // backfill will be needed to catch up to the items in the
+    // CheckpointManager
+    log(spdlog::level::level_enum::info,
+        "{} Scheduling backfill "
+        "from {} to {}, uid:{}, reschedule "
+        "flag : {}",
+        logPrefix,
+        backfillStart,
+        backfillEnd,
+        backfillUID,
+        reschedule ? "True" : "False");
+
+    isBackfillTaskRunning.store(true);
+    /// Number of backfill items is unknown until the Backfill task
+    /// completes the scan phase - reset backfillRemaining counter.
+    backfillRemaining.reset();
 }
 
+void ActiveStream::abortScheduleBackfill(bool notifyStream,
+                                         DcpProducer& producer) {
+    if (isDiskOnly()) {
+        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
+    } else if (isTakeoverStream()) {
+        transitionState(StreamState::TakeoverSend);
+    } else {
+        transitionState(StreamState::InMemory);
+    }
+    if (notifyStream) {
+        /*
+         * It is not absolutely necessary to notify immediately as conn
+         * manager or an incoming item will cause a notification eventually,
+         * but wouldn't hurt to do so.
+         *
+         * Note: must not notify when we schedule a backfill for the first
+         * time (i.e. when reschedule is false) because the stream is not
+         * yet in producer conn list of streams.
+         */
+        notifyStreamReady(false /*force*/, &producer);
+    }
+}
 bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
                                              VBucket& vb) {
     // OSO only _allowed_ (but may not be chosen):

@@ -671,6 +671,10 @@ protected:
     std::unique_ptr<DcpResponse> backfillPhase(DcpProducer& producer,
                                                std::lock_guard<std::mutex>& lh);
 
+    // Helper function for when scheduleBackfill_UNLOCKED discovers no backfill
+    // is required.
+    void abortScheduleBackfill(bool notifyStream, DcpProducer& producer);
+
     Cursor cursor;
 
     // MB-37468: Test only hooks set via Mock class
