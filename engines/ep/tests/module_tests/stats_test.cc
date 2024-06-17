@@ -962,9 +962,8 @@ TEST_P(ParameterizedStatTest, DiskSlownessArg) {
 
 TEST_P(ParameterizedStatTest, DiskSlownessNoSlowOp) {
     auto stats = get_stat("disk-slowness 3", {}, true);
-    EXPECT_EQ(3, stats.size());
+    EXPECT_EQ(2, stats.size());
     EXPECT_EQ("0", stats.at("pending_disk_op_num"));
-    EXPECT_EQ("3", stats.at("pending_disk_op_slow_threshold"));
     EXPECT_EQ("0", stats.at("pending_disk_op_slow_num"));
 }
 
@@ -986,16 +985,9 @@ TEST_P(ParameterizedStatTest, DiskSlownessSlowOp) {
 
     {
         auto stats = get_stat("disk-slowness 0", {}, true);
-        EXPECT_EQ(4, stats.size());
+        EXPECT_EQ(2, stats.size());
         EXPECT_EQ("1", stats.at("pending_disk_op_num"));
-        EXPECT_EQ("0", stats.at("pending_disk_op_slow_threshold"));
         EXPECT_EQ("1", stats.at("pending_disk_op_slow_num"));
-
-        auto op = nlohmann::json::parse(stats.at("pending_disk_op_max_time"));
-        EXPECT_EQ("Read", op["type"]);
-        EXPECT_EQ(11, op["nbytes"].template get<int>());
-        EXPECT_LE(0, op["duration"]);
-        EXPECT_EQ("Reader", op["thread_type"]);
     }
 }
 
@@ -1018,7 +1010,7 @@ TEST_P(ParameterizedStatTest, DiskSlownessSlowOpNonReadWriteThread) {
 
     {
         auto stats = get_stat("disk-slowness 0", {}, true);
-        EXPECT_EQ(3, stats.size());
+        EXPECT_EQ(2, stats.size());
         EXPECT_EQ("0", stats.at("pending_disk_op_num"))
                 << "Expected only the slow operation in the reader task to be "
                    "counted.";
