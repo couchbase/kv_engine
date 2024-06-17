@@ -5255,15 +5255,22 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
     // Visit all threads performing IO and record any file ops taking longer
     // than the threshold.
     fileOpsTracker->visitThreads(
-            [now, threshold, &numTotal, &numSlow](
+            [this, now, threshold, &numTotal, &numSlow](
                     auto type, auto thread, const auto& op) {
                 if (type != READER_TASK_IDX && type != WRITER_TASK_IDX) {
                     return;
                 }
                 auto elapsed = now - op.startTime;
 
+                // For large operations, scale the threshold by a factor based
+                // on the maximum item size, to handle cases where we're writing
+                // more than 20 MiB in one operation.
+                double thresholdScalingFactor = std::max(
+                        1.0, static_cast<double>(op.nbytes) / maxItemSize);
+                auto effectiveThreshold = threshold * thresholdScalingFactor;
+
                 ++numTotal;
-                if (elapsed >= threshold) {
+                if (elapsed >= effectiveThreshold) {
                     ++numSlow;
                 }
             });
