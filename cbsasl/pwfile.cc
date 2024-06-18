@@ -9,6 +9,7 @@
  */
 #include "pwfile.h"
 #include <cbsasl/password_database.h>
+#include <dek/manager.h>
 #include <folly/Synchronized.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
@@ -75,8 +76,8 @@ cb::sasl::Error load_user_db(
         const char* filename = getenv("CBSASL_PWFILE");
 
         if (filename) {
-            const auto content =
-                    cb::io::loadFile(filename, std::chrono::seconds{5});
+            const auto content = cb::dek::Manager::instance().load(
+                    cb::dek::Entity::Config, filename, std::chrono::seconds{5});
             nlohmann::json json;
             try {
                 json = nlohmann::json::parse(content);

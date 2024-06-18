@@ -496,7 +496,7 @@ time_t get_server_start_time();
 
 std::string CERTIFICATE_PATH(const std::string& in);
 
-void write_config_to_file(const std::string& config);
+void write_config_to_file(std::string_view config);
 
 void adjust_memcached_clock(
         int64_t clock_shift,

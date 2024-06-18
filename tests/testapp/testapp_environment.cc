@@ -386,6 +386,8 @@ public:
                                cb::crypto::DataEncryptionKey::generate());
         dek_manager->setActive(cb::dek::Entity::Audit,
                                cb::crypto::DataEncryptionKey::generate());
+        dek_manager->setActive(cb::dek::Entity::Config,
+                               cb::crypto::DataEncryptionKey::generate());
 
         // We need to set MEMCACHED_UNIT_TESTS to enable the use of
         // the ewouldblock engine..
@@ -555,9 +557,8 @@ public:
     }
 
     void rewriteAuditConfigImpl() {
-        std::ofstream out(audit_file_name.generic_string());
-        out << audit_config.dump(2) << std::endl;
-        out.close();
+        dek_manager->save(
+                cb::dek::Entity::Config, audit_file_name, audit_config.dump());
     }
 
     void rewriteAuditConfig() override {
@@ -573,9 +574,8 @@ public:
     }
 
     void rewriteRbacFileImpl() {
-        std::ofstream out(rbac_file_name.generic_string());
-        out << rbac_data.dump(2) << std::endl;
-        out.close();
+        dek_manager->save(
+                cb::dek::Entity::Config, rbac_file_name, rbac_data.dump());
     }
 
     void rewriteRbacFile() override {

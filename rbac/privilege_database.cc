@@ -7,11 +7,11 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <memcached/rbac.h>
-
+#include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
 #include <folly/portability/Stdlib.h>
+#include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <utilities/logtags.h>
@@ -627,8 +627,8 @@ PrivilegeContext createInitialContext(const UserIdent& user) {
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {
-    createPrivilegeDatabase(
-            cb::io::loadFile(filename, std::chrono::seconds{5}));
+    createPrivilegeDatabase(cb::dek::Manager::instance().load(
+            dek::Entity::Config, filename, std::chrono::seconds{5}));
 }
 
 void createPrivilegeDatabase(std::string_view content) {

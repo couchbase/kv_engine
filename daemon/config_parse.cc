@@ -11,6 +11,7 @@
 #include "cmdline.h"
 #include "settings.h"
 
+#include <dek/manager.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
@@ -19,7 +20,8 @@
  *****************************************************************************/
 
 void load_config_file(const std::string& file, Settings& settings) {
-    auto content = cb::io::loadFile(file, std::chrono::seconds{5});
+    auto content = cb::dek::Manager::instance().load(
+            cb::dek::Entity::Config, file, std::chrono::seconds{5});
     settings.reconfigure(nlohmann::json::parse(content));
 }
 

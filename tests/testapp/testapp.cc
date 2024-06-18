@@ -538,18 +538,10 @@ nlohmann::json TestappTest::generate_config() {
     return ret;
 }
 
-void write_config_to_file(const std::string& config) {
-    FILE* fp = fopen(mcd_env->getConfigurationFile().c_str(), "w");
-
-    if (fp == nullptr) {
-        throw std::system_error(errno,
-                                std::system_category(),
-                                "Failed to open file \"" +
-                                        mcd_env->getConfigurationFile() + "\"");
-    } else {
-        fprintf(fp, "%s", config.c_str());
-        fclose(fp);
-    }
+void write_config_to_file(const std::string_view config) {
+    mcd_env->getDekManager().save(cb::dek::Entity::Config,
+                                  mcd_env->getConfigurationFile().c_str(),
+                                  config);
 }
 
 #ifdef WIN32

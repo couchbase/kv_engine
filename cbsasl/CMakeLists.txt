@@ -29,13 +29,13 @@ target_link_libraries(cbsasl
         PUBLIC
                 platform
         PRIVATE
+                mcd_dek
                 cbcrypto
                 fmt::fmt
                 phosphor
                 mcd_util
                 memcached_logger
-                libsodium::libsodium
-                OpenSSL::SSL)
+                libsodium::libsodium)
 add_sanitizers(cbsasl)
 
 cb_add_test_executable(cbsasl_unit_test

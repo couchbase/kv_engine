@@ -19,6 +19,7 @@
 #include <daemon/network_interface_manager.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
+#include <dek/manager.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <platform/dirutils.h>
@@ -204,7 +205,9 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
     try {
         LOG_INFO("Reloading config file {}", get_config_file());
         const auto content =
-                cb::io::loadFile(get_config_file(), std::chrono::seconds{5});
+                cb::dek::Manager::instance().load(cb::dek::Entity::Config,
+                                                  get_config_file(),
+                                                  std::chrono::seconds{5});
         Settings new_settings(nlohmann::json::parse(content));
 
         // Unfortunately ns_server won't keep its commitment to implement

@@ -114,7 +114,8 @@ bool AuditImpl::configure() {
     bool is_enabled_before_reconfig = enabled;
     std::string file_content;
     try {
-        file_content = cb::io::loadFile(configfile, std::chrono::seconds{5});
+        file_content = cb::dek::Manager::instance().load(
+                cb::dek::Entity::Config, configfile, std::chrono::seconds{5});
         if (file_content.empty()) {
             LOG_WARNING(R"(Audit::configure: No data in "{}")", configfile);
             return false;
