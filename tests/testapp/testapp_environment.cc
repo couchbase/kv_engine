@@ -384,6 +384,8 @@ public:
 
         dek_manager->setActive(cb::dek::Entity::Logs,
                                cb::crypto::DataEncryptionKey::generate());
+        dek_manager->setActive(cb::dek::Entity::Audit,
+                               cb::crypto::DataEncryptionKey::generate());
 
         // We need to set MEMCACHED_UNIT_TESTS to enable the use of
         // the ewouldblock engine..
@@ -649,7 +651,8 @@ public:
             if (is_symlink(path)) {
                 continue;
             }
-            auto content = cb::io::loadFile(file);
+            auto content =
+                    read_concurrent_updated_file(cb::dek::Entity::Audit, file);
             auto lines = cb::string::split(content, '\n');
             for (const auto& line : lines) {
                 try {
@@ -684,6 +687,10 @@ private:
                 return dek_manager->lookup(entity, key);
             };
             auto file_reader = cb::crypto::FileReader::create(path, lookup, {});
+            if (!file_reader->is_encrypted()) {
+                throw std::runtime_error("Expected the file to be encrypted");
+            }
+
             std::string chunk;
             while (!(chunk = file_reader->nextChunk()).empty()) {
                 content.append(chunk);

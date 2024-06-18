@@ -11,6 +11,7 @@
 
 #include "auditconfig.h"
 
+#include <cbcrypto/file_writer.h>
 #include <nlohmann/json_fwd.hpp>
 #include <cinttypes>
 #include <cstdio>
@@ -103,9 +104,7 @@ protected:
     [[nodiscard]] bool time_to_rotate_log() const;
     void close_and_rotate_log();
     void set_log_directory(const std::string& new_directory);
-    [[nodiscard]] bool is_empty() const {
-        return (current_size == 0);
-    }
+    [[nodiscard]] bool is_empty() const;
 
     [[nodiscard]] static time_t auditd_time();
     static void remove_file(const std::filesystem::path& path);
@@ -120,18 +119,11 @@ protected:
             const std::function<void(const std::filesystem::path&)>& callback)
             const;
 
-    struct FileDeleter {
-        void operator()(FILE* fp) {
-            fclose(fp);
-        }
-    };
-
     const std::string hostname;
-    std::unique_ptr<FILE, FileDeleter> file;
+    std::unique_ptr<cb::crypto::FileWriter> file;
     std::filesystem::path open_file_name;
     std::filesystem::path log_directory;
     time_t open_time = 0;
-    size_t current_size = 0;
     size_t max_log_size = 20 * 1024 * 1024;
     uint32_t rotate_interval = 900;
     std::optional<std::chrono::seconds> prune_age;

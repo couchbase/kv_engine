@@ -9,6 +9,7 @@
  */
 #include "auditfile.h"
 
+#include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/ScopeGuard.h>
 #include <logger/logger.h>
@@ -16,7 +17,6 @@
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
-#include <platform/strerror.h>
 #include <platform/timeutils.h>
 #include <chrono>
 #include <filesystem>
@@ -155,7 +155,7 @@ bool AuditFile::time_to_rotate_log() const {
         }
     }
 
-    if (max_log_size && (current_size > max_log_size)) {
+    if (max_log_size && (file->size() > max_log_size)) {
         return true;
     }
 
@@ -194,11 +194,18 @@ bool AuditFile::open() {
         ++count;
     } while (exists(open_file_name));
 
-    file.reset(fopen(open_file_name.generic_string().c_str(), "wb"));
-    if (!file) {
+    try {
+        file = cb::crypto::FileWriter::create(
+                cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit),
+                open_file_name,
+                8192);
+        LOG_INFO_CTX(
+                "Audit file",
+                {"encrypted", file->is_encrypted() ? "encrypted" : "plain"});
+    } catch (const std::exception& exception) {
         LOG_WARNING("Audit: open error on file {}: {}",
                     open_file_name.generic_string(),
-                    cb_strerror());
+                    exception.what());
         return false;
     }
 
@@ -212,25 +219,22 @@ bool AuditFile::open() {
                     e.what());
     }
 
-    current_size = 0;
     open_time = auditd_time();
     return true;
 }
 
 void AuditFile::close_and_rotate_log() {
     Expects(file);
+    const auto empty = file->size() == 0;
+    file->flush();
     file.reset();
     open_time = 0;
 
     remove_audit_link();
-    if (current_size == 0) {
+    if (empty) {
         // no output written; just remove the file
         remove_file(open_file_name);
-        open_time = 0;
-        return;
     }
-
-    current_size = 0;
 }
 
 void AuditFile::remove_audit_link(
@@ -243,26 +247,24 @@ void AuditFile::remove_audit_link(
 }
 
 bool AuditFile::write_event_to_disk(const nlohmann::json& output) {
-    bool ret = true;
     try {
-        const auto content = output.dump();
-        current_size += fprintf(file.get(), "%s\n", content.c_str());
-        if (ferror(file.get())) {
-            LOG_WARNING("Audit: writing to disk error: {}", cb_strerror());
-            ret = false;
-            close_and_rotate_log();
-        } else if (!buffered) {
-            ret = flush();
+        file->write(output.dump());
+        file->write("\n");
+        if (!buffered) {
+            return flush();
         }
+        return true;
     } catch (const std::bad_alloc&) {
         LOG_WARNING_RAW(
                 "Audit: memory allocation error for writing audit event to "
                 "disk");
-        // Failed to write event to disk.
-        return false;
+    } catch (const std::exception& exception) {
+        LOG_WARNING("Audit: Failed to write event to disk: {}",
+                    exception.what());
+        close_and_rotate_log();
     }
 
-    return ret;
+    return false;
 }
 
 void AuditFile::set_log_directory(const std::string& new_directory) {
@@ -288,7 +290,11 @@ void AuditFile::set_log_directory(const std::string& new_directory) {
     }
 }
 
-void AuditFile::reconfigure(const AuditConfig &config) {
+bool AuditFile::is_empty() const {
+    return !file || file->size() == 0;
+}
+
+void AuditFile::reconfigure(const AuditConfig& config) {
     rotate_interval = config.get_rotate_interval();
     set_log_directory(config.get_log_directory());
     max_log_size = config.get_rotate_size();
@@ -299,8 +305,10 @@ void AuditFile::reconfigure(const AuditConfig &config) {
 
 bool AuditFile::flush() {
     if (is_open()) {
-        if (fflush(file.get()) != 0) {
-            LOG_WARNING("Audit: writing to disk error: {}", cb_strerror());
+        try {
+            file->flush();
+        } catch (const std::exception& exception) {
+            LOG_WARNING("Audit: writing to disk error: {}", exception.what());
             close_and_rotate_log();
             return false;
         }

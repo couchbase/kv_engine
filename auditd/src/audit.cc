@@ -14,6 +14,7 @@
 #include "event.h"
 
 #include <auditd/couchbase_audit_events.h>
+#include <dek/manager.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>

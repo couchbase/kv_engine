@@ -12,6 +12,7 @@ add_dependencies(auditd generate_audit_descriptors)
 kv_enable_pch(auditd)
 target_link_libraries(auditd PRIVATE
                       memcached_logger
+                      mcd_dek
                       mcd_util
                       platform
                       statistics
