@@ -10,7 +10,7 @@ set_property(TARGET memcached_logger PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(memcached_logger)
 cb_enable_unity_build(memcached_logger)
 
-target_link_libraries(memcached_logger PUBLIC platform spdlog::spdlog)
+target_link_libraries(memcached_logger PRIVATE mcd_dek PUBLIC platform spdlog::spdlog)
 add_sanitizers(memcached_logger)
 
 cb_add_test_executable(memcached_logger_test

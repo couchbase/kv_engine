@@ -21,13 +21,12 @@
  */
 
 #include "custom_rotating_file_sink.h"
-
+#include <cbcrypto/file_writer.h>
+#include <dek/manager.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/dirutils.h>
 #include <spdlog/details/file_helper.h>
 #include <spdlog/details/fmt_helper.h>
-
-#include <memory>
 
 static unsigned long find_first_logfile_id(const std::string& basename) {
     unsigned long id = 0;
@@ -65,12 +64,10 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
         const std::string& log_pattern)
     : _base_filename(base_filename),
       _max_size(max_size),
-      _current_size(0),
       _next_file_id(find_first_logfile_id(base_filename)) {
     formatter = std::make_unique<spdlog::pattern_formatter>(
             log_pattern, spdlog::pattern_time_type::local);
-    _file_helper = openFile();
-    _current_size = _file_helper->size(); // expensive. called only once
+    file_writer = openFile();
 }
 
 /* In addition to the functionality of spdlog's rotating_file_sink,
@@ -79,17 +76,15 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
 template <class Mutex>
 void custom_rotating_file_sink<Mutex>::sink_it_(
         const spdlog::details::log_msg& msg) {
-    _current_size += msg.payload.size();
     spdlog::memory_buf_t formatted;
     formatter->format(msg, formatted);
-    _file_helper->write(formatted);
+    file_writer->write({formatted.data(), formatted.size()});
 
     // Is it time to wrap to the next file?
-    if (_current_size > _max_size) {
+    if (file_writer->size() > _max_size) {
         try {
             auto next = openFile();
-            std::swap(_file_helper, next);
-            _current_size = _file_helper->size();
+            std::swap(file_writer, next);
         } catch (...) {
             // Keep on logging to this file, but try swap at the next
             // insert of data (didn't use the next file we need to
@@ -101,22 +96,24 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
 
 template <class Mutex>
 void custom_rotating_file_sink<Mutex>::flush_() {
-    _file_helper->flush();
+    file_writer->flush();
 }
 
 template <class Mutex>
-std::unique_ptr<spdlog::details::file_helper>
+std::unique_ptr<cb::crypto::FileWriter>
 custom_rotating_file_sink<Mutex>::openFile() {
-    std::unique_ptr<spdlog::details::file_helper> ret =
-            std::make_unique<spdlog::details::file_helper>();
+    using namespace cb::dek;
+    auto dek = Manager::instance().lookup(Entity::Logs);
+    std::filesystem::path path;
     do {
-        ret->open(fmt::format("{}.{:06}.txt", _base_filename, _next_file_id++));
-    } while (ret->size() > _max_size);
-    return ret;
-}
+        path = fmt::format("{}.{:06}.{}",
+                           _base_filename,
+                           _next_file_id++,
+                           dek ? "cef" : "txt");
+    } while (exists(path));
 
-template <class Mutex>
-custom_rotating_file_sink<Mutex>::~custom_rotating_file_sink() = default;
+    return cb::crypto::FileWriter::create(dek, path);
+}
 
 template class custom_rotating_file_sink<std::mutex>;
 template class custom_rotating_file_sink<spdlog::details::null_mutex>;

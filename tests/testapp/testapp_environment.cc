@@ -382,6 +382,9 @@ public:
         create_directories(minidump_dir);
         create_directories(log_dir);
 
+        dek_manager->setActive(cb::dek::Entity::Logs,
+                               cb::crypto::DataEncryptionKey::generate());
+
         // We need to set MEMCACHED_UNIT_TESTS to enable the use of
         // the ewouldblock engine..
         setenv("MEMCACHED_UNIT_TESTS", "true", 1);

@@ -8,11 +8,12 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "custom_rotating_file_sink.h"
 
+#include "custom_rotating_file_sink.h"
 #include "logger.h"
 #include "logger_config.h"
 
+#include <cbcrypto/file_writer.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <spdlog/async.h>

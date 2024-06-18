@@ -26,11 +26,9 @@
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/base_sink.h>
 
-namespace spdlog {
-namespace details {
-class file_helper;
-} // namespace details
-} // namespace spdlog
+namespace cb::crypto {
+class FileWriter;
+}
 
 /**
  * Customised version of spdlog's rotating_file_sink with the following
@@ -46,20 +44,17 @@ public:
                               std::size_t max_size,
                               const std::string& log_pattern);
 
-    ~custom_rotating_file_sink() override;
-
 protected:
     void sink_it_(const spdlog::details::log_msg& msg) override;
     void flush_() override;
 
 private:
     // Calculate the full filename to use the next time
-    std::unique_ptr<spdlog::details::file_helper> openFile();
+    std::unique_ptr<cb::crypto::FileWriter> openFile();
 
     const spdlog::filename_t _base_filename;
     const std::size_t _max_size;
-    std::size_t _current_size;
-    std::unique_ptr<spdlog::details::file_helper> _file_helper;
+    std::unique_ptr<cb::crypto::FileWriter> file_writer;
     std::unique_ptr<spdlog::pattern_formatter> formatter;
     unsigned long _next_file_id;
 };
