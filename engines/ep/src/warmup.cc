@@ -515,6 +515,12 @@ private:
 };
 
 bool WarmupVbucketVisitor::visit(VBucket& vb) {
+    // MB-62277: Possible that pause/resume resumes with the next VB. Detect
+    // a VB mismatch and reset the scan context.
+    if (currentScanCtx && vb.getId() != currentScanCtx->vbid) {
+        currentScanCtx.reset();
+    }
+
     auto* kvstore = ep.getROUnderlyingByShard(backfillTask.getShardId());
 
     if (!currentScanCtx) {
