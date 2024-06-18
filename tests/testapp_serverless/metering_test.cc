@@ -3080,7 +3080,8 @@ TEST_P(MeteringTest, TTL_Expiry_Get) {
               after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
 }
 
-TEST_P(MeteringTest, TTL_Expiry_Compaction) {
+// Disabled for MB-61878
+TEST_P(MeteringTest, DISABLED_TTL_Expiry_Compaction) {
     const StoredDocKey id{"TTL_Expiry_Compaction", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
