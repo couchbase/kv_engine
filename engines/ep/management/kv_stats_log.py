@@ -55,8 +55,8 @@ parser.add_argument('-a', '--command-args',
 parser.add_argument('-b', '--bucket', help='Filter by bucket')
 parser.add_argument('-l', '--list', action='store_true',
                     help='Print available options (filters are applied)')
-parser.add_argument('-q', '--quiet', action='store_true',
-                    help='Do not print timing information')
+parser.add_argument('-v', '--verbose', action='store_true',
+                    help='Print timing information')
 
 args = parser.parse_args()
 
@@ -243,7 +243,7 @@ if __name__ == '__main__':
     second = 1 / 1e9
 
     # Print some stats
-    if not args.quiet:
+    if args.verbose:
         print(
             (f'\n{parser.prog} took: {duration_ns * second:.3f}s, '
              f'Read: {nbytes * mib:.2f} MiB, '
