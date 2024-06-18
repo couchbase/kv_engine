@@ -76,9 +76,9 @@ class ParserState(Enum):
     """
     State machine for parsing the input
     """
-    CMD = auto()
-    BUCKET = auto()
-    BLOCK = auto()
+    CMD = auto()  # Lines specifying the command
+    BUCKET = auto()  # Lines specifying the bucket
+    BLOCK = auto()  # Block of stats
 
 
 def read_stats_log(file):
@@ -96,14 +96,19 @@ def read_stats_log(file):
 
     for (lineno, line) in enumerate(file):
         if state == ParserState.CMD:
+            # End of command lines
             if line == SEP_CMD:
+                block = None
                 state = ParserState.BLOCK
                 continue
             cmd.append(line)
             continue
         elif state == ParserState.BUCKET:
+            # Line specifies the bucket name and starts a new block
+            # Yield the output reads so far
             if output_object is not None:
                 yield output_object
+            # Initialise new ouput block for this bucket
             block = []
             output_object = CBStatOutput(cmd, line, block)
             state = ParserState.BLOCK
@@ -120,7 +125,16 @@ def read_stats_log(file):
             continue
 
         if not line.isspace():
-            assert block is not None, f'Unexpected line {lineno}, expected block separator.'
+            if block is None:
+                # We have lines to process but no block to assign them to.
+                # By proxy, this means we've not seen a bucket separator, so
+                # the block we're now reading is not associated with a bucket.
+                # Output what we've got so far.
+                if output_object is not None:
+                    yield output_object
+                # And initialise a new output block without a bucket.
+                block = []
+                output_object = CBStatOutput(cmd, b'@no bucket@', block)
             block.append(line)
 
     if output_object is not None:
@@ -152,6 +166,8 @@ def clean_bucket(bucket):
 
 def process_input(outfile, infile, greppable, list_only, command_filter,
                   command_args_filter, bucket_filter):
+    current_cmd_line = []
+    current_bucket = b''
     for (cmd_line, bucket, output) in read_stats_log(infile):
         cmd_line = clean_cmd(cmd_line)
         cmd_array = cmd_line.split(b' ', maxsplit=1)
@@ -159,6 +175,11 @@ def process_input(outfile, infile, greppable, list_only, command_filter,
         cmd = cmd_array[0]
 
         bucket = clean_bucket(bucket)
+
+        prev_cmd_line = current_cmd_line
+        prev_bucket = current_bucket
+        current_cmd_line = cmd_line
+        current_bucket = bucket
 
         # Apply filters.
         if bucket_filter is not None and bucket_filter != bucket:
@@ -171,6 +192,10 @@ def process_input(outfile, infile, greppable, list_only, command_filter,
             continue
 
         if list_only:
+            if tuple(prev_cmd_line) == tuple(current_cmd_line) and \
+                    prev_bucket == current_bucket:
+                # Do not print duplicates.
+                continue
             # Just list options and exit.
             outfile.write(b'%s:%s:\n' % (cmd_line, bucket))
             continue
