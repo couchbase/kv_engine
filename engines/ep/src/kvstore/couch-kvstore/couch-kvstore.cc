@@ -1505,6 +1505,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 *sourceDb,
                 compact_file.c_str(),
                 flags,
+                {},
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
@@ -1593,6 +1594,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 *sourceDb,
                 compact_file.c_str(),
                 flags,
+                {},
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
@@ -2576,7 +2578,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
     }
 
     errorCode = couchstore_open_db_ex(
-            dbFileName.c_str(), options, ops, db.getDbAddress());
+            dbFileName.c_str(), options, {}, ops, db.getDbAddress());
 
     /* update command statistics */
     st.numOpen++;
