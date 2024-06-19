@@ -1230,17 +1230,17 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "dcp_producer_snapshot_marker_yield_limit": {
-            "default": "10",
-            "descr": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
+        "dcp_producer_processor_run_duration_us": {
+            "default": "100000",
+            "descr": "The approximate maximum runtime in microseconds for ActiveStreamCheckpointProcessorTask",
             "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000000,
-                    "min": 1
-                }
-            }
+            "type": "size_t"
+        },
+        "dcp_producer_snapshot_marker_yield_limit": {
+            "default": "0",
+            "descr": "Not in use - replaced by dcp_producer_processor_run_duration_us",
+            "dynamic": false,
+            "type": "size_t"
         },
         "dcp_consumer_process_unacked_bytes_yield_limit" : {
             "default": "10",

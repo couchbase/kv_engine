@@ -1337,9 +1337,10 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
 class MB29369_SingleThreadedEPBucketTest : public SingleThreadedEPBucketTest {
 protected:
     MB29369_SingleThreadedEPBucketTest() {
-        // Need dcp_producer_snapshot_marker_yield_limit + 1 (11) vBuckets for
-        // this test.
-        config_string = "max_vbuckets=11";
+        // Need 2 vbuckets for this test and processor duration set to 0, which
+        // means only 1 stream can be processed in each run of the task
+        config_string =
+                "max_vbuckets=2;dcp_producer_processor_run_duration_us=0";
     }
 };
 
@@ -1355,15 +1356,14 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
             << "Expected to have ActiveStreamCheckpointProcessorTask in NonIO "
                "Queue";
 
-    // Create dcp_producer_snapshot_marker_yield_limit + 1 streams -
+    // Create 2 vbuckets/streams -
     // this means that we don't process all pending vBuckets on a single
     // execution of ActiveStreamCheckpointProcessorTask - which can result
     // in vBIDs being "left over" in ActiveStreamCheckpointProcessorTask::queue
     // after an execution.
     // This means that subsequently when we drop the cursor for this vb,
     // there's a "stale" job queued for it.
-    const auto iterationLimit =
-            engine->getConfiguration().getDcpProducerSnapshotMarkerYieldLimit();
+    const auto iterationLimit = 1;
     std::shared_ptr<MockActiveStream> stream;
     auto key1 = makeStoredDocKey("key1");
     for (size_t id = 0; id < iterationLimit + 1; id++) {
