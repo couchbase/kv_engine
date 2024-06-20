@@ -208,6 +208,9 @@ public:
             }
         } else if (key == "hlc_invalid_strategy") {
             store.setHlcInvalidStrategy(store.parseHlcInvalidStrategy(value));
+        } else if (key == "dcp_hlc_invalid_strategy") {
+            store.setDcpHlcInvalidStrategy(
+                    store.parseHlcInvalidStrategy(value));
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -418,6 +421,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             parseHlcInvalidStrategy(config.getHlcInvalidStrategy()));
     config.addValueChangedListener(
             "hlc_invalid_strategy",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+    setDcpHlcInvalidStrategy(
+            parseHlcInvalidStrategy(config.getDcpHlcInvalidStrategy()));
+    config.addValueChangedListener(
+            "dcp_hlc_invalid_strategy",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     setMinimumHashTableSize(config.getHtSize());
