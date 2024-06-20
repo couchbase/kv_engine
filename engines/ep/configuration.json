@@ -631,6 +631,19 @@
                 ]
             }
         },
+        "dcp_hlc_invalid_strategy":  {
+            "default": "ignore",
+            "descr": "Determines how DCP handles operations with invalid CAS values. error: fails CAS values outside hlc_max_future_threshold. ignore: ignores CAS validation. replace: generates a new CAS for invalid values.",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "error",
+                    "ignore",
+                    "replace"
+                ]
+            }
+        },
         "ht_locks": {
             "default": {
                 "on-prem": "47",

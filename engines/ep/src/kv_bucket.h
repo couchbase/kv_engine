@@ -787,6 +787,14 @@ public:
         return hlcInvalidStrategy.load();
     }
 
+    void setDcpHlcInvalidStrategy(InvalidCasStrategy value) {
+        dcpHlcInvalidStrategy = value;
+    }
+
+    InvalidCasStrategy getDcpHlcInvalidStrategy() const {
+        return dcpHlcInvalidStrategy.load();
+    }
+
     bool isCrossBucketHtQuotaSharing() const;
 
     /// return the buckets maxTtl value
@@ -1434,6 +1442,12 @@ protected:
      * Indicate which strategy to implement when faced with invalid CAS values.
      */
     cb::RelaxedAtomic<InvalidCasStrategy> hlcInvalidStrategy;
+
+    /**
+     * Indicate which strategy to implement when faced with invalid CAS values
+     * for DCP replication.
+     */
+    cb::RelaxedAtomic<InvalidCasStrategy> dcpHlcInvalidStrategy;
 
     /**
      * Is this bucket sharing HashTable quota?
