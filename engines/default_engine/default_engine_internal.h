@@ -95,7 +95,8 @@ class StatCollector;
  * This is currently "work in progress" so it is not as clean as it should be.
  */
 struct default_engine : public EngineIface {
-    cb::engine_errc initialize(std::string_view config_str) override;
+    cb::engine_errc initialize(std::string_view config_str,
+                               const nlohmann::json&) override;
     void destroy(bool force) override;
 
     cb::unique_item_ptr allocateItem(CookieIface& cookie,

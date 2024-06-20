@@ -18,7 +18,8 @@ struct MockEngine : public EngineIface, public DcpIface {
           the_engine_dcp(dynamic_cast<DcpIface*>(the_engine.get())) {
     }
 
-    cb::engine_errc initialize(std::string_view config_str) override;
+    cb::engine_errc initialize(std::string_view config_str,
+                               const nlohmann::json&) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
     void destroy(bool force) override;

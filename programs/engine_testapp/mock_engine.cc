@@ -67,8 +67,9 @@ static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
-cb::engine_errc MockEngine::initialize(std::string_view config_str) {
-    return the_engine->initialize(config_str);
+cb::engine_errc MockEngine::initialize(std::string_view config_str,
+                                       const nlohmann::json& encryption) {
+    return the_engine->initialize(config_str, encryption);
 }
 
 cb::engine_errc MockEngine::set_traffic_control_mode(CookieIface& cookie,

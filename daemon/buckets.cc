@@ -21,6 +21,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <mcbp/protocol/opcode.h>
+#include <memcached/config_parser.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <platform/json_log_conversions.h>
@@ -598,13 +599,40 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         bucket.state = Bucket::State::Initializing;
     }
 
-    LOG_INFO_CTX("Initialize bucket",
-                 {"conn_id", cid},
-                 {"bucket", name},
-                 {"type", type},
-                 {"configuration", config});
+    // Parse the configuration string and strip out the actual key
+    // data to avoid that being logged
+    nlohmann::json encryption;
+    const auto stripped =
+            cb::config::filter(config, [&encryption](auto k, auto v) -> bool {
+                if (k == "encryption") {
+                    encryption = nlohmann::json::parse(v);
+                    return false;
+                }
+                return true;
+            });
+
+    if (encryption.empty()) {
+        LOG_INFO_CTX("Initialize bucket",
+                     {"conn_id", cid},
+                     {"bucket", name},
+                     {"type", type},
+                     {"configuration", stripped});
+    } else {
+        auto no_keys = encryption;
+        if (no_keys.contains("keys")) {
+            for (auto& elem : no_keys["keys"]) {
+                elem.erase("key");
+            }
+        }
+        LOG_INFO_CTX("Initialize bucket",
+                     {"conn_id", cid},
+                     {"bucket", name},
+                     {"type", type},
+                     {"configuration", stripped},
+                     {"encryption", no_keys});
+    }
     start = std::chrono::steady_clock::now();
-    auto result = bucket.getEngine().initialize(config);
+    auto result = bucket.getEngine().initialize(stripped, encryption);
     if (result != cb::engine_errc::success) {
         throw cb::engine_error(result, "initializeEngineInstance failed");
     }

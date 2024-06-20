@@ -13,7 +13,7 @@
 #include "engines/ep/src/ep_engine_public.h"
 #include "engines/ewouldblock_engine/ewouldblock_engine_public.h"
 #include "engines/nobucket/nobucket_public.h"
-
+#include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <string>
 
@@ -62,7 +62,7 @@ unique_engine_ptr new_engine_instance(BucketType type,
 
 void create_crash_instance() {
     auto engine = create_crash_engine_instance();
-    (void)engine->initialize({});
+    (void)engine->initialize({}, {});
     folly::assume_unreachable();
 }
 

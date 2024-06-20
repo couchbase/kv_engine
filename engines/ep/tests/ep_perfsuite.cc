@@ -38,7 +38,7 @@
 #include <folly/Portability.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <platform/cbassert.h>
+#include <nlohmann/json.hpp>
 #include <platform/platform_thread.h>
 #include <platform/platform_time.h>
 
@@ -1614,7 +1614,7 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
         // initialise, and time how long it takes to complete warmup.
         const auto start = std::chrono::steady_clock::now();
         checkeq(cb::engine_errc::success,
-                h->initialize(testHarness->get_current_testcase()->cfg),
+                h->initialize(testHarness->get_current_testcase()->cfg, {}),
                 "Failed to initialize engine");
         wait_for_warmup_complete(h);
         const auto end = std::chrono::steady_clock::now();

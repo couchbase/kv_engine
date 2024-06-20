@@ -211,7 +211,8 @@ static ItemHolder* get_real_item(ItemIface* item) {
     return it;
 }
 
-cb::engine_errc default_engine::initialize(std::string_view config_str) {
+cb::engine_errc default_engine::initialize(std::string_view config_str,
+                                           const nlohmann::json&) {
     cb::engine_errc ret = initalize_configuration(this, config_str);
     if (ret != cb::engine_errc::success) {
         return ret;

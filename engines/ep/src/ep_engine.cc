@@ -2169,8 +2169,8 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
     }
 }
 
-cb::engine_errc EventuallyPersistentEngine::initialize(
-        std::string_view config) {
+cb::engine_errc EventuallyPersistentEngine::initialize(std::string_view config,
+                                                       const nlohmann::json&) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }

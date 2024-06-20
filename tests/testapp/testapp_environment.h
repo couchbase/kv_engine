@@ -70,6 +70,8 @@ public:
 
     virtual bool isFullEviction() const = 0;
 
+    [[nodiscard]] virtual bool supportsEncryptionAtRest() const = 0;
+
     /**
      * Make sure that xattr is enabled / disabled in the named bucket
      *

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,6 +9,7 @@
  */
 #include "testapp_environment.h"
 #include <auditd/couchbase_audit_events.h>
+#include <cbcrypto/common.h>
 #include <cbcrypto/file_reader.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
@@ -210,6 +210,9 @@ public:
     bool isFullEviction() const override {
         return false;
     }
+    [[nodiscard]] bool supportsEncryptionAtRest() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -218,6 +221,7 @@ public:
                  std::string extraConfig)
         : TestBucketImpl(std::move(extraConfig)),
           dbPath(test_directory / "dbase") {
+        encryption_keys.emplace_back(cb::crypto::DataEncryptionKey::generate());
     }
 
     void setBucketCreateMode(BucketCreateMode mode) override {
@@ -242,6 +246,9 @@ public:
         if (!config.empty()) {
             settings += ";" + config;
         }
+
+        settings = fmt::format(
+                "{};encryption={}", settings, getEncryptionConfig());
 
         conn.createBucket(name, settings, BucketType::Couchbase);
         conn.executeInBucket(name, [](auto& connection) {
@@ -289,6 +296,8 @@ public:
         if (!config.empty()) {
             settings += ";" + config;
         }
+        settings = fmt::format(
+                "{};encryption={}", settings, getEncryptionConfig());
 
         createEwbBucket(
                 name, BucketType::Couchbase, mergeConfigString(settings), conn);
@@ -360,6 +369,23 @@ public:
         return extraConfig.find("item_eviction_policy=full_eviction") !=
                std::string::npos;
     }
+
+    [[nodiscard]] bool supportsEncryptionAtRest() const override {
+        return true;
+    }
+
+    [[nodiscard]] std::string getEncryptionConfig() {
+        nlohmann::json encryption = {{"active", encryption_keys.front()->id}};
+        auto keys = nlohmann::json::array();
+        for (const auto& key : encryption_keys) {
+            keys.push_back(*key);
+        }
+        encryption["keys"] = std::move(keys);
+        return encryption.dump();
+    }
+
+    /// The key to use for encryption@rest
+    std::vector<std::shared_ptr<cb::crypto::DataEncryptionKey>> encryption_keys;
 
     /// Directory for any database files.
     const std::filesystem::path dbPath;

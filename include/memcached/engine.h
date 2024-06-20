@@ -177,7 +177,7 @@ struct EngineIface {
      * @param config_str configuration this engine needs to initialize itself.
      */
     [[nodiscard]] virtual cb::engine_errc initialize(
-            std::string_view config_str) {
+            std::string_view config_str, const nlohmann::json& encryption) {
         return cb::engine_errc::success;
     }
 

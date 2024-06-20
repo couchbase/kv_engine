@@ -93,7 +93,8 @@ public:
     /* Implementation of all the engine functions. ***************************/
     void initiate_shutdown() override;
     void disconnect(CookieIface& cookie) override;
-    cb::engine_errc initialize(std::string_view config_str) override;
+    cb::engine_errc initialize(std::string_view config_str,
+                               const nlohmann::json& encryption) override;
     void destroy(bool force) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
@@ -891,7 +892,8 @@ bool EWB_Engine::should_inject_error(Cmd cmd,
     });
 }
 
-cb::engine_errc EWB_Engine::initialize(std::string_view config_str) {
+cb::engine_errc EWB_Engine::initialize(std::string_view config_str,
+                                       const nlohmann::json& encryption) {
     std::string real_engine_name;
     auto engine_config = cb::config::filter(
             config_str, [&real_engine_name](auto k, auto v) -> bool {
@@ -912,7 +914,7 @@ cb::engine_errc EWB_Engine::initialize(std::string_view config_str) {
     }
 
     real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
-    return real_engine->initialize(engine_config);
+    return real_engine->initialize(engine_config, encryption);
 }
 
 void EWB_Engine::destroy(bool force) {
