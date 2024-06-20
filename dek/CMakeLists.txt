@@ -1,6 +1,7 @@
 add_library(mcd_dek STATIC
             manager.cc
-            manager.h)
+            manager.h
+        )
 set_property(TARGET mcd_dek PROPERTY POSITION_INDEPENDENT_CODE 1)
 cb_enable_unity_build(mcd_dek)
 

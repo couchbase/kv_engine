@@ -7,15 +7,14 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #include "manager.h"
 #include <cbcrypto/file_reader.h>
 #include <cbcrypto/file_writer.h>
+#include <cbcrypto/key_store.h>
 #include <fmt/format.h>
 #include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <utilities/json_utilities.h>
 
 namespace cb::dek {
 
@@ -57,16 +56,7 @@ class ManagerImpl : public Manager {
     [[nodiscard]] nlohmann::json to_json() const override;
 
 protected:
-    struct Node {
-        void add(std::shared_ptr<DataEncryptionKey> key) {
-            keys.emplace_back(std::move(key));
-            active = keys.back();
-        }
-        std::vector<std::shared_ptr<DataEncryptionKey>> keys;
-        std::shared_ptr<DataEncryptionKey> active;
-    };
-
-    folly::Synchronized<std::unordered_map<Entity, Node>> keys;
+    folly::Synchronized<std::unordered_map<Entity, crypto::KeyStore>> keys;
 };
 
 std::shared_ptr<DataEncryptionKey> ManagerImpl::lookup(
@@ -79,72 +69,25 @@ std::shared_ptr<DataEncryptionKey> ManagerImpl::lookup(
                 }
 
                 if (id.empty()) {
-                    return itr->second.active;
+                    return itr->second.getActiveKey();
                 }
 
-                for (auto& dek : itr->second.keys) {
-                    if (dek->id == id) {
-                        return dek;
-                    }
-                }
-                return {};
+                return itr->second.lookup(id);
             });
 }
 
 void ManagerImpl::reset(const nlohmann::json& json) {
-    std::unordered_map<Entity, Node> next;
+    std::unordered_map<Entity, crypto::KeyStore> next;
     if (json.empty()) {
         keys.swap(next);
         return;
     }
 
-    auto add_entry = [&next, this](const Entity entity,
-                                   const nlohmann::json& entry) {
-        auto object = std::make_shared<DataEncryptionKey>();
-        *object = entry;
-        next[entity].keys.emplace_back(std::move(object));
-    };
-
     if (!json.is_object()) {
         throw std::runtime_error("Provided json should be an object");
     }
     for (auto it = json.begin(); it != json.end(); ++it) {
-        const auto entity = to_entity(it.key());
-        if (!it.value().is_object()) {
-            throw std::runtime_error(fmt::format(
-                    R"(Entry for "{}" should be an object)", entity));
-        }
-        auto& value = it.value();
-        auto keys = getJsonObject(value,
-                                  "keys",
-                                  nlohmann::json::value_t::array,
-                                  fmt::format("Entry for {} keys", entity));
-        for (const auto& obj : keys) {
-            add_entry(entity, obj);
-        }
-
-        if (value.contains("active")) {
-            const auto active =
-                    getJsonObject(value,
-                                  "active",
-                                  nlohmann::json::value_t::string,
-                                  fmt::format("Entry for {} active", entity))
-                            .get<std::string>();
-            if (!active.empty()) {
-                for (auto& entry : next[entity].keys) {
-                    if (entry->id == active) {
-                        next[entity].active = entry;
-                        break;
-                    }
-                }
-                if (!next[entity].active) {
-                    throw std::runtime_error(fmt::format(
-                            R"(The active key "{}" for "{}" does not exists)",
-                            active,
-                            entity));
-                }
-            }
-        }
+        next[to_entity(it.key())] = it.value();
     }
 
     keys.swap(next);
@@ -152,15 +95,8 @@ void ManagerImpl::reset(const nlohmann::json& json) {
 
 void ManagerImpl::setActive(const Entity entity,
                             std::shared_ptr<DataEncryptionKey> key) {
-    keys.withWLock([entity, &key](auto& map) {
-        // Too lazy to define my own comparator and use std::find....
-        for (const auto& k : map[entity].keys) {
-            if (k->id == key->id) {
-                return;
-            }
-        }
-        map[entity].add(std::move(key));
-    });
+    keys.withWLock(
+            [entity, &key](auto& map) { map[entity].setActiveKey(key); });
 }
 
 nlohmann::json ManagerImpl::to_json() const {
@@ -168,16 +104,7 @@ nlohmann::json ManagerImpl::to_json() const {
         nlohmann::json ret = nlohmann::json::object();
         for (const auto& [n, type_keys] : keys) {
             auto name = format_as(n);
-
-            nlohmann::json node_keys = nlohmann::json::array();
-            for (const auto& k : type_keys.keys) {
-                node_keys.emplace_back(*k);
-            }
-
-            ret[name]["keys"] = std::move(node_keys);
-            if (type_keys.active) {
-                ret[name]["active"] = type_keys.active->id;
-            }
+            ret[name] = type_keys;
         }
         return ret;
     });
