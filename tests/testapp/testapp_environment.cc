@@ -54,12 +54,12 @@ std::string TestBucketImpl::mergeConfigString(const std::string& next) {
 }
 
 void TestBucketImpl::createEwbBucket(const std::string& name,
-                                     const std::string& plugin,
-                                     const std::string& config,
+                                     BucketType type,
+                                     const std::string_view config,
                                      MemcachedConnection& conn) {
-    std::string cfg(plugin);
+    auto cfg = fmt::format("ewb_real_engine={}", bucket_type_to_module(type));
     if (!config.empty()) {
-        cfg += ";" + config;
+        cfg = fmt::format("{};{}", cfg, config);
     }
     conn.createBucket(name, cfg, BucketType::EWouldBlock);
 }
@@ -129,7 +129,7 @@ public:
                      const std::string& config,
                      MemcachedConnection& conn) override {
         createEwbBucket(
-                name, "default_engine.so", mergeConfigString(config), conn);
+                name, BucketType::Memcached, mergeConfigString(config), conn);
     }
 
     void createBucket(const std::string& name,
@@ -290,7 +290,8 @@ public:
             settings += ";" + config;
         }
 
-        createEwbBucket(name, "ep.so", mergeConfigString(settings), conn);
+        createEwbBucket(
+                name, BucketType::Couchbase, mergeConfigString(settings), conn);
         conn.executeInBucket(name, [](auto& connection) {
             // Set the vBucket state. Set a single replica so that any
             // SyncWrites can be completed.

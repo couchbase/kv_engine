@@ -24,3 +24,17 @@ enum class BucketType : uint8_t {
 
 std::string to_string(BucketType type);
 BucketType parse_bucket_type(std::string_view type);
+
+/**
+ * Convert from a module name to a bucket type
+ *
+ * @param module The engine's shared object name, e.g. BucketType::Couchstore is
+ *               ep.so. The input will be processed by basename, e.g.
+ *               /path/to/ep.so would be valid.
+ * @return The BucketType for the given module, or BucketType::Unknown for
+ *         invalid input.
+ */
+BucketType module_to_bucket_type(const std::string& module);
+
+/// Get the module name for the given bucket type
+std::string bucket_type_to_module(BucketType type);

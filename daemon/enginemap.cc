@@ -66,20 +66,6 @@ void create_crash_instance() {
     folly::assume_unreachable();
 }
 
-BucketType module_to_bucket_type(const std::string& module) {
-    std::string nm = cb::io::basename(module);
-    if (nm == "nobucket.so") {
-        return BucketType::NoBucket;
-    } else if (nm == "default_engine.so") {
-        return BucketType::Memcached;
-    } else if (nm == "ep.so") {
-        return BucketType::Couchbase;
-    } else if (nm == "ewouldblock_engine.so") {
-        return BucketType::EWouldBlock;
-    }
-    return BucketType::Unknown;
-}
-
 void shutdown_all_engines() {
     // switch statement deliberately falls through all cases as all engine types
     // need shutting down. The use of a case statement ensures new bucket types

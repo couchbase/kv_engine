@@ -130,8 +130,8 @@ public:
 
 protected:
     static void createEwbBucket(const std::string& name,
-                                const std::string& plugin,
-                                const std::string& config,
+                                BucketType type,
+                                std::string_view config,
                                 MemcachedConnection& conn);
 
     std::string mergeConfigString(const std::string& next);

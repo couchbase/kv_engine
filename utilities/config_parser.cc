@@ -164,3 +164,24 @@ void cb::config::tokenize(
     }
 }
 
+std::string cb::config::filter(
+        std::string_view input,
+        const std::function<bool(std::string_view, std::string_view)>&
+                callback) {
+    std::string ret;
+    ret.reserve(input.size());
+    if (!callback) {
+        throw std::invalid_argument("parse_config: callback must be set");
+    }
+    tokenize(input, [&ret, callback](auto k, auto v) {
+        if (callback(k, v)) {
+            ret.append(fmt::format("{}={};", k, v));
+        }
+    });
+
+    if (!ret.empty() && ret.back() == ';') {
+        ret.pop_back();
+    }
+
+    return ret;
+}

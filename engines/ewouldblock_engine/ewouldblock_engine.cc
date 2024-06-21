@@ -46,6 +46,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/collections.h>
+#include <memcached/config_parser.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/dcp.h>
@@ -891,16 +892,15 @@ bool EWB_Engine::should_inject_error(Cmd cmd,
 }
 
 cb::engine_errc EWB_Engine::initialize(std::string_view config_str) {
-    // Extract the name of the real engine we will be proxying; then
-    // create and initialize it.
-    std::string config(config_str);
-    auto seperator = config.find(";");
-    std::string real_engine_name(config.substr(0, seperator));
-    std::string real_engine_config;
-    if (seperator != std::string::npos) {
-        real_engine_config = config.substr(seperator + 1);
-    }
-
+    std::string real_engine_name;
+    auto engine_config = cb::config::filter(
+            config_str, [&real_engine_name](auto k, auto v) -> bool {
+                if (k == "ewb_real_engine") {
+                    real_engine_name = v;
+                    return false;
+                }
+                return true;
+            });
     real_engine = createBucket(real_engine_name, gsa);
 
     if (!real_engine) {
@@ -912,8 +912,7 @@ cb::engine_errc EWB_Engine::initialize(std::string_view config_str) {
     }
 
     real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
-
-    return real_engine->initialize(real_engine_config);
+    return real_engine->initialize(engine_config);
 }
 
 void EWB_Engine::destroy(bool force) {

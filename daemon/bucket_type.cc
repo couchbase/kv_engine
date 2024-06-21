@@ -9,6 +9,8 @@
  */
 
 #include <memcached/bucket_type.h>
+#include <platform/dirutils.h>
+
 #include <string_view>
 
 std::string to_string(BucketType type) {
@@ -56,4 +58,39 @@ BucketType parse_bucket_type(std::string_view type) {
         return BucketType::NoBucket;
     }
     return BucketType::Unknown;
+}
+
+BucketType module_to_bucket_type(const std::string& module) {
+    std::string nm = cb::io::basename(module);
+    if (nm == "nobucket.so") {
+        return BucketType::NoBucket;
+    }
+    if (nm == "default_engine.so") {
+        return BucketType::Memcached;
+    }
+    if (nm == "ep.so") {
+        return BucketType::Couchbase;
+    }
+    if (nm == "ewouldblock_engine.so") {
+        return BucketType::EWouldBlock;
+    }
+    return BucketType::Unknown;
+}
+
+std::string bucket_type_to_module(BucketType type) {
+    switch (type) {
+    case BucketType::ClusterConfigOnly:
+    case BucketType::Unknown:
+        break;
+    case BucketType::NoBucket:
+        return "nobucket.so";
+    case BucketType::Memcached:
+        return "default_engine.so";
+    case BucketType::Couchbase:
+        return "ep.so";
+    case BucketType::EWouldBlock:
+        return "ewouldblock_engine.so";
+    }
+    throw std::logic_error(
+            "bucket_type_to_module: type does not have a module");
 }

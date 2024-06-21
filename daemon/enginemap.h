@@ -27,17 +27,6 @@ unique_engine_ptr new_engine_instance(BucketType type,
                                       GET_SERVER_API get_server_api);
 
 /**
- * Convert from a module name to a bucket type
- *
- * @param module The engine's shared object name, e.g. BucketType::Couchstore is
- *               ep.so. The input will be processed by basename, e.g.
- *               /path/to/ep.so would be valid.
- * @return The BucketType for the given module, or BucketType::Unknown for
- *         invalid input.
- */
-BucketType module_to_bucket_type(const std::string& module);
-
-/**
  *  Create and initialize an instance of the crash engine which is used for
  *  breakpad testing
  */

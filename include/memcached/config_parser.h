@@ -36,4 +36,12 @@ float value_as_float(const std::string& val);
 void tokenize(std::string_view str,
               std::function<void(std::string_view, std::string)> callback);
 
+/// Tokenize the input string and call the provided function for each element.
+/// If the callback returns true the kv-pair is kept, if it returns false
+/// the entry gets dropped.
+/// Returns the filtered input string
+std::string
+filter(std::string_view input,
+       const std::function<bool(std::string_view, std::string_view)>& callback);
+
 } // namespace cb::config
