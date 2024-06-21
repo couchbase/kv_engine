@@ -22,6 +22,7 @@
 #include "stats.h"
 #include "vbucket_fwd.h"
 
+#include <cbcrypto/key_store.h>
 #include <executor/taskable.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/dcp.h>
@@ -301,6 +302,10 @@ public:
     cb::engine_errc evict_key(CookieIface& cookie,
                               const DocKeyView& key,
                               Vbid vbucket) override;
+    [[nodiscard]] cb::engine_errc set_active_encryption_key(
+            std::string_view id,
+            std::string_view cipher,
+            std::string_view key) override;
 
     /////////////////////////////////////////////////////////////
     // DcpIface implementation //////////////////////////////////
@@ -875,6 +880,9 @@ public:
     void destroyInner(bool force);
 
     KVStoreIface::CreateItemCB getCreateItemCallback();
+
+    [[nodiscard]] cb::engine_errc setActiveEncryptionKey(
+            std::string_view id, std::string_view cipher, std::string_view key);
 
     /**
      * Create an Item with the following parameters if the mutation watermark
@@ -1632,6 +1640,9 @@ protected:
      * be incorrect.
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
+
+    /// The keys provided by ns_server
+    folly::Synchronized<cb::crypto::KeyStore> encryptionAtRestKeyStore;
 };
 
 /**

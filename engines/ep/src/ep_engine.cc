@@ -51,6 +51,7 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/lexical_cast.hpp>
+#include <cbcrypto/common.h>
 #include <executor/executorpool.h>
 #include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
@@ -2169,14 +2170,18 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
     }
 }
 
-cb::engine_errc EventuallyPersistentEngine::initialize(std::string_view config,
-                                                       const nlohmann::json&) {
+cb::engine_errc EventuallyPersistentEngine::initialize(
+        std::string_view config, const nlohmann::json& encryption) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }
 
     auto switchToEngine = acquireEngine(this);
     resetStats();
+
+    if (!encryption.empty()) {
+        encryptionAtRestKeyStore = encryption;
+    }
 
     if (!configuration.parseConfiguration(config)) {
         EP_LOG_WARN_RAW(
@@ -7596,6 +7601,24 @@ cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,
                                                       const DocKeyView& key,
                                                       Vbid vbucket) {
     return acquireEngine(this)->evictKey(cookie, key, vbucket);
+}
+
+[[nodiscard]] cb::engine_errc
+EventuallyPersistentEngine::set_active_encryption_key(std::string_view id,
+                                                      std::string_view cipher,
+                                                      std::string_view key) {
+    return acquireEngine(this)->setActiveEncryptionKey(id, cipher, key);
+}
+
+cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKey(
+        std::string_view id, std::string_view cipher, std::string_view key) {
+    auto dek = std::make_shared<cb::crypto::DataEncryptionKey>();
+    dek->id.assign(id);
+    dek->cipher.assign(cipher);
+    dek->key.assign(key);
+    encryptionAtRestKeyStore.withWLock(
+            [&dek](auto& store) { store.setActiveKey(std::move(dek)); });
+    return cb::engine_errc::success;
 }
 
 void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
