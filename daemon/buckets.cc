@@ -615,7 +615,7 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         LOG_INFO_CTX("Initialize bucket",
                      {"conn_id", cid},
                      {"bucket", name},
-                     {"type", type},
+                     {"type", to_string(type)},
                      {"configuration", stripped});
     } else {
         auto no_keys = encryption;
@@ -627,7 +627,7 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         LOG_INFO_CTX("Initialize bucket",
                      {"conn_id", cid},
                      {"bucket", name},
-                     {"type", type},
+                     {"type", to_string(type)},
                      {"configuration", stripped},
                      {"encryption", no_keys});
     }
