@@ -538,17 +538,19 @@ static void setupVBMap(const std::string& host,
     }
     auto json = rsp.getDataJson();
     auto vbservermap = json["vBucketServerMap"];
-    const auto& services = json["nodesExt"].at(0).at("services");
-    uint16_t port = tls ? services.at("kvSSL") : services.at("kv");
 
     auto nodes = vbservermap["serverList"];
-    for (const auto& n : nodes) {
-        auto h = n.get<std::string>();
+    for (std::size_t i = 0; i < nodes.size(); i++) {
+        auto h = nodes[i].get<std::string>();
         auto idx = h.find(':');
         h.resize(idx);
         if (h.find("$HOST") != std::string::npos) {
             h = host;
         }
+
+        const auto& services =
+                json["nodesExt"].at(static_cast<int>(i)).at("services");
+        uint16_t port = tls ? services.at("kvSSL") : services.at("kv");
 
         h += ":" + std::to_string(port);
         vbucketmap.emplace_back(
