@@ -863,6 +863,12 @@ void VBucket::addStat(const char* nm,
     }
 }
 
+// Force generation of the std::string version to fix ASAN build
+template void VBucket::addStat<std::string>(const char* nm,
+                                            const std::string& val,
+                                            const AddStatFn& add_stat,
+                                            CookieIface& c);
+
 void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
                               StoredValue& v) {
     // Pending items should not be subject to expiry
