@@ -4,7 +4,7 @@ This document intends to describe an example of the protocol flow between a Cons
 
 ##### Creating the Connection
 
-Creating a connection consists of opening a TCP/IP socket between the Consumer and the Producer and sending an [Open Connection](commands/open-connection.md) message. This [Open Connection](commands/open-connection.md) message message signifies this connection is a DCP connection and also allows the sender to give the connection a name. Below is a diagram of the interaction between the Producer and Consumer that takes place to establish a DCP connection.
+Creating a connection consists of opening a TCP/IP socket between the Consumer and the Producer and sending an [Open Connection](commands/open-connection.md) message. This [Open Connection](commands/open-connection.md) message signifies this connection is a DCP connection and also allows the sender to give the connection a name. Below is a diagram of the interaction between the Producer and Consumer that takes place to establish a DCP connection.
 
 ![Figure 1](../images/upr_session_1.jpg)
 
