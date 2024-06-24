@@ -23,6 +23,12 @@ enum class BucketType : uint8_t {
 };
 
 std::string to_string(BucketType type);
+
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, BucketType type) {
+    j = to_string(type);
+}
+
 BucketType parse_bucket_type(std::string_view type);
 
 /**

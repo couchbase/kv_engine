@@ -535,7 +535,7 @@ void to_json(nlohmann::json& json, const StoredValue& sv) {
     std::stringstream ss;
     ss << sv.getKey();
     json["key"] = ss.str();
-    json["committed"] = sv.getCommitted();
+    json["committed"] = static_cast<int>(sv.getCommitted());
 }
 
 static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {

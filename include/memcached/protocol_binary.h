@@ -790,6 +790,12 @@ enum class DcpSnapshotMarkerFlag : uint32_t {
     MayContainDuplicates = 0x20
 };
 std::string format_as(DcpSnapshotMarkerFlag flag);
+
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, DcpSnapshotMarkerFlag type) {
+    j = format_as(type);
+}
+
 DEFINE_ENUM_CLASS_BITMASK_FUNCTIONS(DcpSnapshotMarkerFlag);
 
 class DcpSnapshotMarkerV1Payload {

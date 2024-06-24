@@ -33,6 +33,11 @@ enum class EventFramework : uint8_t { Bufferevent, Folly };
 std::ostream& operator<<(std::ostream& os, const EventFramework& framework);
 std::string format_as(EventFramework);
 
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, EventFramework framework) {
+    j = format_as(framework);
+}
+
 enum class EventPriority {
     High,
     Medium,

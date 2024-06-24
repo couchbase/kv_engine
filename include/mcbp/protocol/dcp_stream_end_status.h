@@ -39,4 +39,9 @@ enum class DcpStreamEndStatus : uint32_t {
 
 std::string to_string(DcpStreamEndStatus status);
 
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, DcpStreamEndStatus status) {
+    j = to_string(status);
+}
+
 } // end namespace cb::mcbp
