@@ -24,32 +24,35 @@
 #include <cbcrypto/file_writer.h>
 #include <dek/manager.h>
 #include <gsl/gsl-lite.hpp>
-#include <platform/dirutils.h>
 #include <spdlog/details/file_helper.h>
 #include <spdlog/details/fmt_helper.h>
+#include <filesystem>
 
-static unsigned long find_first_logfile_id(const std::string& basename) {
+static unsigned long find_first_logfile_id(
+        const std::filesystem::path& pattern) {
     unsigned long id = 0;
 
-    auto files = cb::io::findFilesWithPrefix(basename);
-    for (auto& file : files) {
-        // the format of the name should be:
-        // fnm.number.txt
-        auto index = file.rfind(".txt");
-        if (index == std::string::npos) {
+    const auto prefix = pattern.filename().string();
+    std::error_code ec;
+    for (const auto& p :
+         std::filesystem::directory_iterator(pattern.parent_path(), ec)) {
+        auto& path = p.path();
+        if (path.extension().string() != ".txt") {
             continue;
         }
 
-        file.resize(index);
-        index = file.rfind('.');
-        if (index != std::string::npos) {
-            try {
-                unsigned long value = std::stoul(file.substr(index + 1));
-                if (value > id) {
-                    id = value;
+        auto file = path.stem().string();
+        if (file.find(prefix) == 0) {
+            const auto index = file.rfind('.');
+            if (index != std::string::npos) {
+                try {
+                    unsigned long value = std::stoul(file.substr(index + 1));
+                    if (value > id) {
+                        id = value;
+                    }
+                } catch (...) {
+                    // Ignore
                 }
-            } catch (...) {
-                // Ignore
             }
         }
     }
