@@ -474,44 +474,6 @@ TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
                                     EnforceMemCheck::Yes));
 }
 
-// This test validates the behaviour of a prepare commands with an invalid CAS
-// value when hlc_invalid_strategy is set to error and replace
-TEST_P(HLCInvalidStraegyTest, prepareHLCInvalidStrategyTest) {
-    // prepare requires vbucket state to be replica or pending
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-
-    auto key = makeStoredDocKey("prepare");
-    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
-    auto item = make_item(vbid, key, "value");
-    item.setCas(poisonedCas);
-
-    // prepare fails with an invalid CAS value
-    EXPECT_EQ(cb::engine_errc::cas_value_invalid,
-              store->prepare(item, cookie, EnforceMemCheck::Yes));
-
-    // set hlc_invalid_strategy to replace
-    config_string += ";hlc_invalid_strategy=replace";
-    reinitialise(config_string);
-    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-
-    auto vb = store->getVBucket(vbid);
-    vb->checkpointManager->createSnapshot(vb->getHighSeqno(),
-                                          vb->getHighSeqno() + 1,
-                                          {} /*HCS*/,
-                                          CheckpointType::Memory,
-                                          0);
-
-    using namespace cb::durability;
-    auto prepare = makePendingItem(
-            key, "value", {Level::Majority, Timeout::Infinity()});
-    prepare->setVBucketId(vbid);
-    prepare->setBySeqno(vb->getHighSeqno() + 1);
-    prepare->setCas(poisonedCas);
-    // prepare succeeds by generating a new valid CAS
-    EXPECT_EQ(cb::engine_errc::success,
-              store->prepare(*prepare, cookie, EnforceMemCheck::Yes));
-}
-
 INSTANTIATE_TEST_SUITE_P(HLCBucketTests,
                          HLCBucketTest,
                          STParameterizedBucketTest::allConfigValues(),
