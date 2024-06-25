@@ -71,7 +71,7 @@ TEST_F(AuditFileTest, TestFileCreation) {
 
     auditfile.close();
 
-    auto files = findFilesWithPrefix(testdir + "/testing");
+    auto files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(1, files.size());
 }
 
@@ -94,7 +94,7 @@ TEST_F(AuditFileTest, TestRotateEmptyFile) {
 
     auditfile.close();
 
-    auto files = findFilesWithPrefix(testdir + "/testing");
+    auto files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(0, files.size());
 }
 
@@ -119,7 +119,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
 
     auditfile.close();
 
-    auto files = findFilesWithPrefix(testdir + "/testing");
+    auto files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(10, files.size());
 }
 
@@ -140,7 +140,7 @@ TEST_F(AuditFileTest, TestTimeRotateDisabled) {
     }
     auditfile.close();
 
-    auto files = findFilesWithPrefix(testdir + "/testing");
+    auto files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(1, files.size());
 }
 
@@ -164,7 +164,7 @@ TEST_F(AuditFileTest, TestSizeRotate) {
 
     auditfile.close();
 
-    auto files = findFilesWithPrefix(testdir + "/testing");
+    auto files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(10, files.size());
 }
 
@@ -184,7 +184,7 @@ TEST_F(AuditFileTest, TestSizeRotateDisabled) {
 
     auditfile.close();
 
-    auto files = findFilesWithPrefix(testdir + "/testing");
+    auto files = findFilesWithPrefix(testdir, "testing");
     EXPECT_EQ(1, files.size());
 }
 
