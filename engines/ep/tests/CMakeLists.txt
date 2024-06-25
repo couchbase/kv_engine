@@ -68,6 +68,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/couchstore_bucket_tests.cc
         module_tests/defragmenter_test.cc
         module_tests/dcp_durability_stream_test.cc
+        module_tests/dcp_hlc_invalid_strategy_test.cc
         module_tests/dcp_producer_config.cc
         module_tests/dcp_reflection_test.cc
         module_tests/dcp_response_test.cc

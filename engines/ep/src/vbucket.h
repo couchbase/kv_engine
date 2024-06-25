@@ -301,8 +301,8 @@ public:
         hlc.setHlcMaxFutureThreshold(maxCas);
     }
 
-    bool isInvalidHLC(uint64_t cas) const {
-        return hlc.isInvalidHLC(cas);
+    bool isValidCas(uint64_t cas) const {
+        return hlc.isValidHLC(cas);
     }
 
     /// Returns the current HLC time and which mode it is in.

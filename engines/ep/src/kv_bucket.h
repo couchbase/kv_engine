@@ -678,17 +678,6 @@ public:
 
     cb::engine_errc forceMaxCas(Vbid vbucket, uint64_t cas) override;
 
-    /**
-     * This method validates if the new CAS value is within the acceptable
-     * range, hlcMaxFutureThreshold.
-     *
-     * @param vb vbucket ptr,
-     * @param cas CAS value to validate,
-     * @return true if the CAS value is within hlcMaxFutureThreshold, false
-     *         otherwise.
-     */
-    bool isWithinCasThreshold(VBucketPtr vb, uint64_t cas) const;
-
     VBucketPtr makeVBucket(Vbid id,
                            vbucket_state_t state,
                            KVShard* shard,
@@ -781,6 +770,13 @@ public:
 
     void setHlcInvalidStrategy(InvalidCasStrategy value) {
         hlcInvalidStrategy = value;
+    }
+
+    InvalidCasStrategy getHlcInvalidStrategy(bool isReplication) const {
+        if (isReplication) {
+            return dcpHlcInvalidStrategy.load();
+        }
+        return hlcInvalidStrategy.load();
     }
 
     InvalidCasStrategy getHlcInvalidStrategy() const {
