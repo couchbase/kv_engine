@@ -27,6 +27,10 @@ FileOp::FileOp(Type type, size_t nbytes)
     : type(type), nbytes(nbytes), startTime{ep_uptime_now()} {
 }
 
+bool FileOp::isDataWrite() const {
+    return type == FileOp::Type::Write || type == FileOp::Type::Sync;
+}
+
 std::string to_string(FileOp::Type type) {
     switch (type) {
     case FileOp::Type::None:

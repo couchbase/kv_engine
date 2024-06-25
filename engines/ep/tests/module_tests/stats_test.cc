@@ -30,9 +30,11 @@
 #include "tests/mock/mock_function_helper.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/lambda_task.h"
+#include "thread_utilities.h"
 #include "trace_helpers.h"
 #include "warmup.h"
 #include <gtest/gtest.h>
+#include <platform/semaphore.h>
 #include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
 
@@ -966,12 +968,14 @@ TEST_P(ParameterizedStatTest, DiskSlownessArg) {
 
 TEST_P(ParameterizedStatTest, DiskSlownessNoSlowOp) {
     auto stats = get_stat("disk-slowness 3", {}, true);
-    EXPECT_EQ(2, stats.size());
-    EXPECT_EQ("0", stats.at("pending_disk_op_num"));
-    EXPECT_EQ("0", stats.at("pending_disk_op_slow_num"));
+    EXPECT_EQ(4, stats.size());
+    EXPECT_EQ("0", stats.at("pending_disk_read_num"));
+    EXPECT_EQ("0", stats.at("pending_disk_read_slow_num"));
+    EXPECT_EQ("0", stats.at("pending_disk_write_num"));
+    EXPECT_EQ("0", stats.at("pending_disk_write_slow_num"));
 }
 
-TEST_P(ParameterizedStatTest, DiskSlownessSlowOp) {
+TEST_P(ParameterizedStatTest, DiskSlownessSlowRead) {
     // Swap out the global tracker with one local to the test.
     FileOpsTracker tracker;
     engine->fileOpsTracker = &tracker;
@@ -989,9 +993,49 @@ TEST_P(ParameterizedStatTest, DiskSlownessSlowOp) {
 
     {
         auto stats = get_stat("disk-slowness 0", {}, true);
-        EXPECT_EQ(2, stats.size());
-        EXPECT_EQ("1", stats.at("pending_disk_op_num"));
-        EXPECT_EQ("1", stats.at("pending_disk_op_slow_num"));
+        EXPECT_EQ(4, stats.size());
+        EXPECT_EQ("1", stats.at("pending_disk_read_num"));
+        EXPECT_EQ("1", stats.at("pending_disk_read_slow_num"));
+        EXPECT_EQ("0", stats.at("pending_disk_write_num"));
+        EXPECT_EQ("0", stats.at("pending_disk_write_slow_num"));
+    }
+}
+
+TEST_P(ParameterizedStatTest, DiskSlownessSlowReadAndWrite) {
+    // Swap out the global tracker with one local to the test.
+    FileOpsTracker tracker;
+    engine->fileOpsTracker = &tracker;
+
+    // Simulate reads and writes starting on TaskType::Writer.
+    auto fakeOperationOnThread = [this, &tracker](FileOp::Type type) {
+        folly::Baton<> waitForStart;
+        auto joinGuard = makeLingeringThread([&]() {
+            LambdaTask writeTask(engine->getTaskable(),
+                                 TaskId::FlusherTask,
+                                 0,
+                                 false,
+                                 [&tracker, &type](auto&) {
+                                     tracker.start(FileOp(type));
+                                     return false;
+                                 });
+            writeTask.execute("");
+            waitForStart.post();
+        });
+        waitForStart.wait();
+        return joinGuard;
+    };
+
+    std::array threads{fakeOperationOnThread(FileOp::Type::Read),
+                       fakeOperationOnThread(FileOp::Type::Read),
+                       fakeOperationOnThread(FileOp::Type::Write)};
+
+    {
+        auto stats = get_stat("disk-slowness 0", {}, true);
+        EXPECT_EQ(4, stats.size());
+        EXPECT_EQ("2", stats.at("pending_disk_read_num"));
+        EXPECT_EQ("2", stats.at("pending_disk_read_slow_num"));
+        EXPECT_EQ("1", stats.at("pending_disk_write_num"));
+        EXPECT_EQ("1", stats.at("pending_disk_write_slow_num"));
     }
 }
 
@@ -1014,8 +1058,8 @@ TEST_P(ParameterizedStatTest, DiskSlownessSlowOpNonReadWriteThread) {
 
     {
         auto stats = get_stat("disk-slowness 0", {}, true);
-        EXPECT_EQ(2, stats.size());
-        EXPECT_EQ("0", stats.at("pending_disk_op_num"))
+        EXPECT_EQ(4, stats.size());
+        EXPECT_EQ("0", stats.at("pending_disk_read_num"))
                 << "Expected only the slow operation in the reader task to be "
                    "counted.";
     }
