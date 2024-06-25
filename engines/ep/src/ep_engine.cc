@@ -5249,8 +5249,12 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
         return cb::engine_errc::invalid_arguments;
     }
 
-    int numTotal = 0;
-    int numSlow = 0;
+    struct OpCounts {
+        int numTotal = 0;
+        int numSlow = 0;
+    };
+    OpCounts readCounts;
+    OpCounts writeCounts;
 
     // Current point in time.
     auto now = ep_uptime_now();
@@ -5258,7 +5262,7 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
     // Visit all threads performing IO and record any file ops taking longer
     // than the threshold.
     fileOpsTracker->visitThreads(
-            [this, now, threshold, &numTotal, &numSlow](
+            [this, now, threshold, &readCounts, &writeCounts](
                     auto type, auto thread, const auto& op) {
                 if (type != TaskType::Reader && type != TaskType::Writer) {
                     return;
@@ -5272,14 +5276,21 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
                         1.0, static_cast<double>(op.nbytes) / maxItemSize);
                 auto effectiveThreshold = threshold * thresholdScalingFactor;
 
-                ++numTotal;
+                auto& c = op.isDataWrite() ? writeCounts : readCounts;
+                ++c.numTotal;
                 if (elapsed >= effectiveThreshold) {
-                    ++numSlow;
+                    ++c.numSlow;
                 }
             });
 
-    add_stat("pending_disk_op_num", to_string(numTotal), cookie);
-    add_stat("pending_disk_op_slow_num", to_string(numSlow), cookie);
+    add_stat("pending_disk_read_num", to_string(readCounts.numTotal), cookie);
+    add_stat("pending_disk_read_slow_num",
+             to_string(readCounts.numSlow),
+             cookie);
+    add_stat("pending_disk_write_num", to_string(writeCounts.numTotal), cookie);
+    add_stat("pending_disk_write_slow_num",
+             to_string(writeCounts.numSlow),
+             cookie);
     return cb::engine_errc::success;
 }
 

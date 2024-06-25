@@ -60,6 +60,12 @@ struct FileOp {
     FileOp(const FileOp&) = default;
     FileOp& operator=(const FileOp&) = default;
 
+    /**
+     * Returns true if the operation should be treated as a data write operation
+     * (as opposed to a data read operation).
+     */
+    bool isDataWrite() const;
+
     /// The type of this pending request.
     Type type{Type::None};
     /// The approximate size of the request. Set to 0 bytes, if the size of the
