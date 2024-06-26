@@ -1065,6 +1065,16 @@ public:
      */
     void setDcpBackfillByteLimit(size_t bytes);
 
+    /**
+     * Fetch the key for the provided id (empty == active key)
+     *
+     * @param id The key to fetch (An empty string indicates the active key)
+     * @return The key if we know the key or {} for unknown id (or if one
+     * asks for the active key and encryption is turned off)
+     */
+    [[nodiscard]] std::shared_ptr<cb::crypto::DataEncryptionKey>
+    lookupEncryptionKey(std::string_view id);
+
 protected:
     friend class EpEngineValueChangeListener;
 

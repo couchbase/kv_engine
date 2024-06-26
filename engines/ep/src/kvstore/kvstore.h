@@ -49,10 +49,13 @@ class RollbackCB;
 class RollbackResult;
 class VBucket;
 
+namespace cb::crypto {
+struct DataEncryptionKey;
+}
+
 namespace cb::mcbp {
 class Request;
 } // namespace cb::mcbp
-
 
 enum class GetMetaOnly { Yes, No };
 
@@ -60,6 +63,15 @@ using BloomFilterCBPtr =
         std::shared_ptr<Callback<Vbid&, const DocKeyView&, bool&>>;
 using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, time_t&>>;
 
+using EncryptionKeyLookupFunction =
+        std::function<std::shared_ptr<cb::crypto::DataEncryptionKey>(
+                std::string_view)>;
+
+/// Create a function which returns "not found"
+inline std::shared_ptr<cb::crypto::DataEncryptionKey>
+noEncryptionKeyLookupFunction(std::string_view) {
+    return {};
+}
 
 /**
  * Generic information about a KVStore file
@@ -1038,8 +1050,12 @@ public:
      * Create a KVStore using the type found in the config
      *
      * @param config engine configuration
+     * @param encryptionKeyLookupFunction A function to look up an encryption
+     *        key
      */
-    static std::unique_ptr<KVStoreIface> create(KVStoreConfig& config);
+    static std::unique_ptr<KVStoreIface> create(
+            KVStoreConfig& config,
+            EncryptionKeyLookupFunction encryptionKeyLookupFunction);
 };
 
 std::ostream& operator<<(std::ostream& os, const ValueFilter& vf);

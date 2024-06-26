@@ -154,8 +154,11 @@ public:
      * Constructor - creates a read/write CouchKVStore
      *
      * @param config    Configuration information
+     * @param encryptionKeyLookupFunction the method to call to look up an
+     *        encryption key
      */
-    explicit CouchKVStore(const CouchKVStoreConfig& config);
+    CouchKVStore(const CouchKVStoreConfig& config,
+                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
 
     /**
      * Construction for a read-write CouchKVStore.
@@ -170,8 +173,12 @@ public:
      *
      * @param config config to use
      * @param ops The ops interface to use for File I/O
+     * @param encryptionKeyLookupFunction the method to call to look up an
+     *        encryption key
      */
-    CouchKVStore(const CouchKVStoreConfig& config, FileOpsInterface& ops);
+    CouchKVStore(const CouchKVStoreConfig& config,
+                 FileOpsInterface& ops,
+                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
 
     /**
      * Deconstructor
@@ -1000,12 +1007,18 @@ protected:
      *
      * @param config configuration data for the store
      * @param ops the file ops to use
+     * @param encryptionKeyLookupFunction the method to call to look up an
+     *        encryption key
      * @param revMap a revisionMap to use (which should be data created by the
      *        RW store).
      */
     CouchKVStore(const CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
+                 EncryptionKeyLookupFunction encryptionKeyLookupFunction,
                  std::shared_ptr<RevisionMap> revMap);
+
+    /// The lookup function used to look up the encryption key
+    const EncryptionKeyLookupFunction encryptionKeyLookupFunction;
 
     /**
      * Common RO/RW initialisation

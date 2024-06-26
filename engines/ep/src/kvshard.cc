@@ -19,7 +19,8 @@
 /* [EPHE TODO]: Consider not using KVShard for ephemeral bucket */
 KVShard::KVShard(Configuration& config,
                  id_type numShards,
-                 id_type id)
+                 id_type id,
+                 EncryptionKeyLookupFunction encryptionKeyLookupFunction)
     : // Size vBuckets to have sufficient slots for the maximum number of
       // vBuckets each shard is responsible for. To ensure correct behaviour
       // when vbuckets isn't a multiple of num_shards, apply ceil() to the
@@ -29,7 +30,8 @@ KVShard::KVShard(Configuration& config,
 
     kvConfig =
             KVStoreConfig::createKVStoreConfig(config, backend, numShards, id);
-    rwStore = KVStoreFactory::create(*kvConfig);
+    rwStore = KVStoreFactory::create(*kvConfig,
+                                     std::move(encryptionKeyLookupFunction));
 }
 
 // Non-inline destructor so we can destruct

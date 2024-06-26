@@ -32,7 +32,8 @@ struct NexusRollbackContext;
  */
 class NexusKVStore : public KVStoreIface {
 public:
-    NexusKVStore(NexusKVStoreConfig& config);
+    NexusKVStore(NexusKVStoreConfig& config,
+                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
 
     void deinitialize() override;
 

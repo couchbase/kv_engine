@@ -98,7 +98,8 @@ public:
      */
     void addStatUpdateToWriteOps(MagmaDbStats& stats, WriteOps& writeOps) const;
 
-    MagmaKVStore(MagmaKVStoreConfig& config);
+    MagmaKVStore(MagmaKVStoreConfig& config,
+                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
 
     ~MagmaKVStore() override;
 

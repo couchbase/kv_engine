@@ -13,7 +13,7 @@
 #include "kvstore/magma-kvstore/magma-memory-tracking-proxy.h"
 
 MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config)
-    : MagmaKVStore(config),
+    : MagmaKVStore(config, noEncryptionKeyLookupFunction),
       storageProperties(StorageProperties::ByIdScan::Yes,
                         StorageProperties::AutomaticDeduplication::No,
                         StorageProperties::PrepareCounting::No,

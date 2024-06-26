@@ -162,7 +162,8 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 // CAS of -1, it is detected and reset to zero when file is loaded.
 TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    auto kvstore = KVStoreFactory::create(config);
+    auto kvstore =
+            KVStoreFactory::create(config, noEncryptionKeyLookupFunction);
     ASSERT_NE(nullptr, kvstore);
 
     // Activate vBucket.
@@ -174,7 +175,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.
-    kvstore = KVStoreFactory::create(config);
+    kvstore = KVStoreFactory::create(config, noEncryptionKeyLookupFunction);
     EXPECT_NE(nullptr, kvstore);
 
     // Check that our max CAS was repaired on startup.
@@ -186,7 +187,8 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // error so the caller can detect (and retry as necessary).
 TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    auto kvstore = KVStoreFactory::create(config);
+    auto kvstore =
+            KVStoreFactory::create(config, noEncryptionKeyLookupFunction);
     ASSERT_NE(nullptr, kvstore);
 
     // Expect to get a system_error (ENOENT)
@@ -334,7 +336,8 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     }
     output.commit();
 
-    auto kvstore2 = KVStoreFactory::create(config2);
+    auto kvstore2 =
+            KVStoreFactory::create(config2, noEncryptionKeyLookupFunction);
     auto scanCtx = kvstore2->initBySeqnoScanContext(
             std::make_unique<CollectionsOfflineGetCallback>(cid, deletedRange),
             std::make_unique<CollectionsOfflineUpgradeCallback>(cid),
@@ -529,7 +532,7 @@ public:
                                 error.code().message()));
         }
         kvstore = std::make_unique<CouchKVStore>(
-                dynamic_cast<CouchKVStoreConfig&>(config), ops);
+                config, ops, noEncryptionKeyLookupFunction);
         initialize_kv_store(kvstore.get());
         defaultCreateItemCallback = kvstore->getDefaultCreateItemCallback();
     }
@@ -663,7 +666,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     // Recreate the kvstore and the state should equal the default constructed
     // state (and not throw an exception)
     kvstore = std::make_unique<CouchKVStore>(
-            dynamic_cast<CouchKVStoreConfig&>(config), ops);
+            config, ops, noEncryptionKeyLookupFunction);
 
     EXPECT_FALSE(kvstore->getCachedVBucketState(vbid));
 

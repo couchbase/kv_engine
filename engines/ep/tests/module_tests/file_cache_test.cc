@@ -22,7 +22,8 @@ public:
         // to put in the FileCache
         CouchKVStoreConfig config{
                 4 /*vBuckets*/, 4 /*shards*/, "name", "couchstore", 0};
-        store = std::make_unique<CouchKVStore>(config);
+        store = std::make_unique<CouchKVStore>(config,
+                                               noEncryptionKeyLookupFunction);
 
         CouchKVStoreFileCache::get().getHandle()->clear();
     }

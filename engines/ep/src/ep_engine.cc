@@ -7707,3 +7707,14 @@ void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
         dcpConnMap_->setBackfillByteLimit(bytes);
     }
 }
+
+std::shared_ptr<cb::crypto::DataEncryptionKey>
+EventuallyPersistentEngine::lookupEncryptionKey(const std::string_view id) {
+    return encryptionAtRestKeyStore.withRLock([&id](auto& keystore) {
+        if (id.empty()) {
+            return keystore.getActiveKey();
+        }
+
+        return keystore.lookup(id);
+    });
+}

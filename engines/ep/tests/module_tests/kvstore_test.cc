@@ -124,7 +124,8 @@ void initialize_kv_store(KVStoreIface* kvstore, Vbid vbid) {
 
 std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,
                                              std::vector<Vbid> vbids) {
-    auto kvstore = KVStoreFactory::create(config);
+    auto kvstore =
+            KVStoreFactory::create(config, noEncryptionKeyLookupFunction);
 
     for (auto vbid : vbids) {
         initialize_kv_store(kvstore.get(), vbid);
@@ -793,7 +794,8 @@ TEST_P(KVStoreParamTest, ListPersistedVBucketsPurgeSeqnoAfterRestart) {
 
     // Recreate kvstore, so cached vbState is reloaded from disk.
     kvstore->deinitialize();
-    kvstore = KVStoreFactory::create(*kvstoreConfig);
+    kvstore = KVStoreFactory::create(*kvstoreConfig,
+                                     noEncryptionKeyLookupFunction);
 
     // Test: Verify that purgeSeqno is the same as previous.
     auto postWarmupState = kvstore->listPersistedVbuckets();

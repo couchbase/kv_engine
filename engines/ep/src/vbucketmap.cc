@@ -63,7 +63,10 @@ VBucketMap::VBucketMap(KVBucket& bucket)
     shards.resize(numShards);
     for (size_t shardId = 0; shardId < numShards; shardId++) {
         shards[shardId] = std::make_unique<KVShard>(
-                bucket.getEPEngine().getConfiguration(), numShards, shardId);
+                bucket.getEPEngine().getConfiguration(),
+                numShards,
+                shardId,
+                [&engine](auto id) { return engine.lookupEncryptionKey(id); });
     }
 
     auto& config = engine.getConfiguration();

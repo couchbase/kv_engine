@@ -198,7 +198,9 @@ void KVStoreStats::reset() {
     flusherWriteAmplificationHisto.reset();
 }
 
-std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
+std::unique_ptr<KVStoreIface> KVStoreFactory::create(
+        KVStoreConfig& config,
+        EncryptionKeyLookupFunction encryptionKeyLookupFunction) {
     // Directory for kvstore files should exist already (see
     // EventuallyPersistentEngine::initialize).
     if (!cb::io::isDirectory(config.getDBName())) {
@@ -210,18 +212,21 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(KVStoreConfig& config) {
     const auto backend = config.getBackend();
     if (backend == "couchdb") {
         return std::make_unique<CouchKVStore>(
-                dynamic_cast<CouchKVStoreConfig&>(config));
+                dynamic_cast<CouchKVStoreConfig&>(config),
+                std::move(encryptionKeyLookupFunction));
     }
 
     if (backend == "nexus") {
         return std::make_unique<NexusKVStore>(
-                dynamic_cast<NexusKVStoreConfig&>(config));
+                dynamic_cast<NexusKVStoreConfig&>(config),
+                std::move(encryptionKeyLookupFunction));
     }
 
 #ifdef EP_USE_MAGMA
     if (backend == "magma") {
         return std::make_unique<MagmaKVStore>(
-                dynamic_cast<MagmaKVStoreConfig&>(config));
+                dynamic_cast<MagmaKVStoreConfig&>(config),
+                std::move(encryptionKeyLookupFunction));
     }
 #endif
 

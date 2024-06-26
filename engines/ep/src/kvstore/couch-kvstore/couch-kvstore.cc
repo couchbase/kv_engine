@@ -375,18 +375,25 @@ CouchRequest::CouchRequest(queued_item it)
 
 CouchRequest::~CouchRequest() = default;
 
-CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config)
-    : CouchKVStore(config, *couchstore_get_default_file_ops()) {
+CouchKVStore::CouchKVStore(
+        const CouchKVStoreConfig& config,
+        EncryptionKeyLookupFunction encryptionKeyLookupFunction)
+    : CouchKVStore(config,
+                   *couchstore_get_default_file_ops(),
+                   std::move(encryptionKeyLookupFunction)) {
 }
 
-CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
-                           FileOpsInterface& ops,
-                           std::shared_ptr<RevisionMap> revMap)
+CouchKVStore::CouchKVStore(
+        const CouchKVStoreConfig& config,
+        FileOpsInterface& ops,
+        EncryptionKeyLookupFunction encryptionKeyLookupFunction,
+        std::shared_ptr<RevisionMap> revMap)
     : configuration(config),
       dbname(config.getDBName()),
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
-      base_ops(ops) {
+      base_ops(ops),
+      encryptionKeyLookupFunction(std::move(encryptionKeyLookupFunction)) {
     statCollectingFileOps =
             getCouchstoreStatsOps(fsStats, fileOpsTracker, base_ops);
     statCollectingFileOpsCompaction =
@@ -414,9 +421,14 @@ std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
     return map;
 }
 
-CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
-                           FileOpsInterface& ops)
-    : CouchKVStore(config, ops, makeRevisionMap(config)) {
+CouchKVStore::CouchKVStore(
+        const CouchKVStoreConfig& config,
+        FileOpsInterface& ops,
+        EncryptionKeyLookupFunction encryptionKeyLookupFunction)
+    : CouchKVStore(config,
+                   ops,
+                   std::move(encryptionKeyLookupFunction),
+                   makeRevisionMap(config)) {
     // 1) populate the dbFileRevMap which can remove old revisions, this returns
     //    a map, which the keys (vbid) will be needed for step 3 and 4.
     auto map = populateRevMapAndRemoveStaleFiles();
@@ -1505,7 +1517,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 *sourceDb,
                 compact_file.c_str(),
                 flags,
-                {},
+                encryptionKeyLookupFunction,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
@@ -1594,7 +1606,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 *sourceDb,
                 compact_file.c_str(),
                 flags,
-                {},
+                encryptionKeyLookupFunction,
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
@@ -2577,8 +2589,11 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
         options |= COUCHSTORE_OPEN_WITH_MPROTECT;
     }
 
-    errorCode = couchstore_open_db_ex(
-            dbFileName.c_str(), options, {}, ops, db.getDbAddress());
+    errorCode = couchstore_open_db_ex(dbFileName.c_str(),
+                                      options,
+                                      encryptionKeyLookupFunction,
+                                      ops,
+                                      db.getDbAddress());
 
     /* update command statistics */
     st.numOpen++;

@@ -18,6 +18,10 @@
 #include <atomic>
 #include <mutex>
 
+namespace cb::crypto {
+struct DataEncryptionKey;
+}
+
 /**
  * Base class encapsulating individual couchstore(vbucket) into a
  * logical group representing underlying storage operations
@@ -61,11 +65,18 @@ class Configuration;
 class CookieIface;
 class KVStoreIface;
 
+using EncryptionKeyLookupFunction =
+        std::function<std::shared_ptr<cb::crypto::DataEncryptionKey>(
+                std::string_view)>;
+
 class KVShard {
 public:
     // Identifier for a KVShard
     using id_type = uint16_t;
-    KVShard(Configuration& config, id_type numShards, id_type id);
+    KVShard(Configuration& config,
+            id_type numShards,
+            id_type id,
+            EncryptionKeyLookupFunction encryptionKeyLookupFunction);
     ~KVShard();
     KVShard(const KVShard&) = delete;
     KVShard(KVShard&&) = delete;

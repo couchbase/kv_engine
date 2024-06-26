@@ -50,7 +50,10 @@ public:
     std::unique_ptr<KVFileHandle> secondaryFileHandle;
 };
 
-NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
+NexusKVStore::NexusKVStore(
+        NexusKVStoreConfig& config,
+        EncryptionKeyLookupFunction encryptionKeyLookupFunction)
+    : configuration(config) {
     try {
         std::filesystem::create_directories(
                 configuration.getPrimaryConfig().getDBName());
@@ -62,8 +65,10 @@ NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
                             error.code().message()));
     }
 
-    primary = KVStoreFactory::create(configuration.getPrimaryConfig());
-    secondary = KVStoreFactory::create(configuration.getSecondaryConfig());
+    primary = KVStoreFactory::create(configuration.getPrimaryConfig(),
+                                     encryptionKeyLookupFunction);
+    secondary = KVStoreFactory::create(configuration.getSecondaryConfig(),
+                                       encryptionKeyLookupFunction);
 
     auto cacheSize = configuration.getCacheSize();
     purgeSeqno =

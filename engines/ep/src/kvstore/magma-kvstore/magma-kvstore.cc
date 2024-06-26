@@ -628,7 +628,9 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
     return {Status::OK(), false};
 }
 
-MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
+MagmaKVStore::MagmaKVStore(
+        MagmaKVStoreConfig& configuration,
+        EncryptionKeyLookupFunction encryptionKeyLookupFunction)
     : KVStore(),
       configuration(configuration),
       magmaPath(configuration.getDBName() + "/magma." +
