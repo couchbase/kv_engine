@@ -7623,10 +7623,13 @@ EventuallyPersistentEngine::set_active_encryption_key(std::string_view id,
 
 cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKey(
         std::string_view id, std::string_view cipher, std::string_view key) {
-    auto dek = std::make_shared<cb::crypto::DataEncryptionKey>();
-    dek->id.assign(id);
-    dek->cipher.assign(cipher);
-    dek->key.assign(key);
+    std::shared_ptr<cb::crypto::DataEncryptionKey> dek;
+    if (!id.empty()) {
+        dek = std::make_shared<cb::crypto::DataEncryptionKey>();
+        dek->id.assign(id);
+        dek->cipher = cb::crypto::to_cipher(cipher);
+        dek->key.assign(key);
+    }
     encryptionAtRestKeyStore.withWLock(
             [&dek](auto& store) { store.setActiveKey(std::move(dek)); });
     return cb::engine_errc::success;
