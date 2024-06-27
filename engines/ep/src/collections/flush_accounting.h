@@ -200,7 +200,8 @@ public:
 
         /**
          * Process an insert into the collection
-         * @param isSystem true if a system event is inserted
+         * @param event when inserting a SystemEvent this optional stores the
+         *        type
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
          * @param isCommitted does the item belong to the committed namespace?
@@ -214,7 +215,7 @@ public:
          * @return if the collection disk size stat now reflects the new item
          *         size
          */
-        bool insert(IsSystem isSystem,
+        bool insert(std::optional<SystemEvent> event,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
                     CompactionCallbacks compactionCallbacks,
@@ -222,15 +223,18 @@ public:
 
         /**
          * Process an update into the collection
+         * @param event when updating a SystemEvent this optional stores the
+         *        type
          * @param diskSizeDelta size in bytes difference. Should be
          *        representative of the difference between existing and new
          *        documents, but does not need to be exact.
          */
-        void update(ssize_t diskSizeDelta);
+        void update(std::optional<SystemEvent> event, ssize_t diskSizeDelta);
 
         /**
          * Process a remove from the collection (store of a delete)
-         * @param isSystem true if a system event is removed
+         * @param event when removing a SystemEvent this optional stores the
+         *        type
          * @param isDelete true if a deleted item is inserted (tombstone
          *        creation)
          * @param isCommitted does the item belong to the committed namespace?
@@ -243,7 +247,7 @@ public:
          * @return if the collection disk size stat now reflects the new item
          *         size
          */
-        bool remove(IsSystem isSystem,
+        bool remove(std::optional<SystemEvent> event,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
                     CompactionCallbacks compactionCallbacks,
@@ -269,10 +273,10 @@ public:
             return diskSize;
         }
 
-        /// @returns true if a non-meta item has been persisted for this
-        ///          collection in this flush batch
-        bool itemInBatch() const {
-            return flushedItem;
+        /// @returns true if a item has been persisted which would need erasing
+        ///          if the collection was dropped
+        bool isAnEraseableItemInFlushBatch() const {
+            return flushedAnEraseableItem;
         }
 
     private:
@@ -282,10 +286,14 @@ public:
 
         void updateDiskSize(ssize_t delta);
 
+        // Common code to inspect the optional SystemEvent and update
+        // flushedAnEraseableItem
+        void handleEvent(std::optional<SystemEvent> event);
+
         uint64_t persistedHighSeqno{0};
         ssize_t itemCount{0};
         ssize_t diskSize{0};
-        bool flushedItem{false};
+        bool flushedAnEraseableItem{false};
     };
 
     using StatsMap = std::unordered_map<CollectionID, StatisticsUpdate>;

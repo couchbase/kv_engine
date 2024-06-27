@@ -1795,6 +1795,29 @@ TEST_P(CollectionsEraserPersistentOnly, empty_collections_no_flush) {
     testEmptyCollections(false);
 }
 
+TEST_P(CollectionsEraserPersistentOnly, empty_collection_but_modified) {
+    CollectionsManifest cm(CollectionEntry::dairy);
+    setCollections(cookie, cm);
+
+    // Modify and drop, test that erase was schedule
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm.update(CollectionEntry::dairy,
+                                                  std::chrono::seconds(1))));
+    // Drop the collections
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm.remove(CollectionEntry::dairy)));
+
+    EXPECT_EQ(0, getFutureQueueSize(TaskType::AuxIO));
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    // Expect that the eraser task is not scheduled
+    EXPECT_EQ(1, getFutureQueueSize(TaskType::AuxIO));
+}
+
 // Create and store into multiple collections, drop all of the collections and
 // validate that only 1 task is ready to run (previously 1 per drop/flush)
 TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {

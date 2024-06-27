@@ -110,7 +110,8 @@ uint32_t Flush::countNonEmptyDroppedCollections() const {
         auto sItr = flushAccounting.getStats().find(cid);
 
         if (sItr == flushAccounting.getStats().end() ||
-            !sItr->second.itemInBatch()) {
+            !sItr->second.isAnEraseableItemInFlushBatch()) {
+            // Have to check with the manifest to confirm if collection is empty
             const auto highSeqno =
                     manifest.get()
                             .lock()
