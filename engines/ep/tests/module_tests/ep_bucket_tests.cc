@@ -998,6 +998,6 @@ TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {
 // MB-52542 found that the engine-specific was dirty for the NMVB path
 TEST_F(SingleThreadedEPBucketTest, CompactionNotMyVB) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              engine->compactDatabase(*cookie, Vbid(1), 0, 0, false));
+              engine->compactDatabase(*cookie, Vbid(1), 0, 0, false, {}));
     EXPECT_FALSE(cookie_to_mock_cookie(cookie)->getEngineStorage());
 }

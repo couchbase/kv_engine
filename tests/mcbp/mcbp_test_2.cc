@@ -694,6 +694,8 @@ protected:
 
 TEST_P(CompactDbValidatorTest, CorrectMessage) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
+    req.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
 TEST_P(CompactDbValidatorTest, InvalidExtlen) {
@@ -714,7 +716,7 @@ TEST_P(CompactDbValidatorTest, InvalidExtras) {
 }
 
 TEST_P(CompactDbValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
+    req.setDatatype(cb::mcbp::Datatype::Snappy);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

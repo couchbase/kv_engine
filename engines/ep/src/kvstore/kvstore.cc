@@ -562,6 +562,7 @@ CompactionConfig& CompactionConfig::operator=(CompactionConfig&& other) {
         purge_before_ts = other.purge_before_ts;
         purge_before_seq = other.purge_before_seq;
         drop_deletes = other.drop_deletes;
+        obsolete_keys = other.obsolete_keys;
         retain_erroneous_tombstones = other.retain_erroneous_tombstones;
         internally_requested = other.internally_requested;
         other.purge_before_ts = 0;
@@ -578,7 +579,8 @@ bool CompactionConfig::operator==(const CompactionConfig& other) const {
            purge_before_seq == other.purge_before_seq &&
            drop_deletes == other.drop_deletes &&
            retain_erroneous_tombstones == other.retain_erroneous_tombstones &&
-           internally_requested == other.internally_requested;
+           internally_requested == other.internally_requested &&
+           obsolete_keys == other.obsolete_keys;
 }
 
 // Merge other into this.
@@ -595,6 +597,13 @@ void CompactionConfig::merge(const CompactionConfig& other) {
             std::max<uint64_t>(purge_before_ts, other.purge_before_ts);
     purge_before_seq =
             std::max<uint64_t>(purge_before_seq, other.purge_before_seq);
+
+    for (const auto& k : other.obsolete_keys) {
+        if (std::find(obsolete_keys.begin(), obsolete_keys.end(), k) ==
+            obsolete_keys.end()) {
+            obsolete_keys.push_back(k);
+        }
+    }
 }
 
 Vbid::id_type KVStore::getCacheSlot(Vbid vbid) const {

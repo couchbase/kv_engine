@@ -748,6 +748,7 @@ struct EngineIface {
      * @param purge_before_ts The timestamp to purge items before
      * @param purge_before_seq The sequence number to purge items before
      * @param drop_deletes Set to true if deletes should be dropped
+     * @param obsolete_keys The keys which should be removed
      * @return The standard engine codes
      */
     [[nodiscard]] virtual cb::engine_errc compactDatabase(
@@ -755,7 +756,8 @@ struct EngineIface {
             Vbid vbid,
             uint64_t purge_before_ts,
             uint64_t purge_before_seq,
-            bool drop_deletes) {
+            bool drop_deletes,
+            const std::vector<std::string>& obsolete_keys) {
         return cb::engine_errc::not_supported;
     }
 

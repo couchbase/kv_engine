@@ -329,11 +329,13 @@ struct MockEngine : public EngineIface, public DcpIface {
                                  std::string_view key,
                                  std::string_view value,
                                  Vbid vbucket) override;
-    cb::engine_errc compactDatabase(CookieIface& cookie,
-                                    Vbid vbid,
-                                    uint64_t purge_before_ts,
-                                    uint64_t purge_before_seq,
-                                    bool drop_deletes) override;
+    cb::engine_errc compactDatabase(
+            CookieIface& cookie,
+            Vbid vbid,
+            uint64_t purge_before_ts,
+            uint64_t purge_before_seq,
+            bool drop_deletes,
+            const std::vector<std::string>& obsolete_keys) override;
     std::pair<cb::engine_errc, vbucket_state_t> getVBucket(CookieIface& cookie,
                                                            Vbid vbid) override;
     cb::engine_errc setVBucket(CookieIface& cookie,

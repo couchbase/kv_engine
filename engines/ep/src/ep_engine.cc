@@ -1210,14 +1210,18 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
         Vbid vbid,
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
-        bool drop_deletes) {
+        bool drop_deletes,
+        const std::vector<std::string>& obsoleteKeys) {
     if (takeEngineSpecific<ScheduledCompactionToken>(cookie)) {
         // This is a completion of a compaction. We cleared the engine-specific
         return cb::engine_errc::success;
     }
 
-    CompactionConfig compactionConfig{
-            purge_before_ts, purge_before_seq, drop_deletes, false};
+    CompactionConfig compactionConfig{purge_before_ts,
+                                      purge_before_seq,
+                                      drop_deletes,
+                                      false,
+                                      obsoleteKeys};
 
     // Set something in the EngineSpecfic so we can determine which phase of the
     // command is executing.
@@ -7472,9 +7476,14 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabase(
         Vbid vbid,
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
-        bool drop_deletes) {
-    return acquireEngine(this)->compactDatabaseInner(
-            cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+        bool drop_deletes,
+        const std::vector<std::string>& obsoleteKeys) {
+    return acquireEngine(this)->compactDatabaseInner(cookie,
+                                                     vbid,
+                                                     purge_before_ts,
+                                                     purge_before_seq,
+                                                     drop_deletes,
+                                                     obsoleteKeys);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t>

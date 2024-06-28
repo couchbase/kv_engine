@@ -2339,7 +2339,7 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
             store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
 
     // trigger a compaction to drop the delete
-    CompactionConfig config1{1, 1, true, true};
+    CompactionConfig config1{1, 1, true, true, {}};
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     ASSERT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
@@ -2602,11 +2602,11 @@ TEST_P(EPBucketTest, ScheduleCompactionAndMergeNewConfig) {
     auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
     // Array of configs to use for each call to schedule, it should result
     // in a config for the run which is the 'merge of all'.
-    std::array<CompactionConfig, 5> configs = {{{0, 0, false, false},
-                                                {0, 1000, false, false},
-                                                {1000, 0, false, false},
-                                                {9, 900, false, true},
-                                                {9, 900, true, false}}};
+    std::array<CompactionConfig, 5> configs = {{{0, 0, false, false, {}},
+                                                {0, 1000, false, false, {}},
+                                                {1000, 0, false, false, {}},
+                                                {9, 900, false, true, {}},
+                                                {9, 900, true, false, {}}}};
 
     for (const auto& config : configs) {
         EXPECT_EQ(cb::engine_errc::would_block,
@@ -2637,7 +2637,7 @@ TEST_P(EPBucketTest, ScheduleCompactionReschedules) {
     auto task = mockEPBucket->getCompactionTask(vbid);
     EXPECT_FALSE(task);
 
-    CompactionConfig config1{100, 1, true, true};
+    CompactionConfig config1{100, 1, true, true, {}};
     EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config1, nullptr, std::chrono::seconds(0)));
@@ -2650,7 +2650,7 @@ TEST_P(EPBucketTest, ScheduleCompactionReschedules) {
     EXPECT_FALSE(task); // no task anymore
 
     // Schedule again
-    CompactionConfig config2{200, 2, false, true};
+    CompactionConfig config2{200, 2, false, true, {}};
     EXPECT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config2, nullptr, std::chrono::seconds(0)));
@@ -2660,7 +2660,7 @@ TEST_P(EPBucketTest, ScheduleCompactionReschedules) {
 
     // Set our trigger function - this is invoked in the middle of run after
     // the task has copied the config and logically compaction is running.
-    CompactionConfig config3{300, 3, false, false};
+    CompactionConfig config3{300, 3, false, false, {}};
     task->setRunningCallback([this, &config3]() {
         EXPECT_FALSE(cookie->getEngineStorage());
         // Drive via engine API to cover MB-52542
@@ -2669,7 +2669,8 @@ TEST_P(EPBucketTest, ScheduleCompactionReschedules) {
                                           vbid,
                                           config3.purge_before_ts,
                                           config3.purge_before_seq,
-                                          config3.drop_deletes));
+                                          config3.drop_deletes,
+                                          {}));
         EXPECT_TRUE(cookie->getEngineStorage());
     });
 
@@ -2709,7 +2710,7 @@ TEST_P(EPBucketTest, MB50555_ScheduleCompactionEnforceConcurrencyLimit) {
 
     // Schedule the first vb compaction. This should be ready to run
     // on an executor thread.
-    CompactionConfig config{100, 1, true, true};
+    CompactionConfig config{100, 1, true, true, {}};
     ASSERT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config, nullptr, std::chrono::seconds(0)));
@@ -2846,7 +2847,7 @@ TEST_P(EPBucketTest, ScheduleCompactionEnforceConcurrencyLimitReusingTasks) {
 
     // Schedule the first vb compaction. This should be ready to run
     // on an executor thread.
-    CompactionConfig config{100, 1, true, true};
+    CompactionConfig config{100, 1, true, true, {}};
     ASSERT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(
                       vbid, config, nullptr, std::chrono::seconds(0)));
@@ -2912,7 +2913,7 @@ TEST_P(EPBucketTest, MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
 
     // Schedule the first vb compaction. This should be ready to run
     // on an executor thread.
-    CompactionConfig config{100, 1, true, true};
+    CompactionConfig config{100, 1, true, true, {}};
     ASSERT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(vbid, config, nullptr, 0s));
     auto task1 = mockEPBucket->getCompactionTask(vbid);
@@ -2926,7 +2927,7 @@ TEST_P(EPBucketTest, MB50941_ScheduleCompactionEnforceConcurrencyLimit) {
         ASSERT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
                           vbid,
-                          CompactionConfig(100, 1, true, true),
+                          CompactionConfig(100, 1, true, true, {}),
                           nullptr,
                           std::chrono::seconds(0)));
     });
@@ -2951,7 +2952,7 @@ TEST_P(EPBucketTest, RescheduleWithSmallerDelay) {
 
     // Schedule a compaction with a 60s delay - similar to what compaction
     // for collection purge after drop does.
-    CompactionConfig config{100, 1, true, true};
+    CompactionConfig config{100, 1, true, true, {}};
     ASSERT_EQ(cb::engine_errc::would_block,
               mockEPBucket->scheduleCompaction(vbid, config, nullptr, 60s));
     auto task1 = mockEPBucket->getCompactionTask(vbid);

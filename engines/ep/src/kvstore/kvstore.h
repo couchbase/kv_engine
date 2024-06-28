@@ -112,9 +112,11 @@ struct CompactionConfig {
     CompactionConfig(uint64_t purge_before_ts,
                      uint64_t purge_before_seq,
                      bool drop_deletes,
-                     bool retain_erroneous_tombstones)
+                     bool retain_erroneous_tombstones,
+                     std::vector<std::string> obsolete_keys)
         : purge_before_ts(purge_before_ts),
           purge_before_seq(purge_before_seq),
+          obsolete_keys(std::move(obsolete_keys)),
           drop_deletes(drop_deletes),
           retain_erroneous_tombstones(retain_erroneous_tombstones) {
     }
@@ -144,6 +146,7 @@ struct CompactionConfig {
 
     uint64_t purge_before_ts = 0;
     uint64_t purge_before_seq = 0;
+    std::vector<std::string> obsolete_keys;
     bool drop_deletes = false;
     bool retain_erroneous_tombstones = false;
 
@@ -313,6 +316,9 @@ struct CompactionContext {
      * hit bucket shutdown timeouts.
      */
     std::function<bool()> isShuttingDown;
+
+    /// The keys which should be obsoleted as part of the compaction
+    std::vector<std::string> obsolete_keys;
 
 private:
     /// Pointer to the in memory vbucket that we're compacting for

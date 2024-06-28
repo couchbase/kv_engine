@@ -1100,12 +1100,33 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
     const auto& payload =
             req.getCommandSpecifics<cb::mcbp::request::CompactDbPayload>();
 
+    std::vector<std::string> keys;
+    if (!req.getValueString().empty()) {
+        try {
+            const auto json = nlohmann::json::parse(req.getValueString());
+            if (!json.is_array()) {
+                LOG_WARNING_CTX(
+                        "bucket_compact_database: obsolete keys should be a "
+                        "list of keys",
+                        {"value", req.getValueString()});
+                return cb::engine_errc::invalid_arguments;
+            }
+            keys = json;
+        } catch (const std::exception& exception) {
+            LOG_WARNING_CTX(
+                    "bucket_compact_database: Failed to decode obsolete keys",
+                    {"value", req.getValueString()});
+            return cb::engine_errc::invalid_arguments;
+        }
+    }
+
     auto ret = connection.getBucketEngine().compactDatabase(
             cookie,
             req.getVBucket(),
             payload.getPurgeBeforeTs(),
             payload.getPurgeBeforeSeq(),
-            payload.getDropDeletes() != 0);
+            payload.getDropDeletes() != 0,
+            keys);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} compactDatabase() returned cb::engine_errc::disconnect",

@@ -2382,13 +2382,14 @@ static Status seqno_persistence_validator(Cookie& cookie) {
 static Status compact_db_validator(Cookie& cookie) {
     using cb::mcbp::request::CompactDbPayload;
 
-    auto status = McbpValidator::verify_header(cookie,
-                                               sizeof(CompactDbPayload),
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::NotSet,
-                                               GeneratesDocKey::No,
-                                               PROTOCOL_BINARY_RAW_BYTES);
+    auto status = McbpValidator::verify_header(
+            cookie,
+            sizeof(CompactDbPayload),
+            ExpectedKeyLen::Zero,
+            ExpectedValueLen::Any,
+            ExpectedCas::NotSet,
+            GeneratesDocKey::No,
+            PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
     }
@@ -2398,6 +2399,18 @@ static Status compact_db_validator(Cookie& cookie) {
     if (!payload.validate()) {
         cookie.setErrorContext("Padding bytes should be set to 0");
         return Status::Einval;
+    }
+
+    auto value = cookie.getRequest().getValueString();
+    if (!value.empty()) {
+        if (cookie.getRequest().getDatatype() != cb::mcbp::Datatype::JSON) {
+            cookie.setErrorContext("Datatype should be JSON");
+            return Status::Einval;
+        }
+        if (!cookie.getConnection().getThread().isValidJson(cookie, value)) {
+            cookie.setErrorContext("Value should be JSON");
+            return Status::Einval;
+        }
     }
 
     return Status::Success;

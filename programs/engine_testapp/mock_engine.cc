@@ -741,19 +741,26 @@ cb::engine_errc MockEngine::setParameter(CookieIface& cookie,
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
 }
 
-cb::engine_errc MockEngine::compactDatabase(CookieIface& cookie,
-                                            Vbid vbid,
-                                            uint64_t purge_before_ts,
-                                            uint64_t purge_before_seq,
-                                            bool drop_deletes) {
+cb::engine_errc MockEngine::compactDatabase(
+        CookieIface& cookie,
+        Vbid vbid,
+        uint64_t purge_before_ts,
+        uint64_t purge_before_seq,
+        bool drop_deletes,
+        const std::vector<std::string>& obsolete_keys) {
     auto engine_fn = [this,
                       &cookie,
                       vbid,
                       purge_before_ts,
                       purge_before_seq,
-                      drop_deletes]() {
-        return the_engine->compactDatabase(
-                cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+                      drop_deletes,
+                      &obsolete_keys]() {
+        return the_engine->compactDatabase(cookie,
+                                           vbid,
+                                           purge_before_ts,
+                                           purge_before_seq,
+                                           drop_deletes,
+                                           obsolete_keys);
     };
 
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);

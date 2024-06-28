@@ -369,7 +369,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
 
     // Test that the datafile can be compacted.
     // MB-45917
-    CompactionConfig config{0, 0, true /*purge all tombstones*/, false};
+    CompactionConfig config{0, 0, true /*purge all tombstones*/, false, {}};
     runCompaction(*kvstore2, config);
 }
 

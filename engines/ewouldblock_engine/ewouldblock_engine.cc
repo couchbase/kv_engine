@@ -204,11 +204,13 @@ public:
                                  std::string_view key,
                                  std::string_view value,
                                  Vbid vbucket) override;
-    cb::engine_errc compactDatabase(CookieIface& cookie,
-                                    Vbid vbid,
-                                    uint64_t purge_before_ts,
-                                    uint64_t purge_before_seq,
-                                    bool drop_deletes) override;
+    cb::engine_errc compactDatabase(
+            CookieIface& cookie,
+            Vbid vbid,
+            uint64_t purge_before_ts,
+            uint64_t purge_before_seq,
+            bool drop_deletes,
+            const std::vector<std::string>& obsolete_keys) override;
     std::pair<cb::engine_errc, vbucket_state_t> getVBucket(CookieIface& cookie,
                                                            Vbid vbid) override;
     cb::engine_errc setVBucket(CookieIface& cookie,
@@ -1325,13 +1327,19 @@ cb::engine_errc EWB_Engine::setParameter(CookieIface& cookie,
     return real_engine->setParameter(cookie, category, key, value, vbucket);
 }
 
-cb::engine_errc EWB_Engine::compactDatabase(CookieIface& cookie,
-                                            Vbid vbid,
-                                            uint64_t purge_before_ts,
-                                            uint64_t purge_before_seq,
-                                            bool drop_deletes) {
-    return real_engine->compactDatabase(
-            cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+cb::engine_errc EWB_Engine::compactDatabase(
+        CookieIface& cookie,
+        Vbid vbid,
+        uint64_t purge_before_ts,
+        uint64_t purge_before_seq,
+        bool drop_deletes,
+        const std::vector<std::string>& obsolete_keys) {
+    return real_engine->compactDatabase(cookie,
+                                        vbid,
+                                        purge_before_ts,
+                                        purge_before_seq,
+                                        drop_deletes,
+                                        obsolete_keys);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> EWB_Engine::getVBucket(

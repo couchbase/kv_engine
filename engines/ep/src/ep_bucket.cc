@@ -1373,6 +1373,8 @@ std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
     auto ctx = std::make_shared<CompactionContext>(
             std::move(vb), config, purgeSeqno, expireFrom);
 
+    ctx->obsolete_keys = config.obsolete_keys;
+
     BloomFilterCBPtr filter(new BloomFilterCallback(*this));
     ctx->bloomFilterCallback = filter;
 

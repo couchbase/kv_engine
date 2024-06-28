@@ -1120,7 +1120,8 @@ void compact_db(EngineIface* h,
                                   db_file_id,
                                   purge_before_ts,
                                   purge_before_seq,
-                                  drop_deletes);
+                                  drop_deletes,
+                                  {});
     if (ret == cb::engine_errc::not_supported) {
         // Ephemeral, couchdb and magma buckets can
         // return cb::engine_errc::not_supported.  This method is called
