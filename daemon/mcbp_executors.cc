@@ -537,49 +537,33 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
 
     const auto& req = cookie.getRequest();
     auto entity = req.getKeyString();
-    auto payload = req.getValueString();
-
-    std::string cipher;
-    std::string id;
-    std::string key;
-    nlohmann::json json;
+    const auto payload = req.getValueString();
+    std::shared_ptr<cb::crypto::DataEncryptionKey> dek;
 
     if (!payload.empty()) {
         // The validator checked that the requested value was JSON
         // so we should be able to just parse it.
-        json = nlohmann::json::parse(payload);
-        for (const auto& k : {"id", "cipher", "key"}) {
-            if (!json.contains(k) || !json[k].is_string()) {
-                cookie.setErrorContext(
-                        fmt::format("{} must be present and a string", k));
-                cookie.sendResponse(Status::Einval);
-                return;
-            }
+        try {
+            dek = std::make_shared<cb::crypto::DataEncryptionKey>(
+                    nlohmann::json::parse(payload));
+        } catch (const std::exception& exception) {
+            LOG_ERROR_CTX("Failed to decode active encryption key info",
+                          {"error", exception.what()});
+            cookie.setErrorContext(fmt::format(
+                    "Failed to decode active encryption key info: {}",
+                    exception.what()));
+            cookie.sendResponse(Status::Einval);
         }
-        cipher = json["cipher"].get<std::string>();
-        if (cipher != "AES-256-GCM") {
-            cookie.setErrorContext(
-                    R"(Unsupported cipher. must be "AES-256-GCM")");
-            cookie.sendResponse(Status::NotSupported);
-            return;
+        if (dek->cipher == cb::crypto::Cipher::None) {
+            dek.reset();
         }
-
-        id = json["id"].get<std::string>();
-        key = cb::base64::decode(json["key"].get<std::string_view>());
     }
 
     if (entity.front() == '@') {
         using namespace std::string_view_literals;
         try {
-            if (payload.empty()) {
-                cb::dek::Manager::instance().setActive(
-                        cb::dek::to_entity(entity), {});
-            } else {
-                auto object = std::make_shared<cb::crypto::DataEncryptionKey>();
-                *object = json;
-                cb::dek::Manager::instance().setActive(
-                        cb::dek::to_entity(entity), std::move(object));
-            }
+            cb::dek::Manager::instance().setActive(cb::dek::to_entity(entity),
+                                                   std::move(dek));
             cookie.sendResponse(Status::Success);
         } catch (const std::invalid_argument&) {
             cookie.sendResponse(Status::KeyEnoent);
@@ -589,10 +573,10 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
     }
 
     auto ret = cb::engine_errc::no_such_key;
-    BucketManager::instance().forEach([&ret, &entity, &id, &cipher, &key](
+    BucketManager::instance().forEach([&ret, &entity, &dek](
                                               auto& bucket) -> bool {
         if (bucket.name == entity) {
-            ret = bucket.getEngine().set_active_encryption_key(id, cipher, key);
+            ret = bucket.getEngine().set_active_encryption_key(dek.get());
             return false;
         }
         return true;

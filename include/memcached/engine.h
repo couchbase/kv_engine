@@ -30,6 +30,10 @@ struct EngineErrorGetScopeIDResult;
 struct EngineErrorGetCollectionMetaResult;
 } // namespace cb
 
+namespace cb::crypto {
+struct DataEncryptionKey;
+}
+
 namespace cb::durability {
 class Requirements;
 } // namespace cb::durability
@@ -879,10 +883,13 @@ struct EngineIface {
         return cb::engine_errc::not_supported;
     }
 
+    /**
+     * Set the active encryption key to use.
+     * @param encryption_key if set to nullptr no encryption should be used
+     * @return status of the operation
+     */
     [[nodiscard]] virtual cb::engine_errc set_active_encryption_key(
-            std::string_view id,
-            std::string_view cipher,
-            std::string_view key) {
+            const cb::crypto::DataEncryptionKey* encryption_key) {
         return cb::engine_errc::not_supported;
     }
 };

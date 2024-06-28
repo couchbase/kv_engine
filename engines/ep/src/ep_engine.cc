@@ -7617,20 +7617,16 @@ cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,
 }
 
 [[nodiscard]] cb::engine_errc
-EventuallyPersistentEngine::set_active_encryption_key(std::string_view id,
-                                                      std::string_view cipher,
-                                                      std::string_view key) {
-    return acquireEngine(this)->setActiveEncryptionKey(id, cipher, key);
+EventuallyPersistentEngine::set_active_encryption_key(
+        const cb::crypto::DataEncryptionKey* encryptionKey) {
+    return acquireEngine(this)->setActiveEncryptionKey(encryptionKey);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKey(
-        std::string_view id, std::string_view cipher, std::string_view key) {
+        const cb::crypto::DataEncryptionKey* encryptionKey) {
     std::shared_ptr<cb::crypto::DataEncryptionKey> dek;
-    if (!id.empty()) {
-        dek = std::make_shared<cb::crypto::DataEncryptionKey>();
-        dek->id.assign(id);
-        dek->cipher = cb::crypto::to_cipher(cipher);
-        dek->key.assign(key);
+    if (encryptionKey) {
+        dek = std::make_shared<cb::crypto::DataEncryptionKey>(*encryptionKey);
     }
     encryptionAtRestKeyStore.withWLock(
             [&dek](auto& store) { store.setActiveKey(std::move(dek)); });

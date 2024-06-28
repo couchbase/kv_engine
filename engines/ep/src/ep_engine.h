@@ -303,9 +303,7 @@ public:
                               const DocKeyView& key,
                               Vbid vbucket) override;
     [[nodiscard]] cb::engine_errc set_active_encryption_key(
-            std::string_view id,
-            std::string_view cipher,
-            std::string_view key) override;
+            const cb::crypto::DataEncryptionKey* encryptionKey) override;
 
     /////////////////////////////////////////////////////////////
     // DcpIface implementation //////////////////////////////////
@@ -882,7 +880,7 @@ public:
     KVStoreIface::CreateItemCB getCreateItemCallback();
 
     [[nodiscard]] cb::engine_errc setActiveEncryptionKey(
-            std::string_view id, std::string_view cipher, std::string_view key);
+            const cb::crypto::DataEncryptionKey* encryptionKey);
 
     /**
      * Create an Item with the following parameters if the mutation watermark
