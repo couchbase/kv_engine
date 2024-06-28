@@ -817,6 +817,7 @@ TEST_P(CheckpointRemoverEPTest, ItemExpellingInvalidatesKeyIndexCorrectly) {
                              prepareKey,
                              2,
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(prepareKey),
                              cookie));
     }

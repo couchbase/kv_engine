@@ -569,6 +569,7 @@ TEST_P(CollectionsLegacyDcpTest,
                              key,
                              vb->getHighSeqno(),
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     auto item = makePendingItem(StoredDocKey{"d2", CollectionEntry::defaultC},
@@ -792,6 +793,7 @@ TEST_P(CollectionsDcpParameterizedTest,
                              key,
                              vb->getHighSeqno(),
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     auto highSeqno = vb->getHighSeqno();

@@ -147,6 +147,22 @@ enum class InvalidCasStrategy : uint8_t {
 enum class SendCommitSyncWriteAs : char { Commit, Mutation };
 
 /**
+ * The different ways in which a SyncWrite can be moved to the Comitted state.
+ */
+enum class CommitType {
+    /**
+     * The SyncWrite was acked by a majority of nodes in a replication topology
+     * with >1 nodes.
+     */
+    Majority,
+    /**.
+     * The replication topology contains only 1 node and the durability fallback
+     * allowed this commit.
+     */
+    NotDurable
+};
+
+/**
  * Interface for event-driven checking of SyncWrites which have exceeded their
  * timeout and aborting them.
  * A VBucket's ActiveDurabilityMonitor will call updateNextExpiryTime()

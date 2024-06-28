@@ -3850,6 +3850,7 @@ TEST_P(CollectionsDcpParameterizedTest,
                              key,
                              vb->getHighSeqno(),
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     auto highSeqno = vb->getHighSeqno();
@@ -3913,6 +3914,7 @@ TEST_P(CollectionsDcpParameterizedTest,
                              key,
                              vb->getHighSeqno(),
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     auto highSeqno = vb->getHighSeqno();
@@ -3959,6 +3961,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
                              key,
                              vb->getHighSeqno(),
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
 

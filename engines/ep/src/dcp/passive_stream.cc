@@ -575,6 +575,7 @@ cb::engine_errc PassiveStream::processCommit(
                       commit.getKey(),
                       commit.getPreparedSeqno(),
                       *commit.getBySeqno(),
+                      CommitType::Majority,
                       vb->lockCollections(commit.getKey()));
 }
 

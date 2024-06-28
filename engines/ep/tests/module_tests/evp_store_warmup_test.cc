@@ -1147,7 +1147,12 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         } else {
             folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
             // Commit on non-active is driven by VBucket::commit
-            vb->commit(rlh, key, prepareSeqno++, {}, vb->lockCollections(key));
+            vb->commit(rlh,
+                       key,
+                       prepareSeqno++,
+                       {},
+                       CommitType::Majority,
+                       vb->lockCollections(key));
         }
 
         flush_vbucket_to_disk(vbid, 1);
@@ -2013,7 +2018,12 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->commit(rlh, key, 1, 2, vb->lockCollections(key)));
+                  vb->commit(rlh,
+                             key,
+                             1,
+                             2,
+                             CommitType::Majority,
+                             vb->lockCollections(key)));
     }
     flush_vbucket_to_disk(vbid, 1);
     vb->notifyPassiveDMOfSnapEndReceived(2);

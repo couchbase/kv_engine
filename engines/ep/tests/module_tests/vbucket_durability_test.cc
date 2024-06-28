@@ -238,6 +238,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
                                   key,
                                   lastSeqno + 1,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key),
                                   cookie));
     }
@@ -284,6 +285,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
                                   key,
                                   lastSeqno + i * 2 + 1,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key),
                                   cookie));
     }
@@ -1128,6 +1130,7 @@ TEST_P(VBucketDurabilityTest, Commit) {
                                   key,
                                   result->getBySeqno(),
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
     }
 
@@ -1165,8 +1168,12 @@ void VBucketDurabilityTest::testHTCommitExisting() {
         folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         // Test
         ASSERT_EQ(cb::engine_errc::success,
-                  vbucket->commit(
-                          rlh, key, 2, {}, vbucket->lockCollections(key)));
+                  vbucket->commit(rlh,
+                                  key,
+                                  2,
+                                  {},
+                                  CommitType::Majority,
+                                  vbucket->lockCollections(key)));
     }
 
     // Check postconditions - should only have one item for that key.
@@ -1237,8 +1244,12 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
         auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
         folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
-                  vbucket->commit(
-                          rlh, key, 4, {}, vbucket->lockCollections(key)));
+                  vbucket->commit(rlh,
+                                  key,
+                                  4,
+                                  {},
+                                  CommitType::Majority,
+                                  vbucket->lockCollections(key)));
 
         // Check that we have the expected items in the seqList.
         // 1 stale commit (because of the range read)
@@ -1279,6 +1290,7 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
                               key,
                               result->getBySeqno(),
                               {},
+                              CommitType::Majority,
                               vbucket->lockCollections(key)));
 
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
@@ -1338,6 +1350,7 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
                               key,
                               writeView->getBySeqno(),
                               {},
+                              CommitType::Majority,
                               vbucket->lockCollections(key)));
 
     // Check postconditions:
@@ -1400,6 +1413,7 @@ void VBucketDurabilityTest::testSyncDeleteUpdateMaxDelRevSeqno(Resolution res) {
                                   key,
                                   preparedSeqno,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
 
         // committed sync delete has rev seqno one greater than the item it
@@ -1504,6 +1518,7 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
                                   key,
                                   4 /*prepareSeqno*/,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
 
         // Check that we have the expected items in the seqList.
@@ -1541,6 +1556,7 @@ TEST_P(VBucketDurabilityTest, CommitNonPendingFails) {
                               key,
                               result->getBySeqno(),
                               {},
+                              CommitType::Majority,
                               vbucket->lockCollections(key)));
 }
 
@@ -1563,6 +1579,7 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
                                   key,
                                   result->getBySeqno(),
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
     }
 
@@ -1600,6 +1617,7 @@ void VBucketDurabilityTest::doSyncWriteAndCommit() {
                               key,
                               preparedSeqno,
                               {},
+                              CommitType::Majority,
                               vbucket->lockCollections(key)));
 }
 
@@ -1661,6 +1679,7 @@ void VBucketDurabilityTest::doSyncDelete() {
                               key,
                               lastSeqno + 1,
                               {},
+                              CommitType::Majority,
                               vbucket->lockCollections(key)));
 }
 
@@ -2098,6 +2117,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetup(
                     key,
                     1 /*prepareSeqno*/,
                     3 /*commitSeqno*/,
+                    CommitType::Majority,
                     vbucket->lockCollections(key));
 
     // Skip the receiving of the snap end
@@ -2191,6 +2211,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
                         key,
                         2 /*prepareSeqno*/,
                         4 /*commitSeqno*/,
+                        CommitType::Majority,
                         vbucket->lockCollections(key));
     }
     const auto& pdm = VBucketTestIntrospector::public_getPassiveDM(*vbucket);
@@ -2879,6 +2900,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
                                       key,
                                       prepare.seqno,
                                       prepare.seqno + 10 /*commitSeqno*/,
+                                      CommitType::Majority,
                                       vbucket->lockCollections(key)));
 
             const auto sv = ht->findForRead(key).storedValue;
@@ -3147,6 +3169,7 @@ TEST_P(EPVBucketDurabilityTest,
                                   key,
                                   preparedSeqno,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
     }
 
@@ -3258,6 +3281,7 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
                                   key,
                                   vbucket->getHighSeqno() /* preparedSeqno */,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
     }
 
@@ -3299,6 +3323,7 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
                                   key,
                                   vbucket->getHighSeqno() /* preparedSeqno */,
                                   {},
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
     }
 

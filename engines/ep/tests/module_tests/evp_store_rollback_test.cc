@@ -1453,6 +1453,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
                              key,
                              prepareSeqno,
                              {commitSeqno},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
 

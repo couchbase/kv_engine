@@ -266,6 +266,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
                             key,
                             1 /*prepareSeqno*/,
                             {},
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
     EXPECT_EQ(2, vb.getHighSeqno());

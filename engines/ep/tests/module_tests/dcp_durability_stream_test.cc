@@ -702,7 +702,12 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         // Seqno 2 - Followed by a commit (the consumer does not get this)
-        vb->commit(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        vb->commit(rlh,
+                   key,
+                   vb->getHighSeqno(),
+                   {},
+                   CommitType::Majority,
+                   vb->lockCollections(key));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -716,7 +721,12 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     // seqno 1
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        vb->commit(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        vb->commit(rlh,
+                   key,
+                   vb->getHighSeqno(),
+                   {},
+                   CommitType::Majority,
+                   vb->lockCollections(key));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1780,7 +1790,12 @@ void DurabilityPassiveStreamTest::
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(rlh, key, prepareSeqno, {}, vb->lockCollections(key)));
+              vb->commit(rlh,
+                         key,
+                         prepareSeqno,
+                         {},
+                         CommitType::Majority,
+                         vb->lockCollections(key)));
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
@@ -4667,6 +4682,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
                              key,
                              6 /*prepare-seqno*/,
                              {} /*commit-seqno*/,
+                             CommitType::Majority,
                              cHandle));
         ASSERT_EQ(7, vb->getHighSeqno());
     }

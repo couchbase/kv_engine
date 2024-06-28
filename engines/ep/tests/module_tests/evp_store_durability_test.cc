@@ -206,6 +206,7 @@ protected:
                        key,
                        1 /*prepareSeqno*/,
                        {} /*commitSeqno*/,
+                       CommitType::Majority,
                        vb->lockCollections(key));
         }
 
@@ -891,6 +892,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -940,6 +942,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
                             key,
                             delInfo.seqno,
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -992,6 +995,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1052,6 +1056,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
                             key,
                             3 /*prepareSeqno*/,
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
     validateHighAndVisibleSeqno(vb, 4, 4);
@@ -1110,6 +1115,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
                             key,
                             2 /*prepareSeqno*/,
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1137,6 +1143,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
                             key,
                             4 /*prepareSeqno*/,
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)))
                 << "SyncWrite commit should be possible";
     }
@@ -1164,6 +1171,7 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1226,6 +1234,7 @@ TEST_P(DurabilityBucketTest, SyncWriteComparesToCorrectCas) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1271,6 +1280,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectSVExists) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1307,6 +1317,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectExpiry) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1351,6 +1362,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectSVExists) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1388,6 +1400,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectExpiry) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1431,6 +1444,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncWriteChecksCorrectExpiry) {
                             key,
                             pending->getBySeqno(),
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -1531,6 +1545,7 @@ void DurabilityEPBucketTest::performCommitForKey(
                         key,
                         prepareSeqno,
                         {} /*commitSeqno*/,
+                        CommitType::Majority,
                         vb.lockCollections(key)));
     verifyOnDiskItemCount(vb, expectedDiskCount);
     verifyCollectionItemCount(
@@ -2327,6 +2342,7 @@ TEST_P(DurabilityBucketTest, SyncAddAfterAbortedSyncWrite) {
                         key,
                         prepared2->getBySeqno(),
                         {},
+                        CommitType::Majority,
                         vb.lockCollections(key)));
 }
 
@@ -2374,6 +2390,7 @@ TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncDelete) {
                         key,
                         prepared2->getBySeqno(),
                         {},
+                        CommitType::Majority,
                         vb.lockCollections(key)));
 }
 
@@ -2403,7 +2420,12 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
     auto& vb = *store->getVBucket(vbid);
     folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
-              vb.commit(rlh, key, delInfo.seqno, {}, vb.lockCollections(key)));
+              vb.commit(rlh,
+                        key,
+                        delInfo.seqno,
+                        {},
+                        CommitType::Majority,
+                        vb.lockCollections(key)));
 
     // Item should no longer exist.
     auto gv = store->get(key, vbid, cookie, get_options_t());
@@ -3153,6 +3175,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
                    key,
                    1 /*prepareSeqno*/,
                    {} /*commitSeqno*/,
+                   CommitType::Majority,
                    vb->lockCollections(key));
     }
 
@@ -3525,6 +3548,7 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
                          key,
                          1 /*prepareSeqno*/,
                          {} /*commitSeqno*/,
+                         CommitType::Majority,
                          vb.lockCollections(key));
     };
     testPurgeCompletedPrepare(op);
@@ -3570,6 +3594,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
                              key,
                              1 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
 
@@ -3653,7 +3678,12 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
             4, 4, {} /*HCS*/, CheckpointType::Memory, 0);
     folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(rlh, key, 1, 4, vb.lockCollections(key)));
+              vb.commit(rlh,
+                        key,
+                        1,
+                        4,
+                        CommitType::Majority,
+                        vb.lockCollections(key)));
 }
 
 TEST_P(DurabilityBucketTest, CasCheckMadeForNewPrepare) {
@@ -3726,6 +3756,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
                                   key,
                                   seqno - 1 /*prepareSeqno*/,
                                   seqno /*commitSeqno*/,
+                                  CommitType::Majority,
                                   vbucket->lockCollections(key)));
     }
 
@@ -5103,6 +5134,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
                             key,
                             1 /*prepareSeqno*/,
                             {},
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -5249,6 +5281,7 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
                              key,
                              2 /*prepareSeqno*/,
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
 

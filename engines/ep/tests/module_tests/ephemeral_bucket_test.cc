@@ -583,7 +583,12 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     {
         folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
-                  vb.commit(rlh, key, 1, {}, vb.lockCollections(key)));
+                  vb.commit(rlh,
+                            key,
+                            1,
+                            {},
+                            CommitType::Majority,
+                            vb.lockCollections(key)));
     }
     {
         auto res = ht.findForUpdate(key);
@@ -662,7 +667,12 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
         folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         // Commit:4
         ASSERT_EQ(cb::engine_errc::success,
-                  vb.commit(rlh, key, 3, {}, vb.lockCollections(key)));
+                  vb.commit(rlh,
+                            key,
+                            3,
+                            {},
+                            CommitType::Majority,
+                            vb.lockCollections(key)));
     }
     {
         auto res = ht.findForUpdate(key);
@@ -827,6 +837,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
                             key,
                             1 /*prepareSeqno*/,
                             {},
+                            CommitType::Majority,
                             vb.lockCollections(key)));
     }
 
@@ -900,6 +911,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
                             keyA,
                             1 /*prepareSeqno*/,
                             {},
+                            CommitType::Majority,
                             vb.lockCollections(keyA)));
     }
     EXPECT_EQ(2, vb.getHighSeqno());

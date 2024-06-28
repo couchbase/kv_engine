@@ -237,7 +237,12 @@ public:
         auto docKey = makeStoredDocKey(key);
         auto vb = engine->getVBucket(vbid);
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        return vb->commit(rlh, docKey, 1, {}, vb->lockCollections(docKey));
+        return vb->commit(rlh,
+                          docKey,
+                          1,
+                          {},
+                          CommitType::Majority,
+                          vb->lockCollections(docKey));
     }
 
     cb::engine_errc storeSet(std::string key) {

@@ -768,6 +768,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
                              key,
                              2 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -798,6 +799,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
                              key,
                              4 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1250,6 +1252,7 @@ protected:
                              key,
                              2 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
+                             CommitType::Majority,
                              vb->lockCollections(key)));
         flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1570,6 +1573,7 @@ TEST_P(CollectionsEraserSyncWriteTest, EraserFindsPrepares) {
                              key,
                              2 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
+                             CommitType::Majority,
                              vb->lockCollections(key)));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);

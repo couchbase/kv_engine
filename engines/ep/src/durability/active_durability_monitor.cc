@@ -1003,6 +1003,7 @@ void ActiveDurabilityMonitor::commit(VBucketStateLockRef vbStateLock,
                             key,
                             sw.getBySeqno() /*prepareSeqno*/,
                             {} /*commitSeqno*/,
+                            CommitType::Majority,
                             cHandle,
                             sw.getCookie());
     if (result != cb::engine_errc::success) {

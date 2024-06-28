@@ -905,6 +905,7 @@ cb::engine_errc VBucket::commit(
         const DocKeyView& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> commitSeqno,
+        CommitType commitType,
         const Collections::VB::CachingReadHandle& cHandle,
         CookieIface* cookie) {
     Expects(cHandle.valid());
@@ -977,7 +978,8 @@ cb::engine_errc VBucket::commit(
 
     // Cookie representing the client connection, provided only at Active
     if (cookie) {
-        notifyClientOfSyncWriteComplete(cookie, cb::engine_errc::success);
+        const auto status = mapCommitTypeToEngineError(commitType);
+        notifyClientOfSyncWriteComplete(cookie, status);
     }
 
     return cb::engine_errc::success;
@@ -1114,6 +1116,17 @@ void VBucket::notifyClientOfSyncWriteComplete(CookieIface* cookie,
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
     getPassiveDM().notifySnapshotEndReceived(snapEnd);
+}
+
+cb::engine_errc VBucket::mapCommitTypeToEngineError(CommitType type) const {
+    switch (type) {
+    case CommitType::Majority:
+        return cb::engine_errc::success;
+    case CommitType::NotDurable:
+        // TODO(MB-43068): Use a different status code.
+        return cb::engine_errc::success;
+    }
+    folly::assume_unreachable();
 }
 
 void VBucket::sendSeqnoAck(int64_t seqno) {

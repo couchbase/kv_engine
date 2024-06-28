@@ -279,6 +279,7 @@ TEST_P(StreamTest, VerifyProducerStats) {
                              prepareToCommit->getKey(),
                              prepareToCommit->getBySeqno(),
                              {},
+                             CommitType::Majority,
                              vb->lockCollections(prepareToCommit->getKey()),
                              cookie));
     }
@@ -2862,7 +2863,12 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
         {
             folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
             EXPECT_EQ(cb::engine_errc::success,
-                      vb.commit(rlh, key, 1, {}, vb.lockCollections(key)));
+                      vb.commit(rlh,
+                                key,
+                                1,
+                                {},
+                                CommitType::Majority,
+                                vb.lockCollections(key)));
         }
         // Replica doesn't like 2 prepares for the same key into the same
         // checkpoint.
@@ -6963,6 +6969,7 @@ TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
                             pre2.getKey(),
                             pre2.getBySeqno(),
                             {},
+                            CommitType::Majority,
                             vb.lockCollections(pre2.getKey()),
                             nullptr));
     }

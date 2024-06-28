@@ -2983,7 +2983,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
 
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        vb->commit(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        vb->commit(rlh,
+                   key,
+                   vb->getHighSeqno(),
+                   {},
+                   CommitType::Majority,
+                   vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
     }
 

@@ -1481,6 +1481,7 @@ public:
      *                    If omitted then a sequence number will be generated
      *                    by the CheckpointManager.
      * @param cHandle The collections handle
+     * @param commitType The reason for the commit.
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
@@ -1488,6 +1489,7 @@ public:
                            const DocKeyView& key,
                            uint64_t prepareSeqno,
                            std::optional<int64_t> commitSeqno,
+                           CommitType commitType,
                            const Collections::VB::CachingReadHandle& cHandle,
                            CookieIface* cookie = nullptr);
 
@@ -1555,6 +1557,14 @@ public:
      *     the PassiveStream
      */
     void notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd);
+
+    /**
+     * Maps the CommitType to a cb::engine_errc to be returned to the core.
+     *
+     * @param type The commit type.
+     * @return the engine_errc to notify the cookie with.
+     */
+    cb::engine_errc mapCommitTypeToEngineError(CommitType type) const;
 
     /**
      * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.
@@ -1872,6 +1882,12 @@ public:
      * MB-34150.
      */
     const size_t maxAllowedReplicasForSyncWrites;
+
+    /**
+     * Should we allow SyncWrites to complete when there there are not enough
+     * replicas in the topology for majority-ack.
+     */
+    std::atomic_bool allowSyncWritesForNonMajorityTopology;
 
     /**
      * A custom delete function for deleting VBucket objects. Any thread could

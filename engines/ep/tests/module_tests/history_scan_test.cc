@@ -894,9 +894,14 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
                                          cb::durability::Timeout::Infinity()));
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        ASSERT_EQ(
-                cb::engine_errc::success,
-                vb->commit(rlh, key, 4, {}, vb->lockCollections(key), nullptr));
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             4,
+                             {},
+                             CommitType::Majority,
+                             vb->lockCollections(key),
+                             nullptr));
     }
 
     // put a "committed" item in at seqno:5
@@ -917,9 +922,14 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
 
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        ASSERT_EQ(
-                cb::engine_errc::success,
-                vb->commit(rlh, key, 6, {}, vb->lockCollections(key), nullptr));
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             6,
+                             {},
+                             CommitType::Majority,
+                             vb->lockCollections(key),
+                             nullptr));
     }
 
     // put a "committed" item in at seqno:7
