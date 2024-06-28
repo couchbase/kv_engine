@@ -116,6 +116,12 @@ public:
     bool isSatisfied() const;
 
     /**
+     * @return ToCommit if the SyncWrite was acked by nodes other than the
+     * active, ToCommitNotDurable if not acked.
+     */
+    SyncWriteStatus getStatusForCommit() const;
+
+    /**
      * Check if this SyncWrite is expired or not.
      *
      * @param asOf The time to be compared with this SW's expiry-time
@@ -191,6 +197,11 @@ private:
         explicit operator bool() const {
             return chainPtr;
         }
+
+        /**
+         * @return true if the required number of acks has been observed.
+         */
+        bool isSatisfied() const;
 
         void reset(const ActiveDurabilityMonitor::ReplicationChain* newChainPtr,
                    uint8_t newAckCount) {
@@ -728,8 +739,10 @@ public:
 
     // Cumulative count of accepted (tracked) SyncWrites.
     size_t totalAccepted = 0;
-    // Cumulative count of Committed SyncWrites.
+    // Cumulative count of all Committed SyncWrites.
     size_t totalCommitted = 0;
+    // Cumulative count of Committed SyncWrites without replica acknowledgement.
+    size_t totalCommittedNotDurable = 0;
     // Cumulative count of Aborted SyncWrites.
     size_t totalAborted = 0;
 

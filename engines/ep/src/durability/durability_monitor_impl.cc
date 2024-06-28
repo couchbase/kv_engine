@@ -166,13 +166,10 @@ bool DurabilityMonitor::ActiveSyncWrite::isSatisfied() const {
 
     bool ret{false};
 
-    auto firstChainSatisfied =
-            firstChain.ackCount >= firstChain.chainPtr->majority;
+    auto firstChainSatisfied = firstChain.isSatisfied();
     auto firstChainActiveSatisfied = firstChain.chainPtr->hasAcked(
             firstChain.chainPtr->active, this->getBySeqno());
-    auto secondChainSatisfied =
-            !secondChain ||
-            secondChain.ackCount >= secondChain.chainPtr->majority;
+    auto secondChainSatisfied = !secondChain || secondChain.isSatisfied();
     auto secondChainActiveSatisfied =
             !secondChain ||
             (secondChain.chainPtr->active == firstChain.chainPtr->active ||
@@ -189,6 +186,21 @@ bool DurabilityMonitor::ActiveSyncWrite::isSatisfied() const {
           secondChainSatisfied && secondChainActiveSatisfied;
 
     return ret;
+}
+
+SyncWriteStatus DurabilityMonitor::ActiveSyncWrite::getStatusForCommit() const {
+    if (!firstChain) {
+        throw std::logic_error(
+                "SyncWrite::isSatisfied: Attmpting to check replica acks "
+                "without the first replication chain");
+    }
+
+    const bool isDurable =
+            firstChain.ackCount >= firstChain.chainPtr->majority &&
+            (!secondChain ||
+             secondChain.ackCount > firstChain.chainPtr->majority);
+    return isDurable ? SyncWriteStatus::ToCommit
+                     : SyncWriteStatus::ToCommitNotDurable;
 }
 
 bool DurabilityMonitor::ActiveSyncWrite::isExpired(
@@ -261,6 +273,23 @@ std::ostream& operator<<(std::ostream& os,
        << " reqs:" << to_string(sw.item->getDurabilityReqs()) << "] "
        << " status:" << to_string(sw.getStatus());
     return os;
+}
+
+bool DurabilityMonitor::ActiveSyncWrite::ChainStatus::isSatisfied() const {
+    Expects(chainPtr);
+
+    // The SyncWrite has been acked by the majority of the nodes in the
+    // replication topology.
+    const bool hasMajority = ackCount >= chainPtr->majority;
+
+    // The SyncWrite can be committed despite the lack of replicas for a
+    // majority.
+    const bool allowFallback =
+            chainPtr->size() < chainPtr->majority &&
+            chainPtr->commitStrategy ==
+                    CommitStrategy::MajorityAckFallbackToMasterAckOnly;
+
+    return hasMajority || allowFallback;
 }
 
 std::ostream& operator<<(std::ostream& os,
@@ -390,6 +419,8 @@ std::string to_string(SyncWriteStatus status) {
         return "Pending";
     case SyncWriteStatus::ToCommit:
         return "ToCommit";
+    case SyncWriteStatus::ToCommitNotDurable:
+        return "ToCommitNotDurable";
     case SyncWriteStatus::ToAbort:
         return "ToAbort";
     case SyncWriteStatus::Completed:

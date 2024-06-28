@@ -247,6 +247,7 @@ ActiveDurabilityMonitor::ActiveDurabilityMonitor(
             }
             break;
         case SyncWriteStatus::ToCommit:
+        case SyncWriteStatus::ToCommitNotDurable:
         case SyncWriteStatus::ToAbort:
             numberToComplete++;
             break;
@@ -571,6 +572,7 @@ void ActiveDurabilityMonitor::processCompletedSyncWriteQueue(
                     to_string(sw->getStatus()));
             continue;
         case SyncWriteStatus::ToCommit:
+        case SyncWriteStatus::ToCommitNotDurable:
             commit(vbStateLock, *sw);
             continue;
         case SyncWriteStatus::ToAbort:
@@ -614,6 +616,7 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
                         "found a SyncWrite with unexpected state: " +
                         to_string(sw->getStatus()));
             case SyncWriteStatus::ToCommit:
+            case SyncWriteStatus::ToCommitNotDurable:
             case SyncWriteStatus::ToAbort:
                 // Put our ActiveSyncWrite back into trackedWrites. When we
                 // transition to replica we will strip all active only state as
@@ -652,6 +655,9 @@ size_t ActiveDurabilityMonitor::getNumAccepted() const {
 }
 size_t ActiveDurabilityMonitor::getNumCommitted() const {
     return state.rlock()->totalCommitted;
+}
+size_t ActiveDurabilityMonitor::getNumCommittedNotDurable() const {
+    return state.rlock()->totalCommittedNotDurable;
 }
 size_t ActiveDurabilityMonitor::getNumAborted() const {
     return state.rlock()->totalAborted;
@@ -1013,11 +1019,25 @@ void ActiveDurabilityMonitor::commit(VBucketStateLockRef vbStateLock,
         prepareDuration.start(sw.getStartTime());
         prepareDuration.stop(prepareEnd);
     }
+
+    CommitType commitType;
+    switch (sw.getStatus()) {
+    case SyncWriteStatus::ToCommit:
+        commitType = CommitType::Majority;
+        break;
+    case SyncWriteStatus::ToCommitNotDurable:
+        commitType = CommitType::NotDurable;
+        break;
+    default:
+        throwException<std::logic_error>(
+                __func__, "unexpected status: " + to_string(sw.getStatus()));
+    }
+
     auto result = vb.commit(vbStateLock,
                             key,
                             sw.getBySeqno() /*prepareSeqno*/,
                             {} /*commitSeqno*/,
-                            CommitType::Majority,
+                            commitType,
                             cHandle,
                             sw.getCookie());
     if (result != cb::engine_errc::success) {
@@ -1037,6 +1057,9 @@ void ActiveDurabilityMonitor::commit(VBucketStateLockRef vbStateLock,
         s->lastCommittedSeqno = sw.getBySeqno();
         s->updateHighCompletedSeqno();
         s->totalCommitted++;
+        if (sw.getStatus() == SyncWriteStatus::ToCommitNotDurable) {
+            s->totalCommittedNotDurable++;
+        }
         // Note:
         // - Level Majority locally-satisfied first at Active by-logic
         // - Level MajorityAndPersistOnMaster and PersistToMajority must always
@@ -1216,8 +1239,8 @@ void ActiveDurabilityMonitor::State::processSeqnoAck(const std::string& node,
         // Check if Durability Requirements satisfied now, and add for commit
         if (posIt->isSatisfied()) {
             Expects(posIt->getStatus() == SyncWriteStatus::Pending);
-            toCommit.enqueue(*this,
-                             removeSyncWrite(posIt, SyncWriteStatus::ToCommit));
+            toCommit.enqueue(
+                    *this, removeSyncWrite(posIt, posIt->getStatusForCommit()));
         }
     }
 
@@ -1606,7 +1629,7 @@ void ActiveDurabilityMonitor::State::cleanUpTrackedWritesPostTopologyChange(
             removeSyncWrite(it, SyncWriteStatus::Completed);
         } else if (it->isSatisfied()) {
             toCommit.enqueue(*this,
-                             removeSyncWrite(it, SyncWriteStatus::ToCommit));
+                             removeSyncWrite(it, it->getStatusForCommit()));
         }
         it = next;
     }
@@ -1724,7 +1747,8 @@ void ActiveDurabilityMonitor::State::updateHighPreparedSeqno(
         Expects(pos.it != trackedWrites.end());
         if (pos.it->isSatisfied()) {
             completed.enqueue(
-                    *this, removeSyncWrite(pos.it, SyncWriteStatus::ToCommit));
+                    *this,
+                    removeSyncWrite(pos.it, pos.it->getStatusForCommit()));
         }
     };
 

@@ -160,6 +160,7 @@ public:
 
     size_t getNumAccepted() const override;
     size_t getNumCommitted() const override;
+    size_t getNumCommittedNotDurable() const override;
     size_t getNumAborted() const override;
 
     /**

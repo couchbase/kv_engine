@@ -303,6 +303,11 @@ size_t PassiveDurabilityMonitor::getNumAccepted() const {
 size_t PassiveDurabilityMonitor::getNumCommitted() const {
     return state.rlock()->totalCommitted;
 }
+size_t PassiveDurabilityMonitor::getNumCommittedNotDurable() const {
+    // Replicas do not observe writes committed without replica ack any
+    // differently from regular commits.
+    return 0;
+}
 size_t PassiveDurabilityMonitor::getNumAborted() const {
     return state.rlock()->totalAborted;
 }

@@ -27,6 +27,14 @@ enum class SyncWriteStatus {
     // trackedWrites in this state.
     ToCommit,
 
+    // Should be committed, despite not enough nodes having acked. Should not
+    // exist in trackedWrites in this state. We allow this when the durability
+    // fallback mode is enabled.
+    // Note: This status is also used in the case of two replication chains,
+    // when the SW was acked by majority only on one chain, and the other did
+    // not have majority > 1.
+    ToCommitNotDurable,
+
     // Should be aborted. Should not exist in trackedWrites in this state.
     ToAbort,
 

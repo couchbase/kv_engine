@@ -83,6 +83,12 @@ public:
 
     /**
      * @returns the cumulative number of SyncWrite(s) which have been
+     * committed without replica acknowledgement.
+     */
+    virtual size_t getNumCommittedNotDurable() const = 0;
+
+    /**
+     * @returns the cumulative number of SyncWrite(s) which have been
      * aborted.
      */
     virtual size_t getNumAborted() const = 0;

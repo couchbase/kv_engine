@@ -68,6 +68,11 @@ public:
         return 0;
     }
 
+    size_t getNumCommittedNotDurable() const override {
+        // DDM should not commit anything and values are not transferred
+        return 0;
+    }
+
     size_t getNumAborted() const override {
         // DDM should not abort anything and values are not transferred
         return 0;

@@ -1177,6 +1177,7 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_CannotCompleteInMajority) {
     ASSERT_EQ(1, adm.getNumTracked());
 }
 
+// MajorityAckFallbackToMasterAckOnly allows durability when no replica is present.
 TEST_P(ActiveDurabilityMonitorTest, Fallback_DurabilityPossible) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
@@ -1188,6 +1189,108 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_DurabilityPossible) {
     adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
                                             MajorityAckFallbackToMasterAckOnly);
     EXPECT_TRUE(adm.isDurabilityPossible());
+}
+
+// MajorityAckFallbackToMasterAckOnly commits immediately when no replica is present
+// (durability impossibe in MajorityAck).
+TEST_P(ActiveDurabilityMonitorTest, Fallback_CommitWhenMajorityOne) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
+    adm.setCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+
+    DurabilityMonitorTest::addSyncWrites({1, 2});
+
+    // Check that the writes have been committed without replica ack.
+    EXPECT_EQ(2, adm.getNumCommittedNotDurable());
+}
+
+// MajorityAckFallbackToMasterAckOnly does not commit when persist level is used.
+TEST_P(ActiveDurabilityMonitorTest, Fallback_PersistWithFallback) {
+    if (!persistent()) {
+        // Persistence level not valid for ephemeral
+        GTEST_SKIP();
+    }
+
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
+    adm.setCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+
+    using namespace cb::durability;
+    DurabilityMonitorTest::addSyncWrites(
+            {1, 2},
+            Requirements(Level::MajorityAndPersistOnMaster,
+                         Timeout::Infinity()));
+
+    // Check that the writes have been resolved with the new strategy.
+    EXPECT_EQ(2, adm.getNumTracked());
+}
+
+// MajorityAckFallbackToMasterAckOnly allows unresolved writes to commit when the
+// topology becomes active-only.
+TEST_P(ActiveDurabilityMonitorTest, Fallback_CompleteOnTopologyChange) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
+    adm.setCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+
+    DurabilityMonitorTest::addSyncWrites({1});
+
+    // Check that the writes have not resolved, due to majority > 1.
+    EXPECT_EQ(1, adm.getNumTracked());
+
+    adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
+
+    // Check that the writes have been resolved after the failover.
+    EXPECT_EQ(0, adm.getNumTracked());
+
+    adm.processCompletedSyncWriteQueue(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()));
+
+    EXPECT_EQ(1, adm.getNumCommittedNotDurable());
+}
+
+// When we have two replication chains, we should perform the write durably
+// where possible. When the first chain support majority ack, we should wait for
+// the replica to ack the write. When the second chain doesn't support majority
+// ack, we should satisfy the write once the first chain is satisfied.
+TEST_P(ActiveDurabilityMonitorTest, Fallback_OneReplicaInFirstChain) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1}, {active, nullptr}}));
+    adm.setCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+
+    DurabilityMonitorTest::addSyncWrites({1});
+
+    // Check that the writes have not resolved, because the firstChain requires
+    // replica ack.
+    EXPECT_EQ(1, adm.getNumTracked());
+
+    adm.seqnoAckReceived(replica1, 1);
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(1, adm.getNumCommittedNotDurable());
+}
+
+TEST_P(ActiveDurabilityMonitorTest, Fallback_OneReplicaInSecondChain) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, nullptr}, {active, replica1}}));
+    adm.setCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+
+    DurabilityMonitorTest::addSyncWrites({1});
+
+    // Check that the writes have not resolved, because the secondChain requires
+    // replica ack.
+    EXPECT_EQ(1, adm.getNumTracked());
+
+    adm.seqnoAckReceived(replica1, 1);
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(1, adm.getNumCommittedNotDurable());
 }
 
 TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
