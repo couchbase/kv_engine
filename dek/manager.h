@@ -10,14 +10,14 @@
 
 #pragma once
 
-#include <cbcrypto/common.h>
+#include <cbcrypto/key_store.h>
 #include <nlohmann/json_fwd.hpp>
 #include <filesystem>
 #include <string>
 
 namespace cb::dek {
 
-using DataEncryptionKey = crypto::DataEncryptionKey;
+using SharedEncryptionKey = crypto::SharedEncryptionKey;
 
 /// The various entities supporting encryption in the core
 enum class Entity { Config, Logs, Audit };
@@ -62,7 +62,7 @@ public:
     [[nodiscard]] virtual nlohmann::json to_json() const = 0;
 
     /// Get a named current encryption key for the named entity
-    [[nodiscard]] virtual std::shared_ptr<DataEncryptionKey> lookup(
+    [[nodiscard]] virtual SharedEncryptionKey lookup(
             Entity entity, std::string_view id = {}) const = 0;
 
     /// Parse the provided JSON and replace the list of known keys with the
@@ -70,7 +70,6 @@ public:
     virtual void reset(const nlohmann::json& json) = 0;
 
     /// Set the active encryption key for a given entity
-    virtual void setActive(Entity entity,
-                           std::shared_ptr<DataEncryptionKey> key) = 0;
+    virtual void setActive(Entity entity, SharedEncryptionKey key) = 0;
 };
 } // namespace cb::dek

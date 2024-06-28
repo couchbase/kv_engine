@@ -7711,8 +7711,8 @@ void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
     }
 }
 
-std::shared_ptr<cb::crypto::DataEncryptionKey>
-EventuallyPersistentEngine::lookupEncryptionKey(const std::string_view id) {
+cb::crypto::SharedEncryptionKey EventuallyPersistentEngine::lookupEncryptionKey(
+        const std::string_view id) {
     return encryptionAtRestKeyStore.withRLock([&id](auto& keystore) {
         if (id.empty()) {
             return keystore.getActiveKey();

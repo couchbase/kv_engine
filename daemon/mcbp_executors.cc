@@ -575,7 +575,7 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
                 cb::dek::Manager::instance().setActive(
                         cb::dek::to_entity(entity), {});
             } else {
-                auto object = std::make_shared<cb::dek::DataEncryptionKey>();
+                auto object = std::make_shared<cb::crypto::DataEncryptionKey>();
                 *object = json;
                 cb::dek::Manager::instance().setActive(
                         cb::dek::to_entity(entity), std::move(object));

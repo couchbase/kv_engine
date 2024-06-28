@@ -47,33 +47,31 @@ Entity to_entity(std::string_view entity) {
 }
 
 class ManagerImpl : public Manager {
-    [[nodiscard]] std::shared_ptr<DataEncryptionKey> lookup(
+    [[nodiscard]] SharedEncryptionKey lookup(
             Entity entity, std::string_view id) const override;
 
     void reset(const nlohmann::json& json) override;
-    void setActive(Entity entity,
-                   std::shared_ptr<DataEncryptionKey> key) override;
+    void setActive(Entity entity, SharedEncryptionKey key) override;
     [[nodiscard]] nlohmann::json to_json() const override;
 
 protected:
     folly::Synchronized<std::unordered_map<Entity, crypto::KeyStore>> keys;
 };
 
-std::shared_ptr<DataEncryptionKey> ManagerImpl::lookup(
-        Entity entity, std::string_view id) const {
-    return keys.withRLock(
-            [&entity, id](auto& keys) -> std::shared_ptr<DataEncryptionKey> {
-                auto itr = keys.find(entity);
-                if (itr == keys.end()) {
-                    return {};
-                }
+SharedEncryptionKey ManagerImpl::lookup(Entity entity,
+                                        std::string_view id) const {
+    return keys.withRLock([&entity, id](auto& keys) -> SharedEncryptionKey {
+        auto itr = keys.find(entity);
+        if (itr == keys.end()) {
+            return {};
+        }
 
-                if (id.empty()) {
-                    return itr->second.getActiveKey();
-                }
+        if (id.empty()) {
+            return itr->second.getActiveKey();
+        }
 
-                return itr->second.lookup(id);
-            });
+        return itr->second.lookup(id);
+    });
 }
 
 void ManagerImpl::reset(const nlohmann::json& json) {
@@ -93,8 +91,7 @@ void ManagerImpl::reset(const nlohmann::json& json) {
     keys.swap(next);
 }
 
-void ManagerImpl::setActive(const Entity entity,
-                            std::shared_ptr<DataEncryptionKey> key) {
+void ManagerImpl::setActive(const Entity entity, SharedEncryptionKey key) {
     keys.withWLock(
             [entity, &key](auto& map) { map[entity].setActiveKey(key); });
 }

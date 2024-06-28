@@ -64,7 +64,7 @@ using BloomFilterCBPtr =
 using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, time_t&>>;
 
 using EncryptionKeyLookupFunction =
-        std::function<std::shared_ptr<cb::crypto::DataEncryptionKey>(
+        std::function<std::shared_ptr<const cb::crypto::DataEncryptionKey>(
                 std::string_view)>;
 
 /// Create a function which returns "not found"
