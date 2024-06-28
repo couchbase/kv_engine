@@ -294,12 +294,14 @@ struct ActiveDurabilityMonitor::ReplicationChain {
      *        replicas configured?
      *        Workaround for known issue with failover / rollback - see
      *        MB-34453 / MB-34150.
+     * @param commitStrategy The requirements for a commit.
      * @param vbid vbucket ID that the Chain is for.
      */
     ReplicationChain(const DurabilityMonitor::ReplicationChainName name,
                      const std::vector<std::string>& nodes,
                      const Container::iterator& it,
                      size_t maxAllowedReplicas,
+                     CommitStrategy commitStrategy,
                      Vbid vbid);
 
     size_t size() const;
@@ -325,6 +327,10 @@ struct ActiveDurabilityMonitor::ReplicationChain {
     // (Exposed as a member variable to allow tests to override it so we can
     // defend the bulk of functionality which does work).
     const size_t maxAllowedReplicas;
+
+    // The requirements for a commit for this chain. Set at construction.
+    // Not const because we can change the strategy after construction.
+    CommitStrategy commitStrategy;
 
     // Name of the chain
     const DurabilityMonitor::ReplicationChainName name;
@@ -379,22 +385,39 @@ struct ActiveDurabilityMonitor::State {
      *
      * @param name Name of chain (used for stats and exception logging)
      * @param chain Unique ptr to the chain
+     * @param commitStrategy The requirements for a commit.
      */
     std::unique_ptr<ReplicationChain> makeChain(
             const DurabilityMonitor::ReplicationChainName name,
-            const nlohmann::json& chain);
+            const nlohmann::json& chain,
+            CommitStrategy commitStrategy);
 
     /**
      * Set the replication topology from the given json. If the new topology
      * makes durability impossible then this function will abort any in-flight
-     * SyncWrites by enqueuing them in the ResolvedQueue toAbort.
+     * SyncWrites by enqueuing them in the ResolvedQueue toComplete.
      *
      * @param topology Json topology
-     * @param toComplete Reference to the resolvedQueue so that we can abort
-     *        any SyncWrites for which durability is no longer possible.
+     * @param toComplete Reference to the resolvedQueue so we can complete any
+     * SyncWrites that can be aborted/comitted.
      */
     void setReplicationTopology(const nlohmann::json& topology,
                                 ResolvedQueue& toComplete);
+
+    /**
+     * Set the commit strategy. If the new commit strategy makes durability
+     * impossible then this function will abort any in-flight SyncWrites by
+     * enqueuing them in the ResolvedQueue toComplete. If the new commit
+     * strategy allow some writes to be committed, they will be equeued in
+     * toComplete also.
+     *
+     * @param newStrategy The requirements for a durable write to be
+     * comitted.
+     * @param toComplete Reference to the resolvedQueue so we can complete any
+     * SyncWrites that can be aborted/comitted.
+     */
+    void setAndProcessCommitStrategy(CommitStrategy newStrategy,
+                                     ResolvedQueue& toComplete);
 
     /**
      * Add a new SyncWrite
@@ -663,6 +686,9 @@ private:
 public:
     /// The container of pending Prepares.
     Container trackedWrites;
+
+    /// The requirements for a durable write to be comitted.
+    CommitStrategy commitStrategy{CommitStrategy::MajorityAck};
 
     /**
      * @TODO Soon firstChain will be optional for warmup - update comment

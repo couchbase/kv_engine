@@ -27,10 +27,11 @@
 void ActiveDurabilityMonitorTest::SetUp() {
     // MB-34453: Change sync_writes_max_allowed_replicas back to total
     // possible replicas given we want to still test with all replicas.
-    setup(3);
+    setup(3, true);
 }
 
-void ActiveDurabilityMonitorTest::setup(int maxAllowedReplicas) {
+void ActiveDurabilityMonitorTest::setup(int maxAllowedReplicas,
+                                        bool setupTopology) {
     config_string += "sync_writes_max_allowed_replicas=" +
                      std::to_string(maxAllowedReplicas);
 
@@ -47,9 +48,11 @@ void ActiveDurabilityMonitorTest::setup(int maxAllowedReplicas) {
     ASSERT_EQ(0, adm.getFirstChainSize());
     ASSERT_EQ(0, adm.getFirstChainMajority());
 
-    adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
-    ASSERT_EQ(2, adm.getFirstChainSize());
-    ASSERT_EQ(2, adm.getFirstChainMajority());
+    if (setupTopology) {
+        adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
+        ASSERT_EQ(2, adm.getFirstChainSize());
+        ASSERT_EQ(2, adm.getFirstChainMajority());
+    }
 }
 
 void ActiveDurabilityMonitorTest::TearDown() {
@@ -1157,6 +1160,36 @@ TEST_P(ActiveDurabilityMonitorTest, SetTopology_NodeDuplicateInSecondChain) {
             nlohmann::json::array({{active, replica1}, {active, active}}));
 }
 
+TEST_P(ActiveDurabilityMonitorTest, Fallback_CannotCompleteInMajority) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
+    DurabilityMonitorTest::addSyncWrites({1});
+
+    // Check that neither strategy allows the write to be completed.
+    adm.setAndProcessCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAck);
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
+    adm.setAndProcessCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAck);
+
+    // Check that the write has not been resolved.
+    ASSERT_EQ(1, adm.getNumTracked());
+}
+
+TEST_P(ActiveDurabilityMonitorTest, Fallback_DurabilityPossible) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
+
+    adm.setAndProcessCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAck);
+    EXPECT_FALSE(adm.isDurabilityPossible());
+
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
+    EXPECT_TRUE(adm.isDurabilityPossible());
+}
+
 TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
     auto& adm = getActiveDM();
     ASSERT_NO_THROW(adm.setReplicationTopology(
@@ -1951,6 +1984,58 @@ TEST_P(ActiveDurabilityMonitorTest, dropLastKeyAndCompleteFirst) {
     vb->processResolvedSyncWrites();
 
     EXPECT_EQ(1, adm.getHighCompletedSeqno());
+}
+
+/// Test fixture which does not set an initial topology for the ADM.
+class ActiveDurabilityMonitorNullTopologyTest
+    : public ActiveDurabilityMonitorTest {
+public:
+    void SetUp() override {
+        setup(3, false);
+    }
+};
+
+/// Check that we do not allow SyncWrites to complete before setting the
+/// topology (topology is null immediately after switch to active).
+TEST_P(ActiveDurabilityMonitorNullTopologyTest,
+       Fallback_DurabilityImpossibleWithNullTopology) {
+    auto& adm = getActiveDM();
+    EXPECT_EQ(0, adm.getFirstChainSize());
+
+    adm.setAndProcessCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAck);
+    EXPECT_FALSE(adm.isDurabilityPossible());
+
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
+    EXPECT_FALSE(adm.isDurabilityPossible());
+}
+
+/**
+ * Test with the production limit of 2 replicas.
+ */
+class ActiveDurabilityMonitorWithReplicaLimitTest
+    : public ActiveDurabilityMonitorTest {
+public:
+    void SetUp() override {
+        setup(2, false);
+    }
+};
+
+/// Check that enabling the fallback strategy does not allow SyncWrites with
+/// unsupported number of replicas.
+TEST_P(ActiveDurabilityMonitorWithReplicaLimitTest, Fallback_TooManyReplicas) {
+    auto& adm = getActiveDM();
+    adm.setReplicationTopology(
+            nlohmann::json::array({{active, replica1, replica2, replica3}}));
+
+    adm.setAndProcessCommitStrategy(
+            DurabilityMonitor::CommitStrategy::MajorityAck);
+    EXPECT_FALSE(adm.isDurabilityPossible());
+
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
+    EXPECT_FALSE(adm.isDurabilityPossible());
 }
 
 void PassiveDurabilityMonitorTest::SetUp() {
@@ -3811,7 +3896,7 @@ class ActiveDurabilityMonitorAbortTest
 public:
     void SetUp() override {
         // Run with max of 2 replicas so that we will abort on topology change
-        ActiveDurabilityMonitorTest::setup(2);
+        ActiveDurabilityMonitorTest::setup(2, true);
     }
 };
 
@@ -4060,6 +4145,16 @@ TEST(DurabilityMonitorTrackedWritesTest, splice2) {
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          ActiveDurabilityMonitorTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         ActiveDurabilityMonitorNullTopologyTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         ActiveDurabilityMonitorWithReplicaLimitTest,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 

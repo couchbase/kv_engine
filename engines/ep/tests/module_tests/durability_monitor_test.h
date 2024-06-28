@@ -122,7 +122,7 @@ protected:
 class ActiveDurabilityMonitorTest : public DurabilityMonitorTest {
 public:
     void SetUp() override;
-    void setup(int maxAllowedReplicas);
+    void setup(int maxAllowedReplicas, bool setupTopology);
     void TearDown() override;
 
 protected:

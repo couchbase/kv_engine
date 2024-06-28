@@ -164,6 +164,17 @@ public:
      */
     void setReplicationTopology(const nlohmann::json& topology);
 
+    /**
+     * Set the commit strategy. If the new commit strategy makes durability
+     * impossible then this function will abort any in-flight SyncWrites. If the
+     * new commit strategy allows some writes to be committed, they wil also be
+     * processed as part of this call.
+     *
+     * @param newStrategy The requirements for a durable write to be
+     * comitted.
+     */
+    void setAndProcessCommitStrategy(CommitStrategy newStrategy);
+
     /// @returns the high_prepared_seqno.
     int64_t getHighPreparedSeqno() const override;
 

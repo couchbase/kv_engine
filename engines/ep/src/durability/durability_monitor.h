@@ -24,6 +24,25 @@ class CookieIface;
  */
 class DurabilityMonitor {
 public:
+    /**
+     * Specifies the required topology for a durable write.
+     */
+    enum class CommitStrategy {
+        /**
+         * Durable writes require a majority of nodes to ack the write
+         * (CommitType::Majority).
+         */
+        MajorityAck,
+        /**
+         * Durable writes require a majority of nodes to ack the write
+         * (CommitType::Majority), or if the replication topology does not have
+         * majority (CommitType::NotDurable). The later excludes the cases where
+         * the topology is null (because it has not been set after switching to
+         * active).
+         */
+        MajorityAckFallbackToMasterAckOnly,
+    };
+
     virtual ~DurabilityMonitor() = default;
 
     /**

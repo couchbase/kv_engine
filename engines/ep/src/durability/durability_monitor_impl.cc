@@ -301,10 +301,12 @@ ActiveDurabilityMonitor::ReplicationChain::ReplicationChain(
         const std::vector<std::string>& nodes,
         const Container::iterator& it,
         size_t maxAllowedReplicas,
+        CommitStrategy commitStrategy,
         Vbid vbid)
     : majority(nodes.size() / 2 + 1),
       active(nodes.at(0)),
       maxAllowedReplicas(maxAllowedReplicas),
+      commitStrategy(commitStrategy),
       name(name) {
     if (nodes.at(0) == UndefinedNode) {
         throw std::invalid_argument(
@@ -343,7 +345,13 @@ bool ActiveDurabilityMonitor::ReplicationChain::isDurabilityPossible() const {
         return false;
     }
 
-    return size() >= majority;
+    switch (commitStrategy) {
+    case CommitStrategy::MajorityAck:
+        return size() >= majority;
+    case CommitStrategy::MajorityAckFallbackToMasterAckOnly:
+        return true;
+    }
+    folly::assume_unreachable();
 }
 
 std::string to_string(DurabilityMonitor::ReplicationChainName name) {

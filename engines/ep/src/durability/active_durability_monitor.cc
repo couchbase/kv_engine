@@ -334,6 +334,21 @@ void ActiveDurabilityMonitor::setReplicationTopology(
     checkForResolvedSyncWrites();
 }
 
+void ActiveDurabilityMonitor::setAndProcessCommitStrategy(
+        CommitStrategy newStrategy) {
+    // Setting the commit strategy might commit/abort some SyncWrites (abort if
+    // durability impossible, commit if strategy permits).
+    //
+    // Note: checkForResolvedSyncWrites calls VBucket::commit and we should do
+    // that outside of the state lock.
+    {
+        auto s = state.wlock();
+        s->setAndProcessCommitStrategy(newStrategy, *resolvedQueue);
+    }
+
+    checkForResolvedSyncWrites();
+}
+
 int64_t ActiveDurabilityMonitor::getHighPreparedSeqno() const {
     return state.rlock()->highPreparedSeqno;
 }
@@ -1287,7 +1302,8 @@ void ActiveDurabilityMonitor::validateChain(
 std::unique_ptr<ActiveDurabilityMonitor::ReplicationChain>
 ActiveDurabilityMonitor::State::makeChain(
         const DurabilityMonitor::ReplicationChainName name,
-        const nlohmann::json& chain) {
+        const nlohmann::json& chain,
+        CommitStrategy commitStrategy) {
     std::vector<std::string> nodes;
     for (auto& node : chain.items()) {
         // First node (active) must be present, remaining (replica) nodes
@@ -1304,6 +1320,7 @@ ActiveDurabilityMonitor::State::makeChain(
             nodes,
             trackedWrites.end(),
             adm.vb.maxAllowedReplicasForSyncWrites,
+            commitStrategy,
             adm.vb.getId());
 
     // MB-34318
@@ -1371,8 +1388,10 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
         auto& sChain = topology.at(1);
         ActiveDurabilityMonitor::validateChain(
                 sChain, DurabilityMonitor::ReplicationChainName::Second);
-        newSecondChain = makeChain(
-                DurabilityMonitor::ReplicationChainName::Second, sChain);
+        newSecondChain =
+                makeChain(DurabilityMonitor::ReplicationChainName::Second,
+                          sChain,
+                          commitStrategy);
     }
 
     // Only set the firstChain after validating (and setting) the second so that
@@ -1381,7 +1400,9 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     // new ackCount for each SyncWrite. Create the new chain in a
     // temporary variable to do this.
     auto newFirstChain =
-            makeChain(DurabilityMonitor::ReplicationChainName::First, fChain);
+            makeChain(DurabilityMonitor::ReplicationChainName::First,
+                      fChain,
+                      commitStrategy);
 
     // Apply the new topology to all in-flight SyncWrites.
     for (auto& write : trackedWrites) {
@@ -1419,6 +1440,28 @@ void ActiveDurabilityMonitor::State::setReplicationTopology(
     if (secondChain) {
         performQueuedAckForChain(*secondChain, toComplete);
     }
+
+    // Commit if possible
+    cleanUpTrackedWritesPostTopologyChange(toComplete);
+}
+
+void ActiveDurabilityMonitor::State::setAndProcessCommitStrategy(
+        CommitStrategy newStrategy, ResolvedQueue& toComplete) {
+    if (commitStrategy == newStrategy) {
+        return;
+    }
+    commitStrategy = newStrategy;
+    if (!firstChain) {
+        return;
+    }
+
+    firstChain->commitStrategy = newStrategy;
+    if (secondChain) {
+        secondChain->commitStrategy = newStrategy;
+    }
+
+    // Abort any SyncWrites which have become impossible.
+    abortNoLongerPossibleSyncWrites(*firstChain, secondChain.get(), toComplete);
 
     // Commit if possible
     cleanUpTrackedWritesPostTopologyChange(toComplete);
