@@ -256,6 +256,15 @@ public:
 
     bool isBufferFull() const;
 
+    /**
+     * Currently intended to be a test-only function. Searches internal lists
+     * looking for a matching backfill.
+     *
+     * @throw invalid_argument if nothing found.
+     * @return reference to backfill that matches the given uid.
+     */
+    const DCPBackfillIface& getBackfill(uint64_t uid) const;
+
     /// The name of the BackfillManager, used for logging etc
     const std::string name;
 

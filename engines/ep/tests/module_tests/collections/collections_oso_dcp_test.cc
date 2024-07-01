@@ -150,6 +150,8 @@ TEST_P(CollectionsOSODcpTest, basic) {
 }
 
 void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
+    ASSERT_NE(OutOfOrderSnapshots::No, osoMode);
+
     // Put something on disk otherwise to expose the issue
     store_item(vbid, makeStoredDocKey("c"), "y");
     flush_vbucket_to_disk(vbid, 1);
@@ -159,7 +161,7 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
              cb::mcbp::DcpAddStreamFlag::DiskOnly}};
 
     for (auto flag : flags) {
-        // Reset so we have to stream from backfill
+        // Reset so we have to stream from backfill and clean-up between flags
         resetEngineAndWarmup();
         VBucketPtr vb = store->getVBucket(vbid);
         // Create a collection so we can get a stream, but don't flush it
@@ -168,6 +170,9 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
                 folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 makeManifest(cm));
 
+        // Must call this to ensure collection start-seqno optimisation doesn't
+        // skip the OSO backfill.
+        ensureDcpWillBackfill();
         // Filter on fruit collection (this will request from seqno:0)
         createDcpObjects({{R"({"collections":["9"]})"}}, osoMode, flag);
 

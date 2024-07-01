@@ -141,6 +141,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     takeoverStart = 0;
 
+    if (st_seqno == 0 && filter.isCollectionFilter()) {
+        // Generate the more optimal start position for the backfill. This is
+        // done here because the streamMutex is not yet held. Trying to defer
+        // this to later in execution puts this code into a path where the
+        // streamMutex is required and that causes a lock inversion with the
+        // VB::Manifest lock that is required to lookup the start seqno.
+        collectionStartSeqno = getCollectionStreamStart(vbucket);
+    }
+
     if (start_seqno_ >= end_seqno_) {
         /* streamMutex lock needs to be acquired because endStream
          * potentially makes call to pushToReadyQueue.
@@ -1911,6 +1920,32 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
     }
 }
 
+std::optional<uint64_t> ActiveStream::getCollectionStreamStart(
+        VBucket& vb) const {
+    // For a passthrough or scope stream don't do anything (scope stream could
+    // be improved)
+    if (filter.isPassThroughFilter() || filter.isScopeFilter()) {
+        return std::nullopt;
+    }
+
+    // else find a better start seqno for filtered streams.
+    std::optional<uint64_t> lowestStartSeqno;
+    for (const auto& [cid, entry] : filter) {
+        auto handle = vb.getManifest().lock(cid);
+        if (!handle.valid()) {
+            // Collection in the filter is no-longer in VB::Manifest (dropped).
+            // Do not optimise this case as we don't know where it was dropped.
+            return std::nullopt;
+        }
+        lowestStartSeqno =
+                std::min(handle.getStartSeqno(),
+                         lowestStartSeqno.value_or(
+                                 std::numeric_limits<uint64_t>::max()));
+    }
+
+    return lowestStartSeqno;
+}
+
 void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
                                              bool reschedule) {
     if (isBackfillTaskRunning) {
@@ -1940,8 +1975,15 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         return;
     }
 
-    uint64_t backfillStart = lastReadSeqno.load() + 1;
-    uint64_t backfillEnd;
+    auto inMemoryStart = lastReadSeqno.load();
+    uint64_t backfillStart = inMemoryStart + 1;
+
+    if (inMemoryStart == 0 && collectionStartSeqno && *collectionStartSeqno) {
+        inMemoryStart = *collectionStartSeqno - 1;
+        backfillStart = inMemoryStart + 1;
+    }
+
+    uint64_t backfillEnd{0};
     bool requireBackfill{false};
 
     if (isDiskOnly()) {
@@ -1965,9 +2007,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         CursorRegResult registerResult;
         try {
             registerResult = vbucket->checkpointManager->registerCursorBySeqno(
-                    name_,
-                    lastReadSeqno.load(),
-                    CheckpointCursor::Droppable::Yes);
+                    name_, inMemoryStart, CheckpointCursor::Droppable::Yes);
         } catch (std::exception& error) {
             log(spdlog::level::level_enum::warn,
                 "{} Failed to register "
@@ -1986,23 +2026,23 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
-            "name \"{}\" lastProcessedSeqno:{}, result{{tryBackfill:{}, op:{}, "
+            "name \"{}\" requested:{}, result{{tryBackfill:{}, op:{}, "
             "seqno:{}, nextSeqno:{}}}",
             logPrefix,
             name_,
-            lastReadSeqno.load(),
+            inMemoryStart,
             registerResult.tryBackfill,
             ::to_string(registerResult.position->getOperation()),
             registerResult.position->getBySeqno(),
             registerResult.nextSeqno);
 
-        if (lastReadSeqno.load() > curChkSeqno) {
+        if (inMemoryStart > curChkSeqno) {
             // something went wrong registering the cursor - it is too early
             // and could read items this stream has already sent.
             throw std::logic_error(
                     "ActiveStream::scheduleBackfill_UNLOCKED: "
                     "lastReadSeqno (which is " +
-                    std::to_string(lastReadSeqno.load()) +
+                    std::to_string(inMemoryStart) +
                     " ) is greater than curChkSeqno (which is " +
                     std::to_string(curChkSeqno) + " ). " + "for stream " +
                     producer.logHeader() + "; " + logPrefix);

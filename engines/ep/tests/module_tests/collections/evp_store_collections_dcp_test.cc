@@ -2149,6 +2149,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
 
+    // In memory stream.
     notifyAndStepToCheckpoint();
 
     // Now step DCP to transfer system events. We expect that the stream will
@@ -5609,6 +5610,37 @@ TEST_P(CollectionsDcpPersistentOnlyWithMagmaSyncAlways, ModifyAndDrop) {
     EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+}
+
+// Test relates to MB-40383
+TEST_P(CollectionsDcpParameterizedTest, skipNonMatchingSeqnos) {
+    using namespace mcbp::systemevent;
+    using namespace cb::mcbp;
+    using namespace CollectionEntry;
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(fruit));
+    store_item(vbid, makeStoredDocKey("k", fruit), "v");
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    // Clear out checkpoints
+    ensureDcpWillBackfill();
+    setCollections(cookie, cm.add(vegetable));
+    store_item(vbid, makeStoredDocKey("k", vegetable), "v");
+
+    // Setup filtered DCP for the later collection which will still be in
+    // checkpoint memory
+    createDcpObjects({{R"({"collections":["a"]})"}});
+
+    // And we will in-memory stream. If the skip optimisation was disabled, this
+    // would backfill and test fails here as this function expects memory
+    // streaming
+    notifyAndStepToCheckpoint();
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+
+    stepAndExpect(ClientOpcode::DcpMutation);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
 }
 
 // Test cases which run for persistent and ephemeral buckets

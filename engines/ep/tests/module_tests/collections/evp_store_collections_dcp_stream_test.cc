@@ -14,6 +14,8 @@
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
+#include "dcp/backfill-manager.h"
+#include "dcp/backfill_by_seqno_disk.h"
 #include "dcp/response.h"
 #include "ep_bucket.h"
 #include "failover-table.h"
@@ -1058,4 +1060,31 @@ TEST_F(CollectionsDcpStreamsTestWithHugeDuration, multi_stream) {
     producer->getCheckpointSnapshotTask()->run();
     EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
     EXPECT_EQ(producer->getStreamAggStats().readyQueueMemory, memory);
+}
+
+TEST_F(CollectionsDcpStreamsTest, OptimiseStartSeqno) {
+    CollectionsManifest cm;
+    // Move high-seq so new collection begins from > 0
+    store_item(vbid, StoredDocKey{"k1", CollectionEntry::defaultC}, "v");
+    store_item(vbid, StoredDocKey{"k2", CollectionEntry::defaultC}, "v");
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    auto vb = store->getVBucket(vbid);
+
+    ensureDcpWillBackfill();
+
+    // fruit collection
+    createDcpStream({{R"({"collections":["9"]})"}});
+
+    // Inspect backfill has starts with fruit
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(1, bfm.getNumBackfills());
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    const auto& bf = dynamic_cast<const DCPBackfillBySeqnoDisk&>(
+            bfm.getBackfill(stream->getBackfillUID()));
+    auto seq = vb->getManifest().lock(CollectionEntry::fruit).getStartSeqno();
+    ASSERT_GT(seq, 1);
+    EXPECT_EQ(bf.getStartSeqno(), seq);
 }

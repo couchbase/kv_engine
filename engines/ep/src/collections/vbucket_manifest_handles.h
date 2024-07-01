@@ -636,6 +636,10 @@ public:
         return itr->second.getName();
     }
 
+    uint64_t getStartSeqno() const {
+        return itr->second.getStartSeqno();
+    }
+
     void dump() const;
 
 protected:

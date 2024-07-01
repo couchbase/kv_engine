@@ -506,6 +506,19 @@ public:
         return chkptItemsExtractionInProgress;
     }
 
+    /**
+     * Lookup in the VB::Manifest the lowest start-seqno for all collections in
+     * the filter.
+     *
+     * @return if successful, the lowest seqno else return std::nullopt
+     */
+    std::optional<uint64_t> getCollectionStreamStart(VBucket& vb) const;
+
+    /// @return the backfill UID assigned to the stream
+    uint64_t getBackfillUID() const {
+        return backfillUID;
+    }
+
 protected:
     void clear_UNLOCKED();
 
@@ -983,6 +996,14 @@ private:
      * This value must be read/written whilst holding streamMutex
      */
     uint64_t backfillUID{0};
+
+    /**
+     * Assigned during construction to avoid lock inversion between streamMutex
+     * and Collection::VB::Manifest. For a collection stream from 0, this value
+     * stores the most optimal start-seqno for a filtered stream - skipping
+     * anything which will not match the stream collection filter.
+     */
+    std::optional<uint64_t> collectionStartSeqno;
 
 protected:
     /**

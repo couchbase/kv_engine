@@ -362,3 +362,95 @@ TEST_F(DCPBackfillDiskTest,
 
     EXPECT_FALSE(stream->isDead());
 }
+
+// Test getCollectionStreamBackfillStart which is fundamental to MB-40383
+TEST_F(DCPBackfillDiskTest, ActiveStream_getCollectionStreamBackfillStart) {
+    // Store an items, create new checkpoint and flush so we have something to
+    // backfill from disk
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    auto vb = store->getVBucket(vbid);
+    auto fruitStart = vb->getHighSeqno();
+
+    // Create producer and MockStream so we can test
+    // getCollectionStreamBackfillStart
+    auto producer =
+            std::make_shared<MockDcpProducer>(*engine,
+                                              cookie,
+                                              "test-producer",
+                                              cb::mcbp::DcpOpenFlag::None,
+                                              false /*startTask*/);
+
+    // MockStream filters on cid:9 (fruit)
+    auto stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            cb::mcbp::DcpAddStreamFlag::DiskOnly,
+            0,
+            *engine->getVBucket(vbid),
+            0,
+            1,
+            0,
+            0,
+            0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeletedUserXattrs::No,
+            R"({"collections" : ["9"]})");
+
+    EXPECT_EQ(fruitStart, stream->getCollectionStreamStart(*vb));
+
+    // Check multi entry filter
+    // More seqs (4, 5) and second collection, seqs 6, 7 and 8
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            cb::mcbp::DcpAddStreamFlag::DiskOnly,
+            0,
+            *engine->getVBucket(vbid),
+            0,
+            1,
+            0,
+            0,
+            0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeletedUserXattrs::No,
+            R"({"collections" : ["9", "a"]})");
+
+    // The multi collection filter is no different to first stream
+    // All seqs < fruit.start can be adjusted to fruit.start
+    EXPECT_EQ(fruitStart, stream->getCollectionStreamStart(*vb));
+
+    // Test drop case, we lose fruit startSeqno from metadata so cannot produce
+    // a startSeqno for backfill.
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    EXPECT_FALSE(stream->getCollectionStreamStart(*vb).has_value());
+
+    // Final check, default collection, which begins at seq:0.
+    stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            cb::mcbp::DcpAddStreamFlag::DiskOnly,
+            0,
+            *engine->getVBucket(vbid),
+            0,
+            1,
+            0,
+            0,
+            0,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeletedUserXattrs::No,
+            R"({"collections" : ["0", "a"]})");
+    EXPECT_EQ(0, stream->getCollectionStreamStart(*vb));
+}

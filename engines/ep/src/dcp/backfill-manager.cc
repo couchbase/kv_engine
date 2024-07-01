@@ -533,3 +533,21 @@ bool BackfillManager::isBufferFull() const {
     std::lock_guard<std::mutex> lh(lock);
     return buffer.full;
 }
+
+const DCPBackfillIface& BackfillManager::getBackfill(uint64_t uid) const {
+    std::lock_guard<std::mutex> lh(lock);
+    for (const auto queue :
+         {&initializingBackfills, &activeBackfills, &pendingBackfills}) {
+        for (const auto& backfill : *queue) {
+            if (backfill->getUID() == uid) {
+                return *backfill;
+            }
+        }
+    }
+    for (const auto& snooze : snoozingBackfills) {
+        if (snooze.second->getUID() == uid) {
+            return *snooze.second;
+        }
+    }
+    throw std::invalid_argument("BackfillManager::getBackfill - uid not found");
+}
