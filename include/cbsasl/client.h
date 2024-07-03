@@ -49,9 +49,8 @@ public:
           context(ctx) {
     }
     virtual ~MechanismBackend() = default;
-    virtual std::pair<cb::sasl::Error, std::string_view> start() = 0;
-    virtual std::pair<cb::sasl::Error, std::string_view> step(
-            std::string_view input) = 0;
+    virtual std::pair<Error, std::string> start() = 0;
+    virtual std::pair<Error, std::string> step(std::string_view input) = 0;
     virtual std::string getName() const = 0;
 
 protected:
@@ -139,7 +138,7 @@ public:
      *
      * @return The challenge to send to the server
      */
-    std::pair<cb::sasl::Error, std::string_view> start() {
+    std::pair<Error, std::string> start() {
         return backend->start();
     }
 
@@ -150,7 +149,7 @@ public:
      * @param input The response from the server
      * @return The challenge to send to the server
      */
-    std::pair<cb::sasl::Error, std::string_view> step(std::string_view input) {
+    std::pair<Error, std::string> step(std::string_view input) {
         return backend->step(input);
     }
 

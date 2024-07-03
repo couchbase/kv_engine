@@ -43,13 +43,11 @@ bool ServerContext::bypassAuthForUnknownUsers() const {
     return (using_external_auth_service && !lookup_user_function);
 }
 
-std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
-        const std::string& mech,
-        const std::string& available,
-        std::string_view input) {
+std::pair<Error, std::string> ServerContext::start(const std::string& mech,
+                                                   const std::string& available,
+                                                   std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<cb::sasl::Error, std::string_view>(
-                Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     switch (selectMechanism(mech, available.empty() ? listmech() : available)) {
@@ -72,8 +70,7 @@ std::pair<cb::sasl::Error, std::string_view> ServerContext::start(
     return backend->start(input);
 }
 
-std::pair<cb::sasl::Error, std::string_view> ServerContext::step(
-        std::string_view input) {
+std::pair<Error, std::string> ServerContext::step(std::string_view input) {
     if (lookup_user_function) {
         lookup_user_function = [](auto&) -> pwdb::User {
             throw std::runtime_error(

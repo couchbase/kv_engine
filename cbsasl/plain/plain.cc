@@ -15,8 +15,7 @@
 
 namespace cb::sasl::mechanism::plain {
 
-std::pair<Error, std::string_view> ServerBackend::start(
-        std::string_view input) {
+std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
     // Format: message = [authzid] UTF8NUL authcid UTF8NUL passwd
     //
     // Skip authzid
@@ -47,7 +46,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
     return {sasl::plain::check_password(user, password), {}};
 }
 
-std::pair<Error, std::string_view> ClientBackend::start() {
+std::pair<Error, std::string> ClientBackend::start() {
     auto usernm = usernameCallback();
     auto passwd = passwordCallback();
     if (usernm.empty() || usernm.find('\0') != std::string::npos ||
@@ -55,11 +54,12 @@ std::pair<Error, std::string_view> ClientBackend::start() {
         return {Error::BAD_PARAM, {}};
     }
 
+    std::string buffer;
     buffer.push_back(0);
     buffer.insert(buffer.end(), usernm.begin(), usernm.end());
     buffer.push_back(0);
     buffer.insert(buffer.end(), passwd.begin(), passwd.end());
-    return {Error::OK, buffer};
+    return {Error::OK, std::move(buffer)};
 }
 
 Error authenticate(const std::string& username, const std::string& passwd) {

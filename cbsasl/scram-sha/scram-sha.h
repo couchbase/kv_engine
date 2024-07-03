@@ -139,9 +139,9 @@ public:
                   cb::crypto::Algorithm algo,
                   const std::function<std::string()>& generateNonceFunction);
 
-    std::pair<Error, std::string_view> start(std::string_view input) override;
+    std::pair<Error, std::string> start(std::string_view input) override;
 
-    std::pair<Error, std::string_view> step(std::string_view input) override;
+    std::pair<Error, std::string> step(std::string_view input) override;
 
     std::string getName() const final {
         return ::to_string(mechanism);
@@ -203,8 +203,8 @@ public:
             const std::function<std::string()>& generateNonceFunction,
             std::function<void(char, const std::string&)> property_listener);
 
-    std::pair<Error, std::string_view> start() override;
-    std::pair<Error, std::string_view> step(std::string_view input) override;
+    std::pair<Error, std::string> start() override;
+    std::pair<Error, std::string> step(std::string_view input) override;
 
     std::string getName() const final {
         return ::to_string(mechanism);

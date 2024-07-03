@@ -21,8 +21,8 @@ public:
     explicit ServerBackend(server::ServerContext& ctx)
         : MechanismBackend(ctx){};
 
-    std::pair<Error, std::string_view> start(std::string_view input) override;
-    std::pair<Error, std::string_view> step(std::string_view input) override {
+    std::pair<Error, std::string> start(std::string_view input) override;
+    std::pair<Error, std::string> step(std::string_view input) override {
         throw std::logic_error(
                 "cb::sasl::mechanism::plain::ServerBackend::step(): Plain auth "
                 "should not call step");
@@ -44,20 +44,13 @@ public:
         return "PLAIN";
     }
 
-    std::pair<Error, std::string_view> start() override;
+    std::pair<Error, std::string> start() override;
 
-    std::pair<Error, std::string_view> step(std::string_view input) override {
+    std::pair<Error, std::string> step(std::string_view input) override {
         throw std::logic_error(
                 "cb::sasl::mechanism::plain::ClientBackend::step(): Plain auth "
                 "should not call step");
     }
-
-private:
-    /**
-     * Where to store the encoded string:
-     * "\0username\0password"
-     */
-    std::string buffer;
 };
 
 } // namespace cb::sasl::mechanism::plain

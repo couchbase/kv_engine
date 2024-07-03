@@ -49,7 +49,7 @@ ClientBackend::ClientBackend(
     }
 }
 
-std::pair<Error, std::string_view> ClientBackend::start() {
+std::pair<Error, std::string> ClientBackend::start() {
     std::stringstream out;
     out << "n,,";
     addAttribute(out, 'n', usernameCallback(), true);
@@ -58,11 +58,10 @@ std::pair<Error, std::string_view> ClientBackend::start() {
     client_first_message = out.str();
     client_first_message_bare = client_first_message.substr(3); // skip n,,
 
-    return std::make_pair<Error, std::string_view>(Error::OK,
-                                                   client_first_message);
+    return {Error::OK, client_first_message};
 }
 
-std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
+std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
     if (input.empty()) {
         return {Error::BAD_PARAM, {}};
     }

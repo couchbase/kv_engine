@@ -61,10 +61,8 @@ public:
     explicit MechanismBackend(ServerContext& ctx) : context(ctx) {
     }
     virtual ~MechanismBackend() = default;
-    virtual std::pair<cb::sasl::Error, std::string_view> start(
-            std::string_view input) = 0;
-    virtual std::pair<cb::sasl::Error, std::string_view> step(
-            std::string_view input) = 0;
+    virtual std::pair<Error, std::string> start(std::string_view input) = 0;
+    virtual std::pair<Error, std::string> step(std::string_view input) = 0;
     virtual std::string getName() const = 0;
 
     void setUsername(std::string username) {
@@ -123,12 +121,11 @@ public:
         return backend.get() != nullptr;
     }
 
-    std::pair<cb::sasl::Error, std::string_view> start(
-            const std::string& mech,
-            const std::string& available,
-            std::string_view input);
+    std::pair<Error, std::string> start(const std::string& mech,
+                                        const std::string& available,
+                                        std::string_view input);
 
-    std::pair<cb::sasl::Error, std::string_view> step(std::string_view input);
+    std::pair<Error, std::string> step(std::string_view input);
 
     void reset() {
         backend.reset();

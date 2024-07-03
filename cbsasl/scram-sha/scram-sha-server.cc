@@ -46,8 +46,7 @@ ServerBackend::ServerBackend(
     }
 }
 
-std::pair<Error, std::string_view> ServerBackend::start(
-        std::string_view input) {
+std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
     if (input.empty()) {
         LOG_DEBUG(
                 "UUID:[{}]: Invalid arguments provided to "
@@ -142,7 +141,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
     return {Error::CONTINUE, server_first_message};
 }
 
-std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
+std::pair<Error, std::string> ServerBackend::step(std::string_view input) {
     if (input.empty()) {
         return {Error::BAD_PARAM, {}};
     }
