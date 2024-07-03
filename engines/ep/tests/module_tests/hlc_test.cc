@@ -400,9 +400,12 @@ TEST_P(HLCInvalidStraegyTest, setWithMetaHLCInvalidStrategyTest) {
                                  true,
                                  GenerateBySeqno::Yes,
                                  GenerateCas::No));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 
     // set hlc_invalid_strategy to replace
     config_string += ";hlc_invalid_strategy=replace";
+    // reinitialising will set CAS stats back to 0
     reinitialise(config_string);
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -417,6 +420,8 @@ TEST_P(HLCInvalidStraegyTest, setWithMetaHLCInvalidStrategyTest) {
                                  true,
                                  GenerateBySeqno::Yes,
                                  GenerateCas::No));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
 
     auto rv = engine->get(*cookie, key, vbid, DocStateFilter::Alive);
     EXPECT_EQ(cb::engine_errc::success, rv.first);
@@ -450,9 +455,12 @@ TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
                                     nullptr /* extended metadata */,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 
     // set hlc_invalid_strategy to replace
     config_string += ";hlc_invalid_strategy=replace";
+    // reinitialising will set CAS stats back to 0
     reinitialise(config_string);
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
@@ -472,6 +480,8 @@ TEST_P(HLCInvalidStraegyTest, deleteWithMetaHLCInvalidStrategyTest) {
                                     nullptr /* extended metadata */,
                                     DeleteSource::Explicit,
                                     EnforceMemCheck::Yes));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
 }
 
 INSTANTIATE_TEST_SUITE_P(HLCBucketTests,
