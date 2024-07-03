@@ -9,81 +9,61 @@
  */
 
 #include <cbsasl/mechanism.h>
+#include <platform/split_string.h>
 
 #include <algorithm>
-#include <vector>
+#include <array>
 
 namespace cb::sasl {
+using namespace std::string_view_literals;
 
-Mechanism selectMechanism(const std::string& mechanisms) {
-    std::string avail;
-    std::transform(mechanisms.begin(),
-                   mechanisms.end(),
-                   std::back_inserter(avail),
-                   toupper);
+static constexpr std::array<std::pair<std::string_view, Mechanism>, 4> backends{
+        {{"SCRAM-SHA512"sv, Mechanism::SCRAM_SHA512},
+         {"SCRAM-SHA256"sv, Mechanism::SCRAM_SHA256},
+         {"SCRAM-SHA1"sv, Mechanism::SCRAM_SHA1},
+         {"PLAIN"sv, Mechanism::PLAIN}}};
 
-    // Search what we've got backends for
-    const std::vector<std::pair<std::string, Mechanism>> mechs = {
-            {std::string{"SCRAM-SHA512"}, Mechanism::SCRAM_SHA512},
-            {std::string{"SCRAM-SHA256"}, Mechanism::SCRAM_SHA256},
-            {std::string{"SCRAM-SHA1"}, Mechanism::SCRAM_SHA1},
-            {std::string{"PLAIN"}, Mechanism::PLAIN}};
-
-    for (auto& mechanism : mechs) {
-        const auto index = avail.find(mechanism.first);
-        if (index != std::string::npos) {
-            const auto offset = index + mechanism.first.length();
-
-            if (offset == avail.length() || avail[offset] == ' ' ||
-                avail[offset] == ',') {
-                return mechanism.second;
-            }
+std::string_view format_as(Mechanism mechanism) {
+    for (const auto& [name, m] : backends) {
+        if (m == mechanism) {
+            return name;
         }
     }
-
-    throw unknown_mechanism(mechanisms);
+    throw unknown_mechanism("format_as(Mechanism): unknown mechanism " +
+                            std::to_string(static_cast<int>(mechanism)));
 }
 
-Mechanism selectMechanism(const std::string& mechanism,
-                          const std::string& available) {
-    // Search what we've got backends for
-    const std::vector<std::pair<std::string, Mechanism>> mechs = {
-            {std::string{"SCRAM-SHA512"}, Mechanism::SCRAM_SHA512},
-            {std::string{"SCRAM-SHA256"}, Mechanism::SCRAM_SHA256},
-            {std::string{"SCRAM-SHA1"}, Mechanism::SCRAM_SHA1},
-            {std::string{"PLAIN"}, Mechanism::PLAIN}};
+Mechanism selectMechanism(const std::string_view mechanisms) {
+    const auto avail = cb::string::split(mechanisms, ' ');
 
-    for (auto& m : mechs) {
-        const auto index = available.find(m.first);
-        if (index != std::string::npos) {
-            const auto offset = index + m.first.length();
+    // Search what we've got backends for (they're listed in preferred order)
+    for (auto& [name, mechanism] : backends) {
+        if (std::find(avail.begin(), avail.end(), name) != avail.end()) {
+            return mechanism;
+        }
+    }
 
-            if (offset == available.length() || available[offset] == ' ' ||
-                available[offset] == ',') {
-                if (m.first == mechanism) {
-                    return m.second;
-                }
+    throw unknown_mechanism(std::string{mechanisms});
+}
+
+Mechanism selectMechanism(const std::string_view mechanism,
+                          const std::string_view available) {
+    auto avail = cb::string::split(available, ' ');
+    if (std::find(avail.begin(), avail.end(), mechanism) != avail.end()) {
+        // The requested mechanism is listed within the available mechanisms,
+        // but we might not have a backend for it:
+        for (const auto& [name, m] : backends) {
+            if (name == mechanism) {
+                return m;
             }
         }
     }
 
-    throw unknown_mechanism(mechanism);
+    throw unknown_mechanism(std::string{mechanism});
 }
 
 } // namespace cb::sasl
 
 std::string to_string(cb::sasl::Mechanism mechanism) {
-    using cb::sasl::Mechanism;
-    switch (mechanism) {
-    case Mechanism::SCRAM_SHA512:
-        return "SCRAM-SHA512";
-    case Mechanism::SCRAM_SHA256:
-        return "SCRAM-SHA256";
-    case Mechanism::SCRAM_SHA1:
-        return "SCRAM-SHA1";
-    case Mechanism::PLAIN:
-        return "PLAIN";
-    }
-    throw cb::sasl::unknown_mechanism("to_string: unknown mechanism " +
-                                      std::to_string(int(mechanism)));
+    return std::string{format_as(mechanism)};
 }
