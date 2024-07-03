@@ -29,6 +29,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpSetWithMetaInvalidCasIgnore) {
     // setWithMeta succeeds as invalid cas is ignored
     EXPECT_EQ(cb::engine_errc::success,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 
     vb->notifyReplication();
 
@@ -67,6 +69,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpSetWithMetaInvalidCasReplace) {
     // setWithMeta succeeds as the poisoned cas is regenerated
     EXPECT_EQ(cb::engine_errc::success,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
 
     vb->notifyReplication();
 
@@ -105,6 +109,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpSetWithMetaInvalidCasError) {
     // setWithMeta fails due to invalid cas
     EXPECT_EQ(cb::engine_errc::cas_value_invalid,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 }
 
 // Verify behaviour for DCP deleteWithMeta with dcp_hlc_invalid_strategy=ignore
@@ -121,6 +127,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpDeleteWithMetaInvalidCasIgnore) {
     // deleteWithMeta succeeds as invalid cas is ignored
     EXPECT_EQ(cb::engine_errc::success,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 
     vb->notifyReplication();
 
@@ -160,6 +168,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest,
     // deleteWithMeta succeeds as the invalid cas is regenerated
     EXPECT_EQ(cb::engine_errc::success,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
 
     vb->notifyReplication();
 
@@ -198,6 +208,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpDeleteWithMetaInvalidCasError) {
     // deleteWithMeta fails due to invalid cas
     EXPECT_EQ(cb::engine_errc::cas_value_invalid,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 }
 
 // Verify behaviour for DCP prepare with dcp_hlc_invalid_strategy=ignore
@@ -216,6 +228,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpPrepareWithInvalidCasIgnore) {
     // Prepare succeeds as invalid cas is ignored
     EXPECT_EQ(cb::engine_errc::success,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 
     vb->notifyReplication();
     // We don't account Prepares in VB stats
@@ -256,6 +270,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpPrepareWithInvalidCasReplace) {
     // Prepare succeeds as the invalid cas is regenerated
     EXPECT_EQ(cb::engine_errc::success,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numCasRegenerated);
 
     vb->notifyReplication();
     // We don't account Prepares in VB stats
@@ -296,6 +312,8 @@ TEST_P(PassiveStreamHlcInvalidStrategyTest, dcpPrepareWithInvalidCasError) {
     // Prepare fails due to invalid cas
     EXPECT_EQ(cb::engine_errc::cas_value_invalid,
               testDcpReplicationWithInvalidCas(std::move(item)));
+    EXPECT_EQ(1, store->getEPEngine().getEpStats().numInvalidCas);
+    EXPECT_EQ(0, store->getEPEngine().getEpStats().numCasRegenerated);
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
