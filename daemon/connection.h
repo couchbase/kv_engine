@@ -779,8 +779,8 @@ public:
         saslServerContext = std::make_unique<cb::sasl::server::ServerContext>();
     }
 
-    /// Get the a handle to the SASL server context
-    cb::sasl::server::ServerContext* getSaslServerContext() const {
+    /// Get the handle to the SASL server context
+    auto* getSaslServerContext() const {
         return saslServerContext.get();
     }
 
@@ -896,6 +896,16 @@ public:
     /// should try to yield execution after this point)
     std::chrono::steady_clock::time_point getCurrentTimesliceEnd() const {
         return current_timeslice_end;
+    }
+
+    /// Set the lifetime for the auth context
+    void setAuthContextLifetime(
+            std::optional<std::chrono::system_clock::time_point> begin,
+            std::optional<std::chrono::system_clock::time_point> end);
+
+    /// Set the user entry provided by the token
+    void setTokenProvidedUserEntry(std::unique_ptr<cb::rbac::UserEntry> entry) {
+        tokenProvidedUserEntry = std::move(entry);
     }
 
 protected:
@@ -1036,11 +1046,15 @@ protected:
     /// The (authenticated) user for the connection.
     std::optional<cb::rbac::UserIdent> user;
 
-    // Optional timestamp indicating when the authentication expires for
-    // the user (and we'll return AuthStale to all (new) commands. Running
-    // commands will run to its completion even if the auth expire after
-    // they're started)
-    std::optional<std::chrono::steady_clock::time_point> authExpiryTime;
+    /// The authentication context may have restrictions on when it is valid
+    struct AuthContextLifetime {
+        std::optional<std::chrono::steady_clock::time_point> begin;
+        std::optional<std::chrono::steady_clock::time_point> end;
+        bool isStale(const std::chrono::steady_clock::time_point now) const {
+            return (end.has_value() && *end < now) ||
+                   (begin.has_value() && *begin > now);
+        }
+    } authContextLifetime;
 
     /// The description of the connection
     nlohmann::json description;
@@ -1074,6 +1088,9 @@ protected:
     /// returns CONTINUE (if it does it should be used for the next call
     /// to STEP).
     std::unique_ptr<cb::sasl::server::ServerContext> saslServerContext;
+
+    /// A user entry provided in the token when using JWT
+    std::unique_ptr<cb::rbac::UserEntry> tokenProvidedUserEntry;
 
     /// The number of times we've been backing off and yielding
     /// to allow other threads to run

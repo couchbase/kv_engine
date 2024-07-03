@@ -123,6 +123,14 @@ The provider should reply with status code Success.
       "rbac": {
         "Users RBAC entry": ""
       },
+      "token": {
+        "exp": 123456789,
+        "rbac": {
+          "username" : {
+            "Users RBAC entry": ""
+          }
+        }
+      }
       "domain" : "local"
     }
 
@@ -131,9 +139,15 @@ data which should be returned to the client as part of the SASL command.
 
 `rbac` contains the RBAC entry in the same format as in
 [rbac.md](rbac.md#File-Format). This field should only exist for external
-users and is mandatory unless the request contained 
+users and is mandatory unless the request contained
 `"authentication-only" : true`. In that case it may or may not be
-present.
+present. This field should *NOT* be present as part of token based
+respnses. They should use "token"
+
+`token` contains two fields: `exp` and `rbac`. `exp` is optional and
+represents when the authentication is supposed to expire (mostly used
+for tokens which carry an expiration time).  Its value is number of
+seconds since January 1st 1970 UTC (aka epoch)
 
 `domain` may be set to "local" if the user represents a local user and
 the RBAC definition for the user should be located in the local RBAC

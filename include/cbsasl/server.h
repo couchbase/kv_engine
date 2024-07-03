@@ -35,9 +35,11 @@ void initialize();
 void shutdown();
 
 /**
- * List all of the mechanisms available in cbsasl
+ * List all the mechanisms available in cbsasl
+ *
+ * @param tls include mechanisms which require TLS
  */
-std::string listmech();
+std::string listmech(bool tls = true);
 
 /**
  * Set if we should allow for use of an external auth service.
@@ -121,8 +123,8 @@ public:
         return backend.get() != nullptr;
     }
 
-    std::pair<Error, std::string> start(const std::string& mech,
-                                        const std::string& available,
+    std::pair<Error, std::string> start(std::string_view mech,
+                                        std::string_view available,
                                         std::string_view input);
 
     std::pair<Error, std::string> step(std::string_view input);
@@ -162,12 +164,27 @@ public:
         external_server_context = std::move(ctx);
     }
 
+    Error validateUserToken(const std::string_view user,
+                            std::string_view token) {
+        if (validate_user_token_function) {
+            return validate_user_token_function(user, token);
+        }
+        return Error::NO_USER;
+    }
+
+    void setValidateUserTokenFunction(
+            std::function<Error(std::string_view, std::string_view)> func) {
+        validate_user_token_function = std::move(func);
+    }
+
 protected:
     /// The external auth provider might want to store some context
     /// information between each request (in a start-step scenatio)
     std::string external_server_context;
     std::unique_ptr<MechanismBackend> backend;
     std::function<pwdb::User(const std::string&)> lookup_user_function;
+    std::function<Error(std::string_view, std::string_view)>
+            validate_user_token_function;
     std::string uuid;
 };
 

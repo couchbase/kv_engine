@@ -16,6 +16,7 @@
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
 #include <folly/ScopeGuard.h>
+#include <json_web_token/token.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/base64.h>
 #include <platform/uuid.h>
@@ -24,6 +25,10 @@
 #include <iostream>
 
 namespace cb::test {
+
+static constexpr std::string_view token_signing_passphrase =
+        "auth-service-secret-token";
+
 struct AuthProviderService::PwDbEntry {
     PwDbEntry() = default;
     explicit PwDbEntry(UserEntry ue)
@@ -73,6 +78,13 @@ AuthProviderService::~AuthProviderService() {
     // Just break out of the loop
     event_base_loopbreak(base.get());
     thread.join();
+}
+std::unique_ptr<cb::jwt::Builder> AuthProviderService::getTokenBuilder(
+        std::string_view username) {
+    auto builder = cb::jwt::Builder::create("HS256", token_signing_passphrase);
+    builder->addAudience("kv_auth_service");
+    builder->addClaim("user", username);
+    return builder;
 }
 
 bool isPacketAvailable(evbuffer* input) {
@@ -255,6 +267,7 @@ void AuthProviderService::handleSaslResponse(
         bool authentication_only,
         std::unique_ptr<cb::sasl::server::ServerContext> server_ctx,
         nlohmann::json rbac,
+        std::optional<nlohmann::json> token_metadata,
         cb::sasl::Error status,
         std::string_view challenge) {
     using mcbp::Status;
@@ -320,7 +333,9 @@ void AuthProviderService::handleSaslResponse(
         return;
 
     case Error::OK:
-        if (!authentication_only) {
+        if (token_metadata) {
+            success_payload["token"] = token_metadata.value();
+        } else if (!authentication_only) {
             success_payload["rbac"][server_ctx->getUsername()] =
                     std::move(rbac);
         }
@@ -334,13 +349,56 @@ void AuthProviderService::handleSaslResponse(
                  R"({"error":{"context":"Internal error"}})");
 }
 
+/// Validate the user token and populate the token metadata with information
+/// to return to the client
+static sasl::Error validateUserTokenFunction(
+        std::string_view user,
+        std::string_view token,
+        std::optional<nlohmann::json>& token_metadata) {
+    try {
+        auto jwt = cb::jwt::Token::parse(token, []() -> std::string {
+            return std::string{token_signing_passphrase};
+        });
+
+        if (jwt->header.value("alg", "") != "HS256") {
+            // Reject any tokens not signed by us
+            return sasl::Error::BAD_PARAM;
+        }
+        const auto& claims = jwt->payload;
+        if (claims.value("user", "") != user) {
+            return sasl::Error::NO_USER;
+        }
+
+        nlohmann::json metadata;
+        if (claims.contains("cb-rbac")) {
+            metadata["rbac"][user] = nlohmann::json::parse(
+                    base64url::decode(claims.value("cb-rbac", "")));
+        } else {
+            return sasl::Error::NO_RBAC_PROFILE;
+        }
+        if (claims.contains("exp")) {
+            metadata["exp"] = claims["exp"];
+        }
+        if (claims.contains("nbf")) {
+            metadata["nbf"] = claims["nbf"];
+        }
+        token_metadata = std::move(metadata);
+        return sasl::Error::OK;
+    } catch (const std::exception&) {
+        return sasl::Error::BAD_PARAM;
+    }
+}
+
 void AuthProviderService::onAuthenticateStart(bufferevent* bev,
                                               const cb::mcbp::Request& req,
                                               const nlohmann::json& json) {
+    nlohmann::json authz;
+    std::optional<nlohmann::json> token_metadata;
+
     PwDbEntry user_entry;
     auto lookup_user =
-            [this,
-             &user_entry](const std::string& username) -> sasl::pwdb::User {
+            [this, &user_entry, &authz](
+                    const std::string& username) -> sasl::pwdb::User {
         PwDbEntry entry;
         users.withRLock([&username, &entry](auto& userdb) {
             for (const auto& e : userdb) {
@@ -355,6 +413,7 @@ void AuthProviderService::onAuthenticateStart(bufferevent* bev,
         }
 
         user_entry = entry;
+        authz = user_entry.user_entry.authz;
         return entry.user;
     };
 
@@ -362,16 +421,23 @@ void AuthProviderService::onAuthenticateStart(bufferevent* bev,
 
     auto server_ctx =
             std::make_unique<cb::sasl::server::ServerContext>(lookup_user);
+
+    server_ctx->setValidateUserTokenFunction(
+            [&token_metadata](auto user, auto token) -> sasl::Error {
+                return validateUserTokenFunction(user, token, token_metadata);
+            });
+
     auto [status, challenge] = server_ctx->start(
-            json["mechanism"],
-            cb::sasl::server::listmech(),
+            json["mechanism"].get<std::string>(),
+            {},
             cb::base64::decode(json.at("challenge").get<std::string>()));
 
     handleSaslResponse(bev,
                        req,
                        json.value("authentication-only", true),
                        std::move(server_ctx),
-                       std::move(user_entry.user_entry.authz),
+                       std::move(authz),
+                       token_metadata,
                        status,
                        challenge);
 }
@@ -401,6 +467,7 @@ void AuthProviderService::onAuthenticateStep(bufferevent* bev,
                        json.value("authentication-only", true),
                        std::move(server_ctx),
                        std::move(iter->second->json),
+                       {},
                        status,
                        challenge);
 }

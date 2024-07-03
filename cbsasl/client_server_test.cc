@@ -8,11 +8,13 @@
  *   the file licenses/APL2.txt.
  */
 #include "pwfile.h"
+
 #include <cbcrypto/digest.h>
 #include <cbsasl/client.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/server.h>
 #include <folly/portability/GTest.h>
+#include <platform/uuid.h>
 #include <memory>
 
 using namespace std::string_view_literals;
@@ -50,6 +52,13 @@ protected:
         ASSERT_EQ(cb::sasl::Error::OK, client_data.first);
 
         cb::sasl::server::ServerContext server;
+        server.setValidateUserTokenFunction([&password](auto user, auto token) {
+            using cb::sasl::Error;
+            if (user == "mikewied") {
+                return password == token ? Error::OK : Error::PASSWORD_ERROR;
+            }
+            return Error::NO_USER;
+        });
 
         auto server_data = server.start(client.getName(),
                                         cb::sasl::server::listmech(),
@@ -105,6 +114,10 @@ protected:
 
 TEST_F(SaslClientServerTest, PLAIN) {
     test_successful_auth("PLAIN", " mik epw "sv);
+}
+
+TEST_F(SaslClientServerTest, OAUTHBEARER) {
+    test_successful_auth("OAUTHBEARER", to_string(cb::uuid::random()));
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {

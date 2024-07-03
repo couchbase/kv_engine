@@ -3,6 +3,8 @@ add_library(cbsasl STATIC
             context.cc
             domain.cc
             mechanism.cc
+            oauthbearer/oauthbearer.cc
+            oauthbearer/oauthbearer.h
             plain/check_password.cc
             plain/check_password.h
             plain/plain.cc

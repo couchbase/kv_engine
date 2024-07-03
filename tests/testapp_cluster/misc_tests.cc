@@ -15,6 +15,7 @@
 #include <cluster_framework/cluster.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
+#include <platform/base64.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <tests/testapp/testapp_subdoc_common.h>
@@ -626,4 +627,86 @@ TEST_F(BasicClusterTest, SubdocReplicaReadDeletedDocument) {
     EXPECT_EQ(Status::Success, rsp.getResults()[1].status);
     EXPECT_EQ("true", rsp.getResults()[1].value);
     EXPECT_EQ(Status::SubdocPathEnoent, rsp.getResults()[2].status);
+}
+
+TEST_F(BasicClusterTest, OAUTHBEARER) {
+    auto builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
+    builder->addClaim("cb-rbac", cb::base64url::encode(R"({
+  "buckets": {
+    "default": {
+      "privileges": ["Read"]
+    }
+  },
+  "privileges": [],
+  "domain": "external"
+})"));
+    builder->setExpiration(std::chrono::system_clock::now() +
+                           std::chrono::seconds(2));
+    const auto readOnlyToken = builder->build();
+    builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
+    builder->addClaim("cb-rbac", cb::base64url::encode(R"({
+  "buckets": {
+    "default": {
+      "privileges": ["Read", "Upsert"]
+    }
+  },
+  "privileges": [],
+  "domain": "external"
+})"));
+    builder->setExpiration(std::chrono::system_clock::now() +
+                           std::chrono::seconds(2));
+    const auto readWriteToken = builder->build();
+
+    builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
+    builder->addClaim("cb-rbac", cb::base64url::encode(R"({
+  "buckets": {
+    "default": {
+      "privileges": ["Read", "Upsert"]
+    }
+  },
+  "privileges": [],
+  "domain": "external"
+})"));
+    builder->setNotBefore(std::chrono::system_clock::now() +
+                          std::chrono::seconds(2));
+    const auto readNotReadyToken = builder->build();
+
+    auto readOnlyConn = cluster->getBucket("default")->getConnection(Vbid{0});
+    readOnlyConn->authenticate("jwt", readOnlyToken, "OAUTHBEARER");
+    readOnlyConn->selectBucket("default");
+    try {
+        readOnlyConn->arithmetic("counter", 1, 0);
+        FAIL() << "Read only connection should not be able to mutate data";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied()) << error.what();
+    }
+
+    auto notReadyConn = cluster->getBucket("default")->getConnection(Vbid{0});
+    notReadyConn->authenticate("jwt", readNotReadyToken, "OAUTHBEARER");
+    try {
+        notReadyConn->selectBucket("default");
+        FAIL() << "Token should not be ready yet";
+    } catch (ConnectionError& error) {
+        EXPECT_EQ(cb::mcbp::Status::AuthStale, error.getReason());
+    }
+
+    // The readWrite token have write access
+    auto readWriteConn = cluster->getBucket("default")->getConnection(Vbid{0});
+    readWriteConn->authenticate("jwt", readWriteToken, "OAUTHBEARER");
+    readWriteConn->selectBucket("default");
+    readWriteConn->arithmetic("counter", 1, 0);
+
+    // The token expire after two seconds
+    std::this_thread::sleep_for(std::chrono::seconds{3});
+    auto resp = readWriteConn->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+    EXPECT_EQ(cb::mcbp::Status::AuthStale, resp.getStatus());
+
+    builder->setExpiration(std::chrono::system_clock::now() +
+                           std::chrono::seconds(2));
+    auto refreshToken = builder->build();
+    readWriteConn->authenticate("jwt", refreshToken, "OAUTHBEARER");
+
+    // now that we've waited the "not before time" should have passed
+    notReadyConn->selectBucket("default");
 }

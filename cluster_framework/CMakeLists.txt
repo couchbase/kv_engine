@@ -7,6 +7,7 @@ add_library(cluster_framework STATIC
             dcp_replicator.cc dcp_replicator.h
             node.cc node.h)
 target_link_libraries(cluster_framework PUBLIC
+                      json_web_token
                       mc_client_connection
                       mcd_test_util
                       nlohmann_json::nlohmann_json

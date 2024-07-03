@@ -46,6 +46,7 @@ protected:
     std::shared_ptr<SaslAuthTask> task;
     cb::sasl::Error error = cb::sasl::Error::FAIL;
     std::string payload;
+    std::optional<nlohmann::json> tokenMetadata;
 
 private:
     cb::engine_errc handleSaslAuthTaskResult();

@@ -284,6 +284,14 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
 
 std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
     if (!privilegeContext || privilegeContext->isStale()) {
+        if (!isAuthenticated()) {
+            // We're not authenticated, so there isn't any point of trying
+            // to make this more complex than it is...
+            privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
+                    cb::rbac::PrivilegeContext{getUser().domain});
+            return privilegeContext;
+        }
+
         try {
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     createContext(getBucket().name));
@@ -581,6 +589,20 @@ bool Connection::processAllReadyCookies() {
     return active;
 }
 
+static bool isReAuthenticate(const cb::mcbp::Header& header) {
+    if (!header.isRequest()) {
+        return false;
+    }
+    const auto& req = header.getRequest();
+    if (!cb::mcbp::is_client_magic(req.getMagic())) {
+        return false;
+    }
+
+    const auto opcode = req.getClientOpcode();
+    return opcode == cb::mcbp::ClientOpcode::SaslAuth ||
+           opcode == cb::mcbp::ClientOpcode::SaslStep;
+}
+
 void Connection::executeCommandPipeline() {
     // Allow DCP clients to spool up to 50 times the amount of data in
     // their send buffers before we back off waiting for data to be
@@ -609,9 +631,6 @@ void Connection::executeCommandPipeline() {
     if (!active || cookies.back()->mayReorder()) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
-        const auto auth_stale =
-                authExpiryTime.has_value() &&
-                *authExpiryTime < std::chrono::steady_clock::now();
 
         bool stop = tooMuchData();
         while ((now = std::chrono::steady_clock::now()) <
@@ -619,6 +638,7 @@ void Connection::executeCommandPipeline() {
                !stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0 &&
                state == State::running) {
+            const auto auth_stale = authContextLifetime.isStale(now);
             if (!cookies.back()->empty()) {
                 // Create a new entry if we can't reuse the last entry
                 cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -631,7 +651,8 @@ void Connection::executeCommandPipeline() {
             updateRecvBytes(cookie.getPacket().size());
 
             const auto status = cookie.validate();
-            if (status == Status::Success && !auth_stale) {
+            if (status == Status::Success &&
+                (!auth_stale || isReAuthenticate(cookie.getHeader()))) {
                 // We may only start execute the packet if:
                 //  * We shouldn't be throttled
                 //  * We don't have any ongoing commands
@@ -1218,6 +1239,29 @@ std::unique_ptr<Connection> Connection::create(
 
     return std::make_unique<LibeventConnection>(
             sfd, thr, std::move(descr), std::move(context));
+}
+
+void Connection::setAuthContextLifetime(
+        std::optional<std::chrono::system_clock::time_point> begin,
+        std::optional<std::chrono::system_clock::time_point> end) {
+    using namespace std::chrono;
+    const auto system_now = system_clock::now();
+    const auto steady_now = steady_clock::now();
+    auto setValue = [&system_now, &steady_now](auto& field, auto& tp) {
+        if (tp.has_value()) {
+            if (system_now < *tp) {
+                // Convert the system clock to offset from the steady clock as
+                // that's cheaper to read
+                field = steady_now + duration_cast<seconds>(*tp - system_now);
+            } else {
+                field = steady_now;
+            }
+        } else {
+            field.reset();
+        }
+    };
+    setValue(authContextLifetime.begin, begin);
+    setValue(authContextLifetime.end, end);
 }
 
 Connection::Connection(SOCKET sfd,
@@ -2647,7 +2691,7 @@ std::string Connection::getSaslMechanisms() const {
     }
 
     // None configured, return the full list
-    return cb::sasl::server::listmech();
+    return cb::sasl::server::listmech(tls);
 }
 
 void Connection::scheduleDcpStep() {
@@ -2681,11 +2725,51 @@ void Connection::scheduleDcpStep() {
 }
 
 bool Connection::mayAccessBucket(std::string_view bucket) const {
+    if (!isAuthenticated()) {
+        // Fast path. unauthenticated users don't have access
+        return false;
+    }
+
+    if (tokenProvidedUserEntry) {
+        try {
+            (void)createContext(bucket);
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
+    }
     return cb::rbac::mayAccessBucket(getUser(), std::string{bucket});
 }
 
 cb::rbac::PrivilegeContext Connection::createContext(
         std::string_view bucket) const {
+    Expects(isAuthenticated());
+    if (tokenProvidedUserEntry) {
+        std::string name(bucket);
+        if (bucket.empty()) {
+            return {0,
+                    user->domain,
+                    tokenProvidedUserEntry->getPrivileges(),
+                    {},
+                    true};
+        }
+        // Add the bucket specific privileges
+        auto iter = tokenProvidedUserEntry->getBuckets().find(name);
+        if (iter == tokenProvidedUserEntry->getBuckets().end()) {
+            // No explicit match... Is there a wildcard entry
+            iter = tokenProvidedUserEntry->getBuckets().find("*");
+            if (iter == tokenProvidedUserEntry->getBuckets().cend()) {
+                throw cb::rbac::NoSuchBucketException(name.c_str());
+            }
+        }
+
+        return {0,
+                user->domain,
+                tokenProvidedUserEntry->getPrivileges(),
+                iter->second,
+                true};
+    }
+
     return cb::rbac::createContext(getUser(), std::string{bucket});
 }
 

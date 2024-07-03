@@ -62,6 +62,10 @@ public:
         serverContext.setExternalServerContext(std::move(context));
     }
 
+    auto getTokenMetadata() const {
+        return tokenMetadata;
+    }
+
 protected:
     void successfull_external_auth(const nlohmann::json& json);
     void unsuccessfull_external_auth(cb::mcbp::Status status,
@@ -75,5 +79,6 @@ protected:
     std::string mechanism;
     std::string challenge;
     std::string context;
+    std::optional<nlohmann::json> tokenMetadata;
     cb::sasl::Error error = cb::sasl::Error::FAIL;
 };

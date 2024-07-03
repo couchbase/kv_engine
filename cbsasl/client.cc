@@ -9,6 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "oauthbearer/oauthbearer.h"
+
 #include <cbsasl/client.h>
 #include <cbsasl/plain/plain.h>
 #include <cbsasl/scram-sha/scram-sha.h>
@@ -22,6 +24,10 @@ ClientContext::ClientContext(
         const std::function<std::string()>& generate_nonce_function,
         std::function<void(char, const std::string&)> scram_property_listener) {
     switch (selectMechanism(mechanisms)) {
+    case Mechanism::OAUTHBEARER:
+        backend = std::make_unique<mechanism::oauthbearer::ClientBackend>(
+                user_cb, password_cb, *this);
+        break;
     case Mechanism::SCRAM_SHA512:
         backend = std::make_unique<mechanism::scram::Sha512ClientBackend>(
                 user_cb,

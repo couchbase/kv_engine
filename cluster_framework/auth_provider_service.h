@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "json_web_token/builder.h"
+
 #include <cbsasl/server.h>
 #include <event2/event.h>
 #include <folly/Synchronized.h>
@@ -52,6 +54,10 @@ public:
     explicit AuthProviderService(Cluster& cluster);
     ~AuthProviderService();
 
+    /// Get a token builder for the provided username
+    static std::unique_ptr<cb::jwt::Builder> getTokenBuilder(
+            std::string_view username);
+
     void upsertUser(UserEntry entry);
     void removeUser(const std::string& user);
 
@@ -84,12 +90,25 @@ protected:
                              cb::mcbp::Status status,
                              std::string_view payload);
 
+    /**
+     * Build up the JSON payload to return back from the SASL request
+     *
+     * @param bev the bufferevent structure to send the response over
+     * @param req the incomming request
+     * @param authentication_only if the client requested auth only
+     * @param server_ctx the server context in place
+     * @param rbac the RBAC entry for the user
+     * @param token_metadata the optional token metadata (used for OAUTHBEARER)
+     * @param status The status for the SASL operation
+     * @param challenge A challenge to send back to the client
+     */
     void handleSaslResponse(
             bufferevent* bev,
             const cb::mcbp::Request& req,
             bool authentication_only,
             std::unique_ptr<cb::sasl::server::ServerContext> server_ctx,
             nlohmann::json rbac,
+            std::optional<nlohmann::json> token_metadata,
             cb::sasl::Error status,
             std::string_view challenge);
 

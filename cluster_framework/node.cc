@@ -98,6 +98,7 @@ NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
               {"external_auth_service_scram_support", true},
               {"root", NodeImpl::directory.generic_string()},
               {"rbac_file", rbac.generic_string()},
+              {"sasl_mechanisms", "PLAIN OAUTHBEARER"},
               {"opcode_attributes_override",
                {{"version", 1},
                 {"default", {{"slow", 500}}},

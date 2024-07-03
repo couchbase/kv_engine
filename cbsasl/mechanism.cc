@@ -17,11 +17,15 @@
 namespace cb::sasl {
 using namespace std::string_view_literals;
 
-static constexpr std::array<std::pair<std::string_view, Mechanism>, 4> backends{
+/// The list of mechanisms we've got implementations for (in the "prefferred"
+/// order for a client to pick from. OAUTHBEARER is listed last as most of our
+/// command line tools allows username/password and don't have the tokens)
+static constexpr std::array<std::pair<std::string_view, Mechanism>, 5> backends{
         {{"SCRAM-SHA512"sv, Mechanism::SCRAM_SHA512},
          {"SCRAM-SHA256"sv, Mechanism::SCRAM_SHA256},
          {"SCRAM-SHA1"sv, Mechanism::SCRAM_SHA1},
-         {"PLAIN"sv, Mechanism::PLAIN}}};
+         {"PLAIN"sv, Mechanism::PLAIN},
+         {"OAUTHBEARER"sv, Mechanism::OAUTHBEARER}}};
 
 std::string_view format_as(Mechanism mechanism) {
     for (const auto& [name, m] : backends) {

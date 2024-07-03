@@ -92,6 +92,10 @@ void SaslAuthTask::successfull_external_auth(const nlohmann::json& json) {
         challenge.clear();
     }
 
+    if (json.contains("token")) {
+        tokenMetadata = json["token"];
+    }
+
     externalAuthManager->login(serverContext.getUsername());
 }
 

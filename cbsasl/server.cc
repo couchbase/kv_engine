@@ -8,10 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "oauthbearer/oauthbearer.h"
+#include "plain/plain.h"
 #include "pwfile.h"
-
-#include <cbsasl/plain/plain.h>
-#include <cbsasl/scram-sha/scram-sha.h>
+#include "scram-sha/scram-sha.h"
 #include <cbsasl/server.h>
 #include <fmt/format.h>
 #include <sodium.h>
@@ -27,7 +27,10 @@ void set_using_external_auth_service(bool value) {
     using_external_auth_service = value;
 }
 
-std::string listmech() {
+std::string listmech(bool tls) {
+    if (tls) {
+        return "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN OAUTHBEARER";
+    }
     return "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN";
 }
 
@@ -43,14 +46,19 @@ bool ServerContext::bypassAuthForUnknownUsers() const {
     return (using_external_auth_service && !lookup_user_function);
 }
 
-std::pair<Error, std::string> ServerContext::start(const std::string& mech,
-                                                   const std::string& available,
-                                                   std::string_view input) {
+std::pair<Error, std::string> ServerContext::start(
+        const std::string_view mech,
+        const std::string_view available,
+        std::string_view input) {
     if (input.empty()) {
         return {Error::BAD_PARAM, {}};
     }
 
     switch (selectMechanism(mech, available.empty() ? listmech() : available)) {
+    case Mechanism::OAUTHBEARER:
+        backend =
+                std::make_unique<mechanism::oauthbearer::ServerBackend>(*this);
+        break;
     case Mechanism::SCRAM_SHA512:
         backend =
                 std::make_unique<mechanism::scram::Sha512ServerBackend>(*this);

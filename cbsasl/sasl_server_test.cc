@@ -32,8 +32,8 @@ protected:
 };
 
 TEST_F(SaslServerTest, ListMechs) {
-    auto mechanisms =
-            std::string_view{"SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN"};
+    auto mechanisms = std::string_view{
+            "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN OAUTHBEARER"};
     EXPECT_EQ(mechanisms, cb::sasl::server::listmech());
 }
 

@@ -16,7 +16,13 @@
 
 namespace cb::sasl {
 
-enum class Mechanism { SCRAM_SHA512, SCRAM_SHA256, SCRAM_SHA1, PLAIN };
+enum class Mechanism {
+    OAUTHBEARER,
+    SCRAM_SHA512,
+    SCRAM_SHA256,
+    SCRAM_SHA1,
+    PLAIN
+};
 std::string_view format_as(Mechanism mechanism);
 
 class unknown_mechanism : public std::invalid_argument {

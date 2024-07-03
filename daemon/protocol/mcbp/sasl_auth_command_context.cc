@@ -41,20 +41,44 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         std::string_view payload) {
     auto& serverContext = *connection.getSaslServerContext();
 
-    // Authentication successful, but it still has to be defined in
-    // our system
-    try {
-        cb::rbac::createContext(serverContext.getUser(), {});
-    } catch (const cb::rbac::NoSuchUserException&) {
-        LOG_WARNING(
-                "{}: User [{}] is not defined as a user in Couchbase. "
-                "Mechanism:[{}], UUID:[{}]",
-                connection.getId(),
-                cb::UserDataView(serverContext.getUser().name),
-                mechanism,
-                cookie.getEventId());
-        authFailure(cb::sasl::Error::NO_RBAC_PROFILE);
-        return cb::engine_errc::success;
+    // reset any expiry time
+    connection.setAuthContextLifetime({}, {});
+    if (tokenMetadata) {
+        auto& json = tokenMetadata.value();
+        Expects(json.contains("rbac"));
+        Expects(json["rbac"].contains(serverContext.getUser().name));
+        connection.setTokenProvidedUserEntry(
+                std::make_unique<cb::rbac::UserEntry>(
+                        serverContext.getUser().name,
+                        json["rbac"][serverContext.getUser().name],
+                        serverContext.getUser().domain));
+
+        std::optional<std::chrono::system_clock::time_point> lifetimeBegin;
+        std::optional<std::chrono::system_clock::time_point> lifetimeEnd;
+        if (json.contains("nbf")) {
+            lifetimeBegin = std::chrono::system_clock::from_time_t(json["nbf"]);
+        }
+        if (json.contains("exp")) {
+            lifetimeEnd = std::chrono::system_clock::from_time_t(json["exp"]);
+        }
+        connection.setAuthContextLifetime(lifetimeBegin, lifetimeEnd);
+    } else {
+        // Authentication successful, but it still has to be defined in
+        // our system
+        connection.setTokenProvidedUserEntry({});
+        try {
+            (void)createContext(serverContext.getUser(), {});
+        } catch (const cb::rbac::NoSuchUserException&) {
+            LOG_WARNING(
+                    "{}: User [{}] is not defined as a user in Couchbase. "
+                    "Mechanism:[{}], UUID:[{}]",
+                    connection.getId(),
+                    cb::UserDataView(serverContext.getUser().name),
+                    mechanism,
+                    cookie.getEventId());
+            authFailure(cb::sasl::Error::NO_RBAC_PROFILE);
+            return cb::engine_errc::success;
+        }
     }
 
     // Success
@@ -106,6 +130,7 @@ cb::engine_errc SaslAuthCommandContext::handleSaslAuthTaskResult() {
     if (task) {
         error = task->getError();
         payload = task->getChallenge();
+        tokenMetadata = task->getTokenMetadata();
         task->updateExternalAuthContext();
         task.reset();
     }
@@ -247,10 +272,15 @@ cb::engine_errc SaslAuthCommandContext::authBadParameters() {
 
 cb::engine_errc SaslAuthCommandContext::authFailure(cb::sasl::Error error) {
     state = State::Done;
-    if (error == cb::sasl::Error::AUTH_PROVIDER_DIED) {
+    using cb::sasl::Error;
+    if (error == Error::AUTH_PROVIDER_DIED) {
         cookie.sendResponse(cb::mcbp::Status::Etmpfail);
     } else {
-        if (Settings::instance().isExternalAuthServiceEnabled()) {
+        if (error == Error::NO_MECH) {
+            cookie.setErrorContext(
+                    fmt::format("Unsupported mechanism. Must be one of: {}",
+                                connection.getSaslMechanisms()));
+        } else if (Settings::instance().isExternalAuthServiceEnabled()) {
             cookie.setErrorContext(
                     "Authentication failed. This could be due to invalid "
                     "credentials or if the user is an external user the "

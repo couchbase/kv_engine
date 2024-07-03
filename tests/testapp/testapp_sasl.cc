@@ -305,3 +305,19 @@ TEST_P(SaslTest, ExpiredSCRAM_SHA256) {
 TEST_P(SaslTest, ExpiredSCRAM_SHA512) {
     testPasswordExpired("SCRAM-SHA512");
 }
+
+TEST_P(SaslTest, UnsupportedMechanismContainsContextInfo) {
+    try {
+        auto& conn = getConnection();
+        if (!conn.isSsl()) {
+            conn.authenticate("nouser", "wrongpassword", "OAUTHBEARER");
+            FAIL() << "OAUTHBEARER require TLS";
+        }
+    } catch (const ConnectionError& e) {
+        ASSERT_TRUE(e.isAuthError());
+        EXPECT_EQ(
+                "Unsupported mechanism. Must be one of: SCRAM-SHA512 "
+                "SCRAM-SHA256 SCRAM-SHA1 PLAIN",
+                e.getErrorContext());
+    }
+}
