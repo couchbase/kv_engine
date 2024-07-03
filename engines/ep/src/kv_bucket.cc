@@ -1781,6 +1781,7 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
         if (strategy == InvalidCasStrategy::Error) {
             return cb::engine_errc::cas_value_invalid;
         } else if (strategy == InvalidCasStrategy::Replace) {
+            ++stats.numCasRegenerated;
             genCas = GenerateCas::Yes;
         }
     }
@@ -1847,6 +1848,7 @@ cb::engine_errc KVBucket::prepare(Item& itm,
         if (strategy == InvalidCasStrategy::Error) {
             return cb::engine_errc::cas_value_invalid;
         } else if (strategy == InvalidCasStrategy::Replace) {
+            ++stats.numCasRegenerated;
             generateCas = GenerateCas::Yes;
         }
     }
@@ -2209,6 +2211,7 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
         if (strategy == InvalidCasStrategy::Error) {
             return cb::engine_errc::cas_value_invalid;
         } else if (strategy == InvalidCasStrategy::Replace) {
+            ++stats.numCasRegenerated;
             generateCas = GenerateCas::Yes;
         }
     }

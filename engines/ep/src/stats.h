@@ -486,6 +486,9 @@ public:
     // The number of invalid CAS received
     Counter numInvalidCas;
 
+    // The number of CAS values regenerated
+    Counter numCasRegenerated;
+
     //! The number of times the access scanner runs
     Counter alogRuns;
     //! The number of times the access scanner skips generating access log

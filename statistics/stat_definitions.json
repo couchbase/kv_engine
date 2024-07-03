@@ -2487,6 +2487,13 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_num_cas_regenerated",
+        "description": "The total number of CAS value regenerated",
+        "unit": "none",
+        "type": "counter",
+        "added": "8.0.0"
+    },
+    {
         "key": "get_hits",
         "description": "The number of successful get operations",
         "unit": "none",
