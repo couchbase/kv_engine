@@ -258,6 +258,9 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                         if (existingSeqno <
                             (*originalCursorPos)->getBySeqno()) {
                             cursor->decrDistance();
+                            // decrement the item-line to account for the new
+                            // item replacing the old.
+                            cursor->decrItemLinePosition();
                         }
                     }
 
@@ -749,6 +752,7 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
+       << " numItems:" << c.getNumItems()
        << " type:" << to_string(c.getCheckpointType());
     const auto hps = c.getHighPreparedSeqno();
     os << " hps:" << (hps ? std::to_string(hps.value()) : "none ");

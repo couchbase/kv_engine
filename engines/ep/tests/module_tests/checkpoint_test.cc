@@ -654,6 +654,9 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
 
 // Test the checkpoint cursor movement
 TEST_P(CheckpointTest, CursorMovement) {
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor))
+            << "Expected to have just the checkpoint_start item for cursor";
+
     // 1 item / 1 checkpoint
     ASSERT_TRUE(queueNewItem("key"));
 
@@ -856,6 +859,7 @@ TEST_P(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
     manager->queueSetVBState();
 
     ASSERT_EQ(3, this->manager->getNumItems());
+    ASSERT_EQ(3, manager->getNumItemsForCursor(*cursor));
 
     // Advance persistence cursor so all items have been consumed.
     std::vector<queued_item> items;
@@ -3488,8 +3492,10 @@ TEST_P(CheckpointTest,
     // [E    CS    x    M(keyB):2    M(keyA):3)
     //       ^          ^
     //       B          P
+    EXPECT_EQ(0, manager->getNumItemsForPersistence());
     ASSERT_TRUE(queueNewItem("keyA"));
     ASSERT_EQ(3, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumItemsForPersistence());
 
     // pcursor has not moved
     pos = *CheckpointCursorIntrospector::getCurrentPos(*cursor);
@@ -5399,4 +5405,44 @@ TEST_F(CDCCheckpointTest, DuplicateItemWhenPreviousExpelled) {
     EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(6, manager.getHighSeqno());
     EXPECT_GT(manager.getOpenCheckpointId(), ckptId);
+}
+
+TEST_P(CheckpointTest, getNumItemsForCursor) {
+    auto items = manager->getNumItemsForCursor(*cursor);
+    EXPECT_EQ(1, items);
+
+    for (int i = 0; i < 5; i++) {
+        queueNewItem("k");
+        items++;
+        EXPECT_EQ(items, manager->getNumItemsForCursor(*cursor));
+        manager->createNewCheckpoint();
+        items += 2; // +cp-end, +cp-start
+        EXPECT_EQ(items, manager->getNumItemsForCursor(*cursor));
+    }
+
+    // Put a new cursor in the middle
+    auto cursor2 =
+            manager->registerCursorBySeqno("test-cursor",
+                                           1002, // next seqno is 1003
+                                           CheckpointCursor::Droppable::Yes)
+                    .takeCursor();
+
+    // Ahead of the cursor are 10 "items"
+    // cp3 cs.start, 1003, cs.end
+    // cp4 cs.start, 1004, cs.end
+    // cp5 cs.start, 1005, cs.end
+    // cp6 cs.start
+    EXPECT_EQ(10, manager->getNumItemsForCursor(*cursor2.lock()));
+    std::vector<queued_item> vec;
+    auto result = manager->getItemsForCursor(
+            *cursor2.lock(), vec, 1, std::numeric_limits<size_t>::max());
+    EXPECT_EQ(3, vec.size()); // cs.start, 1003,  cs.end
+    EXPECT_EQ(7, manager->getNumItemsForCursor(*cursor2.lock()));
+
+    EXPECT_EQ(items, manager->getNumItemsForCursor(*cursor));
+
+    queueNewItem("k");
+    EXPECT_EQ(8, manager->getNumItemsForCursor(*cursor2.lock()));
+
+    EXPECT_EQ(1 + items, manager->getNumItemsForCursor(*cursor));
 }

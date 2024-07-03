@@ -710,16 +710,25 @@ protected:
     void registerBackupPersistenceCursor(const std::lock_guard<std::mutex>& lh);
 
     /**
-     * Returns the sum of the total number of items to be processed from the
-     * current checkpoint and all subsequent checkpoints
+     * Returns total number of items available for the cursor
      *
      * @param lh Lock to CM::queueLock
      * @param cursor
-     * @return number of items to be processed
+     * @return number of items available for the cursor
      */
     size_t getNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
                                 const CheckpointCursor& cursor) const;
 
+    /**
+     * Function is similar to getNumItemsForCursor, but this is used whilst
+     * setting up the cursor, i.e. before getNumItemsForCursor can be used.
+     * Function will iterate all checkpoints ahead of the cursor to find the
+     * number, which could be costly if many checkpoints exist.
+     *
+     * This function will be removed in a second patch related to MB-62596
+     */
+    size_t calculateNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
+                                      const CheckpointCursor& cursor) const;
     /**
      *
      * @param lh Lock to CM::queueLock
@@ -997,6 +1006,14 @@ protected:
      * this CM. For every item we include key, metadata and blob sizes.
      */
     cb::AtomicNonNegativeCounter<size_t> queuedItemsMemUsage{0};
+
+    /**
+     * Counts the total number of items added to this CheckpointManager, an ever
+     * increasing quantity. This is then used by Cursors to calculate the number
+     * of items from their position to this total - which is the number of items
+     * remaining for the cursor.
+     */
+    Monotonic<size_t> totalItems{0};
 
     /**
      * Helper class for local counters that need to reflect their updates on

@@ -4236,8 +4236,11 @@ TEST_P(SingleThreadedActiveStreamTest, SnapshotForCheckpointWithExpelledItems) {
                         "test-cursor", 3, CheckpointCursor::Droppable::Yes)
                 .takeCursor()
                 .lock();
+    EXPECT_EQ(2, manager.getNumItemsForCursor(*stopExpelCursor));
     // Expel up to seqno:3
     EXPECT_EQ(3, manager.expelUnreferencedCheckpointItems().count);
+    EXPECT_EQ(2, manager.getNumItemsForCursor(*stopExpelCursor));
+
     ASSERT_EQ(checkpoint.getNumberOfElements(), 4);
 
     // Simulate client reconnecting at seqno:3.
