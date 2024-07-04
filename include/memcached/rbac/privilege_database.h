@@ -39,22 +39,22 @@ using Domain = cb::sasl::Domain;
  */
 struct UserIdent {
     UserIdent() = default;
+    explicit UserIdent(const nlohmann::json& json);
     UserIdent(std::string n, Domain d) : name(std::move(n)), domain(d) {
     }
 
-    static bool is_internal(std::string_view name) {
+    [[nodiscard]] static bool is_internal(std::string_view name) {
         return !name.empty() && name.front() == '@';
     }
 
-    bool is_internal() const {
+    [[nodiscard]] bool is_internal() const {
         return is_internal(name);
     }
 
     /// Get the name of the user. Internal users won't have the log
     /// redaction tags around the name
-    std::string getSanitizedName() const;
+    [[nodiscard]] std::string getSanitizedName() const;
 
-    explicit UserIdent(const nlohmann::json& json);
     std::string name;
     Domain domain{cb::rbac::Domain::Local};
 };
@@ -62,7 +62,8 @@ struct UserIdent {
 /// Get a JSON dump of the UserIdent
 void to_json(nlohmann::json& json, const UserIdent& ui);
 
-inline bool operator==(const UserIdent& lhs, const UserIdent& rhs) {
+[[nodiscard]] inline bool operator==(const UserIdent& lhs,
+                                     const UserIdent& rhs) {
     return lhs.domain == rhs.domain && lhs.name == rhs.name;
 }
 
@@ -80,7 +81,7 @@ public:
     /// Initialize the collection from the JSON representation
     explicit Collection(const nlohmann::json& json);
     /// Get a JSON dump of the Collection
-    nlohmann::json to_json() const;
+    [[nodiscard]] nlohmann::json to_json() const;
     /**
      * Check if the privilege is set for the collection
      *
@@ -88,10 +89,10 @@ public:
      * @return PrivilegeAccess::Ok if the privilege is held
      *         PrivilegeAccess::Fail otherwise
      */
-    PrivilegeAccess check(Privilege privilege) const;
+    [[nodiscard]] PrivilegeAccess check(Privilege privilege) const;
 
     /// Check if this object is identical to another object
-    bool operator==(const Collection& other) const;
+    [[nodiscard]] bool operator==(const Collection& other) const;
 
 protected:
     /// The privilege mask describing the access to this collection
@@ -111,7 +112,7 @@ public:
     ///
     /// Prefer using the nlohmann::json() constructor like
     /// <code>nlohmann::json json = scope;</code>
-    nlohmann::json to_json() const;
+    [[nodiscard]] nlohmann::json to_json() const;
 
     /**
      * Check if the privilege is set for the scope by using the following
@@ -129,17 +130,18 @@ public:
      * @return PrivilegeAccess::Ok if the privilege is held
      *         PrivilegeAccess::Fail otherwise
      */
-    PrivilegeAccess check(Privilege privilege,
-                          std::optional<uint32_t> collection,
-                          bool parentHasCollectionPrivileges) const;
+    [[nodiscard]] PrivilegeAccess check(
+            Privilege privilege,
+            std::optional<uint32_t> collection,
+            bool parentHasCollectionPrivileges) const;
 
     /// Check if the provided privilege exists in the scope or one of the
     /// collections in the scope
-    PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+    [[nodiscard]] PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
             Privilege privilege) const;
 
     /// Check if this object is identical to another object
-    bool operator==(const Scope& other) const;
+    [[nodiscard]] bool operator==(const Scope& other) const;
 
 protected:
     /// The privilege mask describing the access to this scope IFF no
@@ -163,7 +165,7 @@ public:
     ///
     /// Prefer using the nlohmann::json() constructor like
     /// <code>nlohmann::json json = bucket;</code>
-    nlohmann::json to_json() const;
+    [[nodiscard]] nlohmann::json to_json() const;
 
     /**
      * Check if the privilege is set for the bucket by using the following
@@ -180,27 +182,28 @@ public:
      * @return PrivilegeAccess::Ok if the privilege is held
      *         PrivilegeAccess::Fail otherwise
      */
-    PrivilegeAccess check(Privilege privilege,
-                          std::optional<uint32_t> scope,
-                          std::optional<uint32_t> collection) const;
+    [[nodiscard]] PrivilegeAccess check(
+            Privilege privilege,
+            std::optional<uint32_t> scope,
+            std::optional<uint32_t> collection) const;
 
     /// Check if the provided privilege exists in the bucket or one of the
     /// scopes in the bucket
-    PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+    [[nodiscard]] PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
             Privilege privilege) const;
 
     /// Check if this object is identical to another object
-    bool operator==(const Bucket& other) const;
+    [[nodiscard]] bool operator==(const Bucket& other) const;
 
     /// Get the underlying privilege mask (used for some of the old unit
     /// tests.. should be removed when we drop the support for the old
     /// password database format.
-    const PrivilegeMask& getPrivileges() const {
+    [[nodiscard]] const PrivilegeMask& getPrivileges() const {
         return privilegeMask;
     }
 
     /// @return true if there are privileges defined against scopes
-    bool hasScopePrivileges() const {
+    [[nodiscard]] bool hasScopePrivileges() const {
         return !scopes.empty();
     }
 
@@ -225,7 +228,7 @@ void to_json(nlohmann::json& json, const Bucket& bucket);
  */
 class UserEntry {
 public:
-    bool operator==(const UserEntry& other) const;
+    [[nodiscard]] bool operator==(const UserEntry& other) const;
 
     /**
      * Create a new UserEntry from the provided JSON
@@ -244,28 +247,29 @@ public:
               Domain domain);
 
     /**
-     * Get a map containing all of the buckets and the privileges in those
+     * Get a map containing all the buckets and the privileges in those
      * buckets that the user have access to.
      */
-    const std::unordered_map<std::string, std::shared_ptr<const Bucket>>&
+    [[nodiscard]] const std::unordered_map<std::string,
+                                           std::shared_ptr<const Bucket>>&
     getBuckets() const {
         return buckets;
     }
 
     /**
-     * Get all of the "global" (not related to a bucket) privileges the user
+     * Get all the "global" (not related to a bucket) privileges the user
      * have in its effective set.
      */
-    const PrivilegeMask& getPrivileges() const {
+    [[nodiscard]] const PrivilegeMask& getPrivileges() const {
         return privilegeMask;
     }
 
-    nlohmann::json to_json(Domain domain) const;
+    [[nodiscard]] nlohmann::json to_json(Domain domain) const;
 
     /**
      * Get the timestamp for the last time we updated the user entry
      */
-    std::chrono::steady_clock::time_point getTimestamp() const {
+    [[nodiscard]] std::chrono::steady_clock::time_point getTimestamp() const {
         return timestamp;
     }
 
@@ -295,7 +299,7 @@ protected:
 /**
  * The PrivilegeContext is the current context (selected bucket).
  * The reason for this class is to provide a fast lookup for all
- * of the privileges. It is used (possibly multiple times) for every
+ * the privileges. It is used (possibly multiple times) for every
  * command being executed.
  */
 class PrivilegeContext {
@@ -310,9 +314,7 @@ public:
      * context being used.
      */
     explicit PrivilegeContext(Domain domain)
-        : generation(std::numeric_limits<uint32_t>::max()),
-          domain(domain),
-          mask() {
+        : generation(std::numeric_limits<uint32_t>::max()), domain(domain) {
     }
 
     /**
@@ -338,9 +340,9 @@ public:
      * @param cid the collection id (if set, sid must also be set)
      * @return if access is granted or not.
      */
-    PrivilegeAccess check(Privilege privilege,
-                          std::optional<ScopeID> sid,
-                          std::optional<CollectionID> cid) const;
+    [[nodiscard]] PrivilegeAccess check(Privilege privilege,
+                                        std::optional<ScopeID> sid,
+                                        std::optional<CollectionID> cid) const;
 
     /**
      * Check if the given privilege is part of the context
@@ -348,7 +350,7 @@ public:
      * @param privilege the privilege to check
      * @return if access is granted or not.
      */
-    PrivilegeAccess check(Privilege privilege) const {
+    [[nodiscard]] PrivilegeAccess check(Privilege privilege) const {
         return check(privilege, {}, {});
     }
 
@@ -359,7 +361,7 @@ public:
      * @param privilege the privilege to check
      * @return if access is granted or not.
      */
-    PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+    [[nodiscard]] PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
             Privilege privilege) const;
 
     /**
@@ -367,7 +369,7 @@ public:
      * to. If there is a mismatch with this number and the current number
      * of the privilege database this context is no longer valid.
      */
-    uint32_t getGeneration() const {
+    [[nodiscard]] uint32_t getGeneration() const {
         return generation;
     }
 
@@ -379,17 +381,16 @@ public:
      * An empty set is written as [none], and a full set is written
      * as [all].
      */
-    std::string to_string() const;
+    [[nodiscard]] std::string to_string() const;
 
     /**
-     * Clear all of the privileges in this context which contains
-     * bucket privileges.
+     * Clear all the privileges in this context which contains bucket
+     * privileges.
      */
     void clearBucketPrivileges();
 
     /**
-     * Set all of the privileges in this context which contains
-     * bucket privileges.
+     * Set all the privileges in this context which contains bucket privileges.
      */
     void setBucketPrivileges();
 
@@ -401,10 +402,10 @@ public:
     void dropPrivilege(Privilege privilege);
 
     /// Is this privilege context stale, or may it be used?
-    bool isStale() const;
+    [[nodiscard]] bool isStale() const;
 
     /// @return true if there are scope privileges defined
-    bool hasScopePrivileges() const {
+    [[nodiscard]] bool hasScopePrivileges() const {
         return bucket && bucket->hasScopePrivileges();
     }
 
@@ -476,11 +477,10 @@ public:
      * Try to look up a user in the privilege database
      *
      * @param user The name of the user to look up
-     * @param domain The domain where the user is defined (not used)
      * @return The user entry for that user
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
-    const UserEntry& lookup(const std::string& user) const;
+    [[nodiscard]] const UserEntry& lookup(const std::string& user) const;
 
     /**
      * Create a new PrivilegeContext for the specified user in the specified
@@ -494,9 +494,10 @@ public:
      * @throws cb::rbac::NoSuchBucketException if the user doesn't have access
      *                                         to that bucket.
      */
-    PrivilegeContext createContext(const std::string& user,
-                                   Domain domain,
-                                   const std::string& bucket) const;
+    [[nodiscard]] PrivilegeContext createContext(
+            const std::string& user,
+            Domain domain,
+            const std::string& bucket) const;
 
     /**
      * Create the initial context for a given user
@@ -505,13 +506,14 @@ public:
      * @return Privilege context for the user
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
-    PrivilegeContext createInitialContext(const UserIdent& user) const;
+    [[nodiscard]] PrivilegeContext createInitialContext(
+            const UserIdent& user) const;
 
     std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
                                                   Domain domain,
                                                   UserEntry& entry) const;
 
-    nlohmann::json to_json(Domain domain) const;
+    [[nodiscard]] nlohmann::json to_json(Domain domain) const;
 
     /**
      * The generation for this PrivilegeDatabase (a privilege context must

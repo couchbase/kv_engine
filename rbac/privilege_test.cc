@@ -113,9 +113,9 @@ TEST(PrivilegeDatabaseTest, ParseLegalConfig) {
     cb::rbac::PrivilegeDatabase db(json, cb::rbac::Domain::External);
 
     // Looking up an existing user should not throw an exception
-    db.lookup("trond");
+    (void)db.lookup("trond");
     try {
-        db.lookup("foo");
+        (void)db.lookup("foo");
         FAIL() << "Trying to fetch a nonexisting user should throw exception";
     } catch (const cb::rbac::NoSuchUserException& exception) {
         EXPECT_STRCASEEQ("foo", exception.what());
