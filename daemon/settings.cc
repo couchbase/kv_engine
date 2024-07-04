@@ -115,16 +115,6 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setErrorMapsDir(value.get<std::string>());
         } else if (key == "enable_deprecated_bucket_autoselect"sv) {
             setDeprecatedBucketAutoselectEnabled(value.get<bool>());
-        } else if (key == "event_framework"sv) {
-            auto val = value.get<std::string>();
-            if (val == "bufferevent") {
-                setEventFramework(EventFramework::Bufferevent);
-            } else if (val == "folly") {
-                setEventFramework(EventFramework::Folly);
-            } else {
-                throw std::invalid_argument(
-                        R"("event_framework" must be "bufferevent" or "folly")");
-            }
         } else if (key == "quota_sharing_pager_concurrency_percentage") {
             auto val = value.get<int>();
             if (val <= 0 || val > 100) {
@@ -552,15 +542,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                             .count());
             setTcpUnauthenticatedUserTimeout(
                     other.getTcpUnauthenticatedUserTimeout());
-        }
-    }
-
-    if (other.has.event_framework) {
-        if (other.event_framework != event_framework) {
-            LOG_INFO("Change event framework from {} to {}",
-                     getEventFramework(),
-                     other.getEventFramework());
-            setEventFramework(other.getEventFramework());
         }
     }
 
@@ -1127,18 +1108,4 @@ void Settings::setMaxConcurrentCommandsPerConnection(size_t num) {
                                                  std::memory_order_release);
     has.max_concurrent_commands_per_connection = true;
     notify_changed("max_concurrent_commands_per_connection");
-}
-
-std::string format_as(EventFramework framework) {
-    switch (framework) {
-    case EventFramework::Bufferevent:
-        return "bufferevent";
-    case EventFramework::Folly:
-        return "folly";
-    }
-    return "Invalid EventFramework: " + std::to_string(int(framework));
-}
-
-std::ostream& operator<<(std::ostream& os, const EventFramework& framework) {
-    return os << format_as(framework);
 }

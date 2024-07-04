@@ -877,9 +877,6 @@ int memcached_main(int argc, char** argv) {
         LOG_INFO_RAW("Thread sanitizer enabled");
     }
 
-    LOG_DEBUG_CTX("Event framework",
-                  {"name", Settings::instance().getEventFramework()});
-
 #if CB_DEVELOPMENT_ASSERTS
     LOG_INFO_RAW("Development asserts enabled");
     if (cb_malloc_is_using_arenas() == 0) {

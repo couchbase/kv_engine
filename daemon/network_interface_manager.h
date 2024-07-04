@@ -67,9 +67,6 @@ public:
 
     uniqueSslPtr createClientSslHandle();
 
-    /// For use in the current folly prototype!
-    std::shared_ptr<folly::SSLContext> getSslContext();
-
     std::size_t getNumberOfDaemonConnections() const;
 
 protected:

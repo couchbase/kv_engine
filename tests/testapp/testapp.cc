@@ -50,8 +50,6 @@ extern void shutdown_server();
 
 std::set<cb::mcbp::Feature> enabled_hello_features;
 
-/// The event framework being used
-static std::string event_framework = "bufferevent";
 static int memcached_verbose = 0;
 // State variable if we're running the memcached server in a
 // thread in the same process or not
@@ -489,7 +487,6 @@ static std::string get_errmaps_dir() {
 
 nlohmann::json TestappTest::generate_config() {
     nlohmann::json ret = {
-            {"event_framework", event_framework},
             {"max_connections", Testapp::MAX_CONNECTIONS},
             {"system_connections", Testapp::MAX_CONNECTIONS / 4},
             {"stdin_listener", false},
@@ -1279,17 +1276,8 @@ int main(int argc, char** argv) {
     std::string engine_config;
 
     int cmd;
-    while ((cmd = getopt(argc, argv, "vc:eE:i:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "vc:eE:")) != EOF) {
         switch (cmd) {
-        case 'i':
-            event_framework = optarg;
-            if (event_framework != "folly" &&
-                event_framework != "bufferevent") {
-                std::cerr << R"(-i must be set to "folly" or "bufferevent")"
-                          << std::endl;
-                std::exit(EXIT_FAILURE);
-            }
-            break;
         case 'v':
             memcached_verbose++;
             break;
