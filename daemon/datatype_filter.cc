@@ -35,6 +35,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::Collections:
     case cb::mcbp::Feature::Invalid:
     case cb::mcbp::Feature::Invalid2:
+    case cb::mcbp::Feature::Invalid3:
     case cb::mcbp::Feature::ClustermapChangeNotification:
     case cb::mcbp::Feature::UnorderedExecution:
     case cb::mcbp::Feature::Tracing:
@@ -42,7 +43,6 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SyncReplication:
     case cb::mcbp::Feature::PreserveTtl:
     case cb::mcbp::Feature::VAttr:
-    case cb::mcbp::Feature::PiTR:
     case cb::mcbp::Feature::SubdocCreateAsDeleted:
     case cb::mcbp::Feature::SubdocDocumentMacroSupport:
     case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:

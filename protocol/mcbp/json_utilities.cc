@@ -39,7 +39,7 @@ void to_json(nlohmann::json& json, const DcpOpenFlag& flags) {
             case DcpOpenFlag::NoValueWithUnderlyingDatatype:
                 array.emplace_back("NoValueWithUnderlyingDatatype");
                 break;
-            case DcpOpenFlag::PiTR:
+            case DcpOpenFlag::PiTR_Unsupported:
                 array.emplace_back("PiTR");
                 break;
             case DcpOpenFlag::IncludeDeletedUserXattrs:

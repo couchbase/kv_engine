@@ -169,9 +169,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       includeXattrs(isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeXattrs)
                             ? IncludeXattrs::Yes
                             : IncludeXattrs::No),
-      pitrEnabled(isFlagSet(flags, cb::mcbp::DcpOpenFlag::PiTR)
-                          ? PointInTimeEnabled::Yes
-                          : PointInTimeEnabled::No),
       includeDeleteTime(
               isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeleteTimes)
                       ? IncludeDeleteTime::Yes
@@ -616,9 +613,6 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
 
     if (isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::DiskOnly)) {
         req.end_seqno = vb.getPersistenceSeqno();
-    } else if (isPointInTimeEnabled() == PointInTimeEnabled::Yes) {
-        logger->warn("DCP connections with PiTR enabled must enable DISKONLY");
-        return cb::engine_errc::invalid_arguments;
     }
 
     if (req.start_seqno > req.end_seqno) {

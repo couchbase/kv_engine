@@ -468,16 +468,7 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
                                              ->getRWUnderlying()
                                              ->getDroppedCollections(id);
             ASSERT_TRUE(status);
-            if (!isPitrEnabled()) {
-                // We are trying to check if the dropped collections are
-                // still present on disk. The document is typically deleted
-                // during compaction but with PiTR we have some extra
-                // criteria to hit that we don't in this test (the compacting
-                // headers must be older than the max history age). As such,
-                // the dropped collections (and the data that belongs to them)
-                // are still present on disk for PiTR tests.
-                EXPECT_TRUE(dropped.empty());
-            }
+            EXPECT_TRUE(dropped.empty());
             EXPECT_EQ(failures, engine->getEpStats().compactionFailed);
         } else {
             EXPECT_LT(failures, engine->getEpStats().compactionFailed);
@@ -673,10 +664,6 @@ bool STParameterizedBucketTest::bloomFilterEnabled() const {
     return engine->getConfiguration().isBfilterEnabled();
 }
 
-bool SingleThreadedKVBucketTest ::isPitrEnabled() const {
-    return engine->getConfiguration().isPitrEnabled();
-}
-
 /// @returns a string representing this tests' parameters.
 std::string STParameterizedBucketTest::PrintToStringParamName(
         const ::testing::TestParamInfo<ParamType>& info) {
@@ -693,10 +680,6 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     boost::replace_all(config, "nexus_secondary_backend=", "");
     boost::replace_all(config, "backend=", "");
     boost::replace_all(config, "bfilter_enabled=", "bfilter_");
-    boost::replace_all(config, "pitr_enabled=", "pitr_");
-    boost::replace_all(config, "pitr_granularity=", "pitr_granularity_");
-    boost::replace_all(
-            config, "pitr_max_history_age=", "pitr_max_history_age_");
     boost::replace_all(
             config, "item_eviction_strategy=", "item_eviction_strategy_");
     boost::replace_all(

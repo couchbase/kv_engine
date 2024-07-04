@@ -442,10 +442,6 @@ public:
 
     bool isTakeoverStream() const;
 
-    PointInTimeEnabled isPointInTimeEnabled() const {
-        return pitrEnabled;
-    }
-
     /**
      * @returns true if the stream requested that purged tombstones should be
      * ignored, and not cause rollback.
@@ -934,9 +930,6 @@ private:
 
     // Will the stream send dcp deletions with delete-times?
     const IncludeDeleteTime includeDeleteTime;
-
-    /// Is PiTR enabled on this stream
-    const PointInTimeEnabled pitrEnabled;
 
     // Will the stream encode the CollectionID in the key?
     const DocKeyEncodesCollectionId includeCollectionID;

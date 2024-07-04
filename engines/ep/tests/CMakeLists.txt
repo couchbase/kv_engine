@@ -120,7 +120,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/objectregistry_test.cc
         module_tests/mutex_test.cc
         module_tests/packed_ptr_test.cc
-        module_tests/pitr_test.cc
         module_tests/probabilistic_counter_test.cc
         module_tests/range_scan_test.cc
         module_tests/secondary_warmup_test.cc

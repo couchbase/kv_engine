@@ -84,7 +84,6 @@ enum class DocumentFilter {
 std::string format_as(DocumentFilter df);
 
 enum class SnapshotSource {
-    Historical, // Required for PITR
     Head, // Latest version of all keys
     HeadAllVersions // All versions from the head (used in CDC stream)
 };

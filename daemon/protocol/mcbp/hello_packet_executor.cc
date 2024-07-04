@@ -57,6 +57,7 @@ void buildRequestVector(FeatureSet& requested,
         switch (feature) {
         case Feature::Invalid:
         case Feature::Invalid2:
+        case Feature::Invalid3:
         case Feature::TLS:
             // known, but we don't support them
             break;
@@ -78,7 +79,6 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::AltRequestSupport:
         case Feature::SyncReplication:
         case Feature::VAttr:
-        case Feature::PiTR:
         case Feature::SubdocCreateAsDeleted:
         case Feature::SubdocDocumentMacroSupport:
         case Feature::SubdocReplaceBodyWithXattr:
@@ -106,6 +106,7 @@ void buildRequestVector(FeatureSet& requested,
     for (const auto& feature : requested) {
         switch (Feature(feature)) {
         case Feature::Invalid:
+        case Feature::Invalid3:
         case Feature::TLS:
         case Feature::MUTATION_SEQNO:
         case Feature::XATTR:
@@ -122,7 +123,6 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::Collections:
         case Feature::SnappyEverywhere:
         case Feature::PreserveTtl:
-        case Feature::PiTR:
         case Feature::SubdocCreateAsDeleted:
         case Feature::SubdocReplaceBodyWithXattr:
         case Feature::ReportUnitUsage:
@@ -275,12 +275,8 @@ void process_hello_packet_executor(Cookie& cookie) {
         switch (feature) {
         case Feature::Invalid:
         case Feature::Invalid2:
+        case Feature::Invalid3:
         case Feature::TLS:
-            // Not implemented
-            LOG_INFO("{}: {} requested unsupported feature {}",
-                     connection.getId(),
-                     connection.getDescription(),
-                     feature);
             break;
         case Feature::TCPNODELAY:
         case Feature::TCPDELAY:
@@ -386,7 +382,6 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::PreserveTtl:
         case Feature::VAttr:
         case Feature::SubdocDocumentMacroSupport:
-        case Feature::PiTR:
         case Feature::SubdocCreateAsDeleted:
         case Feature::SubdocReplaceBodyWithXattr:
         case Feature::SubdocReplicaRead:

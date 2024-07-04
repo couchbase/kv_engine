@@ -70,17 +70,14 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
             startSeqno,
             DocumentFilter::ALL_ITEMS,
             valFilter,
-            stream->isPointInTimeEnabled() == PointInTimeEnabled::Yes
-                    ? SnapshotSource::Historical
-                    : SnapshotSource::Head);
+            SnapshotSource::Head);
 
     if (!scanCtx) {
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::create() failed to create scan "
-                    "for {}, startSeqno:{}, PointInTimeEnabled:{}",
+                    "for {}, startSeqno:{}",
                     getVBucketId(),
-                    startSeqno,
-                    stream->isPointInTimeEnabled() == PointInTimeEnabled::Yes);
+                    startSeqno);
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -296,7 +293,7 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
                         : scanCtx.maxSeqno,
             scanCtx.persistedCompletedSeqno,
             scanCtx.maxVisibleSeqno,
-            scanCtx.timestamp,
+            std::nullopt,
             historyScan ? SnapshotType::NoHistoryPrecedingHistory
                         : SnapshotType::NoHistory);
 }
@@ -373,7 +370,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.maxSeqno,
                                        scanCtx.persistedCompletedSeqno,
                                        scanCtx.maxVisibleSeqno,
-                                       scanCtx.timestamp,
+                                       std::nullopt,
                                        SnapshotType::NoHistory);
     }
 

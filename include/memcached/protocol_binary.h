@@ -570,8 +570,8 @@ enum class DcpOpenFlag : uint32_t {
      * DCP_OPEN_NO_VALUE.
      */
     NoValueWithUnderlyingDatatype = 64,
-    /// Requst PiTR for the connection (only legal for Producers)
-    PiTR = 128,
+    /// The old (now removed) PiTR
+    PiTR_Unsupported = 128,
     /**
      * Indicates that the server includes the document UserXattrs within
      * deletion values.

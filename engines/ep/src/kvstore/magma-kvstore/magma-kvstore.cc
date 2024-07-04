@@ -1926,7 +1926,6 @@ public:
                              vbucketState,
                              openCollections,
                              droppedCollections,
-                             std::nullopt, // timestamp
                              historyStartSeqno) {
     }
 };
@@ -1940,12 +1939,6 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
         ValueFilter valOptions,
         SnapshotSource source,
         std::unique_ptr<KVFileHandle> fileHandle) const {
-    if (source == SnapshotSource::Historical) {
-        throw std::runtime_error(
-                "MagmaKVStore::initBySeqnoScanContext: historicalSnapshot not "
-                "implemented");
-    }
-
     auto handle = std::move(fileHandle);
     if (!handle) {
         handle = makeFileHandle(vbid);

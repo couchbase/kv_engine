@@ -395,73 +395,6 @@ TEST_F(CouchKVStoreTest, CollectionsOfflineUpgradeMadHatter_MB_45917) {
     collectionsOfflineUpgrade(true, CollectionID::Default, 129, {0, 129});
 }
 
-TEST_F(CouchKVStoreTest, OpenHistoricalSnapshot) {
-    CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    config.setPitrGranularity(std::chrono::nanoseconds{1});
-
-    // Test setup, create a new file
-    auto kvstore = setup_kv_store(config);
-
-    for (int ii = 1; ii < 5; ++ii) {
-        auto ctx =
-                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-        auto key = makeStoredDocKey("mykey");
-        const std::string value = std::to_string(ii);
-        std::unique_ptr<Item> item =
-                std::make_unique<Item>(key,
-                                       0,
-                                       0,
-                                       value.data(),
-                                       value.size(),
-                                       PROTOCOL_BINARY_RAW_BYTES,
-                                       0,
-                                       ii);
-        kvstore->set(*ctx, queued_item(std::move(item)));
-        flush.proposedVBState.lastSnapEnd = ii;
-        kvstore->commit(std::move(ctx), flush);
-    }
-
-    class MyStatusCallback : public StatusCallback<GetValue> {
-    public:
-        explicit MyStatusCallback(std::vector<uint64_t>& vec) : ids(vec) {
-        }
-
-        void callback(GetValue& result) override {
-            EXPECT_EQ(cb::engine_errc::success, result.getStatus());
-            ids.push_back(result.item->getBySeqno());
-            const std::string val{result.item->getData(),
-                                  result.item->getNBytes()};
-            EXPECT_EQ(std::to_string(result.item->getBySeqno()), val);
-        }
-
-    protected:
-        std::vector<uint64_t>& ids;
-    };
-
-    class MyCacheLookupCallback : public StatusCallback<CacheLookup> {
-    public:
-        void callback(CacheLookup& lookup) override {
-        }
-    };
-
-    // We should have 4 different headers in the file
-    for (int ii = 1; ii < 5; ++ii) {
-        std::vector<uint64_t> byIdSeqnos;
-        auto ctx = kvstore->initBySeqnoScanContext(
-                std::make_unique<MyStatusCallback>(byIdSeqnos),
-                std::make_unique<MyCacheLookupCallback>(),
-                Vbid{0},
-                ii,
-                DocumentFilter::ALL_ITEMS,
-                ValueFilter::VALUES_DECOMPRESSED,
-                SnapshotSource::Historical);
-        ASSERT_TRUE(ctx);
-        ASSERT_EQ(ScanStatus::Success, kvstore->scan(*ctx));
-        ASSERT_EQ(1, byIdSeqnos.size());
-        ASSERT_EQ(ii, byIdSeqnos.front());
-    }
-}
-
 /**
  * The CouchKVStoreErrorInjectionTest cases utilise GoogleMock to inject
  * errors into couchstore as if they come from the filesystem in order
@@ -942,25 +875,6 @@ void CouchKVStoreErrorInjectionTest::testCompactDBCompactDBEx() {
 }
 
 TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
-    testCompactDBCompactDBEx();
-}
-
-TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex_pitr) {
-    populate_items(1);
-
-    // This test finds an old header that lacks a vbucket_state if we run it
-    // without any pre-amble. Find a header without a vbucket_state causes the
-    // compaction to fail and to abort before we hit our expectations in the
-    // test. To run this test we need to sleep for more than the max history age
-    // because the PiTR code in couchstore is using the system clock...
-    // @TODO MB-45408: we should not be sleeping in tests.
-    // @TODO MB-51037: We probably should not fail this compaction if we pick
-    //  up a header that does not have a vbucket_state.
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    config.setPitrEnabled(true);
-    config.setPitrGranularity(std::chrono::nanoseconds(1000));
-    config.setPitrMaxHistoryAge(std::chrono::seconds(1));
     testCompactDBCompactDBEx();
 }
 

@@ -2767,113 +2767,6 @@ static enum test_result test_itempager_conf(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_pitr_conf(EngineIface* h) {
-    // Check the max age
-    checkeq(86400,
-            get_int_stat(h, "ep_pitr_max_history_age"),
-            "Incorrect default value for pitr_max_history_age");
-    checkeq(cb::engine_errc::success,
-            set_param(
-                    h, EngineParamCategory::Flush, "pitr_max_history_age", "1"),
-            "Setting pitr_max_history_age should have worked");
-    checkeq(1,
-            get_int_stat(h, "ep_pitr_max_history_age"),
-            "pitr_max_history_age did not get set to the correct value");
-    checkeq(cb::engine_errc::success,
-            set_param(h,
-                      EngineParamCategory::Flush,
-                      "pitr_max_history_age",
-                      "172800"),
-            "Setting pitr_max_history_age should have worked");
-    checkeq(172800,
-            get_int_stat(h, "ep_pitr_max_history_age"),
-            "pitr_max_history_age did not get set to the correct value");
-
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(
-                    h, EngineParamCategory::Flush, "pitr_max_history_age", "0"),
-            "Setting pitr_max_history_age outside the legal range should not "
-            "work");
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(h,
-                      EngineParamCategory::Flush,
-                      "pitr_max_history_age",
-                      "172801"),
-            "Setting pitr_max_history_age outside the legal range should not "
-            "work");
-    checkeq(172800,
-            get_int_stat(h, "ep_pitr_max_history_age"),
-            "pitr_max_history_age was changed when setting "
-            "pitr_max_history_age to invalid value");
-
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(
-                    h, EngineParamCategory::Flush, "pitr_max_history_age", "0"),
-            "Setting pitr_max_history_age outside the legal range should not "
-            "work");
-    checkeq(172800,
-            get_int_stat(h, "ep_pitr_max_history_age"),
-            "pitr_max_history_age was changed when setting "
-            "pitr_max_history_age to invalid value");
-
-    // Check the granularity
-    checkeq(600,
-            get_int_stat(h, "ep_pitr_granularity"),
-            "Incorrect default value for ep_pitr_granularity");
-
-    checkeq(cb::engine_errc::success,
-            set_param(h, EngineParamCategory::Flush, "pitr_granularity", "1"),
-            "Setting pitr_granularity should have worked");
-    checkeq(1,
-            get_int_stat(h, "ep_pitr_granularity"),
-            "ep_pitr_granularity did not get set to the correct value");
-    checkeq(cb::engine_errc::success,
-            set_param(
-                    h, EngineParamCategory::Flush, "pitr_granularity", "18000"),
-            "Setting pitr_granularity should have worked");
-    checkeq(18000,
-            get_int_stat(h, "ep_pitr_granularity"),
-            "ep_pitr_granularity did not get set to the correct value");
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(h, EngineParamCategory::Flush, "pitr_granularity", "0"),
-            "Setting pitr_granularity outside the legal range should not work");
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(
-                    h, EngineParamCategory::Flush, "pitr_granularity", "18001"),
-            "Setting pitr_granularity outside the legal range should not work");
-    checkeq(18000,
-            get_int_stat(h, "ep_pitr_granularity"),
-            "pitr_max_history_age was changed when setting pitr_granularity to "
-            "invalid value");
-    checkeq(cb::engine_errc::invalid_arguments,
-            set_param(h, EngineParamCategory::Flush, "pitr_granularity", "0"),
-            "Setting pitr_granularity outside the legal range should not work");
-    checkeq(18000,
-            get_int_stat(h, "ep_pitr_granularity"),
-            "pitr_max_history_age was changed when setting pitr_granularity to "
-            "invalid value");
-
-    // Check the master on off switch
-    check(!get_bool_stat(h, "ep_pitr_enabled"),
-          "Incorrect default value for ep_pitr_enabled");
-
-    checkeq(cb::engine_errc::success,
-            set_param(h, EngineParamCategory::Flush, "pitr_enabled", "true"),
-            "Set pitr_enabled should have worked");
-    checkeq(true,
-            get_bool_stat(h, "ep_pitr_enabled"),
-            "ep_pitr_enabled did not get set to the correct value");
-
-    checkeq(cb::engine_errc::success,
-            set_param(h, EngineParamCategory::Flush, "pitr_enabled", "false"),
-            "Set pitr_enabled should have worked");
-    checkeq(false,
-            get_bool_stat(h, "ep_pitr_enabled"),
-            "ep_pitr_enabled did not get set to the correct value");
-
-    return SUCCESS;
-}
-
 static enum test_result test_bloomfilter_conf(EngineIface* h) {
     if (get_bool_stat(h, "ep_bfilter_enabled") == false) {
         checkeq(cb::engine_errc::success,
@@ -8497,13 +8390,6 @@ BaseTestCase testsuite_testcases[] = {
                  cleanup),
         TestCase("itempager conf",
                  test_itempager_conf,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
-                 cleanup),
-        TestCase("PiTR conf",
-                 test_pitr_conf,
                  test_setup,
                  teardown,
                  nullptr,

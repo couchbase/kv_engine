@@ -86,34 +86,6 @@ public:
         return maxFileDescriptors;
     }
 
-    bool isPitrEnabled() const {
-        return pitrEnabled;
-    }
-
-    void setPitrEnabled(bool enabled) {
-        pitrEnabled = enabled;
-    }
-
-    std::chrono::seconds getPitrMaxHistoryAge() const {
-        return pitrMaxHistoryAge;
-    }
-
-    void setPitrMaxHistoryAge(std::chrono::seconds age) {
-        pitrMaxHistoryAge = age;
-    }
-
-    void setPitrGranularity(std::chrono::seconds granularity) {
-        pitrGranularity = granularity;
-    }
-
-    void setPitrGranularity(std::chrono::nanoseconds granularity) {
-        pitrGranularity = granularity;
-    }
-
-    std::chrono::nanoseconds getPitrGranularity() const {
-        return pitrGranularity;
-    }
-
     void setMetadataPurgeAge(std::chrono::seconds age) {
         metadataPurgeAge = age;
     }
@@ -170,12 +142,6 @@ protected:
      * N bytes written.
      */
     std::atomic<uint64_t> periodicSyncBytes;
-
-    std::atomic_bool pitrEnabled{false};
-    std::atomic<std::chrono::seconds> pitrMaxHistoryAge;
-    /// Granularity is stored in nanoseconds to allow for unit tests to execute
-    /// faster
-    std::atomic<std::chrono::nanoseconds> pitrGranularity;
 
     /**
      * Length of time for which we keep tombstones before purging to allow

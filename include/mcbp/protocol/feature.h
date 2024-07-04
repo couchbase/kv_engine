@@ -106,10 +106,8 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// supports VATTRs in a generic way (can request $<VATTR> and will either
     /// succeed or fail with SubdocXattrUnknownVattr). Requires XATTR.
     VAttr = 0x15,
-    /// This is purely information (it does not enable / disable anything on the
-    /// server). It may be used from the client to determine if the server
-    /// supports Point in Time Recovery.
-    PiTR = 0x16,
+    /// The old and obsolete PiTR
+    Invalid3 = 0x16,
     /// This is purely informational (it does not enable / disable anything on
     /// the server). It may be used from the client to determine if the server
     /// supports the subdoc `CreateAsDeleted` doc flag.

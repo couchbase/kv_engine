@@ -861,22 +861,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setCouchstoreMprotect(cb_stob(val));
         } else if (key == "allow_sanitize_value_in_deletion") {
             configuration.setAllowSanitizeValueInDeletion(cb_stob(val));
-        } else if (key == "pitr_enabled") {
-            configuration.setPitrEnabled(cb_stob(val));
-        } else if (key == "pitr_max_history_age") {
-            uint32_t value;
-            if (safe_strtoul(val, value)) {
-                configuration.setPitrMaxHistoryAge(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
-        } else if (key == "pitr_granularity") {
-            uint32_t value;
-            if (safe_strtoul(val, value)) {
-                configuration.setPitrGranularity(value);
-            } else {
-                rv = cb::engine_errc::invalid_arguments;
-            }
         } else if (key == "magma_fragmentation_percentage") {
             float value;
             if (safe_strtof(val, value)) {
@@ -6854,16 +6838,6 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
     ConnHandler* handler = nullptr;
     using cb::mcbp::DcpOpenFlag;
     if ((flags & DcpOpenFlag::Producer) == DcpOpenFlag::Producer) {
-        if ((flags & DcpOpenFlag::PiTR) == DcpOpenFlag::PiTR) {
-            auto* store = getKVBucket()->getOneROUnderlying();
-            if (!store || !store->supportsHistoricalSnapshots()) {
-                EP_LOG_WARN_RAW(
-                        "Cannot open a DCP connection with PiTR as the "
-                        "underlying kvstore don't support historical "
-                        "snapshots");
-                return cb::engine_errc::disconnect;
-            }
-        }
         handler = dcpConnMap_->newProducer(cookie, connName, flags);
     } else {
         // Don't accept dcp consumer open requests before warm up has loaded

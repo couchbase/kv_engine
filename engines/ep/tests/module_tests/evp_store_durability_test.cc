@@ -3197,27 +3197,13 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     auto expectedStatus = cb::engine_errc::no_such_key;
     auto expectedPrepares = 0;
     auto expectedItemCount = 1;
-    if (isPitrEnabled()) {
-        // We are trying to check if the prepare is present on disk. It is
-        // typically purged by compaction but with PiTR we have some extra
-        // criteria to hit that we don't in this test. As such, the prepare is
-        // still present on disk for PiTR tests.
-        expectedStatus = cb::engine_errc::success;
-        expectedPrepares = 1;
-        expectedItemCount = 2;
-    }
     EXPECT_EQ(expectedStatus, gv.getStatus());
 
     // Check onDiskPrepares is updated correctly after compaction.
     vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(expectedPrepares, vbstate->onDiskPrepares);
     EXPECT_EQ(expectedItemCount, kvstore->getItemCount(vbid));
-
-    if (!isPitrEnabled()) {
-        EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
-    } else {
-        EXPECT_NE(0, vbstate->getOnDiskPrepareBytes());
-    }
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
 
     vb.reset();
     resetEngineAndWarmup();
@@ -3225,12 +3211,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
     vbstate = kvstore->getCachedVBucketState(vbid);
     EXPECT_EQ(expectedItemCount, kvstore->getItemCount(vbid));
     EXPECT_EQ(expectedPrepares, vbstate->onDiskPrepares);
-
-    if (!isPitrEnabled()) {
-        EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
-    } else {
-        EXPECT_NE(0, vbstate->getOnDiskPrepareBytes());
-    }
+    EXPECT_EQ(0, vbstate->getOnDiskPrepareBytes());
 }
 
 TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
@@ -3309,13 +3290,6 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     gv = kvstore->get(prefixedKey, Vbid(0));
 
     auto expectedStatus = cb::engine_errc::no_such_key;
-    if (isPitrEnabled()) {
-        // We are trying to check if the Abort is present on disk. It is
-        // typically purged by compaction but with PiTR we have some extra
-        // criteria to hit that we don't in this test. As such, the Abort is
-        // still present on disk for PiTR tests.
-        expectedStatus = cb::engine_errc::success;
-    }
     EXPECT_EQ(expectedStatus, gv.getStatus());
     EXPECT_EQ(1, kvstore->getItemCount(vbid));
     EXPECT_EQ(0, vbstate->onDiskPrepares);
@@ -3365,22 +3339,6 @@ void DurabilityCouchstoreBucketTest::
     // Check onDiskPrepares is updated correctly after compaction.
     const auto* vbstateCached = kvstore.getCachedVBucketState(vbid);
     const auto vbstateDisk = kvstore.getPersistedVBucketState(vbid);
-
-    if (isPitrEnabled()) {
-        // The prepare is typically purged by compaction but with PiTR we have
-        // some extra criteria to hit that we don't in this test. As such, the
-        // prepare is still present on disk for PiTR tests.
-        EXPECT_EQ(2, kvstore.getItemCount(vbid));
-        EXPECT_EQ(1, vbstateCached->onDiskPrepares);
-        if (removePrepareBytes) {
-            // @todo MB-57774: Fix test and re-enable check
-            // EXPECT_EQ(0, vbstateCached->getOnDiskPrepareBytes());
-        } else {
-            EXPECT_NE(0, vbstateCached->getOnDiskPrepareBytes());
-        }
-
-        return;
-    }
 
     EXPECT_EQ(1, kvstore.getItemCount(vbid));
 
@@ -5311,22 +5269,12 @@ INSTANTIATE_TEST_SUITE_P(CouchstoreOnly,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(CouchstoreOnlyPitrEnabled,
-                         DurabilityCouchstoreBucketTest,
-                         STParameterizedBucketTest::pitrEnabledConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
 // Test cases which run against all persistent storage backends.
 INSTANTIATE_TEST_SUITE_P(
         NormalBackends,
         DurabilityEPBucketTest,
         STParameterizedBucketTest::persistentNoNexusConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(NormalBackendsPitrEnabled,
-                         DurabilityEPBucketTest,
-                         STParameterizedBucketTest::pitrEnabledConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
 
 #ifdef EP_USE_MAGMA
 INSTANTIATE_TEST_SUITE_P(
@@ -5346,11 +5294,6 @@ INSTANTIATE_TEST_SUITE_P(AllEphemeral,
 INSTANTIATE_TEST_SUITE_P(AllBackends,
                          DurabilityBucketTest,
                          STParameterizedBucketTest::allConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(AllBackendsPitrEnabled,
-                         DurabilityBucketTest,
-                         STParameterizedBucketTest::pitrEnabledConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 // maxVisibleSeqno tests run against all persistent storage backends.

@@ -2379,7 +2379,8 @@ public:
                              _documentCount,
                              vbucketState,
                              nullptr, // no open collections
-                             droppedCollections) {
+                             droppedCollections,
+                             0) {
     }
 
     /**

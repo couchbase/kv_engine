@@ -33,18 +33,8 @@ public:
     void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "fsync_after_every_n_bytes_written") {
             config.setPeriodicSyncBytes(value);
-        } else if (key == "pitr_max_history_age") {
-            config.setPitrMaxHistoryAge(std::chrono::seconds{value});
-        } else if (key == "pitr_granularity") {
-            config.setPitrGranularity(std::chrono::seconds{value});
         } else if (key == "persistent_metadata_purge_age") {
             config.setMetadataPurgeAge(std::chrono::seconds{value});
-        }
-    }
-
-    void booleanValueChanged(std::string_view key, bool b) override {
-        if (key == "pitr_enabled") {
-            config.setPitrEnabled(b);
         }
     }
 
@@ -65,17 +55,6 @@ KVStoreConfig::KVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "fsync_after_every_n_bytes_written",
             std::make_unique<ConfigChangeListener>(*this));
-
-    setPitrEnabled(config.isPitrEnabled());
-    setPitrGranularity(std::chrono::seconds{config.getPitrGranularity()});
-    setPitrMaxHistoryAge(std::chrono::seconds{config.getPitrMaxHistoryAge()});
-    config.addValueChangedListener(
-            "pitr_enabled", std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "pitr_max_history_age",
-            std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "pitr_granularity", std::make_unique<ConfigChangeListener>(*this));
 
     setMetadataPurgeAge(
             std::chrono::seconds{config.getPersistentMetadataPurgeAge()});

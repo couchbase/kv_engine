@@ -1490,93 +1490,7 @@ CompactDBStatus CouchKVStore::compactDBInternal(
 
     // Perform COMPACTION of vbucket.couch.rev into
     // vbucket.couch.rev.compact
-    if (configuration.isPitrEnabled()) {
-        auto now = std::chrono::system_clock::now();
-        std::chrono::nanoseconds timestamp =
-                now.time_since_epoch() - configuration.getPitrMaxHistoryAge();
-        const auto delta = configuration.getPitrGranularity();
-
-        EP_LOG_INFO(
-                "{}: Full compaction to {}, incremental with granularity of "
-                "{} sec",
-                vbid.to_string(),
-                ::to_string(now),
-                std::chrono::duration_cast<std::chrono::seconds>(delta)
-                        .count());
-
-        // @todo I'm not sure if updating the bloom filter as part of
-        //       traversing historical data is what we want to do :S
-        hook_ctx->bloomFilterCallback = {};
-
-        CompactionReplayPrepareStats prepareStats;
-
-        Collections::VB::FlushAccounting collectionStats;
-        collectionStats.setPiTR(IsPiTR::Yes);
-        uint64_t purge_seqno = 0;
-        errCode = cb::couchstore::compact(
-                *sourceDb,
-                compact_file.c_str(),
-                flags,
-                encryptionKeyLookupFunction,
-                [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
-                    return time_purge_hook(db, docInfo, value, *hook_ctx);
-                },
-                {},
-                def_iops,
-                preCommitHook,
-                timestamp.count(),
-                delta.count(),
-                [this, &vbid, hook_ctx](Db& db) {
-                    auto [status, state] = readVBState(&db, vbid);
-                    // @TODO MB-51037: We probably shouldn't fail compactions
-                    // externally if a vBucket state does not exist in the
-                    // header we have picked up....
-                    if (status != ReadVBStateStatus::Success &&
-                        status != ReadVBStateStatus::NotFound) {
-                        return COUCHSTORE_ERROR_CANCEL;
-                    }
-                    hook_ctx->highCompletedSeqno =
-                            state.persistedCompletedSeqno;
-                    auto [getDroppedStatus, droppedCollections] =
-                            getDroppedCollections(db);
-                    if (getDroppedStatus != COUCHSTORE_SUCCESS) {
-                        return COUCHSTORE_ERROR_CANCEL;
-                    }
-
-                    hook_ctx->eraserContext =
-                            std::make_unique<Collections::VB::EraserContext>(
-                                    droppedCollections);
-                    return COUCHSTORE_SUCCESS;
-                },
-                [this, &vbid, &prepareStats, &purge_seqno](Db& db) {
-                    auto [status, state] = readVBState(&db, vbid);
-                    // @TODO MB-51037: We probably shouldn't fail compactions
-                    // externally if a vBucket state does not exist in the
-                    // header we have picked up....
-                    if (status != ReadVBStateStatus::Success &&
-                        status != ReadVBStateStatus::NotFound) {
-                        return COUCHSTORE_ERROR_CANCEL;
-                    }
-                    prepareStats.onDiskPrepares = state.onDiskPrepares;
-                    purge_seqno = cb::couchstore::getHeader(db).purgeSeqNum;
-                    return COUCHSTORE_SUCCESS;
-                },
-                [&prepareStats, &collectionStats](Db&,
-                                                  Db& target,
-                                                  const DocInfo* docInfo,
-                                                  const DocInfo*) {
-                    return replayPreCopyHook(
-                            target, docInfo, prepareStats, collectionStats);
-                },
-                [&prepareStats, &collectionStats, &purge_seqno, hook_ctx, this](
-                        Db&, Db& compacted) {
-                    return replayPrecommitHook(compacted,
-                                               prepareStats,
-                                               collectionStats,
-                                               purge_seqno,
-                                               *hook_ctx);
-                });
-    } else {
+    {
         auto [status, state] = readVBState(sourceDb.getDb(), vbid);
         if (status == ReadVBStateStatus::Success) {
             hook_ctx->highCompletedSeqno = state.persistedCompletedSeqno;
@@ -1984,13 +1898,6 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
         lock.unlock();
     }
 
-    uint64_t delta = std::numeric_limits<uint64_t>::max();
-    if (configuration.isPitrEnabled()) {
-        delta = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        configuration.getPitrGranularity())
-                        .count();
-    }
-
     EP_LOG_INFO("Try to catch up {}: from {} to {} {} stopping flusher",
                 vbid,
                 start.updateSeqNum,
@@ -2005,14 +1912,10 @@ bool CouchKVStore::tryToCatchUpDbFile(Db& source,
     // dropped collections (e.g. replace becomes insert etc...)
     Collections::VB::FlushAccounting collectionStats(droppedCollections,
                                                      IsCompaction::Yes);
-    if (configuration.isPitrEnabled()) {
-        collectionStats.setPiTR(IsPiTR::Yes);
-    }
-
     err = cb::couchstore::replay(
             source,
             destination,
-            delta,
+            std::numeric_limits<uint64_t>::max(),
             end.headerPosition,
             [this, &prepareStats, &collectionStats](
                     Db&,
@@ -2217,25 +2120,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
     auto& couchKvHandle = static_cast<CouchKVFileHandle&>(*handle);
     auto& db = couchKvHandle.getDbHolder();
 
-    std::optional<uint64_t> timestamp;
-    if (source == SnapshotSource::Historical) {
-        auto status = cb::couchstore::seekFirstHeaderContaining(
-                *db.getDb(),
-                startSeqno,
-                configuration.getPitrGranularity().count());
-        if (status != COUCHSTORE_SUCCESS) {
-            logger.warn(
-                    "CouchKVStore::initBySeqnoScanContext: Failed to locate "
-                    "correct database header: {}",
-                    couchstore_strerror(status));
-            return {};
-        }
-    }
-
     const auto header = cb::couchstore::getHeader(*db.getDb());
-    if (source == SnapshotSource::Historical) {
-        timestamp = header.timestamp;
-    }
     uint64_t count = 0;
     auto errorCode = couchstore_changes_count(
             db, startSeqno, std::numeric_limits<uint64_t>::max(), &count);
@@ -2283,7 +2168,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
                                                      readVbStateResult.state,
                                                      nullptr,
                                                      droppedCollections,
-                                                     std::move(timestamp));
+                                                     0);
     sctx->logger = &logger;
     return sctx;
 }

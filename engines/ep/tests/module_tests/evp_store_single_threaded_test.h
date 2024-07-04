@@ -192,8 +192,6 @@ public:
 
     bool isNexusMagmaPrimary() const;
 
-    bool isPitrEnabled() const;
-
     bool needsBGFetch(cb::engine_errc ec) const {
         if (ec == cb::engine_errc::would_block && isPersistent() &&
             isFullEviction()) {
@@ -549,12 +547,6 @@ public:
 
     static config::Config couchstoreConfigValues() {
         return couchstoreBucket() * itemEvictionPolicy();
-    }
-
-    static auto pitrEnabledConfigValues() {
-        // @TODO Add variants for magma if/when it supports PiTR.
-        return couchstoreConfigValues() *
-               config::Config{{"pitr_enabled", "true"}};
     }
 
 #ifdef EP_USE_MAGMA

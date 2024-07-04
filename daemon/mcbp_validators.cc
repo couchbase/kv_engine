@@ -565,11 +565,10 @@ static Status dcp_open_validator(Cookie& cookie) {
     }
 
     // Validate the flags.
-    const auto mask =
-            ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
-              DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
-              DcpOpenFlag::NoValueWithUnderlyingDatatype | DcpOpenFlag::PiTR |
-              DcpOpenFlag::IncludeDeletedUserXattrs);
+    const auto mask = ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
+                        DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
+                        DcpOpenFlag::NoValueWithUnderlyingDatatype |
+                        DcpOpenFlag::IncludeDeletedUserXattrs);
 
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpOpenPayload>();
@@ -587,18 +586,6 @@ static Status dcp_open_validator(Cookie& cookie) {
         cookie.setErrorContext(
                 fmt::format("Request contains invalid flags: {}", unknown));
         return Status::Einval;
-    }
-
-    if (!isFlagSet(flags, DcpOpenFlag::Producer)) {
-        // Verify that we don't request any flags only available
-        // for producers
-        for (const auto& flag : {DcpOpenFlag::PiTR}) {
-            if (isFlagSet(flags, flag)) {
-                cookie.setErrorContext(
-                        fmt::format("{} require Producer to be set", flag));
-                return Status::Einval;
-            }
-        }
     }
 
     if (isFlagSet(flags, DcpOpenFlag::NoValue) &&

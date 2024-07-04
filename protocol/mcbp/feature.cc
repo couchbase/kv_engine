@@ -17,6 +17,10 @@ std::string cb::mcbp::format_as(Feature feature) {
     switch (feature) {
     case Feature::Invalid:
         return "Invalid";
+    case Feature::Invalid2:
+        return "Invalid2";
+    case Feature::Invalid3:
+        return "Invalid3";
     case Feature::TLS:
         return "TLS";
     case Feature::TCPNODELAY:
@@ -31,8 +35,6 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "XERROR";
     case Feature::SELECT_BUCKET:
         return "Select bucket";
-    case Feature::Invalid2:
-        return "Invalid2";
     case Feature::SNAPPY:
         return "Snappy";
     case Feature::JSON:
@@ -57,8 +59,6 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "PreserveTtl";
     case Feature::VAttr:
         return "VAttr";
-    case Feature::PiTR:
-        return "PiTR";
     case Feature::SubdocCreateAsDeleted:
         return "SubdocCreateAsDeleted";
     case Feature::SubdocDocumentMacroSupport:

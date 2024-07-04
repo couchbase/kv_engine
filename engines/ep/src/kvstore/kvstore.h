@@ -479,8 +479,7 @@ public:
                     openCollections,
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
-            std::optional<uint64_t> timestamp = {},
-            uint64_t historyStartSeqno = 0);
+            uint64_t historyStartSeqno);
 
     const uint64_t startSeqno;
     const uint64_t purgeSeqno;
@@ -505,9 +504,6 @@ public:
      * end of the snapshot. This seqno is also used to optimise local warmup.
      */
     const uint64_t persistedCompletedSeqno;
-
-    /// Timestamp for the data (if available)
-    const std::optional<uint64_t> timestamp;
 };
 
 /**

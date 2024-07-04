@@ -15,6 +15,7 @@
 const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
         {{cb::mcbp::Feature::Invalid, "Invalid"},
          {cb::mcbp::Feature::Invalid2, "Invalid2"},
+         {cb::mcbp::Feature::Invalid3, "Invalid3"},
          {cb::mcbp::Feature::TLS, "TLS"},
          {cb::mcbp::Feature::TCPNODELAY, "TCP nodelay"},
          {cb::mcbp::Feature::MUTATION_SEQNO, "Mutation seqno"},
@@ -35,7 +36,6 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::SyncReplication, "SyncReplication"},
          {cb::mcbp::Feature::PreserveTtl, "PreserveTtl"},
          {cb::mcbp::Feature::VAttr, "VAttr"},
-         {cb::mcbp::Feature::PiTR, "PiTR"},
          {cb::mcbp::Feature::SubdocCreateAsDeleted, "SubdocCreateAsDeleted"},
          {cb::mcbp::Feature::SubdocDocumentMacroSupport,
           "SubdocDocumentMacroSupport"},

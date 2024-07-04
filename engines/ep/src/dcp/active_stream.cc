@@ -82,7 +82,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       lastSentSnapEndSeqno(0, {*this}),
       chkptItemsExtractionInProgress(false),
       includeDeleteTime(includeDeleteTime),
-      pitrEnabled(p->isPointInTimeEnabled()),
       includeCollectionID(f.isLegacyFilter() ? DocKeyEncodesCollectionId::No
                                              : DocKeyEncodesCollectionId::Yes),
       enableExpiryOutput(p->isDCPExpiryEnabled() ? EnableExpiryOutput::Yes
@@ -101,8 +100,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
     if (isTakeoverStream()) {
         type = "takeover ";
         end_seqno_ = dcpMaxSeqno;
-    } else if (pitrEnabled == PointInTimeEnabled::Yes) {
-        type = "PiTR ";
     }
 
     folly::SharedMutex::ReadHolder rlh(vbucket.getStateLock());

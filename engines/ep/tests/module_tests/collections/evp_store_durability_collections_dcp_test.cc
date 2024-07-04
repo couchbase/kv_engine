@@ -168,20 +168,11 @@ TEST_P(CollectionsSyncWriteParamTest, drop_collection_with_pending_write) {
         runCollectionsEraser(vbid);
     }
 
-    // The prepare is typically purged by compaction but with PiTR we have
-    // some extra criteria to hit that we don't in this test. As such, the
-    // prepare is still present on disk (and as such in the ADM and PDM as no
-    // callback is made) for PiTR tests.
-    auto expected = 1;
-    if (isPitrEnabled()) {
-        expected = 2;
-    }
-
-    EXPECT_EQ(expected, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
 
-    EXPECT_EQ(expected, pdm.getNumTracked());
+    EXPECT_EQ(1, pdm.getNumTracked());
     EXPECT_EQ(4, pdm.getHighPreparedSeqno());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 }
@@ -240,12 +231,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
         runCollectionsEraser(vbid);
     }
 
-    auto expected = 1;
-    if (isPitrEnabled()) {
-        expected = 2;
-    }
-
-    EXPECT_EQ(expected, adm.getNumTracked());
+    EXPECT_EQ(1, adm.getNumTracked());
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(0, adm.getHighCompletedSeqno());
 
@@ -458,8 +444,3 @@ INSTANTIATE_TEST_SUITE_P(
         CollectionsSyncWriteParamTest,
         STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistentPitrEnabled,
-                         CollectionsSyncWriteParamTest,
-                         STParameterizedBucketTest::pitrEnabledConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);

@@ -2992,11 +2992,6 @@ TEST_P(CollectionsPersistentParameterizedTest,
         // default collection disk size should _decrease_
 
         StatChecker::PostFunc comparator = std::less<>();
-        if (isPitrEnabled()) {
-            // With PiTR enabled we won't purge the prepare
-            comparator = std::equal_to<>();
-        }
-
         auto d = DiskChecker(vb,
                              CollectionEntry::defaultC,
                              getPrepareStatCheckerPostFuncForBackend(
@@ -3018,12 +3013,6 @@ TEST_P(CollectionsPersistentParameterizedTest,
         // included
 
         StatChecker::PostFunc comparator = std::greater<>();
-        if (isPitrEnabled()) {
-            // With PiTR enabled we haven't purge the previous version so no
-            // change is expected
-            comparator = std::equal_to<>();
-        }
-
         auto d = DiskChecker(vb,
                              CollectionEntry::defaultC,
                              getPrepareStatCheckerPostFuncForBackend(
@@ -4236,7 +4225,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
 
     auto c1_d5 = manifest.lock(CollectionEntry::fruit).getDiskSize();
     auto c2_d5 = manifest.lock(CollectionEntry::dairy).getDiskSize();
-    if (isMagma() || isPitrEnabled()) {
+    if (isMagma()) {
         // Magma decrements the collection disk size when we delete items rather
         // than when we purge the tombstones so no change is expected
         EXPECT_EQ(c1_d5, c1_d4);
@@ -4764,11 +4753,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistent,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOrPersistentPitrEnabled,
-                         CollectionsParameterizedTest,
-                         STParameterizedBucketTest::pitrEnabledConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
 INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOnlyTests,
                          CollectionsEphemeralParameterizedTest,
                          STParameterizedBucketTest::ephConfigValues(),
@@ -4777,11 +4761,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsEphemeralOnlyTests,
 INSTANTIATE_TEST_SUITE_P(CollectionsPersistent,
                          CollectionsPersistentParameterizedTest,
                          STParameterizedBucketTest::persistentConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
-INSTANTIATE_TEST_SUITE_P(CollectionsPersistentPitrEnabled,
-                         CollectionsPersistentParameterizedTest,
-                         STParameterizedBucketTest::pitrEnabledConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(CollectionsCouchstore,
