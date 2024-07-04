@@ -290,6 +290,15 @@ void LibeventServerSocketImpl::acceptNewClient() {
 #endif
     }
 
+    const int flags = 1;
+    if (cb::net::setsockopt(
+                client, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags)) ==
+        -1) {
+        LOG_WARNING_CTX("cb::net::setsockopt TCP_NODELAY failed",
+                        {"socket", static_cast<uint64_t>(client)},
+                        {"error", cb_strerror(cb::net::get_socket_error())});
+    }
+
     FrontEndThread::dispatch(client, interface);
 }
 

@@ -73,8 +73,6 @@ TEST(DatatypeFilterTest, EnableFeatures) {
                  std::invalid_argument);
     EXPECT_THROW(datatype.enable(cb::mcbp::Feature::MUTATION_SEQNO),
                  std::invalid_argument);
-    EXPECT_THROW(datatype.enable(cb::mcbp::Feature::TCPDELAY),
-                 std::invalid_argument);
     EXPECT_THROW(datatype.enable(cb::mcbp::Feature::SELECT_BUCKET),
                  std::invalid_argument);
     EXPECT_THROW(datatype.enable(cb::mcbp::Feature::Collections),

@@ -32,13 +32,13 @@ enum class [[nodiscard]] Feature : uint16_t {
     TLS = 0x2,
     /// The client requests the server to set TCP NODELAY on the
     /// socket used by this connection.
-    TCPNODELAY = 0x03,
+    TCPNODELAY_Unsupported = 0x03,
     /// The client requests the server to add the sequence number
     ///  for a mutation to the response packet used in mutations.
     MUTATION_SEQNO = 0x04,
     /// The client requests the server to set TCP DELAY on the socket
     /// used by this connection.
-    TCPDELAY = 0x05,
+    TCPDELAY_Unsupported = 0x05,
     /// The client requests the server to add XATTRs to the stream for
     /// commands where it makes sense (GetWithMeta, SetWithMeta,
     /// DcpMutation etc)

@@ -157,13 +157,6 @@ public:
     nlohmann::json to_json_tcp() const;
 
     /**
-     * Enable or disable TCP NoDelay on the underlying socket
-     *
-     * @return true on success, false otherwise
-     */
-    bool setTcpNoDelay(bool enable);
-
-    /**
      * Get the current reference count
      */
     uint8_t getRefcount() const {
@@ -1100,9 +1093,6 @@ protected:
 
     /// The cluster map revision used by this client
     ClustermapVersion pushed_clustermap;
-
-    /// Is tcp nodelay enabled or not?
-    bool nodelay{false};
 
     /// number of references to the object (set to 1 during creation as the
     /// creator has a reference)

@@ -60,32 +60,6 @@ void Connection::shutdown() {
     state = State::closing;
 }
 
-bool Connection::setTcpNoDelay(bool enable) {
-    if (socketDescriptor == INVALID_SOCKET) {
-        // Our unit test run without a connected socket (and there is
-        // no point of running setsockopt on an invalid socket and
-        // get the error message from there).. But we don't want them
-        // (the unit tests) to flood the console with error messages
-        // that setsockopt failed
-        return false;
-    }
-
-    const int flags = enable ? 1 : 0;
-    int error = cb::net::setsockopt(
-            socketDescriptor, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
-
-    if (error != 0) {
-        std::string errmsg = cb_strerror(cb::net::get_socket_error());
-        LOG_WARNING("setsockopt(TCP_NODELAY): {}", errmsg);
-        nodelay = false;
-        return false;
-    } else {
-        nodelay = enable;
-    }
-
-    return true;
-}
-
 bool Connection::isConnectedToSystemPort() const {
     return listening_port && listening_port->system;
 }
@@ -118,9 +92,6 @@ nlohmann::json Connection::to_json() const {
     }
     if (isXerrorSupport()) {
         features.push_back("xerror");
-    }
-    if (nodelay) {
-        features.push_back("tcp nodelay");
     }
     if (allowUnorderedExecution()) {
         features.push_back("unordered execution");
@@ -1224,7 +1195,6 @@ Connection::Connection(SOCKET sfd,
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(sfd) {
-    setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(cb::net::getpeername(socketDescriptor).c_str());

@@ -27,9 +27,9 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
         break;
     case cb::mcbp::Feature::Duplex:
     case cb::mcbp::Feature::TLS:
-    case cb::mcbp::Feature::TCPNODELAY:
+    case cb::mcbp::Feature::TCPNODELAY_Unsupported:
     case cb::mcbp::Feature::MUTATION_SEQNO:
-    case cb::mcbp::Feature::TCPDELAY:
+    case cb::mcbp::Feature::TCPDELAY_Unsupported:
     case cb::mcbp::Feature::XERROR:
     case cb::mcbp::Feature::SELECT_BUCKET:
     case cb::mcbp::Feature::Collections:

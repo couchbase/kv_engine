@@ -61,8 +61,8 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::TLS:
             // known, but we don't support them
             break;
-        case Feature::TCPNODELAY:
-        case Feature::TCPDELAY:
+        case Feature::TCPNODELAY_Unsupported:
+        case Feature::TCPDELAY_Unsupported:
         case Feature::MUTATION_SEQNO:
         case Feature::XATTR:
         case Feature::JSON:
@@ -132,27 +132,11 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::DedupeNotMyVbucketClustermap:
         case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         case Feature::SubdocBinaryXattr:
+        case Feature::TCPNODELAY_Unsupported:
+        case Feature::TCPDELAY_Unsupported:
             // No other dependency
             break;
 
-        case Feature::TCPNODELAY:
-            // cannot co-exist with TCPDELAY
-            if (containsFeature(requested, Feature::TCPDELAY)) {
-                throw std::invalid_argument(
-                        fmt::format("{} cannot co-exist with {}",
-                                    Feature::TCPNODELAY,
-                                    Feature::TCPDELAY));
-            }
-            break;
-        case Feature::TCPDELAY:
-            // cannot co-exist with TCPNODELAY
-            if (containsFeature(requested, Feature::TCPNODELAY)) {
-                throw std::invalid_argument(
-                        fmt::format("{} cannot co-exist with {}",
-                                    Feature::TCPDELAY,
-                                    Feature::TCPNODELAY));
-            }
-            break;
         case Feature::ClustermapChangeNotification:
         case Feature::ClustermapChangeNotificationBrief:
             // Needs duplex
@@ -273,15 +257,12 @@ void process_hello_packet_executor(Cookie& cookie) {
         bool added = false;
 
         switch (feature) {
+        case Feature::TCPNODELAY_Unsupported:
+        case Feature::TCPDELAY_Unsupported:
         case Feature::Invalid:
         case Feature::Invalid2:
         case Feature::Invalid3:
         case Feature::TLS:
-            break;
-        case Feature::TCPNODELAY:
-        case Feature::TCPDELAY:
-            connection.setTcpNoDelay(feature == Feature::TCPNODELAY);
-            added = true;
             break;
 
         case Feature::MUTATION_SEQNO:
