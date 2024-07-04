@@ -607,6 +607,7 @@ bool Connection::processAllReadyCookies() {
 }
 
 void Connection::executeCommandPipeline() {
+    using cb::mcbp::Status;
     numEvents = max_reqs_per_event;
     const auto maxActiveCommands =
             Settings::instance().getMaxConcurrentCommandsPerConnection();
@@ -624,6 +625,10 @@ void Connection::executeCommandPipeline() {
     if (!active || cookies.back()->mayReorder()) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
+        const auto auth_stale =
+                authExpiryTime.has_value() &&
+                *authExpiryTime < std::chrono::steady_clock::now();
+
         bool stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
         while ((now = std::chrono::steady_clock::now()) <
                        current_timeslice_end &&
@@ -642,7 +647,7 @@ void Connection::executeCommandPipeline() {
             updateRecvBytes(cookie.getPacket().size());
 
             const auto status = cookie.validate();
-            if (status == cb::mcbp::Status::Success) {
+            if (status == Status::Success && !auth_stale) {
                 // We may only start execute the packet if:
                 //  * We shouldn't be throttled
                 //  * We don't have any ongoing commands
@@ -696,8 +701,14 @@ void Connection::executeCommandPipeline() {
                 --numEvents;
             } else {
                 cookie.getConnection().getBucket().rejectCommand(cookie);
-                // Packet validation failed
-                cookie.sendResponse(status);
+                if (status == Status::Success && auth_stale) {
+                    // The packet was correctly encoded, but the
+                    // authentication expired
+                    cookie.sendResponse(Status::AuthStale);
+                } else {
+                    // Packet validation failed
+                    cookie.sendResponse(status);
+                }
                 cookie.reset();
             }
 

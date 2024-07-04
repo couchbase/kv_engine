@@ -1014,6 +1014,12 @@ protected:
     /// The (authenticated) user for the connection.
     std::optional<cb::rbac::UserIdent> user;
 
+    // Optional timestamp indicating when the authentication expires for
+    // the user (and we'll return AuthStale to all (new) commands. Running
+    // commands will run to its completion even if the auth expire after
+    // they're started)
+    std::optional<std::chrono::steady_clock::time_point> authExpiryTime;
+
     /// The description of the connection
     std::string description;
 
