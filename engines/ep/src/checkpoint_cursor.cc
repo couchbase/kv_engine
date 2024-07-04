@@ -25,7 +25,9 @@ CheckpointCursor::CheckpointCursor(std::string name,
       currentPos(std::move(pos)),
       numVisits(0),
       droppable(droppable),
-      distance(distance) {
+      distance(distance),
+      itemLinePosition((*currentCheckpoint)->getPositionOnItemLine() +
+                       distance) {
     (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
 }
 

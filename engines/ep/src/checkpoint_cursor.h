@@ -166,8 +166,8 @@ public:
         return length - itemLinePosition;
     }
 
-    void setPositionOnItemLine(size_t p) {
-        itemLinePosition = p;
+    void resetPositionOnItemLine() {
+        itemLinePosition = 0;
     }
 
 private:

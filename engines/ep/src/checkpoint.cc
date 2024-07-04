@@ -58,7 +58,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
                        uint64_t highPreparedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType,
-                       CheckpointHistorical historical)
+                       CheckpointHistorical historical,
+                       size_t position)
     : manager(&manager),
       stats(st),
       checkpointId(id),
@@ -76,7 +77,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       queueMemOverhead(st, &manager.memOverheadQueue),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)),
-      historical(historical) {
+      historical(historical),
+      positionOnItemLine(position) {
     Expects(snapStart <= snapEnd);
     Expects(visibleSnapEnd <= snapEnd);
 

@@ -313,7 +313,8 @@ void CheckpointManager::addOpenCheckpoint(
                                              highPreparedSeqno,
                                              vb.getId(),
                                              checkpointType,
-                                             historical);
+                                             historical,
+                                             totalItems);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
@@ -386,11 +387,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // Finally save the newCursor
         cursors[name] = newCursor;
 
-        // Find how many items are from this cursor and use that to start
-        // tracking against totalItems
-        auto nItems = calculateNumItemsForCursor(lh, *newCursor);
-        Expects(nItems <= totalItems);
-        newCursor->setPositionOnItemLine(totalItems - nItems);
         return {*this, tryBackfill, seqno, *pos, Cursor{newCursor}};
     };
 
@@ -1378,7 +1374,7 @@ void CheckpointManager::resetCursors() {
         // Reset the cursor to the very begin of the checkpoint list, ie first
         // item in the first checkpoint
         (*pair.second).repositionAtCheckpointBegin(checkpointList.begin());
-        (*pair.second).setPositionOnItemLine(0);
+        (*pair.second).resetPositionOnItemLine();
     }
 }
 
@@ -1430,30 +1426,6 @@ size_t CheckpointManager::getNumItemsForCursor(
         const CheckpointCursor& cursor) const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getNumItemsForCursor(lh, cursor);
-}
-
-size_t CheckpointManager::calculateNumItemsForCursor(
-        const std::lock_guard<std::mutex>& lh,
-        const CheckpointCursor& cursor) const {
-    if (!cursor.valid()) {
-        return 0;
-    }
-
-    // Items from the current checkpoint..
-    size_t items = cursor.getRemainingItemsInCurrentCheckpoint();
-    CheckpointList::const_iterator chkptIterator(cursor.getCheckpoint());
-    if (chkptIterator != checkpointList.end()) {
-        ++chkptIterator;
-    }
-    // .. plus the items for all the subsequent checkpoints
-    auto result =
-            std::accumulate(chkptIterator,
-                            checkpointList.end(),
-                            items,
-                            [](size_t a, const std::unique_ptr<Checkpoint>& b) {
-                                return a + b->getNumItems();
-                            });
-    return result;
 }
 
 size_t CheckpointManager::getNumItemsForCursor(

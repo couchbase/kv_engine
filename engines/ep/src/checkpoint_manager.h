@@ -720,16 +720,6 @@ protected:
                                 const CheckpointCursor& cursor) const;
 
     /**
-     * Function is similar to getNumItemsForCursor, but this is used whilst
-     * setting up the cursor, i.e. before getNumItemsForCursor can be used.
-     * Function will iterate all checkpoints ahead of the cursor to find the
-     * number, which could be costly if many checkpoints exist.
-     *
-     * This function will be removed in a second patch related to MB-62596
-     */
-    size_t calculateNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
-                                      const CheckpointCursor& cursor) const;
-    /**
      *
      * @param lh Lock to CM::queueLock
      * @return a reference to the open checkpoint
