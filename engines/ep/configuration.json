@@ -1077,36 +1077,6 @@
                 }
             }
         },
-        "pitr_enabled" : {
-            "default": "false",
-            "descr": "Is PiTR enabled or not",
-            "dynamic": false,
-            "type": "bool"
-        },
-        "pitr_max_history_age": {
-            "default":  "86400",
-            "descr": "The number of seconds of the oldest entry to keep as part of compaction (up to 48 hours)",
-            "dynamic" : false,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 172800,
-                    "min": 1
-                }
-            }
-        },
-        "pitr_granularity": {
-            "default":  "600",
-            "descr": "The granularity (interval between each rollback point) in seconds (up to 5 hours)",
-            "dynamic" : false,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 18000,
-                    "min": 1
-                }
-            }
-        },
         "uuid": {
             "default": "",
             "descr": "The UUID for the bucket",
