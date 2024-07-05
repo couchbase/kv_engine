@@ -416,9 +416,6 @@ namespace BucketValidator {
 std::string validateBucketName(std::string_view name);
 }
 
-/// May the user connected to this cookie access the specified bucket?
-bool mayAccessBucket(Cookie& cookie, const std::string& bucket);
-
 /// The bucket manager is a singleton with provides the ability to
 /// perform bucket management tasks like create and delete buckets,
 /// but also iterate over all buckets

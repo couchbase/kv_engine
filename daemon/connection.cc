@@ -302,11 +302,11 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
     if (!privilegeContext || privilegeContext->isStale()) {
         try {
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    cb::rbac::createContext(getUser(), getBucket().name));
+                    createContext(getBucket().name));
         } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    cb::rbac::createContext(getUser(), ""));
+                    createContext({}));
             LOG_INFO(
                     "{}: RBAC: {} No access to bucket [{}]. "
                     "New privilege set: {}",
@@ -461,8 +461,7 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-                    cb::rbac::createContext(getUser(),
-                                            all_buckets[index].name));
+                    createContext(all_buckets[index].name));
         } else {
             // The user has not authenticated. Assign an empty profile which
             // won't give you any privileges.
@@ -513,11 +512,10 @@ void Connection::shutdownIfSendQueueStuck(
     // task which consume a lot of resources on the server to fill the
     // pipe again. During bucket deletion we want to disconnect the
     // clients relatively fast.
-    const auto limit = is_memcached_shutting_down()
-                               ? std::chrono::seconds(0)
-                               : (getBucket().state == Bucket::State::Ready)
-                                         ? std::chrono::seconds(360)
-                                         : std::chrono::seconds(1);
+    const auto limit = is_memcached_shutting_down() ? std::chrono::seconds(0)
+                       : (getBucket().state == Bucket::State::Ready)
+                               ? std::chrono::seconds(360)
+                               : std::chrono::seconds(1);
     if ((now - sendQueueInfo.last) > limit) {
         LOG_WARNING(
                 "{}: send buffer stuck at {} for ~{} seconds. Shutting "
@@ -1122,8 +1120,8 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
 
     updateDescription();
     droppedPrivileges.reset();
-    privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
-            cb::rbac::createContext(getUser(), ""));
+    privilegeContext =
+            std::make_shared<cb::rbac::PrivilegeContext>(createContext({}));
     updatePrivilegeContext();
     thread.onConnectionAuthenticated(*this);
 }
@@ -1146,6 +1144,8 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
     try {
         cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
                                   cb::sasl::Domain::Local};
+        // This isn't using JWT and shouldn't have a privilege context
+        // provided in the request
         auto context = cb::rbac::createContext(ident, {});
         setAuthenticated(ident);
         audit_auth_success(*this);
@@ -2649,4 +2649,13 @@ void Connection::scheduleDcpStep() {
                               SlowMutexThreshold);
         triggerCallback();
     });
+}
+
+bool Connection::mayAccessBucket(std::string_view bucket) const {
+    return cb::rbac::mayAccessBucket(getUser(), std::string{bucket});
+}
+
+cb::rbac::PrivilegeContext Connection::createContext(
+        std::string_view bucket) const {
+    return cb::rbac::createContext(getUser(), std::string{bucket});
 }

@@ -25,10 +25,16 @@
  * @param requiredPrivilege The privilege to check
  * @return true if the provided user should have access
  */
-static bool check_access(const cb::rbac::UserIdent& ui,
+static bool check_access(Connection& connection,
+                         const cb::rbac::UserIdent& ui,
                          const Bucket& bucket,
                          cb::rbac::Privilege requiredPrivilege) {
-    auto context = cb::rbac::createContext(ui, std::string{bucket.name});
+    cb::rbac::PrivilegeContext context{ui.domain};
+    if (ui == connection.getUser()) {
+        context = connection.createContext(bucket.name);
+    } else {
+        context = createContext(ui, std::string{bucket.name});
+    }
     if (context.check(requiredPrivilege).failed()) {
         return false;
     }
@@ -64,8 +70,10 @@ static std::optional<Hdr1sfMicroSecHistogram> get_timings(Cookie& cookie,
     } else {
         // Check to see if we've got access to the bucket
         try {
-            if (!check_access(
-                        connection.getUser(), bucket, requiredPrivilege)) {
+            if (!check_access(connection,
+                              connection.getUser(),
+                              bucket,
+                              requiredPrivilege)) {
                 // The user don't have access
                 return {};
             }
@@ -75,7 +83,8 @@ static std::optional<Hdr1sfMicroSecHistogram> get_timings(Cookie& cookie,
             // check for the priv
             if (cookie.getEffectiveUser() &&
                 !cookie.hasImposedUserExtraPrivilege(requiredPrivilege) &&
-                !check_access(*cookie.getEffectiveUser(),
+                !check_access(connection,
+                              *cookie.getEffectiveUser(),
                               bucket,
                               requiredPrivilege)) {
                 return {};

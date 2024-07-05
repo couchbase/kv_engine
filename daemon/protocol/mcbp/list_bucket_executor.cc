@@ -47,12 +47,8 @@ std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
             continue;
         }
 
-        try {
-            // Check if the user have access to the bucket
-            cb::rbac::createContext(connection.getUser(), bucketname);
+        if (connection.mayAccessBucket(bucketname)) {
             blob += bucketname + " ";
-        } catch (const cb::rbac::Exception&) {
-            // The client doesn't have access to this bucket
         }
     }
 

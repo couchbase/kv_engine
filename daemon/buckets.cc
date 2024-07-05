@@ -444,20 +444,13 @@ std::string to_string(Bucket::State state) {
                                 std::to_string(int(state)));
 }
 
-bool mayAccessBucket(Cookie& cookie, const std::string& bucket) {
-    using cb::tracing::Code;
-    using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::CreateRbacContext);
-    return cb::rbac::mayAccessBucket(cookie.getConnection().getUser(), bucket);
-}
-
 BucketManager& BucketManager::instance() {
     static BucketManager instance;
     return instance;
 }
 
 /**
- * All of the buckets in couchbase is stored in this array.
+ * All the buckets in couchbase is stored in this array.
  */
 std::mutex buckets_lock;
 std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;

@@ -572,6 +572,11 @@ public:
                       std::string_view extras,
                       std::string_view value) override;
 
+    /// Check to see if the connection bound to this cookie have
+    /// access to the named bucket (and add trace span for the time
+    /// spent checking for that)
+    [[nodiscard]] bool mayAccessBucket(std::string_view bucket);
+
     /// Set the allocation domain throttling units used by this command
     void setResourceAllocationDomain(ResourceAllocationDomain domain) {
         resource_allocation_domain = domain;

@@ -25,7 +25,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto& connection = cookie.getConnection();
     auto oldIndex = connection.getBucketIndex();
 
-    if (!mayAccessBucket(cookie, bucketname)) {
+    if (!cookie.mayAccessBucket(bucketname)) {
         LOG_INFO(
                 "{}: select_bucket failed - No access. "
                 R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",

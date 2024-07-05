@@ -870,6 +870,23 @@ public:
         snappy_everywhere = val;
     }
 
+    /**
+     *  Check to see if the authenticated user may access the named bucket
+     *
+     * @param bucket The name of the bucket to access
+     * @return true if the user have (some) access to the bucket, false
+     * otherwise
+     */
+    bool mayAccessBucket(std::string_view bucket) const;
+
+    /**
+     * Create a privilege context for the current user
+     *
+     * @param bucket the bucket (empty indicates "no bucket") to access
+     * @return The privilege context to use
+     */
+    cb::rbac::PrivilegeContext createContext(std::string_view bucket) const;
+
     /// Get the time point for when the current timeslice ends (cookies
     /// should try to yield execution after this point)
     std::chrono::steady_clock::time_point getCurrentTimesliceEnd() const {

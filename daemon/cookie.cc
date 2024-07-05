@@ -1160,6 +1160,13 @@ bool Cookie::sendResponse(cb::engine_errc status,
                                    {});
 }
 
+bool Cookie::mayAccessBucket(std::string_view bucket) {
+    using cb::tracing::Code;
+    using cb::tracing::SpanStopwatch;
+    ScopeTimer1<SpanStopwatch> timer(*this, Code::CreateRbacContext);
+    return connection.mayAccessBucket(bucket);
+}
+
 uint32_t Cookie::getPrivilegeContextRevision() {
     Expects(privilegeContext);
     return privilegeContext->getGeneration();

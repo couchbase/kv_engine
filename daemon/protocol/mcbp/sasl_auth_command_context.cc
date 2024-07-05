@@ -77,7 +77,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     if (Settings::instance().isDeprecatedBucketAutoselectEnabled()) {
         // associate the connection with the appropriate bucket
         const auto username = connection.getUser().name;
-        if (mayAccessBucket(cookie, username)) {
+        if (cookie.mayAccessBucket(username)) {
             associate_bucket(cookie, username);
             // Auth succeeded but the connection may not be valid for the
             // bucket
@@ -93,7 +93,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
             associate_bucket(cookie, "");
         }
     } else if (connection.getBucket().type == BucketType::NoBucket ||
-               !mayAccessBucket(cookie, connection.getBucket().name)) {
+               !cookie.mayAccessBucket(connection.getBucket().name)) {
         associate_bucket(cookie, "");
     }
 
