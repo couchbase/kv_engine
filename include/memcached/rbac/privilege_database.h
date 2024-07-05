@@ -309,7 +309,7 @@ public:
     /**
      * Create a new (empty) instance of the privilege context.
      *
-     * The generation is set to "max" which will cause the the access
+     * The generation is set to "max" which will cause the access
      * check to return stale if being used. This is the initial
      * context being used.
      */
@@ -322,13 +322,22 @@ public:
      * given generation and assign it the given mask.
      *
      * @param gen the generation of the privilege database
-     * @param m the mask to set it to.
+     * @param domain The domain this privilege context belongs to
+     * @param m the mask to set it to
+     * @param bucket The bucket this privilege context is linked to
+     * @param never_stale If set to true this privilege context will
+     *                    never become stale.
      */
     PrivilegeContext(uint32_t gen,
                      Domain domain,
                      const PrivilegeMask& m,
-                     std::shared_ptr<const Bucket> bucket)
-        : generation(gen), domain(domain), mask(m), bucket(std::move(bucket)) {
+                     std::shared_ptr<const Bucket> bucket,
+                     bool never_stale = false)
+        : generation(gen),
+          domain(domain),
+          mask(m),
+          bucket(std::move(bucket)),
+          never_stale(never_stale) {
         // empty
     }
 
@@ -424,6 +433,12 @@ protected:
 
     /// The set of dropped privileges
     PrivilegeMask droppedPrivileges;
+
+    /// If set to true this object will never become stale
+    /// (It is used together with token based authentication where
+    /// the token contains the authorizations which should
+    /// have the same lifespan as the token)
+    bool never_stale = false;
 };
 
 /**

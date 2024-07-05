@@ -510,6 +510,11 @@ void PrivilegeContext::dropPrivilege(Privilege privilege) {
 }
 
 bool PrivilegeContext::isStale() const {
+    if (never_stale) {
+        return false;
+    }
+    // Compare the generation counter with the current generation
+    // for the domain
     return generation != contexts[to_index(domain)].current_generation;
 }
 
