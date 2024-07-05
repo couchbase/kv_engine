@@ -483,12 +483,6 @@ PrivilegeContext PrivilegeDatabase::createContext(
     return {generation, domain, ue.getPrivileges(), iter->second};
 }
 
-PrivilegeContext PrivilegeDatabase::createInitialContext(
-        const UserIdent& user) const {
-    const auto& ue = lookup(user.name);
-    return PrivilegeContext(generation, user.domain, ue.getPrivileges(), {});
-}
-
 nlohmann::json PrivilegeDatabase::to_json(Domain domain) const {
     nlohmann::json ret;
     for (const auto& entry : userdb) {
@@ -619,11 +613,6 @@ PrivilegeContext createContext(const UserIdent& user,
                                const std::string& bucket) {
     auto& ctx = contexts[to_index(user.domain)];
     return (*ctx.db.rlock())->createContext(user.name, user.domain, bucket);
-}
-
-PrivilegeContext createInitialContext(const UserIdent& user) {
-    auto& ctx = contexts[to_index(user.domain)];
-    return (*ctx.db.rlock())->createInitialContext(user);
 }
 
 void loadPrivilegeDatabase(const std::string& filename) {

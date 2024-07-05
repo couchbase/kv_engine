@@ -1135,7 +1135,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
     try {
         cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
                                   cb::sasl::Domain::Local};
-        auto context = cb::rbac::createInitialContext(ident);
+        auto context = cb::rbac::createContext(ident, {});
         setAuthenticated(ident);
         audit_auth_success(*this);
         LOG_INFO(

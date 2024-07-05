@@ -499,16 +499,6 @@ public:
             Domain domain,
             const std::string& bucket) const;
 
-    /**
-     * Create the initial context for a given user
-     *
-     * @param user The username to look up
-     * @return Privilege context for the user
-     * @throws cb::rbac::NoSuchUserException if the user doesn't exist
-     */
-    [[nodiscard]] PrivilegeContext createInitialContext(
-            const UserIdent& user) const;
-
     std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
                                                   Domain domain,
                                                   UserEntry& entry) const;
@@ -541,15 +531,6 @@ protected:
  */
 PrivilegeContext createContext(const UserIdent& user,
                                const std::string& bucket);
-
-/**
- * Create the initial context for a given user
- *
- * @param user The user to look up
- * @return privilege context for the user
- * @throws cb::rbac::NoSuchUserException if the user doesn't exist
- */
-PrivilegeContext createInitialContext(const UserIdent& user);
 
 /**
  * Load the named file and install it as the current privilege database
