@@ -154,6 +154,11 @@ inline auto format_as(const CollectionID& cid) {
     return cid.to_string();
 }
 
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, const CollectionID& cid) {
+    j = cid.to_string();
+}
+
 using ScopeIDType = uint32_t;
 class ScopeID {
 public:
@@ -217,6 +222,11 @@ bool operator==(ScopeIDType lhs, const ScopeID& rhs);
 std::ostream& operator<<(std::ostream& os, const ScopeID& sid);
 inline auto format_as(const ScopeID& sid) {
     return sid.to_string();
+}
+
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, const ScopeID& sid) {
+    j = sid.to_string();
 }
 
 using ScopeCollectionPair = std::pair<ScopeID, CollectionID>;

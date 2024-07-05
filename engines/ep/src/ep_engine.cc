@@ -676,13 +676,13 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             } else {
                 auto tmp = std::make_unique<std::ofstream>(val);
                 if (tmp->good()) {
-                    EP_LOG_DEBUG("Logging detailed timings to ``{}''.", val);
+                    EP_LOG_DEBUG_CTX("Logging detailed timings", {"path", val});
                     epStats.timingLog = std::move(tmp);
                 } else {
-                    EP_LOG_WARN(
-                            "Error setting detailed timing log to ``{}'':  {}",
-                            val,
-                            strerror(errno));
+                    EP_LOG_WARN_CTX("Error setting detailed timing log",
+                                    {"path", val},
+                                    {"status", errno},
+                                    {"error", strerror(errno)});
                 }
             }
         } else if (key == "exp_pager_enabled") {
@@ -934,9 +934,9 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "history_retention_bytes") {
             configuration.setHistoryRetentionBytes(std::stoull(val));
         } else {
-            EP_LOG_WARN("Rejecting setFlushParam request key:{} with value:{}",
-                        key,
-                        val);
+            EP_LOG_WARN_CTX("Rejecting setFlushParam request",
+                            {"key", key},
+                            {"value", val});
             msg = "Unknown config param " + std::string{key};
             rv = cb::engine_errc::invalid_arguments;
         }
@@ -1052,7 +1052,10 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
         } else if (key == "max_cas") {
             uint64_t v = std::strtoull(val.c_str(), nullptr, 10);
             checkNumeric(val.c_str());
-            EP_LOG_INFO("setVbucketParam: max_cas:{} {}", v, vbucket);
+            EP_LOG_INFO_CTX("setVbucketParam",
+                            {"key", key},
+                            {"value", v},
+                            {"vb", vbucket});
             if (getKVBucket()->forceMaxCas(vbucket, v) !=
                 cb::engine_errc::success) {
                 rv = cb::engine_errc::not_my_vbucket;
@@ -1088,8 +1091,8 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
 cb::engine_errc EventuallyPersistentEngine::evictKey(CookieIface& cookie,
                                                      const DocKeyView& key,
                                                      Vbid vbucket) {
-    EP_LOG_DEBUG("Manually evicting object with key {}",
-                 cb::UserDataView(key.to_string()));
+    EP_LOG_DEBUG_CTX("Manually evicting object",
+                     {"key", cb::UserDataView(key.to_string())});
     const char* msg = nullptr;
     const auto rv = kvBucket->evictKey(key, vbucket, &msg);
     if (rv == cb::engine_errc::not_my_vbucket ||
@@ -1223,7 +1226,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
     if (status != cb::engine_errc::would_block) {
         // failed, clear the engine-specific
         clearEngineSpecific(cookie);
-        EP_LOG_WARN("Compaction of {} failed: {}", vbid, status);
+        EP_LOG_WARN_CTX("Compaction failed", {"vb", vbid}, {"status", status});
     }
 
     return status;
@@ -1356,7 +1359,9 @@ cb::engine_errc EventuallyPersistentEngine::stream_req(
         }
         return ret;
     } catch (const cb::engine_error& e) {
-        EP_LOG_INFO("stream_req engine_error {}", e.what());
+        EP_LOG_INFO_CTX("stream_req error",
+                        {"error", e.what()},
+                        {"status", e.engine_code()});
         return cb::engine_errc(e.code().value());
     }
 }
@@ -1398,11 +1403,10 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
     }
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
-        EP_LOG_WARN(
-                "{} ({}) Get Failover Log failed because this "
-                "vbucket doesn't exist",
-                conn ? conn->logHeader() : "MCBP-Connection",
-                vbucket);
+        EP_LOG_WARN_CTX(
+                "Get Failover Log failed because this vbucket doesn't exist",
+                {"conn", conn ? conn->logHeader() : "MCBP-Connection"},
+                {"vb", vbucket});
         return cb::engine_errc::not_my_vbucket;
     }
     auto failoverEntries = vb->failovers->getFailoverLog();
@@ -2093,7 +2097,7 @@ std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
         std::ifstream ifs(shardFile);
         std::string data;
         std::getline(ifs, data);
-        EP_LOG_INFO("Found shard file for magma with {} shards", data);
+        EP_LOG_INFO_CTX("Found shard file for magma", {"shards", data});
         uint64_t shards;
         if (safe_strtoull(data, shards)) {
             return shards;
@@ -2191,9 +2195,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     try {
         std::filesystem::create_directories(dbName);
     } catch (const std::system_error& error) {
-        EP_LOG_WARN("Failed to create data directory [{}]:{}",
-                    dbName,
-                    error.code().message());
+        EP_LOG_WARN_CTX("Failed to create data directory",
+                        {"dbname", dbName},
+                        {"error", error.code().message()});
         return cb::engine_errc::failed;
     }
 
@@ -2295,8 +2299,8 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     // record engine initialization time
     startupTime.store(ep_real_time());
 
-    EP_LOG_INFO("EP Engine: Initialization of {} bucket complete",
-                configuration.getBucketType());
+    EP_LOG_INFO_CTX("EP Engine: Initialization of bucket complete",
+                    {"type", configuration.getBucketType()});
 
     setCompressionMode(configuration.getCompressionMode());
 
@@ -2748,11 +2752,10 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         auto value_size = cb::xattr::get_body_size(
                 item.getDataType(), {value->getData(), value->valueSize()});
         if (value_size != 0) {
-            EP_LOG_WARN(
+            EP_LOG_WARN_CTX(
                     "EventuallyPersistentEngine::storeIfInner: attempting to "
-                    "store a deleted document with non-zero value size which "
-                    "is {}",
-                    value_size);
+                    "store a deleted document with non-zero value size",
+                    {"value_size", value_size});
             return {cb::engine_errc::invalid_arguments, {}};
         }
     }
@@ -2882,16 +2885,14 @@ bool EventuallyPersistentEngine::enableTraffic(bool enable) {
     bool bTrafficEnabled =
             trafficEnabled.compare_exchange_strong(inverse, enable);
     if (bTrafficEnabled) {
-        EP_LOG_INFO(
-                "EventuallyPersistentEngine::enableTraffic: Traffic "
-                "successfully {}",
-                enable ? "enabled" : "disabled");
+        EP_LOG_INFO_CTX("EventuallyPersistentEngine::enableTraffic",
+                        {"state", enable ? "enabled" : "disabled"});
     } else {
-        EP_LOG_WARN(
-                "EventuallyPersistentEngine::enableTraffic: Failed to {} "
-                "traffic - traffic was already {}",
-                enable ? "enable" : "disable",
-                enable ? "enabled" : "disabled");
+        EP_LOG_WARN_CTX("EventuallyPersistentEngine::enableTraffic",
+                        {"error",
+                         fmt::format("traffic is already {}",
+                                     enable ? "enabled" : "disabled")},
+                        {"state", enable ? "enabled" : "disabled"});
     }
     return bTrafficEnabled;
 }
@@ -3768,8 +3769,8 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
                                     add_stat,
                                     cookie);
                 } catch (std::exception& error) {
-                    EP_LOG_WARN("addVBStats: Failed building stats: {}",
-                                error.what());
+                    EP_LOG_WARN_CTX("addVBStats: Failed building stats",
+                                    {"error", error.what()});
                 }
             } else {
                 vb.addStats(detail, add_stat, cookie);
@@ -3852,10 +3853,9 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                                 add_stat,
                                 cookie);
             } catch (std::exception& error) {
-                EP_LOG_WARN(
-                        "StatVBucketVisitor::visitBucket: Failed to build "
-                        "stat: {}",
-                        error.what());
+                EP_LOG_WARN_CTX(
+                        "StatVBucketVisitor::visitBucket: Failed to build stat",
+                        {"error", error.what()});
             }
 
             HashTableDepthStatVisitor depthVisitor;
@@ -3927,10 +3927,9 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
                                 add_stat,
                                 cookie);
             } catch (std::exception& error) {
-                EP_LOG_WARN(
-                        "StatVBucketVisitor::visitBucket: Failed to build "
-                        "stat: {}",
-                        error.what());
+                EP_LOG_WARN_CTX(
+                        "StatVBucketVisitor::visitBucket: Failed to build stat",
+                        {"error", error.what()});
             }
         }
 
@@ -4064,10 +4063,10 @@ public:
                             cookie);
             vb.checkpointManager->addStats(add_stat, cookie);
         } catch (std::exception& error) {
-            EP_LOG_WARN(
+            EP_LOG_WARN_CTX(
                     "StatCheckpointVisitor::addCheckpointStat: error building "
-                    "stats: {}",
-                    error.what());
+                    "stats",
+                    {"error", error.what()});
         }
     }
 
@@ -4174,10 +4173,9 @@ public:
                     }
                 }
             } catch (const std::exception& e) {
-                EP_LOG_ERR(
-                        "Failed to decode provided DCP filter: {}. Filter:{}",
-                        e.what(),
-                        value);
+                EP_LOG_ERR_CTX("Failed to decode provided DCP filter",
+                               {"error", e.what()},
+                               {"filter", value});
             }
         }
     }
@@ -4403,7 +4401,8 @@ static void showConnAggStat(const std::string& connType,
         labelled.addStat(Key::connagg_unpaused, counter.conn_unpaused);
 
     } catch (std::exception& error) {
-        EP_LOG_WARN("showConnAggStat: Failed to build stats: {}", error.what());
+        EP_LOG_WARN_CTX("showConnAggStat: Failed to build stats",
+                        {"error", error.what()});
     }
 }
 
@@ -4573,9 +4572,9 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
             } else {
                 valid.assign("ram_but_not_disk");
             }
-            EP_LOG_DEBUG("doKeyStats key {} is {}",
-                         cb::UserDataView(key.to_string()),
-                         valid);
+            EP_LOG_DEBUG_CTX("doKeyStats",
+                             {"key", cb::UserDataView(key.to_string())},
+                             {"status", valid});
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
@@ -4806,7 +4805,8 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
                             add_stat);
 
     } catch (std::exception& error) {
-        EP_LOG_WARN("doWorkloadStats: Error building stats: {}", error.what());
+        EP_LOG_WARN_CTX("doWorkloadStats: Error building stats",
+                        {"error", error.what()});
     }
 
     return cb::engine_errc::success;
@@ -4884,7 +4884,8 @@ void EventuallyPersistentEngine::addSeqnoVbStats(CookieIface& cookie,
                 buffer.data(), vb->getMaxVisibleSeqno(), add_stat, cookie);
 
     } catch (std::exception& error) {
-        EP_LOG_WARN("addSeqnoVbStats: error building stats: {}", error.what());
+        EP_LOG_WARN_CTX("addSeqnoVbStats: error building stats",
+                        {"error", error.what()});
     }
 }
 
@@ -4894,8 +4895,10 @@ void EventuallyPersistentEngine::addLookupResult(CookieIface& cookie,
     // Check for old lookup results and clear them
     if (oldItem) {
         if (*oldItem) {
-            EP_LOG_DEBUG("Cleaning up old lookup result for '{}'",
-                         (*oldItem)->getKey());
+            EP_LOG_DEBUG_CTX(
+                    "Cleaning up old lookup result",
+                    {"key",
+                     cb::UserDataView{(*oldItem)->getKey().to_string()}});
         } else {
             EP_LOG_DEBUG_RAW("Cleaning up old null lookup result");
         }
@@ -5029,11 +5032,11 @@ EventuallyPersistentEngine::parseKeyStatCollection(
                 collectionStr);
         cid = res.getCollectionId();
         if (res.result != cb::engine_errc::success) {
-            EP_LOG_WARN(
+            EP_LOG_WARN_CTX(
                     "EventuallyPersistentEngine::parseKeyStatCollection could "
-                    "not find collection arg:{} error:{}",
-                    collectionStr,
-                    res.result);
+                    "not find collection",
+                    {"arg", collectionStr},
+                    {"status", res.result});
         }
         return res;
     } else if (statKeyArg == (std::string(expectedStatPrefix) + "-byid") &&
@@ -5042,11 +5045,11 @@ EventuallyPersistentEngine::parseKeyStatCollection(
         try {
             cid = std::stoul(collectionStr.data(), nullptr, 16);
         } catch (const std::logic_error& e) {
-            EP_LOG_WARN(
+            EP_LOG_WARN_CTX(
                     "EventuallyPersistentEngine::parseKeyStatCollection "
-                    "invalid collection arg:{}, exception:{}",
-                    collectionStr,
-                    e.what());
+                    "invalid collection",
+                    {"arg", collectionStr},
+                    {"status", e.what()});
             return cb::EngineErrorGetCollectionIDResult{
                     cb::engine_errc::invalid_arguments};
         }
@@ -5088,11 +5091,11 @@ EventuallyPersistentEngine::parseStatKeyArg(CookieIface& cookie,
     try {
         vbid = Vbid(gsl::narrow<uint16_t>(std::stoi(args[2])));
     } catch (const std::exception& e) {
-        EP_LOG_WARN(
+        EP_LOG_WARN_CTX(
                 "EventuallyPersistentEngine::doKeyStats invalid "
-                "vbucket arg:{}, exception:{}",
-                args[2],
-                e.what());
+                "vbucket",
+                {"arg", args[2]},
+                {"error", e.what()});
         return {cb::engine_errc::invalid_arguments,
                 std::nullopt,
                 std::nullopt,
@@ -5338,7 +5341,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
             std::forward_as_tuple(stats.getStatsCmdHisto),
             std::forward_as_tuple(&c, cb::tracing::Code::GetStats));
 
-    EP_LOG_DEBUG("stats '{}'", key);
+    EP_LOG_DEBUG_CTX("stats", {"key", key});
 
     // Some stats have been moved to using the stat collector interface,
     // while others have not. Depending on the key, this collector _may_
@@ -5557,13 +5560,11 @@ cb::engine_errc EventuallyPersistentEngine::checkCollectionAccess(
         setUnknownCollectionErrorContext(cookie, manifestUid);
         break;
     default:
-        EP_LOG_ERR(
-                "EPE::checkPrivilege(priv:{}, cid:{}): sid:{} unexpected "
-                "status:{}",
-                int(priv),
-                cid.to_string(),
-                sid.to_string(),
-                to_string(status));
+        EP_LOG_ERR_CTX("EPE::checkPrivilege unexpected status",
+                       {"priv", int(priv)},
+                       {"cid", cid},
+                       {"sid", sid},
+                       {"status", status});
     }
     return status;
 }
@@ -5646,10 +5647,10 @@ EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
             return cb::engine_errc::no_access;
         }
     } catch (const std::exception& e) {
-        EP_LOG_ERR(
+        EP_LOG_ERR_CTX(
                 "EPE::checkForPrivilegeAtLeastInOneCollection: received "
-                "exception while checking privilege: {}",
-                e.what());
+                "exception while checking privilege",
+                {"error", e.what()});
     }
 
     return cb::engine_errc::failed;
@@ -5673,12 +5674,12 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
             return cb::engine_errc::unknown_collection;
         }
     } catch (const std::exception& e) {
-        EP_LOG_ERR(
+        EP_LOG_ERR_CTX(
                 "EPE::checkPrivilege: received exception while checking "
-                "privilege for sid:{}: cid:{} {}",
-                sid.to_string(),
-                cid.to_string(),
-                e.what());
+                "privilege",
+                {"sid", sid},
+                {"cid", cid},
+                {"error", e.what()});
     }
     return cb::engine_errc::failed;
 }
@@ -5707,7 +5708,7 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
                        : cb::engine_errc::unknown_scope;
         }
     } catch (const std::exception& e) {
-        EP_LOG_ERR(
+        EP_LOG_ERR_CTX(
                 "EPE::testPrivilege: received exception while checking "
                 "privilege for sid:{}: cid:{} {}",
                 sid ? sid->to_string() : "no-scope",
@@ -5723,9 +5724,9 @@ cb::engine_errc EventuallyPersistentEngine::handleObserve(
         Vbid vbucket,
         const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
-    EP_LOG_DEBUG("Observing key {} in {}",
-                 cb::UserDataView(key.to_string()),
-                 vbucket);
+    EP_LOG_DEBUG_CTX("Observing key",
+                     {"key", cb::UserDataView(key.to_string())},
+                     {"vb", vbucket});
 
     auto rv = checkCollectionAccess(cookie,
                                     vbucket,
@@ -5790,7 +5791,7 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
     auto vb_uuid = static_cast<uint64_t>(
             ntohll(*reinterpret_cast<const uint64_t*>(value.data())));
 
-    EP_LOG_DEBUG("Observing {} with uuid: {}", vb_id, vb_uuid);
+    EP_LOG_DEBUG_CTX("Observing vBucket", {"vb", vb_id}, {"uuid", vb_uuid});
 
     VBucketPtr vb = kvBucket->getVBucket(vb_id);
     if (!vb) {
@@ -5879,22 +5880,22 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
                 return cb::engine_errc::would_block;
 
             case HighPriorityVBReqStatus::NotSupported:
-                EP_LOG_WARN(
+                EP_LOG_WARN_CTX(
                         "EventuallyPersistentEngine::handleSeqnoCmds(): High "
-                        "priority async seqno request for {} is NOT supported",
-                        vbucket);
+                        "priority async seqno request is NOT supported",
+                        {"vb", vbucket});
                 return cb::engine_errc::not_supported;
 
             case HighPriorityVBReqStatus::RequestNotScheduled:
                 /// 'HighPriorityVBEntry' was not added, hence just return
                 /// success
-                EP_LOG_INFO(
+                EP_LOG_INFO_CTX(
                         "EventuallyPersistentEngine::handleSeqnoCmds(): Did "
-                        "NOT add high priority async seqno request for {}, "
-                        "Persisted seqno {} > requested seqno {}",
-                        vbucket,
-                        persisted_seqno,
-                        seqno);
+                        "NOT add high priority async seqno request",
+                        {"vb", vbucket},
+                        {"persisted_seqno", persisted_seqno},
+                        {"seqno", seqno},
+                        {"error", "persisted seqno > requested seqno"});
                 return cb::engine_errc::success;
             }
         }
@@ -5903,7 +5904,8 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
     }
 
     clearEngineSpecific(cookie);
-    EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
+    EP_LOG_DEBUG_CTX(
+            "Sequence number persisted", {"seqno", seqno}, {"vb", vbucket});
     return cb::engine_errc::success;
 }
 
@@ -6260,11 +6262,12 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 
         const auto valuesize = inflatedValue.size();
         if ((valuesize - system_xattr_size) > maxItemSize) {
-            EP_LOG_WARN(
-                    "Item value size {} for setWithMeta is bigger than the max "
-                    "size {} allowed!!!",
-                    inflatedValue.size(),
-                    maxItemSize);
+            EP_LOG_WARN_CTX(
+                    "Item value size is bigger than the max "
+                    "size allowed",
+                    {"op", "setWithMeta"},
+                    {"value_size", inflatedValue.size()},
+                    {"max_item_size", maxItemSize});
 
             return cb::engine_errc::too_big;
         }
@@ -6567,21 +6570,20 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
 
     const auto conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
-        EP_LOG_DEBUG("doDcpVbTakeoverStats - cannot find connection {} for {}",
-                     dcpName,
-                     vbid);
+        EP_LOG_DEBUG_CTX("doDcpVbTakeoverStats - cannot find connection",
+                         {"name", dcpName},
+                         {"vb", vbid});
         size_t vb_items = vb->getNumItems();
 
         size_t del_items = 0;
         try {
             del_items = vb->getNumPersistedDeletes();
         } catch (std::runtime_error& e) {
-            EP_LOG_WARN(
+            EP_LOG_WARN_CTX(
                     "doDcpVbTakeoverStats: exception while getting num "
-                    "persisted deletes for {} - treating as 0 "
-                    "deletes. Details: {}",
-                    vbid,
-                    e.what());
+                    "persisted deletes - treating as 0 deletes",
+                    {"vb", vbid},
+                    {"error", e.what()});
         }
         size_t chk_items =
                 vb_items > 0 ? vb->checkpointManager->getNumOpenChkItems() : 0;
@@ -6605,10 +6607,9 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
      * DcpProducer.  But just in case it does happen log the event and
      * return cb::engine_errc::no_such_key.
      */
-    EP_LOG_WARN(
-            "doDcpVbTakeoverStats: connection {} for {} is not a DcpProducer",
-            dcpName,
-            vbid);
+    EP_LOG_WARN_CTX("doDcpVbTakeoverStats: connection is not a DcpProducer",
+                    {"name", dcpName},
+                    {"vb", vbid});
     return cb::engine_errc::no_such_key;
 }
 
@@ -6856,14 +6857,13 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
             }
             handler = dcpConnMap_->newConsumer(cookie, connName, consumerName);
 
-            EP_LOG_INFO(
+            EP_LOG_INFO_CTX(
                     "EventuallyPersistentEngine::dcpOpen: opening new DCP "
-                    "Consumer handler - stream name:{}, opaque:{}, seqno:{}, "
-                    "value:{}",
-                    connName,
-                    opaque,
-                    seqno,
-                    jsonValue.dump());
+                    "Consumer handler",
+                    {"name", connName},
+                    {"opaque", opaque},
+                    {"seqno", seqno},
+                    {"value", jsonValue});
         } else {
             EP_LOG_WARN_RAW(
                     "EventuallyPersistentEngine::dcpOpen: not opening new DCP "
@@ -6951,7 +6951,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
 
     if (sync) {
         if (es.has_value()) {
-            EP_LOG_DEBUG("Completed sync deletion of {}", vbid);
+            EP_LOG_DEBUG_CTX("Completed sync deletion", {"vb", vbid});
             return cb::engine_errc::success;
         }
         status = kvBucket->deleteVBucket(vbid, &cookie);
@@ -6961,35 +6961,34 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
 
     switch (status) {
     case cb::engine_errc::success:
-        EP_LOG_INFO("Deletion of {} was completed.", vbid);
+        EP_LOG_INFO_CTX("Deletion was completed", {"vb", vbid});
         break;
 
     case cb::engine_errc::not_my_vbucket:
-
-        EP_LOG_WARN(
-                "Deletion of {} failed because the vbucket doesn't exist!!!",
-                vbid);
+        EP_LOG_WARN_CTX("Deletion failed because the vbucket doesn't exist",
+                        {"vb", vbid});
         break;
     case cb::engine_errc::invalid_arguments:
-        EP_LOG_WARN(
-                "Deletion of {} failed because the vbucket is not in a dead "
+        EP_LOG_WARN_CTX(
+                "Deletion failed because the vbucket is not in a dead "
                 "state",
-                vbid);
+                {"vb", vbid});
         setErrorContext(
                 cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
         break;
     case cb::engine_errc::would_block:
-        EP_LOG_INFO(
-                "Request for {} deletion is in EWOULDBLOCK until the database "
+        EP_LOG_INFO_CTX(
+                "Request for deletion is in EWOULDBLOCK until the database "
                 "file is removed from disk",
-                vbid);
+                {"vb", vbid});
         // We don't use the actual value in ewouldblock, just the existence
         // of something there.
         storeEngineSpecific(cookie, ScheduledVBucketDeleteToken{});
         break;
     default:
-        EP_LOG_WARN("Deletion of {} failed because of unknown reasons", vbid);
+        EP_LOG_WARN_CTX("Deletion of failed because of unknown reasons",
+                        {"vb", vbid});
         setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         status = cb::engine_errc::failed;
         break;
@@ -7346,9 +7345,9 @@ void EventuallyPersistentEngine::setCompressionMode(
     try {
         compressionMode = parseCompressionMode(compressModeStr);
         if (oldCompressionMode != compressionMode) {
-            EP_LOG_INFO(R"(Transitioning from "{}"->"{}" compression mode)",
-                        to_string(oldCompressionMode),
-                        compressModeStr);
+            EP_LOG_INFO_CTX("Transitioning compression mode",
+                            {"from", to_string(oldCompressionMode)},
+                            {"to", compressModeStr});
             kvBucket->processCompressionModeChange();
         }
     } catch (const std::invalid_argument& e) {

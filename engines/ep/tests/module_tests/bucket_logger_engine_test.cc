@@ -42,6 +42,6 @@ TEST_F(BucketLoggerEngineTest, EngineTest) {
     files = cb::io::findFilesWithPrefix(config.filename);
     EXPECT_EQ(1,
               countInFile(files.back(),
-                          "INFO (default) EP Engine: Initialization of "
-                          "persistent bucket complete"));
+                          "INFO EP Engine: Initialization of bucket complete "
+                          R"({"bucket":"default","type":"persistent"})"));
 }

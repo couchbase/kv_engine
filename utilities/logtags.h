@@ -72,6 +72,11 @@ inline auto format_as(const cb::UserDataView& d) {
     return d.getSanitizedValue();
 }
 
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, const UserDataView& d) {
+    j = format_as(d);
+}
+
 /**
  * UserData class should be used whenever sensitive user data is created
  * that could be printed in any format. UserData is an owning type, so in

@@ -174,6 +174,10 @@ public:
 
     engine_error(engine_errc ev, const char* what_arg)
         : system_error(int(ev), engine_error_category(), what_arg) {}
+
+    engine_errc engine_code() const {
+        return static_cast<engine_errc>(code().value());
+    }
 };
 
 static inline std::error_condition make_error_condition(engine_errc e) {
