@@ -34,6 +34,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
 #include <platform/exceptions.h>
+#include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
@@ -278,21 +279,19 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
             // Remove all access to the bucket
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     createContext({}));
-            LOG_INFO(
-                    "{}: RBAC: {} No access to bucket [{}]. "
-                    "New privilege set: {}",
-                    getId(),
-                    getDescription(),
-                    getBucket().name,
-                    privilegeContext->to_string());
+            LOG_INFO_CTX("RBAC: No access to bucket",
+                         {"conn_id", getId()},
+                         {"description", getDescription()},
+                         {"bucket", getBucket().name},
+                         {"privileges", privilegeContext->to_string()});
         } catch (const cb::rbac::NoSuchUserException&) {
             // Remove all access to the bucket
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     cb::rbac::PrivilegeContext{getUser().domain});
             if (isAuthenticated()) {
-                LOG_INFO("{}: RBAC: {} No RBAC definition for the user.",
-                         getId(),
-                         getDescription());
+                LOG_INFO_CTX("RBAC: No RBAC definition for the user",
+                             {"conn_id", getId()},
+                             {"description", getDescription()});
             }
         }
         updatePrivilegeContext();
@@ -388,34 +387,31 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     // prepared to receive access denied or authentincation stale.
     // For now we should just disconnect them
     auto errc = cb::make_error_condition(code);
-    LOG_WARNING(
-            "{} - Client {} not aware of extended error code ({}). "
-            "Disconnecting",
-            getId(),
-            getDescription(),
-            errc.message());
+    LOG_WARNING_CTX("Disconnecting client not aware of extended error code",
+                    {"conn_id", getId()},
+                    {"description", getDescription()},
+                    {"error", errc.message()});
     setTerminationReason("XError not enabled on client");
 
     return cb::engine_errc::disconnect;
 }
 
 void Connection::updateDescription() {
-    description.assign("[ " + peername.dump() + " - " + sockname.dump());
+    description = {
+            {"peer", peername},
+            {"socket", sockname},
+    };
     if (isAuthenticated()) {
-        description += " (";
+        nlohmann::json user{{"name", getUser().getSanitizedName()}};
         if (isInternal()) {
-            description += "System, ";
+            user["system"] = true;
         }
-        description += getUser().getSanitizedName();
-
         if (getUser().domain == cb::sasl::Domain::External) {
-            description += " (LDAP)";
+            user["ldap"] = true;
         }
-        description += ")";
     } else {
-        description += " (not authenticated)";
+        description["user"] = nullptr;
     }
-    description += " ]";
 }
 
 void Connection::setBucketIndex(int index, Cookie* cookie) {
@@ -488,15 +484,13 @@ void Connection::shutdownIfSendQueueStuck(
                                ? std::chrono::seconds(360)
                                : std::chrono::seconds(1);
     if ((now - sendQueueInfo.last) > limit) {
-        LOG_WARNING(
-                "{}: send buffer stuck at {} for ~{} seconds. Shutting "
-                "down connection {}",
-                getId(),
-                sendQueueInfo.size,
-                std::chrono::duration_cast<std::chrono::seconds>(
-                        now - sendQueueInfo.last)
-                        .count(),
-                getDescription());
+        LOG_WARNING_CTX(
+                "Send buffer stuck for too long. Shutting "
+                "down connection",
+                {"conn_id", getId()},
+                {"send_queue_size", sendQueueInfo.size},
+                {"duration", (now - sendQueueInfo.last)},
+                {"description", getDescription()});
 
         // We've not had any progress on the socket for "n" secs
         // Forcibly shut down the connection!
@@ -758,13 +752,14 @@ void Connection::tryToProgressDcpStream() {
                 to_string(type == Type::Consumer
                                   ? cb::rbac::Privilege::DcpConsumer
                                   : cb::rbac::Privilege::DcpProducer)));
-        LOG_WARNING(
-                "{}: Shutting down connection ({}) as the {} privilege is lost",
-                getId(),
-                getDescription(),
-                to_string(type == Type::Consumer
-                                  ? cb::rbac::Privilege::DcpConsumer
-                                  : cb::rbac::Privilege::DcpProducer));
+        LOG_WARNING_CTX(
+                "Shutting down connection due to lost privilege",
+                {"conn_id", getId()},
+                {"description", getDescription()},
+                {"priviledge",
+                 to_string(type == Type::Consumer
+                                   ? cb::rbac::Privilege::DcpConsumer
+                                   : cb::rbac::Privilege::DcpProducer)});
         shutdown();
         return;
     }
@@ -801,10 +796,10 @@ void Connection::tryToProgressDcpStream() {
             more = false;
             break;
         default:
-            LOG_WARNING(R"({}: step returned {} - closing connection {})",
-                        getId(),
-                        cb::to_string(ret),
-                        getDescription());
+            LOG_WARNING_CTX("step returned - closing connection",
+                            {"conn_id", getId()},
+                            {"status", cb::to_string(ret)},
+                            {"description", getDescription()});
             if (ret == cb::engine_errc::disconnect) {
                 setTerminationReason("Engine forced disconnect");
             }
@@ -888,6 +883,15 @@ void Connection::commandExecuted(Cookie& cookie) {
     getBucket().commandExecuted(cookie);
 }
 
+static cb::logger::Json createBacktraceJson(
+        const boost::stacktrace::stacktrace& frames) {
+    auto backtrace = cb::logger::Json::array();
+    print_backtrace_frames(frames, [&backtrace](const char* frame) {
+        backtrace.emplace_back(frame);
+    });
+    return backtrace;
+}
+
 void Connection::logExecutionException(const std::string_view where,
                                        const std::exception& e) {
     setTerminationReason(std::string("Received exception: ") + e.what());
@@ -900,46 +904,38 @@ void Connection::logExecutionException(const std::string_view where,
                 array.push_back(c->to_json());
             }
         }
-        auto callstack = nlohmann::json::array();
         if (const auto* backtrace = cb::getBacktrace(e)) {
-            print_backtrace_frames(*backtrace, [&callstack](const char* frame) {
-                callstack.emplace_back(frame);
-            });
-            LOG_ERROR(
-                    "{}: Exception occurred during {}. Closing connection "
-                    "{}: {}. Cookies: {} Exception thrown from: {}",
-                    getId(),
-                    where,
-                    getDescription(),
-                    e.what(),
-                    array.dump(),
-                    callstack.dump());
+            auto callstack = createBacktraceJson(*backtrace);
+            LOG_ERROR_CTX("Exception occurred. Closing connection",
+                          {"conn_id", getId()},
+                          {"details", where},
+                          {"description", getDescription()},
+                          {"error", e.what()},
+                          {"cookies", std::move(array)},
+                          {"backtrace", std::move(callstack)});
         } else {
-            LOG_ERROR(
-                    "{}: Exception occurred during {}. Closing connection "
-                    "{}: {}. Cookies: {}",
-                    getId(),
-                    where,
-                    getDescription(),
-                    e.what(),
-                    array.dump());
+            LOG_ERROR_CTX("Exception occurred. Closing connection",
+                          {"conn_id", getId()},
+                          {"details", where},
+                          {"description", getDescription()},
+                          {"error", e.what()},
+                          {"cookies", std::move(array)});
         }
     } catch (const std::exception& exception2) {
         try {
-            LOG_ERROR(
-                    "{}: Second exception occurred during {}. Closing "
-                    "connection {}: e:{} exception2:{}",
-                    getId(),
-                    where,
-                    getDescription(),
-                    e.what(),
-                    exception2.what());
+            nlohmann::json callstack{nullptr};
             if (const auto* backtrace = cb::getBacktrace(e)) {
-                LOG_ERROR("{}: Exception thrown from:", getId());
-                print_backtrace_frames(*backtrace, [this](const char* frame) {
-                    LOG_ERROR("{} -    {}", getId(), frame);
-                });
+                callstack = createBacktraceJson(*backtrace);
             }
+            LOG_ERROR_CTX(
+                    "Second exception occurred. Closing "
+                    "connection",
+                    {"conn_id", getId()},
+                    {"details", where},
+                    {"description", getDescription()},
+                    {"error", e.what()},
+                    {"secondary_error", exception2.what()},
+                    {"backtrace", std::move(callstack)});
         } catch (const std::bad_alloc&) {
             // Logging failed.
         }
@@ -965,15 +961,13 @@ void Connection::reEvaluateParentPort() {
     }
 
     if (localhost) {
-        LOG_INFO(
-                "{} Keeping connection alive even if server port was removed: "
-                "{}",
-                getId(),
-                getDescription());
+        LOG_INFO_CTX("Keeping connection alive even if server port was removed",
+                     {"conn_id", getId()},
+                     {"description", getDescription()});
     } else {
-        LOG_INFO("{} Shutting down; server port was removed: {}",
-                 getId(),
-                 getDescription());
+        LOG_INFO_CTX("Shutting down; server port was removed",
+                     {"conn_id", getId()},
+                     {"description", getDescription()});
         setTerminationReason("Server port shut down");
         shutdown();
         signalIfIdle();
@@ -1050,10 +1044,11 @@ static void maximize_sndbuf(const SOCKET sfd) {
         int value = hint;
         if (cb::net::setsockopt(
                     sfd, SOL_SOCKET, SO_SNDBUF, &value, sizeof(value)) == -1) {
-            LOG_WARNING("{} Failed to set socket send buffer to {}: {}",
-                        sfd,
-                        value,
-                        cb_strerror(cb::net::get_socket_error()));
+            LOG_WARNING_CTX(
+                    "Failed to set socket send buffer",
+                    {"conn_id", sfd},
+                    {"to", value},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
 
         return;
@@ -1065,7 +1060,9 @@ static void maximize_sndbuf(const SOCKET sfd) {
     try {
         old_size = cb::net::getSocketOption<int>(sfd, SOL_SOCKET, SO_SNDBUF);
     } catch (const std::exception& e) {
-        LOG_WARNING("{} - Failed to get socket send buffer: {}", sfd, e.what());
+        LOG_WARNING_CTX("Failed to get socket send buffer",
+                        {"conn_id", sfd},
+                        {"error", e.what()});
         return;
     }
 
@@ -1083,7 +1080,10 @@ static void maximize_sndbuf(const SOCKET sfd) {
         }
     }
 
-    LOG_DEBUG("<{} send buffer was {}, now {}", sfd, old_size, last_good);
+    LOG_DEBUG_CTX("send buffer changed",
+                  {"conn_id", sfd},
+                  {"from", old_size},
+                  {"to", last_good});
     hint = last_good;
 }
 
@@ -1093,13 +1093,16 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
 
 #ifdef __linux__
     if (!listening_port->system) {
-        uint32_t timeout = Settings::instance().getTcpUserTimeout().count();
-        if (!cb::net::setSocketOption<uint32_t>(
-                    socketDescriptor, IPPROTO_TCP, TCP_USER_TIMEOUT, timeout)) {
-            LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
-                        getId(),
-                        timeout,
-                        cb_strerror(cb::net::get_socket_error()));
+        auto timeout = Settings::instance().getTcpUserTimeout();
+        if (!cb::net::setSocketOption<uint32_t>(socketDescriptor,
+                                                IPPROTO_TCP,
+                                                TCP_USER_TIMEOUT,
+                                                timeout.count())) {
+            LOG_WARNING_CTX(
+                    "Failed to set TCP_USER_TIMEOUT",
+                    {"conn_id", getId()},
+                    {"timeout", timeout},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
     }
 #endif
@@ -1135,21 +1138,19 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
         auto context = cb::rbac::createContext(ident, {});
         setAuthenticated(ident);
         audit_auth_success(*this);
-        LOG_INFO(
-                "{}: Client {} using cipher '{}' authenticated as '{}' via "
-                "X.509 certificate",
-                getId(),
-                getPeername().dump(),
-                cipherName,
-                ident.getSanitizedName());
+        LOG_INFO_CTX("Client authenticated via X.509 certificate",
+                     {"conn_id", getId()},
+                     {"peer", getPeername()},
+                     {"cipher", cipherName},
+                     {"user", ident.getSanitizedName()});
         // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change its identity.
         saslAuthEnabled = getUser().is_internal();
     } catch (const cb::rbac::NoSuchUserException& e) {
         restartAuthentication();
-        LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",
-                    getId(),
-                    cb::UserDataView(e.what()));
+        LOG_WARNING_CTX("User is not defined as a user in Couchbase",
+                        {"conn_id", getId()},
+                        {"error", cb::UserDataView(e.what())});
         return false;
     }
     return true;
@@ -1232,7 +1233,10 @@ bool Connection::maybeInitiateShutdown(const std::string_view reason) {
     auto message = fmt::format("Initiate shutdown of connection from '{}': {}",
                                peername.dump(),
                                reason);
-    LOG_INFO("{}: {}", getId(), message);
+    LOG_INFO_CTX("Initiate shutdown of connection",
+                 {"conn_id", getId()},
+                 {"peer", peername},
+                 {"reason", reason});
     setTerminationReason(std::move(message));
     shutdown();
     triggerCallback();
@@ -1409,7 +1413,7 @@ bool Connection::havePendingData() const {
 
 void Connection::setDcpFlowControlBufferSize(std::size_t size) {
     if (type == Type::Producer) {
-        LOG_INFO("{} - using DCP buffer size of {}", getId(), size);
+        LOG_INFO_CTX("Using DCP buffer", {"conn_id", getId()}, {"size", size});
         dcpFlowControlBufferSize = size;
     } else {
         throw std::logic_error(
@@ -1539,13 +1543,17 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     if (Settings::instance().getVerbose() > 1) {
         auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
         try {
-            LOG_TRACE("<{} Sending: {}", getId(), header->to_json(true).dump());
+            LOG_TRACE_CTX("Sending",
+                          {"conn_id", getId()},
+                          {"header", header->to_json(true)});
         } catch (const std::exception&) {
             // Failed.. do a raw dump instead
-            LOG_TRACE("<{} Sending: {}",
-                      getId(),
-                      cb::to_hex({reinterpret_cast<const uint8_t*>(wbuf.data()),
-                                  sizeof(cb::mcbp::Header)}));
+            LOG_TRACE_CTX(
+                    "Sending",
+                    {"conn_id", getId()},
+                    {"header",
+                     cb::to_hex({reinterpret_cast<const uint8_t*>(wbuf.data()),
+                                 sizeof(cb::mcbp::Header)})});
         }
     }
     ++getBucket().responseCounters[uint16_t(status)];
@@ -2523,11 +2531,11 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                 setTerminationReason(
                         "Failed to map a user from the client provided X.509 "
                         "certificate");
-                LOG_WARNING(
-                        "{}: Failed to map a user from the "
-                        "client provided X.509 certificate: [{}]",
-                        getId(),
-                        name);
+                LOG_WARNING_CTX(
+                        "Failed to map a user from the client provided X.509 "
+                        "certificate",
+                        {"conn_id", getId()},
+                        {"user", name});
                 disconnect = true;
                 break;
             case cb::x509::Status::Error:
@@ -2537,11 +2545,11 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                         "Failed to use client provided X.509 certificate");
                 setTerminationReason(
                         "Failed to use client provided X.509 certificate");
-                LOG_WARNING(
-                        "{}: Disconnection client due to error with the X.509 "
-                        "certificate [{}]",
-                        getId(),
-                        name);
+                LOG_WARNING_CTX(
+                        "Disconnection client due to error with the X.509 "
+                        "certificate",
+                        {"conn_id", getId()},
+                        {"user", name});
                 disconnect = true;
                 break;
             case cb::x509::Status::NotPresent:
@@ -2558,8 +2566,9 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                                        reason);
                     setTerminationReason(reason);
                     disconnect = true;
-                    LOG_WARNING(
-                            "{}: Disconnecting client: {}", getId(), reason);
+                    LOG_WARNING_CTX("Disconnecting client",
+                                    {"conn_id", getId()},
+                                    {"reason", reason});
                 }
                 break;
             case cb::x509::Status::Success:
@@ -2582,10 +2591,10 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
         shutdown();
     } else if (!isAuthenticated()) {
         // tryAuthFromSslCertificate logged the cipher
-        LOG_INFO("{}: Using cipher '{}', peer certificate {}provided",
-                 getId(),
-                 SSL_get_cipher_name(ssl_st),
-                 cert ? "" : "not ");
+        LOG_INFO_CTX("Using cipher",
+                     {"conn_id", getId()},
+                     {"cipher", SSL_get_cipher_name(ssl_st)},
+                     {"certificate", static_cast<bool>(cert)});
     }
 }
 
@@ -2608,10 +2617,10 @@ std::string Connection::getSaslMechanisms() const {
 
 void Connection::scheduleDcpStep() {
     if (!isDCP()) {
-        LOG_ERROR(
+        LOG_ERROR_CTX(
                 "Connection::scheduleDcpStep: Must only be called with a DCP "
-                "connection: {}",
-                to_json().dump());
+                "connection",
+                {"conn", to_json()});
         throw std::logic_error(
                 "Connection::scheduleDcpStep(): Provided cookie is not bound "
                 "to a connection set up for DCP");
@@ -2620,10 +2629,10 @@ void Connection::scheduleDcpStep() {
     // @todo we've not switched the backed off the logic with the first
     //       cookie
     if (cookies.front()->getRefcount() == 0) {
-        LOG_ERROR(
+        LOG_ERROR_CTX(
                 "scheduleDcpStep: DCP connection did not reserve the "
-                "cookie: {}",
-                to_json().dump());
+                "cookie",
+                {"conn", to_json()});
         throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
     }
 

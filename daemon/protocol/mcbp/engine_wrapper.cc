@@ -32,7 +32,7 @@ cb::engine_errc bucket_unknown_command(Cookie& cookie,
         const auto request = cookie.getRequest();
         LOG_WARNING("{}: {} {} return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription(),
+                    c.getDescription().dump(),
                     to_string(request.getClientOpcode()));
         c.setTerminationReason("Engine forced disconnect");
     }
@@ -52,7 +52,7 @@ bool bucket_get_item_info(Connection& c,
     if (!ret) {
         LOG_INFO("{}: {} bucket_get_item_info failed",
                  c.getId(),
-                 c.getDescription());
+                 c.getDescription().dump());
     }
 
     return ret;
@@ -71,7 +71,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_meta return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
 
@@ -116,7 +116,7 @@ cb::engine_errc bucket_store(
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_store return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
 
@@ -165,7 +165,7 @@ cb::EngineErrorCasPair bucket_store_if(
     } else if (rstatus == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} store_if return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
 
@@ -190,7 +190,7 @@ cb::engine_errc bucket_remove(
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_remove return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -209,7 +209,7 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
     } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     LOG_TRACE("bucket_get() key:{} vbucket:{} docStateFilter:{} -> {}",
@@ -233,7 +233,7 @@ cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} bucket_get_replica return cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     LOG_TRACE("bucket_get_replica() key:{} vbucket:{} -> {}",
@@ -256,7 +256,7 @@ cb::EngineErrorItemPair bucket_get_random_document(Cookie& cookie,
                 "{}: {} bucket_get_random_document return "
                 "cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -286,7 +286,7 @@ cb::EngineErrorItemPair bucket_get_if(
     } else if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_get_if return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -312,7 +312,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(
                 "{}: {} bucket_get_and_touch return "
                 "cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -335,7 +335,7 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} bucket_get_locked return cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -355,7 +355,7 @@ cb::engine_errc bucket_unlock(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_unlock return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -416,7 +416,7 @@ cb::unique_item_ptr bucket_allocate(Cookie& cookie,
             LOG_WARNING(
                     "{}: {} bucket_allocate return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
             c.setTerminationReason("Engine forced disconnect");
         }
         throw;
@@ -429,7 +429,7 @@ cb::engine_errc bucket_flush(Cookie& cookie) {
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_flush return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -451,7 +451,7 @@ cb::engine_errc bucket_get_stats(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} bucket_get_stats return cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -465,7 +465,7 @@ cb::engine_errc bucket_start_persistence(Cookie& cookie) {
                 "{}: {} bucket_start_persistence return "
                 "cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -479,7 +479,7 @@ cb::engine_errc bucket_stop_persistence(Cookie& cookie) {
                 "{}: {} bucket_stop_persistence return "
                 "cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -494,7 +494,7 @@ cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
                 "{}: {} bucket_set_traffic_control_mode returned "
                 "cb::engine_errc::disconnect when setting the mode to {}",
                 c.getId(),
-                c.getDescription(),
+                c.getDescription().dump(),
                 mode);
         c.setTerminationReason("Engine forced disconnect");
     }
@@ -511,7 +511,7 @@ cb::engine_errc bucket_evict_key(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} bucket_evict_key returned cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -528,7 +528,7 @@ cb::engine_errc bucket_wait_for_seqno_persistence(Cookie& cookie,
                 "{}: {} bucket_wait_for_seqno_persistence returned "
                 "cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -547,7 +547,7 @@ cb::engine_errc bucket_observe(
         LOG_WARNING(
                 "{}: {} bucket_observe returned cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -564,7 +564,7 @@ cb::engine_errc dcpAddStream(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.add_stream returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -581,7 +581,7 @@ cb::engine_errc dcpBufferAcknowledgement(Cookie& cookie,
                 "{}: {} dcp.buffer_acknowledgement returned "
                 "cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -598,7 +598,7 @@ cb::engine_errc dcpCloseStream(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.close_stream returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -614,7 +614,7 @@ cb::engine_errc dcpControl(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.control returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -647,7 +647,7 @@ cb::engine_errc dcpDeletion(Cookie& cookie,
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.deletion returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -681,7 +681,7 @@ cb::engine_errc dcpDeletionV2(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.deletion_v2 returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -715,7 +715,7 @@ cb::engine_errc dcpExpiration(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.expiration returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -733,7 +733,7 @@ cb::engine_errc dcpGetFailoverLog(Cookie& cookie,
                 "{}: {} dcp.get_failover_log returned "
                 "cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -774,7 +774,7 @@ cb::engine_errc dcpMutation(Cookie& cookie,
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.mutation returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -787,7 +787,7 @@ cb::engine_errc dcpNoop(Cookie& cookie, uint32_t opaque) {
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.noop returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -805,7 +805,7 @@ cb::engine_errc dcpOpen(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.open returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -823,7 +823,7 @@ cb::engine_errc dcpSetVbucketState(Cookie& cookie,
                 "{}: {} dcp.set_vbucket_state returned "
                 "cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -853,7 +853,7 @@ cb::engine_errc dcpSnapshotMarker(
                 "{}: {} dcp.snapshot_marker returned "
                 "cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -870,7 +870,7 @@ cb::engine_errc dcpStreamEnd(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.stream_end returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -906,7 +906,7 @@ cb::engine_errc dcpStreamReq(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.stream_req returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -928,7 +928,7 @@ cb::engine_errc dcpSystemEvent(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} dcp.system_event returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -969,7 +969,7 @@ cb::engine_errc dcpPrepare(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.prepare returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -987,7 +987,7 @@ cb::engine_errc dcpSeqnoAcknowledged(Cookie& cookie,
                 "{}: {} dcp.seqno_acknowledged returned "
                 "cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1006,7 +1006,7 @@ cb::engine_errc dcpCommit(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.commit returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1025,7 +1025,7 @@ cb::engine_errc dcpAbort(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} dcp.abort returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1039,7 +1039,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} createRangeScan return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1054,7 +1054,7 @@ cb::engine_errc continueRangeScan(
         LOG_WARNING(
                 "{}: {} continueRangeScan return cb::engine_errc::disconnect",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1069,7 +1069,7 @@ cb::engine_errc cancelRangeScan(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} cancelRangeScan return cb::engine_errc::disconnect",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1087,7 +1087,7 @@ cb::engine_errc bucket_set_parameter(Cookie& cookie,
         LOG_WARNING(
                 "{}: {} setParameter() returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1131,7 +1131,7 @@ cb::engine_errc bucket_compact_database(Cookie& cookie) {
         LOG_WARNING(
                 "{}: {} compactDatabase() returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
     return ret;
@@ -1145,7 +1145,7 @@ std::pair<cb::engine_errc, vbucket_state_t> bucket_get_vbucket(Cookie& cookie) {
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} getVBucket() returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
 
@@ -1166,7 +1166,7 @@ cb::engine_errc bucket_set_vbucket(Cookie& cookie,
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} setVBucket() returned cb::engine_errc::disconnect",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
 
@@ -1180,7 +1180,7 @@ cb::engine_errc bucket_delete_vbucket(Cookie& cookie, Vbid vbid, bool sync) {
         LOG_WARNING(
                 "{}: {} deleteVBucket() returned cb::engine_errc::disconnect",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         connection.setTerminationReason("Engine forced disconnect");
     }
 

@@ -43,7 +43,7 @@ public:
         priority = value;
     }
 
-    std::string_view getDescription() const override;
+    const nlohmann::json& getDescription() const override;
     const cb::rbac::UserIdent& getUser() const override;
 
     void setUser(const std::string& newUser) {

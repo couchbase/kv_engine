@@ -139,7 +139,7 @@ void dcp_open_executor(Cookie& cookie) {
         LOG_INFO("{}: DCP connection opened successfully. {} {}",
                  connection.getId(),
                  logBuffer,
-                 connection.getDescription());
+                 connection.getDescription().dump());
 
         connection.getThread().maybeRegisterThrottleableDcpConnection(
                 connection);

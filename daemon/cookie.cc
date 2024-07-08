@@ -923,7 +923,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     audit_command_access_failed(*this);
     LOG_WARNING("{} RBAC {} missing privilege: {}",
                 connection.getId(),
-                connection.getDescription(),
+                connection.getDescription().dump(),
                 json.dump());
 
     // Add a textual error as well
@@ -997,7 +997,7 @@ bool Cookie::fetchEuidPrivilegeSet() {
         audit_command_access_failed(*this);
         LOG_WARNING("{} RBAC {} missing privilege: {}",
                     connection.getId(),
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     json.dump());
         // Add a textual error as well
         setErrorContext(

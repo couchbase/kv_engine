@@ -265,7 +265,7 @@ static void quit_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     LOG_DEBUG("{}: quit_executor - closing connection {}",
               connection.getId(),
-              connection.getDescription());
+              connection.getDescription().dump());
     connection.shutdown();
     connection.setTerminationReason("Client sent QUIT");
 }
@@ -274,7 +274,7 @@ static void quitq_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     LOG_DEBUG("{}: quitq_executor - closing connection {}",
               connection.getId(),
-              connection.getDescription());
+              connection.getDescription().dump());
     connection.shutdown();
     connection.setTerminationReason("Client sent QUIT");
 }
@@ -376,7 +376,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                     "{}: ioctl_get_executor - ioctl_get_property returned "
                     "cb::engine_errc::disconnect - closing connection {}",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
             connection.setTerminationReason(
                     "ioctl_get_executor forced disconnect");
         }
@@ -410,7 +410,7 @@ static void ioctl_set_executor(Cookie& cookie) {
                     "{}: ioctl_set_executor - ioctl_set_property returned "
                     "cb::engine_errc::disconnect - closing connection {}",
                     connection.getId(),
-                    connection.getDescription());
+                    connection.getDescription().dump());
             connection.setTerminationReason(
                     "ioctl_set_executor forced disconnect");
         }
@@ -716,7 +716,7 @@ static void auth_provider_executor(Cookie& cookie) {
         cookie.sendResponse(cb::mcbp::Status::Success);
         LOG_INFO("{}: Registered as authentication provider: {}",
                  connection.getId(),
-                 connection.getDescription());
+                 connection.getDescription().dump());
     } else {
         cookie.setErrorContext("Connection is not in duplex mode");
         cookie.sendResponse(cb::mcbp::Status::Einval);
@@ -734,7 +734,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                 "{}: process_bin_dcp_response - DcpIface is nullptr - "
                 "closing connection {}",
                 c.getId(),
-                c.getDescription());
+                c.getDescription().dump());
         c.shutdown();
         c.setTerminationReason("Connected engine does not support DCP");
         return;
@@ -749,7 +749,7 @@ static void process_bin_dcp_response(Cookie& cookie) {
                     "{}: process_bin_dcp_response - response_handler returned "
                     "cb::engine_errc::disconnect - closing connection {}",
                     c.getId(),
-                    c.getDescription());
+                    c.getDescription().dump());
             c.setTerminationReason(
                     "process_bin_dcp_response forced disconnect");
         }

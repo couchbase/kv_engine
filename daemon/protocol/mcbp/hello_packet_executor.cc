@@ -185,7 +185,7 @@ void process_hello_packet_executor(Cookie& cookie) {
                 "{}: {} Changing options via HELO is not possible with "
                 "multiple commands in flight",
                 connection.getId(),
-                connection.getDescription());
+                connection.getDescription().dump());
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }
@@ -196,7 +196,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     } catch (const std::invalid_argument& e) {
         LOG_INFO("{}: {} Invalid combination of options: {}",
                  connection.getId(),
-                 connection.getDescription(),
+                 connection.getDescription().dump(),
                  e.what());
         cookie.setErrorContext(e.what());
         cookie.sendResponse(cb::mcbp::Status::Einval);
@@ -331,7 +331,7 @@ void process_hello_packet_executor(Cookie& cookie) {
                         "{}: {} Unordered execution is not supported for "
                         "DCP connections",
                         connection.getId(),
-                        connection.getDescription());
+                        connection.getDescription().dump());
             } else {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
@@ -346,7 +346,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             } else {
                 LOG_INFO("{}: {} Request for [disabled] Tracing feature",
                          connection.getId(),
-                         connection.getDescription());
+                         connection.getDescription().dump());
             }
             break;
 
@@ -401,5 +401,5 @@ void process_hello_packet_executor(Cookie& cookie) {
     LOG_INFO("{}: {} {}",
              connection.getId(),
              log_buffer,
-             connection.getDescription());
+             connection.getDescription().dump());
 }

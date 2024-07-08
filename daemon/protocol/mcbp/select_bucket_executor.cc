@@ -32,7 +32,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
                 connection.getId(),
                 connection.getConnectionId().data(),
                 ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
+                connection.getDescription().dump(),
                 bucketname);
         return cb::engine_errc::no_access;
     }
@@ -99,7 +99,7 @@ void select_bucket_executor(Cookie& cookie) {
                 connection.getId(),
                 connection.getConnectionId().data(),
                 ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
+                connection.getDescription().dump(),
                 bucketname);
         code = cb::engine_errc::no_access;
     } else if (connection.isDCP()) {
@@ -110,7 +110,7 @@ void select_bucket_executor(Cookie& cookie) {
                 connection.getId(),
                 connection.getConnectionId().data(),
                 ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
+                connection.getDescription().dump(),
                 bucketname);
         code = cb::engine_errc::not_supported;
     } else if (connection.getNumberOfCookies() > 1) {
@@ -121,7 +121,7 @@ void select_bucket_executor(Cookie& cookie) {
                 connection.getId(),
                 connection.getConnectionId().data(),
                 ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription(),
+                connection.getDescription().dump(),
                 bucketname);
         code = cb::engine_errc::not_supported;
     } else if (bucketname == "@no bucket@") {

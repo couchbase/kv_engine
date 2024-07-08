@@ -36,7 +36,7 @@ void SteppableCommandContext::drive() {
             if (error.code() != cb::engine_errc::would_block) {
                 LOG_WARNING("{}: SteppableCommandContext::drive() {}: {}",
                             connection.getId(),
-                            connection.getDescription(),
+                            connection.getDescription().dump(),
                             error.what());
             }
             ret = cb::engine_errc(error.code().value());

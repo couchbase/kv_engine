@@ -306,7 +306,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
         descr = &AuditDescriptorManager::lookup(audit_eventid);
     } catch (const std::out_of_range&) {
         LOG_WARNING("{}: Unknown event id ({}) provided with content {}{}{}",
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     audit_eventid,
                     cb::userdataStartTag,
                     buffer,
@@ -327,7 +327,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             LOG_WARNING(
                     "{}: Failed to parse provided JSON. Audit event {} "
                     "dropped: {}. provided json: {}{}{}",
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     audit_eventid,
                     e.what(),
                     cb::userdataStartTag,
@@ -352,7 +352,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             LOG_WARNING(
                     "{}: Audit event {} is missing mandatory elements {} and "
                     "is dropped.",
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     audit_eventid,
                     missing.dump());
             cookie.setErrorContext(
@@ -375,7 +375,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             LOG_WARNING(
                     "{}: Audit event: {} Illegal value for 'real_user': {}. "
                     "Error: {}",
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     audit_eventid,
                     cb::UserDataView(iter->dump()),
                     exception.what());
@@ -396,7 +396,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             LOG_WARNING(
                     "{}: Audit event: {} Illegal value for 'effective_userid': "
                     "{}. Error: {}",
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     audit_eventid,
                     cb::UserDataView(iter->dump()),
                     exception.what());
@@ -431,7 +431,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             LOG_WARNING(
                     "{}: Got exception during filtering of audit event id:{} "
                     " error: {}",
-                    connection.getDescription(),
+                    connection.getDescription().dump(),
                     audit_eventid,
                     e.what());
             throw;

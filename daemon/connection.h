@@ -96,7 +96,7 @@ public:
         return uint32_t(socketDescriptor);
     }
 
-    std::string_view getDescription() const override {
+    const nlohmann::json& getDescription() const override {
         return description;
     }
 
@@ -1031,7 +1031,7 @@ protected:
     std::optional<std::chrono::steady_clock::time_point> authExpiryTime;
 
     /// The description of the connection
-    std::string description;
+    nlohmann::json description;
 
     /// The reason why the session was terminated
     std::string terminationReason;

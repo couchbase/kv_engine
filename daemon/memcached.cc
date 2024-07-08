@@ -574,7 +574,7 @@ bool is_bucket_dying(Connection& c) {
                 "{}",
                 c.getId(),
                 to_string(b.state.load()),
-                c.getDescription());
+                c.getDescription().dump());
         c.shutdown();
         c.setTerminationReason("The connected bucket is being deleted");
         return true;

@@ -283,9 +283,10 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
             {
                 NonBucketAllocationGuard guard;
                 if (epe) {
-                    connForCookie->getLogger().info(
-                            "Removing connection {}",
-                            cookie->getConnectionIface().getDescription());
+                    connForCookie->getLogger().info("Removing connection {}",
+                                                    cookie->getConnectionIface()
+                                                            .getDescription()
+                                                            .dump());
                 } else {
                     connForCookie->getLogger().info(
                             "Removing connection {}",

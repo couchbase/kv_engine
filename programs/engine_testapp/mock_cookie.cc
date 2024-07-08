@@ -24,9 +24,9 @@ void MockConnection::scheduleDcpStep() {
 void MockConnection::setUserScheduleDcpStep(std::function<void()> func) {
     userScheduleDcpStep = std::move(func);
 }
-std::string_view MockConnection::getDescription() const {
-    using namespace std::string_view_literals;
-    return "[you - me]"sv;
+const nlohmann::json& MockConnection::getDescription() const {
+    static nlohmann::json description{{"peer", "you"}, {"socket", "me"}};
+    return description;
 }
 const cb::rbac::UserIdent& MockConnection::getUser() const {
     return user;

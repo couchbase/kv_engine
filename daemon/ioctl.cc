@@ -72,7 +72,7 @@ static cb::engine_errc setJemallocProfActive(Cookie& cookie,
     auto& c = cookie.getConnection();
     LOG_INFO("{}: {} IOCTL_SET: setJemallocProfActive:{} called, result:{}",
              c.getId(),
-             c.getDescription(),
+             c.getDescription().dump(),
              value,
              (res == 0) ? "success" : "failure");
 
@@ -87,7 +87,7 @@ static cb::engine_errc setJemallocProfDump(Cookie& cookie,
     auto& c = cookie.getConnection();
     LOG_INFO("{}: {} IOCTL_SET: setJemallocProfDump called, result:{}",
              c.getId(),
-             c.getDescription(),
+             c.getDescription().dump(),
              (res == 0) ? "success" : "failure");
 
     return (res == 0) ? cb::engine_errc::success

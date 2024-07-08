@@ -246,7 +246,7 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
                     "{}: {} Unrecoverable error encountered: {}, "
                     "socket_error: {}:{}, shutting down connection",
                     instance.getId(),
-                    instance.getDescription(),
+                    instance.getDescription().dump(),
                     BevEvent2Json(event).dump(),
                     sockErr,
                     errStr);
@@ -257,7 +257,7 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
                     "{}: {} Unrecoverable error encountered: {}, ssl_error: "
                     "{}, shutting down connection",
                     instance.getId(),
-                    instance.getDescription(),
+                    instance.getDescription().dump(),
                     BevEvent2Json(event).dump(),
                     ssl_errors);
             instance.setTerminationReason("ssl_error: " + ssl_errors);
@@ -266,7 +266,7 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
                     "{}: {} Unrecoverable error encountered: {}, shutting down "
                     "connection",
                     instance.getId(),
-                    instance.getDescription(),
+                    instance.getDescription().dump(),
                     BevEvent2Json(event).dump());
             instance.setTerminationReason("Network error");
         }

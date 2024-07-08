@@ -55,15 +55,17 @@ public:
     virtual void setPriority(ConnectionPriority value) = 0;
 
     /**
-     * Returns a descriptive name for the connection, of the form:
-     *   "[peer_name - local_name ]"
-     * (system) is appended to the string for system connections.
+     * Returns a descriptive JSON object for the connection, of the form:
+     *   {
+     *      "peer": {},
+     *      "socket": {},
+     *      "user": {"name": "<username>", "system": bool, "ldap": bool},
+     *   }
      *
-     * Note that the content of the std::string_view may be modified
-     * in the context of the front end thread as part of authentication
-     * so the std::string_view should not be cached.
+     * Note that the description may be modified in the context of the front end
+     * thread as part of authentication so the description should not be cached.
      */
-    virtual std::string_view getDescription() const = 0;
+    virtual const nlohmann::json& getDescription() const = 0;
 
     /**
      * Get the username this connection is authenticated as (should only be

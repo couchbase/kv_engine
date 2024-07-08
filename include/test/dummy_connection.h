@@ -40,9 +40,8 @@ public:
     }
     void setPriority(ConnectionPriority value) override {
     }
-    std::string_view getDescription() const override {
-        using namespace std::string_view_literals;
-        return "dummy"sv;
+    const nlohmann::json& getDescription() const override {
+        return description;
     }
     const cb::rbac::UserIdent& getUser() const override {
         return user;
@@ -52,5 +51,6 @@ public:
 
 protected:
     cb::rbac::UserIdent user{"dummy", cb::rbac::Domain::Local};
+    nlohmann::json description{{"dummy", true}};
 };
 } // namespace cb::test

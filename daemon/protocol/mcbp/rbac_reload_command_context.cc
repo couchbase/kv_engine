@@ -26,7 +26,7 @@ cb::engine_errc RbacReloadCommandContext::doRbacReload() {
         cb::rbac::loadPrivilegeDatabase(Settings::instance().getRbacFile());
         LOG_INFO("{}: RBAC configuration updated {}",
                  connection.getId(),
-                 connection.getDescription());
+                 connection.getDescription().dump());
 
         if (externalAuthManager) {
             externalAuthManager->setRbacCacheEpoch(

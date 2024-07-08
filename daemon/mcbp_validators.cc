@@ -108,7 +108,7 @@ static inline bool may_accept_dcp_deleteV2(const Cookie& cookie) {
 }
 
 static inline std::string get_peer_description(const Cookie& cookie) {
-    return std::string{cookie.getConnection().getDescription()};
+    return std::string{cookie.getConnection().getDescription().dump()};
 }
 
 using ExpectedKeyLen = McbpValidator::ExpectedKeyLen;
