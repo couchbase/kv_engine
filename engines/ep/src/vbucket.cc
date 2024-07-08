@@ -1806,14 +1806,14 @@ Collections::VB::ManifestUpdateStatus VBucket::updateFromManifest(
     return manifest->update(vbStateLock, *this, m);
 }
 
-void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
-                                      ScopeCollectionPair identifiers,
-                                      std::string_view collectionName,
-                                      cb::ExpiryLimit maxTtl,
-                                      Collections::Metered metered,
-                                      CanDeduplicate canDeduplicate,
-                                      Collections::ManifestUid flushUid,
-                                      int64_t bySeqno) {
+void VBucket::replicaBeginCollection(Collections::ManifestUid uid,
+                                     ScopeCollectionPair identifiers,
+                                     std::string_view collectionName,
+                                     cb::ExpiryLimit maxTtl,
+                                     Collections::Metered metered,
+                                     CanDeduplicate canDeduplicate,
+                                     Collections::ManifestUid flushUid,
+                                     int64_t bySeqno) {
     // The state of the VBucket should not change here, because replicaCreate
     // will generate SystemEvent items.
     // NOTE: We kill all streams when changing the VBucket state and this

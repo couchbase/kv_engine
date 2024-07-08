@@ -307,7 +307,7 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionUid::vegetable, producers->last_collection_id);
     EXPECT_EQ("vegetable", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     uint64_t txHighSeqno = 0;
@@ -417,7 +417,7 @@ TEST_P(CollectionsOSODcpTest, dropped_collection) {
               producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionUid::vegetable, producers->last_collection_id);
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
 
     // ... end
@@ -664,7 +664,7 @@ void CollectionsOSODcpTest::MB_43700(CollectionID cid) {
               producer->stepWithBorderGuard(*producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(cid, producers->last_collection_id);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};

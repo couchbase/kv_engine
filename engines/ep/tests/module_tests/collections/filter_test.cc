@@ -777,7 +777,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             CollectionUid::fruit,
             CollectionName::fruit,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
     auto sz = vbf.size();
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
@@ -805,7 +805,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
     EXPECT_TRUE(vbf.empty()); // now empty
@@ -842,7 +842,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             CollectionUid::defaultC,
             CollectionName::defaultC,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
     EXPECT_FALSE(
@@ -867,7 +867,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
     EXPECT_FALSE(
@@ -942,7 +942,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -952,7 +952,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             CollectionUid::defaultC,
             CollectionName::defaultC,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -972,7 +972,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             CollectionUid::dairy,
             CollectionName::dairy,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
 }
@@ -999,7 +999,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             CollectionUid::defaultC,
             CollectionName::defaultC,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1009,7 +1009,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             CollectionUid::dairy,
             CollectionName::dairy,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1019,7 +1019,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
 }
@@ -1046,7 +1046,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1056,7 +1056,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             CollectionUid::defaultC,
             CollectionName::defaultC,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
 
@@ -1066,7 +1066,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             CollectionUid::dairy,
             CollectionName::dairy,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));
 }
@@ -1121,7 +1121,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
             CollectionUid::dairy,
             CollectionName::dairy,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1135,7 +1135,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
             CollectionUid::systemCollection,
             CollectionName::systemCollection,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1170,7 +1170,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
             CollectionUid::dairy,
             CollectionName::dairy,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
     ASSERT_EQ(vbf.size(), 1);
@@ -1181,7 +1181,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
 
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
@@ -1214,7 +1214,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
             CollectionUid::meat,
             CollectionName::meat,
             *entryInShop1Scope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     ASSERT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1247,7 +1247,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
             CollectionUid::fruit,
             CollectionName::fruit,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Delete,
+            Collections::VB::Manifest::SystemEventType::End,
             {});
     ev->compressValue();
     auto sz = vbf.size();
@@ -1299,7 +1299,7 @@ TEST_F(CollectionsVBFilterTest, system_scope_filter) {
             CollectionUid::systemCollection,
             CollectionName::systemCollection,
             *entryInSystemScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
@@ -1308,7 +1308,7 @@ TEST_F(CollectionsVBFilterTest, system_scope_filter) {
             CollectionUid::defaultC,
             CollectionName::defaultC,
             *entryInDefaultScope,
-            Collections::VB::Manifest::SystemEventType::Create,
+            Collections::VB::Manifest::SystemEventType::Begin,
             {});
     // $default system event is not allowed by the filter
     EXPECT_FALSE(checkAndUpdate(vbf, *ev));

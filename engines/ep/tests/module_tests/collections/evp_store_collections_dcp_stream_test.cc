@@ -510,14 +510,14 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
                   cb::engine_errc::success);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     EXPECT_EQ("meat", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     uint64_t expectedSeqno{3};
@@ -737,7 +737,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(32), producers->last_stream_id);
 
@@ -755,7 +755,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(88), producers->last_stream_id);
     outstanding += systemEventSz;
@@ -810,7 +810,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
     EXPECT_EQ("dairy", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(2018), producers->last_stream_id);
 
@@ -820,7 +820,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ("fruit", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(cb::mcbp::DcpStreamId(101), producers->last_stream_id);
 }
@@ -881,7 +881,7 @@ TEST_F(CollectionsDcpStreamsTest,
               consumer->systemEvent(
                       opaque,
                       replicaVB,
-                      mcbp::systemevent::id::CreateCollection,
+                      mcbp::systemevent::id::BeginCollection,
                       seqno,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(
@@ -930,7 +930,7 @@ TEST_F(CollectionsDcpStreamsTest,
               consumer->systemEvent(
                       opaque,
                       replicaVB,
-                      mcbp::systemevent::id::DeleteCollection,
+                      mcbp::systemevent::id::EndCollection,
                       ++seqno,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(

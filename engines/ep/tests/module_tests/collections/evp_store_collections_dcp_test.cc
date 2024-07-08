@@ -102,7 +102,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
               consumer->systemEvent(
                       /*opaque*/ 2,
                       vbid,
-                      mcbp::systemevent::id::CreateCollection,
+                      mcbp::systemevent::id::BeginCollection,
                       /*seqno*/ 1,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
@@ -143,7 +143,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
               consumer->systemEvent(
                       /*opaque*/ 2,
                       vbid,
-                      mcbp::systemevent::id::DeleteCollection,
+                      mcbp::systemevent::id::EndCollection,
                       /*seqno*/ 3,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
@@ -213,7 +213,7 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
               consumer->systemEvent(
                       opaque,
                       replicaVB,
-                      mcbp::systemevent::id::CreateCollection,
+                      mcbp::systemevent::id::BeginCollection,
                       seqno,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
@@ -385,30 +385,30 @@ TEST_F(CollectionsDcpTest, MB_38019) {
     // node, then go ahead by two extra changes.
     replica->checkpointManager->createSnapshot(
             1, 3, 0, CheckpointType::Memory, 3);
-    replica->replicaCreateCollection(Collections::ManifestUid(uid),
-                                     {ScopeID::Default, CollectionEntry::fruit},
-                                     "fruit",
-                                     {},
-                                     Collections::Metered::No,
-                                     CanDeduplicate::Yes,
-                                     Collections::ManifestUid{},
-                                     1);
-    replica->replicaCreateCollection(Collections::ManifestUid(++uid),
-                                     {ScopeID::Default, CollectionEntry::meat},
-                                     "meat",
-                                     {},
-                                     Collections::Metered::No,
-                                     CanDeduplicate::Yes,
-                                     Collections::ManifestUid{},
-                                     2);
-    replica->replicaCreateCollection(Collections::ManifestUid(++uid),
-                                     {ScopeID::Default, CollectionEntry::dairy},
-                                     "dairy",
-                                     {},
-                                     Collections::Metered::No,
-                                     CanDeduplicate::Yes,
-                                     Collections::ManifestUid{},
-                                     3);
+    replica->replicaBeginCollection(Collections::ManifestUid(uid),
+                                    {ScopeID::Default, CollectionEntry::fruit},
+                                    "fruit",
+                                    {},
+                                    Collections::Metered::No,
+                                    CanDeduplicate::Yes,
+                                    Collections::ManifestUid{},
+                                    1);
+    replica->replicaBeginCollection(Collections::ManifestUid(++uid),
+                                    {ScopeID::Default, CollectionEntry::meat},
+                                    "meat",
+                                    {},
+                                    Collections::Metered::No,
+                                    CanDeduplicate::Yes,
+                                    Collections::ManifestUid{},
+                                    2);
+    replica->replicaBeginCollection(Collections::ManifestUid(++uid),
+                                    {ScopeID::Default, CollectionEntry::dairy},
+                                    "dairy",
+                                    {},
+                                    Collections::Metered::No,
+                                    CanDeduplicate::Yes,
+                                    Collections::ManifestUid{},
+                                    3);
 
     // Would of seen a monotonic exception
     EXPECT_NO_THROW(
@@ -454,7 +454,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp) {
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(CollectionName::meat, producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionUid::meat, producers->last_collection_id);
 
@@ -493,7 +493,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
         EXPECT_EQ(cb::engine_errc::success, p->step(false, dcpCallBacks));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, dcpCallBacks.last_op);
         EXPECT_EQ(CollectionName::meat, dcpCallBacks.last_key);
-        EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+        EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
                   dcpCallBacks.last_system_event);
         EXPECT_EQ(CollectionUid::meat, dcpCallBacks.last_collection_id);
 
@@ -588,7 +588,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
     EXPECT_EQ(producers->last_system_event,
-              mcbp::systemevent::id::CreateCollection);
+              mcbp::systemevent::id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::meat.uid);
     EXPECT_EQ(producers->last_scope_id, ScopeEntry::shop1.uid);
     EXPECT_EQ(producers->last_key, CollectionEntry::meat.name);
@@ -658,7 +658,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
     EXPECT_EQ("fruit", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
@@ -666,14 +666,14 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ(0, replica->lockCollections().getManifestUid());
     EXPECT_EQ("dairy", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
     EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSystemEvent, producers->last_op);
     EXPECT_EQ("meat", producers->last_key);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
 
     // And now the new manifest-UID is exposed
@@ -691,7 +691,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(4, producers->last_snap_end_seqno);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(3, replica->lockCollections().getManifestUid());
     EXPECT_EQ(4, producers->last_byseqno);
@@ -701,7 +701,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
     EXPECT_EQ(5, producers->last_snap_end_seqno);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(5, replica->lockCollections().getManifestUid());
 
@@ -1180,7 +1180,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_drop_default) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent,
                   cb::engine_errc::success);
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
 
@@ -1259,7 +1259,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::fruit.getId());
     EXPECT_EQ(producers->last_system_event,
-              mcbp::systemevent::id::CreateCollection);
+              mcbp::systemevent::id::BeginCollection);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     // Record the snapshot we're processing
@@ -1268,7 +1268,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
     EXPECT_EQ(producers->last_collection_id, CollectionEntry::dairy.getId());
     EXPECT_EQ(producers->last_system_event,
-              mcbp::systemevent::id::CreateCollection);
+              mcbp::systemevent::id::BeginCollection);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
     EXPECT_EQ(producers->last_collection_id, CollectionID::Default);
@@ -1329,7 +1329,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         EXPECT_EQ(producers->last_collection_id,
                   CollectionEntry::fruit.getId());
         EXPECT_EQ(producers->last_system_event,
-                  mcbp::systemevent::id::DeleteCollection);
+                  mcbp::systemevent::id::EndCollection);
         EXPECT_EQ(cb::engine_errc::would_block,
                   producer->step(false, *producers));
     } else {
@@ -1362,7 +1362,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         EXPECT_EQ(producers->last_collection_id,
                   CollectionEntry::fruit.getId());
         EXPECT_EQ(producers->last_system_event,
-                  mcbp::systemevent::id::DeleteCollection);
+                  mcbp::systemevent::id::EndCollection);
         EXPECT_EQ(cb::engine_errc::would_block,
                   producer->step(false, *producers));
     }
@@ -1514,7 +1514,7 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_scope) {
     // SystemEvent createCollection dairy in shop1
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::dairy.name, producers->last_key);
@@ -1601,7 +1601,7 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_grow_scope_from_empty) {
     // SystemEvent createCollection
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
 
@@ -1667,7 +1667,7 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_grow_scope) {
     // SystemEvent createCollection
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::dairy.getId(), producers->last_collection_id);
 
@@ -2158,7 +2158,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes) {
     notifyAndStepToCheckpoint();
 
     // Now step DCP to transfer system events. We expect that the stream will
-    // close once we transfer DeleteCollection
+    // close once we transfer EndCollection
 
     // Now step the producer to transfer the collection creation
     EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
@@ -2219,7 +2219,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::meat.name, producers->last_key);
@@ -2238,7 +2238,7 @@ TEST_P(CollectionsDcpParameterizedTest, stream_closes_scope) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     // Drop scope triggers 2 changes, the drop collection doesn't expose the
@@ -2370,12 +2370,12 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*from-memory... false backfill*/);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::defaultC.getId(), producers->last_collection_id);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
 
@@ -2397,13 +2397,13 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*from-memory... false backfill*/);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(mcbp::systemevent::id::DeleteCollection,
+    EXPECT_EQ(mcbp::systemevent::id::EndCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::defaultC.getId(), producers->last_collection_id);
     EXPECT_EQ(producers->last_vbucket, replicaVB);
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::meat.getId(), producers->last_collection_id);
     EXPECT_EQ(producers->last_vbucket, replicaVB);
@@ -2468,7 +2468,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, collection_stream) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::fruit.name, producers->last_key);
@@ -2558,7 +2558,7 @@ TEST_P(CollectionsDcpCloseAfterLosingPrivs, passthrough_stream) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->stepAndExpect(*producers,
                                       cb::mcbp::ClientOpcode::DcpSystemEvent));
-    EXPECT_EQ(mcbp::systemevent::id::CreateCollection,
+    EXPECT_EQ(mcbp::systemevent::id::BeginCollection,
               producers->last_system_event);
     EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
     EXPECT_EQ(CollectionEntry::fruit.name, producers->last_key);
@@ -2703,22 +2703,22 @@ void MB48010CollectionsDCPParamTest::SetUp() {
     vb->checkpointManager->createSnapshot(0, 4, 0, CheckpointType::Disk, 4);
 
     uint64_t uid = 0;
-    vb->replicaCreateCollection(Collections::ManifestUid(uid),
-                                {ScopeID::Default, CollectionEntry::dairy},
-                                "dairy",
-                                {},
-                                Collections::Metered::Yes,
-                                CanDeduplicate::Yes,
-                                Collections::ManifestUid{},
-                                1);
-    vb->replicaCreateCollection(Collections::ManifestUid(++uid),
-                                {ScopeID::Default, CollectionEntry::fruit},
-                                "fruit",
-                                {},
-                                Collections::Metered::Yes,
-                                CanDeduplicate::Yes,
-                                Collections::ManifestUid{},
-                                2);
+    vb->replicaBeginCollection(Collections::ManifestUid(uid),
+                               {ScopeID::Default, CollectionEntry::dairy},
+                               "dairy",
+                               {},
+                               Collections::Metered::Yes,
+                               CanDeduplicate::Yes,
+                               Collections::ManifestUid{},
+                               1);
+    vb->replicaBeginCollection(Collections::ManifestUid(++uid),
+                               {ScopeID::Default, CollectionEntry::fruit},
+                               "fruit",
+                               {},
+                               Collections::Metered::Yes,
+                               CanDeduplicate::Yes,
+                               Collections::ManifestUid{},
+                               2);
 
     // 2 collections written
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -3204,7 +3204,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, target.getId());
     EXPECT_EQ(producers->last_system_event,
-              mcbp::systemevent::id::CreateCollection);
+              mcbp::systemevent::id::BeginCollection);
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
                   cb::engine_errc::success);
     EXPECT_EQ(producers->last_collection_id, target.getId());
@@ -3259,7 +3259,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         EXPECT_EQ(producers->last_collection_id,
                   CollectionEntry::fruit.getId());
         EXPECT_EQ(producers->last_system_event,
-                  mcbp::systemevent::id::DeleteCollection);
+                  mcbp::systemevent::id::EndCollection);
     };
     auto stepCreate = [this] {
         stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
@@ -3269,7 +3269,7 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
         EXPECT_EQ(producers->last_collection_id,
                   CollectionEntry::fruit.getId());
         EXPECT_EQ(producers->last_system_event,
-                  mcbp::systemevent::id::CreateCollection);
+                  mcbp::systemevent::id::BeginCollection);
     };
 
     notifyAndRunToCheckpoint(*producer, *producers);
@@ -3743,7 +3743,7 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
               consumer->systemEvent(
                       /*opaque*/ 2,
                       vbid,
-                      mcbp::systemevent::id::DeleteCollection,
+                      mcbp::systemevent::id::EndCollection,
                       /*seqno*/ 2,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(collection.data()),
@@ -4420,13 +4420,13 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     // Expect snap1, create fruit, snap2, create vegetable
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     // New snapshot for next SystemEvent (create vegetable)
     producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
 
     // Check the deduplicate setting on active/vb0 and replica/vb1
@@ -4527,11 +4527,11 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
                               false /*in-memory = false*/);
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
 
     vb1 = store->getVBucket(replicaVB);
@@ -4571,7 +4571,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
 
     // Verify that modify vegetable is not transmitted
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
@@ -4579,7 +4579,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_system_event, id::EndCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
 
     // Reacquire replica and check the backfill events
@@ -4625,7 +4625,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
     notifyAndStepToCheckpoint();
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     EXPECT_EQ(CanDeduplicate::Yes,
@@ -4692,7 +4692,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
 
     // fruit created
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     // Mutation
@@ -4755,7 +4755,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
                 ClientOpcode::DcpSnapshotMarker,
                 true /*memory*/);
         dcp->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-        EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+        EXPECT_EQ(producers->last_system_event, id::BeginCollection);
         EXPECT_EQ(producers->last_collection_id, vegetable.getId());
         EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
 
@@ -4786,7 +4786,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyFilteredCollection) {
     createDcpObjects({{R"({"collections":["a"]})"}});
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
 
@@ -4810,7 +4810,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyFilteredCollection) {
                               false /*in-memory = false*/);
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
 
@@ -4833,7 +4833,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTL) {
     // Expect snap1, create fruit
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     auto vb0 = store->getVBucket(vbid);
@@ -4917,7 +4917,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTL) {
                               false /*in-memory = false*/);
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     // replica received create state
@@ -4955,7 +4955,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTL) {
     // Verify that modify fruit is not transmitted
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_system_event, id::EndCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 }
 
@@ -4972,7 +4972,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
     // Expect snap1, create fruit
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     auto vb0 = store->getVBucket(vbid);
@@ -5056,7 +5056,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
                               false /*in-memory = false*/);
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     // replica received create state
@@ -5093,7 +5093,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMetering) {
 
     // Verify that modify fruit is not transmitted
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_system_event, id::EndCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 }
 
@@ -5111,7 +5111,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTLAndHistory) {
     // Expect snap1, create fruit
     notifyAndStepToCheckpoint();
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     auto vb0 = store->getVBucket(vbid);
@@ -5197,7 +5197,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTLAndHistory) {
                               false /*in-memory = false*/);
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     // replica received create state
@@ -5236,7 +5236,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTLAndHistory) {
     // Verify that modify fruit is not transmitted
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_system_event, id::EndCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 }
 
@@ -5500,7 +5500,7 @@ TEST_P(CollectionsDcpPersistentOnly, backfillWithSystemCollectionsNoAccess) {
                           CollectionUid::systemCollection);
 
             } else if (dcpCallBacks.last_op == ClientOpcode::DcpSystemEvent &&
-                       dcpCallBacks.last_system_event == id::CreateCollection) {
+                       dcpCallBacks.last_system_event == id::BeginCollection) {
                 ++events;
                 ++createEvent;
                 ASSERT_NE(dcpCallBacks.last_collection_id,
@@ -5617,7 +5617,7 @@ TEST_P(CollectionsDcpPersistentOnlyWithMagmaSyncAlways, ModifyAndDrop) {
                               false /*in-memory = false*/);
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_system_event, id::EndCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
 }
@@ -5646,7 +5646,7 @@ TEST_P(CollectionsDcpParameterizedTest, skipNonMatchingSeqnos) {
     notifyAndStepToCheckpoint();
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
 
     stepAndExpect(ClientOpcode::DcpMutation);

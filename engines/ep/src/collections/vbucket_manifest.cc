@@ -124,9 +124,9 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
 }
 
 //
-// applyDrops (and applyCreates et'al) all follow a similar pattern and are
-// tightly coupled with completeUpdate. As input the function is given a set of
-// changes to process (non const reference). The set could have 0, 1 or n
+// applyDrops (and applyBeginCollection et'al) all follow a similar pattern and
+// are tightly coupled with completeUpdate. As input the function is given a set
+// of changes to process (non const reference). The set could have 0, 1 or n
 // entries to process. An input 'changes' of zero length means nothing happens.
 // The function just skips and returns an empty optional.
 //
@@ -165,28 +165,28 @@ std::optional<CollectionID> Manifest::applyDrops(
     return rv;
 }
 
-std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
+std::optional<Manifest::BeginCollection> Manifest::applyBeginCollection(
         VBucketStateLockRef vbStateLock,
         const WriteHandle& wHandle,
         ::VBucket& vb,
-        std::vector<CollectionCreation>& changes) {
-    std::optional<CollectionCreation> rv;
+        std::vector<BeginCollection>& changes) {
+    std::optional<BeginCollection> rv;
     if (!changes.empty()) {
         rv = changes.back();
         changes.pop_back();
     }
-    for (const auto& creation : changes) {
-        createCollection(vbStateLock,
-                         wHandle,
-                         vb,
-                         manifestUid,
-                         creation.identifiers,
-                         creation.name,
-                         creation.maxTtl,
-                         creation.metered,
-                         creation.canDeduplicate,
-                         creation.flushUid,
-                         OptionalSeqno{/*no-seqno*/});
+    for (const auto& collection : changes) {
+        beginCollection(vbStateLock,
+                        wHandle,
+                        vb,
+                        manifestUid,
+                        collection.identifiers,
+                        collection.name,
+                        collection.maxTtl,
+                        collection.metered,
+                        collection.canDeduplicate,
+                        collection.flushUid,
+                        OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
     return rv;
@@ -390,21 +390,21 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                     OptionalSeqno{/*no-seqno*/});
     }
 
-    auto finalAddition = applyCreates(
+    auto finaleBegin = applyBeginCollection(
             vbStateLock, wHandle, vb, changeset.collectionsToCreate);
 
-    if (finalAddition) {
-        createCollection(vbStateLock,
-                         wHandle,
-                         vb,
-                         changeset.getUidForChange(manifestUid),
-                         finalAddition.value().identifiers,
-                         finalAddition.value().name,
-                         finalAddition.value().maxTtl,
-                         finalAddition.value().metered,
-                         finalAddition.value().canDeduplicate,
-                         finalAddition.value().flushUid,
-                         OptionalSeqno{/*no-seqno*/});
+    if (finaleBegin) {
+        beginCollection(vbStateLock,
+                        wHandle,
+                        vb,
+                        changeset.getUidForChange(manifestUid),
+                        finaleBegin.value().identifiers,
+                        finaleBegin.value().name,
+                        finaleBegin.value().maxTtl,
+                        finaleBegin.value().metered,
+                        finaleBegin.value().canDeduplicate,
+                        finaleBegin.value().flushUid,
+                        OptionalSeqno{/*no-seqno*/});
     }
 
     auto finalModification = applyModifications(
@@ -421,22 +421,20 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                          OptionalSeqno{/*no-seqno*/});
     }
 
-    // @todo rename applyCreates
-    auto finalFlush = applyCreates(
+    auto finalFlush = applyBeginCollection(
             vbStateLock, wHandle, vb, changeset.collectionsToFlush);
     if (finalFlush) {
-        // @todo: rename createCollection
-        createCollection(vbStateLock,
-                         wHandle,
-                         vb,
-                         changeset.getUidForChange(manifestUid),
-                         finalFlush.value().identifiers,
-                         finalFlush.value().name,
-                         finalFlush.value().maxTtl,
-                         finalFlush.value().metered,
-                         finalFlush.value().canDeduplicate,
-                         finalFlush.value().flushUid,
-                         OptionalSeqno{/*no-seqno*/});
+        beginCollection(vbStateLock,
+                        wHandle,
+                        vb,
+                        changeset.getUidForChange(manifestUid),
+                        finalFlush.value().identifiers,
+                        finalFlush.value().name,
+                        finalFlush.value().maxTtl,
+                        finalFlush.value().metered,
+                        finalFlush.value().canDeduplicate,
+                        finalFlush.value().flushUid,
+                        OptionalSeqno{/*no-seqno*/});
     }
 
     // This is done last so the scope deletion follows any collection
@@ -499,29 +497,31 @@ ManifestUpdateStatus Manifest::canUpdate(
     return ManifestUpdateStatus::Success;
 }
 
-void Manifest::createCollection(VBucketStateLockRef vbStateLock,
-                                const WriteHandle& wHandle,
-                                ::VBucket& vb,
-                                ManifestUid newManUid,
-                                ScopeCollectionPair identifiers,
-                                std::string_view collectionName,
-                                cb::ExpiryLimit maxTtl,
-                                Metered metered,
-                                CanDeduplicate canDeduplicate,
-                                ManifestUid flushUid,
-                                OptionalSeqno optionalSeqno) {
+void Manifest::beginCollection(VBucketStateLockRef vbStateLock,
+                               const WriteHandle& wHandle,
+                               ::VBucket& vb,
+                               ManifestUid newManUid,
+                               ScopeCollectionPair identifiers,
+                               std::string_view collectionName,
+                               cb::ExpiryLimit maxTtl,
+                               Metered metered,
+                               CanDeduplicate canDeduplicate,
+                               ManifestUid flushUid,
+                               OptionalSeqno optionalSeqno) {
     auto mapEntry = map.find(identifiers.second);
 
-    // 1. Update the manifest, adding or updating an entry in the collections
-    // map. The start-seqno is 0 here and is patched up once we've created and
-    // queued the system-event Item (step 2 and 3)
     ManifestEntry* entry = nullptr;
     bool flushing{false};
     if (mapEntry != map.end()) {
+        // 1. Known collection, flush. Update the existing entry. Change the
+        // flushUid and later at step 3 update the start-seqno.
         flushing = true;
         entry = &mapEntry->second;
         entry->setFlushUid(flushUid);
     } else {
+        // 1. Unknown collection, create. Add a new entry into the collection
+        // map. The start-seqno is 0, but this is patched up once we've created
+        // and queued the system-event Item (step 2 and 3)
         entry = &addNewCollectionEntry(identifiers,
                                        collectionName,
                                        maxTtl,
@@ -542,7 +542,7 @@ void Manifest::createCollection(VBucketStateLockRef vbStateLock,
                                             identifiers.second,
                                             collectionName,
                                             *entry,
-                                            SystemEventType::Create,
+                                            SystemEventType::Begin,
                                             optionalSeqno,
                                             {/*no callback*/});
 
@@ -668,7 +668,7 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
             cid,
             {/*no name*/},
             itr->second,
-            SystemEventType::Delete,
+            SystemEventType::End,
             optionalSeqno,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
@@ -1044,9 +1044,11 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     flatbuffers::FlatBufferBuilder builder;
 
     switch (type) {
-    case SystemEventType::Create:
+    case SystemEventType::Begin:
     // Modify carries the current collection metadata (same as data as create)
     case SystemEventType::Modify: {
+        // CreateCollection is a FlatBuffers generated function. This creates
+        // a Collection structure which is used by Begin and Modify events.
         auto collection = CreateCollection(
                 builder,
                 uid,
@@ -1065,7 +1067,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         builder.Finish(collection);
         break;
     }
-    case SystemEventType::Delete: {
+    case SystemEventType::End: {
         auto collection = CreateDroppedCollection(
                 builder,
                 uid,
@@ -1079,8 +1081,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
 
     std::unique_ptr<Item> item;
     switch (type) {
-    case SystemEventType::Create:
-    case SystemEventType::Delete: {
+    case SystemEventType::Begin:
+    case SystemEventType::End: {
         item = SystemEventFactory::makeCollectionEvent(
                 cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
         break;
@@ -1092,7 +1094,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     }
     }
 
-    if (type == SystemEventType::Delete) {
+    if (type == SystemEventType::End) {
         item->setDeleted();
     }
     return item;

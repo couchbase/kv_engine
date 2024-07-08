@@ -1214,10 +1214,12 @@ static_assert(sizeof(DcpSeqnoAdvancedPayload) == 8, "Unexpected struct size");
 namespace mcbp::systemevent {
 
 enum class id : uint32_t {
-    CreateCollection = 0, // Since 7.0 (epoch of SystemEvents)
-                          // Since 8.0 can move (be seen again/updated for a
-                          // flush). todo: rename as Collection
-    DeleteCollection = 1, // Since 7.0 (epoch of SystemEvents)
+    BeginCollection =
+            0, // Since 7.0 (epoch of SystemEvents)
+               // Since 8.0 this event can also represent a flush.
+               // This event means the collection starts here, which could
+               // be the creation or the start moving to represent a flush.
+    EndCollection = 1, // Since 7.0 (epoch of SystemEvents)
     CreateScope = 3, // Since 7.0 (epoch of SystemEvents)
     DropScope = 4, // Since 7.0 (epoch of SystemEvents)
     ModifyCollection = 5 // Since 7.2 (requires opt-in on DCP)
@@ -1270,8 +1272,8 @@ public:
     bool isValidEvent() const {
         using ::mcbp::systemevent::id;
         switch (id(getEvent())) {
-        case id::CreateCollection:
-        case id::DeleteCollection:
+        case id::BeginCollection:
+        case id::EndCollection:
         case id::CreateScope:
         case id::DropScope:
         case id::ModifyCollection:

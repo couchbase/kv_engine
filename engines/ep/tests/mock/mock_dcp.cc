@@ -367,7 +367,7 @@ cb::engine_errc MockDcpMessageProducers::system_event(
             last_system_event_data.begin(), eventData.begin(), eventData.end());
     last_system_event_version = version;
 
-    if (event == mcbp::systemevent::id::CreateCollection) {
+    if (event == mcbp::systemevent::id::BeginCollection) {
         last_collection_id =
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
@@ -378,7 +378,7 @@ cb::engine_errc MockDcpMessageProducers::system_event(
                         ->sid.to_host();
 
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
-    } else if (event == mcbp::systemevent::id::DeleteCollection) {
+    } else if (event == mcbp::systemevent::id::EndCollection) {
         last_collection_id =
                 reinterpret_cast<const Collections::DropEventDcpData*>(
                         eventData.data())

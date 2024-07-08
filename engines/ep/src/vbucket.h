@@ -803,10 +803,11 @@ public:
             VBucketStateLockRef vbStateLock, const Collections::Manifest& m);
 
     /**
-     * Add or flush a collection. This function uses a pre-assigned seqno to
-     * give to the system event (i.e. this function is only applicable to
-     * replica vbuckets). The flush case is an update to an existing collection
-     * entry where the flushUid and start-seqno of the collection change.
+     * Begin a collection in a replica vbucket This function uses a pre-assigned
+     * seqno to give to the system event (i.e. this function is only applicable
+     * to replica vbuckets). The flush case is an update to an existing
+     * collection entry where the flushUid and start-seqno of the collection
+     * change.
      *
      * @param uid the uid of the manifest which made the change
      * @param identifiers ScopeID and CollectionID pair
@@ -817,14 +818,14 @@ public:
      * @param flushUid uid of any flush
      * @param bySeqno The seqno assigned to the collection event.
      */
-    void replicaCreateCollection(Collections::ManifestUid uid,
-                                 ScopeCollectionPair identifiers,
-                                 std::string_view collectionName,
-                                 cb::ExpiryLimit maxTtl,
-                                 Collections::Metered metered,
-                                 CanDeduplicate canDeduplicate,
-                                 Collections::ManifestUid flushUid,
-                                 int64_t bySeqno);
+    void replicaBeginCollection(Collections::ManifestUid uid,
+                                ScopeCollectionPair identifiers,
+                                std::string_view collectionName,
+                                cb::ExpiryLimit maxTtl,
+                                Collections::Metered metered,
+                                CanDeduplicate canDeduplicate,
+                                Collections::ManifestUid flushUid,
+                                int64_t bySeqno);
 
     /**
      * Modify a collection in this vbucket with a pre-assigned seqno. I.e.

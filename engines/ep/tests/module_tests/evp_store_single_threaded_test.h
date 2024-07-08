@@ -748,9 +748,9 @@ public:
                           const DocKeyView& key,
                           uint64_t prepareSeqno,
                           uint64_t seqno);
-    cb::engine_errc createCollection(DcpConsumer& consumer,
-                                     uint32_t opaque,
-                                     uint64_t seqno);
+    cb::engine_errc beginCollection(DcpConsumer& consumer,
+                                    uint32_t opaque,
+                                    uint64_t seqno);
 
 protected:
     void SetUp() override;

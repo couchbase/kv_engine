@@ -954,8 +954,8 @@ public:
     mcbp::systemevent::id getSystemEvent() const override {
         switch (SystemEvent(item->getFlags())) {
         case SystemEvent::Collection:
-            return item->isDeleted() ? mcbp::systemevent::id::DeleteCollection
-                                     : mcbp::systemevent::id::CreateCollection;
+            return item->isDeleted() ? mcbp::systemevent::id::EndCollection
+                                     : mcbp::systemevent::id::BeginCollection;
         case SystemEvent::ModifyCollection:
             return mcbp::systemevent::id::ModifyCollection;
         case SystemEvent::Scope:

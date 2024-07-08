@@ -101,11 +101,12 @@ public:
     }
 
     // Wire through to private method
-    std::optional<Manifest::CollectionCreation> public_applyCreates(
+    std::optional<Manifest::BeginCollection> public_applyBeginCollection(
             ::VBucket& vb, Manifest::ManifestChanges& changes) {
         std::shared_lock rlh(vb.getStateLock());
         auto wHandle = wlock(rlh);
-        return applyCreates(rlh, wHandle, vb, changes.collectionsToCreate);
+        return applyBeginCollection(
+                rlh, wHandle, vb, changes.collectionsToCreate);
     }
 
     std::optional<std::vector<CollectionID>> public_getCollectionsForScope(
@@ -1166,7 +1167,7 @@ TEST_P(VBucketManifestTest, replica_add_remove) {
 TEST_P(VBucketManifestTest, check_applyChanges) {
     Collections::VB::Manifest::ManifestChanges changes{
             Collections::ManifestUid(0)};
-    auto value = manifest.getActiveManifest().public_applyCreates(
+    auto value = manifest.getActiveManifest().public_applyBeginCollection(
             manifest.getActiveVB(), changes);
     EXPECT_FALSE(value.has_value());
     changes.collectionsToCreate.push_back({std::make_pair(0, 8),
@@ -1175,7 +1176,7 @@ TEST_P(VBucketManifestTest, check_applyChanges) {
                                            Collections::Metered::Yes,
                                            CanDeduplicate::Yes,
                                            Collections::ManifestUid{2}});
-    value = manifest.getActiveManifest().public_applyCreates(
+    value = manifest.getActiveManifest().public_applyBeginCollection(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(ScopeID(0), value.value().identifiers.first);
@@ -1197,7 +1198,7 @@ TEST_P(VBucketManifestTest, check_applyChanges) {
                                            CanDeduplicate::No,
                                            Collections::ManifestUid{4}});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
-    value = manifest.getActiveManifest().public_applyCreates(
+    value = manifest.getActiveManifest().public_applyBeginCollection(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(ScopeID(0), value.value().identifiers.first);

@@ -54,7 +54,7 @@ cb::engine_errc CollectionsDcpTestProducers::system_event(
     last_byseqno = bySeqno;
 
     switch (event) {
-    case mcbp::systemevent::id::CreateCollection: {
+    case mcbp::systemevent::id::BeginCollection: {
         last_collection_id =
                 reinterpret_cast<const Collections::CreateEventDcpData*>(
                         eventData.data())
@@ -85,7 +85,7 @@ cb::engine_errc CollectionsDcpTestProducers::system_event(
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         break;
     }
-    case mcbp::systemevent::id::DeleteCollection: {
+    case mcbp::systemevent::id::EndCollection: {
         const auto* ev = reinterpret_cast<const Collections::DropEventDcpData*>(
                 eventData.data());
         last_collection_id = ev->cid.to_host();
@@ -380,7 +380,7 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
     std::string_view eventView{reinterpret_cast<const char*>(eventData.data()),
                                eventData.size()};
     switch (event) {
-    case mcbp::systemevent::id::CreateCollection:
+    case mcbp::systemevent::id::BeginCollection:
     case mcbp::systemevent::id::ModifyCollection: {
         const auto& collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(eventView);
@@ -400,7 +400,7 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         }
         break;
     }
-    case mcbp::systemevent::id::DeleteCollection: {
+    case mcbp::systemevent::id::EndCollection: {
         const auto* collection =
                 Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
                         eventView);

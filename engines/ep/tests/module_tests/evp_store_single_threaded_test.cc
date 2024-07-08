@@ -1181,7 +1181,7 @@ cb::engine_errc STParameterizedBucketTest::abort(DcpConsumer& consumer,
     return consumer.abort(opaque, vbid, key, prepareSeqno, seqno);
 }
 
-cb::engine_errc STParameterizedBucketTest::createCollection(
+cb::engine_errc STParameterizedBucketTest::beginCollection(
         DcpConsumer& consumer, uint32_t opaque, uint64_t seqno) {
     // Create just the fruit collection @ seqno using flatbuffer message
     flatbuffers::FlatBufferBuilder fb;
@@ -1201,7 +1201,7 @@ cb::engine_errc STParameterizedBucketTest::createCollection(
     return consumer.systemEvent(
             opaque,
             vbid,
-            mcbp::systemevent::id::CreateCollection,
+            mcbp::systemevent::id::BeginCollection,
             seqno,
             mcbp::systemevent::version::version2,
             {reinterpret_cast<const uint8_t*>(collection.name.data()),

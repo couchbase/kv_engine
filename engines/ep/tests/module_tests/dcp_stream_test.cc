@@ -7245,7 +7245,7 @@ void CDCPassiveStreamTest::createHistoricalCollection(CheckpointType snapType,
               consumer->systemEvent(
                       1 /*opaque*/,
                       vbid,
-                      mcbp::systemevent::id::CreateCollection,
+                      mcbp::systemevent::id::BeginCollection,
                       snapStart,
                       mcbp::systemevent::version::version2,
                       {reinterpret_cast<const uint8_t*>(collection.name.data()),

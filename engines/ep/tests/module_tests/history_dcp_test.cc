@@ -104,7 +104,7 @@ TEST_P(HistoryDcpTest, ManyModifications) {
                            DcpSnapshotMarkerFlag::Disk));
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     // Now modify the collection a few times.
@@ -160,7 +160,7 @@ TEST_P(HistoryDcpTest, ManyModifications) {
                                   DcpSnapshotMarkerFlag::Disk));
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);
-    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_system_event, id::BeginCollection);
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
 
     stepAndExpect(ClientOpcode::DcpSystemEvent);

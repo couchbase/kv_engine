@@ -266,7 +266,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
     while (producer->step(false, *producers) == cb::engine_errc::success) {
         if (producers->last_op == cb::mcbp::ClientOpcode::DcpSystemEvent) {
             switch (producers->last_system_event) {
-            case mcbp::systemevent::id::CreateCollection:
+            case mcbp::systemevent::id::BeginCollection:
                 ASSERT_NE(createItr, expectedCreates.end())
                         << "Found a create collection, but expected vector is "
                            "now at the end";
@@ -275,7 +275,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
 
                 createItr++;
                 break;
-            case mcbp::systemevent::id::DeleteCollection:
+            case mcbp::systemevent::id::EndCollection:
                 ASSERT_NE(deleteItr, expectedDeletes.end())
                         << "Found a drop collection, but expected vector is "
                            "now at the end";
@@ -324,7 +324,7 @@ void CollectionsDcpTest::testDcpCreateDelete(
         EXPECT_EQ(EPBucket::MoreAvailable::No, res.moreAvailable);
 
         // Finally check that the active and replica have the same manifest, our
-        // BeginDeleteCollection should of contained enough information to form
+        // BeginEndCollection should of contained enough information to form
         // an equivalent manifest
         auto m1 = getPersistedManifest(vbid);
         auto m2 = getPersistedManifest(replicaVB);
@@ -428,7 +428,7 @@ void CollectionsDcpTest::createCollectionOnConsumer(
               consumer->systemEvent(
                       opaque,
                       id,
-                      mcbp::systemevent::id::CreateCollection,
+                      mcbp::systemevent::id::BeginCollection,
                       /*seqno*/ seqno,
                       mcbp::systemevent::version::version0,
                       {reinterpret_cast<const uint8_t*>(entry.name.data()),
