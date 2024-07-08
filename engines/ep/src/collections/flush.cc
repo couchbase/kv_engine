@@ -331,10 +331,12 @@ flatbuffers::DetachedBuffer Flush::encodeManifestUid() {
 // flatbuffer openCollection data
 flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         cb::const_byte_buffer currentCollections) {
-    // The 'array' of collections must be exclusive. Generating a collection
-    // vector with duplicates means the data will 'crash' decode. This set and
-    // function will prevent bad data being placed on disk.
-    std::unordered_set<CollectionID> outputIds;
+    // This function will generate an output set of collections, that must be
+    // exclusive. Generating a collection set with duplicates means the data
+    // will 'crash' decode. The following map is used to ensure no duplicates
+    // are generated. The map is collection to flushUID (ensuring the highest
+    // flushUID is persisted)
+    std::unordered_map<CollectionID, ManifestUid> outputIds;
 
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::KVStore::Collection>>
@@ -343,10 +345,16 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
     auto exclusiveInsertCollection =
             [&outputIds, &finalisedOpenCollection](
                     CollectionID cid,
+                    ManifestUid flushUid,
                     flatbuffers::Offset<Collections::KVStore::Collection>
                             newEntry) {
-                auto result = outputIds.emplace(cid);
-                if (!result.second) {
+                auto [itr, emplaced] = outputIds.try_emplace(cid, flushUid);
+                if (!emplaced) {
+                    if (itr->second > flushUid) {
+                        // Ignore the input, we have a flush that overwrites
+                        return;
+                    }
+
                     throw std::logic_error(
                             "encodeOpenCollections: duplicate collection "
                             "detected cid:" +
@@ -382,6 +390,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         // generate
         exclusiveInsertCollection(
                 meta.cid,
+                meta.flushUid,
                 Collections::KVStore::CreateCollection(
                         builder,
                         span.high.startSeqno,
@@ -393,7 +402,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         builder.CreateString(meta.name.data(),
                                              meta.name.size()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
-                        Collections::getMeteredFromEnum(meta.metered)));
+                        Collections::getMeteredFromEnum(meta.metered),
+                        meta.flushUid));
     }
 
     // And 'merge' with the data we read
@@ -421,10 +431,11 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                         : cb::NoExpiryLimit,
                                 getCanDeduplicateFromHistory(entry->history()),
                                 Collections::getMetered(entry->metered()),
-                                ManifestUid{}});
+                                Collections::ManifestUid{entry->flushUid()}});
 
                 exclusiveInsertCollection(
                         entry->collectionId(),
+                        Collections::ManifestUid{entry->flushUid()},
                         Collections::KVStore::CreateCollection(
                                 builder,
                                 entry->startSeqno(),
@@ -437,7 +448,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 builder.CreateString(entry->name()),
                                 getHistoryFromCanDeduplicate(
                                         meta.canDeduplicate),
-                                Collections::getMeteredFromEnum(meta.metered)));
+                                Collections::getMeteredFromEnum(meta.metered),
+                                entry->flushUid()));
 
             } else {
                 // Here we maintain the startSeqno of the dropped collection
@@ -455,6 +467,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         // Nothing on disk - and not dropped assume the default collection lives
         exclusiveInsertCollection(
                 CollectionID::Default,
+                Collections::ManifestUid{},
                 Collections::KVStore::CreateCollection(
                         builder,
                         0,
@@ -467,7 +480,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
-                        Collections::getMeteredFromEnum(meta.metered)));
+                        Collections::getMeteredFromEnum(meta.metered),
+                        Collections::ManifestUid{}));
     }
 
     auto collectionsVector = builder.CreateVector(finalisedOpenCollection);
