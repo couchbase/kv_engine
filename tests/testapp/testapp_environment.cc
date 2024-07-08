@@ -39,7 +39,7 @@ std::string TestBucketImpl::mergeConfigString(const std::string& next) {
     std::string settings = next;
     auto tokens = split_string(extraConfig, ";");
     auto key = settings;
-    auto idx = key.find("=");
+    auto idx = key.find('=');
     if (idx != std::string::npos) {
         key.resize(idx);
     }
@@ -138,15 +138,15 @@ public:
         conn.createBucket(name, config, BucketType::Memcached);
     }
 
-    std::string getName() const override {
+    [[nodiscard]] std::string getName() const override {
         return "default_engine";
     }
 
-    BucketType getType() const override {
+    [[nodiscard]] BucketType getType() const override {
         return BucketType::Memcached;
     }
 
-    bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
+    [[nodiscard]] bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
         switch (cmd) {
         case cb::mcbp::ClientOpcode::DcpOpen:
         case cb::mcbp::ClientOpcode::DcpAddStream:
@@ -179,35 +179,35 @@ public:
         }
     }
 
-    bool supportsPrivilegedBytes() const override {
+    [[nodiscard]] bool supportsPrivilegedBytes() const override {
         return false;
     }
 
-    size_t getMaximumDocSize() const override {
+    [[nodiscard]] size_t getMaximumDocSize() const override {
         return 1024 * 1024;
     }
 
-    bool supportsLastModifiedVattr() const override {
+    [[nodiscard]] bool supportsLastModifiedVattr() const override {
         return false;
     }
 
-    bool supportsPersistence() const override {
+    [[nodiscard]] bool supportsPersistence() const override {
         return false;
     }
 
-    bool supportsSyncWrites() const override {
+    [[nodiscard]] bool supportsSyncWrites() const override {
         return false;
     }
 
-    bool supportsCollections() const override {
+    [[nodiscard]] bool supportsCollections() const override {
         return true;
     }
 
-    bool supportsRangeScans() const override {
+    [[nodiscard]] bool supportsRangeScans() const override {
         return false;
     }
 
-    bool isFullEviction() const override {
+    [[nodiscard]] bool isFullEviction() const override {
         return false;
     }
     [[nodiscard]] bool supportsEncryptionAtRest() const override {
@@ -230,9 +230,9 @@ public:
 
     BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
 
-    void removeDbDir(const std::filesystem::path& path) {
+    static void removeDbDir(const std::filesystem::path& path) {
         if (exists(path)) {
-            std::filesystem::remove_all(path);
+            remove_all(path);
         }
     }
 
@@ -317,15 +317,15 @@ public:
         });
     }
 
-    std::string getName() const override {
+    [[nodiscard]] std::string getName() const override {
         return "ep_engine";
     }
 
-    BucketType getType() const override {
+    [[nodiscard]] BucketType getType() const override {
         return BucketType::Couchbase;
     }
 
-    bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
+    [[nodiscard]] bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
         switch (cmd) {
         case cb::mcbp::ClientOpcode::Flush:
         case cb::mcbp::ClientOpcode::Flushq:
@@ -337,35 +337,35 @@ public:
         }
     }
 
-    bool supportsPrivilegedBytes() const override {
+    [[nodiscard]] bool supportsPrivilegedBytes() const override {
         return true;
     }
 
-    size_t getMaximumDocSize() const override {
+    [[nodiscard]] size_t getMaximumDocSize() const override {
         return 20 * 1024 * 1024;
     }
 
-    bool supportsLastModifiedVattr() const override {
+    [[nodiscard]] bool supportsLastModifiedVattr() const override {
         return true;
     }
 
-    bool supportsPersistence() const override {
+    [[nodiscard]] bool supportsPersistence() const override {
         return true;
     }
 
-    bool supportsSyncWrites() const override {
+    [[nodiscard]] bool supportsSyncWrites() const override {
         return true;
     }
 
-    bool supportsCollections() const override {
+    [[nodiscard]] bool supportsCollections() const override {
         return true;
     }
 
-    bool supportsRangeScans() const override {
+    [[nodiscard]] bool supportsRangeScans() const override {
         return true;
     }
 
-    bool isFullEviction() const override {
+    [[nodiscard]] bool isFullEviction() const override {
         return extraConfig.find("item_eviction_policy=full_eviction") !=
                std::string::npos;
     }
@@ -374,7 +374,7 @@ public:
         return true;
     }
 
-    [[nodiscard]] std::string getEncryptionConfig() {
+    [[nodiscard]] std::string getEncryptionConfig() const {
         nlohmann::json encryption = {{"active", encryption_keys.front()->id}};
         auto keys = nlohmann::json::array();
         for (const auto& key : encryption_keys) {
@@ -467,7 +467,8 @@ public:
         rewriteAuditConfigImpl();
     }
 
-    std::string getPassword(std::string_view user) const override {
+    [[nodiscard]] std::string getPassword(
+            std::string_view user) const override {
         auto iter = users.find(std::string{user});
         if (iter == users.end()) {
             throw std::runtime_error("getPassword(): Unknown user: " +
@@ -567,23 +568,23 @@ public:
         std::exit(exitcode);
     }
 
-    cb::dek::Manager& getDekManager() override {
+    [[nodiscard]] cb::dek::Manager& getDekManager() override {
         return *dek_manager;
     }
 
-    std::string getAuditFilename() const override {
+    [[nodiscard]] std::string getAuditFilename() const override {
         return audit_file_name.generic_string();
     }
 
-    std::string getAuditLogDir() const override {
+    [[nodiscard]] std::string getAuditLogDir() const override {
         return audit_log_dir.generic_string();
     }
 
-    nlohmann::json& getAuditConfig() override {
+    [[nodiscard]] nlohmann::json& getAuditConfig() override {
         return audit_config;
     }
 
-    void rewriteAuditConfigImpl() {
+    void rewriteAuditConfigImpl() const {
         dek_manager->save(
                 cb::dek::Entity::Config, audit_file_name, audit_config.dump());
     }
@@ -592,15 +593,15 @@ public:
         rewriteAuditConfigImpl();
     }
 
-    std::string getRbacFilename() const override {
+    [[nodiscard]] std::string getRbacFilename() const override {
         return rbac_file_name.generic_string();
     }
 
-    nlohmann::json& getRbacConfig() override {
+    [[nodiscard]] nlohmann::json& getRbacConfig() override {
         return rbac_data;
     }
 
-    void rewriteRbacFileImpl() {
+    void rewriteRbacFileImpl() const {
         dek_manager->save(
                 cb::dek::Entity::Config, rbac_file_name, rbac_data.dump());
     }
@@ -609,44 +610,45 @@ public:
         rewriteRbacFileImpl();
     }
 
-    TestBucketImpl& getTestBucket() override {
+    [[nodiscard]] TestBucketImpl& getTestBucket() override {
         return *testBucket;
     }
 
-    std::string getTestDir() const override {
+    [[nodiscard]] std::string getTestDir() const override {
         return test_directory.generic_string();
     }
 
-    std::string getDbPath() const override {
-        return static_cast<EpBucketImpl*>(testBucket.get())
-                ->dbPath.generic_string();
+    [[nodiscard]] std::string getDbPath() const override {
+        auto* bucket = dynamic_cast<EpBucketImpl*>(testBucket.get());
+        Expects(bucket);
+        return bucket->dbPath.generic_string();
     }
 
-    std::string getConfigurationFile() const override {
+    [[nodiscard]] std::string getConfigurationFile() const override {
         return configuration_file.generic_string();
     }
 
-    std::string getPortnumberFile() const override {
+    [[nodiscard]] std::string getPortnumberFile() const override {
         return portnumber_file.generic_string();
     }
 
-    std::string getMinidumpDir() const override {
+    [[nodiscard]] std::string getMinidumpDir() const override {
         return minidump_dir.generic_string();
     }
 
-    std::string getLogDir() const override {
+    [[nodiscard]] std::string getLogDir() const override {
         return log_dir.generic_string();
     }
 
-    std::string getLogFilePattern() const override {
+    [[nodiscard]] std::string getLogFilePattern() const override {
         return (log_dir / "memcached").generic_string();
     }
 
-    bool haveIPv4() const override {
+    [[nodiscard]] bool haveIPv4() const override {
         return !ipaddresses.first.empty();
     }
 
-    bool haveIPv6() const override {
+    [[nodiscard]] bool haveIPv6() const override {
         return !ipaddresses.second.empty();
     }
 
