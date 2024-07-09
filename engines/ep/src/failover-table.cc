@@ -121,9 +121,9 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         uint64_t remoteHighSeqno,
         uint64_t localHighSeqno,
         uint64_t remoteVBUuid,
-        uint64_t snap_start_seqno,
-        uint64_t snap_end_seqno,
-        uint64_t purge_seqno,
+        uint64_t snapStartSeqno,
+        uint64_t snapEndSeqno,
+        uint64_t purgeSeqno,
         bool strictVbUuidMatch,
         std::optional<uint64_t> maxCollectionHighSeqno) const {
     /* Start with upper as vb highSeqno */
@@ -140,27 +140,28 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
 
     /*
      * If this request is for a collection stream then check if we can really
-     * need to roll the client back if the remoteHighSeqno < purge_seqno.
+     * need to roll the client back if the remoteHighSeqno < purgeSeqno.
      * We should allow the request if the remoteHighSeqno indicates that the
      * client has all mutations/events for the collections the stream is for.
      */
     bool allowNonRollBackCollectionStream = false;
     if (maxCollectionHighSeqno.has_value()) {
         allowNonRollBackCollectionStream =
-                remoteHighSeqno < purge_seqno &&
+                remoteHighSeqno < purgeSeqno &&
                 remoteHighSeqno >= maxCollectionHighSeqno.value() &&
-                maxCollectionHighSeqno.value() <= purge_seqno;
+                maxCollectionHighSeqno.value() <= purgeSeqno;
     }
 
     /* There may be items that are purged during compaction. We need
        to rollback to seq no 0 in that case, only if we have purged beyond
        remoteHighSeqno and if remoteHighSeqno is not 0 */
-    if (remoteHighSeqno < purge_seqno && remoteHighSeqno != 0 &&
+    if (remoteHighSeqno < purgeSeqno && remoteHighSeqno != 0 &&
         !allowNonRollBackCollectionStream) {
         return RollbackDetails{
                 fmt::format("purge seqno ({}) is greater than start seqno - "
                             "could miss purged deletions",
-                            purge_seqno), 0};
+                            purgeSeqno),
+                0};
     }
 
     table_t::const_reverse_iterator itr;
@@ -191,34 +192,34 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
     // declares, actually it is still at the end of the previous snapshot.
     // What is the "end of the previous snapshot"? The client's high-seqno by
     // logic.
-    // By "moving backward" the snap_end_seqno we actually increase the
+    // By "moving backward" the snapEndSeqno we actually increase the
     // probability of hitting the following "no-rollback" condition.
-    if (remoteHighSeqno == snap_start_seqno) {
+    if (remoteHighSeqno == snapStartSeqno) {
         /* Client has no elements in the snapshot */
-        snap_end_seqno = remoteHighSeqno;
+        snapEndSeqno = remoteHighSeqno;
     }
 
-    if (snap_end_seqno <= upper) {
+    if (snapEndSeqno <= upper) {
         /* No rollback needed as producer and consumer histories are same */
         return {};
     }
 
     // Optimization for avoiding unnecessary rollback when the client is in a
     // complete snapshot.
-    if (remoteHighSeqno == snap_end_seqno) {
+    if (remoteHighSeqno == snapEndSeqno) {
         /* Client already has all elements in the snapshot */
-        snap_start_seqno = remoteHighSeqno;
+        snapStartSeqno = remoteHighSeqno;
     }
 
     /* We need a rollback as producer upper is lower than the end in
        consumer snapshot */
     uint64_t rollbackSeqno;
-    if (upper < snap_start_seqno) {
+    if (upper < snapStartSeqno) {
         rollbackSeqno = upper;
     } else {
-        /* We have to rollback till snap_start_seqno to handle
+        /* We have to rollback till snapStartSeqno to handle
            deduplication case */
-        rollbackSeqno = snap_start_seqno;
+        rollbackSeqno = snapStartSeqno;
     }
 
     return RollbackDetails{fmt::format(

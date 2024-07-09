@@ -120,9 +120,9 @@ public:
      *                        from
      * @param localHighSeqno the current source sequence number for this vbucket
      * @param remoteVBUuid the latest vbucket uuid of the remote client
-     * @param snap_start_seqno the start seq number of the sanpshot
-     * @param snap_end_seqno the end seq number of the sanpshot
-     * @param purge_seqno last seq no purged during compaction
+     * @param snapStartSeqno the start seq number of the sanpshot
+     * @param snapEndSeqno the end seq number of the sanpshot
+     * @param purgeSeqno last seq no purged during compaction
      * @param strictVbUuidMatch indicates if remoteVBUuid should match even at
      *                          remoteHighSeqno 0
      * @param maxCollectionHighSeqno maximum high seqno of the collections in
@@ -137,9 +137,9 @@ public:
             uint64_t remoteHighSeqno,
             uint64_t localHighSeqno,
             uint64_t remoteVBUuid,
-            uint64_t snap_start_seqno,
-            uint64_t snap_end_seqno,
-            uint64_t purge_seqno,
+            uint64_t snapStartSeqno,
+            uint64_t snapEndSeqno,
+            uint64_t purgeSeqno,
             bool strictVbUuidMatch,
             std::optional<uint64_t> maxCollectionHighSeqno) const;
 
