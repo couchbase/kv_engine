@@ -483,7 +483,7 @@ public:
      *
      * @param sasl_mechanisms the new list of sasl mechanisms
      */
-    void setSaslMechanisms(const std::string& sasl_mechanisms);
+    void setSaslMechanisms(std::string sasl_mechanisms);
 
     /**
      * Get the list of available SASL Mechanisms to use for SSL
@@ -497,7 +497,7 @@ public:
      *
      * @param sasl_mechanisms the new list of sasl mechanisms
      */
-    void setSslSaslMechanisms(const std::string& ssl_sasl_mechanisms);
+    void setSslSaslMechanisms(std::string ssl_sasl_mechanisms);
 
     /**
      * Should the server return the cluster map it has already sent a

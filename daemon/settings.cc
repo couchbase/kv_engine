@@ -1072,13 +1072,8 @@ std::string Settings::getSaslMechanisms() const {
     return std::string{*sasl_mechanisms.rlock()};
 }
 
-void Settings::setSaslMechanisms(const std::string& mechanisms) {
-    std::string mechs;
-    std::transform(mechanisms.begin(),
-                   mechanisms.end(),
-                   std::back_inserter(mechs),
-                   toupper);
-    sasl_mechanisms.wlock()->assign(mechs);
+void Settings::setSaslMechanisms(std::string mechanisms) {
+    sasl_mechanisms = std::move(mechanisms);
     has.sasl_mechanisms = true;
     notify_changed("sasl_mechanisms");
 }
@@ -1087,13 +1082,8 @@ std::string Settings::getSslSaslMechanisms() const {
     return std::string{*ssl_sasl_mechanisms.rlock()};
 }
 
-void Settings::setSslSaslMechanisms(const std::string& mechanisms) {
-    std::string mechs;
-    std::transform(mechanisms.begin(),
-                   mechanisms.end(),
-                   std::back_inserter(mechs),
-                   toupper);
-    ssl_sasl_mechanisms.wlock()->assign(mechs);
+void Settings::setSslSaslMechanisms(std::string mechanisms) {
+    ssl_sasl_mechanisms = std::move(mechanisms);
     has.ssl_sasl_mechanisms = true;
     notify_changed("ssl_sasl_mechanisms");
 }
