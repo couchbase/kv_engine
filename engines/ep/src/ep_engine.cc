@@ -1062,11 +1062,11 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
                 msg = "Not my vbucket";
             }
         } else if (key == "magma_fusion_checkpointing_enabled") {
-            const auto bucketType = configuration.getBucketType();
+            const auto bucketType = configuration.getBucketTypeString();
             if (bucketType != "persistent") {
                 throw std::invalid_argument("bucket_type:" + bucketType);
             }
-            const auto backend = configuration.getBackend();
+            const auto backend = configuration.getBackendString();
             if (backend != "magma") {
                 throw std::invalid_argument("backend:" + backend);
             }
@@ -2073,7 +2073,7 @@ void EpEngineValueChangeListener::booleanValueChanged(std::string_view key,
 
 size_t EventuallyPersistentEngine::getShardCount() {
     auto configShardCount = configuration.getMaxNumShards();
-    if (configuration.getBackend() != "magma") {
+    if (configuration.getBackendString() != "magma") {
         return configuration.getMaxNumShards();
     }
 
@@ -2088,7 +2088,7 @@ size_t EventuallyPersistentEngine::getShardCount() {
 constexpr std::string_view magmaShardFile = "/magmaShardCount";
 
 std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
-    Expects(configuration.getBackend() == "magma");
+    Expects(configuration.getBackendString() == "magma");
 
     // Look for the file
     const auto shardFile = std::filesystem::path(
@@ -2113,7 +2113,7 @@ std::optional<size_t> EventuallyPersistentEngine::getShardCountFromDisk() {
 
 void EventuallyPersistentEngine::maybeSaveShardCount(
         WorkLoadPolicy& workloadPolicy) {
-    if (configuration.getBackend() == "magma") {
+    if (configuration.getBackendString() == "magma") {
         // We should have created this directory already
         Expects(std::filesystem::exists(configuration.getDbname()));
 
@@ -2216,7 +2216,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     if (isCrossBucketHtQuotaSharing) {
         // Ephemeral bucket are not supported together with quota sharing,
         // because we're not handling the fail_new_data policy.
-        Expects(configuration.getBucketType() != "ephemeral");
+        Expects(configuration.getBucketTypeString() != "ephemeral");
         getQuotaSharingManager().getGroup().add(*this);
     }
 
@@ -2266,7 +2266,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     maybeSaveShardCount(*workload);
 
-    setConflictResolutionMode(configuration.getConflictResolutionType());
+    setConflictResolutionMode(configuration.getConflictResolutionTypeString());
 
     dcpConnMap_ = std::make_unique<DcpConnMap>(*this);
 
@@ -2300,9 +2300,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     startupTime.store(ep_real_time());
 
     EP_LOG_INFO_CTX("EP Engine: Initialization of bucket complete",
-                    {"type", configuration.getBucketType()});
+                    {"type", configuration.getBucketTypeString()});
 
-    setCompressionMode(configuration.getCompressionMode());
+    setCompressionMode(configuration.getCompressionModeString());
 
     configuration.addValueChangedListener(
             "compression_mode",
@@ -2316,7 +2316,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     sanityCheckVBucketMapping = configuration.isVbucketMappingSanityChecking();
     vBucketMappingErrorHandlingMethod = cb::getErrorHandlingMethod(
-            configuration.getVbucketMappingSanityCheckingErrorMode());
+            configuration.getVbucketMappingSanityCheckingErrorModeString());
 
     configuration.addValueChangedListener(
             "vbucket_mapping_sanity_checking",
@@ -3435,7 +3435,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         collector.addStat(Key::ep_expiry_pager_task_time, "NOT_SCHEDULED");
     }
 
-    if (getConfiguration().getBucketType() == "persistent" &&
+    if (getConfiguration().getBucketTypeString() == "persistent" &&
         getConfiguration().isWarmup()) {
         Warmup* wp = kvBucket->getPrimaryWarmup();
         if (wp == nullptr) {
@@ -3497,22 +3497,22 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     // Note: These are also reported per-shard in 'kvstore' stats, however
     // we want to be able to graph these over time, and hence need to expose
     // to ns_sever at the top-level.
-    if (configuration.getBackend() == "couchdb") {
+    if (configuration.getBackendString() == "couchdb") {
         doEngineStatsCouchDB(collector, epstats);
-    } else if (configuration.getBackend() == "magma") {
+    } else if (configuration.getBackendString() == "magma") {
         doEngineStatsMagma(collector);
-    } else if (configuration.getBackend() == "nexus") {
+    } else if (configuration.getBackendString() == "nexus") {
         auto primaryCollector = collector.withLabel("backend", "primary");
-        if (configuration.getNexusPrimaryBackend() == "couchdb") {
+        if (configuration.getNexusPrimaryBackendString() == "couchdb") {
             doEngineStatsCouchDB(primaryCollector, epstats);
-        } else if (configuration.getNexusPrimaryBackend() == "magma") {
+        } else if (configuration.getNexusPrimaryBackendString() == "magma") {
             doEngineStatsMagma(primaryCollector);
         }
 
         auto secondaryCollector = collector.withLabel("backend", "secondary");
-        if (configuration.getNexusSecondaryBackend() == "couchdb") {
+        if (configuration.getNexusSecondaryBackendString() == "couchdb") {
             doEngineStatsCouchDB(secondaryCollector, epstats);
-        } else if (configuration.getNexusSecondaryBackend() == "magma") {
+        } else if (configuration.getNexusSecondaryBackendString() == "magma") {
             doEngineStatsMagma(secondaryCollector);
         }
     }
@@ -7251,7 +7251,7 @@ cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
 
 std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
         Configuration& config) {
-    const auto bucketType = config.getBucketType();
+    const auto bucketType = config.getBucketTypeString();
     if (bucketType == "persistent") {
         return std::make_unique<EPBucket>(*this);
     } else if (bucketType == "ephemeral") {

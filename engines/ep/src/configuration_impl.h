@@ -185,6 +185,17 @@ private:
     std::set<std::string> acceptable;
 };
 
+template <typename T>
+class TypedEnumValidator : public ValueChangedValidator {
+public:
+    TypedEnumValidator() = default;
+
+    void validateString(std::string_view key, const char* value) override {
+        T val;
+        cb::config::from_string(val, value);
+    }
+};
+
 class Requirement {
 public:
     Requirement* add(std::string_view key, value_variant_t value) {

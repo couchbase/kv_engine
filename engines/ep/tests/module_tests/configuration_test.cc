@@ -317,6 +317,33 @@ TEST(ConfigurationTest, ValidatorWorks) {
                         "and 100 (Got: 9)");
 }
 
+TEST(ConfigurationTest, GeneratedEnumWorks) {
+    using namespace cb::config;
+    ConfigurationShim configuration;
+
+    // Test using arbitrary dynamic enum parameter.
+    for (auto mode : {DcpOsoBackfill::Auto, DcpOsoBackfill::Enabled}) {
+        // Set using string.
+        EXPECT_NO_THROW(configuration.setDcpOsoBackfill(to_string(mode)))
+                << "Setting mode to " << format_as(mode);
+        // Set using enum.
+        EXPECT_NO_THROW(configuration.setDcpOsoBackfill(mode))
+                << "Setting mode to " << format_as(mode);
+        // Read back as string.
+        EXPECT_EQ(to_string(mode), configuration.getDcpOsoBackfillString());
+        // Read back as enum.
+        EXPECT_EQ(mode, configuration.getDcpOsoBackfill());
+    }
+
+    // Ensure validation works.
+    DcpOsoBackfill mode;
+    EXPECT_THROW(from_string(mode, "nonexistent"), std::range_error);
+    EXPECT_THROW(configuration.setDcpOsoBackfill("nonexistent"),
+                 std::range_error);
+    EXPECT_THROW(configuration.setParameter("dcp_oso_backfill", "nonexistent"),
+                 std::range_error);
+}
+
 class MockValueChangedListener : public ValueChangedListener {
 public:
     MOCK_METHOD2(booleanValueChanged, void(std::string_view, bool));

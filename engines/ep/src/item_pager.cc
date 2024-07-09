@@ -206,7 +206,7 @@ StrictQuotaItemPager::getEvictionStrategyFactory(
         EvictionRatios evictionRatios) {
     const auto& cfg = engine->getConfiguration();
 
-    auto strategy = cfg.getItemEvictionStrategy();
+    auto strategy = cfg.getItemEvictionStrategyString();
 
     if (strategy == "upfront_mfu_only") {
         MFUHistogram activePendingMFUHist;

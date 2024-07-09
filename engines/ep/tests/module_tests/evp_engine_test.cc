@@ -189,15 +189,15 @@ void EventuallyPersistentEngineTest::store_committed_item(
 }
 
 bool EPEngineParamTest::isPersistent() const {
-    return engine->getConfiguration().getBucketType() == "persistent";
+    return engine->getConfiguration().getBucketTypeString() == "persistent";
 }
 
 bool EPEngineParamTest::isMagma() const {
-    return engine->getConfiguration().getBackend() == "magma";
+    return engine->getConfiguration().getBackendString() == "magma";
 }
 
 TEST_P(EPEngineParamTest, requirements_bucket_type) {
-    std::string bucketType = engine->getConfiguration().getBucketType();
+    std::string bucketType = engine->getConfiguration().getBucketTypeString();
 
     struct value_t {
         std::string param;
@@ -471,7 +471,7 @@ TEST_P(EPEngineParamTest, MagmaFusionCheckpointingEnabled) {
             isPersistent()
                     ? (isMagma() ? ""
                                  : "backend:" + engine->getConfiguration()
-                                                        .getBackend())
+                                                        .getBackendString())
                     : "bucket_type:ephemeral";
     EXPECT_EQ(expectedMsg, outMsg);
 

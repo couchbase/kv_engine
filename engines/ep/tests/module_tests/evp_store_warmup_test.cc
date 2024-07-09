@@ -453,12 +453,12 @@ TEST_F(WarmupTest, MB_32577) {
 
     // reinitialise memcached and set everything up for warm up
     reinitialise("");
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
         static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
     } else {
         FAIL() << "Should not reach here - persistent buckets only. type:"
-               << engine->getConfiguration().getBucketType();
+               << engine->getConfiguration().getBucketTypeString();
     }
 
     // get hold of a pointer to the WarmUp object

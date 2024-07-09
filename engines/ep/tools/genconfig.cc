@@ -22,12 +22,19 @@ std::string prototypes;
 std::string initialization;
 std::string implementation;
 std::string addStatImplementation;
+std::string enumPrototypes;
+std::string enumImplementation;
 
 using getValidatorCode = std::string (*)(const std::string&,
                                          const nlohmann::json&);
 
 std::map<std::string, getValidatorCode> validators;
 std::map<std::string, std::string> datatypes;
+
+static std::string getCppName(const std::string& str);
+
+static std::string formatValue(const std::string value,
+                               const std::string& type);
 
 static std::string getDatatype(const std::string& key,
                                const nlohmann::json& json) {
@@ -158,24 +165,13 @@ static std::string getEnumValidatorCode(const std::string& key,
         exit(1);
     }
 
-    std::string out("(new EnumValidator())");
-
-    for (auto& obj : *first) {
-        if (obj.type() != nlohmann::json::value_t::string) {
-            fmt::print(stderr,
-                       "Incorrect validator for {}, all enum entries must be "
-                       "strings.\n",
-                       key);
-            exit(1);
-        }
-        out += fmt::format("\n\t\t->add(\"{}\")", obj.get<std::string>());
-    }
-    return out;
+    return fmt::format("(new TypedEnumValidator<cb::config::{}>())",
+                       getCppName(key));
 }
 
 static void initialize() {
     std::string_view header(R"(/*
- *     Copyright 2020-Present Couchbase, Inc.
+ *     Copyright 2024-Present Couchbase, Inc.
  *
  *   Use of this software is governed by the Business Source License included
  *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
@@ -191,6 +187,9 @@ static void initialize() {
 
     prototypes += header;
     implementation += header;
+    enumPrototypes += header;
+    enumImplementation += header;
+
     implementation += std::string_view{R"(
 #include "configuration.h"
 #include "configuration_impl.h"
@@ -200,6 +199,10 @@ static void initialize() {
 
 using namespace std::string_literals;
 
+)"};
+
+    enumImplementation += std::string_view{R"(
+#include "configuration.h"
 )"};
 
     validators["range"] = getRangeValidatorCode;
@@ -252,12 +255,15 @@ static std::vector<std::string> getAliases(const nlohmann::json& json) {
     return output;
 }
 
-static std::string getValidator(const std::string& key,
-                                const nlohmann::json& json) {
+/**
+ * Returns the validator and the generated code for the validator.
+ */
+static std::pair<std::string, std::string> getValidatorAndCode(
+        const std::string& key, const nlohmann::json& json) {
     auto validator = json.find("validator");
     if (validator == json.end()) {
         // No validator found
-        return "";
+        return {"", ""};
     }
 
     // Abort early if the validator is bad
@@ -280,7 +286,7 @@ static std::string getValidator(const std::string& key,
         exit(1);
     }
 
-    return (iter->second)(key, json);
+    return {first.key(), (iter->second)(key, json)};
 }
 
 /**
@@ -317,7 +323,7 @@ static std::string getRequirements(const std::string& key,
             exit(1);
         }
 
-        auto type = getDatatype(reqKey, params[reqKey]);
+        auto type = datatypes[getDatatype(reqKey, params[reqKey])];
         std::string value;
 
         switch (req.value().type()) {
@@ -375,13 +381,88 @@ static std::string getCppName(const std::string& str) {
     return out;
 }
 
+static std::string getEnumDefinitionCode(const std::string& key,
+                                         const nlohmann::json& enumValidator) {
+    std::string out(fmt::format("/// Possible values for \"{}\".\n", key));
+    auto typeName = getCppName(key);
+    out += fmt::format("enum class {} {{\n", typeName);
+    for (auto& value : enumValidator) {
+        out += std::string(4, ' ');
+        out += getCppName(value.get<std::string>());
+        out += ",\n";
+    }
+
+    out += "};\n";
+    out += fmt::format("std::string_view format_as({});\n", typeName);
+    out += fmt::format(
+            "void from_string({}&, std::string_view);\n", typeName, typeName);
+    return out;
+}
+
+static std::string getEnumImplementationCode(
+        const std::string& key, const nlohmann::json& enumValidator) {
+    auto typeName = getCppName(key);
+
+    // Formatting
+    std::string out;
+    out += fmt::format("std::string_view cb::config::format_as({} value) {{\n",
+                       typeName);
+
+    out += "    switch (value) {\n";
+    for (auto& value : enumValidator) {
+        out += fmt::format("    case {}::{}: return \"{}\";\n",
+                           typeName,
+                           getCppName(value.get<std::string>()),
+                           value.get<std::string>());
+    }
+    out += "    }\n";
+
+    out += fmt::format(
+            "    throw std::range_error(\"Invalid value for {}: \" + "
+            "std::to_string(static_cast<int>(value)));\n",
+            key);
+    out += "}\n";
+
+    // Parsing
+    out += fmt::format(
+            "void cb::config::from_string({}& out, std::string_view input) "
+            "{{\n",
+            typeName);
+    for (auto& value : enumValidator) {
+        out += fmt::format(
+                "    if (input == \"{}\") {{ out = {}::{}; return; }}\n",
+                value.get<std::string>(),
+                typeName,
+                getCppName(value.get<std::string>()));
+    }
+    out += fmt::format(
+            "    throw std::range_error(\"Invalid value for {}: \" + "
+            "std::string(input));\n",
+            key);
+    out += "}\n";
+
+    return out;
+}
+
 static std::string formatValue(const std::string value,
                                const std::string& type) {
-    if (type == "std::string") {
+    if (type == "std::string" || type.find("Configuration::") == 0) {
         return fmt::format("\"{}\"s", value);
     } else {
         return fmt::format("static_cast<{}>({})", type, value);
     }
+}
+
+/**
+ * Remove leading characters.
+ */
+static std::string_view trimLeft(std::string_view input,
+                                 std::string_view chars = "\t\n ") {
+    const auto idx = input.find_first_not_of(chars);
+    if (idx == std::string_view::npos) {
+        return input;
+    }
+    return input.substr(idx);
 }
 
 static void generate(const nlohmann::json& params, const std::string& key) {
@@ -440,17 +521,36 @@ static void generate(const nlohmann::json& params, const std::string& key) {
         }
     }
 
-    auto validator = getValidator(key, json);
+    auto [validator, validatorCode] = getValidatorAndCode(key, json);
     auto requirements = getRequirements(key, json, params);
 
+    const bool isEnum = validator == "enum";
+    std::string getterSuffix = isEnum ? "String" : "";
+
     // Generate prototypes
-    prototypes += fmt::format(
-            "    {} {}{}() const;\n", type, getGetterPrefix(type), cppName);
+    prototypes += fmt::format("    {} {}{}{}() const;\n",
+                              type,
+                              getGetterPrefix(type),
+                              cppName,
+                              getterSuffix);
     const auto dynamic = !isReadOnly(json);
 
     if (dynamic) {
         prototypes +=
                 fmt::format("    void set{}(const {} &nval);\n", cppName, type);
+    }
+
+    if (isEnum) {
+        enumPrototypes += getEnumDefinitionCode(key, json["validator"]["enum"]);
+        prototypes += fmt::format(
+                "    cb::config::{} get{}() const;\n", cppName, cppName);
+
+        if (dynamic) {
+            prototypes +=
+                    fmt::format("    void set{}(const cb::config::{} &nval);\n",
+                                cppName,
+                                cppName);
+        }
     }
 
     // Generate initialization code
@@ -469,9 +569,9 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                                       dynamic);
     }
 
-    if (!validator.empty()) {
+    if (!validatorCode.empty()) {
         initialization += fmt::format(
-                "    setValueValidator(\"{}\", {});\n", key, validator);
+                "    setValueValidator(\"{}\", {});\n", key, validatorCode);
     }
     if (!requirements.empty()) {
         initialization += fmt::format(
@@ -486,11 +586,12 @@ static void generate(const nlohmann::json& params, const std::string& key) {
 
     // Generate the getter
     implementation += fmt::format(
-            "{} Configuration::{}{}() const {{\n    "
+            "{} Configuration::{}{}{}() const {{\n    "
             "return getParameter<{}>(\"{}\");\n}}\n",
             type,
             getGetterPrefix(type),
             cppName,
+            getterSuffix,
             datatypes[type],
             key);
     if (!isReadOnly(json)) {
@@ -501,6 +602,38 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                 cppName,
                 type,
                 key);
+    }
+
+    if (isEnum) {
+        implementation += fmt::format(fmt::runtime(trimLeft(R"#(
+cb::config::{} Configuration::{}{}() const {{
+    auto str = getParameter<{}>("{}");
+    cb::config::{} val;
+    from_string(val, str);
+    return val;
+}}
+)#")),
+                                      cppName,
+                                      getGetterPrefix(type),
+                                      cppName,
+                                      datatypes[type],
+                                      key,
+                                      cppName,
+                                      cppName);
+        if (!isReadOnly(json)) {
+            // generate the setter
+            implementation += fmt::format(fmt::runtime(trimLeft(R"#(
+void Configuration::set{}(const cb::config::{} &nval) {{
+    setParameter("{}", std::string(format_as(nval)));
+}}
+)#")),
+                                          cppName,
+                                          cppName,
+                                          key);
+        }
+
+        enumImplementation +=
+                getEnumImplementationCode(key, json["validator"]["enum"]);
     }
 
     // collect all the aliases
@@ -524,9 +657,10 @@ static void generate(const nlohmann::json& params, const std::string& key) {
  * for the parameters in there.
  */
 int main(int argc, char **argv) {
-    if (argc < 4) {
+    if (argc < 6) {
         fmt::print(stderr,
-                   "Usage: {} <input config file> <header> <source>\n",
+                   "Usage: {} <input config file> <header> <source> "
+                   "<enum-header> <enum-source>\n",
                    argv[0]);
         return 1;
     }
@@ -534,6 +668,8 @@ int main(int argc, char **argv) {
     const std::string file = argv[1];
     const std::string header = argv[2];
     const std::string source = argv[3];
+    const std::string enumHeader = argv[4];
+    const std::string enumSource = argv[5];
 
     initialize();
 
@@ -555,31 +691,58 @@ int main(int argc, char **argv) {
         generate(*params, obj.key());
     }
 
-    std::ofstream headerfile(header);
-    if (!headerfile.is_open()) {
-        fmt::print(stderr, "Unable to create header file : {}\n", header);
-        return 1;
+    {
+        std::ofstream headerfile(header);
+        if (!headerfile.is_open()) {
+            fmt::print(stderr, "Unable to create header file : {}\n", header);
+            return 1;
+        }
+        headerfile << prototypes;
+        headerfile.close();
     }
-    headerfile << prototypes;
-    headerfile.close();
 
-    std::ofstream implfile(source);
-    if (!implfile.is_open()) {
-        fmt::print(stderr, "Unable to create source file : {}\n", header);
-        return 1;
+    {
+        std::ofstream implfile(source);
+        if (!implfile.is_open()) {
+            fmt::print(stderr, "Unable to create source file : {}\n", header);
+            return 1;
+        }
+        implfile << implementation << std::endl
+                 << "void Configuration::initialize() {" << std::endl
+                 << initialization << "}" << std::endl
+                 << std::endl
+                 << "void Configuration::addStats(const BucketStatCollector& "
+                    "collector) const {"
+                 << std::endl
+                 << "    using namespace cb::stats;" << std::endl
+                 << "    using namespace std::string_view_literals;"
+                 << std::endl
+                 << "    std::lock_guard<std::mutex> lh(mutex);" << std::endl
+                 << addStatImplementation << "}" << std::endl;
+        implfile.close();
     }
-    implfile << implementation << std::endl
-             << "void Configuration::initialize() {" << std::endl
-             << initialization << "}" << std::endl
-             << std::endl
-             << "void Configuration::addStats(const BucketStatCollector& "
-                "collector) const {"
-             << std::endl
-             << "    using namespace cb::stats;" << std::endl
-             << "    using namespace std::string_view_literals;" << std::endl
-             << "    std::lock_guard<std::mutex> lh(mutex);" << std::endl
-             << addStatImplementation << "}" << std::endl;
-    implfile.close();
+
+    {
+        std::ofstream enumHeaderfile(enumHeader);
+        if (!enumHeaderfile.is_open()) {
+            fmt::print(
+                    stderr, "Unable to create header file : {}\n", enumHeader);
+            return 1;
+        }
+        enumHeaderfile << enumPrototypes;
+        enumHeaderfile.close();
+    }
+
+    {
+        std::ofstream enumImplfile(enumSource);
+        if (!enumImplfile.is_open()) {
+            fmt::print(
+                    stderr, "Unable to create source file : {}\n", enumSource);
+            return 1;
+        }
+        enumImplfile << enumImplementation;
+        enumImplfile.close();
+    }
 
     return 0;
 }

@@ -363,7 +363,7 @@ int KVBucketTest::flushVBucket(Vbid vbid) {
 }
 
 bool KVBucketTest::persistent() const {
-    return engine->getConfiguration().getBucketType() == "persistent";
+    return engine->getConfiguration().getBucketTypeString() == "persistent";
 }
 
 void KVBucketTest::flushVBucketToDiskIfPersistent(Vbid vbid, int expected) {
@@ -578,8 +578,8 @@ Collections::Manager& KVBucketTest::getCollectionsManager() {
  * the config to be sure the KVBucket is persistent/couchstore
  */
 void KVBucketTest::replaceCouchKVStore(FileOpsInterface* ops) {
-    ASSERT_EQ(engine->getConfiguration().getBucketType(), "persistent");
-    ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
+    ASSERT_EQ(engine->getConfiguration().getBucketTypeString(), "persistent");
+    ASSERT_EQ(engine->getConfiguration().getBackendString(), "couchdb");
 
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
 
@@ -597,8 +597,8 @@ void KVBucketTest::replaceCouchKVStore(FileOpsInterface* ops) {
 }
 
 void KVBucketTest::replaceMagmaKVStore(MagmaKVStoreConfig& config) {
-    EXPECT_EQ(engine->getConfiguration().getBucketType(), "persistent");
-    EXPECT_EQ(engine->getConfiguration().getBackend(), "magma");
+    EXPECT_EQ(engine->getConfiguration().getBucketTypeString(), "persistent");
+    EXPECT_EQ(engine->getConfiguration().getBackendString(), "magma");
 #ifdef EP_USE_MAGMA
     store->takeRW(0);
     auto rw = std::make_unique<MockMagmaKVStore>(config);
@@ -903,7 +903,7 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         // Trigger a flush to disk.
         flush_vbucket_to_disk(vbid);
     }
@@ -915,8 +915,8 @@ TEST_P(KVBucketParamTest, SetCASDeleted) {
     item2.setCas(cas);
 
     // Store item
-    if (engine->getConfiguration().getItemEvictionPolicy() ==
-               "full_eviction") {
+    if (engine->getConfiguration().getItemEvictionPolicyString() ==
+        "full_eviction") {
         EXPECT_EQ(cb::engine_errc::would_block, store->set(item2, cookie));
         runBGFetcherTask();
     }
@@ -950,7 +950,7 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItem) {
     item2.setDeleted();
     item2.setCas(item.getCas() + 1);
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         // Deleted item won't be resident (after a flush), so expect to need to
         // bgfetch.
         EXPECT_EQ(cb::engine_errc::would_block, store->set(item2, cookie));
@@ -980,7 +980,7 @@ TEST_P(KVBucketParamTest, MB_25398_SetCASDeletedItemNegative) {
     item2.setDeleted();
     item2.setCas(1234);
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         // Deleted item won't be resident (after a flush), so expect to need to
         // bgfetch.
         EXPECT_EQ(cb::engine_errc::would_block, store->set(item2, cookie));
@@ -1215,11 +1215,11 @@ TEST_P(KVBucketParamTest, MB_28078_SetWithMeta_tempDeleted) {
                                   /*allowExisting*/ true);
     };
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         ASSERT_EQ(cb::engine_errc::would_block, doSetWithMeta());
     }
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         runBGFetcherTask();
         ASSERT_EQ(cb::engine_errc::key_already_exists, doSetWithMeta());
     }
@@ -1282,7 +1282,7 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
     // A persistent bucket will store something then set the hlc_epoch
     // An ephemeral bucket always has an epoch
     int64_t initialEpoch =
-            engine->getConfiguration().getBucketType() == "persistent"
+            engine->getConfiguration().getBucketTypeString() == "persistent"
                     ? HlcCasSeqnoUninitialised
                     : 0;
 
@@ -1318,7 +1318,7 @@ TEST_P(KVBucketParamTest, test_hlcEpochSeqno) {
 }
 
 TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
-    if (engine->getConfiguration().getExecutorPoolBackend() == "folly") {
+    if (engine->getConfiguration().getExecutorPoolBackendString() == "folly") {
         // doWorkerStat() as required by this test below not yet implemented
         // for FollyExecutorPool.
         GTEST_SKIP();
@@ -1416,7 +1416,7 @@ cb::engine_errc KVBucketTest::getMeta(Vbid vbid,
     };
 
     auto engineResult = doGetMetaData();
-    if (engine->getConfiguration().getBucketType() == "persistent" &&
+    if (engine->getConfiguration().getBucketTypeString() == "persistent" &&
         retryOnEWouldBlock) {
         EXPECT_EQ(cb::engine_errc::would_block, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
@@ -1444,7 +1444,7 @@ TEST_P(KVBucketParamTest, lockKeyTempDeletedTest) {
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         expTempItems = 1;
     }
 
@@ -1494,7 +1494,7 @@ TEST_P(KVBucketParamTest, unlockKeyTempDeletedTest) {
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         expTempItems = 1;
     }
 
@@ -1588,7 +1588,7 @@ TEST_P(KVBucketParamTest, replaceTempDeletedTest) {
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         expTempItems = 1;
     }
 
@@ -1617,7 +1617,7 @@ TEST_P(KVBucketParamTest, statsVKeyTempDeletedTest) {
 
     int expTempItems = 0;
     cb::engine_errc expRetCode = cb::engine_errc::not_supported;
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         expTempItems = 1;
         expRetCode = cb::engine_errc::no_such_key;
     }
@@ -1643,7 +1643,7 @@ TEST_P(KVBucketParamTest, getAndUpdateTtlTempDeletedItemTest) {
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         expTempItems = 1;
     }
 
@@ -1671,7 +1671,7 @@ TEST_P(KVBucketParamTest, validateKeyTempDeletedItemTest) {
     ASSERT_TRUE(deleted);
 
     int expTempItems = 0;
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         expTempItems = 1;
     }
 
@@ -1767,7 +1767,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
 
     auto engineResult = doGetMetaData();
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         EXPECT_EQ(cb::engine_errc::would_block, engineResult);
         // Manually run the bgfetch task, and re-attempt getMetaData
         runBGFetcherTask();
@@ -1790,7 +1790,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
     result = doGet();
 
     // Manually run the bgfetch task and retry the get()
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         ASSERT_EQ(cb::engine_errc::would_block, result.getStatus());
         runBGFetcherTask();
         result = doGet();
@@ -1923,7 +1923,8 @@ TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     // Test: Attempt to read expired item.
-    if (engine->getConfiguration().getItemEvictionPolicy() == "full_eviction") {
+    if (engine->getConfiguration().getItemEvictionPolicyString() ==
+        "full_eviction") {
         EXPECT_NE(nullptr, cookie);
         auto result = store->getReplica(key, vbid, cookie, options);
         EXPECT_EQ(cb::engine_errc::would_block, result.getStatus());

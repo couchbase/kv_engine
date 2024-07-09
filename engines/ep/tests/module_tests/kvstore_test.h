@@ -138,25 +138,26 @@ protected:
                             const vb_bgfetch_item_ctx_t& fetched) const;
 
     bool isCouchstore() const {
-        return config.getBackend() == "couchdb" || isNexusCouchstorePrimary();
+        return config.getBackendString() == "couchdb" ||
+               isNexusCouchstorePrimary();
     }
 
     bool isMagma() const {
-        return config.getBackend() == "magma" || isNexusMagmaPrimary();
+        return config.getBackendString() == "magma" || isNexusMagmaPrimary();
     }
 
     bool isNexusCouchstorePrimary() const {
-        return config.getBackend() == "nexus" &&
-               config.getNexusPrimaryBackend() == "couchdb";
+        return config.getBackendString() == "nexus" &&
+               config.getNexusPrimaryBackendString() == "couchdb";
     }
 
     bool isNexusMagmaPrimary() const {
-        return config.getBackend() == "nexus" &&
-               config.getNexusPrimaryBackend() == "magma";
+        return config.getBackendString() == "nexus" &&
+               config.getNexusPrimaryBackendString() == "magma";
     }
 
     bool isNexus() const {
-        return config.getBackend() == "nexus";
+        return config.getBackendString() == "nexus";
     }
 
     /**

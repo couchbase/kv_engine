@@ -702,9 +702,9 @@ MagmaKVStore::MagmaKVStore(
     configuration.magmaCfg.MemoryQuotaLowWaterMarkRatio =
             configuration.getMagmaMemoryQuotaLowWaterMarkRatio();
     configuration.magmaCfg.CompressionAlgo =
-            configuration.getMagmaIndexCompressionAlgo();
+            configuration.getMagmaIndexCompressionAlgoString();
     configuration.magmaCfg.DataCompressionAlgo =
-            configuration.getMagmaDataCompressionAlgo();
+            configuration.getMagmaDataCompressionAlgoString();
     configuration.magmaCfg.SeqTreeBlockSize =
             configuration.getMagmaSeqTreeDataBlockSize();
     configuration.magmaCfg.SeqTreeIndexBlockSize =

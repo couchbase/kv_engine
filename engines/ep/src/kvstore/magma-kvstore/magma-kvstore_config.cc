@@ -121,8 +121,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             config.getMagmaGroupCommitMaxSyncWaitDurationMs());
     magmaGroupCommitMaxTransactionCount =
             config.getMagmaGroupCommitMaxTransactionCount();
-    magmaIndexCompressionAlgo = config.getMagmaIndexCompressionAlgo();
-    magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgo();
+    magmaIndexCompressionAlgo = config.getMagmaIndexCompressionAlgoString();
+    magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgoString();
     perDocumentCompressionEnabled =
             config.isMagmaPerDocumentCompressionEnabled();
     magmaSeqTreeDataBlockSize = config.getMagmaSeqTreeDataBlockSize();
@@ -165,7 +165,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     sanityCheckVBucketMapping = config.isVbucketMappingSanityChecking();
     vBucketMappingErrorHandlingMethod = cb::getErrorHandlingMethod(
-            config.getVbucketMappingSanityCheckingErrorMode());
+            config.getVbucketMappingSanityCheckingErrorModeString());
 
     config.addValueChangedListener(
             "vbucket_mapping_sanity_checking",

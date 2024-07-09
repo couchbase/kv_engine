@@ -4797,9 +4797,10 @@ TEST_P(DurabilityBucketTest, SetMinDurabilityLevel_UnknownLevel) {
     try {
         config.setDurabilityMinLevel("non-existing-level");
     } catch (const std::range_error& e) {
-        ASSERT_TRUE(std::string(e.what()).find(
-                            "Validation Error, durability_min_level") !=
-                    std::string::npos);
+        using namespace std::string_view_literals;
+        ASSERT_EQ(
+                "Invalid value for durability_min_level: non-existing-level"sv,
+                e.what());
         return;
     }
     FAIL();

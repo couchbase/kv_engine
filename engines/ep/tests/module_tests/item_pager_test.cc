@@ -88,7 +88,7 @@ protected:
         // How many nonIO tasks we expect initially
         // - 0 for persistent.
         // - 1 for Ephemeral (EphTombstoneHTCleaner).
-        if (engine->getConfiguration().getBucketType() == "ephemeral") {
+        if (engine->getConfiguration().getBucketTypeString() == "ephemeral") {
             ++initialNonIoTasks;
         }
 
@@ -370,7 +370,7 @@ protected:
 
         // For Ephemeral fail_new_data buckets we have no item pager, instead
         // the Expiry pager is used.
-        if (engine->getConfiguration().getEphemeralFullPolicy() ==
+        if (engine->getConfiguration().getEphemeralFullPolicyString() ==
             "fail_new_data") {
             // change the config and allow the listener to enable the task
             // (ensures the config is consistent with reality, rather than
@@ -1870,7 +1870,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
     runHighMemoryPager();
 
     // Expected active vb behaviour depends on the full policy:
-    if (engine->getConfiguration().getEphemeralFullPolicy() ==
+    if (engine->getConfiguration().getEphemeralFullPolicyString() ==
         "fail_new_data") {
         EXPECT_EQ(store->getVBucket(replica_vb)->getNumItems(), replica_count)
                 << "Expected replica count to remain equal";
@@ -2402,7 +2402,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
         setVBucketStateAndRunPersistTask(Vbid(i + 12), vbucket_state_replica);
     }
 
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         // flush all vbs
         for (const auto& vbid : allVBs) {
             dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);

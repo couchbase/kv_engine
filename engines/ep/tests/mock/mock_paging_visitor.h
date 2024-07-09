@@ -41,7 +41,7 @@ public:
                 }));
     }
 
-    ItemEvictionStrategy& getItemEvictionStrategy() {
+    ItemEvictionStrategy& getItemEvictionStrategyString() {
         return *evictionStrategy;
     }
 

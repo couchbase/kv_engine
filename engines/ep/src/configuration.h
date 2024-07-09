@@ -17,6 +17,8 @@
 #include <mutex>
 #include <string>
 
+#include "configuration_types.h"
+
 // forward decl
 
 namespace cb::stats {
@@ -374,7 +376,7 @@ private:
     std::map<std::string, std::shared_ptr<value_t>, std::less<>> attributes;
 
     friend std::ostream& operator<< (std::ostream& out,
-                                     const Configuration &config);
+                                    const Configuration& config);
 };
 
 // This specialisation is needed to convert char* to std::string to store in

@@ -730,7 +730,7 @@ class CollectionRessurectionKVStoreTest
       public ::testing::WithParamInterface<
               std::tuple<std::string, int, bool, bool, int>> {
 public:
-    std::string getBackend() const {
+    std::string getBackendString() const {
         return std::get<0>(GetParam());
     }
 
@@ -783,7 +783,7 @@ public:
 
     void SetUp() override {
         KVStoreTest::SetUp();
-        KVStoreBackend::setup(data_dir, getBackend());
+        KVStoreBackend::setup(data_dir, getBackendString());
     }
 
     void TearDown() override {

@@ -89,7 +89,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     maxItemSize = configuration.getMaxItemSize();
 
-    setConflictResolutionMode(configuration.getConflictResolutionType());
+    setConflictResolutionMode(configuration.getConflictResolutionTypeString());
 
     allowSanitizeValueInDeletion =
             configuration.isAllowSanitizeValueInDeletion();
@@ -155,7 +155,8 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
 
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));
-    engine->setCompressionMode(engine->getConfiguration().getCompressionMode());
+    engine->setCompressionMode(
+            engine->getConfiguration().getCompressionModeString());
 
     engine->setMaxDataSize(engine->getConfiguration().getMaxSize());
 
@@ -214,7 +215,7 @@ void SynchronousEPEngine::initializeConnmap() {
 
 std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
         Configuration& config) {
-    const auto bucketType = config.getBucketType();
+    const auto bucketType = config.getBucketTypeString();
     if (bucketType == "persistent") {
         auto bucket = std::make_unique<testing::NiceMock<MockEPBucket>>(*this);
         bucket->initializeMockBucket();

@@ -270,7 +270,8 @@ public:
     void flushNodeIfPersistent(Node node = Node0) {
         ASSERT_TRUE(engines[node])
                 << "flushNodeIfPersistent: No engine for Node" << node;
-        if (engines[node]->getConfiguration().getBucketType() == "persistent") {
+        if (engines[node]->getConfiguration().getBucketTypeString() ==
+            "persistent") {
             auto& replicaKVB = *engines[node]->getKVBucket();
             dynamic_cast<EPBucket&>(replicaKVB).flushVBucket(vbid);
         }
@@ -1342,7 +1343,7 @@ public:
         return std::get<2>(GetParam());
     }
 
-    std::string getBucketType() {
+    std::string getBucketTypeString() {
         return std::get<0>(GetParam());
     }
 
@@ -1355,7 +1356,7 @@ public:
             config_string += ";";
         }
 
-        auto bucketType = getBucketType();
+        auto bucketType = getBucketTypeString();
         config_string += generateBackendConfig(bucketType);
 
         auto evictionPolicy = getEvictionPolicy();

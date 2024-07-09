@@ -273,7 +273,7 @@ VBucket::VBucket(Vbid i,
       seqnoAckCb(std::move(seqnoAckCb)),
       mayContainXattrs(mightContainXattrs) {
     ht.minimumSize = [bucket]() { return bucket->getMinimumHashTableSize(); };
-    if (config.getConflictResolutionType() == "seqno") {
+    if (config.getConflictResolutionTypeString() == "seqno") {
         conflictResolver = std::make_unique<RevisionSeqnoResolution>();
     } else {
         // Both last-write-wins and custom conflict resolution are treated

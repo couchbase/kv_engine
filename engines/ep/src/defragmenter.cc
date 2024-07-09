@@ -117,7 +117,7 @@ std::chrono::duration<double> DefragmenterTask::defrag() {
     // Only defragment StoredValues of persistent buckets because the
     // HashTable defrag method doesn't yet know how to maintain the
     // ephemeral seqno linked-list
-    if (engine->getConfiguration().getBucketType() == "persistent") {
+    if (engine->getConfiguration().getBucketTypeString() == "persistent") {
         visitor.setStoredValueAgeThreshold(getStoredValueAgeThreshold());
     }
     visitor.clearStats();
@@ -198,9 +198,11 @@ std::chrono::milliseconds DefragmenterTask::getCurrentSleepTime() const {
 DefragmenterTask::SleepTimeAndRunState
 DefragmenterTask::calculateSleepTimeAndRunState(
         const cb::FragmentationStats& fragStats) {
-    if (engine->getConfiguration().getDefragmenterMode() == "auto_linear") {
+    if (engine->getConfiguration().getDefragmenterModeString() ==
+        "auto_linear") {
         return calculateSleepLinear(fragStats);
-    } else if (engine->getConfiguration().getDefragmenterMode() == "auto_pid") {
+    } else if (engine->getConfiguration().getDefragmenterModeString() ==
+               "auto_pid") {
         return calculateSleepPID(fragStats);
     }
     return {std::chrono::duration<double>{

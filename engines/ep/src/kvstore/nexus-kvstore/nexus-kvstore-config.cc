@@ -25,14 +25,14 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
                                        uint16_t numShards,
                                        uint16_t shardId)
     : KVStoreConfig(config, backend, numShards, shardId) {
-    auto primaryBackend = config.getNexusPrimaryBackend();
+    auto primaryBackend = config.getNexusPrimaryBackendString();
     primaryConfig = KVStoreConfig::createKVStoreConfig(
             config, primaryBackend, numShards, shardId);
 
     primaryConfig->setDBName(primaryConfig->getDBName() +
                              cb::io::DirectorySeparator + "nexus-primary");
 
-    auto secondaryBackend = config.getNexusSecondaryBackend();
+    auto secondaryBackend = config.getNexusSecondaryBackendString();
     secondaryConfig = KVStoreConfig::createKVStoreConfig(
             config, secondaryBackend, numShards, shardId);
 
@@ -80,7 +80,7 @@ NexusKVStoreConfig::NexusKVStoreConfig(Configuration& config,
     }
 
     errorHandlingMethod =
-            cb::getErrorHandlingMethod(config.getNexusErrorHandling());
+            cb::getErrorHandlingMethod(config.getNexusErrorHandlingString());
 
     implicitCompactionEnabled = config.isNexusImplicitCompactionEnabled();
     concurrentFlushCompactionEnabled =

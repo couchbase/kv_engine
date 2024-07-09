@@ -2125,7 +2125,7 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         // - dcp_oso_backfill is set to enabled,
         // - dcp_oso_backfill is set to "auto", and OSO is predicted to be
         //   faster for this backfill.
-        const auto osoBackfill = config.getDcpOsoBackfill();
+        const auto osoBackfill = config.getDcpOsoBackfillString();
         if (osoBackfill == "disabled") {
             return false;
         }

@@ -26,7 +26,7 @@ KVShard::KVShard(Configuration& config,
       // when vbuckets isn't a multiple of num_shards, apply ceil() to the
       // division so we round up where necessary.
       vbuckets(std::ceil(float(config.getMaxVbuckets()) / numShards)) {
-    const std::string backend = config.getBackend();
+    const std::string backend = config.getBackendString();
 
     kvConfig =
             KVStoreConfig::createKVStoreConfig(config, backend, numShards, id);

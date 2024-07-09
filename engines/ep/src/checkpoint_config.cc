@@ -35,7 +35,7 @@ private:
 
 CheckpointConfig::CheckpointConfig(Configuration& config)
     : maxCheckpoints(config.getMaxCheckpoints()),
-      persistenceEnabled(config.getBucketType() == "persistent"),
+      persistenceEnabled(config.getBucketTypeString() == "persistent"),
       checkpointMaxSize(config.getCheckpointMaxSize()) {
 }
 

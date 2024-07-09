@@ -64,7 +64,7 @@ bool HashtableResizerTask::run() {
     TRACE_EVENT0("ep-engine/task", "HashtableResizerTask");
 
     HashTable::ResizeAlgo resizeAlgoToUse;
-    if (engine->getConfiguration().getHtResizeAlgo() == "incremental") {
+    if (engine->getConfiguration().getHtResizeAlgoString() == "incremental") {
         resizeAlgoToUse = HashTable::ResizeAlgo::Incremental;
     } else {
         resizeAlgoToUse = HashTable::ResizeAlgo::OneStep;

@@ -113,7 +113,7 @@ bool EphemeralBucket::initialize() {
     // Item pager - only scheduled if "auto_delete" is specified as the bucket
     // full policy, but always add a value changed listener so we can handle
     // dynamic config changes (and later schedule it).
-    if (config.getEphemeralFullPolicy() == "auto_delete") {
+    if (config.getEphemeralFullPolicyString() == "auto_delete") {
         enableItemPager();
     }
     engine.getConfiguration().addValueChangedListener(
@@ -242,7 +242,8 @@ void EphemeralBucket::attemptToFreeMemory() {
     // normally handles deleting expired items (while looking for items to
     // evict). Instead manually trigger the expiryPager now, to delete any
     // expired items.
-    if (engine.getConfiguration().getEphemeralFullPolicy() == "fail_new_data") {
+    if (engine.getConfiguration().getEphemeralFullPolicyString() ==
+        "fail_new_data") {
         wakeUpExpiryPager();
     }
 
@@ -461,6 +462,6 @@ cb::engine_errc EphemeralBucket::getImplementationStats(
 }
 
 bool EphemeralBucket::disconnectReplicationAtOOM() const {
-    return engine.getConfiguration().getEphemeralFullPolicy() ==
+    return engine.getConfiguration().getEphemeralFullPolicyString() ==
            "fail_new_data";
 }

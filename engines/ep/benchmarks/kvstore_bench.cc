@@ -104,8 +104,11 @@ protected:
                                 config.getMaxNumShards());
 
         // Initialize KVStore
-        kvstoreConfig = KVStoreConfig::createKVStoreConfig(
-                config, config.getBackend(), workload.getNumShards(), shardId);
+        kvstoreConfig =
+                KVStoreConfig::createKVStoreConfig(config,
+                                                   config.getBackendString(),
+                                                   workload.getNumShards(),
+                                                   shardId);
 
         std::filesystem::remove_all(kvstoreConfig->getDBName());
         std::filesystem::create_directories(kvstoreConfig->getDBName());

@@ -276,10 +276,11 @@ void KVStoreBackend::setup(const std::string& dataDir,
     WorkLoadPolicy workload(config.getMaxNumWorkers(),
                             config.getMaxNumShards());
 
-    kvstoreConfig = KVStoreConfig::createKVStoreConfig(config,
-                                                       config.getBackend(),
-                                                       workload.getNumShards(),
-                                                       0 /*shardId*/);
+    kvstoreConfig =
+            KVStoreConfig::createKVStoreConfig(config,
+                                               config.getBackendString(),
+                                               workload.getNumShards(),
+                                               0 /*shardId*/);
     kvstore = setup_kv_store(*kvstoreConfig);
 }
 
@@ -1812,7 +1813,7 @@ void KVStoreParamTest::testPerDocumentCompression(bool useJson) {
 TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Binary) {
     // check that an item written without snappy compression will be compressed
     // by magma
-    if (config.getBackend() != "magma") {
+    if (config.getBackendString() != "magma") {
         // TODO MB-53859: Run these tests for all kvstores once
         // couchstore decompresses items for VALUES_DECOMPRESSED even if
         // they were compressed _before_ being written to the kvstore
@@ -1825,7 +1826,7 @@ TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Binary) {
 TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Json) {
     // check that a json item written without snappy compression will be
     // compressed by magma
-    if (config.getBackend() != "magma") {
+    if (config.getBackendString() != "magma") {
         GTEST_SKIP();
     }
     testPerDocumentCompression(true /* useJson */);
@@ -1834,7 +1835,7 @@ TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Json) {
 TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Disabled) {
     // check that a per document compression under magma can be disabled
     // successfully
-    if (config.getBackend() != "magma") {
+    if (config.getBackendString() != "magma") {
         GTEST_SKIP();
     }
 

@@ -639,7 +639,7 @@ public:
 
     bool isNexus() const;
 
-    std::string getBackend() const {
+    std::string getBackendString() const {
         return GetParam();
     }
 

@@ -2964,7 +2964,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         auto d = DiskChecker(vb,
                              CollectionEntry::defaultC,
                              getPrepareStatCheckerPostFuncForBackend(
-                                     getBackend(), std::greater<>()));
+                                     getBackendString(), std::greater<>()));
 
         using namespace cb::durability;
         store_item(vbid,
@@ -3000,7 +3000,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         auto d = DiskChecker(vb,
                              CollectionEntry::defaultC,
                              getPrepareStatCheckerPostFuncForBackend(
-                                     getBackend(), comparator));
+                                     getBackendString(), comparator));
         runCompaction(vbid, 0, false);
     }
 
@@ -3021,7 +3021,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         auto d = DiskChecker(vb,
                              CollectionEntry::defaultC,
                              getPrepareStatCheckerPostFuncForBackend(
-                                     getBackend(), comparator));
+                                     getBackendString(), comparator));
 
         using namespace cb::durability;
         store_item(vbid,
@@ -3041,7 +3041,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         auto d = DiskChecker(vb,
                              CollectionEntry::defaultC,
                              getPrepareStatCheckerPostFuncForBackend(
-                                     getBackend(), std::less<>()));
+                                     getBackendString(), std::less<>()));
 
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         vb->abort(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));

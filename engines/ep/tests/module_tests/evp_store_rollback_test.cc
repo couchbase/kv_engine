@@ -107,8 +107,8 @@ protected:
     }
 
 public:
-    std::string getBackend() const {
-        return engine->getConfiguration().getBackend();
+    std::string getBackendString() const {
+        return engine->getConfiguration().getBackendString();
     }
 
     std::string getEvictionMode() const {

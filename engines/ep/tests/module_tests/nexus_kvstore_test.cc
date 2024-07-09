@@ -94,7 +94,8 @@ public:
     void collectionDropCompactionTest(bool withItems);
 
     bool isMagmaPrimary() {
-        return engine->getConfiguration().getNexusPrimaryBackend() == "magma";
+        return engine->getConfiguration().getNexusPrimaryBackendString() ==
+               "magma";
     }
 };
 

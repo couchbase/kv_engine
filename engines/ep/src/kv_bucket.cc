@@ -392,18 +392,18 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     itemPagerTask = engine.createItemPager();
 
     minDurabilityLevel =
-            cb::durability::to_level(config.getDurabilityMinLevel());
+            cb::durability::to_level(config.getDurabilityMinLevelString());
     config.addValueChangedListener(
             "durability_min_level",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     setHlcInvalidStrategy(
-            parseHlcInvalidStrategy(config.getHlcInvalidStrategy()));
+            parseHlcInvalidStrategy(config.getHlcInvalidStrategyString()));
     config.addValueChangedListener(
             "hlc_invalid_strategy",
             std::make_unique<EPStoreValueChangeListener>(*this));
     setDcpHlcInvalidStrategy(
-            parseHlcInvalidStrategy(config.getDcpHlcInvalidStrategy()));
+            parseHlcInvalidStrategy(config.getDcpHlcInvalidStrategyString()));
     config.addValueChangedListener(
             "dcp_hlc_invalid_strategy",
             std::make_unique<EPStoreValueChangeListener>(*this));
@@ -464,7 +464,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 bool KVBucket::initialize() {
     // We should nuke everything unless we want warmup
     Configuration &config = engine.getConfiguration();
-    if ((config.getBucketType() == "ephemeral") || (!config.isWarmup())) {
+    if ((config.getBucketTypeString() == "ephemeral") || (!config.isWarmup())) {
         reset();
     }
     initializeExpiryPager(config);
@@ -1191,7 +1191,7 @@ cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, CookieIface* c) {
 }
 
 cb::engine_errc KVBucket::checkForDBExistence(Vbid db_file_id) {
-    std::string backend = engine.getConfiguration().getBackend();
+    std::string backend = engine.getConfiguration().getBackendString();
     if (backend == "couchdb" || backend == "magma" || backend == "nexus") {
         VBucketPtr vb = vbMap.getBucket(db_file_id);
         if (!vb) {

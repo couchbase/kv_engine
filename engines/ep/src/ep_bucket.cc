@@ -280,7 +280,7 @@ private:
 EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     : KVBucket(engine), rangeScans(engine.getConfiguration()) {
     auto& config = engine.getConfiguration();
-    const std::string& policy = config.getItemEvictionPolicy();
+    const std::string& policy = config.getItemEvictionPolicyString();
     if (policy.compare("value_only") == 0) {
         eviction_policy = EvictionPolicy::Value;
     } else {
@@ -2800,7 +2800,7 @@ void EPBucket::setStoreCheckpointing(Vbid vbid, bool value) {
     if (!store) {
         throw std::logic_error(
                 "EPBucket::setStoreCheckpointing: Not supported for backend:" +
-                engine.getConfiguration().getBackend());
+                engine.getConfiguration().getBackendString());
     }
     store->setFusionCheckpointing(vbid, value);
 #endif

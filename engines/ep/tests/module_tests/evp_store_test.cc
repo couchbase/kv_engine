@@ -730,7 +730,7 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     // magma_persistent_full_eviction. The additional 0.3MiB is to ensure that
     // the test passes consistently as full eviction requires greater overhead
     // to include metadata.
-    if (engine->getConfiguration().getBackend() == "magma") {
+    if (engine->getConfiguration().getBackendString() == "magma") {
         engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
                                (4.3 * valueSize));
     } else {

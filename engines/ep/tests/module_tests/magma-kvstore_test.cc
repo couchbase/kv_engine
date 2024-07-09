@@ -44,7 +44,7 @@ protected:
                                 config.getMaxNumShards());
         kvstoreConfig =
                 std::make_unique<MagmaKVStoreConfig>(config,
-                                                     config.getBackend(),
+                                                     config.getBackendString(),
                                                      workload.getNumShards(),
                                                      0 /*shardId*/);
         kvstore = createStore(*kvstoreConfig);

@@ -779,7 +779,7 @@ public:
         return hlcInvalidStrategy.load();
     }
 
-    InvalidCasStrategy getHlcInvalidStrategy() const {
+    InvalidCasStrategy getHlcInvalidStrategyString() const {
         return hlcInvalidStrategy.load();
     }
 
@@ -787,7 +787,7 @@ public:
         dcpHlcInvalidStrategy = value;
     }
 
-    InvalidCasStrategy getDcpHlcInvalidStrategy() const {
+    InvalidCasStrategy getDcpHlcInvalidStrategyString() const {
         return dcpHlcInvalidStrategy.load();
     }
 

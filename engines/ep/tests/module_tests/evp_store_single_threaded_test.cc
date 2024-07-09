@@ -515,31 +515,31 @@ bool SingleThreadedKVBucketTest::isBloomFilterEnabled() const {
 }
 
 bool SingleThreadedKVBucketTest::isFullEviction() const {
-    return engine->getConfiguration().getItemEvictionPolicy() ==
+    return engine->getConfiguration().getItemEvictionPolicyString() ==
            "full_eviction";
 }
 
 bool SingleThreadedKVBucketTest::isPersistent() const {
-    return engine->getConfiguration().getBucketType() == "persistent";
+    return engine->getConfiguration().getBucketTypeString() == "persistent";
 }
 
 bool SingleThreadedKVBucketTest::isNexus() const {
-    return engine->getConfiguration().getBackend() == "nexus";
+    return engine->getConfiguration().getBackendString() == "nexus";
 }
 
 /// @returns true if this is a magma bucket
 bool SingleThreadedKVBucketTest::isMagma() const {
-    return engine->getConfiguration().getBackend() == "magma" ||
+    return engine->getConfiguration().getBackendString() == "magma" ||
            isNexusMagmaPrimary();
 }
 
 bool SingleThreadedKVBucketTest::isCouchstore() const {
-    return engine->getConfiguration().getBackend() == "couchdb";
+    return engine->getConfiguration().getBackendString() == "couchdb";
 }
 
 bool SingleThreadedKVBucketTest::isNexusMagmaPrimary() const {
-    return engine->getConfiguration().getBackend() == "nexus" &&
-           engine->getConfiguration().getNexusPrimaryBackend() == "magma";
+    return engine->getConfiguration().getBackendString() == "nexus" &&
+           engine->getConfiguration().getNexusPrimaryBackendString() == "magma";
 }
 
 size_t SingleThreadedKVBucketTest::getFutureQueueSize(TaskType type) const {
@@ -551,8 +551,8 @@ size_t SingleThreadedKVBucketTest::getReadyQueueSize(TaskType type) const {
 }
 
 void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
-    ASSERT_EQ(engine->getConfiguration().getBucketType(), "persistent");
-    ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
+    ASSERT_EQ(engine->getConfiguration().getBucketTypeString(), "persistent");
+    ASSERT_EQ(engine->getConfiguration().getBackendString(), "couchdb");
     auto old = store->takeRW(0);
     auto& config = const_cast<CouchKVStoreConfig&>(
             dynamic_cast<const CouchKVStoreConfig&>(old->getConfig()));
@@ -631,17 +631,19 @@ void STParameterizedBucketTest::SetUp() {
 }
 
 bool STParameterizedBucketTest::fullEviction() const {
-    return persistent() && engine->getConfiguration().getItemEvictionPolicy() ==
-                                   "full_eviction";
+    return persistent() &&
+           engine->getConfiguration().getItemEvictionPolicyString() ==
+                   "full_eviction";
 }
 
 bool STParameterizedBucketTest::ephemeralFailNewData() const {
-    return ephemeral() && engine->getConfiguration().getEphemeralFullPolicy() ==
-                                  "fail_new_data";
+    return ephemeral() &&
+           engine->getConfiguration().getEphemeralFullPolicyString() ==
+                   "fail_new_data";
 }
 
 bool STParameterizedBucketTest::isMagma() const {
-    return engine->getConfiguration().getBackend() == "magma" ||
+    return engine->getConfiguration().getBackendString() == "magma" ||
            isNexusMagmaPrimary();
 }
 
@@ -652,12 +654,12 @@ bool STParameterizedBucketTest::isSnappyCompressedAtPersistence() const {
 }
 
 bool STParameterizedBucketTest::isNexusMagmaPrimary() const {
-    return engine->getConfiguration().getBackend() == "nexus" &&
-           engine->getConfiguration().getNexusPrimaryBackend() == "magma";
+    return engine->getConfiguration().getBackendString() == "nexus" &&
+           engine->getConfiguration().getNexusPrimaryBackendString() == "magma";
 }
 
 bool STParameterizedBucketTest::isNexus() const {
-    return engine->getConfiguration().getBackend() == "nexus";
+    return engine->getConfiguration().getBackendString() == "nexus";
 }
 
 bool STParameterizedBucketTest::bloomFilterEnabled() const {

@@ -57,7 +57,7 @@ public:
         return dbname;
     }
 
-    const std::string& getBackend() const {
+    const std::string& getBackendString() const {
         return backend;
     }
 

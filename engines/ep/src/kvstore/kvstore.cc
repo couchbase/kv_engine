@@ -207,7 +207,7 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(
                 config.getDBName()));
     }
 
-    const auto backend = config.getBackend();
+    const auto backend = config.getBackendString();
     if (backend == "couchdb") {
         return std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config),
@@ -228,8 +228,9 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(
     }
 #endif
 
-    throw std::invalid_argument(fmt::format(
-            "KVStoreFactory::create: unknown backend {}", config.getBackend()));
+    throw std::invalid_argument(
+            fmt::format("KVStoreFactory::create: unknown backend {}",
+                        config.getBackendString()));
 }
 
 bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
@@ -388,7 +389,7 @@ GetStatsMap KVStore::getStats(gsl::span<const std::string_view> keys) const {
 }
 
 void KVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
-    const char* backend = getConfig().getBackend().c_str();
+    const char* backend = getConfig().getBackendString().c_str();
     const auto prefix = getStatsPrefix();
 
     /* stats for both read-only and read-write threads */

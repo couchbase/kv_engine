@@ -206,11 +206,11 @@ public:
         return magmaGroupCommitMaxTransactionCount;
     }
 
-    std::string getMagmaIndexCompressionAlgo() const {
+    std::string getMagmaIndexCompressionAlgoString() const {
         return magmaIndexCompressionAlgo;
     }
 
-    std::string getMagmaDataCompressionAlgo() const {
+    std::string getMagmaDataCompressionAlgoString() const {
         return magmaDataCompressionAlgo;
     }
 

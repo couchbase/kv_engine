@@ -37,7 +37,7 @@ bool InitialMFUTask::run() {
 
     // The learning eviction strategy uses a separate age component and does not
     // require us to derive an initial MFU value from the MFU histograms.
-    if (config.getItemEvictionStrategy() != "upfront_mfu_only") {
+    if (config.getItemEvictionStrategyString() != "upfront_mfu_only") {
         kvBucket.setInitialMFU(Item::initialFreqCount);
         snooze(INT_MAX);
         return true;

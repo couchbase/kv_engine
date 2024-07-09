@@ -29,7 +29,7 @@ public:
     }
 
     bool isMfuOnlyEviction() const {
-        return engine->getConfiguration().getItemEvictionStrategy() ==
+        return engine->getConfiguration().getItemEvictionStrategyString() ==
                "upfront_mfu_only";
     }
 
