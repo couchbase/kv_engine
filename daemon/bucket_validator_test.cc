@@ -63,32 +63,26 @@ TEST(BucketNameValidatorTest, TestInvalidCharacters) {
 
 TEST(BucketTypeValidatorTest, Nobucket) {
     EXPECT_EQ(BucketType::NoBucket,
-              module_to_bucket_type(
-                      cb::io::sanitizePath("/foo/bar/nobucket.so")));
+              module_to_bucket_type("/foo/bar/nobucket.so"));
 }
 
 TEST(BucketTypeValidatorTest, Memcached) {
     EXPECT_EQ(BucketType::Memcached,
-              module_to_bucket_type(
-                      cb::io::sanitizePath("/foo/bar/default_engine.so")));
+              module_to_bucket_type("/foo/bar/default_engine.so"));
 }
 
 TEST(BucketTypeValidatorTest, Couchstore) {
-    EXPECT_EQ(BucketType::Couchbase,
-              module_to_bucket_type(cb::io::sanitizePath("/foo/bar/ep.so")));
+    EXPECT_EQ(BucketType::Couchbase, module_to_bucket_type("/foo/bar/ep.so"));
 }
 
 TEST(BucketTypeValidatorTest, EWB) {
     EXPECT_EQ(BucketType::EWouldBlock,
-              module_to_bucket_type(
-                      cb::io::sanitizePath("/boo/bar/ewouldblock_engine.so")));
+              module_to_bucket_type("/boo/bar/ewouldblock_engine.so"));
 }
 
 // we can't really verify all other possible module names, but just check that
 // we get Unknown for some
 TEST(BucketTypeValidatorTest, Unknown) {
-    EXPECT_EQ(BucketType::Unknown,
-              module_to_bucket_type(cb::io::sanitizePath("/foo/bar/foo.so")));
-    EXPECT_EQ(BucketType::Unknown,
-              module_to_bucket_type(cb::io::sanitizePath("/foo/bar/ep.so.1")));
+    EXPECT_EQ(BucketType::Unknown, module_to_bucket_type("/foo/bar/foo.so"));
+    EXPECT_EQ(BucketType::Unknown, module_to_bucket_type("/foo/bar/ep.so.1"));
 }

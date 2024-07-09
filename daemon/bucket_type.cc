@@ -60,18 +60,18 @@ BucketType parse_bucket_type(std::string_view type) {
     return BucketType::Unknown;
 }
 
-BucketType module_to_bucket_type(const std::string& module) {
-    std::string nm = cb::io::basename(module);
-    if (nm == "nobucket.so") {
+BucketType module_to_bucket_type(const std::filesystem::path& module) {
+    const auto nm = module.filename().stem().string();
+    if (nm == "nobucket") {
         return BucketType::NoBucket;
     }
-    if (nm == "default_engine.so") {
+    if (nm == "default_engine") {
         return BucketType::Memcached;
     }
-    if (nm == "ep.so") {
+    if (nm == "ep") {
         return BucketType::Couchbase;
     }
-    if (nm == "ewouldblock_engine.so") {
+    if (nm == "ewouldblock_engine") {
         return BucketType::EWouldBlock;
     }
     return BucketType::Unknown;

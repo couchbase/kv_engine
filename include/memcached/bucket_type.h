@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 
 enum class BucketType : uint8_t {
@@ -40,7 +41,7 @@ BucketType parse_bucket_type(std::string_view type);
  * @return The BucketType for the given module, or BucketType::Unknown for
  *         invalid input.
  */
-BucketType module_to_bucket_type(const std::string& module);
+BucketType module_to_bucket_type(const std::filesystem::path& module);
 
 /// Get the module name for the given bucket type
 std::string bucket_type_to_module(BucketType type);
