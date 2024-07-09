@@ -35,9 +35,9 @@ void dcp_stream_req_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& request = cookie.getRequest();
-        using cb::mcbp::request::DcpStreamReqPayload;
+        using cb::mcbp::request::DcpStreamReqPayloadV1;
         const auto& payload =
-                request.getCommandSpecifics<DcpStreamReqPayload>();
+                request.getCommandSpecifics<DcpStreamReqPayloadV1>();
 
         auto flags = payload.getFlags();
         uint64_t start_seqno = payload.getStartSeqno();

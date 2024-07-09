@@ -723,7 +723,7 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
 
     auto status = McbpValidator::verify_header(
             cookie,
-            sizeof(cb::mcbp::request::DcpStreamReqPayload),
+            sizeof(cb::mcbp::request::DcpStreamReqPayloadV1),
             ExpectedKeyLen::Zero,
             vlen,
             ExpectedCas::Any,
@@ -735,7 +735,7 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
 
     auto& req = cookie.getRequest();
     const auto& payload =
-            req.getCommandSpecifics<cb::mcbp::request::DcpStreamReqPayload>();
+            req.getCommandSpecifics<cb::mcbp::request::DcpStreamReqPayloadV1>();
     status = verify_common_dcp_stream_restrictions(cookie, payload.getFlags());
     if (status != Status::Success) {
         return status;

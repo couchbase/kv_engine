@@ -657,7 +657,7 @@ nlohmann::json Request::to_json(bool validated) const {
             extras = getCommandSpecifics<DcpAddStreamPayload>();
             break;
         case ClientOpcode::DcpStreamReq:
-            extras = getCommandSpecifics<DcpStreamReqPayload>();
+            extras = getCommandSpecifics<DcpStreamReqPayloadV1>();
             break;
         case ClientOpcode::DcpStreamEnd:
             extras = getCommandSpecifics<DcpStreamEndPayload>();

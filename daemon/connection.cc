@@ -1648,9 +1648,9 @@ cb::engine_errc Connection::stream_req(uint32_t opaque,
                                        const std::string& request_value) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
-    using cb::mcbp::request::DcpStreamReqPayload;
+    using cb::mcbp::request::DcpStreamReqPayloadV1;
 
-    auto size = sizeof(Request) + sizeof(DcpStreamReqPayload) +
+    auto size = sizeof(Request) + sizeof(DcpStreamReqPayloadV1) +
                 request_value.size();
 
     std::vector<uint8_t> buffer(size);
@@ -1661,7 +1661,7 @@ cb::engine_errc Connection::stream_req(uint32_t opaque,
     builder.setOpaque(opaque);
     builder.setVBucket(vbucket);
 
-    DcpStreamReqPayload payload;
+    DcpStreamReqPayloadV1 payload;
     payload.setFlags(flags);
     payload.setStartSeqno(start_seqno);
     payload.setEndSeqno(end_seqno);

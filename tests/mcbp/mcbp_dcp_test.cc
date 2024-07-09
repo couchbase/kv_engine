@@ -248,7 +248,7 @@ TEST_P(DcpStreamReqValidatorTest, InvalidDatatype) {
 }
 
 TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
-    cb::mcbp::request::DcpStreamReqPayload extras;
+    cb::mcbp::request::DcpStreamReqPayloadV1 extras;
 
     struct FlagInfo {
         uint32_t flag;

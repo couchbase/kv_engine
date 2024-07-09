@@ -698,7 +698,7 @@ protected:
 
 static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 
-class DcpStreamReqPayload {
+class DcpStreamReqPayloadV1 {
 public:
     DcpAddStreamFlag getFlags() const {
         return static_cast<DcpAddStreamFlag>(ntohl(flags));
@@ -710,37 +710,37 @@ public:
         return ntohl(reserved);
     }
     void setReserved(uint32_t reserved) {
-        DcpStreamReqPayload::reserved = htonl(reserved);
+        DcpStreamReqPayloadV1::reserved = htonl(reserved);
     }
     uint64_t getStartSeqno() const {
         return ntohll(start_seqno);
     }
     void setStartSeqno(uint64_t start_seqno) {
-        DcpStreamReqPayload::start_seqno = htonll(start_seqno);
+        DcpStreamReqPayloadV1::start_seqno = htonll(start_seqno);
     }
     uint64_t getEndSeqno() const {
         return ntohll(end_seqno);
     }
     void setEndSeqno(uint64_t end_seqno) {
-        DcpStreamReqPayload::end_seqno = htonll(end_seqno);
+        DcpStreamReqPayloadV1::end_seqno = htonll(end_seqno);
     }
     uint64_t getVbucketUuid() const {
         return ntohll(vbucket_uuid);
     }
     void setVbucketUuid(uint64_t vbucket_uuid) {
-        DcpStreamReqPayload::vbucket_uuid = htonll(vbucket_uuid);
+        DcpStreamReqPayloadV1::vbucket_uuid = htonll(vbucket_uuid);
     }
     uint64_t getSnapStartSeqno() const {
         return ntohll(snap_start_seqno);
     }
     void setSnapStartSeqno(uint64_t snap_start_seqno) {
-        DcpStreamReqPayload::snap_start_seqno = htonll(snap_start_seqno);
+        DcpStreamReqPayloadV1::snap_start_seqno = htonll(snap_start_seqno);
     }
     uint64_t getSnapEndSeqno() const {
         return ntohll(snap_end_seqno);
     }
     void setSnapEndSeqno(uint64_t snap_end_seqno) {
-        DcpStreamReqPayload::snap_end_seqno = htonll(snap_end_seqno);
+        DcpStreamReqPayloadV1::snap_end_seqno = htonll(snap_end_seqno);
     }
 
     cb::const_byte_buffer getBuffer() const {
@@ -756,7 +756,7 @@ protected:
     uint64_t snap_start_seqno = 0;
     uint64_t snap_end_seqno = 0;
 };
-static_assert(sizeof(DcpStreamReqPayload) == 48, "Unexpected struct size");
+static_assert(sizeof(DcpStreamReqPayloadV1) == 48, "Unexpected struct size");
 
 class DcpStreamEndPayload {
 public:

@@ -156,7 +156,7 @@ void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload) {
     json = {{"flags", static_cast<DcpAddStreamFlag>(payload.getFlags())}};
 }
 
-void to_json(nlohmann::json& json, const DcpStreamReqPayload& payload) {
+void to_json(nlohmann::json& json, const DcpStreamReqPayloadV1& payload) {
     json = {
             {"flags", static_cast<DcpAddStreamFlag>(payload.getFlags())},
             {"start_seqno", std::to_string(payload.getStartSeqno())},
