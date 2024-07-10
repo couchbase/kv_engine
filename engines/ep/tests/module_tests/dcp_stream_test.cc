@@ -2430,6 +2430,7 @@ TEST_P(SingleThreadedActiveStreamTest,
                                       vb.failovers->getLatestUUID(),
                                       1,
                                       1,
+                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       std::nullopt));
@@ -3452,6 +3453,7 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       vb.failovers->getLatestUUID(),
                                       snapEndSeqno,
                                       snapEndSeqno,
+                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -3464,6 +3466,7 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       vb.failovers->getLatestUUID(),
                                       snapEndSeqno,
                                       snapEndSeqno,
+                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -3479,6 +3482,7 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       vb.failovers->getLatestUUID(),
                                       snapStartSeqno,
                                       snapEndSeqno,
+                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -3520,6 +3524,7 @@ TEST_P(SingleThreadedActiveStreamTest,
                                       vb.failovers->getLatestUUID(),
                                       snapStartSeqno,
                                       snapEndSeqno,
+                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -6066,6 +6071,7 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
                                            0,
                                            -1,
                                            vb.failovers->getLatestUUID(),
+                                           0,
                                            0,
                                            0,
                                            &rollbackSeqno,

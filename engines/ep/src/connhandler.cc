@@ -194,6 +194,7 @@ cb::engine_errc ConnHandler::streamRequest(
         uint64_t vbucket_uuid,
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
+        uint64_t purgeSeqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
         std::optional<std::string_view> json) {

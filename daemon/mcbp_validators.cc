@@ -569,7 +569,8 @@ static Status dcp_open_validator(Cookie& cookie) {
     const auto mask = ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
                         DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
                         DcpOpenFlag::NoValueWithUnderlyingDatatype |
-                        DcpOpenFlag::IncludeDeletedUserXattrs);
+                        DcpOpenFlag::IncludeDeletedUserXattrs |
+                        DcpOpenFlag::SendSnapshotMarkerV2_2);
 
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpOpenPayload>();
@@ -722,21 +723,28 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
                         ? ExpectedValueLen::Any
                         : ExpectedValueLen::Zero;
 
-    auto status = McbpValidator::verify_header(
-            cookie,
-            sizeof(cb::mcbp::request::DcpStreamReqPayloadV1),
-            ExpectedKeyLen::Zero,
-            vlen,
-            ExpectedCas::Any,
-            GeneratesDocKey::No,
-            PROTOCOL_BINARY_RAW_BYTES);
+    const bool isV2 = cookie.getConnection().isDcpIncludePurgeSeqno();
+
+    const auto extlen = isV2 ? sizeof(cb::mcbp::request::DcpStreamReqPayloadV2)
+                             : sizeof(cb::mcbp::request::DcpStreamReqPayloadV1);
+
+    auto status = McbpValidator::verify_header(cookie,
+                                               extlen,
+                                               ExpectedKeyLen::Zero,
+                                               vlen,
+                                               ExpectedCas::Any,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }
 
     auto& req = cookie.getRequest();
     const auto& payload =
-            req.getCommandSpecifics<cb::mcbp::request::DcpStreamReqPayloadV1>();
+            isV2 ? req.getCommandSpecifics<
+                           cb::mcbp::request::DcpStreamReqPayloadV2>()
+                 : req.getCommandSpecifics<
+                           cb::mcbp::request::DcpStreamReqPayloadV1>();
     status = verify_common_dcp_stream_restrictions(cookie, payload.getFlags());
     if (status != Status::Success) {
         return status;

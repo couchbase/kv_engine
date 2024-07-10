@@ -192,6 +192,7 @@ public:
                                uint64_t,
                                uint64_t,
                                uint64_t,
+                               uint64_t,
                                uint64_t*,
                                dcp_add_failover_log,
                                std::optional<std::string_view>) override {

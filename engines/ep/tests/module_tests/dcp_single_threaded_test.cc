@@ -62,6 +62,7 @@ protected:
                                                vbUUID,
                                                snapStart,
                                                snapEnd,
+                                               0,
                                                &result.rollbackSeqno,
                                                fakeDcpAddFailoverLog,
                                                {});
@@ -248,6 +249,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                                        0 /*vb_uuid*/,
                                        0 /*snap_start*/,
                                        0 /*snap_end*/,
+                                       0,
                                        &rollbackSeqno,
                                        fakeDcpAddFailoverLog,
                                        {});

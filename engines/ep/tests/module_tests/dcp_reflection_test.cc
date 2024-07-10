@@ -598,6 +598,7 @@ DCPLoopbackTestHelper::DcpRoute::doStreamRequest(
                                          sr->getVBucketUUID(),
                                          sr->getSnapStartSeqno(),
                                          sr->getSnapEndSeqno(),
+                                         0,
                                          &rollbackSeqno,
                                          fakeDcpAddFailoverLog,
                                          {});

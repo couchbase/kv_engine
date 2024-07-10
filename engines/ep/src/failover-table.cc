@@ -124,6 +124,7 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
         uint64_t localPurgeSeqno,
+        uint64_t remotePurgeSeqno,
         bool strictVbUuidMatch,
         std::optional<uint64_t> maxCollectionHighSeqno) const {
     /* Start with upper as vb highSeqno */
@@ -156,7 +157,10 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
        to rollback to seq no 0 in that case, only if we have purged beyond
        remoteHighSeqno and if remoteHighSeqno is not 0 */
     if (remoteHighSeqno < localPurgeSeqno && remoteHighSeqno != 0 &&
-        !allowNonRollBackCollectionStream) {
+        !allowNonRollBackCollectionStream &&
+        // A purge has run since the time the consumer was last connected.
+        (remotePurgeSeqno != localPurgeSeqno)) {
+        // Make sure we stream back from the start seqno.
         return RollbackDetails{
                 fmt::format("purge seqno ({}) is greater than start seqno - "
                             "could miss purged deletions",

@@ -140,6 +140,7 @@ public:
             uint64_t snapStartSeqno,
             uint64_t snapEndSeqno,
             uint64_t localPurgeSeqno,
+            uint64_t remotePurgeSeqno,
             bool strictVbUuidMatch,
             std::optional<uint64_t> maxCollectionHighSeqno) const;
 

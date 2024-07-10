@@ -35,16 +35,26 @@ void dcp_stream_req_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& request = cookie.getRequest();
+        using cb::mcbp::DcpAddStreamFlag;
         using cb::mcbp::request::DcpStreamReqPayloadV1;
+        using cb::mcbp::request::DcpStreamReqPayloadV2;
+        auto isV2 = cookie.getConnection().isDcpIncludePurgeSeqno();
+
+        uint64_t purge_seqno = 0;
+
         const auto& payload =
                 request.getCommandSpecifics<DcpStreamReqPayloadV1>();
-
-        auto flags = payload.getFlags();
+        const auto flags = payload.getFlags();
         uint64_t start_seqno = payload.getStartSeqno();
         uint64_t end_seqno = payload.getEndSeqno();
         uint64_t vbucket_uuid = payload.getVbucketUuid();
         uint64_t snap_start_seqno = payload.getSnapStartSeqno();
         uint64_t snap_end_seqno = payload.getSnapEndSeqno();
+
+        if (isV2) {
+            purge_seqno = request.getCommandSpecifics<DcpStreamReqPayloadV2>()
+                                  .getPurgeSeqno();
+        }
 
         // Collection enabled DCP allows a value containing stream config data.
         std::optional<std::string_view> collections;
@@ -66,6 +76,7 @@ void dcp_stream_req_executor(Cookie& cookie) {
                 vbucket_uuid,
                 snap_start_seqno,
                 snap_end_seqno,
+                purge_seqno,
                 &rollback_seqno,
                 [c = std::ref(cookie)](
                         const std::vector<vbucket_failover_t>& vec) {

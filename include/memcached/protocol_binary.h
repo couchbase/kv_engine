@@ -577,6 +577,11 @@ enum class DcpOpenFlag : uint32_t {
      * deletion values.
      */
     IncludeDeletedUserXattrs = 256,
+    /**
+     * SnapshotMarker Version 2.2 includes the purgeSeqno of the vbucket for a
+     * given ActiveStream.
+     */
+    SendSnapshotMarkerV2_2 = 512,
 };
 std::string format_as(DcpOpenFlag flag);
 
@@ -757,6 +762,25 @@ protected:
     uint64_t snap_end_seqno = 0;
 };
 static_assert(sizeof(DcpStreamReqPayloadV1) == 48, "Unexpected struct size");
+
+class DcpStreamReqPayloadV2 : public DcpStreamReqPayloadV1 {
+public:
+    uint64_t getPurgeSeqno() const {
+        return ntohll(purge_seqno);
+    }
+
+    void setPurgeSeqno(uint64_t purge_seqno) {
+        DcpStreamReqPayloadV2::purge_seqno = purge_seqno;
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t purge_seqno;
+};
+static_assert(sizeof(DcpStreamReqPayloadV2) == 56, "Unexpected struct size");
 
 class DcpStreamEndPayload {
 public:

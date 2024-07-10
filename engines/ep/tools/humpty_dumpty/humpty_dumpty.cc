@@ -111,6 +111,7 @@ a request for UUID:1111, with snapshot range {0,10} and start seqno 8:
                                           snapStart,
                                           snapEnd,
                                           purgeSeqno,
+                                          0,
                                           false,
                                           {});
         std::cout << "  Rollback:" << (result ? "true" : "false") << "\n";

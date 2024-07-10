@@ -428,6 +428,7 @@ void SingleThreadedKVBucketTest::createDcpStream(
                                      0, // vbucket_uuid,
                                      0, // snap_start_seqno,
                                      0, // snap_end_seqno,
+                                     0,
                                      &rollbackSeqno,
                                      &dcpAddFailoverLog,
                                      streamConfig));
@@ -796,6 +797,7 @@ TEST_P(STParameterizedBucketTest,
                                           0,
                                           0,
                                           0,
+                                          0,
                                           &rollbackSeqno,
                                           mock_dcp_add_failover_log,
                                           {});
@@ -854,6 +856,7 @@ TEST_P(STParameterizedBucketTest,
                                               vbid1,
                                               0,
                                               ~0,
+                                              0,
                                               0,
                                               0,
                                               0,
@@ -935,6 +938,7 @@ TEST_P(STParameterizedBucketTest, StreamReqAcceptedAfterBucketShutdown) {
                                           /*vb_uuid*/ 0xabcd,
                                           /*snap_start_seqno*/ 0,
                                           /*snap_end_seqno*/ ~0,
+                                          0,
                                           &rollbackSeqno,
                                           fakeDcpAddFailoverLog,
                                           {}));
@@ -1057,6 +1061,7 @@ TEST_P(STParameterizedBucketTest, SeqnoAckAfterBucketShutdown) {
                                       /*vb_uuid*/ 0xabcd,
                                       /*snap_start_seqno*/ 0,
                                       /*snap_end_seqno*/ ~0,
+                                      0,
                                       &rollbackSeqno,
                                       fakeDcpAddFailoverLog,
                                       {}));
@@ -2276,6 +2281,7 @@ TEST_P(STParamPersistentBucketTest, MB19428_no_streams_against_dead_vbucket) {
                 /*vb_uuid*/ 0,
                 /*snap_start*/ 0,
                 /*snap_end*/ 0,
+                0,
                 &rollbackSeqno,
                 SingleThreadedEPBucketTest::fakeDcpAddFailoverLog,
                 {});
@@ -2345,6 +2351,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
                       /*vb_uuid*/ 0,
                       /*snap_start*/ 0,
                       /*snap_end*/ 0,
+                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;
@@ -2719,6 +2726,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
                                  /*vb_uuid*/ 0,
                                  /*snap_start*/ 0,
                                  /*snap_end*/ 0,
+                                 0,
                                  &rollbackSeqno,
                                  dummy_dcp_add_failover_cb,
                                  {}));
@@ -3680,6 +3688,7 @@ void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno,
                                       2,
+                                      0,
                                       &rollbackSeqno,
                                       &dcpAddFailoverLog,
                                       {})); // snap_end_seqno,
@@ -3768,6 +3777,7 @@ TEST_P(STParamPersistentBucketTest, MB_29541) {
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno
                                       vb->getHighSeqno(), // snap_end_seqno
+                                      0,
                                       &rollbackSeqno,
                                       &dcpAddFailoverLog,
                                       {}));
@@ -3878,6 +3888,7 @@ TEST_P(STParamPersistentBucketTest, MB_31481) {
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno
                                       vb->getHighSeqno(), // snap_end_seqno
+                                      0,
                                       &rollbackSeqno,
                                       &dcpAddFailoverLog,
                                       {}));
@@ -3998,6 +4009,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno
                                       vb->getHighSeqno(), // snap_end_seqno
+                                      0,
                                       &rollbackSeqno,
                                       &dcpAddFailoverLog,
                                       {}));
@@ -4078,6 +4090,7 @@ TEST_P(STParameterizedBucketTest, slow_stream_backfill_expiry) {
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno
                                       vb->getHighSeqno(), // snap_end_seqno
+                                      0,
                                       &rollbackSeqno,
                                       &dcpAddFailoverLog,
                                       {}));
@@ -6041,6 +6054,7 @@ TEST_P(STParameterizedBucketTest, DcpStartFromLatestSeqno) {
                                       0, // vbucket_uuid,
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
+                                      0,
                                       &rollbackSeqno,
                                       &dcpAddFailoverLog,
                                       {}));
@@ -6106,6 +6120,7 @@ TEST_P(STParameterizedBucketTest, DcpRollbackIgnorePurgedSeqnos) {
                                        uuid,
                                        1,
                                        1,
+                                       0,
                                        &rollbackSeqno,
                                        &dcpAddFailoverLog,
                                        {});
