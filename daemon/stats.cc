@@ -54,6 +54,7 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(Key::curr_connections, curr);
         collector.addStat(Key::system_connections, sys);
         collector.addStat(Key::user_connections, curr > sys ? curr - sys : 0);
+        collector.addStat(Key::rejected_connections, stats.rejected_conns);
         collector.addStat(Key::max_user_connections,
                           Settings::instance().getMaxUserConnections());
         collector.addStat(Key::max_system_connections,
@@ -117,7 +118,6 @@ static void server_agg_stats(const StatCollector& collector) {
     collector.addStat(Key::cmd_total_gets, total_retrievals);
     collector.addStat(Key::cmd_total_ops, total_ops);
 
-    collector.addStat(Key::rejected_conns, stats.rejected_conns);
     collector.addStat(Key::threads, Settings::instance().getNumWorkerThreads());
 
     auto lookup_latency = timings.get_interval_lookup_latency();

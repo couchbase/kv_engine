@@ -2231,6 +2231,14 @@
         "description" : "The number of connections to user ports in memcached"
     },
     {
+        "key": "rejected_connections",
+        "description": "The number of connections rejected due to hitting the maximum number of connections",
+        "cbstat": "rejected_conns",
+        "unit": "none",
+        "type": "counter",
+        "added": "8.0.0"
+    },
+    {
         "key": "max_user_connections",
         "description": "Maximum number of connections to the interfaces marked as user",
         "unit": "none",
@@ -2653,13 +2661,6 @@
         "prometheus": {
             "family": "written"
         },
-        "added": "7.0.0"
-    },
-    {
-        "key": "rejected_conns",
-        "description": "The number of connections rejected due to hitting the maximum number of connections",
-        "unit": "none",
-        "prometheus": false,
         "added": "7.0.0"
     },
     {
