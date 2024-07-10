@@ -11,18 +11,25 @@
 #include "async_client_connection.h"
 #include "client_mcbp_commands.h"
 #include <cbsasl/client.h>
+#include <folly/io/async/AsyncSSLSocket.h>
 #include <folly/io/async/AsyncTransport.h>
 #include <io/network/read_callback.h>
 #include <io/network/write_callback.h>
 #include <mcbp/protocol/header.h>
 #include <iostream>
+#include <utility>
 #include <vector>
 
 class AsyncClientConnectionImpl : public AsyncClientConnection,
-                                  public folly::AsyncSocket::ConnectCallback {
+                                  public folly::AsyncSocket::ConnectCallback,
+                                  public folly::AsyncSSLSocket::HandshakeCB {
 public:
-    AsyncClientConnectionImpl(folly::EventBase& base)
-        : asyncSocket(folly::AsyncSocket::newSocket(&base)) {
+    AsyncClientConnectionImpl(folly::SocketAddress address,
+                              std::shared_ptr<folly::SSLContext> ssl_context,
+                              folly::EventBase& base)
+        : asyncSocket(folly::AsyncSocket::newSocket(&base)),
+          address(std::move(address)),
+          ssl_context(std::move(ssl_context)) {
         cb::io::network::OutputStreamListener osl;
         osl.transferred = [](size_t) {};
         osl.error = [this](auto message) {
@@ -59,10 +66,8 @@ public:
                 std::move(isl));
     }
 
-    void connect(std::string_view host, std::string_view port) override {
-        asyncSocket->connect(this,
-                             std::string{host.data(), host.size()},
-                             std::stoi(std::string{port.data(), port.size()}));
+    void connect() override {
+        asyncSocket->connect(this, address);
     }
 
     ~AsyncClientConnectionImpl() override {
@@ -73,6 +78,10 @@ public:
 
     void connectSuccess() noexcept override;
     void connectErr(const folly::AsyncSocketException& ex) noexcept override;
+
+    void handshakeSuc(folly::AsyncSSLSocket* sock) noexcept override;
+    void handshakeErr(folly::AsyncSSLSocket* sock,
+                      const folly::AsyncSocketException& ex) noexcept override;
 
     /// Listener functions
     void setConnectListener(std::function<void()> listener) override {
@@ -95,6 +104,7 @@ public:
 
     void send(const BinprotCommand& cmd) override;
     void send(std::string_view data) override;
+    void send(std::unique_ptr<folly::IOBuf> iobuf) override;
     BinprotResponse execute(const BinprotCommand& cmd) override;
 
 protected:
@@ -135,6 +145,9 @@ protected:
 
     std::unique_ptr<cb::io::network::AsyncReadCallback> readCallback;
     std::unique_ptr<cb::io::network::AsyncWriteCallback> writeCallback;
+
+    const folly::SocketAddress address;
+    const std::shared_ptr<folly::SSLContext> ssl_context;
 };
 
 void AsyncClientConnectionImpl::send(const BinprotCommand& cmd) {
@@ -150,7 +163,23 @@ void AsyncClientConnectionImpl::send(std::string_view data) {
     writeCallback->send(array);
 }
 
+void AsyncClientConnectionImpl::send(std::unique_ptr<folly::IOBuf> iobuf) {
+    writeCallback->send(std::move(iobuf));
+}
+
 void AsyncClientConnectionImpl::connectSuccess() noexcept {
+    if (ssl_context) {
+        // replace the async socket with an SSL one
+        auto ss = folly::AsyncSSLSocket::newSocket(
+                ssl_context,
+                asyncSocket->getEventBase(),
+                asyncSocket->detachNetworkSocket(),
+                false);
+        ss->sslConn(this);
+        asyncSocket = std::move(ss);
+        return;
+    }
+
     if (connect_listener) {
         connect_listener();
     }
@@ -158,6 +187,22 @@ void AsyncClientConnectionImpl::connectSuccess() noexcept {
 }
 
 void AsyncClientConnectionImpl::connectErr(
+        const folly::AsyncSocketException& ex) noexcept {
+    if (ioerror_listener) {
+        ioerror_listener(Direction::Connect, ex.what());
+    }
+}
+
+void AsyncClientConnectionImpl::handshakeSuc(
+        folly::AsyncSSLSocket* sock) noexcept {
+    if (connect_listener) {
+        connect_listener();
+    }
+    asyncSocket->setReadCB(readCallback.get());
+}
+
+void AsyncClientConnectionImpl::handshakeErr(
+        folly::AsyncSSLSocket* sock,
         const folly::AsyncSocketException& ex) noexcept {
     if (ioerror_listener) {
         ioerror_listener(Direction::Connect, ex.what());
@@ -202,6 +247,14 @@ BinprotResponse AsyncClientConnectionImpl::execute(const BinprotCommand& cmd) {
     }
 
     return response;
+}
+
+std::unique_ptr<AsyncClientConnection> AsyncClientConnection::create(
+        folly::SocketAddress address,
+        std::shared_ptr<folly::SSLContext> ssl_context,
+        folly::EventBase& base) {
+    return std::make_unique<AsyncClientConnectionImpl>(
+            address, std::move(ssl_context), base);
 }
 
 void AsyncClientConnection::authenticate(std::string_view user,
@@ -292,9 +345,4 @@ std::vector<cb::mcbp::Feature> AsyncClientConnection::hello(
     }
     auto rsp = BinprotHelloResponse{execute(cmd)};
     return rsp.getFeatures();
-}
-
-std::unique_ptr<AsyncClientConnection> AsyncClientConnection::create(
-        folly::EventBase& base) {
-    return std::make_unique<AsyncClientConnectionImpl>(base);
 }

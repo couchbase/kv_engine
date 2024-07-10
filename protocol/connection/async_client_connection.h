@@ -14,9 +14,11 @@
 #include <functional>
 
 namespace folly {
+class AsyncSocketException;
 class EventBase;
 class IOBuf;
-class AsyncSocketException;
+class SSLContext;
+class SocketAddress;
 } // namespace folly
 
 namespace cb::mcbp {
@@ -29,26 +31,33 @@ class Response;
  * The async client connection allows for being run in an event base and
  * get callbacks for each frame received over the connection.
  *
- * For simplicity it allows for some synchronous operations to be used
+ * For simplicity, it allows for some synchronous operations to be used
  * in the case where you know you won't suddenly receive an unexpected
  * message (out of order responses, server initiated push messages etc).
  * That is to be fixed in later versions.
- *
- * @todo Add support for TLS
  */
 class AsyncClientConnection {
 public:
     enum class Direction { Connect, In, Out };
     virtual ~AsyncClientConnection() = default;
 
-    /// Create a new AsyncClientConnection which is to be run with the provided
-    /// base
+    /**
+     * Create a new instance
+     *
+     * @param address The IP address to connect to
+     * @param ssl_context An SSL context to use if TLS is to be used, empty
+     *                    for non-TLS
+     * @param base The event base this instance should be bound to (its
+     *             lifetime must exceed the lifetime of the created instance)
+     * @return The newly created instance
+     */
     static std::unique_ptr<AsyncClientConnection> create(
+            folly::SocketAddress address,
+            std::shared_ptr<folly::SSLContext> ssl_context,
             folly::EventBase& base);
 
-    /// Connect to the provided host and port (no name service lookup
-    /// supported as of now)
-    virtual void connect(std::string_view host, std::string_view port) = 0;
+    /// Initiate connect
+    virtual void connect() = 0;
 
     /// Set up the function to be called once we're connected
     virtual void setConnectListener(std::function<void()> listener) = 0;
@@ -74,6 +83,7 @@ public:
 
     /// Send a "blob" to the other end
     virtual void send(std::string_view data) = 0;
+    virtual void send(std::unique_ptr<folly::IOBuf> iobuf) = 0;
 
     // The following API don't belong in a async client,  but it makes
     // it a lot easier to use in a common way. They will mock around with the
