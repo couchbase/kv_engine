@@ -123,7 +123,7 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
         uint64_t remoteVBUuid,
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
-        uint64_t purgeSeqno,
+        uint64_t localPurgeSeqno,
         bool strictVbUuidMatch,
         std::optional<uint64_t> maxCollectionHighSeqno) const {
     /* Start with upper as vb highSeqno */
@@ -140,27 +140,27 @@ std::optional<FailoverTable::RollbackDetails> FailoverTable::needsRollback(
 
     /*
      * If this request is for a collection stream then check if we can really
-     * need to roll the client back if the remoteHighSeqno < purgeSeqno.
+     * need to roll the client back if the remoteHighSeqno < localPurgeSeqno.
      * We should allow the request if the remoteHighSeqno indicates that the
      * client has all mutations/events for the collections the stream is for.
      */
     bool allowNonRollBackCollectionStream = false;
     if (maxCollectionHighSeqno.has_value()) {
         allowNonRollBackCollectionStream =
-                remoteHighSeqno < purgeSeqno &&
+                remoteHighSeqno < localPurgeSeqno &&
                 remoteHighSeqno >= maxCollectionHighSeqno.value() &&
-                maxCollectionHighSeqno.value() <= purgeSeqno;
+                maxCollectionHighSeqno.value() <= localPurgeSeqno;
     }
 
     /* There may be items that are purged during compaction. We need
        to rollback to seq no 0 in that case, only if we have purged beyond
        remoteHighSeqno and if remoteHighSeqno is not 0 */
-    if (remoteHighSeqno < purgeSeqno && remoteHighSeqno != 0 &&
+    if (remoteHighSeqno < localPurgeSeqno && remoteHighSeqno != 0 &&
         !allowNonRollBackCollectionStream) {
         return RollbackDetails{
                 fmt::format("purge seqno ({}) is greater than start seqno - "
                             "could miss purged deletions",
-                            purgeSeqno),
+                            localPurgeSeqno),
                 0};
     }
 
