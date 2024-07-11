@@ -933,6 +933,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setHistoryRetentionSeconds(std::stoul(val));
         } else if (key == "history_retention_bytes") {
             configuration.setHistoryRetentionBytes(std::stoull(val));
+        } else if (key == "continuous_backup_enabled") {
+            configuration.setContinuousBackupEnabled(cb_stob(val));
+        } else if (key == "continuous_backup_interval") {
+            configuration.setContinuousBackupInterval(std::stoull(val));
         } else {
             EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                             {"key", key},

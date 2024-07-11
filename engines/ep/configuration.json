@@ -1633,6 +1633,24 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "continuous_backup_enabled": {
+            "default": "false",
+            "descr": "True if continouous backup is enabled.",
+            "dynamic": true,
+            "type": "bool"
+        },
+        "continuous_backup_interval": {
+            "default": "120",
+            "descr": "The continouous backup interval (in seconds).",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 120,
+                    "max": 2147483647
+                }
+            }
+        },
         "range_scan_kv_store_scan_ratio": {
             "default": "0.8",
             "dynamic": false,
