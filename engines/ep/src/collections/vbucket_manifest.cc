@@ -316,7 +316,9 @@ ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
 }
 
 void Manifest::applyFlusherStats(
-        CollectionID cid, const FlushAccounting::StatisticsUpdate& flushStats) {
+        CollectionID cid,
+        bool wasFlushed,
+        const FlushAccounting::StatisticsUpdate& flushStats) {
     // Check if collection is currently alive - if so apply to main mainfest
     // stats.
     auto collection = lock(cid);
@@ -324,6 +326,11 @@ void Manifest::applyFlusherStats(
         // Update the stats for the dropped collection.
         droppedCollections.wlock()->applyStatsChanges(cid, flushStats);
     } else {
+        if (wasFlushed) {
+            collection.setItemCount(0);
+            collection.setDiskSize(0);
+        }
+
         // update the "live" stats.
         collection.updateItemCount(flushStats.getItemCount());
         collection.setPersistedHighSeqno(flushStats.getPersistedHighSeqno());

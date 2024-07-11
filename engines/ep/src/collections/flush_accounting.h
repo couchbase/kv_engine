@@ -23,6 +23,7 @@ namespace Collections::VB {
 struct PersistedStats;
 
 using DroppedMap = std::unordered_map<CollectionID, KVStore::DroppedCollection>;
+using FlushedMap = std::unordered_map<CollectionID, uint64_t>;
 
 /**
  * The Collections::VB::FlushStats object provides code and data for accounting
@@ -181,6 +182,20 @@ public:
      */
     DroppedMap& getDroppedCollections() {
         return droppedCollections;
+    }
+
+    /**
+     * @return reference to the map of collections flushed in the flush-batch
+     */
+    const FlushedMap& getFlushedCollections() const {
+        return flushedCollections;
+    }
+
+    /**
+     * @return reference to the map of collections flushed in the flush-batch
+     */
+    FlushedMap& getFlushedCollections() {
+        return flushedCollections;
     }
 
     // Helper class for doing collection stat updates
@@ -391,9 +406,17 @@ private:
 
     /**
      * For each collection dropped in the batch, we record the metadata of the
-     * greatest
+     * greatest. This permits items being written out to not be accounted for if
+     * they are actually within the seqno range that is dropped.
      */
     DroppedMap droppedCollections;
+
+    /**
+     * For each collection flushed in the batch, we record the metadata of the
+     * greatest.This permits items being written out to not be accounted for if
+     * they are actually within the seqno range that is flushed.
+     */
+    FlushedMap flushedCollections;
 
     /**
      * A map of collections that are currently dropped (and persisted) in the

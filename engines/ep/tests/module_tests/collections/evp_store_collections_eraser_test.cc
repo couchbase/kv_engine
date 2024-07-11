@@ -1108,6 +1108,156 @@ TEST_P(CollectionsEraserTest, DeleteExpiryResurrectionTest) {
     EXPECT_EQ(expectedHighSeqno, vb->getHighSeqno());
 }
 
+TEST_P(CollectionsEraserTest, flush_basic) {
+    if (!isCouchstore() || !isPersistent()) {
+        GTEST_SKIP();
+        // @todo: fix magma/ephemeral.
+    }
+
+    // add two collections
+    CollectionsManifest cm;
+    auto checkStats = [this](size_t items,
+                             size_t diskSize,
+                             std::function<bool(size_t, size_t)> cmp) {
+        auto stats = vb->getManifest().lock(CollectionEntry::fruit);
+        EXPECT_EQ(items, stats.getItemCount());
+        EXPECT_TRUE(cmp(stats.getDiskSize(), diskSize));
+        return stats.getDiskSize();
+    };
+
+    auto key = StoredDocKey{"apple", CollectionEntry::fruit};
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+    auto diskSize = checkStats(0, 0, std::greater<size_t>{});
+    store_item(vbid, StoredDocKey{"carrot", CollectionEntry::vegetable}, "1");
+    store_item(vbid, StoredDocKey{"turnip", CollectionEntry::vegetable}, "2");
+    store_item(vbid, key, "1");
+    store_item(vbid, StoredDocKey{"apricot", CollectionEntry::fruit}, "2");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    diskSize = checkStats(2, diskSize, std::greater<size_t>{});
+
+    EXPECT_EQ(2,
+              vb->lockCollections().getItemCount(CollectionEntry::vegetable));
+    EXPECT_EQ(2, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    // Can read a fruit key
+    EXPECT_EQ(cb::engine_errc::success,
+              store->get(key, vbid, cookie, get_options_t::NONE).getStatus());
+
+    // Now flush the fruit collection
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+
+    // Collections still exist
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::vegetable));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    EXPECT_EQ(2,
+              vb->lockCollections().getItemCount(CollectionEntry::vegetable));
+    // No change in item count at this point
+    EXPECT_EQ(4, vb->getNumItems());
+
+    // Fail to read the as key is now below the new startSeqno
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->get(key, vbid, cookie, get_options_t::NONE).getStatus());
+
+    // Total VB item count is adjusted as we erase items from async purge.
+    EXPECT_EQ(4, vb->getNumItems());
+
+    // Now persist the flush
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection item count was reset when flush was persisted
+    checkStats(0, diskSize, std::less<size_t>{});
+
+    runCollectionsEraser(vbid);
+
+    EXPECT_EQ(2, vb->getNumItems());
+}
+
+TEST_P(CollectionsEraserTest, flush_with_more_items) {
+    if (!isCouchstore() || !isPersistent()) {
+        GTEST_SKIP();
+        // @todo: fix magma/ephemeral.
+    }
+
+    // add two collections
+    CollectionsManifest cm;
+    auto checkStats = [this](size_t items,
+                             size_t diskSize,
+                             std::function<bool(size_t, size_t)> cmp) {
+        auto stats = vb->getManifest().lock(CollectionEntry::fruit);
+        EXPECT_EQ(items, stats.getItemCount());
+        EXPECT_TRUE(cmp(stats.getDiskSize(), diskSize));
+        return stats.getDiskSize();
+    };
+
+    auto key = StoredDocKey{"apple", CollectionEntry::fruit};
+    setCollections(
+            cookie,
+            cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+    auto diskSize = checkStats(0, 0, std::greater<size_t>{});
+    store_item(vbid, StoredDocKey{"carrot", CollectionEntry::vegetable}, "1");
+    store_item(vbid, StoredDocKey{"turnip", CollectionEntry::vegetable}, "2");
+    store_item(vbid, key, "1");
+    store_item(vbid, StoredDocKey{"apricot", CollectionEntry::fruit}, "2");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    diskSize = checkStats(2, diskSize, std::greater<size_t>{});
+
+    EXPECT_EQ(2,
+              vb->lockCollections().getItemCount(CollectionEntry::vegetable));
+    EXPECT_EQ(2, vb->lockCollections().getItemCount(CollectionEntry::fruit));
+
+    // Can read a fruit key
+    EXPECT_EQ(cb::engine_errc::success,
+              store->get(key, vbid, cookie, get_options_t::NONE).getStatus());
+
+    // Now flush the fruit collection. Here we also have some items in the flush
+    // batch. E.g. we update key, but with the flush it must from stats be
+    // tracked as an insert!
+    store_item(vbid, StoredDocKey{"grape", CollectionEntry::fruit}, "2");
+    setCollections(cookie, cm.flush(CollectionEntry::fruit));
+    store_item(vbid, key, "2"); // This is really an insert
+    store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "2");
+    store_item(vbid, StoredDocKey{"pear", CollectionEntry::fruit}, "2");
+
+    // Collections still exist
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::vegetable));
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    EXPECT_EQ(2,
+              vb->lockCollections().getItemCount(CollectionEntry::vegetable));
+
+    // Success to read the as key it is above flush point
+    EXPECT_EQ(cb::engine_errc::success,
+              store->get(key, vbid, cookie, get_options_t::NONE).getStatus());
+
+    // Total VB item count is adjusted as we erase items from async purge.
+    if (isFullEviction()) {
+        // 4 items currently stored on disk
+        EXPECT_EQ(4, vb->getNumItems());
+    } else {
+        // value-eviction accounts HT items, so 7
+        EXPECT_EQ(7, vb->getNumItems());
+    }
+
+    // Now persist the flush and various items
+    flushVBucketToDiskIfPersistent(vbid, 5);
+
+    // 3 items in collection, all those flushed after the flush
+    // diskSize should increase as more items were stored than before flush
+    checkStats(3, diskSize, std::greater<size_t>{});
+
+    runCollectionsEraser(vbid);
+
+    EXPECT_EQ(5, vb->getNumItems());
+}
+
+// @todo: flush test where items are mixed in the flush batch. Any items ahead
+// of the flush must not get accounted in the final stats
+
 class CollectionsEraserSyncWriteTest : public CollectionsEraserTest {
 public:
     void SetUp() override {

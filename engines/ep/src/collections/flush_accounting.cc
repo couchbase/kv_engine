@@ -415,9 +415,17 @@ void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKeyView& key,
 
 bool FlushAccounting::isLogicallyDeleted(CollectionID cid,
                                          uint64_t seqno) const {
-    auto itr = droppedCollections.find(cid);
-    if (itr != droppedCollections.end()) {
-        return seqno <= itr->second.endSeqno;
+    {
+        auto itr = droppedCollections.find(cid);
+        if (itr != droppedCollections.end()) {
+            return seqno < itr->second.endSeqno;
+        }
+    }
+    {
+        auto itr = flushedCollections.find(cid);
+        if (itr != flushedCollections.end()) {
+            return seqno < itr->second;
+        }
     }
     return false;
 }
@@ -426,7 +434,7 @@ bool FlushAccounting::isLogicallyDeletedInStore(CollectionID cid,
                                                 uint64_t seqno) const {
     auto itr = droppedInStore.find(cid);
     if (itr != droppedInStore.end()) {
-        return seqno <= itr->second.endSeqno;
+        return seqno < itr->second.endSeqno;
     }
     return false;
 }

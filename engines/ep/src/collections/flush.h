@@ -192,9 +192,11 @@ public:
                isDroppedCollectionsChanged();
     }
 
-    // @return if the set of dropped collections is changing
+    // @return if the set of dropped collections is changing or a collection was
+    //         flushed.
     bool isDroppedCollectionsChanged() const {
-        return !flushAccounting.getDroppedCollections().empty();
+        return !flushAccounting.getDroppedCollections().empty() ||
+               !flushAccounting.getFlushedCollections().empty();
     }
 
     // @return if the set of dropped stats is changing

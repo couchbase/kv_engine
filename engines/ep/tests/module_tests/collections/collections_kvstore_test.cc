@@ -620,7 +620,7 @@ TEST_P(CollectionsKVStoreTest, epoch_default_ttl) {
 TEST_P(CollectionsKVStoreTest, flush_default_epoch) {
     CollectionsManifest cm;
     cm.flush(CollectionEntry::defaultC);
-    applyAndCheck(cm);
+    applyAndCheck(cm, {CollectionID::Default});
     EXPECT_NE(0, vbucket->getHighSeqno());
     checkStartSeqno(CollectionID::Default, vbucket->getHighSeqno());
 }
@@ -635,7 +635,7 @@ TEST_P(CollectionsKVStoreTest, add_flush) {
 
     // Flush the collection, apply system events and check the KVStore state
     cm.flush(CollectionEntry::vegetable);
-    applyAndCheck(cm);
+    applyAndCheck(cm, {CollectionUid::vegetable});
     EXPECT_GT(vbucket->getHighSeqno(), hs);
     checkStartSeqno(CollectionEntry::vegetable, vbucket->getHighSeqno());
 }

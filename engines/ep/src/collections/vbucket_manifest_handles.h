@@ -596,6 +596,10 @@ public:
         manifest->updateItemCount(itr, delta);
     }
 
+    void setItemCount(size_t value) const {
+        manifest->setItemCount(itr, value);
+    }
+
     void setPersistedHighSeqno(uint64_t highSeqno) const {
         manifest->setPersistedHighSeqno(itr, highSeqno);
     }

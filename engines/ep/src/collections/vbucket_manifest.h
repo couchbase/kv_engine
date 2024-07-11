@@ -227,6 +227,7 @@ public:
      * VB::Manifest, but should instead be accounted to droppedCollections.
      */
     void applyFlusherStats(CollectionID cid,
+                           bool wasFlushed,
                            const FlushAccounting::StatisticsUpdate& flushStats);
 
     /**
@@ -710,6 +711,16 @@ protected:
         }
 
         entry->second.updateItemCount(delta);
+    }
+
+    void setItemCount(const container::const_iterator entry,
+                      size_t value) const {
+        if (entry == map.end()) {
+            throwException<std::invalid_argument>(__func__,
+                                                  "iterator is invalid");
+        }
+
+        entry->second.setItemCount(value);
     }
 
     void updateDiskSize(const container::const_iterator entry,

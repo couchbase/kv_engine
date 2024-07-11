@@ -138,7 +138,10 @@ void Flush::forEachDroppedCollection(
 // reads from).
 void Flush::postCommitMakeStatsVisible() {
     for (const auto& [cid, flushStats] : flushAccounting.getStats()) {
-        manifest.get().applyFlusherStats(cid, flushStats);
+        manifest.get().applyFlusherStats(
+                cid,
+                flushAccounting.getFlushedCollections().count(cid),
+                flushStats);
     }
 }
 
@@ -164,7 +167,10 @@ void Flush::notifyManifestOfAnyDroppedCollections() {
 }
 
 void Flush::checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const {
-    if (nonEmptyDroppedCollections != 0) {
+    if (nonEmptyDroppedCollections != 0 ||
+        !flushAccounting.getFlushedCollections().empty()) {
+        // @todo: empty collection flush should be avoided, maybe highSeqno of
+        // collection can be checked.
         triggerPurge(vbid, bucket);
     }
 }
@@ -234,6 +240,22 @@ void Flush::recordCreateCollection(const Item& item) {
             itr->second.low = collection;
         }
     }
+
+    if (createEvent.metaData.flushUid) {
+        // This collection event is flushing, record the seqno span so the flush
+        // batch can do stat accounting.
+        auto [itr, emplaced] =
+                flushAccounting.getFlushedCollections().try_emplace(
+                        collection.metaData.cid, uint64_t(item.getBySeqno()));
+        if (!emplaced) {
+            // Collection already in the map, we must set this new flush if it
+            // is higher than the current flush
+            if (uint64_t(item.getBySeqno()) > itr->second) {
+                itr->second = uint64_t(item.getBySeqno());
+            }
+        }
+    }
+
     setManifestUid(createEvent.manifestUid);
 }
 
@@ -533,11 +555,27 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
             // This collection is already in output
             continue;
         }
+        // update skip so the flushes of dropped collections get ignored.
+        skip.emplace(cid);
         auto newEntry = Collections::KVStore::CreateDropped(
                 builder,
                 dropped.startSeqno,
                 dropped.endSeqno,
                 uint32_t(dropped.collectionId));
+        output.push_back(newEntry);
+    }
+
+    // Any flushes?
+    for (const auto& [cid, seqno] : flushAccounting.getFlushedCollections()) {
+        if (skip.count(cid) > 0) {
+            // This collection is already in output
+            continue;
+        }
+        auto newEntry =
+                Collections::KVStore::CreateDropped(builder,
+                                                    0, // should be old start?
+                                                    seqno,
+                                                    uint32_t(cid));
         output.push_back(newEntry);
     }
 
