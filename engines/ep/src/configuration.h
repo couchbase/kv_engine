@@ -11,10 +11,9 @@
 #pragma once
 
 #include <memcached/engine.h>
-
+#include <relaxed_atomic.h>
 #include <iostream>
 #include <map>
-#include <mutex>
 #include <string>
 
 #include "configuration_types.h"
@@ -180,7 +179,7 @@ class Requirement;
  */
 class Configuration {
 public:
-    struct value_t;
+    struct Attribute;
 
     /**
      * Ctor for Configuration
@@ -263,6 +262,11 @@ public:
                             std::function(std::forward<Callable>(callback)));
     }
 
+    void requirementsMetOrThrow(std::string_view key) const;
+
+    const bool isServerless;
+
+protected:
     /**
      * Set a validator for a specific key. The configuration class
      * will release the memory for the ValueChangedValidator by calling
@@ -277,15 +281,6 @@ public:
      */
     ValueChangedValidator* setValueValidator(std::string_view key,
                                              ValueChangedValidator* validator);
-    /**
-     * Adds an alias for a configuration. Values can be set in configuration
-     * under the original or aliased named, but setters/getters will only be
-     * generated for the main name.
-     *
-     * @param key the key to which the alias refers
-     * @param alias the new alias
-     */
-    void addAlias(const std::string& key, const std::string& alias);
 
     /**
      * Adds a prerequisite to a configuration option. This must be satisfied
@@ -297,13 +292,18 @@ public:
     Requirement* setRequirements(const std::string& key,
                                  Requirement* requirement);
 
-    bool requirementsMet(const value_t& value) const;
+    bool requirementsMet(const Attribute& value) const;
 
-    void requirementsMetOrThrow(std::string_view key) const;
+    /**
+     * Adds an alias for a configuration. Values can be set in configuration
+     * under the original or aliased named, but setters/getters will only be
+     * generated for the main name.
+     *
+     * @param key the key to which the alias refers
+     * @param alias the new alias
+     */
+    void addAlias(const std::string& key, const std::string& alias);
 
-    const bool isServerless;
-
-protected:
     /**
      * Add a new configuration parameter (size_t, ssize_t, float, bool, string)
      * @param key the key to specify
@@ -360,6 +360,12 @@ protected:
                       cb::stats::Key key,
                       std::string_view keyStr) const;
 
+    /**
+     * Has the Configuration been initialized? Once initialized, the set of
+     * attributes cannot be changed.
+     */
+    cb::RelaxedAtomic<bool> initialized{false};
+
 private:
     void initialize();
 
@@ -371,9 +377,7 @@ private:
     void addValueChangedFunc(std::string_view key,
                              std::function<void(Arg)> callback);
 
-    // Access to the configuration variables is protected by the mutex
-    mutable std::mutex mutex;
-    std::map<std::string, std::shared_ptr<value_t>, std::less<>> attributes;
+    std::map<std::string, std::shared_ptr<Attribute>, std::less<>> attributes;
 
     friend std::ostream& operator<< (std::ostream& out,
                                     const Configuration& config);

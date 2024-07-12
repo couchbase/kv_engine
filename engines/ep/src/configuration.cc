@@ -13,11 +13,14 @@
 #include "bucket_logger.h"
 #include "configuration_impl.h"
 
-#include <platform/cb_malloc.h>
-#include <statistics/labelled_collector.h>
+#include <folly/Synchronized.h>
 #include <memcached/config_parser.h>
 #include <memcached/server_core_iface.h>
+#include <platform/cb_malloc.h>
 #include <statistics/cbstat_collector.h>
+#include <statistics/labelled_collector.h>
+#include <memory>
+#include <shared_mutex>
 #include <sstream>
 
 // Used to get a name from a type to use in logging
@@ -117,39 +120,64 @@ void ValueChangedValidator::validateString(std::string_view key, const char*) {
 
 Configuration::Configuration(bool isServerless) : isServerless(isServerless) {
     initialize();
+    initialized = true;
 }
 
-struct Configuration::value_t {
-    explicit value_t(bool dynamic) : dynamic(dynamic) {
+struct Configuration::Attribute {
+    explicit Attribute(bool dynamic) : dynamic(dynamic) {
     }
 
-    std::vector<std::unique_ptr<ValueChangedListener>> changeListener;
+    /// The validator cannot be changed after initialization.
     std::unique_ptr<ValueChangedValidator> validator;
+    /// The requirement cannot be changed after initialization.
     std::unique_ptr<Requirement> requirement;
-
-    // At the moment, the order of these template parameters must
-    // match the order of the types in config_datatype. Looking
-    // for a cleaner method.
-    value_variant_t value;
 
     /// Is this parameter dynamic (can be changed at runtime?)
     const bool dynamic;
 
-    std::vector<ValueChangedListener*> copyListeners() {
-        std::vector<ValueChangedListener*> copy;
-
-        std::transform(
-                changeListener.begin(),
-                changeListener.end(),
-                std::back_inserter(copy),
-                [](std::unique_ptr<ValueChangedListener>& listener)
-                        -> ValueChangedListener* { return listener.get(); });
-        return copy;
+    value_variant_t getValue() const {
+        return valueAndListeners.withRLock(
+                [](auto& locked) { return locked.variant; });
     }
+
+    [[nodiscard]] std::vector<std::shared_ptr<ValueChangedListener>> setValue(
+            value_variant_t newValue) {
+        valueAndListeners.withWLock([&newValue](auto& locked) {
+            using std::swap;
+            // Allows the std::string to be released outside the lock.
+            swap(locked.variant, newValue);
+        });
+        // Copying the vector will be relatively expensive, so don't block other
+        // readers.
+        return valueAndListeners.withRLock(
+                [](auto& locked) { return locked.changeListeners; });
+    }
+
+    void addChangeListener(std::shared_ptr<ValueChangedListener> listener) {
+        valueAndListeners.withWLock([&listener](auto& locked) {
+            locked.changeListeners.emplace_back(std::move(listener));
+        });
+    }
+
+private:
+    struct Value {
+        std::vector<std::shared_ptr<ValueChangedListener>> changeListeners;
+
+        // At the moment, the order of these template parameters must
+        // match the order of the types in config_datatype. Looking
+        // for a cleaner method.
+        value_variant_t variant;
+    };
+
+    /// Stores the current value and set of listeners for the attribute.
+    /// Those are the only properties of an attribute which can be changed after
+    /// initialization.
+    folly::Synchronized<Value, std::shared_mutex> valueAndListeners;
 };
 
 template <class T>
 void Configuration::addParameter(std::string_view key, T value, bool dynamic) {
+    Expects(!initialized);
     addParameter<T>(key, value, value, std::nullopt, dynamic);
 }
 
@@ -159,40 +187,36 @@ void Configuration::addParameter(std::string_view key,
                                  T defaultServerless,
                                  std::optional<T> defaultTSAN,
                                  bool dynamic) {
+    Expects(!initialized);
     auto [itr, success] = attributes.insert(
-            {std::string{key}, std::make_shared<value_t>(dynamic)});
+            {std::string{key}, std::make_shared<Attribute>(dynamic)});
     if (!success) {
         throw std::logic_error("Configuration::addParameter(" +
                                std::string{key} + ") already exists.");
     }
     if (folly::kIsSanitizeThread && defaultTSAN.has_value()) {
-        itr->second->value = *defaultTSAN;
+        (void)itr->second->setValue(*defaultTSAN);
     } else {
-        itr->second->value = isServerless ? defaultServerless : defaultOnPrem;
+        (void)itr->second->setValue(isServerless ? defaultServerless
+                                                 : defaultOnPrem);
     }
 }
 
 template <class T>
 void Configuration::setParameter(std::string_view key, T value) {
-    std::vector<ValueChangedListener*> copy;
-    {
-        std::lock_guard<std::mutex> lh(mutex);
-        auto it = attributes.find(key);
-        if (it == attributes.end()) {
-            throw std::invalid_argument("Configuration::setParameter(" +
-                                        std::string{key} + ") doesn't exist.");
-        }
-        if (it->second->validator) {
-            it->second->validator->validate(key, value);
-        }
-        it->second->value = value;
+    Expects(initialized);
 
-        // Take a copy of the listeners so we can call them without holding
-        // the mutex.
-        copy = it->second->copyListeners();
+    auto it = attributes.find(key);
+    if (it == attributes.end()) {
+        throw std::invalid_argument("Configuration::setParameter(" +
+                                    std::string{key} + ") doesn't exist.");
     }
 
-    for (auto* listener : copy) {
+    if (it->second->validator) {
+        it->second->validator->validate(key, value);
+    };
+
+    for (const auto& listener : it->second->setValue(value)) {
         listener->valueChanged(key, value);
     }
 }
@@ -200,25 +224,26 @@ void Configuration::setParameter(std::string_view key, T value) {
 template <>
 void Configuration::setParameter<const char*>(std::string_view key,
                                               const char* value) {
+    Expects(initialized);
     setParameter(key, std::string(value));
 }
 
 template <class T>
 T Configuration::getParameter(std::string_view key) const {
-    std::lock_guard<std::mutex> lh(mutex);
-
+    Expects(initialized);
     const auto iter = attributes.find(key);
     if (iter == attributes.end()) {
         return T();
     }
 
-    auto* value = std::get_if<T>(&iter->second->value);
+    const auto variant = iter->second->getValue();
+    auto* value = std::get_if<T>(&variant);
 
     if (!value) {
         throw std::invalid_argument("Configuration::getParameter: key \"" +
                                     std::string{key} + "\" (which is " +
-                                    to_string(iter->second->value) +
-                                    ") is not " + type_name<T>::value);
+                                    to_string(variant) + ") is not " +
+                                    type_name<T>::value);
     }
     return *value;
 }
@@ -234,6 +259,7 @@ template std::string Configuration::getParameter<std::string>(
 void Configuration::maybeAddStat(const BucketStatCollector& collector,
                                  cb::stats::Key key,
                                  std::string_view keyStr) const {
+    Expects(initialized);
     auto itr = attributes.find(keyStr);
     if (itr == attributes.end()) {
         return;
@@ -242,17 +268,22 @@ void Configuration::maybeAddStat(const BucketStatCollector& collector,
     if (!requirementsMet(*attribute)) {
         return;
     }
+
+    auto variant = attribute->getValue();
     std::visit(
             [&collector, &key](auto&& elem) { collector.addStat(key, elem); },
-            attribute->value);
+            variant);
 }
 
 std::ostream& operator<<(std::ostream& out, const Configuration& config) {
-    std::lock_guard<std::mutex> lh(config.mutex);
+    Expects(config.initialized);
     for (const auto& attribute : config.attributes) {
         std::stringstream line;
-        line << attribute.first.c_str() << " = ["
-             << to_string(attribute.second->value) << "]" << std::endl;
+        {
+            const auto variant = attribute.second->getValue();
+            line << attribute.first.c_str() << " = [" << to_string(variant)
+                 << "]" << std::endl;
+        }
         out << line.str();
     }
 
@@ -260,12 +291,13 @@ std::ostream& operator<<(std::ostream& out, const Configuration& config) {
 }
 
 void Configuration::addAlias(const std::string& key, const std::string& alias) {
+    Expects(!initialized);
     attributes[alias] = attributes[key];
 }
 
 void Configuration::addValueChangedListener(
         std::string_view key, std::unique_ptr<ValueChangedListener> val) {
-    std::lock_guard<std::mutex> lh(mutex);
+    Expects(initialized);
     auto it = attributes.find(key);
     if (it == attributes.end()) {
         throw std::invalid_argument(
@@ -273,12 +305,13 @@ void Configuration::addValueChangedListener(
                             "config key '{}'",
                             key));
     }
-    it->second->changeListener.emplace_back(std::move(val));
+
+    it->second->addChangeListener(std::move(val));
 }
 
 ValueChangedValidator* Configuration::setValueValidator(
         std::string_view key, ValueChangedValidator* validator) {
-    std::lock_guard<std::mutex> lh(mutex);
+    Expects(!initialized);
     auto it = attributes.find(key);
     if (it == attributes.end()) {
         return nullptr;
@@ -291,8 +324,8 @@ ValueChangedValidator* Configuration::setValueValidator(
 
 Requirement* Configuration::setRequirements(const std::string& key,
                                             Requirement* requirement) {
+    Expects(!initialized);
     Requirement* ret = nullptr;
-    std::lock_guard<std::mutex> lh(mutex);
     if (attributes.find(key) != attributes.end()) {
         ret = attributes[key]->requirement.release();
         attributes[key]->requirement.reset(requirement);
@@ -301,7 +334,8 @@ Requirement* Configuration::setRequirements(const std::string& key,
     return ret;
 }
 
-bool Configuration::requirementsMet(const value_t& value) const {
+bool Configuration::requirementsMet(const Attribute& value) const {
+    Expects(initialized);
     if (value.requirement) {
         for (auto requirement : value.requirement->requirements) {
             const auto iter = attributes.find(requirement.first);
@@ -310,7 +344,7 @@ bool Configuration::requirementsMet(const value_t& value) const {
                 // is not yet complete. We cannot verify yet.
                 return true;
             }
-            if (iter->second->value != requirement.second) {
+            if (iter->second->getValue() != requirement.second) {
                 return false;
             }
         }
@@ -318,10 +352,10 @@ bool Configuration::requirementsMet(const value_t& value) const {
     return true;
 }
 void Configuration::requirementsMetOrThrow(std::string_view key) const {
-    std::lock_guard<std::mutex> lh(mutex);
+    Expects(initialized);
     auto itr = attributes.find(key);
     if (itr != attributes.end()) {
-        if (!requirementsMet(*(itr->second))) {
+        if (!requirementsMet(*itr->second)) {
             throw requirements_unsatisfied("Cannot set" + std::string{key} +
                                            " : requirements not met");
         }
@@ -329,6 +363,7 @@ void Configuration::requirementsMetOrThrow(std::string_view key) const {
 }
 
 bool Configuration::parseConfiguration(std::string_view str) {
+    Expects(initialized);
     enum config_datatype { DT_SIZE, DT_SSIZE, DT_FLOAT, DT_BOOL, DT_STRING };
 
     bool failed = false;
@@ -338,7 +373,7 @@ bool Configuration::parseConfiguration(std::string_view str) {
             if (k == key) {
                 found = true;
                 try {
-                    switch (config_datatype(value->value.index())) {
+                    switch (config_datatype(value->getValue().index())) {
                     case DT_STRING:
                         setParameter(key, v);
                         break;
@@ -374,11 +409,12 @@ bool Configuration::parseConfiguration(std::string_view str) {
 }
 
 void Configuration::visit(Configuration::Visitor visitor) const {
+    Expects(initialized);
     for (const auto& attr : attributes) {
         if (requirementsMet(*attr.second)) {
             visitor(attr.first,
                     attr.second->dynamic,
-                    to_string(attr.second->value));
+                    to_string(attr.second->getValue()));
         }
     }
 }
@@ -444,22 +480,23 @@ using owning_type_t = typename owning_type<T>::type;
 template <class Arg>
 void Configuration::addValueChangedFunc(std::string_view key,
                                         std::function<void(Arg)> callback) {
+    Expects(initialized);
     owning_type_t<Arg> currentValue;
     {
-        std::lock_guard<std::mutex> lh(mutex);
         auto itr = attributes.find(key);
         if (itr == attributes.end()) {
             throw std::invalid_argument(
                     "Configuration::addValueChangedFunc: No such config key '" +
                     std::string{key} + "'");
         }
+
         // Config params will _always_ have a value of the intended type set,
         // either the default or some updated value.
         // By trying to get the value as type Arg, we can verify that the given
         // callback actually handles the correct type
         // e.g., user is not providing a callback handling string types for a
         // param with type size_t
-        const auto& valueVariant = itr->second->value;
+        const auto& valueVariant = itr->second->getValue();
         auto* valuePtr = std::get_if<owning_type_t<Arg>>(&valueVariant);
 
         if (!valuePtr) {
@@ -494,8 +531,6 @@ void Configuration::addValueChangedFunc(std::string_view key,
     // keep that pattern here.
     callback(currentValue);
 
-    // re-acquire the lock and insert the callback
-    std::lock_guard<std::mutex> lh(mutex);
     auto itr = attributes.find(key);
     if (itr == attributes.end()) {
         throw std::invalid_argument(
@@ -503,7 +538,8 @@ void Configuration::addValueChangedFunc(std::string_view key,
                             "config key '{}'",
                             key));
     }
-    itr->second->changeListener.emplace_back(
+    // re-acquire the lock and insert the callback
+    itr->second->addChangeListener(
             std::make_unique<ValueChangedCallback<Arg>>(std::move(callback)));
 }
 

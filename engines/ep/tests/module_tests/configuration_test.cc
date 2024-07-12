@@ -277,27 +277,54 @@ class ConfigurationShim : public Configuration {
      */
 
 public:
-    using Configuration::addParameter;
+    using Configuration::Configuration;
     using Configuration::getParameter;
     using Configuration::setParameter;
+
+    template <class T>
+    void public_addParameter(std::string_view key, T value, bool dynamic) {
+        initialized = false;
+        Configuration::addParameter(key, value, dynamic);
+        initialized = true;
+    }
+
+    template <class T>
+    void public_addParameter(std::string_view key,
+                             T defaultOnPrem,
+                             T defaultServerless,
+                             std::optional<T> defaultTSAN,
+                             bool dynamic) {
+        initialized = false;
+        Configuration::addParameter(
+                key, defaultOnPrem, defaultServerless, defaultTSAN, dynamic);
+        initialized = true;
+    }
+
+    ValueChangedValidator* public_setValueValidator(
+            std::string_view key, ValueChangedValidator* validator) {
+        initialized = false;
+        auto* result = Configuration::setValueValidator(key, validator);
+        initialized = true;
+        return result;
+    }
 };
 
 TEST(ConfigurationTest, SetGetWorks) {
     ConfigurationShim configuration;
 
-    configuration.addParameter("bool", false, false);
+    configuration.public_addParameter("bool", false, false);
     EXPECT_EQ(configuration.getParameter<bool>("bool"), false);
 
-    configuration.addParameter("size", (size_t)100, false);
+    configuration.public_addParameter("size", (size_t)100, false);
     EXPECT_EQ(configuration.getParameter<size_t>("size"), 100);
 
-    configuration.addParameter("ssize", (ssize_t)-100, false);
+    configuration.public_addParameter("ssize", (ssize_t)-100, false);
     EXPECT_EQ(configuration.getParameter<ssize_t>("ssize"), -100);
 
-    configuration.addParameter("float", (float)123.5, false);
+    configuration.public_addParameter("float", (float)123.5, false);
     EXPECT_EQ(configuration.getParameter<float>("float"), 123.5);
 
-    configuration.addParameter("string", std::string("hello"), false);
+    configuration.public_addParameter("string", std::string("hello"), false);
     EXPECT_EQ(configuration.getParameter<std::string>("string"), "hello");
 }
 
@@ -305,8 +332,9 @@ TEST(ConfigurationTest, ValidatorWorks) {
     ConfigurationShim configuration;
     std::string key{"test_key"};
 
-    configuration.addParameter(key, (size_t)110, false);
-    EXPECT_NO_THROW(configuration.setValueValidator(key, (new SizeRangeValidator())->min(10)->max(100)));
+    configuration.public_addParameter(key, (size_t)110, false);
+    EXPECT_NO_THROW(configuration.public_setValueValidator(
+            key, (new SizeRangeValidator())->min(10)->max(100)));
     EXPECT_NO_THROW(configuration.setParameter(key, (size_t)10));
     EXPECT_NO_THROW(configuration.setParameter(key, (size_t)100));
     EXPECT_THROW(configuration.setParameter(key, (size_t)9), std::range_error);
@@ -368,7 +396,7 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     // Create listeners
     auto mvcl = std::make_unique<MockValueChangedListener>();
     // set parameter once so entry in attributes is present to add a listener
-    configuration.addParameter(key, (ssize_t)1, false);
+    configuration.public_addParameter(key, (ssize_t)1, false);
 
     EXPECT_CALL(*mvcl, ssizeValueChanged("test_key", 2)).Times(1);
     EXPECT_CALL(*mvcl, sizeValueChanged(_, _)).Times(0);
@@ -387,7 +415,8 @@ TEST(ChangeListenerTest, Callback) {
 
     bool testValue = false;
 
-    configuration.addParameter(key, false /* value */, true /* isDynamic */);
+    configuration.public_addParameter(
+            key, false /* value */, true /* isDynamic */);
 
     configuration.addAndNotifyValueChangedCallback(
             key, [&](bool value) { testValue = value; });
@@ -407,7 +436,8 @@ TEST(ChangeListenerTest, CallbackIncorrectType) {
     std::string key{"test_key"};
 
     // create a config param with value of type size_t
-    configuration.addParameter(key, size_t() /* value */, true /* isDynamic */);
+    configuration.public_addParameter(
+            key, size_t() /* value */, true /* isDynamic */);
 
     EXPECT_THROW(configuration.addAndNotifyValueChangedCallback(
                          key, [](std::string_view value) {}),
@@ -424,7 +454,7 @@ TEST(ChangeListenerTest, CallbackProvidedCurrentValue) {
     std::string key{"test_key"};
 
     // create a config param with value of type size_t
-    configuration.addParameter(
+    configuration.public_addParameter(
             key, size_t(1234) /* value */, true /* isDynamic */);
 
     using namespace testing;
@@ -441,7 +471,7 @@ TEST(ChangeListenerTest, CallbackProvidedCurrentValueNonDefault) {
     std::string key{"test_key"};
 
     // create a config param with value of type size_t
-    configuration.addParameter(
+    configuration.public_addParameter(
             key, size_t(1234) /* value */, true /* isDynamic */);
 
     configuration.setParameter(key, size_t(4321));
@@ -453,17 +483,11 @@ TEST(ChangeListenerTest, CallbackProvidedCurrentValueNonDefault) {
     configuration.addAndNotifyValueChangedCallback(key, mockCB.AsStdFunction());
 }
 
-class MockConfiguration : public Configuration {
-public:
-    using Configuration::addParameter;
-    using Configuration::Configuration;
-    using Configuration::getParameter;
-};
-
 TEST(ConfigurationTest, TsanOverride) {
     for (bool serverless : {false, true}) {
-        MockConfiguration config(serverless);
-        config.addParameter("param", size_t(3), size_t(2), {size_t(1)}, false);
+        ConfigurationShim config(serverless);
+        config.public_addParameter(
+                "param", size_t(3), size_t(2), {size_t(1)}, false);
         auto value = config.getParameter<size_t>("param");
         if (folly::kIsSanitizeThread) {
             EXPECT_EQ(1, value);

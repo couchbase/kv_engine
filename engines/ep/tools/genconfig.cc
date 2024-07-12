@@ -716,7 +716,6 @@ int main(int argc, char **argv) {
                  << "    using namespace cb::stats;" << std::endl
                  << "    using namespace std::string_view_literals;"
                  << std::endl
-                 << "    std::lock_guard<std::mutex> lh(mutex);" << std::endl
                  << addStatImplementation << "}" << std::endl;
         implfile.close();
     }
