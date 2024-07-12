@@ -50,10 +50,6 @@ protected:
 
     GetMetaResponse get_meta();
 
-    bool supportSyncRepl() const {
-        return mcd_env->getTestBucket().supportsSyncWrites();
-    }
-
     /// Constructs a Subdoc multi-mutation matching the style of an SDK
     // Transactions mutation.
     BinprotSubdocMultiMutationCommand makeSDKTxnMultiMutation() const;

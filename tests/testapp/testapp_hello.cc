@@ -156,12 +156,7 @@ TEST_F(HelloTest, Collections) {
     const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
 
     ASSERT_TRUE(rsp.isSuccess());
-    if (GetTestBucket().supportsCollections()) {
-        const auto& features = rsp.getFeatures();
-        ASSERT_EQ(1, features.size());
-        ASSERT_EQ(cb::mcbp::Feature::Collections, features[0]);
-    } else {
-        const auto& features = rsp.getFeatures();
-        ASSERT_EQ(0, features.size());
-    }
+    const auto& features = rsp.getFeatures();
+    ASSERT_EQ(1, features.size());
+    ASSERT_EQ(cb::mcbp::Feature::Collections, features[0]);
 }

@@ -431,9 +431,6 @@ void TestappTest::waitForAtLeastSeqno(MemcachedConnection& conn,
                                       Vbid vbid,
                                       uint64_t uuid,
                                       uint64_t seqno) {
-    ASSERT_TRUE(mcd_env->getTestBucket().supportsPersistence())
-            << "Error: your bucket does not support persistence";
-
     // Poll for that sequence number to be persisted.
     ObserveInfo observe;
     do {
@@ -1276,7 +1273,7 @@ int main(int argc, char** argv) {
     std::string engine_config;
 
     int cmd;
-    while ((cmd = getopt(argc, argv, "vc:eE:")) != EOF) {
+    while ((cmd = getopt(argc, argv, "vc:e")) != EOF) {
         switch (cmd) {
         case 'v':
             memcached_verbose++;
@@ -1301,14 +1298,13 @@ int main(int argc, char** argv) {
                       << "bucket creation." << std::endl
                       << "  -e Embedded - Run the memcached daemon in the "
                       << "same process (for debugging only..)" << std::endl
-                      << "  -E ENGINE engine type to use. <default|ep>"
                       << std::endl;
             return 1;
         }
     }
 
     try {
-        mcd_env.reset(McdEnvironment::create(engine_name, engine_config));
+        mcd_env = McdEnvironment::create(engine_config);
     } catch (const std::exception& e) {
         std::cerr << "Failed to set up test environment: " << e.what()
                   << std::endl;

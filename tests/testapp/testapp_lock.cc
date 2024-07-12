@@ -232,12 +232,10 @@ TEST_P(LockTest, UnlockSuccess) {
             << "Locking document should return a different CAS";
     userConnection->unlock(name, Vbid(0), locked.info.cas);
 
-    if (mcd_env->getTestBucket().getName() == "ep_engine") {
-        // CAS should be restored to value prior to lock (i.e. last modification
-        // time of document).
-        auto getInfo = userConnection->get(name, Vbid(0));
-        EXPECT_EQ(getInfo.info.cas, mutInfo.cas);
-    }
+    // CAS should be restored to value prior to lock (i.e. last modification
+    // time of document).
+    auto getInfo = userConnection->get(name, Vbid(0));
+    EXPECT_EQ(getInfo.info.cas, mutInfo.cas);
 
     // The document should no longer be locked
     userConnection->mutate(document, Vbid(0), MutationType::Set);

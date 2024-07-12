@@ -33,9 +33,6 @@ class DcpConsumerAckTest
                                                             OutOfMem>> {
 public:
     static void SetUpTestCase() {
-        if (mcd_env->getTestBucket().getName() == "default_engine") {
-            GTEST_SKIP() << "Skipping as DCP not supported";
-        }
         // Enable consumer control so we can force buffering.
         // Also configure 0 bytes for consumers buffers, so that every input
         // will generate an ACK.
@@ -46,10 +43,6 @@ public:
                 "dcp_consumer_flow_control_ack_ratio=0.0");
     }
     void SetUp() override {
-        if (mcd_env->getTestBucket().getName() == "default_engine") {
-            GTEST_SKIP() << "Skipping as DCP not supported";
-        }
-
         // Test has to run on a connection which can create a consumer and the
         // test fixtures must use the same connection as the consumer is
         // associated with a connection.

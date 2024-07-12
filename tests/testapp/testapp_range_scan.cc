@@ -25,9 +25,6 @@
 class RangeScanTest : public TestappXattrClientTest {
 public:
     void SetUp() override {
-        if (!mcd_env->getTestBucket().supportsRangeScans()) {
-            GTEST_SKIP();
-        }
         TestappXattrClientTest::SetUp();
 
         // We will be using collections directly

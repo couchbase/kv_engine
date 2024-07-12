@@ -99,8 +99,6 @@ INSTANTIATE_TEST_SUITE_P(
         PrintToStringCombinedName());
 
 TEST_P(WithMetaTest, basicSet) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
-
     MutationInfo resp;
     try {
         resp = userConnection->mutateWithMeta(document,
@@ -120,8 +118,6 @@ TEST_P(WithMetaTest, basicSet) {
 
 // Verify that SetWithMeta respects the fact a document is locked.
 TEST_P(WithMetaTest, SetWhileLocked) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
-
     // Store an initial document so we can lock it.
     userConnection->mutateWithMeta(document,
                                    Vbid(0),
@@ -157,7 +153,6 @@ TEST_P(WithMetaTest, SetWhileLocked) {
 }
 
 TEST_P(WithMetaTest, basicSetXattr) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     makeDocumentXattrValue();
 
     MutationInfo resp;
@@ -180,7 +175,6 @@ TEST_P(WithMetaTest, basicSetXattr) {
 }
 
 TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     if (::testing::get<3>(GetParam()) == ClientSnappySupport::No) {
         return;
     }
@@ -200,7 +194,6 @@ TEST_P(WithMetaTest, MB36304_DocumetTooBig) {
 }
 
 TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     if (::testing::get<1>(GetParam()) == XattrSupport::No) {
         return;
     }
@@ -221,7 +214,6 @@ TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
 }
 
 TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
     if (::testing::get<1>(GetParam()) == XattrSupport::No ||
         ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
         return;
@@ -261,7 +253,6 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
 }
 
 TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
     if (::testing::get<1>(GetParam()) == XattrSupport::No ||
         ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
         return;
@@ -293,7 +284,6 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
 
 void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
                                                        bool compressed) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
     if (::testing::get<1>(GetParam()) == XattrSupport::No ||
         ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
         return;
@@ -347,7 +337,6 @@ TEST_P(WithMetaTest, DeleteWithMetaAcceptsUserXattrs_Compressed) {
 
 void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
                                                  bool dtXattr) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
     if (::testing::get<1>(GetParam()) == XattrSupport::No ||
         ::testing::get<2>(GetParam()) == ClientJSONSupport::No) {
         return;

@@ -66,10 +66,6 @@ TEST_P(XattrNoDocDurabilityTest, RequiresXattrPath) {
 // Positive test: Can User XAttrs be added to a document which doesn't exist
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag.
 void XattrNoDocTest::testSinglePathDictAdd() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     // let's add a user XATTR to a non-existing document
     auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictAdd,
                        name,
@@ -113,10 +109,6 @@ TEST_P(XattrNoDocDurabilityTest, SinglePathDictAdd) {
 // (and doesn't have a tombstone) using the new CreateAsDeleted flag, using
 // multi-mutation with each mutation opcode.
 void XattrNoDocTest::testMultipathDictAdd() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocDictAdd,
@@ -158,10 +150,6 @@ TEST_P(XattrNoDocDurabilityTest, MultipathDictAdd) {
 }
 
 void XattrNoDocTest::testMultipathDictUpsert() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocDictUpsert,
@@ -188,10 +176,6 @@ TEST_P(XattrNoDocDurabilityTest, MultipathDictUpsert) {
 }
 
 void XattrNoDocTest::testMultipathArrayPushLast() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayPushLast,
@@ -218,10 +202,6 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayPushLast) {
 }
 
 void XattrNoDocTest::testMultipathArrayPushFirst() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayPushFirst,
@@ -278,10 +258,6 @@ TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
 }
 
 void XattrNoDocTest::testMultipathArrayAddUnique() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocArrayAddUnique,
@@ -308,10 +284,6 @@ TEST_P(XattrNoDocDurabilityTest, MultipathArrayAddUnique) {
 }
 
 void XattrNoDocTest::testMultipathCounter() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     BinprotSubdocMultiMutationCommand cmd(
             name,
             {{ClientOpcode::SubdocCounter,
@@ -358,10 +330,6 @@ std::ostream& operator<<(std::ostream& os,
 // using the new CreateAsDeleted flag, using a combination of subdoc-multi
 // mutation types.
 void XattrNoDocTest::testMultipathCombo() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     auto cmd = makeSDKTxnMultiMutation();
     cmd.addDocFlag(DocFlag::Mkdoc);
     cmd.addDocFlag(DocFlag::CreateAsDeleted);
@@ -396,10 +364,6 @@ TEST_P(XattrNoDocDurabilityTest, MultipathCombo) {
 // AccessDeleted (to check for an existing tombstone).
 // This is also a regression test for MB-40162.
 void XattrNoDocTest::testMultipathAccessDeletedCreateAsDeleted() {
-    if (durReqs && !supportSyncRepl()) {
-        GTEST_SKIP();
-    }
-
     auto cmd = makeSDKTxnMultiMutation();
 
     cmd.addDocFlag(DocFlag::Add);

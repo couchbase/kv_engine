@@ -41,50 +41,29 @@ void TestappXattrClientTest::setBodyAndXattr(
     document.info.flags = 0xcaffee;
     document.info.id = name;
 
-    if (mcd_env->getTestBucket().supportsOp(
-                cb::mcbp::ClientOpcode::SetWithMeta)) {
-        // Combine the body and Extended Attribute into a single value -
-        // this allows us to store already compressed documents which
-        // have XATTRs.
-        document.info.cas = 10; // withMeta requires a non-zero CAS.
-        document.info.datatype = cb::mcbp::Datatype::Xattr;
-        document.value =
-                cb::xattr::make_wire_encoded_string(startValue, xattrList);
-        if (compressValue) {
-            // Compress the complete body.
-            document.compress();
-        }
-
-        // As we are using setWithMeta; we need to explicitly set JSON
-        // if our connection supports it.
-        if (hasJSONSupport() == ClientJSONSupport::Yes) {
-            document.info.datatype =
-                    cb::mcbp::Datatype(int(document.info.datatype) |
-                                       int(cb::mcbp::Datatype::JSON));
-        }
-        userConnection->mutateWithMeta(document,
-                                       Vbid(0),
-                                       cb::mcbp::cas::Wildcard,
-                                       /*seqno*/ 1,
-                                       FORCE_WITH_META_OP | REGENERATE_CAS |
-                                               SKIP_CONFLICT_RESOLUTION_FLAG);
-    } else {
-        // No SetWithMeta support, must construct the
-        // document+XATTR with primitives (and cannot compress
-        // it).
-        document.info.cas = cb::mcbp::cas::Wildcard;
-        document.info.datatype = cb::mcbp::Datatype::Raw;
-        document.value = startValue;
-        userConnection->mutate(document, Vbid(0), MutationType::Set);
-        auto doc = userConnection->get(name, Vbid(0));
-
-        EXPECT_EQ(doc.value, document.value);
-
-        // Now add the XATTRs
-        for (auto& kv : xattrList) {
-            xattr_upsert(kv.first, kv.second);
-        }
+    // Combine the body and Extended Attribute into a single value -
+    // this allows us to store already compressed documents which
+    // have XATTRs.
+    document.info.cas = 10; // withMeta requires a non-zero CAS.
+    document.info.datatype = cb::mcbp::Datatype::Xattr;
+    document.value = cb::xattr::make_wire_encoded_string(startValue, xattrList);
+    if (compressValue) {
+        // Compress the complete body.
+        document.compress();
     }
+
+    // As we are using setWithMeta; we need to explicitly set JSON
+    // if our connection supports it.
+    if (hasJSONSupport() == ClientJSONSupport::Yes) {
+        document.info.datatype = cb::mcbp::Datatype(
+                int(document.info.datatype) | int(cb::mcbp::Datatype::JSON));
+    }
+    userConnection->mutateWithMeta(document,
+                                   Vbid(0),
+                                   cb::mcbp::cas::Wildcard,
+                                   /*seqno*/ 1,
+                                   FORCE_WITH_META_OP | REGENERATE_CAS |
+                                           SKIP_CONFLICT_RESOLUTION_FLAG);
 }
 
 void TestappXattrClientTest::setBodyAndXattr(

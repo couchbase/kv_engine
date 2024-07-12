@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -16,7 +15,7 @@
 #include <memcached/durability_spec.h>
 
 using namespace cb::mcbp;
-using cb::mcbp::request::FrameInfoId;
+using request::FrameInfoId;
 
 class DurabilityTest : public TestappClientTest {
 protected:
@@ -50,7 +49,7 @@ protected:
     void executeCommand(ClientOpcode opcode,
                         cb::const_byte_buffer extras,
                         const std::string& value,
-                        cb::mcbp::Status expectedStatus) {
+                        Status expectedStatus) {
         std::vector<uint8_t> buffer(1024);
         RequestBuilder builder({buffer.data(), buffer.size()});
         builder.setOpcode(opcode);
@@ -79,31 +78,25 @@ protected:
         executeCommand(opcode,
                        request::MutationPayload().getBuffer(),
                        "hello",
-                       getExpectedStatus());
+                       Status::Success);
     }
 
     void executeArithmeticOperation(ClientOpcode opcode) {
         executeCommand(opcode,
                        request::ArithmeticPayload().getBuffer(),
                        "",
-                       getExpectedStatus());
+                       Status::Success);
     }
 
     void executeAppendPrependCommand(ClientOpcode opcode) {
-        executeCommand(opcode, {}, "world", getExpectedStatus());
+        executeCommand(opcode, {}, "world", Status::Success);
     }
 
     void executeTouchOrGatCommand(ClientOpcode opcode) {
         executeCommand(opcode,
                        request::GatPayload().getBuffer(),
                        "",
-                       cb::mcbp::Status::NotSupported);
-    }
-
-    cb::mcbp::Status getExpectedStatus() const {
-        return (mcd_env->getTestBucket().supportsSyncWrites())
-                       ? Status::Success
-                       : Status::NotSupported;
+                       Status::NotSupported);
     }
 };
 
@@ -132,7 +125,7 @@ TEST_P(DurabilityTest, ReplaceMaybeSupported) {
 }
 
 TEST_P(DurabilityTest, DeleteMaybeSupported) {
-    executeCommand(ClientOpcode::Delete, {}, {}, getExpectedStatus());
+    executeCommand(ClientOpcode::Delete, {}, {}, Status::Success);
 }
 
 TEST_P(DurabilityTest, IncrementMaybeSupported) {
@@ -159,53 +152,6 @@ TEST_P(DurabilityTest, GetAndTouchNotSupported) {
     executeTouchOrGatCommand(ClientOpcode::Gat);
 }
 
-TEST_P(DurabilityTest, AckResponseHandled) {
-    if (mcd_env->getTestBucket().getName() != "default_engine") {
-        // Will fail in EP engine if the DCP consumer isn't present
-        return;
-    }
-    // Send our response to see if the executor accepts it. If not, it would
-    // disconnect the connection
-    std::vector<uint8_t> rspBuffer(1024);
-    ResponseBuilder rspBuilder({rspBuffer.data(), rspBuffer.size()});
-    rspBuilder.setOpcode(cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged);
-    rspBuilder.setMagic(Magic::AltClientResponse);
-    rspBuilder.setFramingExtras(encode(cb::durability::Requirements()));
-    rspBuilder.setKey(
-            {reinterpret_cast<const uint8_t*>(name.data()), name.size()});
-    rspBuffer.resize(rspBuilder.getFrame()->getFrame().size());
-
-    Frame rspFrame;
-    rspFrame.payload = std::move(rspBuffer);
-
-    userConnection->sendFrame(rspFrame);
-
-    // Send something else, a GAT in this case, to test that the connection is
-    // still up
-    std::vector<uint8_t> reqBuffer(1024);
-    RequestBuilder reqBuilder({reqBuffer.data(), reqBuffer.size()});
-    std::string value = "";
-    reqBuilder.setOpcode(ClientOpcode::Gat);
-    reqBuilder.setMagic(Magic::AltClientRequest);
-    reqBuilder.setFramingExtras(encode(cb::durability::Requirements()));
-    reqBuilder.setExtras(request::GatPayload().getBuffer());
-    reqBuilder.setKey(
-            {reinterpret_cast<const uint8_t*>(name.data()), name.size()});
-    reqBuilder.setValue(
-            {reinterpret_cast<const uint8_t*>(value.data()), value.size()});
-    reqBuffer.resize(reqBuilder.getFrame()->getFrame().size());
-
-    Frame reqFrame;
-    reqFrame.payload = std::move(reqBuffer);
-    userConnection->sendFrame(reqFrame);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
-
-    EXPECT_EQ(Status::NotSupported, resp.getStatus());
-    EXPECT_NE(0xdeadbeef, ntohll(resp.getCas()));
-}
-
 class SubdocDurabilityTest : public DurabilityTest {
 protected:
     void SetUp() override {
@@ -224,8 +170,7 @@ protected:
      */
     static const size_t FrameExtrasSize = 4;
 
-    void executeCommand(std::vector<uint8_t>& command,
-                        cb::mcbp::Status expectedStatus) {
+    void executeCommand(std::vector<uint8_t>& command, Status expectedStatus) {
         // Resize the underlying buffer to have room for the frame extras..
         command.resize(command.size() + FrameExtrasSize);
 
@@ -260,28 +205,28 @@ TEST_P(SubdocDurabilityTest, SubdocDictAddMaybeSupported) {
                              cb::mcbp::subdoc::PathFlag::Mkdir_p);
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocDictUpsertMaybeSupported) {
     BinprotSubdocCommand cmd(ClientOpcode::SubdocDictUpsert, name, "foo", "5");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocDeleteMaybeSupported) {
     BinprotSubdocCommand cmd(ClientOpcode::SubdocDelete, name, "tag");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocReplaceMaybeSupported) {
     BinprotSubdocCommand cmd(ClientOpcode::SubdocReplace, name, "tag", "5");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayPushLastMaybeSupported) {
@@ -289,7 +234,7 @@ TEST_P(SubdocDurabilityTest, SubdocArrayPushLastMaybeSupported) {
             ClientOpcode::SubdocArrayPushLast, name, "array", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstMaybeSupported) {
@@ -297,7 +242,7 @@ TEST_P(SubdocDurabilityTest, SubdocArrayPushFirstMaybeSupported) {
             ClientOpcode::SubdocArrayPushFirst, name, "array", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayInsertMaybeSupported) {
@@ -305,7 +250,7 @@ TEST_P(SubdocDurabilityTest, SubdocArrayInsertMaybeSupported) {
             ClientOpcode::SubdocArrayInsert, name, "array.[3]", "3");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueMaybeSupported) {
@@ -313,14 +258,14 @@ TEST_P(SubdocDurabilityTest, SubdocArrayAddUniqueMaybeSupported) {
             ClientOpcode::SubdocArrayAddUnique, name, "array", "6");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocCounterMaybeSupported) {
     BinprotSubdocCommand cmd(ClientOpcode::SubdocCounter, name, "counter", "1");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }
 
 TEST_P(SubdocDurabilityTest, SubdocMultiMutationMaybeSupported) {
@@ -332,5 +277,5 @@ TEST_P(SubdocDurabilityTest, SubdocMultiMutationMaybeSupported) {
                     R"("world")");
     std::vector<uint8_t> payload;
     cmd.encode(payload);
-    executeCommand(payload, getExpectedStatus());
+    executeCommand(payload, Status::Success);
 }

@@ -44,7 +44,6 @@ set(memcached_testapp_SOURCES
     testapp_environment.h
     testapp_errmap.cc
     testapp_external_auth.cc
-    testapp_flush.cc
     testapp_getset.cc
     testapp_hello.cc
     testapp_interfaces.cc
@@ -141,18 +140,18 @@ if (TIMEOUT_EXE AND NOT WIN32)
 endif()
 
 gtest_discover_tests(memcached_testapp
-    EXTRA_ARGS -E ep ${VERBOSE_EXTRA_ARG}
+    EXTRA_ARGS ${VERBOSE_EXTRA_ARG}
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    TEST_PREFIX memcached_testapp.ep.
+    TEST_PREFIX memcached_testapp.
     ONE_CTEST_PER_SUITE
     DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300
                ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
 
 gtest_discover_tests(memcached_testapp
-        EXTRA_ARGS -E ep -c item_eviction_policy=full_eviction ${VERBOSE_EXTRA_ARG}
+        EXTRA_ARGS -c item_eviction_policy=full_eviction ${VERBOSE_EXTRA_ARG}
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        TEST_PREFIX memcached_testapp.ep-full_eviction.
+        TEST_PREFIX memcached_testapp.full_eviction.
         ONE_CTEST_PER_SUITE
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT 300

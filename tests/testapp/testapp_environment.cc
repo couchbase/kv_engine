@@ -119,102 +119,6 @@ void TestBucketImpl::setParam(
     });
 }
 
-class DefaultBucketImpl : public TestBucketImpl {
-public:
-    explicit DefaultBucketImpl(std::string extraConfig)
-        : TestBucketImpl(std::move(extraConfig)) {
-    }
-
-    void setUpBucket(const std::string& name,
-                     const std::string& config,
-                     MemcachedConnection& conn) override {
-        createEwbBucket(
-                name, BucketType::Memcached, mergeConfigString(config), conn);
-    }
-
-    void createBucket(const std::string& name,
-                      const std::string& config,
-                      MemcachedConnection& conn) override {
-        conn.createBucket(name, config, BucketType::Memcached);
-    }
-
-    [[nodiscard]] std::string getName() const override {
-        return "default_engine";
-    }
-
-    [[nodiscard]] BucketType getType() const override {
-        return BucketType::Memcached;
-    }
-
-    [[nodiscard]] bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
-        switch (cmd) {
-        case cb::mcbp::ClientOpcode::DcpOpen:
-        case cb::mcbp::ClientOpcode::DcpAddStream:
-        case cb::mcbp::ClientOpcode::DcpCloseStream:
-        case cb::mcbp::ClientOpcode::DcpStreamReq:
-        case cb::mcbp::ClientOpcode::DcpGetFailoverLog:
-        case cb::mcbp::ClientOpcode::DcpStreamEnd:
-        case cb::mcbp::ClientOpcode::DcpSnapshotMarker:
-        case cb::mcbp::ClientOpcode::DcpMutation:
-        case cb::mcbp::ClientOpcode::DcpDeletion:
-        case cb::mcbp::ClientOpcode::DcpExpiration:
-        case cb::mcbp::ClientOpcode::DcpSetVbucketState:
-        case cb::mcbp::ClientOpcode::DcpNoop:
-        case cb::mcbp::ClientOpcode::DcpBufferAcknowledgement:
-        case cb::mcbp::ClientOpcode::DcpControl:
-        case cb::mcbp::ClientOpcode::DcpSystemEvent:
-        case cb::mcbp::ClientOpcode::SetWithMeta:
-        case cb::mcbp::ClientOpcode::SetqWithMeta:
-        case cb::mcbp::ClientOpcode::AddWithMeta:
-        case cb::mcbp::ClientOpcode::AddqWithMeta:
-        case cb::mcbp::ClientOpcode::DelWithMeta:
-        case cb::mcbp::ClientOpcode::DelqWithMeta:
-        case cb::mcbp::ClientOpcode::EnableTraffic:
-        case cb::mcbp::ClientOpcode::DisableTraffic:
-        case cb::mcbp::ClientOpcode::GetFailoverLog:
-        case cb::mcbp::ClientOpcode::GetRandomKey:
-            return false;
-        default:
-            return true;
-        }
-    }
-
-    [[nodiscard]] bool supportsPrivilegedBytes() const override {
-        return false;
-    }
-
-    [[nodiscard]] size_t getMaximumDocSize() const override {
-        return 1024 * 1024;
-    }
-
-    [[nodiscard]] bool supportsLastModifiedVattr() const override {
-        return false;
-    }
-
-    [[nodiscard]] bool supportsPersistence() const override {
-        return false;
-    }
-
-    [[nodiscard]] bool supportsSyncWrites() const override {
-        return false;
-    }
-
-    [[nodiscard]] bool supportsCollections() const override {
-        return true;
-    }
-
-    [[nodiscard]] bool supportsRangeScans() const override {
-        return false;
-    }
-
-    [[nodiscard]] bool isFullEviction() const override {
-        return false;
-    }
-    [[nodiscard]] bool supportsEncryptionAtRest() const override {
-        return false;
-    }
-};
-
 class EpBucketImpl : public TestBucketImpl {
 public:
     EpBucketImpl(const std::filesystem::path& test_directory,
@@ -317,61 +221,9 @@ public:
         });
     }
 
-    [[nodiscard]] std::string getName() const override {
-        return "ep_engine";
-    }
-
-    [[nodiscard]] BucketType getType() const override {
-        return BucketType::Couchbase;
-    }
-
-    [[nodiscard]] bool supportsOp(cb::mcbp::ClientOpcode cmd) const override {
-        switch (cmd) {
-        case cb::mcbp::ClientOpcode::Flush:
-        case cb::mcbp::ClientOpcode::Flushq:
-        case cb::mcbp::ClientOpcode::Scrub:
-            return false;
-
-        default:
-            return true;
-        }
-    }
-
-    [[nodiscard]] bool supportsPrivilegedBytes() const override {
-        return true;
-    }
-
-    [[nodiscard]] size_t getMaximumDocSize() const override {
-        return 20 * 1024 * 1024;
-    }
-
-    [[nodiscard]] bool supportsLastModifiedVattr() const override {
-        return true;
-    }
-
-    [[nodiscard]] bool supportsPersistence() const override {
-        return true;
-    }
-
-    [[nodiscard]] bool supportsSyncWrites() const override {
-        return true;
-    }
-
-    [[nodiscard]] bool supportsCollections() const override {
-        return true;
-    }
-
-    [[nodiscard]] bool supportsRangeScans() const override {
-        return true;
-    }
-
     [[nodiscard]] bool isFullEviction() const override {
         return extraConfig.find("item_eviction_policy=full_eviction") !=
                std::string::npos;
-    }
-
-    [[nodiscard]] bool supportsEncryptionAtRest() const override {
-        return true;
     }
 
     [[nodiscard]] std::string getEncryptionConfig() const {
@@ -393,8 +245,7 @@ public:
 
 class McdEnvironmentImpl : public McdEnvironment {
 public:
-    McdEnvironmentImpl(const std::string& engineName,
-                       const std::string& engineConfig)
+    McdEnvironmentImpl(std::string engineConfig)
         : test_directory(absolute(std::filesystem::path(
                   cb::io::mkdtemp("memcached_testapp.")))),
           isasl_file_name(test_directory / "cbsaslpw.json"),
@@ -420,19 +271,8 @@ public:
         // the ewouldblock engine..
         setenv("MEMCACHED_UNIT_TESTS", "true", 1);
 
-        if (engineName == "default") {
-            std::string config = "keep_deleted=true";
-            if (!engineConfig.empty()) {
-                config += ";" + engineConfig;
-            }
-            testBucket = std::make_unique<DefaultBucketImpl>(config);
-        } else if (engineName == "ep") {
-            testBucket = std::make_unique<EpBucketImpl>(test_directory,
-                                                        engineConfig);
-        } else {
-            throw std::invalid_argument("Unknown engine '" + engineName +
-                                        "' Options are 'default' and 'ep'");
-        }
+        testBucket = std::make_unique<EpBucketImpl>(test_directory,
+                                                    std::move(engineConfig));
         // I shouldn't need to use string() here, but it fails to compile on
         // windows without it:
         //
@@ -753,7 +593,7 @@ private:
     cb::sasl::pwdb::MutablePasswordDatabase passwordDatabase;
 };
 
-McdEnvironment* McdEnvironment::create(const std::string& engineName,
-                                       const std::string& engineConfig) {
-    return new McdEnvironmentImpl(engineName, engineConfig);
+std::unique_ptr<McdEnvironment> McdEnvironment::create(
+        std::string engineConfig) {
+    return std::make_unique<McdEnvironmentImpl>(std::move(engineConfig));
 }

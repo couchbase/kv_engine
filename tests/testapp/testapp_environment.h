@@ -39,38 +39,38 @@ public:
     explicit TestBucketImpl(std::string extraConfig)
         : extraConfig(std::move(extraConfig)) {
     }
+    virtual ~TestBucketImpl() = default;
 
+    /**
+     * Create a bucket with the provided name and the provided
+     * configuration (in addition to the "mandatory" configuration
+     * attributes).
+     *
+     * @param name the name to use for the bucket
+     * @param config the configuration to add
+     * @param conn the connection to use to create the bucket
+     */
     virtual void createBucket(const std::string& name,
                               const std::string& config,
                               MemcachedConnection& conn) = 0;
 
+    /**
+     * Create the named bucket to be controlled under
+     * ewouldblock engine. See createBucket for a description
+     * of the parameters.
+     */
     virtual void setUpBucket(const std::string& name,
                              const std::string& config,
                              MemcachedConnection& conn) = 0;
 
     enum class BucketCreateMode { Clean, AllowRecreate };
-    virtual void setBucketCreateMode(BucketCreateMode) {
+    virtual void setBucketCreateMode(BucketCreateMode) = 0;
+
+    constexpr size_t getMaximumDocSize() const {
+        return 20 * 1024 * 1024;
     }
 
-    virtual ~TestBucketImpl() = default;
-
-    virtual std::string getName() const = 0;
-
-    virtual BucketType getType() const = 0;
-
-    // Whether the given bucket type supports an opcode
-    virtual bool supportsOp(cb::mcbp::ClientOpcode cmd) const = 0;
-    virtual bool supportsPrivilegedBytes() const = 0;
-    virtual size_t getMaximumDocSize() const = 0;
-    virtual bool supportsLastModifiedVattr() const = 0;
-    virtual bool supportsPersistence() const = 0;
-    virtual bool supportsSyncWrites() const = 0;
-    virtual bool supportsCollections() const = 0;
-    virtual bool supportsRangeScans() const = 0;
-
     virtual bool isFullEviction() const = 0;
-
-    [[nodiscard]] virtual bool supportsEncryptionAtRest() const = 0;
 
     /**
      * Make sure that xattr is enabled / disabled in the named bucket
@@ -151,8 +151,7 @@ class McdEnvironment {
 public:
     virtual ~McdEnvironment() = default;
 
-    static McdEnvironment* create(const std::string& engineName,
-                                  const std::string& engineConfig);
+    static std::unique_ptr<McdEnvironment> create(std::string engineConfig);
 
     /**
      * Shut down the test environment, clean up the test directory and

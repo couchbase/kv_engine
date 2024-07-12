@@ -130,7 +130,6 @@ INSTANTIATE_TEST_SUITE_P(
 /// Verify that increment works on a compressed document which contains extended
 /// attributes
 TEST_P(CompressionTest, MB57640) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     upsert("0");
 
     // Increment the counter
@@ -143,7 +142,6 @@ TEST_P(CompressionTest, MB57640) {
 /// Verify that Subdoc operations work works on a compressed document
 /// with extended attributes
 TEST_P(CompressionTest, SubdocLookupXattrOnCompressedDocument) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     upsert("0");
 
     // The document should be compressed, verify that we can read the
@@ -154,7 +152,6 @@ TEST_P(CompressionTest, SubdocLookupXattrOnCompressedDocument) {
 /// Verify that Subdoc operations work works on a compressed document
 /// with extended attributes
 TEST_P(CompressionTest, SubdocLookupFieldOnCompressedDocument) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     upsert(R"({"foo" : "bar"})");
 
     // The document should be compressed, verify that we can read the
@@ -167,7 +164,6 @@ TEST_P(CompressionTest, SubdocLookupFieldOnCompressedDocument) {
 ///   before being returned.
 /// * If there is no xattrs, the document should be returned compressed
 TEST_P(CompressionTest, GetReturnsCompressedData) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     Document doc;
     doc.info.id = name;
     doc.value.resize(4096, 'a');
@@ -192,7 +188,6 @@ TEST_P(CompressionTest, GetReturnsCompressedData) {
 
 /// Verify that append work correctly on compressed document
 TEST_P(CompressionTest, AppendPrepend) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     upsert(R"(1234)");
     Document document;
     document.value = "{}";
@@ -210,7 +205,6 @@ TEST_P(CompressionTest, AppendPrepend) {
 }
 
 TEST_P(CompressionTest, GatReturnsCompressedData) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     Document doc;
     doc.info.id = name;
     doc.value.resize(4096, 'a');
@@ -237,7 +231,6 @@ TEST_P(CompressionTest, GatReturnsCompressedData) {
 }
 
 TEST_P(CompressionTest, GetLockedReturnsCompressedData) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     Document doc;
     doc.info.id = name;
     doc.value.resize(4096, 'a');

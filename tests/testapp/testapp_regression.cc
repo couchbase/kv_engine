@@ -242,7 +242,6 @@ TEST_P(RegressionTest, MB_32078) {
 }
 
 TEST_P(RegressionTest, MB_32081) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     // The packet as found in MB-32081
     // See https://issues.couchbase.com/browse/MB-32113 for a full dump
     // of the packet

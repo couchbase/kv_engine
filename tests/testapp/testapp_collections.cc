@@ -24,12 +24,6 @@ class CollectionsTest : public TestappClientTest {
 protected:
     void SetUp() override {
         TestappClientTest::SetUp();
-        // Default engine does not support changing the collection configuration
-        if (!mcd_env->getTestBucket().supportsCollections() ||
-            mcd_env->getTestBucket().getName() == "default_engine") {
-            return;
-        }
-
         collections.add(CollectionEntry::fruit).add(CollectionEntry::vegetable);
         collections.add(ScopeEntry::customer);
         collections.add(CollectionEntry::customer1, ScopeEntry::customer);
@@ -150,12 +144,6 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 // Check that an unknown scope/collection error returns the expected JSON
 TEST_P(CollectionsTest, ManifestUidInResponse) {
     std::string expectedUid = collections.getUidString();
-    if (!mcd_env->getTestBucket().supportsCollections()) {
-        return;
-    }
-    if (mcd_env->getTestBucket().getName() == "default_engine") {
-        expectedUid = "0";
-    }
 
     // Force the unknown collection error and check the JSON
     auto response = userConnection->execute(BinprotGenericCommand{

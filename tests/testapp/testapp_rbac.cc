@@ -88,21 +88,6 @@ TEST_P(RbacTest, ScrubNoAccess) {
     EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 }
 
-TEST_P(RbacTest, Scrub) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::Scrub);
-
-    adminConnection->executeInBucket(bucketName, [](auto& c) {
-        BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
-        BinprotResponse response;
-        do {
-            // Retry if scrubber is already running.
-            response = c.execute(command);
-        } while (response.getStatus() == cb::mcbp::Status::Ebusy);
-
-        EXPECT_TRUE(response.isSuccess());
-    });
-}
-
 TEST_P(RbacTest, DropPrivilege) {
     auto& c = getAdminConnection();
     c.selectBucket(bucketName);

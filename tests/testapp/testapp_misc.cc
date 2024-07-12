@@ -36,8 +36,6 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(MiscTest, GetFailoverLog) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetFailoverLog);
-
     // Test existing VBucket
     auto response = userConnection->getFailoverLog(Vbid(0));
     auto header = response.getResponse();
@@ -260,18 +258,9 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
 
     try {
         conn.selectBucket(bucketName);
-        if (!GetTestBucket().supportsCollections()) {
-            FAIL() << "Select bucket did not throw a not supported error when"
-                      "attempting to select a memcache bucket with a "
-                      "collections enabled connections";
-        }
     } catch (const ConnectionError& e) {
-        if (!GetTestBucket().supportsCollections()) {
-            EXPECT_EQ(cb::mcbp::Status::NotSupported, e.getReason());
-        } else {
-            FAIL() << "Select bucket failed for unknown reason: "
-                   << to_string(e.getReason());
-        }
+        FAIL() << "Select bucket failed for unknown reason: "
+               << to_string(e.getReason());
     }
     adminConnection->deleteBucket("collections");
 }

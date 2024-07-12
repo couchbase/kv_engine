@@ -375,15 +375,6 @@ TEST_P(StatsTest, TestAppend) {
 /// Verify that we don't keep invalid pointers around when the packet is
 /// relocated as part of EWB
 TEST_P(StatsTest, MB37147_TestEWBReturnFromStat) {
-    if (!mcd_env->getTestBucket().supportsPersistence()) {
-        std::cout
-                << "Note: skipping test '"
-                << ::testing::UnitTest::GetInstance()
-                           ->current_test_info()
-                           ->name()
-                << "' as the underlying engine don't support vbucket stats.\n";
-        return;
-    }
     adminConnection->executeInBucket(bucketName, [](auto& connection) {
         auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
                                              cb::engine_errc::success,
@@ -711,7 +702,6 @@ TEST_P(StatsTest, TestAllocatorStats) {
  * We should have one histogram with 256 buckets for each vb state.
  */
 TEST_P(StatsTest, TestFrequencyCountersStats) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     using namespace std::string_view_literals;
 
     auto stats = userConnection->stats("frequency-counters");

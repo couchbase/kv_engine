@@ -891,9 +891,6 @@ TEST_P(GetSetTest, TestIllegalVbucket) {
 // compression, then once the server uncompresses the doc (to strip off the
 // xattrs) we remove the Snappy datatype from the document.
 TEST_P(GetSetTest, TestCorrectWithXattrs) {
-    // If no SetWithMeta support, then must construct document + XATTR
-    // with primitives and hence cannot compress it - so skip the test.
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
     // Create a compressed document with a body and xattr
     setBodyAndXattr("{\"TestField\":56788}", {{"_sync", "4543"}});
     ASSERT_TRUE(cb::mcbp::datatype::is_snappy(
@@ -1137,7 +1134,6 @@ TEST_P(GetSetTest, ServerRejectsLargeSizeWithXattrCompressed) {
 // but if ran after other tests, the returned key could be any key stored in
 // the bucket, this limits the expect statements we can use
 void GetSetTest::doTestGetRandomKey(bool collections) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::GetRandomKey);
     storeAndPersistItem(*userConnection, Vbid(0), "doTestGetRandomKey");
 
     if (collections) {

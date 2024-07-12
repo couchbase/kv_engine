@@ -1235,9 +1235,7 @@ TEST_P(XattrTest, MB_22691) {
 TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     // MB-32147: Testing last_modified requires at least 1 item to have been
     // flushed.
-    if (mcd_env->getTestBucket().supportsLastModifiedVattr()) {
-        storeAndPersistItem(*userConnection, Vbid(0), "flushed_key");
-    }
+    storeAndPersistItem(*userConnection, Vbid(0), "flushed_key");
 
     // Test to check that we can get both an xattr and the main body in
     // subdoc multi-lookup
@@ -1264,11 +1262,8 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_TRUE(json["value_bytes"].is_number());
     EXPECT_TRUE(json["deleted"].is_boolean());
     EXPECT_TRUE(json["flags"].is_number());
-
-    if (mcd_env->getTestBucket().supportsLastModifiedVattr()) {
-        EXPECT_NE(json.end(), json.find("last_modified"));
-        EXPECT_STREQ("string", json["last_modified"].type_name());
-    }
+    EXPECT_NE(json.end(), json.find("last_modified"));
+    EXPECT_STREQ("string", json["last_modified"].type_name());
 
     // Verify exptime is showing as 0 (document has no expiry)
     EXPECT_EQ(0, json["exptime"].get<int>());
@@ -1642,11 +1637,6 @@ TEST_P(XattrTest, MB_35388_VATTR_Document_Vbucket) {
 // Test that the $vbucket.HLC.now VATTR is at least as large as the
 // last_modified time for the last document written.
 TEST_P(XattrTest, MB_35388_VbucketHlcNowIsValid) {
-    if (!mcd_env->getTestBucket().supportsLastModifiedVattr()) {
-        // Comparing HLC with CAS requires last_modified support.
-        return;
-    }
-
     setBodyAndXattr(value, {{sysXattr, xattrVal}});
 
     auto multiResp = subdoc_multi_lookup({
@@ -1857,10 +1847,6 @@ TEST_P(XattrTest, UserXAttrPrunedOnDelete) {
  * max size you can't add any additional xattrs
  */
 TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
-    if (!GetTestBucket().supportsPrivilegedBytes()) {
-        return;
-    }
-
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
     userConnection->store("mb25928", Vbid(0), std::move(blob));
 
@@ -1887,10 +1873,6 @@ TEST_P(XattrTest, mb25928_UserCantExceedDocumentLimit) {
  * on a document which is at the max size
  */
 TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
-    if (!GetTestBucket().supportsPrivilegedBytes()) {
-        return;
-    }
-
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
     userConnection->store("mb25928", Vbid(0), std::move(blob));
 
@@ -1919,10 +1901,6 @@ TEST_P(XattrTest, mb25928_SystemCanExceedDocumentLimit) {
  * which exceeds this limit.
  */
 TEST_P(XattrTest, mb25928_SystemCantExceedSystemLimit) {
-    if (!GetTestBucket().supportsPrivilegedBytes()) {
-        return;
-    }
-
     std::string blob(GetTestBucket().getMaximumDocSize(), '\0');
     userConnection->store("mb25928", Vbid(0), std::move(blob));
 

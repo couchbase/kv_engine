@@ -398,26 +398,6 @@ protected:
     static const std::string bucketName;
 };
 
-#define TESTAPP__DOSKIP(cond, reason) \
-    if ((cond)) {                     \
-        GTEST_SKIP();                 \
-    }
-
-#define TESTAPP_SKIP_IF_UNSUPPORTED(op)                        \
-    do {                                                       \
-        TESTAPP__DOSKIP(!GetTestBucket().supportsOp(op), #op); \
-    } while (0)
-
-#define TESTAPP_SKIP_IF_SUPPORTED(op)                         \
-    do {                                                      \
-        TESTAPP__DOSKIP(GetTestBucket().supportsOp(op), #op); \
-    } while (0)
-
-#define TESTAPP_SKIP_FOR_OTHER_BUCKETS(type)                   \
-    do {                                                       \
-        TESTAPP__DOSKIP(GetTestBucket().getType() != type, _); \
-    } while (0)
-
 /**
  * Test fixture for testapp tests which are parameterised on Transport
  * (IPv4/Ipv6,Plain/SSL) and Hello::JSON on/off.

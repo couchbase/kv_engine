@@ -16,7 +16,7 @@
 
 class RemoveTest : public TestappXattrClientTest {
 protected:
-    void verify_MB_22553(const std::string& config);
+    void verify_MB_22553();
 
     /**
      * Create a document and keep the information about the document in
@@ -29,9 +29,9 @@ protected:
     MutationInfo info;
 };
 
-void RemoveTest::verify_MB_22553(const std::string& config) {
+void RemoveTest::verify_MB_22553() {
     DeleteTestBucket();
-    mcd_env->getTestBucket().setUpBucket(bucketName, config, *adminConnection);
+    mcd_env->getTestBucket().setUpBucket(bucketName, {}, *adminConnection);
     rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
     prepare(*userConnection);
 
@@ -146,15 +146,5 @@ TEST_P(RemoveTest, RemoveWithXattr) {
  * Verify that you cannot get a document (with xattrs) which is deleted
  */
 TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr_keep_deleted) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-    verify_MB_22553("keep_deleted=true");
-}
-
-/**
- * Verify that you cannot get a document (with xattrs) which is deleted
- * when the memcached bucket isn't using the keep deleted flag
- */
-TEST_P(RemoveTest, MB_22553_DeleteDocWithXAttr) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-    verify_MB_22553("keep_deleted=false");
+    verify_MB_22553();
 }

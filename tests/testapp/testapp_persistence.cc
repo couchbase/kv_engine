@@ -32,18 +32,10 @@ class PersistToTest : public ShutdownTest,
                       public ::testing::WithParamInterface<ShutdownMode> {
 protected:
     static void SetUpTestCase() {
-        if (!mcd_env->getTestBucket().supportsPersistence()) {
-            std::cout << "Note: skipping tests as persistence isn't supported."
-                      << std::endl;
-        }
         ShutdownTest::SetUpTestCase();
     }
 
     void SetUp() override {
-        if (!mcd_env->getTestBucket().supportsPersistence()) {
-            skipTest = true;
-            return;
-        }
         std::filesystem::remove_all(mcd_env->getDbPath());
 
         mcd_env->getTestBucket().setBucketCreateMode(
@@ -53,9 +45,6 @@ protected:
     }
 
     void TearDown() override {
-        if (skipTest) {
-            return;
-        }
         mcd_env->getTestBucket().setBucketCreateMode(
                 TestBucketImpl::BucketCreateMode::Clean);
         ShutdownTest::TearDown();
@@ -91,7 +80,6 @@ protected:
     }
 
     Vbid vbid = Vbid(0);
-    bool skipTest = false;
 };
 
 /**
@@ -99,10 +87,6 @@ protected:
  * clean / unclean shutdown and restart.
  */
 TEST_P(PersistToTest, PersistedAfterShutdown) {
-    if (skipTest) {
-        GTEST_SKIP();
-    }
-
     // Store 1 item, noting it's sequence number
     Vbid vbid = Vbid(0);
     auto doc = storeAndPersistItem("1");
@@ -154,10 +138,6 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
  * Any other state is invalid and hence a failure.
  */
 TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
-    if (skipTest) {
-        GTEST_SKIP();
-    }
-
     // Start off with persistence disabled.
     {
         auto& admin = getAdminConnection();

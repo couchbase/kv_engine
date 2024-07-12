@@ -18,7 +18,6 @@
 class DcpTest : public TestappClientTest {
 protected:
     void SetUp() override {
-        TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
         TestappClientTest::SetUp();
     }
 

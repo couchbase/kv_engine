@@ -108,7 +108,6 @@ TEST_P(TuneMcbpSla, Update) {
 }
 
 TEST_P(TuneMcbpSla, SlowCommandLogging) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
     adminConnection->ioctl_set(
             "sla",
             R"({"version":1, "compact_db":{"slow":"1ns"}, "default":{"slow":500}})");
