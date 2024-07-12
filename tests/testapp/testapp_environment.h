@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -12,10 +11,14 @@
 
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json_fwd.hpp>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <string_view>
 
+namespace cb::crypto {
+struct DataEncryptionKey;
+}
 class MemcachedConnection;
 enum class BucketType : uint8_t;
 
@@ -36,9 +39,9 @@ class Manager;
  */
 class TestBucketImpl {
 public:
-    explicit TestBucketImpl(std::string extraConfig)
-        : extraConfig(std::move(extraConfig)) {
-    }
+    TestBucketImpl(const std::filesystem::path& test_directory,
+                   std::string extraConfig);
+
     virtual ~TestBucketImpl() = default;
 
     /**
@@ -50,27 +53,33 @@ public:
      * @param config the configuration to add
      * @param conn the connection to use to create the bucket
      */
-    virtual void createBucket(const std::string& name,
-                              const std::string& config,
-                              MemcachedConnection& conn) = 0;
+    void createBucket(const std::string& name,
+                      const std::string& config,
+                      MemcachedConnection& conn);
 
     /**
      * Create the named bucket to be controlled under
      * ewouldblock engine. See createBucket for a description
      * of the parameters.
      */
-    virtual void setUpBucket(const std::string& name,
-                             const std::string& config,
-                             MemcachedConnection& conn) = 0;
+    void setUpBucket(const std::string& name,
+                     const std::string& config,
+                     MemcachedConnection& conn);
 
     enum class BucketCreateMode { Clean, AllowRecreate };
-    virtual void setBucketCreateMode(BucketCreateMode) = 0;
 
+    void setBucketCreateMode(BucketCreateMode mode) {
+        bucketCreateMode = mode;
+    }
     constexpr size_t getMaximumDocSize() const {
         return 20 * 1024 * 1024;
     }
 
-    virtual bool isFullEviction() const = 0;
+    [[nodiscard]] bool isFullEviction() const;
+
+    [[nodiscard]] std::filesystem::path getDbPath() const {
+        return dbPath;
+    }
 
     /**
      * Make sure that xattr is enabled / disabled in the named bucket
@@ -136,9 +145,19 @@ protected:
                                 std::string_view config,
                                 MemcachedConnection& conn);
 
+    [[nodiscard]] std::string getEncryptionConfig() const;
+
+    /// Directory for any database files.
+    const std::filesystem::path dbPath;
+
     std::string mergeConfigString(const std::string& next);
 
     std::string extraConfig;
+
+    /// The key to use for encryption@rest
+    std::vector<std::shared_ptr<cb::crypto::DataEncryptionKey>> encryption_keys;
+
+    BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
 };
 
 /**

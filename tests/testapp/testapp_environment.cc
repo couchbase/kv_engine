@@ -119,129 +119,109 @@ void TestBucketImpl::setParam(
     });
 }
 
-class EpBucketImpl : public TestBucketImpl {
-public:
-    EpBucketImpl(const std::filesystem::path& test_directory,
-                 std::string extraConfig)
-        : TestBucketImpl(std::move(extraConfig)),
-          dbPath(test_directory / "dbase") {
-        encryption_keys.emplace_back(cb::crypto::DataEncryptionKey::generate());
+TestBucketImpl::TestBucketImpl(const std::filesystem::path& test_directory,
+                               std::string extraConfig)
+    : dbPath(test_directory / "dbase"), extraConfig(std::move(extraConfig)) {
+    encryption_keys.emplace_back(cb::crypto::DataEncryptionKey::generate());
+}
+
+void TestBucketImpl::createBucket(const std::string& name,
+                                  const std::string& config,
+                                  MemcachedConnection& conn) {
+    const auto dbdir = dbPath / name;
+    if (exists(dbdir)) {
+        remove_all(dbdir);
     }
 
-    void setBucketCreateMode(BucketCreateMode mode) override {
-        bucketCreateMode = mode;
+    std::string settings = "dbname=" + dbdir.generic_string();
+    if (!config.empty()) {
+        settings += ";" + config;
     }
 
-    BucketCreateMode bucketCreateMode = BucketCreateMode::Clean;
+    settings = fmt::format("{};encryption={}", settings, getEncryptionConfig());
 
-    static void removeDbDir(const std::filesystem::path& path) {
-        if (exists(path)) {
-            remove_all(path);
+    conn.createBucket(name, settings, BucketType::Couchbase);
+    conn.executeInBucket(name, [](auto& connection) {
+        // Set the vBucket state. Set a single replica so that any
+        // SyncWrites can be completed.
+        nlohmann::json meta;
+        meta["topology"] = nlohmann::json::array({{"active"}});
+        connection.setVbucket(Vbid(0), vbucket_state_active, meta);
+
+        auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
+        connection.setAutoRetryTmpfail(true);
+        auto resp = connection.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
+        connection.setAutoRetryTmpfail(auto_retry_tmpfail);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
+void TestBucketImpl::setUpBucket(const std::string& name,
+                                 const std::string& config,
+                                 MemcachedConnection& conn) {
+    const auto dbdir = dbPath / name;
+    if (bucketCreateMode == BucketCreateMode::Clean) {
+        if (exists(dbdir)) {
+            remove_all(dbdir);
         }
     }
 
-    void createBucket(const std::string& name,
-                      const std::string& config,
-                      MemcachedConnection& conn) override {
-        const auto dbdir = dbPath / name;
-        removeDbDir(dbdir);
-
-        std::string settings = "dbname=" + dbdir.generic_string();
-        if (!config.empty()) {
-            settings += ";" + config;
-        }
-
-        settings = fmt::format(
-                "{};encryption={}", settings, getEncryptionConfig());
-
-        conn.createBucket(name, settings, BucketType::Couchbase);
-        conn.executeInBucket(name, [](auto& connection) {
-            // Set the vBucket state. Set a single replica so that any
-            // SyncWrites can be completed.
-            nlohmann::json meta;
-            meta["topology"] = nlohmann::json::array({{"active"}});
-            connection.setVbucket(Vbid(0), vbucket_state_active, meta);
-
-            auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
-            connection.setAutoRetryTmpfail(true);
-            auto resp = connection.execute(BinprotGenericCommand{
-                    cb::mcbp::ClientOpcode::EnableTraffic});
-            connection.setAutoRetryTmpfail(auto_retry_tmpfail);
-            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        });
+    std::string settings = "dbname=" + dbdir.generic_string();
+    // Increase bucket quota from 100MB to 200MB as there are some
+    // testapp tests requiring more than the default.
+    settings += ";max_size=200000000";
+    // Disable bloom_filters - for all memcahed testapp tests we want
+    // to see things like gets of tombstones going to disk and not
+    // getting skipped (to ensure correct EWOULDBLOCK handling etc).
+    settings += ";bfilter_enabled=false";
+    if (folly::kIsSanitizeThread) {
+        // Reduce vBucket count to 16 - TSan cannot handle more than 64
+        // mutexes being locked at once in a single thread, and Bucket
+        // pause() / resume() functionality relies on locking all vBucket
+        // mutexes - i.e. one per vBucket.
+        // (While running with 32 vBuckets would appear to be ok, TSan
+        //  still reports errors as it hits the 64 mutex limit somehow,
+        //  so reduce to 16 vBuckets.)
+        settings += ";max_vbuckets=16";
     }
-
-    void setUpBucket(const std::string& name,
-                     const std::string& config,
-                     MemcachedConnection& conn) override {
-        const auto dbdir = dbPath / name;
-        if (bucketCreateMode == BucketCreateMode::Clean) {
-            removeDbDir(dbdir);
-        }
-
-        std::string settings = "dbname=" + dbdir.generic_string();
-        // Increase bucket quota from 100MB to 200MB as there are some
-        // testapp tests requiring more than the default.
-        settings += ";max_size=200000000";
-        // Disable bloom_filters - for all memcahed testapp tests we want
-        // to see things like gets of tombstones going to disk and not
-        // getting skipped (to ensure correct EWOULDBLOCK handling etc).
-        settings += ";bfilter_enabled=false";
-        if (folly::kIsSanitizeThread) {
-            // Reduce vBucket count to 16 - TSan cannot handle more than 64
-            // mutexes being locked at once in a single thread, and Bucket
-            // pause() / resume() functionality relies on locking all vBucket
-            // mutexes - i.e. one per vBucket.
-            // (While running with 32 vBuckets would appear to be ok, TSan
-            //  still reports errors as it hits the 64 mutex limit somehow,
-            //  so reduce to 16 vBuckets.)
-            settings += ";max_vbuckets=16";
-        }
-        if (!config.empty()) {
-            settings += ";" + config;
-        }
-        settings = fmt::format(
-                "{};encryption={}", settings, getEncryptionConfig());
-
-        createEwbBucket(
-                name, BucketType::Couchbase, mergeConfigString(settings), conn);
-        conn.executeInBucket(name, [](auto& connection) {
-            // Set the vBucket state. Set a single replica so that any
-            // SyncWrites can be completed.
-            nlohmann::json meta;
-            meta["topology"] = nlohmann::json::array({{"active"}});
-            connection.setVbucket(Vbid(0), vbucket_state_active, meta);
-
-            auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
-            connection.setAutoRetryTmpfail(true);
-            const auto resp = connection.execute(BinprotGenericCommand{
-                    cb::mcbp::ClientOpcode::EnableTraffic});
-            connection.setAutoRetryTmpfail(auto_retry_tmpfail);
-            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        });
+    if (!config.empty()) {
+        settings += ";" + config;
     }
+    settings = fmt::format("{};encryption={}", settings, getEncryptionConfig());
 
-    [[nodiscard]] bool isFullEviction() const override {
-        return extraConfig.find("item_eviction_policy=full_eviction") !=
-               std::string::npos;
+    createEwbBucket(
+            name, BucketType::Couchbase, mergeConfigString(settings), conn);
+    conn.executeInBucket(name, [](auto& connection) {
+        // Set the vBucket state. Set a single replica so that any
+        // SyncWrites can be completed.
+        nlohmann::json meta;
+        meta["topology"] = nlohmann::json::array({{"active"}});
+        connection.setVbucket(Vbid(0), vbucket_state_active, meta);
+
+        auto auto_retry_tmpfail = connection.getAutoRetryTmpfail();
+        connection.setAutoRetryTmpfail(true);
+        const auto resp = connection.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
+        connection.setAutoRetryTmpfail(auto_retry_tmpfail);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
+bool TestBucketImpl::isFullEviction() const {
+    return extraConfig.find("item_eviction_policy=full_eviction") !=
+           std::string::npos;
+}
+
+std::string TestBucketImpl::getEncryptionConfig() const {
+    nlohmann::json encryption = {{"active", encryption_keys.front()->id}};
+    auto keys = nlohmann::json::array();
+    for (const auto& key : encryption_keys) {
+        keys.push_back(*key);
     }
-
-    [[nodiscard]] std::string getEncryptionConfig() const {
-        nlohmann::json encryption = {{"active", encryption_keys.front()->id}};
-        auto keys = nlohmann::json::array();
-        for (const auto& key : encryption_keys) {
-            keys.push_back(*key);
-        }
-        encryption["keys"] = std::move(keys);
-        return encryption.dump();
-    }
-
-    /// The key to use for encryption@rest
-    std::vector<std::shared_ptr<cb::crypto::DataEncryptionKey>> encryption_keys;
-
-    /// Directory for any database files.
-    const std::filesystem::path dbPath;
-};
+    encryption["keys"] = std::move(keys);
+    return encryption.dump();
+}
 
 class McdEnvironmentImpl : public McdEnvironment {
 public:
@@ -271,8 +251,8 @@ public:
         // the ewouldblock engine..
         setenv("MEMCACHED_UNIT_TESTS", "true", 1);
 
-        testBucket = std::make_unique<EpBucketImpl>(test_directory,
-                                                    std::move(engineConfig));
+        testBucket = std::make_unique<TestBucketImpl>(test_directory,
+                                                      std::move(engineConfig));
         // I shouldn't need to use string() here, but it fails to compile on
         // windows without it:
         //
@@ -459,9 +439,7 @@ public:
     }
 
     [[nodiscard]] std::string getDbPath() const override {
-        auto* bucket = dynamic_cast<EpBucketImpl*>(testBucket.get());
-        Expects(bucket);
-        return bucket->dbPath.generic_string();
+        return testBucket->getDbPath().generic_string();
     }
 
     [[nodiscard]] std::string getConfigurationFile() const override {
