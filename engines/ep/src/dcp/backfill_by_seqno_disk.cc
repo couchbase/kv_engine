@@ -28,8 +28,7 @@ DCPBackfillBySeqnoDisk::DCPBackfillBySeqnoDisk(KVBucket& bucket,
                                                std::shared_ptr<ActiveStream> s,
                                                uint64_t startSeqno,
                                                uint64_t endSeqno)
-    : DCPBackfillDiskToStream(s),
-      DCPBackfillDisk(bucket),
+    : DCPBackfillDiskToStream(bucket, std::move(s)),
       DCPBackfillBySeqno(startSeqno, endSeqno) {
 }
 

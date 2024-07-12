@@ -19,6 +19,13 @@
 
 #include <spdlog/fmt/fmt.h>
 
+DCPBackfillDiskToStream::DCPBackfillDiskToStream(
+        KVBucket& bucket, std::shared_ptr<ActiveStream> s)
+    : DCPBackfillToStream(std::move(s)), bucket(bucket) {
+}
+
+DCPBackfillDiskToStream::~DCPBackfillDiskToStream() = default;
+
 DCPBackfill::State DCPBackfillDiskToStream::getNextScanState(
         DCPBackfill::State current) {
     // Disk scan transition is conditional depending on the state of the history

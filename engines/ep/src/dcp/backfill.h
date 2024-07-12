@@ -18,8 +18,6 @@
 #include <chrono>
 #include <memory>
 
-class ScanContext;
-
 /**
  * Indicates the status of the backfill that is run
  */

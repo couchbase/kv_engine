@@ -21,8 +21,7 @@ class KVBucket;
  * of the backfill progress - this provides for execution of a ById (key to key)
  * backfill
  */
-class DCPBackfillByIdDisk : public DCPBackfillDiskToStream,
-                            public DCPBackfillDisk {
+class DCPBackfillByIdDisk : public DCPBackfillDiskToStream {
 public:
     DCPBackfillByIdDisk(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
 

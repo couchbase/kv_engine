@@ -32,7 +32,6 @@ class KVStoreIface;
  * for disk snapshot, backfill items and backfill completion.
  */
 class DCPBackfillBySeqnoDisk : public DCPBackfillDiskToStream,
-                               public DCPBackfillDisk,
                                public DCPBackfillBySeqno {
 public:
     DCPBackfillBySeqnoDisk(KVBucket& bucket,

@@ -164,6 +164,3 @@ bool BySeqnoDiskCallback::skipItem(const Item& item) const {
     }
     return false;
 }
-
-DCPBackfillDisk::DCPBackfillDisk(KVBucket& bucket) : bucket(bucket) {
-}

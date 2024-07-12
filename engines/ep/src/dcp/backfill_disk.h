@@ -17,7 +17,6 @@
 
 class ActiveStream;
 class KVBucket;
-class ScanContext;
 class VBucket;
 
 /* Callback to get the items that are found to be in the cache */
@@ -86,14 +85,4 @@ public:
 
 protected:
     bool skipItem(const Item& item) const override;
-};
-
-class DCPBackfillDisk {
-public:
-    explicit DCPBackfillDisk(KVBucket& bucket);
-
-protected:
-    KVBucket& bucket;
-
-    std::unique_ptr<ScanContext> scanCtx;
 };

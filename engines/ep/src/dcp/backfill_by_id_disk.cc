@@ -19,7 +19,7 @@
 
 DCPBackfillByIdDisk::DCPBackfillByIdDisk(KVBucket& bucket,
                                          std::shared_ptr<ActiveStream> s)
-    : DCPBackfillDiskToStream(std::move(s)), DCPBackfillDisk(bucket) {
+    : DCPBackfillDiskToStream(bucket, std::move(s)) {
 }
 
 static ByIdRange createCollectionSystemNamespaceRange(CollectionID cid) {

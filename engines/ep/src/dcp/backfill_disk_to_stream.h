@@ -20,6 +20,7 @@ class ActiveStream;
 class BySeqnoScanContext;
 class KVBucket;
 class KVStoreIface;
+class ScanContext;
 
 /**
  * Class holding common code (that itself is a subclass of DCPBackfill) but for
@@ -30,9 +31,9 @@ class DCPBackfillDiskToStream : public DCPBackfillToStream {
 public:
     DCPBackfillDiskToStream() = delete;
 
-    DCPBackfillDiskToStream(std::shared_ptr<ActiveStream> s)
-        : DCPBackfillToStream(s) {
-    }
+    DCPBackfillDiskToStream(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
+
+    ~DCPBackfillDiskToStream() override;
 
 protected:
     DCPBackfill::State getNextScanState(DCPBackfill::State current) override;
@@ -154,6 +155,11 @@ protected:
         // type of the history scan (see the enum definition)
         const SnapshotType snapshotType;
     };
+
+    KVBucket& bucket;
+
+    // The non-history scan, which maybe ById or BySeqno
+    std::unique_ptr<ScanContext> scanCtx;
 
     // If a history scan is required this optional will be initialised.
     std::unique_ptr<HistoryScanCtx> historyScan;
