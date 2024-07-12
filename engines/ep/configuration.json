@@ -1029,7 +1029,7 @@
         },
         "mutation_mem_ratio": {
             "default": "0.93",
-            "desr": "Ratio of the Bucket Quota that can be used before mutations return tmpOOMs",
+            "descr": "Ratio of the Bucket Quota that can be used before mutations return tmpOOMs",
             "dynamic": true,
             "type": "float",
             "validator" : {
