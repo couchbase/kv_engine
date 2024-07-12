@@ -237,7 +237,9 @@ void DCPBackfillBySeqnoDisk::complete(ActiveStream& stream) {
                       scanCtx ? scanCtx->diskBytesRead : 0,
                       startSeqno,
                       endSeqno,
-                      scanCtx ? scanCtx->lastReadSeqno : 0);
+                      scanCtx ? static_cast<BySeqnoScanContext*>(scanCtx.get())
+                                        ->lastReadSeqno
+                              : 0);
 }
 
 std::pair<bool, std::optional<uint64_t>>

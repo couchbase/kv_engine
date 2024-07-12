@@ -17,6 +17,7 @@
 #include <memory>
 
 class ActiveStream;
+class BySeqnoScanContext;
 class KVBucket;
 class KVStoreIface;
 
@@ -147,8 +148,8 @@ protected:
         /// records the start and snapshot range for the history scan
         snapshot_info_t snapshotInfo;
 
-        // A ScanContext which "drives" the history scan
-        std::unique_ptr<ScanContext> scanCtx;
+        // A BySeqnoScanContext which "drives" the history scan
+        std::unique_ptr<BySeqnoScanContext> scanCtx;
 
         // type of the history scan (see the enum definition)
         const SnapshotType snapshotType;

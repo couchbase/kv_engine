@@ -47,6 +47,7 @@
 
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx);
+static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
@@ -2331,8 +2332,6 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
             range.rangeScanSuccess = true;
         }
     }
-    TRACE_EVENT_END1(
-            "CouchKVStore", "scan by id", "lastReadSeqno", ctx.lastReadSeqno);
 
     if (errorCode == COUCHSTORE_SUCCESS) {
         return ScanStatus::Success;
@@ -2720,7 +2719,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
 }
 
 /**
- * The bySeqnoScanCallback is the method provided to couchstore_changes_since
+ * The seqnoScanCallback is the method provided to couchstore_changes_since
  * and couchstore_docinfos_by_id.
  *
  * @param db The database handle which the docinfo came from
@@ -2728,7 +2727,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
  * @param ctx A pointer to the ScanContext
  * @return See couch_db.h for the legal values
  */
-static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
+static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto* sctx = static_cast<ScanContext*>(ctx);
     auto& cb = sctx->getValueCallback();
     auto& cl = sctx->getCacheCallback();
@@ -2740,7 +2739,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     sized_buf key = docinfo->id;
     if (key.size > UINT16_MAX) {
         throw std::invalid_argument(
-                "bySeqnoScanCallback: "
+                "seqnoScanCallback: "
                 "docinfo->id.size (which is " +
                 std::to_string(key.size) + ") is greater than " +
                 std::to_string(UINT16_MAX));
@@ -2754,7 +2753,6 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     // potentially restart at the last alive item meaning we scan items
     // unnecessarily.
     if (docinfo->deleted && sctx->docFilter == DocumentFilter::NO_DELETES) {
-        sctx->lastReadSeqno = byseqno;
         return COUCHSTORE_SUCCESS;
     }
 
@@ -2765,7 +2763,6 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     if (sctx->docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
         if (sctx->collectionsContext.isLogicallyDeleted(
                     docKey, docinfo->deleted, byseqno)) {
-            sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_SUCCESS;
         }
     }
@@ -2777,13 +2774,10 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         cl.callback(lookup);
 
         if (cl.shouldYield()) {
-            // Scan yields after successfully processing this seqno
-            sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_ERROR_SCAN_YIELD;
         }
         if (cl.getStatus() == cb::engine_errc::key_already_exists) {
-            // Seqno found in memory and pushed to the stream, done.
-            sctx->lastReadSeqno = byseqno;
+            // found (exists) in memory and pushed to the stream, done.
             return COUCHSTORE_SUCCESS;
         }
         if (cl.getStatus() != cb::engine_errc::success) {
@@ -2832,7 +2826,7 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
             }
         } else if (errCode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             sctx->logger->log(spdlog::level::level_enum::warn,
-                              "bySeqnoScanCallback: "
+                              "seqnoScanCallback: "
                               "couchstore_open_doc_with_docinfo error:{} [{}], "
                               "{}, seqno:{}",
                               couchstore_strerror(errCode),
@@ -2859,20 +2853,24 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     couchstore_free_document(doc);
 
     if (cb.shouldYield()) {
-        // Scan is yielding _after_ successfully processing this doc.
-        // Resume at next item.
-        sctx->lastReadSeqno = byseqno;
         return COUCHSTORE_ERROR_SCAN_YIELD;
     } else if (cb.getStatus() != cb::engine_errc::success) {
         return COUCHSTORE_ERROR_SCAN_CANCELLED;
     }
 
-    sctx->lastReadSeqno = byseqno;
     return COUCHSTORE_SUCCESS;
 }
 
+static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
+    auto status = couchstore_error_t(seqnoScanCallback(db, docinfo, ctx));
+    if (status == COUCHSTORE_ERROR_SCAN_YIELD || status == COUCHSTORE_SUCCESS) {
+        static_cast<BySeqnoScanContext*>(ctx)->lastReadSeqno = docinfo->db_seq;
+    }
+    return int(status);
+}
+
 static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
-    auto status = couchstore_error_t(bySeqnoScanCallback(db, docinfo, ctx));
+    auto status = couchstore_error_t(seqnoScanCallback(db, docinfo, ctx));
     if (status == COUCHSTORE_ERROR_SCAN_YIELD) {
         auto* sctx = static_cast<ByIdScanContext*>(ctx);
         // save the resume point

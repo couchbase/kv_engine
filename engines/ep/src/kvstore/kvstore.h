@@ -442,13 +442,15 @@ public:
     }
 
     const Vbid vbid{0};
-    uint64_t lastReadSeqno{0};
     std::unique_ptr<KVFileHandle> handle;
     const DocumentFilter docFilter{DocumentFilter::ALL_ITEMS};
     const ValueFilter valFilter{ValueFilter::KEYS_ONLY};
     BucketLogger* logger{nullptr};
     const Collections::VB::ScanContext collectionsContext;
     uint64_t maxSeqno{0};
+
+    // ById/BySeqno initialise this, which allows for a transition from both
+    // an ID scan into the history scan, or Seq scan into the history scan.
     uint64_t historyStartSeqno{0};
 
     /**
@@ -486,6 +488,8 @@ public:
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
             uint64_t historyStartSeqno);
+
+    uint64_t lastReadSeqno{0};
 
     const uint64_t startSeqno;
     const uint64_t purgeSeqno;
