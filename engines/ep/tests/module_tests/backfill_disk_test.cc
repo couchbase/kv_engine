@@ -341,26 +341,27 @@ TEST_F(DCPBackfillDiskTest,
                                                std::nullopt);
     stream->setActive();
 
-    // Allow backfills to run in the background
-    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
-
     stream->transitionStateToBackfilling();
 
-    // Wait for this backfill to complete
-    while (stream->public_isBackfillTaskRunning()) {
-        std::this_thread::yield();
-    }
+    // Run the first backfill, which should only receive seqno:1.
+    ASSERT_TRUE(stream->public_isBackfillTaskRunning());
+    producer->getBFM().backfill();
 
-    stream->consumeAllBackfillItems(*producer);
-    // Run that second backfill
-    auto resp = stream->next(*producer);
+    ASSERT_TRUE(dynamic_cast<SnapshotMarker*>(
+            stream->public_backfillPhase(*producer).get()))
+            << "Expected SnapshotMarker";
+    // Seqno:1 (remaining changes are not visible to this stream)
+    ASSERT_TRUE(dynamic_cast<MutationResponse*>(
+            stream->public_backfillPhase(*producer).get()))
+            << "Expected a single mutation";
 
-    // Wait for the second backfill to complete
-    while (stream->public_isBackfillTaskRunning() && !stream->isDead()) {
-        std::this_thread::yield();
-    }
+    // Backfill is done, so we should be in-memory now, with nothing to pick up.
+    ASSERT_FALSE(stream->public_inMemoryPhase(*producer));
 
-    EXPECT_FALSE(stream->isDead());
+    EXPECT_FALSE(stream->isDead()) << "Expected stream to be alive";
+    // Make sure we didn't schedule another backfill, as that would be wrong.
+    EXPECT_FALSE(stream->public_isBackfillTaskRunning())
+            << "Did not expect second backfill";
 }
 
 // Test getCollectionStreamBackfillStart which is fundamental to MB-40383

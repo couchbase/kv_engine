@@ -189,6 +189,8 @@ public:
     }
 
     std::unique_ptr<DcpResponse> public_backfillPhase(DcpProducer& producer);
+
+    std::unique_ptr<DcpResponse> public_inMemoryPhase(DcpProducer& producer);
 };
 
 /**

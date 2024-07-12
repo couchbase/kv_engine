@@ -91,8 +91,21 @@ void MockActiveStream::consumeAllBackfillItems(DcpProducer& producer) {
 
 std::unique_ptr<DcpResponse> MockActiveStream::public_backfillPhase(
         DcpProducer& producer) {
+    if (state_.load() != StreamState::Backfilling) {
+        throw std::runtime_error(
+                "MockPassiveStream::public_backfillPhase: not backfilling!");
+    }
     std::lock_guard<std::mutex> lh(streamMutex);
     return backfillPhase(producer, lh);
+}
+
+std::unique_ptr<DcpResponse> MockActiveStream::public_inMemoryPhase(
+        DcpProducer& producer) {
+    if (state_.load() != StreamState::InMemory) {
+        throw std::runtime_error(
+                "MockPassiveStream::public_inMemoryPhase: not backfilling!");
+    }
+    return inMemoryPhase(producer);
 }
 
 cb::engine_errc MockPassiveStream::messageReceived(

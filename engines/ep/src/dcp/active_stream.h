@@ -684,6 +684,8 @@ protected:
     std::unique_ptr<DcpResponse> backfillPhase(DcpProducer& producer,
                                                std::lock_guard<std::mutex>& lh);
 
+    std::unique_ptr<DcpResponse> inMemoryPhase(DcpProducer& producer);
+
     // Helper function for when scheduleBackfill_UNLOCKED discovers no backfill
     // is required.
     void abortScheduleBackfill(bool notifyStream, DcpProducer& producer);
@@ -714,8 +716,6 @@ protected:
     bool nextSnapshotIsCheckpoint = false;
 
 private:
-    std::unique_ptr<DcpResponse> inMemoryPhase(DcpProducer& producer);
-
     std::unique_ptr<DcpResponse> takeoverSendPhase(DcpProducer& producer);
 
     std::unique_ptr<DcpResponse> takeoverWaitPhase(DcpProducer& producer);
