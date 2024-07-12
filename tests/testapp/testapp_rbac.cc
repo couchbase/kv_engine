@@ -163,8 +163,8 @@ class RbacRoleTest : public TestappClientTest {
 public:
     void SetUp() override {
         TestappClientTest::SetUp();
-        adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
-
+        mcd_env->getTestBucket().createBucket(
+                "rbac_test", {}, *adminConnection);
         smith_holder = getConnection().clone();
         prepare_auth_connection(*smith_holder, "smith");
         jones_holder = getConnection().clone();
@@ -474,7 +474,7 @@ TEST_P(RbacRoleTest, NoAccessToSystemXattrs) {
 // doesn't have access to the bucket named jones and should be
 // moved out of the bucket
 TEST_P(RbacRoleTest, DontAutoselectBucketNoAccess) {
-    adminConnection->createBucket("jones", "", BucketType::Memcached);
+    mcd_env->getTestBucket().createBucket("jones", {}, *adminConnection);
 
     auto& conn = getConnection();
     conn.authenticate("jones");

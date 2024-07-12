@@ -358,11 +358,12 @@ TEST_P(AuditTest, AuditX509FailedAuth) {
 }
 
 TEST_P(AuditTest, AuditSelectBucket) {
-    adminConnection->createBucket("bucket-1", "", BucketType::Memcached);
+    mcd_env->getTestBucket().createBucket("bucket-1", {}, *adminConnection);
     adminConnection->executeInBucket("bucket-1", [this](auto&) {
         ASSERT_TRUE(searchAuditLogForID(
                 MEMCACHED_AUDIT_SELECT_BUCKET, "@admin", "bucket-1"));
     });
+    adminConnection->deleteBucket("bucket-1");
 }
 
 // Each subdoc single-lookup should log one (and only one) DOCUMENT_READ

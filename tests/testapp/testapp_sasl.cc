@@ -33,8 +33,8 @@ public:
     }
 
     void SetUp() override {
-        adminConnection->createBucket(bucket1, "", BucketType::Memcached);
-        adminConnection->createBucket(bucket2, "", BucketType::Memcached);
+        mcd_env->getTestBucket().createBucket(bucket1, {}, *adminConnection);
+        mcd_env->getTestBucket().createBucket(bucket2, {}, *adminConnection);
     }
 
     void TearDown() override {
@@ -217,42 +217,6 @@ TEST_P(SaslTest, TestDisablePLAIN) {
 
     // Restore the sasl mechanisms
     setSupportedMechanisms(before, conn.isSsl());
-}
-
-// Pretend we're a collection aware client
-TEST_P(SaslTest, CollectionsConnectionSetup) {
-    const auto dbname = std::filesystem::path{mcd_env->getTestDir()} / bucket3;
-    const auto config = "dbname="s + dbname.generic_string();
-    adminConnection->createBucket(bucket3, config, BucketType::Couchbase);
-
-    auto& conn = getConnection();
-    // Hello
-    BinprotHelloCommand helloCmd("Collections");
-    helloCmd.enableFeature(cb::mcbp::Feature::Collections);
-    helloCmd.enableFeature(cb::mcbp::Feature::XERROR);
-    helloCmd.enableFeature(cb::mcbp::Feature::SELECT_BUCKET);
-    const auto helloRsp = BinprotHelloResponse(conn.execute(helloCmd));
-    ASSERT_TRUE(helloRsp.isSuccess());
-
-    // Get err map
-    const auto errMapRsp = conn.execute(BinprotGetErrorMapCommand{});
-
-    // Get SASL mechs
-    const auto mechs = conn.getSaslMechanisms();
-
-    // Do a SASL auth
-    conn.authenticate(bucket3, {}, mechs);
-
-    // Select the bucket
-    conn.selectBucket(bucket3);
-
-    // Do a get
-    BinprotGetCommand getCmd(std::string{"\0key", 4});
-    auto auto_retry_tmpfail = conn.getAutoRetryTmpfail();
-    conn.setAutoRetryTmpfail(true);
-    const auto getRsp = BinprotGetResponse(conn.execute(getCmd));
-    conn.setAutoRetryTmpfail(auto_retry_tmpfail);
-    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
 }
 
 TEST_P(SaslTest, StepWithoutStart) {

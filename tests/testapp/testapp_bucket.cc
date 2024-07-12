@@ -37,7 +37,7 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
 
 TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
     try {
-        adminConnection->createBucket(bucketName, "", BucketType::Memcached);
+        adminConnection->createBucket(bucketName, {}, BucketType::Couchbase);
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isAlreadyExists()) << error.getReason();
     }
@@ -104,10 +104,9 @@ static void deleteBucket(
 
 // Unit test to verify that a connection currently sending a command to the
 // server won't block bucket deletion (the server don't wait for the client
-// send all of the data, but shut down the connection immediately)
+// send all the data, but shut down the connection immediately)
 TEST_P(BucketTest, DeleteWhileClientSendCommand) {
-    adminConnection->createBucket("bucket", "", BucketType::Memcached);
-
+    mcd_env->getTestBucket().createBucket("bucket", {}, *adminConnection);
     auto& second_conn = getConnection();
     second_conn.authenticate("Luke");
     second_conn.selectBucket("bucket");
@@ -123,21 +122,15 @@ TEST_P(BucketTest, DeleteWhileClientSendCommand) {
 }
 
 // Test delete of a bucket while we've got a client connected to the bucket
-// which is currently running a backround operation in the engine (the engine
-// returned EWB and started a longrunning task which would complete some
+// which is currently running a background operation in the engine (the engine
+// returned EWB and started a long-running task which would complete some
 // time in the future).
 //
 // To simulate this we'll instruct ewb engine to monitor the existence of
 // a file and the removal of the file simulates that the background task
 // completes and the cookie should be signalled.
 TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
-    /// The test don't test anything in the actual engine so we don't need
-    /// to run the test on both ep-engine and default_engine. Given that
-    /// we test with default_engine we only run the test for default_engine
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-
-    adminConnection->createBucket(
-            "bucket", "default_engine.so", BucketType::EWouldBlock);
+    mcd_env->getTestBucket().setUpBucket("bucket", {}, *adminConnection);
 
     std::vector<std::unique_ptr<MemcachedConnection>> connections;
     std::vector<std::string> lockfiles;
@@ -279,8 +272,7 @@ TEST_P(BucketTest, TestListBucket_not_authenticated) {
 /// default bucket) so when we authenticate as smith we shouldn't be put
 /// into rbac_test, but be in no_bucket
 TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-    adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
+    mcd_env->getTestBucket().createBucket("rbac_test", {}, *adminConnection);
 
     auto& conn = getConnection();
     conn.authenticate("smith");
@@ -292,10 +284,9 @@ TEST_P(BucketTest, TestNoAutoSelectOfBucketForNormalUser) {
 }
 
 TEST_P(BucketTest, TestListSomeBuckets) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-    adminConnection->createBucket("bucket-1", "", BucketType::Memcached);
-    adminConnection->createBucket("bucket-2", "", BucketType::Memcached);
-    adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
+    mcd_env->getTestBucket().createBucket("bucket-1", {}, *adminConnection);
+    mcd_env->getTestBucket().createBucket("bucket-2", {}, *adminConnection);
+    mcd_env->getTestBucket().createBucket("rbac_test", {}, *adminConnection);
 
     const std::vector<std::string> all_buckets = {
             bucketName, "bucket-1", "bucket-2", "rbac_test"};
@@ -362,36 +353,9 @@ TEST_P(BucketTest, TestBucketIsolationAndMaxBuckets) {
     }
 }
 
-/// Test that it is possible to specify bigger item sizes for memcache buckets
-/// NOTE: This isn't used in our product, and memcache buckets is deprecated.
-/// Only run the test if we're testing memcache bucket types
-TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-
-    const size_t item_max_size = 2 * 1024 * 1024; // 2MB
-    std::string config = "item_size_max=" + std::to_string(item_max_size);
-    adminConnection->createBucket(
-            "mybucket_000", config, BucketType::Memcached);
-
-    Document doc;
-    doc.info.cas = cb::mcbp::cas::Wildcard;
-    doc.info.datatype = cb::mcbp::Datatype::Raw;
-    doc.info.flags = 0xcaffee;
-    doc.info.id = name;
-    // Unfortunately the item_max_size is the full item including the
-    // internal headers (this would be the key and the hash_item struct).
-    doc.value.resize(item_max_size - name.length() - 100);
-
-    adminConnection->executeInBucket("mybucket_000", [&](auto& c) {
-        c.mutate(doc, Vbid(0), MutationType::Add);
-        c.get(name, Vbid(0));
-    });
-    adminConnection->deleteBucket("mybucket_000");
-}
-
 /// Verify that we can delete the currently selected bucket
 TEST_P(BucketTest, DeleteSelectedBucket) {
-    adminConnection->createBucket("bucket", "", BucketType::Memcached);
+    mcd_env->getTestBucket().createBucket("bucket", {}, *adminConnection);
     adminConnection->selectBucket("bucket");
     deleteBucket(*adminConnection, "bucket", [](const std::string&) {});
 }

@@ -31,7 +31,8 @@ class CmdTimerTest : public TestappClientTest {
 public:
     static void SetUpTestCase() {
         TestappClientTest::SetUpTestCase();
-        adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
+        mcd_env->getTestBucket().createBucket(
+                "rbac_test", {}, *adminConnection);
 
         for (const auto bucket : {"@no bucket@", "default", "rbac_test"}) {
             adminConnection->executeInBucket(bucket, [](auto& c) {
