@@ -801,6 +801,13 @@ protected:
      */
     IncludeDeleteTime includeDeleteTime;
 
+    /**
+     * Indicates if the purgeSeqno should be included in the Snapshot Marker
+     * sent as a part of the active stream responses.
+     */
+
+    IncludePurgeSeqno includePurgeSeqno;
+
     /* Indicates if the 'checkpoint processor task' should be created.
        NOTE: We always create the checkpoint processor task during regular
              operation. This flag is used for unit testing only */

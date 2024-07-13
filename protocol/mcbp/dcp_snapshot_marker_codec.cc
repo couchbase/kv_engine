@@ -101,6 +101,7 @@ void DcpSnapshotMarker::encode(
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_2Value;
     using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
     using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
 
@@ -108,7 +109,20 @@ void DcpSnapshotMarker::encode(
         Expects(isFlagSet(flags, DcpSnapshotMarkerFlag::Disk));
     }
 
-    if (maxVisibleSeqno || highCompletedSeqno) {
+    if (purgeSeqno) {
+        DcpSnapshotMarkerV2xPayload extras(DcpSnapshotMarkerV2xVersion::Two);
+        frame.setExtras(extras.getBuffer());
+
+        DcpSnapshotMarkerV2_2Value value;
+        value.setStartSeqno(startSeqno);
+        value.setEndSeqno(endSeqno);
+        value.setFlags(flags);
+        value.setMaxVisibleSeqno(maxVisibleSeqno.value_or(0));
+        value.setHighCompletedSeqno(highCompletedSeqno.value_or(0));
+        value.setPurgeSeqno(purgeSeqno.value_or(0));
+
+        frame.setValue(value.getBuffer());
+    } else if (maxVisibleSeqno || highCompletedSeqno) {
         // V2.0: sending the maxVisibleSeqno and maybe the highCompletedSeqno.
         // The highCompletedSeqno is expected to only be defined when flags has
         // the disk bit set.

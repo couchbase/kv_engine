@@ -854,7 +854,7 @@ protected:
 static_assert(sizeof(DcpSnapshotMarkerV1Payload) == 20,
               "Unexpected struct size");
 
-enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, One = 1 };
+enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, One = 1, Two = 2 };
 
 // Version 2.x
 class DcpSnapshotMarkerV2xPayload {
@@ -902,6 +902,25 @@ protected:
     uint64_t highCompletedSeqno{0};
 };
 static_assert(sizeof(DcpSnapshotMarkerV2_0Value) == 36,
+              "Unexpected struct size");
+
+class DcpSnapshotMarkerV2_2Value : public DcpSnapshotMarkerV2_0Value {
+public:
+    uint64_t getPurgeSeqno() const {
+        return ntohll(purgeSeqno);
+    }
+    void setPurgeSeqno(uint64_t value) {
+        purgeSeqno = htonll(value);
+    }
+
+    cb::const_byte_buffer getBuffer() const {
+        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
+    }
+
+protected:
+    uint64_t purgeSeqno;
+};
+static_assert(sizeof(DcpSnapshotMarkerV2_2Value) == 44,
               "Unexpected struct size");
 
 class DcpMutationPayload {

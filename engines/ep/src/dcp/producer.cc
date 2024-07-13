@@ -243,6 +243,10 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
             isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
+    includePurgeSeqno =
+            isFlagSet(flags, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2)
+                    ? IncludePurgeSeqno::Yes
+                    : IncludePurgeSeqno::No;
 }
 
 DcpProducer::~DcpProducer() {
@@ -360,6 +364,7 @@ cb::engine_errc DcpProducer::streamRequest(
                                                 includeXattrs,
                                                 includeDeleteTime,
                                                 includeDeletedUserXattrs,
+                                                includePurgeSeqno,
                                                 std::move(filter));
     } catch (const cb::engine_error& e) {
         logger->warn(
@@ -1032,6 +1037,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                    s->getFlags(),
                                    s->getHighCompletedSeqno(),
                                    s->getMaxVisibleSeqno(),
+                                   s->getPurgeSeqno(),
                                    resp->getStreamId());
             break;
         }

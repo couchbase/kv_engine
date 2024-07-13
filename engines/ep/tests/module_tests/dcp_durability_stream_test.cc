@@ -1122,6 +1122,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1334,6 +1335,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             4 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1438,6 +1440,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             2 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1477,6 +1480,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DiskSnapshotHCSZeroAccepted) {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1547,6 +1551,7 @@ void DurabilityPassiveStreamTest::
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             snapStart /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1649,6 +1654,7 @@ void DurabilityPassiveStreamTest::
                           DcpSnapshotMarkerFlag::Disk,
                           0 /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1710,6 +1716,7 @@ void DurabilityPassiveStreamTest::
                           DcpSnapshotMarkerFlag::Disk,
                           0 /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1778,6 +1785,7 @@ void DurabilityPassiveStreamTest::
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1809,6 +1817,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1835,6 +1844,7 @@ TEST_P(DurabilityPassiveStreamTest,
                             DcpSnapshotMarkerFlag::Disk,
                             0 /*HCS*/,
                             {} /*maxVisibleSeqno*/,
+                            std::nullopt,
                             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1859,6 +1869,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {});
     stream->processMarker(&snapshotMarker);
     const auto& readyQ = stream->public_readyQ();
@@ -1913,6 +1924,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {});
     stream->processMarker(&snapshotMarker);
     const auto& readyQ = stream->public_readyQ();
@@ -2018,6 +2030,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {});
     stream->processMarker(&snapshotMarker);
     EXPECT_EQ(0, readyQ.size());
@@ -2196,6 +2209,7 @@ void DurabilityPassiveStreamTest::makeAndProcessSnapshotMarker(
                           snapshotMarkerFlags,
                           hcs /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 }
@@ -2282,6 +2296,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             1 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2322,6 +2337,7 @@ void DurabilityPassiveStreamTest::testReceiveDuplicateDcpPrepare(
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2406,6 +2422,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             hcs /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2426,6 +2443,7 @@ void DurabilityPassiveStreamTest::testReceiveMultipleDuplicateDcpPrepares() {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2537,6 +2555,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
     stream->messageReceived(
@@ -2618,6 +2637,7 @@ void DurabilityPassiveStreamPersistentTest::
                               flags,
                               snapStart /*HCS*/,
                               {} /*maxVisibleSeqno*/,
+                              std::nullopt,
                               {} /*streamId*/);
         stream->processMarker(&marker);
 
@@ -2759,6 +2779,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2780,6 +2801,7 @@ TEST_P(DurabilityPassiveStreamTest, DeDupedPrepareWindowDoubleDisconnect) {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -2876,6 +2898,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpPrepareCommit() {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -3021,6 +3044,7 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -3091,6 +3115,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepare) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3119,6 +3144,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveAbortWithoutPrepareFromDisk) {
                           DcpSnapshotMarkerFlag::Disk,
                           prepareSeqno,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3158,6 +3184,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             prepareSeqno,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3176,6 +3203,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             prepareSeqno,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3201,6 +3229,7 @@ void DurabilityPassiveStreamTest::setUpHandleSnapshotEndTest() {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3273,6 +3302,7 @@ TEST_P(DurabilityPassiveStreamTest, ReceiveBackfilledDcpCommit) {
                           DcpSnapshotMarkerFlag::Disk,
                           prepareSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3313,6 +3343,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
                           DcpSnapshotMarkerFlag::Disk,
                           prepareSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3356,6 +3387,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowsDupePrepareNamespaceInCheckpoint) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamID*/);
     stream->processMarker(&marker);
 
@@ -3426,6 +3458,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3471,6 +3504,7 @@ TEST_P(DurabilityPassiveStreamTest, MismatchingPreInHTAndPdm) {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             preSeqno /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3545,6 +3579,7 @@ TEST_P(DurabilityPassiveStreamTest, BackfillPrepareDelete) {
                           DcpSnapshotMarkerFlag::Disk,
                           preSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3606,6 +3641,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3639,6 +3675,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             keyBPrepareSeqno /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3716,6 +3753,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
                           DcpSnapshotMarkerFlag::Disk,
                           preSeqno /*HCS*/,
                           {} /*maxVisibleSeqno*/,
+                          std::nullopt,
                           {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3764,6 +3802,7 @@ TEST_P(DurabilityPassiveStreamTest, CompletedDiskPreIsIgnoredBySanityChecks) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3798,6 +3837,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3837,6 +3877,7 @@ TEST_P(DurabilityPassiveStreamTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3899,6 +3940,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -3965,6 +4007,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
             DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Memory,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -4068,6 +4111,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
             DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Disk,
             15 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -4222,6 +4266,7 @@ TEST_P(DurabilityPassiveStreamTest, AllowedDuplicatePreparesSetOnDiskSnap) {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             1 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -4281,6 +4326,7 @@ void DurabilityPassiveStreamTest::testPrepareDeduplicationCorrectlyResetsHPS(
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -4824,6 +4870,7 @@ void DurabilityPromotionStreamTest::
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     auto* passiveStream = DurabilityPassiveStreamTest::stream;
     passiveStream->processMarker(&marker);
@@ -5289,6 +5336,7 @@ TEST_P(DurabilityPromotionStreamTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             1 /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     DurabilityPassiveStreamTest::stream->processMarker(&marker);
 
@@ -5318,6 +5366,7 @@ TEST_P(DurabilityPromotionStreamTest,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             3 /*HCS*/,
             1 /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     DurabilityPassiveStreamTest::stream->processMarker(&marker);
 
@@ -5418,6 +5467,7 @@ TEST_P(DurabilityPromotionStreamTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             1 /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     DurabilityPassiveStreamTest::stream->processMarker(&marker);
 
@@ -5447,6 +5497,7 @@ TEST_P(DurabilityPromotionStreamTest,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             1 /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     DurabilityPassiveStreamTest::stream->processMarker(&marker);
 
@@ -5534,6 +5585,7 @@ TEST_P(DurabilityPromotionStreamTest, ReplicaDeadActiveCanCommitPrepare) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             1 /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     DurabilityPassiveStreamTest::stream->processMarker(&marker);
 
@@ -5641,6 +5693,7 @@ TEST_P(DurabilityPassiveStreamDownlevelProducerTest,
             DcpSnapshotMarkerFlag::Disk,
             {} /*HCS missing as pre-MH producer will not send it*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     // Prior to the fix this would fail an Expects()
     stream->processMarker(&marker);
@@ -6162,6 +6215,7 @@ void DurabilityPassiveStreamEphemeralTest::testLogicalCommitCorrectTypeSetup() {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             1 /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 }

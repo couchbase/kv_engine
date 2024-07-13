@@ -56,6 +56,7 @@ protected:
                 cb::mcbp::request::DcpSnapshotMarkerFlag::None,
                 {} /*HCS*/,
                 {} /*maxVisibleSeqno*/,
+                std::nullopt,
                 {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
 

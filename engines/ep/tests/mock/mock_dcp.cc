@@ -117,6 +117,7 @@ cb::engine_errc MockDcpMessageProducers::marker(
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> purgeSeqno,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;

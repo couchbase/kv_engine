@@ -97,6 +97,8 @@ enum class IncludeDeletedUserXattrs : bool {
     No,
 };
 
+enum class IncludePurgeSeqno : bool { Yes, No };
+
 /**
  * SnappyEnabled is used to state whether an active stream supports snappy
  * compressed documents.

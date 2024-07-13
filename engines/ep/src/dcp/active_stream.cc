@@ -50,6 +50,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeXattrs includeXattrs,
                            IncludeDeleteTime includeDeleteTime,
                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
+                           IncludePurgeSeqno includePurgeSeqno,
                            Collections::VB::Filter f)
     : Stream(n,
              flags,
@@ -67,6 +68,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeletedUserXattrs(includeDeletedUserXattrs),
+      includePurgeSeqno(includePurgeSeqno),
       lastSentSeqno(st_seqno, {*this}),
       lastSentSeqnoAdvance(0, {*this}),
       curChkSeqno(st_seqno, {*this}),
@@ -421,6 +423,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                                  flags,
                                                                  hcsToSend,
                                                                  mvsToSend,
+                                                                 std::nullopt,
                                                                  sid);
         } else {
             log(spdlog::level::level_enum::info,
@@ -446,6 +449,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                           flags,
                                                           hcsToSend,
                                                           mvsToSend,
+                                                          std::nullopt,
                                                           sid));
             // Update the last start seqno seen but handle base case as
             // lastSentSnapStartSeqno is initial zero
@@ -1735,6 +1739,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                                       flags,
                                                       hcsToSend,
                                                       mvsToSend,
+                                                      std::nullopt,
                                                       sid));
         // Update the last start seqno seen but handle base case as
         // lastSentSnapStartSeqno is initial zero
@@ -2789,8 +2794,15 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
 
     start = adjustStartIfFirstSnapshot(start, true);
     const auto flags = getMarkerFlags(meta);
-    pushToReadyQ(std::make_unique<SnapshotMarker>(
-            opaque_, vb_, start, end, flags, std::nullopt, std::nullopt, sid));
+    pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                  vb_,
+                                                  start,
+                                                  end,
+                                                  flags,
+                                                  std::nullopt,
+                                                  std::nullopt,
+                                                  std::nullopt,
+                                                  sid));
     // Update the last start seqno seen but handle base case as
     // lastSentSnapStartSeqno is initial zero
     if (start > 0) {

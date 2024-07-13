@@ -42,12 +42,14 @@ public:
                       uint64_t end_seqno,
                       request::DcpSnapshotMarkerFlag flags,
                       std::optional<uint64_t> hcs,
-                      std::optional<uint64_t> mvs)
+                      std::optional<uint64_t> mvs,
+                      std::optional<uint64_t> purge_seqno)
         : startSeqno(start_seqno),
           endSeqno(end_seqno),
           flags(flags),
           highCompletedSeqno(std::move(hcs)),
-          maxVisibleSeqno(std::move(mvs)) {
+          maxVisibleSeqno(std::move(mvs)),
+          purgeSeqno(purge_seqno) {
     }
 
     uint64_t getStartSeqno() const {
@@ -107,6 +109,7 @@ protected:
     request::DcpSnapshotMarkerFlag flags = request::DcpSnapshotMarkerFlag::None;
     std::optional<uint64_t> highCompletedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
+    std::optional<uint64_t> purgeSeqno;
 };
 
 /// Get a JSON dump of the DcpSnapshotMarker

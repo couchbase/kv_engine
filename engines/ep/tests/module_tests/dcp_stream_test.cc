@@ -1389,9 +1389,9 @@ TEST_P(StreamTest, MultipleVBucketsRoundRobin) {
         ::testing::InSequence sequence;
         using ::testing::_;
 
-        EXPECT_CALL(mockProducers, marker(_, Vbid(0), _, _, _, _, _, _));
-        EXPECT_CALL(mockProducers, marker(_, Vbid(1), _, _, _, _, _, _));
-        EXPECT_CALL(mockProducers, marker(_, Vbid(2), _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(0), _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(1), _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(2), _, _, _, _, _, _, _));
 
         EXPECT_CALL(mockProducers, mutation(_, _, Vbid(0), _, _, _, _, _));
         EXPECT_CALL(mockProducers, mutation(_, _, Vbid(1), _, _, _, _, _));
@@ -2596,6 +2596,7 @@ void SingleThreadedPassiveStreamTest::
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
 
     stream->processMarker(&marker);
@@ -2661,6 +2662,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
                               flags,
                               0 /*HCS*/,
                               {} /*maxVisibleSeqno*/,
+                              std::nullopt,
                               streamId);
         stream->processMarker(&marker);
 
@@ -3160,6 +3162,7 @@ TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
                           DcpSnapshotMarkerFlag::Memory,
                           0 /*HCS*/,
                           visibleSnapEnd,
+                          std::nullopt,
                           {} /*streamId*/);
 
     try {
@@ -3750,13 +3753,13 @@ TEST_P(SingleThreadedActiveStreamTest,
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _))
+        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _))
                 .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers, mutation(_, _, vbid, /*seqno*/ 1, _, _, _, _))
                 .WillOnce(Return(cb::engine_errc::success));
 
-        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _))
+        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _))
                 .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers, mutation(_, _, vbid, /*seqno*/ 2, _, _, _, _))
@@ -6211,6 +6214,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
 
     stream->processMarker(&marker);
@@ -6264,6 +6268,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
 
     stream->processMarker(&marker);
@@ -6316,6 +6321,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(1) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
 
@@ -6440,6 +6446,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   {} /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     // M:1
@@ -6589,6 +6596,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
 
@@ -6652,6 +6660,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
+                                  std::nullopt,
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
 
@@ -7368,6 +7377,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
                                           DcpSnapshotMarkerFlag::History,
                                   std::optional<uint64_t>(0), /*HCS*/
                                   {}, /*maxVisibleSeqno*/
+                                  std::nullopt,
                                   {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     ASSERT_EQ(2, manager.getNumCheckpoints());
@@ -7467,6 +7477,7 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
             DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Memory,
             std::optional<uint64_t>(0), /*HCS*/
             {}, /*maxVisibleSeqno*/
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
     ASSERT_EQ(cb::engine_errc::success,
@@ -7696,6 +7707,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
                                   {},
+                                  std::nullopt,
                                   {});
     stream->processMarker(&snapshotMarker);
 
@@ -7849,6 +7861,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
                                   {},
+                                  std::nullopt,
                                   {});
     stream->processMarker(&snapshotMarker);
 

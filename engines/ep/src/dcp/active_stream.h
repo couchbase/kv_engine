@@ -118,6 +118,7 @@ public:
                  IncludeXattrs includeXattrs,
                  IncludeDeleteTime includeDeleteTime,
                  IncludeDeletedUserXattrs includeDeletedUserXattrs,
+                 IncludePurgeSeqno includePurgeSeqno,
                  Collections::VB::Filter filter);
 
     ~ActiveStream() override;
@@ -705,6 +706,11 @@ protected:
     // Will the stream include user-xattrs (if any) at sending dcp (normal/sync)
     // deletions?
     const IncludeDeletedUserXattrs includeDeletedUserXattrs;
+
+    // Include the purge seqno of the vbucket if this is set - a DCP connection
+    // opened with the DcpOpenFlag::SendSnapshotMarkerV2_2 flag should include
+    // the purge seqno.
+    const IncludePurgeSeqno includePurgeSeqno;
 
     /**
      * Should the next snapshot marker have the 'checkpoint' flag

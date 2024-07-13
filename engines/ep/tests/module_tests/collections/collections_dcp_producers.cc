@@ -143,6 +143,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
         DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> purgeSeqno,
         cb::mcbp::DcpStreamId sid) {
     auto ret = cb::engine_errc::success;
     if (consumer) {
@@ -163,6 +164,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
                                     flags,
                                     high_completed_seqno,
                                     maxVisibleSeqno,
+                                    purgeSeqno,
                                     sid);
 
     return ret;

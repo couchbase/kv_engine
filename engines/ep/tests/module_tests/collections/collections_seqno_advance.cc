@@ -243,6 +243,7 @@ public:
                                                      flags,
                                                      std::nullopt,
                                                      std::nullopt,
+                                                     std::nullopt,
                                                      cb::mcbp::DcpStreamId{}));
         }
 

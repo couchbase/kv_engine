@@ -393,6 +393,7 @@ public:
                    cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                    std::optional<uint64_t> highCompletedSeqno,
                    std::optional<uint64_t> maxVisibleSeqno,
+                   std::optional<uint64_t> purgeSeqno,
                    cb::mcbp::DcpStreamId sid)
         : DcpResponse(Event::SnapshotMarker, opaque, sid),
           vbucket_(vbucket),
@@ -400,7 +401,8 @@ public:
           end_seqno_(end_seqno),
           flags_(flags),
           highCompletedSeqno(highCompletedSeqno),
-          maxVisibleSeqno(maxVisibleSeqno) {
+          maxVisibleSeqno(maxVisibleSeqno),
+          purgeSeqno(purgeSeqno) {
     }
 
     Vbid getVBucket() const {
@@ -429,6 +431,10 @@ public:
         return maxVisibleSeqno;
     }
 
+    std::optional<uint64_t> getPurgeSeqno() const {
+        return purgeSeqno;
+    }
+
     static const uint32_t baseMsgBytes;
 
 protected:
@@ -441,6 +447,7 @@ private:
     cb::mcbp::request::DcpSnapshotMarkerFlag flags_;
     std::optional<uint64_t> highCompletedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
+    std::optional<uint64_t> purgeSeqno;
 };
 
 class MutationResponse : public DcpResponse {

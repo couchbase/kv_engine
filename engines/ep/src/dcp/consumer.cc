@@ -815,6 +815,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
                                                 flags,
                                                 high_completed_seqno,
                                                 max_visible_seqno,
+                                                std::nullopt,
                                                 cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }

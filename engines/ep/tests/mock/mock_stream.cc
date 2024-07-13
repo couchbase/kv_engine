@@ -46,6 +46,7 @@ MockActiveStream::MockActiveStream(
                    includeXattrs,
                    IncludeDeleteTime::No,
                    includeDeletedUserXattrs,
+                   IncludePurgeSeqno::No,
                    {jsonFilter, vb.getManifest(), *p->getCookie(), *e}) {
 }
 

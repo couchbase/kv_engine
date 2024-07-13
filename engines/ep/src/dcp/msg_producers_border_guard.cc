@@ -78,6 +78,7 @@ cb::engine_errc DcpMsgProducersBorderGuard::marker(
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> purgeSeqno,
         cb::mcbp::DcpStreamId sid) {
     NonBucketAllocationGuard guard;
     return guarded.marker(opaque,
@@ -87,6 +88,7 @@ cb::engine_errc DcpMsgProducersBorderGuard::marker(
                           flags,
                           highCompletedSeqno,
                           maxVisibleSeqno,
+                          purgeSeqno,
                           sid);
 }
 cb::engine_errc DcpMsgProducersBorderGuard::mutation(

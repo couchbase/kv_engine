@@ -121,6 +121,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             {}, // maxVisibleSeqno
+            std::nullopt,
             {}); // sid
 
     const uint32_t smV1_size =
@@ -137,6 +138,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             6, // highCompletedSeqno
             {}, // maxVisibleSeqno
+            std::nullopt,
             {}); // sid
 
     auto smV2_0_max_visible_seqno = SnapshotMarker(
@@ -147,6 +149,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             6, // maxVisibleSeqno
+            std::nullopt,
             {}); // sid
 
     const uint32_t smV2_0_size =
@@ -167,6 +170,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             {}, // maxVisibleSeqno
+            std::nullopt,
             cb::mcbp::DcpStreamId(6)); // sid
 
     const uint32_t smV1_size =
@@ -184,6 +188,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             6, // highCompletedSeqno
             {}, // maxVisibleSeqno
+            std::nullopt,
             cb::mcbp::DcpStreamId(7)); // sid
 
     auto smV2_0_max_visible_seqno = SnapshotMarker(
@@ -194,6 +199,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             6, // maxVisibleSeqno
+            std::nullopt,
             cb::mcbp::DcpStreamId(7)); // sid
 
     const uint32_t smV2_0_size =

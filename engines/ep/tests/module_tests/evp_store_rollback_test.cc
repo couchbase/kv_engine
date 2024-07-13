@@ -1402,6 +1402,7 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1441,6 +1442,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamId*/);
     stream->processMarker(&marker);
 
@@ -1490,6 +1492,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamID*/);
     stream->processMarker(&marker);
 
@@ -1531,6 +1534,7 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
             {} /*maxVisibleSeqno*/,
+            std::nullopt,
             {} /*streamID*/);
     stream->processMarker(&marker);
     {
