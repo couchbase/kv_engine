@@ -1066,7 +1066,9 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     ASSERT_EQ(1, out.size());
 
     // (3) Now set k again
-    EXPECT_EQ(MutationStatus::WasDirty, public_processSet(*qi, qi->getCas()));
+    // The existing item is deleted, and providing the cas value of the
+    // existing item will not replace it with a (different) deleted value.
+    EXPECT_EQ(MutationStatus::WasDirty, public_processSet(*qi, 0));
 
     // (3.1) Run the PCB for the delete/expiry (2)
     // Using the delete callback

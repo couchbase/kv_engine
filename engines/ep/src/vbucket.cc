@@ -3537,6 +3537,10 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
         itm.setRevSeqno(v->getRevSeqno());
         status = MutationStatus::WasClean;
     }
+    // cas was regenerated, update to return to client
+    if (v->getCas() != itm.getCas()) {
+        itm.setCas(v->getCas());
+    }
     return {status, notifyCtx};
 }
 

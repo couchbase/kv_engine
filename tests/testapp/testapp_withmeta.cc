@@ -408,3 +408,82 @@ TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_AllowValuePruning_DTXattr) {
 TEST_P(WithMetaTest, DeleteWithMetaRejectsBody_DTXattr) {
     testDeleteWithMetaRejectsBody(false, true);
 }
+
+class WithMetaRegenerateCasTest : public TestappXattrClientTest {
+public:
+    void SetUp() override {
+        TestappXattrClientTest::SetUp();
+        // set strategy to "replace" to ensure that the CAS is regenerated
+        setHlcInvalidStrategyToReplace();
+    }
+
+    void setHlcInvalidStrategyToReplace() {
+        adminConnection->executeInBucket(bucketName, [](auto& connection) {
+            const auto setParam = BinprotSetParamCommand(
+                    cb::mcbp::request::SetParamPayload::Type::Vbucket,
+                    "hlc_invalid_strategy",
+                    "replace");
+            const auto resp =
+                    BinprotMutationResponse(connection.execute(setParam));
+            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        });
+    }
+};
+
+TEST_P(WithMetaRegenerateCasTest, setWithMetaReturnsRegeratedCas) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
+
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+
+    // store document with a poisoned CAS
+    Document doc{};
+    doc.value = "body";
+    doc.info.id = "Test_Return_Cas";
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+    doc.info.cas = poisonedCas;
+
+    const auto resp = userConnection->mutateWithMeta(doc,
+                                                     Vbid(0),
+                                                     cb::mcbp::cas::Wildcard,
+                                                     /*seqno*/ 1,
+                                                     /*options*/ 0,
+                                                     {});
+
+    // verify returned CAS is not the inital posioned CAS
+    EXPECT_LT(resp.cas, poisonedCas);
+}
+
+TEST_P(WithMetaRegenerateCasTest, deleteWithMetaReturnsRegeratedCas) {
+    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
+
+    auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
+
+    // store document with a poisoned CAS
+    Document doc{};
+    doc.value = "body";
+    doc.info.id = "Test_Return_Cas";
+    doc.info.datatype = cb::mcbp::Datatype::Raw;
+    doc.info.cas = poisonedCas;
+
+    BinprotDelWithMetaCommand delWithMeta(
+            doc, Vbid(0), 0, 0 /*delTime*/, 1 /*seqno*/, 0 /*opCas*/);
+    const auto delteOp =
+            BinprotMutationResponse(userConnection->execute(delWithMeta));
+    if (!delteOp.isSuccess()) {
+        throw ConnectionError("Failed to delete " + doc.info.id + " " +
+                                      delteOp.getDataString(),
+                              delteOp.getStatus());
+    }
+
+    // verify returned CAS is not the inital posioned CAS
+    EXPECT_LT(delteOp.getMutationInfo().cas, poisonedCas);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        TransportProtocols,
+        WithMetaRegenerateCasTest,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpSsl),
+                           ::testing::Values(XattrSupport::No),
+                           ::testing::Values(ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::No)),
+        PrintToStringCombinedName());
