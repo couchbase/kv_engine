@@ -2869,8 +2869,8 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     if (!keysOnly || isSystemEvent || forceValueFetch) {
         const couchstore_open_options openOptions =
                 fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
-        auto errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
-                                                        openOptions);
+        const auto errCode = couchstore_open_doc_with_docinfo(
+                db, docinfo, &doc, openOptions);
 
         if (errCode == COUCHSTORE_SUCCESS) {
             // Document value read from disk; account for it in diskBytesRead.
@@ -2893,8 +2893,8 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
                               couchstore_strerror(errCode),
                               couchkvstore_strerrno(db, errCode),
                               vbucketId,
-                              docinfo->rev_seq);
-            return COUCHSTORE_SUCCESS;
+                              docinfo->db_seq);
+            return errCode;
         }
     }
 
