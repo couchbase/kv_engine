@@ -202,15 +202,7 @@ static int64_t getTotalSent(MemcachedConnection& conn, intptr_t id) {
  * (because we never try to read the data)
  */
 TEST_P(BucketTest, DeleteWhileSendDataAndFullWriteBuffer) {
-    /// The test don't test anything in the actual engine so we don't need
-    /// to run the test on both ep-engine and default_engine. Given that
-    /// we test with default_engine we only run the test for default_engine
-    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Memcached);
-
-    adminConnection->createBucket("bucket",
-                                  "cache_size=67108864;item_size_max=22020096",
-                                  BucketType::Memcached);
-
+    mcd_env->getTestBucket().setUpBucket("bucket", {}, *adminConnection);
     auto& conn = getConnection();
     conn.authenticate("Luke");
     const auto id = conn.getServerConnectionId();
