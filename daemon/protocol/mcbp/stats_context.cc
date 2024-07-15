@@ -190,7 +190,7 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
 
         for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
             Bucket& bucket = BucketManager::instance().at(ii);
-            auto json = bucket.to_json();
+            nlohmann::json json = bucket;
             if (!json.empty()) {
                 json["index"] = ii;
                 array.emplace_back(std::move(json));
@@ -211,7 +211,7 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
     // check if it was the bucket we wanted.
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
         Bucket& bucket = BucketManager::instance().at(ii);
-        auto json = bucket.to_json();
+        nlohmann::json json = bucket;
         if (!json.empty() && json["name"] == arg) {
             append_stats(arg, json.dump(), cookie);
             return cb::engine_errc::success;

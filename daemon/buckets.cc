@@ -444,6 +444,10 @@ std::string to_string(Bucket::State state) {
                                 std::to_string(int(state)));
 }
 
+void to_json(nlohmann::json& json, const Bucket& bucket) {
+    json = bucket.to_json();
+}
+
 BucketManager& BucketManager::instance() {
     static BucketManager instance;
     return instance;

@@ -385,6 +385,7 @@ protected:
     std::vector<std::deque<Connection*>> throttledConnections;
 };
 
+void to_json(nlohmann::json& json, const Bucket& bucket);
 std::string to_string(Bucket::State state);
 
 /**

@@ -20,8 +20,8 @@ class PasswordDatabaseTest : public ::testing::Test {
 public:
     void SetUp() override {
         json["@@version@@"] = 2;
-        json["trond"] = UserFactory::create("trond", "secret1").to_json();
-        json["mike"] = UserFactory::create("mike", "secret2").to_json();
+        json["trond"] = UserFactory::create("trond", "secret1");
+        json["mike"] = UserFactory::create("mike", "secret2");
     }
 
     nlohmann::json json;

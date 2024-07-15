@@ -1278,3 +1278,5 @@ protected:
     void logExecutionException(const std::string_view where,
                                const std::exception& e);
 };
+
+void to_json(nlohmann::json& json, const Connection& connection);

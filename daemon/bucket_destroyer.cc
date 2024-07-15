@@ -116,7 +116,7 @@ cb::engine_errc BucketDestroyer::waitForConnections() {
                                  &currConns](Connection& conn) {
             if (&conn.getBucket() == &bucket) {
                 conn.signalIfIdle();
-                currConns[std::to_string(conn.getId())] = conn.to_json();
+                currConns[std::to_string(conn.getId())] = conn;
             }
         });
 

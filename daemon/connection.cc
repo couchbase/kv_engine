@@ -2644,3 +2644,7 @@ cb::rbac::PrivilegeContext Connection::createContext(
         std::string_view bucket) const {
     return cb::rbac::createContext(getUser(), std::string{bucket});
 }
+
+void to_json(nlohmann::json& json, const Connection& connection) {
+    json = connection.to_json();
+}

@@ -64,7 +64,7 @@ void PasswordDatabase::iterate(
 nlohmann::json PasswordDatabase::to_json() const {
     auto json = nlohmann::json{{"@@version@@", 2}};
     for (const auto& [u, e] : db) {
-        json[u] = e.to_json();
+        json[u] = e;
     }
     return json;
 }

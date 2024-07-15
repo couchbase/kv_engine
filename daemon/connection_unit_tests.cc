@@ -77,7 +77,7 @@ TEST_F(ConnectionUnitTests, CpuTime) {
     connection.addCpuTime(10ns);
     connection.addCpuTime(20ns);
 
-    auto json = connection.to_json();
+    nlohmann::json json = connection;
     EXPECT_EQ("10", json["min_sched_time"]);
     EXPECT_EQ("40", json["max_sched_time"]);
     EXPECT_EQ("100", json["total_cpu_time"]);
