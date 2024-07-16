@@ -187,9 +187,10 @@ INSTALL(TARGETS memcached
 # Unit tests
 #
 cb_add_test_executable(memcached_unit_tests
+                       bucket_manager_test.cc
                        bucket_metering_stats_test.cc
-                       bucket_validator_test.cc
                        bucket_stats_test.cc
+                       bucket_validator_test.cc
                        buckets_test.cc
                        client_cert_config_test.cc
                        connection_unit_tests.cc
@@ -197,16 +198,16 @@ cb_add_test_executable(memcached_unit_tests
                        error_map_manager_test.cc
                        function_chain_test.cc
                        json_validator_test.cc
-                       memcached_unit_test_main.cc
                        mc_time_test.cc
+                       memcached_unit_test_main.cc
                        network_interface_description_test.cc
                        network_interface_test.cc
                        settings_test.cc
                        sloppy_gauge_test.cc
                        ssl_utils_test.cc
+                       tasks_test.cc
                        timings_test.cc
-                       tls_configuration_test.cc
-                       tasks_test.cc)
+                       tls_configuration_test.cc)
 add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)
 cb_enable_unity_build(memcached_unit_tests)
 add_sanitizers(memcached_unit_tests)
