@@ -223,355 +223,224 @@ std::string TestBucketImpl::getEncryptionConfig() const {
     return encryption.dump();
 }
 
-class McdEnvironmentImpl : public McdEnvironment {
-public:
-    McdEnvironmentImpl(std::string engineConfig)
-        : test_directory(absolute(std::filesystem::path(
-                  cb::io::mkdtemp("memcached_testapp.")))),
-          isasl_file_name(test_directory / "cbsaslpw.json"),
-          configuration_file(test_directory / "memcached.json"),
-          portnumber_file(test_directory / "ports.json"),
-          rbac_file_name(test_directory / "rbac.json"),
-          audit_file_name(test_directory / "audit.cfg"),
-          audit_log_dir(test_directory / "audittrail"),
-          minidump_dir(test_directory / "crash"),
-          log_dir(test_directory / "log"),
-          ipaddresses(cb::net::getIpAddresses(false)) {
-        create_directories(minidump_dir);
-        create_directories(log_dir);
+McdEnvironment::McdEnvironment(std::string engineConfig)
+    : test_directory(absolute(
+              std::filesystem::path(cb::io::mkdtemp("memcached_testapp.")))),
+      isasl_file_name(test_directory / "cbsaslpw.json"),
+      configuration_file(test_directory / "memcached.json"),
+      portnumber_file(test_directory / "ports.json"),
+      rbac_file_name(test_directory / "rbac.json"),
+      audit_file_name(test_directory / "audit.cfg"),
+      audit_log_dir(test_directory / "audittrail"),
+      minidump_dir(test_directory / "crash"),
+      log_dir(test_directory / "log"),
+      ipaddresses(cb::net::getIpAddresses(false)) {
+    create_directories(minidump_dir);
+    create_directories(log_dir);
 
-        dek_manager->setActive(cb::dek::Entity::Logs,
-                               cb::crypto::DataEncryptionKey::generate());
-        dek_manager->setActive(cb::dek::Entity::Audit,
-                               cb::crypto::DataEncryptionKey::generate());
-        dek_manager->setActive(cb::dek::Entity::Config,
-                               cb::crypto::DataEncryptionKey::generate());
+    dek_manager->setActive(cb::dek::Entity::Logs,
+                           cb::crypto::DataEncryptionKey::generate());
+    dek_manager->setActive(cb::dek::Entity::Audit,
+                           cb::crypto::DataEncryptionKey::generate());
+    dek_manager->setActive(cb::dek::Entity::Config,
+                           cb::crypto::DataEncryptionKey::generate());
 
-        // We need to set MEMCACHED_UNIT_TESTS to enable the use of
-        // the ewouldblock engine..
-        setenv("MEMCACHED_UNIT_TESTS", "true", 1);
+    // We need to set MEMCACHED_UNIT_TESTS to enable the use of
+    // the ewouldblock engine..
+    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
 
-        testBucket = std::make_unique<TestBucketImpl>(test_directory,
-                                                      std::move(engineConfig));
-        // I shouldn't need to use string() here, but it fails to compile on
-        // windows without it:
-        //
-        // cannot convert argument 2 from
-        // 'const std::filesystem::path::value_type *' to 'const char *'
-        setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
-        setupPasswordDatabase();
+    testBucket = std::make_unique<TestBucketImpl>(test_directory,
+                                                  std::move(engineConfig));
+    // I shouldn't need to use string() here, but it fails to compile on
+    // windows without it:
+    //
+    // cannot convert argument 2 from
+    // 'const std::filesystem::path::value_type *' to 'const char *'
+    setenv("CBSASL_PWFILE", isasl_file_name.generic_string().c_str(), 1);
+    setupPasswordDatabase();
 
-        // Some of the tests wants to modify the RBAC file so we need
-        // to make a local copy they can operate on
-        const auto input_file =
-                cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
-        rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
-        rewriteRbacFileImpl();
+    // Some of the tests wants to modify the RBAC file so we need
+    // to make a local copy they can operate on
+    const auto input_file =
+            cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
+    rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
+    rewriteRbacFile();
 
-        // And we need an audit daemon configuration
-        audit_config = {
-                {"version", 2},
-                {"uuid", "this_is_the_uuid"},
-                {"auditd_enabled", false},
-                {"rotate_interval", 1440},
-                {"rotate_size", 20971520},
-                {"buffered", false},
-                {"log_path", audit_log_dir.generic_string()},
-                {"sync", nlohmann::json::array()},
-                {"disabled", nlohmann::json::array()},
-                {"event_states",
-                 {{std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED),
-                   "enabled"}}},
-                {"filtering_enabled", false},
-                {"disabled_userids", nlohmann::json::array()}};
-        rewriteAuditConfigImpl();
+    // And we need an audit daemon configuration
+    audit_config = {{"version", 2},
+                    {"uuid", "this_is_the_uuid"},
+                    {"auditd_enabled", false},
+                    {"rotate_interval", 1440},
+                    {"rotate_size", 20971520},
+                    {"buffered", false},
+                    {"log_path", audit_log_dir.generic_string()},
+                    {"sync", nlohmann::json::array()},
+                    {"disabled", nlohmann::json::array()},
+                    {"event_states",
+                     {{std::to_string(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED),
+                       "enabled"}}},
+                    {"filtering_enabled", false},
+                    {"disabled_userids", nlohmann::json::array()}};
+    rewriteAuditConfig();
+}
+
+void McdEnvironment::setupPasswordDatabase() {
+    // Write the initial password database:
+    using cb::sasl::pwdb::User;
+    using cb::sasl::pwdb::UserFactory;
+
+    // Reduce the iteration count to speed up the unit tests
+    UserFactory::setDefaultScramShaIterationCount(10);
+
+    for (const auto& [u, p] : users) {
+        passwordDatabase.upsert(UserFactory::create(u, p));
     }
 
-    [[nodiscard]] std::string getPassword(
-            std::string_view user) const override {
-        auto iter = users.find(std::string{user});
-        if (iter == users.end()) {
-            throw std::runtime_error("getPassword(): Unknown user: " +
-                                     std::string{user});
+    std::ofstream cbsasldb(isasl_file_name.generic_string());
+    cbsasldb << nlohmann::json(passwordDatabase) << std::endl;
+}
+
+void McdEnvironment::terminate(int exitcode) {
+    unsetenv("MEMCACHED_UNIT_TESTS");
+    unsetenv("CBSASL_PWFILE");
+
+    // If exit-code != EXIT_SUCCESS it means that we had at least one
+    // failure. When running on the CV machines we might have information
+    // in the log files so lets dump the last 8k of the log file to give
+    // the user more information
+    if (exitcode != EXIT_SUCCESS) {
+        constexpr std::size_t max_log_size = 64 * 1024;
+
+        // We've set the cycle size to be 200M, so we should expect
+        // only a single log file (but for simplicity just iterate
+        // over them all and print the last xk of each file
+        std::cerr << "Last " << max_log_size / 1024 << "k of the log files"
+                  << std::endl
+                  << "========================" << std::endl;
+        for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
+            if (is_regular_file(p)) {
+                auto content =
+                        readConcurrentUpdatedFile(cb::dek::Entity::Logs, p);
+                if (content.size() > max_log_size) {
+                    content = content.substr(
+                            content.find('\n', content.size() - max_log_size));
+                }
+                std::cerr << p.path().generic_string() << std::endl
+                          << content << std::endl
+                          << "-----------------------------" << std::endl;
+            }
         }
-        return iter->second;
     }
 
-    const std::unordered_map<std::string, std::string> users{
-            {"@admin", "password"},
-            {"@fts", "<#w`?D4QwY/x%j8M"},
-            {"bucket-1", "1S|=,%#x1"},
-            {"bucket-2", "secret"},
-            {"bucket-3", "1S|=,%#x1"},
-            {"smith", "smithpassword"},
-            {"larry", "larrypassword"},
-            {"legacy", "new"},
-            {"jones", "jonespassword"},
-            {"Luke", "Skywalker"},
-            {"Jane", "Pandoras Box"},
-            {"UserWithoutProfile", "password"}};
-
-    void setupPasswordDatabase() {
-        // Write the initial password database:
-        using cb::sasl::pwdb::User;
-        using cb::sasl::pwdb::UserFactory;
-
-        // Reduce the iteration count to speed up the unit tests
-        UserFactory::setDefaultScramShaIterationCount(10);
-
-        for (const auto& [u, p] : users) {
-            passwordDatabase.upsert(UserFactory::create(u, p));
+    bool cleanup = true;
+    for (const auto& p : std::filesystem::directory_iterator(minidump_dir)) {
+        if (is_regular_file(p)) {
+            cleanup = false;
+            break;
         }
-
-        std::ofstream cbsasldb(isasl_file_name.generic_string());
-        cbsasldb << nlohmann::json(passwordDatabase) << std::endl;
     }
 
-    void terminate(int exitcode) override {
-        unsetenv("MEMCACHED_UNIT_TESTS");
-        unsetenv("CBSASL_PWFILE");
+    if (cleanup) {
+        for (int ii = 0; ii < 100; ++ii) {
+            try {
+                std::filesystem::remove_all(test_directory);
+                break;
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to remove: "
+                          << test_directory.generic_string() << ": " << e.what()
+                          << std::endl;
+                std::this_thread::sleep_for(std::chrono::milliseconds{20});
+            }
+        }
+    } else {
+        std::cerr << "Test directory " << test_directory.generic_string()
+                  << " not removed as minidump files exists" << std::endl;
+    }
 
-        // If exit-code != EXIT_SUCCESS it means that we had at least one
-        // failure. When running on the CV machines we might have information
-        // in the log files so lets dump the last 8k of the log file to give
-        // the user more information
-        if (exitcode != EXIT_SUCCESS) {
-            constexpr std::size_t max_log_size = 64 * 1024;
+    std::exit(exitcode);
+}
 
-            // We've set the cycle size to be 200M, so we should expect
-            // only a single log file (but for simplicity just iterate
-            // over them all and print the last xk of each file
-            std::cerr << "Last " << max_log_size / 1024 << "k of the log files"
-                      << std::endl
-                      << "========================" << std::endl;
-            for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
-                if (is_regular_file(p)) {
-                    auto content = read_concurrent_updated_file(
-                            cb::dek::Entity::Logs, p);
-                    if (content.size() > max_log_size) {
-                        content = content.substr(content.find(
-                                '\n', content.size() - max_log_size));
-                    }
-                    std::cerr << p.path().generic_string() << std::endl
-                              << content << std::endl
-                              << "-----------------------------" << std::endl;
+void McdEnvironment::rewriteAuditConfig() {
+    dek_manager->save(
+            cb::dek::Entity::Config, audit_file_name, audit_config.dump());
+}
+
+void McdEnvironment::rewriteRbacFile() {
+    dek_manager->save(
+            cb::dek::Entity::Config, rbac_file_name, rbac_data.dump());
+}
+
+std::string McdEnvironment::getPassword(std::string_view user) const {
+    auto iter = users.find(std::string{user});
+    if (iter == users.end()) {
+        throw std::runtime_error("getPassword(): Unknown user: " +
+                                 std::string{user});
+    }
+    return iter->second;
+}
+
+void McdEnvironment::iterateLogLines(
+        const std::function<bool(std::string_view line)>& callback) const {
+    for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
+        if (is_regular_file(p)) {
+            const auto content =
+                    readConcurrentUpdatedFile(cb::dek::Entity::Logs, p.path());
+            auto lines = cb::string::split(content, '\n');
+            for (auto line : lines) {
+                while (line.back() == '\r') {
+                    line.remove_suffix(1);
+                }
+                if (!callback(line)) {
+                    return;
                 }
             }
         }
+    }
+}
 
-        bool cleanup = true;
-        for (const auto& p :
-             std::filesystem::directory_iterator(minidump_dir)) {
-            if (is_regular_file(p)) {
-                cleanup = false;
+bool McdEnvironment::iterateAuditEvents(
+        const std::function<bool(const nlohmann::json&)>& callback) const {
+    const auto files =
+            cb::io::findFilesContaining(mcd_env->getAuditLogDir(), "audit.log");
+    for (const auto& file : files) {
+        std::filesystem::path path(file);
+        if (is_symlink(path)) {
+            continue;
+        }
+        auto content = readConcurrentUpdatedFile(cb::dek::Entity::Audit, file);
+        auto lines = cb::string::split(content, '\n');
+        for (const auto& line : lines) {
+            try {
+                if (callback(nlohmann::json::parse(line))) {
+                    // We're done
+                    return true;
+                }
+            } catch (const nlohmann::json::exception&) {
                 break;
             }
         }
+    }
+    return false;
+}
 
-        if (cleanup) {
-            for (int ii = 0; ii < 100; ++ii) {
-                try {
-                    std::filesystem::remove_all(test_directory);
-                    break;
-                } catch (const std::exception& e) {
-                    std::cerr << "Failed to remove: "
-                              << test_directory.generic_string() << ": "
-                              << e.what() << std::endl;
-                    std::this_thread::sleep_for(std::chrono::milliseconds{20});
-                }
-            }
-        } else {
-            std::cerr << "Test directory " << test_directory.generic_string()
-                      << " not removed as minidump files exists" << std::endl;
+std::string McdEnvironment::readConcurrentUpdatedFile(
+        const cb::dek::Entity entity, const std::filesystem::path& path) const {
+    std::string content;
+    try {
+        auto lookup = [this, entity](auto key) {
+            return dek_manager->lookup(entity, key);
+        };
+        auto file_reader = cb::crypto::FileReader::create(path, lookup, {});
+        if (!file_reader->is_encrypted()) {
+            throw std::runtime_error("Expected the file to be encrypted");
         }
 
-        std::exit(exitcode);
-    }
-
-    [[nodiscard]] cb::dek::Manager& getDekManager() override {
-        return *dek_manager;
-    }
-
-    [[nodiscard]] std::string getAuditFilename() const override {
-        return audit_file_name.generic_string();
-    }
-
-    [[nodiscard]] std::string getAuditLogDir() const override {
-        return audit_log_dir.generic_string();
-    }
-
-    [[nodiscard]] nlohmann::json& getAuditConfig() override {
-        return audit_config;
-    }
-
-    void rewriteAuditConfigImpl() const {
-        dek_manager->save(
-                cb::dek::Entity::Config, audit_file_name, audit_config.dump());
-    }
-
-    void rewriteAuditConfig() override {
-        rewriteAuditConfigImpl();
-    }
-
-    [[nodiscard]] std::string getRbacFilename() const override {
-        return rbac_file_name.generic_string();
-    }
-
-    [[nodiscard]] nlohmann::json& getRbacConfig() override {
-        return rbac_data;
-    }
-
-    void rewriteRbacFileImpl() const {
-        dek_manager->save(
-                cb::dek::Entity::Config, rbac_file_name, rbac_data.dump());
-    }
-
-    void rewriteRbacFile() override {
-        rewriteRbacFileImpl();
-    }
-
-    [[nodiscard]] TestBucketImpl& getTestBucket() override {
-        return *testBucket;
-    }
-
-    [[nodiscard]] std::string getTestDir() const override {
-        return test_directory.generic_string();
-    }
-
-    [[nodiscard]] std::string getDbPath() const override {
-        return testBucket->getDbPath().generic_string();
-    }
-
-    [[nodiscard]] std::string getConfigurationFile() const override {
-        return configuration_file.generic_string();
-    }
-
-    [[nodiscard]] std::string getPortnumberFile() const override {
-        return portnumber_file.generic_string();
-    }
-
-    [[nodiscard]] std::string getMinidumpDir() const override {
-        return minidump_dir.generic_string();
-    }
-
-    [[nodiscard]] std::string getLogDir() const override {
-        return log_dir.generic_string();
-    }
-
-    [[nodiscard]] std::string getLogFilePattern() const override {
-        return (log_dir / "memcached").generic_string();
-    }
-
-    [[nodiscard]] bool haveIPv4() const override {
-        return !ipaddresses.first.empty();
-    }
-
-    [[nodiscard]] bool haveIPv6() const override {
-        return !ipaddresses.second.empty();
-    }
-
-    void iterateLogLines(const std::function<bool(std::string_view line)>&
-                                 callback) const override {
-        for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
-            if (is_regular_file(p)) {
-                const auto content = read_concurrent_updated_file(
-                        cb::dek::Entity::Logs, p.path());
-                auto lines = cb::string::split(content, '\n');
-                for (auto line : lines) {
-                    while (line.back() == '\r') {
-                        line.remove_suffix(1);
-                    }
-                    if (!callback(line)) {
-                        return;
-                    }
-                }
-            }
+        std::string chunk;
+        while (!(chunk = file_reader->nextChunk()).empty()) {
+            content.append(chunk);
         }
+    } catch (const std::underflow_error&) {
+        // We might have hit a partial log update...
     }
-
-    bool iterateAuditEvents(const std::function<bool(const nlohmann::json&)>&
-                                    callback) const override {
-        const auto files = cb::io::findFilesContaining(
-                mcd_env->getAuditLogDir(), "audit.log");
-        for (const auto& file : files) {
-            std::filesystem::path path(file);
-            if (is_symlink(path)) {
-                continue;
-            }
-            auto content =
-                    read_concurrent_updated_file(cb::dek::Entity::Audit, file);
-            auto lines = cb::string::split(content, '\n');
-            for (const auto& line : lines) {
-                try {
-                    if (callback(nlohmann::json::parse(line))) {
-                        // We're done
-                        return true;
-                    }
-                } catch (const nlohmann::json::exception&) {
-                    break;
-                }
-            }
-        }
-        return false;
-    }
-
-private:
-    /**
-     * Read a file which may be concurrently written do by someone else
-     * causing a "partial" read to occur (and in the case of an encrypted
-     * file this would be a problem as they're chunked).
-     *
-     * @param entity the entity used to locate the key
-     * @param path file to read
-     * @return the content up until we hit a partial read
-     */
-    [[nodiscard]] std::string read_concurrent_updated_file(
-            const cb::dek::Entity entity,
-            const std::filesystem::path& path) const {
-        std::string content;
-        try {
-            auto lookup = [this, entity](auto key) {
-                return dek_manager->lookup(entity, key);
-            };
-            auto file_reader = cb::crypto::FileReader::create(path, lookup, {});
-            if (!file_reader->is_encrypted()) {
-                throw std::runtime_error("Expected the file to be encrypted");
-            }
-
-            std::string chunk;
-            while (!(chunk = file_reader->nextChunk()).empty()) {
-                content.append(chunk);
-            }
-        } catch (const std::underflow_error&) {
-            // We might have hit a partial log update...
-        }
-        return content;
-    }
-
-    const std::filesystem::path test_directory;
-    const std::filesystem::path isasl_file_name;
-    const std::filesystem::path configuration_file;
-    const std::filesystem::path portnumber_file;
-    const std::filesystem::path rbac_file_name;
-    const std::filesystem::path audit_file_name;
-    const std::filesystem::path audit_log_dir;
-    const std::filesystem::path minidump_dir;
-    const std::filesystem::path log_dir;
-
-    std::unique_ptr<cb::dek::Manager> dek_manager = cb::dek::Manager::create();
-
-    /// first entry is IPv4 addresses, second is IPv6
-    /// (see cb::net::getIPAdresses)
-    const std::pair<std::vector<std::string>, std::vector<std::string>>
-            ipaddresses;
-
-    nlohmann::json audit_config;
-    nlohmann::json rbac_data;
-    std::unique_ptr<TestBucketImpl> testBucket;
-    cb::sasl::pwdb::MutablePasswordDatabase passwordDatabase;
-};
-
-std::unique_ptr<McdEnvironment> McdEnvironment::create(
-        std::string engineConfig) {
-    return std::make_unique<McdEnvironmentImpl>(std::move(engineConfig));
+    return content;
 }

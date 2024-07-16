@@ -9,8 +9,11 @@
  */
 #pragma once
 
+#include "dek/manager.h"
+
+#include <cbsasl/password_database.h>
 #include <memcached/protocol_binary.h>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -28,10 +31,6 @@ enum class ClientOpcode : uint8_t;
 
 namespace cb::sasl::pwdb {
 class MutablePasswordDatabase;
-}
-
-namespace cb::dek {
-class Manager;
 }
 
 /**
@@ -71,7 +70,8 @@ public:
     void setBucketCreateMode(BucketCreateMode mode) {
         bucketCreateMode = mode;
     }
-    constexpr size_t getMaximumDocSize() const {
+
+    [[nodiscard]] constexpr static size_t getMaximumDocSize() {
         return 20 * 1024 * 1024;
     }
 
@@ -168,9 +168,7 @@ protected:
  */
 class McdEnvironment {
 public:
-    virtual ~McdEnvironment() = default;
-
-    static std::unique_ptr<McdEnvironment> create(std::string engineConfig);
+    explicit McdEnvironment(std::string engineConfig);
 
     /**
      * Shut down the test environment, clean up the test directory and
@@ -178,27 +176,30 @@ public:
      *
      * @param exitcode The exit code from running all tests
      */
-    virtual void terminate(int exitcode) = 0;
+    void terminate(int exitcode);
 
-    /**
-     *
-     * Get the data encryption key manager used in the test
-     */
-    virtual cb::dek::Manager& getDekManager() = 0;
+    /// Get the data encryption key manager used in the test
+    [[nodiscard]] cb::dek::Manager& getDekManager() {
+        return *dek_manager;
+    }
 
     /**
      * Get the name of the configuration file used by the audit daemon.
      *
      * @return the absolute path of the file containing the audit config
      */
-    virtual std::string getAuditFilename() const = 0;
+    [[nodiscard]] std::string getAuditFilename() const {
+        return audit_file_name.generic_string();
+    }
 
     /**
      * Get the name of the directory containing the audit logs
      *
      * @return the absolute path of the directory containing the audit config
      */
-    virtual std::string getAuditLogDir() const = 0;
+    [[nodiscard]] std::string getAuditLogDir() const {
+        return audit_log_dir.generic_string();
+    }
 
     /**
      * Get a handle to the current audit configuration so that you may
@@ -207,21 +208,25 @@ public:
      *
      * @return the root object of the audit configuration.
      */
-    virtual nlohmann::json& getAuditConfig() = 0;
+    [[nodiscard]] nlohmann::json& getAuditConfig() {
+        return audit_config;
+    }
 
     /**
      * Dump the internal representation of the audit configuration
      * (returned by <code>getAuditConfig()</code>) to the configuration file
      * (returned by <getAuditFilename()</config>)
      */
-    virtual void rewriteAuditConfig() = 0;
+    void rewriteAuditConfig();
 
     /**
      * Get the name of the RBAC file used.
      *
      * @return the absolute path of the file containing the RBAC data
      */
-    virtual std::string getRbacFilename() const = 0;
+    [[nodiscard]] std::string getRbacFilename() const {
+        return rbac_file_name.generic_string();
+    }
 
     /**
      * Get a handle to the current RBAC configuration so that you may
@@ -230,59 +235,130 @@ public:
      *
      * @return the object containing the RBAC configuration
      */
-    virtual nlohmann::json& getRbacConfig() = 0;
+    [[nodiscard]] nlohmann::json& getRbacConfig() {
+        return rbac_data;
+    }
 
     /**
      * Dump the internal representation of the rbac configuration
      * (returned by <code>getRbacConfig()</code>) to the configuration file
      * (returned by <getRbacFilename()</config>)
      */
-    virtual void rewriteRbacFile() = 0;
+    void rewriteRbacFile();
 
     /**
      * @return The bucket type being tested.
      */
-    virtual TestBucketImpl& getTestBucket() = 0;
+    [[nodiscard]] TestBucketImpl& getTestBucket() {
+        return *testBucket;
+    }
 
     /// @returns the base directory this test uses.
-    virtual std::string getTestDir() const = 0;
+    [[nodiscard]] std::string getTestDir() const {
+        return test_directory.generic_string();
+    }
 
     /**
-     * @return The dbPath of a persistent bucket (throws if not persistent)
+     * @return The dbPath of a persistent bucket
      */
-    virtual std::string getDbPath() const = 0;
+    [[nodiscard]] std::string getDbPath() const {
+        return testBucket->getDbPath().generic_string();
+    }
 
     /// Get the name of the configuration file to use
-    virtual std::string getConfigurationFile() const = 0;
+    [[nodiscard]] std::string getConfigurationFile() const {
+        return configuration_file.generic_string();
+    }
 
-    virtual std::string getPortnumberFile() const = 0;
+    [[nodiscard]] std::string getPortnumberFile() const {
+        return portnumber_file.generic_string();
+    }
 
-    virtual std::string getMinidumpDir() const = 0;
+    [[nodiscard]] std::string getMinidumpDir() const {
+        return minidump_dir.generic_string();
+    }
 
-    virtual std::string getLogDir() const = 0;
+    [[nodiscard]] std::string getLogDir() const {
+        return log_dir.generic_string();
+    }
 
-    virtual void iterateLogLines(
-            const std::function<bool(std::string_view line)>& callback)
-            const = 0;
+    void iterateLogLines(
+            const std::function<bool(std::string_view line)>& callback) const;
 
     /// Iterate over the audit events and call the provided callback
     /// with each entry. The callback may return true to terminate
     /// iteration. The function returns if the callback terminated the
     /// iteration or not
-    virtual bool iterateAuditEvents(
-            const std::function<bool(const nlohmann::json&)>& callback)
-            const = 0;
+    bool iterateAuditEvents(
+            const std::function<bool(const nlohmann::json&)>& callback) const;
 
-    virtual std::string getLogFilePattern() const = 0;
+    [[nodiscard]] std::string getLogFilePattern() const {
+        return (log_dir / "memcached").generic_string();
+    }
 
     /// Do we have support for IPv4 addresses on the machine
-    virtual bool haveIPv4() const = 0;
+    [[nodiscard]] bool haveIPv4() const {
+        return !ipaddresses.first.empty();
+    }
 
     /// Do we have support for IPv6 addresses on the machine
-    virtual bool haveIPv6() const = 0;
+    [[nodiscard]] bool haveIPv6() const {
+        return !ipaddresses.second.empty();
+    }
 
     /// Get the password for the requested user
-    virtual std::string getPassword(std::string_view user) const = 0;
+    [[nodiscard]] std::string getPassword(std::string_view user) const;
+
+protected:
+    void setupPasswordDatabase();
+
+    /**
+     * Read a file which may be concurrently written do by someone else
+     * causing a "partial" read to occur (and in the case of an encrypted
+     * file this would be a problem as they're chunked).
+     *
+     * @param entity the entity used to locate the key
+     * @param path file to read
+     * @return the content up until we hit a partial read
+     */
+    [[nodiscard]] std::string readConcurrentUpdatedFile(
+            cb::dek::Entity entity, const std::filesystem::path& path) const;
+
+    const std::unordered_map<std::string, std::string> users{
+            {"@admin", "password"},
+            {"@fts", "<#w`?D4QwY/x%j8M"},
+            {"bucket-1", "1S|=,%#x1"},
+            {"bucket-2", "secret"},
+            {"bucket-3", "1S|=,%#x1"},
+            {"smith", "smithpassword"},
+            {"larry", "larrypassword"},
+            {"legacy", "new"},
+            {"jones", "jonespassword"},
+            {"Luke", "Skywalker"},
+            {"Jane", "Pandoras Box"},
+            {"UserWithoutProfile", "password"}};
+
+    const std::filesystem::path test_directory;
+    const std::filesystem::path isasl_file_name;
+    const std::filesystem::path configuration_file;
+    const std::filesystem::path portnumber_file;
+    const std::filesystem::path rbac_file_name;
+    const std::filesystem::path audit_file_name;
+    const std::filesystem::path audit_log_dir;
+    const std::filesystem::path minidump_dir;
+    const std::filesystem::path log_dir;
+
+    std::unique_ptr<cb::dek::Manager> dek_manager = cb::dek::Manager::create();
+
+    /// first entry is IPv4 addresses, second is IPv6
+    /// (see cb::net::getIPAdresses)
+    const std::pair<std::vector<std::string>, std::vector<std::string>>
+            ipaddresses;
+
+    nlohmann::json audit_config;
+    nlohmann::json rbac_data;
+    std::unique_ptr<TestBucketImpl> testBucket;
+    cb::sasl::pwdb::MutablePasswordDatabase passwordDatabase;
 };
 
 extern std::unique_ptr<McdEnvironment> mcd_env;

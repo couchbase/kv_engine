@@ -1304,7 +1304,7 @@ int main(int argc, char** argv) {
     }
 
     try {
-        mcd_env = McdEnvironment::create(engine_config);
+        mcd_env = std::make_unique<McdEnvironment>(engine_config);
     } catch (const std::exception& e) {
         std::cerr << "Failed to set up test environment: " << e.what()
                   << std::endl;
