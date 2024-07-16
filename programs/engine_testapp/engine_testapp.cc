@@ -199,8 +199,8 @@ public:
 
     EngineIface* create_bucket(bool initialize,
                                const std::string& cfg) override {
-        auto me = std::make_unique<MockEngine>(
-                new_engine_instance(bucketType, &get_mock_server_api));
+        auto me = std::make_unique<MockEngine>(new_engine_instance(
+                BucketType::Couchbase, &get_mock_server_api));
         if (me) {
             if (initialize) {
                 const auto error = me->the_engine->initialize(cfg, {});
@@ -470,7 +470,6 @@ int main(int argc, char **argv) {
     bool dot = false;
     bool loop = false;
     bool terminate_on_error = false;
-    std::string engine;
     const char* engine_args = nullptr;
     std::unique_ptr<std::regex> test_case_regex;
     std::vector<engine_test_t> testcases;
@@ -522,7 +521,6 @@ int main(int argc, char **argv) {
                     "a:" /* attempt tests N times before declaring them failed
                           */
                     "h" /* usage */
-                    "E:" /* Engine to use */
                     "e:" /* Engine options */
                     "L" /* Loop until failure */
                     "q" /* Be more quiet (only report failures) */
@@ -540,9 +538,6 @@ int main(int argc, char **argv) {
             break;
         case 'C' :
             test_case_id = std::stoi(optarg);
-            break;
-        case 'E':
-            engine = optarg;
             break;
         case 'e':
             engine_args = optarg;
@@ -589,18 +584,6 @@ int main(int argc, char **argv) {
     }
 
     /* validate args */
-    if (engine.empty()) {
-        harness.bucketType = get_bucket_type();
-    } else {
-        if (engine == "ep") {
-            harness.bucketType = BucketType::Couchbase;
-        } else if (engine == "mc") {
-            harness.bucketType = BucketType::Memcached;
-        } else {
-            fprintf(stderr, R"(Engine must be "ep" or "mc"\n)");
-            return 1;
-        }
-    }
 
     testcases = get_tests();
 

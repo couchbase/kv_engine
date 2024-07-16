@@ -253,7 +253,7 @@ add_ep_testsuite(ep_testsuite_xdcr ep_testsuite_xdcr.cc)
 # Defines a testsuite which runs in full and value eviction
 # (persistent), ephemeral buckets (which has no eviction).
 FUNCTION(ADD_TESTSUITE name timeout)
-    SET(_cmdline $<TARGET_FILE:${name}> -E ep)
+    SET(_cmdline $<TARGET_FILE:${name}> )
 
     # Sanitizers slow down test execution, in the region of 2x - 4x
     # slowdown. Given we don't want to trigger spurious false
@@ -342,7 +342,7 @@ ADD_TESTSUITE(ep_testsuite_checkpoint 180)
 ADD_TESTSUITE(ep_testsuite_xdcr 120)
 
 # ================================ PERF_TESTS ================================ #
-SET(_ep_perfsuite_cmdline $<TARGET_FILE:ep_perfsuite> -E ep -v)
+SET(_ep_perfsuite_cmdline $<TARGET_FILE:ep_perfsuite> -v)
 
 # Micro perf tests: value-only eviction mode. Note that it makes no sense to run
 # these tests in full-eviction mode as we disable persistence - see MB-19504.

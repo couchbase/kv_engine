@@ -50,8 +50,6 @@ using PreLinkFunction = std::function<void(item_info&)>;
  */
 struct test_harness {
     virtual ~test_harness() = default;
-
-    BucketType bucketType = BucketType::Unknown;
     const char* default_engine_cfg = nullptr;
     OutputFormat output_format = OutputFormat::Text;
     const char* output_file_prefix = "output.";
@@ -206,9 +204,6 @@ struct test {
  * @return
  */
 std::vector<engine_test_t> get_tests();
-
-/// Get the type of bucket the tests are written for
-BucketType get_bucket_type();
 
 /**
  * Set up the test suite
