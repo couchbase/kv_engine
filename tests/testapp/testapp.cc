@@ -184,7 +184,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
         nlohmann::json config, const std::string& bucketConf) {
     token = 0xdeadbeef;
     memcached_cfg = std::move(config);
-    remove(mcd_env->getPortnumberFile().c_str());
+    remove(mcd_env->getPortnumberFile());
     start_memcached_server();
 
     if (HasFailure()) {
@@ -234,7 +234,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
         }
 
         TestappTest::connectionMap.add(rsp.getDataJson());
-        remove(mcd_env->getPortnumberFile().c_str());
+        remove(mcd_env->getPortnumberFile());
     };
 
     try {
@@ -495,11 +495,11 @@ nlohmann::json TestappTest::generate_config() {
             {"external_auth_slow_duration", "5 s"},
             {"external_auth_request_timeout", "30 s"},
             {"error_maps_dir", get_errmaps_dir()},
-            {"audit_file", mcd_env->getAuditFilename()},
-            {"rbac_file", mcd_env->getRbacFilename()},
+            {"audit_file", mcd_env->getAuditFilename().string()},
+            {"rbac_file", mcd_env->getRbacFilename().string()},
             {"breakpad",
              {{"enabled", true},
-              {"minidump_dir", mcd_env->getMinidumpDir()},
+              {"minidump_dir", mcd_env->getMinidumpDir().string()},
               {"content", "default"}}},
             {"scramsha_fallback_iteration_count", 10},
             {"threads", 2},
@@ -513,9 +513,9 @@ nlohmann::json TestappTest::generate_config() {
               {"default", {{"slow", 500}}}}},
             {"logger",
              {{"unit_test", true},
-              {"filename", mcd_env->getLogFilePattern()},
+              {"filename", mcd_env->getLogFilePattern().generic_string()},
               {"cyclesize", 200 * 1024 * 1024}}},
-            {"portnumber_file", mcd_env->getPortnumberFile()},
+            {"portnumber_file", mcd_env->getPortnumberFile().string()},
             {"prometheus", {{"port", 0}, {"family", "inet"}}},
     };
 
@@ -533,9 +533,8 @@ nlohmann::json TestappTest::generate_config() {
 }
 
 void write_config_to_file(const std::string_view config) {
-    mcd_env->getDekManager().save(cb::dek::Entity::Config,
-                                  mcd_env->getConfigurationFile().c_str(),
-                                  config);
+    mcd_env->getDekManager().save(
+            cb::dek::Entity::Config, mcd_env->getConfigurationFile(), config);
 }
 
 #ifdef WIN32
@@ -569,8 +568,9 @@ void TestappTest::parse_portnumber_file() {
         // if we hit it we have a real problem and not just a loaded
         // server (rebuilding all of the source one more time is just
         // putting more load on the servers).
-        connectionMap.initialize(nlohmann::json::parse(cb::io::loadFile(
-                mcd_env->getPortnumberFile(), std::chrono::minutes{5})));
+        connectionMap.initialize(nlohmann::json::parse(
+                cb::io::loadFile(mcd_env->getPortnumberFile().string(),
+                                 std::chrono::minutes{5})));
 
         // The tests which don't use the MemcachedConnection class needs the
         // global variables port and ssl_port to be set
@@ -595,7 +595,7 @@ void TestappTest::parse_portnumber_file() {
                     "connection from: " +
                     ss.str());
         }
-        EXPECT_EQ(0, remove(mcd_env->getPortnumberFile().c_str()));
+        remove(mcd_env->getPortnumberFile());
     } catch (const std::exception& e) {
         std::cerr << "FATAL ERROR in parse_portnumber_file!" << std::endl
                   << "An error occurred while getting the connection ports:"
@@ -628,8 +628,9 @@ void TestappTest::spawn_embedded_server() {
         mcd_env->terminate(EXIT_FAILURE);
     }
 
-    memcached_server_thread = std::thread(memcached_server_thread_main,
-                                          mcd_env->getConfigurationFile());
+    memcached_server_thread =
+            std::thread(memcached_server_thread_main,
+                        mcd_env->getConfigurationFile().generic_string());
 }
 
 void TestappTest::start_external_server() {
@@ -652,7 +653,7 @@ void TestappTest::start_external_server() {
     }
     argv.emplace_back(exe.generic_string());
     argv.emplace_back("-C");
-    argv.emplace_back(mcd_env->getConfigurationFile());
+    argv.emplace_back(mcd_env->getConfigurationFile().generic_string());
     expectMemcachedTermination.store(false);
     memcachedProcess = ProcessMonitor::create(argv, [](const auto& ec) {
         if (!expectMemcachedTermination) {

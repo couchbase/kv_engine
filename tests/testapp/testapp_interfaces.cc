@@ -36,7 +36,7 @@ public:
 
 protected:
     void TearDown() override {
-        remove(memcached_cfg["portnumber_file"].get<std::string>().c_str());
+        remove(mcd_env->getPortnumberFile());
     }
 
     nlohmann::json getInterfaces(MemcachedConnection& c) {
@@ -429,7 +429,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
     auto rsp = reconfigure(config);
     ASSERT_TRUE(rsp.isSuccess())
             << to_string(rsp.getStatus()) << ": " << rsp.getDataString();
-    std::remove(mcd_env->getPortnumberFile().c_str());
+    remove(mcd_env->getPortnumberFile());
 
     // Add an ephemeral port and verify that it was created
 
@@ -456,7 +456,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
 
     ASSERT_NE(0, actualPort)
             << "Looks like reload didn't create an ephemeral port";
-    std::remove(mcd_env->getPortnumberFile().c_str());
+    remove(mcd_env->getPortnumberFile());
 
     // remove it from the list, reload and verify that its gone
     config["interfaces"] = interfaces;

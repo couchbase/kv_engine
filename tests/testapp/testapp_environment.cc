@@ -264,7 +264,8 @@ McdEnvironment::McdEnvironment(std::string engineConfig)
     const auto input_file =
             cb::io::sanitizePath(SOURCE_ROOT "/tests/testapp/rbac.json");
     rbac_data = nlohmann::json::parse(cb::io::loadFile(input_file));
-    rewriteRbacFile();
+    dek_manager->save(
+            cb::dek::Entity::Config, rbac_file_name, rbac_data.dump());
 
     // And we need an audit daemon configuration
     audit_config = {{"version", 2},
@@ -363,11 +364,6 @@ void McdEnvironment::terminate(int exitcode) {
 void McdEnvironment::rewriteAuditConfig() {
     dek_manager->save(
             cb::dek::Entity::Config, audit_file_name, audit_config.dump());
-}
-
-void McdEnvironment::rewriteRbacFile() {
-    dek_manager->save(
-            cb::dek::Entity::Config, rbac_file_name, rbac_data.dump());
 }
 
 std::string McdEnvironment::getPassword(std::string_view user) const {

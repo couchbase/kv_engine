@@ -183,22 +183,14 @@ public:
         return *dek_manager;
     }
 
-    /**
-     * Get the name of the configuration file used by the audit daemon.
-     *
-     * @return the absolute path of the file containing the audit config
-     */
-    [[nodiscard]] std::string getAuditFilename() const {
-        return audit_file_name.generic_string();
+    /// Get the name of the configuration file used by the audit daemon.
+    [[nodiscard]] std::filesystem::path getAuditFilename() const {
+        return audit_file_name;
     }
 
-    /**
-     * Get the name of the directory containing the audit logs
-     *
-     * @return the absolute path of the directory containing the audit config
-     */
-    [[nodiscard]] std::string getAuditLogDir() const {
-        return audit_log_dir.generic_string();
+    /// Get the name of the directory containing the audit logs
+    [[nodiscard]] std::filesystem::path getAuditLogDir() const {
+        return audit_log_dir;
     }
 
     /**
@@ -219,32 +211,10 @@ public:
      */
     void rewriteAuditConfig();
 
-    /**
-     * Get the name of the RBAC file used.
-     *
-     * @return the absolute path of the file containing the RBAC data
-     */
-    [[nodiscard]] std::string getRbacFilename() const {
-        return rbac_file_name.generic_string();
+    /// Get the name of the RBAC file used.
+    [[nodiscard]] std::filesystem::path getRbacFilename() const {
+        return rbac_file_name;
     }
-
-    /**
-     * Get a handle to the current RBAC configuration so that you may
-     * modify the configuration (you may write it to the rbac config
-     * file by calling <code>rewriteRbacFile()</code>
-     *
-     * @return the object containing the RBAC configuration
-     */
-    [[nodiscard]] nlohmann::json& getRbacConfig() {
-        return rbac_data;
-    }
-
-    /**
-     * Dump the internal representation of the rbac configuration
-     * (returned by <code>getRbacConfig()</code>) to the configuration file
-     * (returned by <getRbacFilename()</config>)
-     */
-    void rewriteRbacFile();
 
     /**
      * @return The bucket type being tested.
@@ -253,35 +223,30 @@ public:
         return *testBucket;
     }
 
-    /// @returns the base directory this test uses.
-    [[nodiscard]] std::string getTestDir() const {
-        return test_directory.generic_string();
-    }
-
-    /**
-     * @return The dbPath of a persistent bucket
-     */
-    [[nodiscard]] std::string getDbPath() const {
-        return testBucket->getDbPath().generic_string();
+    /// Get the dbPath of the bucket currently being tested
+    [[nodiscard]] std::filesystem::path getDbPath() const {
+        return testBucket->getDbPath();
     }
 
     /// Get the name of the configuration file to use
-    [[nodiscard]] std::string getConfigurationFile() const {
-        return configuration_file.generic_string();
+    [[nodiscard]] std::filesystem::path getConfigurationFile() const {
+        return configuration_file;
     }
 
-    [[nodiscard]] std::string getPortnumberFile() const {
-        return portnumber_file.generic_string();
+    [[nodiscard]] std::filesystem::path getPortnumberFile() const {
+        return portnumber_file;
     }
 
-    [[nodiscard]] std::string getMinidumpDir() const {
-        return minidump_dir.generic_string();
+    [[nodiscard]] std::filesystem::path getMinidumpDir() const {
+        return minidump_dir;
     }
 
-    [[nodiscard]] std::string getLogDir() const {
-        return log_dir.generic_string();
+    [[nodiscard]] std::filesystem::path getLogFilePattern() const {
+        return log_dir / "memcached";
     }
 
+    /// Iterate over all files in the log directory and for each file iterate
+    /// over all lines in the file and call the provided callback
     void iterateLogLines(
             const std::function<bool(std::string_view line)>& callback) const;
 
@@ -291,10 +256,6 @@ public:
     /// iteration or not
     bool iterateAuditEvents(
             const std::function<bool(const nlohmann::json&)>& callback) const;
-
-    [[nodiscard]] std::string getLogFilePattern() const {
-        return (log_dir / "memcached").generic_string();
-    }
 
     /// Do we have support for IPv4 addresses on the machine
     [[nodiscard]] bool haveIPv4() const {
