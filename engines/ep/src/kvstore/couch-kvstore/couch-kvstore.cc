@@ -96,6 +96,9 @@ static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
 
     case COUCHSTORE_ERROR_CORRUPT:
     case COUCHSTORE_ERROR_CHECKSUM_FAIL:
+    case COUCHSTORE_ERROR_DECRYPT:
+    case COUCHSTORE_ERROR_ENCRYPT:
+    case COUCHSTORE_ERROR_NO_ENCRYPTION_KEY:
         return cb::couchstore::getLastInternalError();
 
     default:
@@ -3595,6 +3598,8 @@ cb::engine_errc CouchKVStore::couchErr2EngineErr(
         return cb::engine_errc::no_memory;
     case COUCHSTORE_ERROR_DOC_NOT_FOUND:
         return cb::engine_errc::no_such_key;
+    case COUCHSTORE_ERROR_NO_ENCRYPTION_KEY:
+        return cb::engine_errc::failed;
     case COUCHSTORE_ERROR_NO_SUCH_FILE:
     case COUCHSTORE_ERROR_NO_HEADER:
     default:
