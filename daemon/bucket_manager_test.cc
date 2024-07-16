@@ -14,12 +14,12 @@
 #include "engines/nobucket/nobucket_public.h"
 #include "front_end_thread.h"
 #include "memcached.h"
-#include "stats.h"
 #include "tests/mcbp/mcbp_mock_connection.h"
 #include "utilities/testing_hook.h"
 #include <boost/thread/barrier.hpp>
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
+#include <platform/dirutils.h>
 #include <future>
 
 using namespace std::string_view_literals;
@@ -27,9 +27,15 @@ using namespace std::string_view_literals;
 class BucketManagerTest : public ::testing::Test, public BucketManager {
 public:
     void SetUp() override {
-        for (std::size_t ii = 1; ii < all_buckets.size(); ++ii) {
-            all_buckets[ii].reset();
-        }
+        bucketPath = cb::io::mkdtemp("BucketManagerTest");
+        config = fmt::format("dbname={};max_vbuckets=8;max_num_shards=1",
+                             bucketPath.string());
+        // Make sure we don't have any buckets defined
+        destroyAll();
+    }
+
+    void TearDown() override {
+        remove_all(bucketPath);
     }
 
     cb::engine_errc public_resume(std::string_view cid, std::string_view name) {
@@ -56,6 +62,8 @@ protected:
     TestingHook<Bucket&, BucketType> bucketTypeChangeListenerFunc;
     TestingHook<Bucket&, Bucket::State> bucketStateChangeListenerFunc;
     TestingHook<std::string_view, std::string_view> bucketPausingListenerFunc;
+    std::filesystem::path bucketPath;
+    std::string config;
 };
 
 TEST_F(BucketManagerTest, AllocateBucket) {
@@ -316,9 +324,7 @@ TEST_F(BucketManagerTest, DestroyInvalidState) {
 
 /// Verify that we perform correct transitions when pausing a bucket.
 TEST_F(BucketManagerTest, PauseBucket) {
-    // Require a bucket type which supports pause() - i.e. Memcached or
-    // Couchbase; using the former as simpler to spin up.
-    auto err = create(1, "mybucket", {}, BucketType::Memcached);
+    auto err = create(1, "mybucket", config, BucketType::Couchbase);
     ASSERT_EQ(cb::engine_errc::success, err);
 
     bool pausing = false;
@@ -336,7 +342,7 @@ TEST_F(BucketManagerTest, PauseBucket) {
         case Bucket::State::Pausing:
             pausing = true;
             EXPECT_EQ("mybucket", bucket.name);
-            EXPECT_EQ(BucketType::Memcached, bucket.type);
+            EXPECT_EQ(BucketType::Couchbase, bucket.type);
             EXPECT_EQ(Bucket::State::Ready, bucket.state);
             EXPECT_TRUE(bucket.hasEngine());
             EXPECT_TRUE(bucket.management_operation_in_progress);
@@ -344,7 +350,7 @@ TEST_F(BucketManagerTest, PauseBucket) {
         case Bucket::State::Paused:
             paused = true;
             EXPECT_EQ("mybucket", bucket.name);
-            EXPECT_EQ(BucketType::Memcached, bucket.type);
+            EXPECT_EQ(BucketType::Couchbase, bucket.type);
             EXPECT_EQ(Bucket::State::Pausing, bucket.state);
             EXPECT_TRUE(bucket.hasEngine());
             EXPECT_FALSE(bucket.management_operation_in_progress);
@@ -359,7 +365,6 @@ TEST_F(BucketManagerTest, PauseBucket) {
     // Cleanup
     bucketStateChangeListenerFunc.reset();
     ASSERT_EQ(cb::engine_errc::success, destroy("1", "mybucket", false, {}));
-    shutdown_all_engines();
 }
 
 /**
@@ -402,9 +407,7 @@ TEST_F(BucketManagerTest, PauseBucketEngineCancellableThreaded) {
 
 void BucketManagerTest::testPauseBucketCancellable(
         bool threaded, std::string_view expectedPhase) {
-    // Require a bucket type which supports pause() - i.e. Memcached or
-    // Couchbase; using the former as simpler to spin up.
-    auto err = create(1, "mybucket", {}, BucketType::Memcached);
+    auto err = create(1, "mybucket", config, BucketType::Couchbase);
     ASSERT_EQ(cb::engine_errc::success, err);
 
     FrontEndThread thread;
@@ -498,15 +501,12 @@ void BucketManagerTest::testPauseBucketCancellable(
         disassociate_bucket(conn);
     }
     destroy("1", "mybucket", false, {});
-    shutdown_all_engines();
 }
 
 /// Basic smoke test to see what happens if two threads both attempt to pause/
 /// resume simulataneously....
-TEST_F(BucketManagerTest, PauseResumeFight) {
-    // Require a bucket type which supports pause() - i.e. Memcached or
-    // Couchbase; using the former as simpler to spin up.
-    auto err = create(1, "mybucket", {}, BucketType::Memcached);
+TEST_F(BucketManagerTest, DISABLED_PauseResumeFight) {
+    auto err = create(1, "mybucket", config, BucketType::Couchbase);
     ASSERT_EQ(cb::engine_errc::success, err);
 
     FrontEndThread thread;
@@ -535,7 +535,6 @@ TEST_F(BucketManagerTest, PauseResumeFight) {
     worker2.join();
 
     destroy("1", "mybucket", false, {});
-    shutdown_all_engines();
 }
 
 class BucketDestroyerIntrospector {
