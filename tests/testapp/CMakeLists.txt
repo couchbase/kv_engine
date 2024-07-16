@@ -156,3 +156,14 @@ gtest_discover_tests(memcached_testapp
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT 300
         ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+
+if (BUILD_ENTERPRISE)
+    gtest_discover_tests(memcached_testapp
+            EXTRA_ARGS -c backend=magma ${VERBOSE_EXTRA_ARG}
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            TEST_PREFIX memcached_testapp.magma.
+            ONE_CTEST_PER_SUITE
+            DISCOVERY_TIMEOUT 60
+            PROPERTIES TIMEOUT 300
+            ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+endif (BUILD_ENTERPRISE)
