@@ -420,8 +420,6 @@ public:
 };
 
 TEST_P(WithMetaRegenerateCasTest, setWithMetaReturnsRegeratedCas) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::SetWithMeta);
-
     auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
 
     // store document with a poisoned CAS
@@ -443,8 +441,6 @@ TEST_P(WithMetaRegenerateCasTest, setWithMetaReturnsRegeratedCas) {
 }
 
 TEST_P(WithMetaRegenerateCasTest, deleteWithMetaReturnsRegeratedCas) {
-    TESTAPP_SKIP_IF_UNSUPPORTED(cb::mcbp::ClientOpcode::DelWithMeta);
-
     auto poisonedCas = std::numeric_limits<int64_t>::max() & ~0xffffull;
 
     // store document with a poisoned CAS
