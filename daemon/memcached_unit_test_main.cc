@@ -8,6 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "external_auth_manager_thread.h"
+
 #include <daemon/enginemap.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
@@ -41,7 +43,15 @@ int main(int argc, char** argv) {
         cb::logger::createBlackholeLogger();
     }
 
+    externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
+    externalAuthManager->start();
+
     auto ret = RUN_ALL_TESTS();
+
+    externalAuthManager->shutdown();
+    externalAuthManager->waitForState(Couchbase::ThreadState::Zombie);
+    externalAuthManager.reset();
+
     // Ensure engines are scrubbed (memcached) and destroyed.
     // Avoids static destruction order issues with threads
     // attempting to deregister with Phosphor if EngineManager

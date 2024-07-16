@@ -9,7 +9,6 @@
  */
 
 #include <daemon/buckets.h>
-#include <daemon/external_auth_manager_thread.h>
 #include <daemon/stats.h>
 #include <serverless/config.h>
 #include <statistics/cardinality.h>
@@ -49,9 +48,6 @@ protected:
     static void SetUpTestSuite() {
         // need to enable serverless for metering
         cb::serverless::setEnabled(true);
-        if (!externalAuthManager) {
-            externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
-        }
     }
     static void TearDownTestSuite() {
         cb::serverless::setEnabled(false);
