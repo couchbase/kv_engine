@@ -217,7 +217,9 @@ target_link_libraries(memcached_unit_tests PRIVATE
                       GTest::gtest
                       GTest::gmock
                       statistics)
-add_test(NAME memcached_unit_tests
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_unit_tests)
 kv_enable_pch(memcached_unit_tests)
+gtest_discover_tests(memcached_unit_tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        TEST_PREFIX memcached_unit_tests.
+        ONE_CTEST_PER_SUITE
+        ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})

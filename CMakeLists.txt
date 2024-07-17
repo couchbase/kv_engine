@@ -4,6 +4,7 @@ include(CheckCSourceCompiles)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
 include(CTest)
+include(CouchbaseGoogleTest)
 include(GenerateExportHeader)
 include(HeaderObjectLibrary)
 
