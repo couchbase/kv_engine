@@ -3974,8 +3974,8 @@ TEST_P(SingleThreadedActiveStreamTest,
     testProducerPrunesUserXattrsForDelete(0, cb::durability::Requirements());
 }
 
-void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
-                                                               Xattrs xattrs) {
+void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
+        uint32_t flags, Xattrs xattrs, ExpiryPath path) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
 
     auto& vb = *engine->getVBucket(vbid);
@@ -4042,9 +4042,21 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
 
     manager.createNewCheckpoint();
 
-    // Just need to access key for expiring
-    GetValue gv = store->get(docKey, vbid, cookie, get_options_t::NONE);
-    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    // Trigger the expiration
+    switch (path) {
+    case ExpiryPath::Access: {
+        // Frontend access (cmd GET)
+        GetValue gv = store->get(docKey, vbid, cookie, get_options_t::NONE);
+        EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+        break;
+    }
+    case ExpiryPath::Deletion: {
+        // Explicit deletion (cmd DEL), which processes the TTL (if any) before
+        // proceeding with the explicit deletion
+        delete_item(vbid, docKey, cb::engine_errc::no_such_key);
+        break;
+    }
+    }
 
     // MB-41989: Expiration removes UserXattrs (if any), but it must do that on
     // a copy of the payload that is then enqueued in the new expired item. So,
@@ -4122,34 +4134,59 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66) {
-    testExpirationRemovesBody(0, Xattrs::None);
+    testExpirationRemovesBody(0, Xattrs::None, ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66_UserXa) {
-    testExpirationRemovesBody(0, Xattrs::User);
+    testExpirationRemovesBody(0, Xattrs::User, ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
        ExpirationRemovesBody_Pre66_UserXa_SysXa) {
-    testExpirationRemovesBody(0, Xattrs::UserAndSys);
+    testExpirationRemovesBody(0, Xattrs::UserAndSys, ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
-                              Xattrs::None);
+                              Xattrs::None,
+                              ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
-                              Xattrs::User);
+                              Xattrs::User,
+                              ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa_SysXa) {
     using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
-                              Xattrs::UserAndSys);
+                              Xattrs::UserAndSys,
+                              ExpiryPath::Access);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ExpByDel_ExpirationRemovesBody) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::None,
+                              ExpiryPath::Deletion);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ExpByDel_ExpirationRemovesBody_UserXa) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::User,
+                              ExpiryPath::Deletion);
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       ExpByDel_ExpirationRemovesBody_UserXa_SysXa) {
+    using DcpOpenFlag = cb::mcbp::request::DcpOpenPayload;
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::UserAndSys,
+                              ExpiryPath::Deletion);
 }
 
 /**
