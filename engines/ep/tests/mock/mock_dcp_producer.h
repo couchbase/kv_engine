@@ -180,6 +180,22 @@ public:
             std::optional<std::string_view> jsonFilter = {},
             std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
+    std::shared_ptr<MockActiveStream> mockActiveStreamRequest(
+            cb::mcbp::DcpAddStreamFlag flags,
+            uint32_t opaque,
+            VBucket& vb,
+            uint64_t start_seqno,
+            uint64_t end_seqno,
+            uint64_t vbucket_uuid,
+            uint64_t snap_start_seqno,
+            uint64_t snap_end_seqno,
+            IncludeValue includeValue,
+            IncludeXattrs includeXattrs,
+            IncludeDeletedUserXattrs,
+            IncludePurgeSeqno includePurgeSeqno,
+            std::optional<std::string_view> jsonFilter,
+            std::function<void(MockActiveStream&)> preSetActiveHook = {});
+
     /**
      * Step the producer and expect the opcode to be returned
      */
@@ -242,6 +258,10 @@ public:
 
     IncludeXattrs public_getIncludeXattrs() const {
         return includeXattrs;
+    }
+
+    IncludePurgeSeqno public_getIncludePurgeSeqno() const {
+        return includePurgeSeqno;
     }
 
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {

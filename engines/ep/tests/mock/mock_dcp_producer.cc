@@ -69,6 +69,37 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
         std::optional<std::string_view> jsonFilter,
         std::function<void(MockActiveStream&)> preSetActiveHook) {
+    return mockActiveStreamRequest(flags,
+                                   opaque,
+                                   vb,
+                                   start_seqno,
+                                   end_seqno,
+                                   vbucket_uuid,
+                                   snap_start_seqno,
+                                   snap_end_seqno,
+                                   includeValue,
+                                   includeXattrs,
+                                   includeDeletedUserXattrs,
+                                   IncludePurgeSeqno::No,
+                                   jsonFilter,
+                                   preSetActiveHook);
+}
+
+std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
+        cb::mcbp::DcpAddStreamFlag flags,
+        uint32_t opaque,
+        VBucket& vb,
+        uint64_t start_seqno,
+        uint64_t end_seqno,
+        uint64_t vbucket_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        IncludeValue includeValue,
+        IncludeXattrs includeXattrs,
+        IncludeDeletedUserXattrs includeDeletedUserXattrs,
+        IncludePurgeSeqno includePurgeSeqno,
+        std::optional<std::string_view> jsonFilter,
+        std::function<void(MockActiveStream&)> preSetActiveHook) {
     auto stream = std::make_shared<MockActiveStream>(
             &engine_,
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -83,6 +114,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             includeValue,
             includeXattrs,
             includeDeletedUserXattrs,
+            includePurgeSeqno,
             jsonFilter);
 
     if (preSetActiveHook) {

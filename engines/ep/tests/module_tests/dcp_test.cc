@@ -164,13 +164,15 @@ cb::engine_errc DCPTest::destroy_dcp_stream() {
     return producer->closeStream(/*opaque*/ 0, vb0->getId());
 }
 
-DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
-                                                      Vbid vbid,
-                                                      uint64_t startSeqno,
-                                                      uint64_t endSeqno,
-                                                      uint64_t snapStart,
-                                                      uint64_t snapEnd,
-                                                      uint64_t vbUUID) {
+DCPTest::StreamRequestResult DCPTest::doStreamRequest(
+        DcpProducer& producer,
+        Vbid vbid,
+        uint64_t startSeqno,
+        uint64_t endSeqno,
+        uint64_t snapStart,
+        uint64_t snapEnd,
+        uint64_t vbUUID,
+        uint64_t remotePurgeSeqno) {
     DCPTest::StreamRequestResult result;
     result.status = producer.streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                            /*opaque*/ 0,
@@ -180,7 +182,7 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
                                            vbUUID,
                                            snapStart,
                                            snapEnd,
-                                           0,
+                                           remotePurgeSeqno,
                                            &result.rollbackSeqno,
                                            DCPTest::fakeDcpAddFailoverLog,
                                            {});

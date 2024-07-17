@@ -46,8 +46,10 @@ protected:
     void SetUp() override;
     void TearDown() override;
 
-    void setupProducer(const std::vector<std::pair<std::string, std::string>>&
-                               controls = {});
+    void setupProducer(
+            const std::vector<std::pair<std::string, std::string>>& controls =
+                    {},
+            cb::mcbp::DcpOpenFlag flags = cb::mcbp::DcpOpenFlag::None);
 
     /**
      * Reset the current producer and stream and recreate with the given params.

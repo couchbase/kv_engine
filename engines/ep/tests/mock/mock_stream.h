@@ -41,6 +41,23 @@ public:
             std::optional<std::string_view> jsonFilter = {},
             const std::string& streamName = "");
 
+    MockActiveStream(EventuallyPersistentEngine* e,
+                     std::shared_ptr<MockDcpProducer> p,
+                     cb::mcbp::DcpAddStreamFlag flags,
+                     uint32_t opaque,
+                     VBucket& vb,
+                     uint64_t st_seqno,
+                     uint64_t en_seqno,
+                     uint64_t vb_uuid,
+                     uint64_t snap_start_seqno,
+                     uint64_t snap_end_seqno,
+                     IncludeValue includeValue,
+                     IncludeXattrs includeXattrs,
+                     IncludeDeletedUserXattrs includeDeletedUserXattrs,
+                     IncludePurgeSeqno includePurgeSeqno,
+                     std::optional<std::string_view> jsonFilter,
+                     const std::string& streamName = "");
+
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {
         return getOutstandingItems(vb);

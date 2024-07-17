@@ -50,6 +50,42 @@ MockActiveStream::MockActiveStream(
                    {jsonFilter, vb.getManifest(), *p->getCookie(), *e}) {
 }
 
+MockActiveStream::MockActiveStream(
+        EventuallyPersistentEngine* e,
+        std::shared_ptr<MockDcpProducer> p,
+        cb::mcbp::DcpAddStreamFlag flags,
+        uint32_t opaque,
+        VBucket& vb,
+        uint64_t st_seqno,
+        uint64_t en_seqno,
+        uint64_t vb_uuid,
+        uint64_t snap_start_seqno,
+        uint64_t snap_end_seqno,
+        IncludeValue includeValue,
+        IncludeXattrs includeXattrs,
+        IncludeDeletedUserXattrs includeDeletedUserXattrs,
+        IncludePurgeSeqno includePurgeSeqno,
+        std::optional<std::string_view> jsonFilter,
+        const std::string& streamName)
+    : ActiveStream(e,
+                   p,
+                   streamName.empty() ? p->getName() : streamName,
+                   flags,
+                   opaque,
+                   vb,
+                   st_seqno,
+                   en_seqno,
+                   vb_uuid,
+                   snap_start_seqno,
+                   snap_end_seqno,
+                   includeValue,
+                   includeXattrs,
+                   IncludeDeleteTime::No,
+                   includeDeletedUserXattrs,
+                   includePurgeSeqno,
+                   {jsonFilter, vb.getManifest(), *p->getCookie(), *e}) {
+}
+
 void MockActiveStream::public_registerCursor(CheckpointManager& manager,
                                              const std::string& name,
                                              int64_t seqno) {

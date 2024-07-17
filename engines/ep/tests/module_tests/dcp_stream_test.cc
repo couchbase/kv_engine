@@ -1095,6 +1095,38 @@ TEST_P(StreamTest, RollbackDueToPurge) {
             *producer, vbid, numItems - 2, numItems, 0, numItems - 2, vbUuid);
     EXPECT_EQ(cb::engine_errc::rollback, result.status);
     EXPECT_EQ(0, result.rollbackSeqno);
+
+    // local_purge_seqno > start_seqno, but remote_purge_seqno ==
+    // local_purge_seqno. We don't expect a rollback.
+    result = doStreamRequest(*producer,
+                             vbid,
+                             numItems - 2, // startSeqno
+                             numItems, // endSeqno
+                             0, // snapStartSeqno
+                             numItems - 2, // snapEndSeqno
+                             vbUuid,
+                             numItems - 1 // remotePurgeSeqno
+    );
+
+    EXPECT_EQ(cb::engine_errc::success, result.status);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->closeStream(/*opaque*/ 0, vb0->getId()));
+
+    // local_purge_seqno > start_seqno, but remote_purge_seqno !=
+    // local_purge_seqno. We expect a rollback.
+    result = doStreamRequest(*producer,
+                             vbid,
+                             numItems - 2, // startSeqno
+                             numItems, // endSeqno
+                             0, // snapStartSeqno
+                             numItems - 2, // snapEndSeqno
+                             vbUuid,
+                             numItems - 2 // remotePurgeSeqno
+    );
+
+    EXPECT_EQ(cb::engine_errc::rollback, result.status);
+    EXPECT_EQ(0, result.rollbackSeqno);
+
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
@@ -1605,14 +1637,15 @@ void SingleThreadedActiveStreamTest::TearDown() {
 }
 
 void SingleThreadedActiveStreamTest::setupProducer(
-        const std::vector<std::pair<std::string, std::string>>& controls) {
+        const std::vector<std::pair<std::string, std::string>>& controls,
+        cb::mcbp::DcpOpenFlag flags) {
     // We don't set the startTask flag here because we will create the task
     // manually. We do this because the producer actually creates the task on
     // StreamRequest which we do not do because we want a MockActiveStream.
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
-                                                 cb::mcbp::DcpOpenFlag::None,
+                                                 flags,
                                                  false /*startTask*/);
     producer->createCheckpointProcessorTask();
     producer->scheduleCheckpointProcessorTask();
@@ -1665,6 +1698,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 producer->public_getIncludeValue(),
                 producer->public_getIncludeXattrs(),
                 producer->public_getIncludeDeletedUserXattrs(),
+                producer->public_getIncludePurgeSeqno(),
                 jsonFilter);
     } else {
         stream = producer->mockActiveStreamRequest({} /*flags*/,
@@ -6163,6 +6197,529 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
             activeStream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
         }
     }
+}
+
+TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_InMemory) {
+    // Reset the stream created originally as part of the test setup.
+    stream.reset();
+
+    auto& vb = *engine->getVBucket(vbid);
+    // Create Stream without SendSnapshotMarkerV2_2.
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
+
+    // Store a single item.
+    store_item(vbid, makeStoredDocKey("foo"), "bar");
+
+    ASSERT_TRUE(stream->isInMemory());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    MockDcpMessageProducers producers;
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one mutation.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    auto resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2);
+
+    ASSERT_TRUE(stream->isInMemory());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one mutation.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
+    // Reset the stream created originally as part of the test setup.
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+
+    // Store a single item.
+    store_item(vbid, makeStoredDocKey("foo"), "bar");
+
+    // 1. Flush the items to disk.
+    // 2. Recreate the producer & stream.
+    // 3. Test purge-seqno not included.
+
+    flushAndRemoveCheckpoints(vbid);
+
+    //! 1. Recreate the stream without SendSnapshotMarkerV2_2 & expect the
+    //! purgeSeqno is not included.
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker & one mutation.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    auto resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    //! The purgeSeqno shouldn't be present.
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+
+    //! 2. Recreate the stream with SendSnapshotMarkerV2_2 & expect the
+    //! purgeSeqno is included.
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    resp = stream->next(*producer);
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker & one mutation.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    //! The purgeSeqno should be present.
+    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+
+    // 1. Perform a couple of other mutations.
+    // - {"foo": "bar"} is already present.
+    // - Add 2 more items & delete "foo".
+    // 2. Flush the items & remove the checkpoints to force a bacfill.
+    // 2. Purge till seqno 2.
+
+    store_item(vbid, makeStoredDocKey("foo1"), "bar"); // Seqno: 2
+    delete_item(vbid, makeStoredDocKey("foo")); // Seqno: 3
+    store_item(vbid, makeStoredDocKey("foo2"), "bar"); // Seqno: 4
+
+    flushAndRemoveCheckpoints(vbid);
+    // Run compaction for persistent buckets & tombstone purger for ephemeral
+    // buckets.
+    purgeTombstonesBefore(3);
+    const auto purgeSeqno = vb.getPurgeSeqno();
+    EXPECT_EQ(3, purgeSeqno);
+
+    //! 3. Recreate the stream with SendSnapshotMarkerV2_2 & expect the
+    //! purgeSeqno is included and it set to 3.
+    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker & 2 mutation (keys: foo1 & foo2).
+    EXPECT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+
+    EXPECT_TRUE(snapMarker.getPurgeSeqno().has_value());
+    EXPECT_EQ(purgeSeqno, snapMarker.getPurgeSeqno());
+
+    // Pop the dcp mutations of the stream readyQ & check we indeed
+    // received mutations.
+    for (auto i = 0; i < 2; i++) {
+        resp = stream->next(*producer);
+        EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    }
+
+    // Check the stream is in-memory state (should be the state we should
+    // have dropped into at the end of a backfill).
+    ASSERT_TRUE(stream->isInMemory());
+
+    //! 4. Perform another mutation in memory & check we receive another
+    //! snapshot-marker with the purgeSeqno: 3 (since no compaction has run
+    //! again).
+    store_item(vbid, makeStoredDocKey("foo3"), "bar"); // Seqno: 5
+    MockDcpMessageProducers producers;
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one mutation (key: "foo3").
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_TRUE(snapMarker.getPurgeSeqno().has_value());
+    EXPECT_EQ(purgeSeqno, snapMarker.getPurgeSeqno());
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       PurgeSeqnoInSnapshotMarkerInFilteredStreams_InMemory) {
+    // Reset the stream created originally as part of the test setup.
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+
+    // Create a collection
+    CollectionsManifest manifest;
+    const auto& cVegetable = CollectionEntry::vegetable;
+    manifest.add(cVegetable,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    store_item(vbid, makeStoredDocKey("potato", cVegetable), "value");
+
+    //! 1. Test the snapshot marker does not include the purgeSeqno & advance
+    //! seqno message is sent. All the mutations are filtered out.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())));
+
+    ASSERT_TRUE(stream->isInMemory());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    MockDcpMessageProducers producers;
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one advance seqno message.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    auto resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+    resp = stream->next(*producer);
+
+    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+
+    // This is currently broken - comeback to fix it (or modify the below
+    // expecation based on the end conclusion) after MB-63421. We are currently
+    // advancing by ~0 (snap end seqno) which seems incorrect - we should be I
+    // think be only moving forward by the last item filtered out for this
+    // stream.
+
+    // auto seqnoAdvanced = dynamic_cast<SeqnoAdvanced&>(*resp);
+    // EXPECT_EQ(1, seqnoAdvanced.getBySeqno());
+
+    //! 2. Test the snapshot marker includes the purgeSeqno & advance seqno
+    //! message is sent. All the mutations are filtered out.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())));
+
+    ASSERT_TRUE(stream->isInMemory());
+    resp = stream->next(*producer);
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one advance seqno message.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+
+    //! 3. Test the snapshot marker does not include the purgeSeqno & a single
+    //! mutation meant for the collection-filtered stream is sent.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::vegetable.getId())));
+
+    ASSERT_TRUE(stream->isInMemory());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker, one system-event (collection created) & one mutation
+    // message.
+    EXPECT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    auto* mutation = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(2, mutation->getBySeqno());
+
+    //! 4. Test the snapshot marker includes the purgeSeqno & a single mutation
+    //! meant for the collection-filtered stream is sent.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::vegetable.getId())));
+
+    ASSERT_TRUE(stream->isInMemory());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker, one system-event (collection created) & one mutation
+    // message.
+    EXPECT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    mutation = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(2, mutation->getBySeqno());
+
+    // Store an item in the default collection.
+    store_item(vbid, makeStoredDocKey("foo"), "bar");
+
+    //! 5. Test the snapshot marker does not include the purgeSeqno & a single
+    //! mutation meant for the default-collection stream is sent.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())));
+
+    ASSERT_TRUE(stream->isInMemory());
+    resp = stream->next(*producer);
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one mutation message.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+    resp = stream->next(*producer);
+
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    mutation = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(3, mutation->getBySeqno());
+
+    //! 6. Test the snapshot marker does not include the purgeSeqno & a single
+    //! mutation meant for the default-collection stream is sent.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())));
+
+    ASSERT_TRUE(stream->isInMemory());
+    resp = stream->next(*producer);
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & one mutation message.
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    mutation = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(3, mutation->getBySeqno());
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       PurgeSeqnoInSnapshotMarkerInFilteredStreams_Backfill) {
+    // Reset the stream created originally as part of the test setup.
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+
+    // Create a collection
+    CollectionsManifest manifest;
+    const auto& cVegetable = CollectionEntry::vegetable;
+    manifest.add(cVegetable,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    store_item(vbid, makeStoredDocKey("potato", cVegetable), "value");
+
+    flushAndRemoveCheckpoints(vbid);
+
+    //! 2. Test the snapshot marker does not include the purgeSeqno. All the
+    //! mutations should be filtered out.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())));
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // The behavior for collection-filtered streams is different for ephemeral
+    // buckets & persistent bucket.
+    // TODO: Check if this in indeed intended.
+    if (ephemeral()) {
+        auto resp = stream->next(*producer);
+        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+        auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+        //! The purgeSeqno shouldn't be present.
+        EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+
+        resp = stream->next(*producer);
+        EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+    } else {
+        // All the documents are filtered out - we shouldn't have queue any
+        // items.
+        EXPECT_EQ(0, stream->public_readyQSize());
+    }
+
+    //! 3. Test the snapshot marker does not include the purgeSeqno. Must
+    //! receive the one mutation relevant to this stream.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::vegetable.getId())));
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    auto resp = stream->next(*producer);
+    EXPECT_FALSE(resp);
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker, one system-event (collection-created), one mutation.
+    EXPECT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    //! The purgeSeqno shouldn't be present.
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    //! 4. Test the snapshot marker includes the purgeSeqno. Must receive
+    //! the one mutation relevant to this stream.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::vegetable.getId())));
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker, one system-event (collection-created), one mutation.
+    EXPECT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    //! The purgeSeqno should be present.
+    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+
+    // delete the item.
+    delete_item(vbid, makeStoredDocKey("potato", cVegetable));
+
+    //! Store another document to bump the hiseqno number, to force purging of
+    //! the deleted document "vegetable:potato" (seqno: 3). For reasons unknown
+    //! to me currently, we don't purge a tombstone who seqno is the hiseqno of
+    //! the vbucket.
+    store_item(vbid, makeStoredDocKey("foo"), "bar");
+    flushAndRemoveCheckpoints(vbid);
+    EXPECT_EQ(4, vb.getHighSeqno());
+    purgeTombstonesBefore(4);
+
+    const auto purgeSeqno = vb.getPurgeSeqno();
+    EXPECT_EQ(3, purgeSeqno);
+
+    //! 5. Test the snapshot marker includes the purgeSeqno is 3. All the
+    //! mutations relevant to this stream are filtered out.
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::vegetable.getId())));
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker, one system-event (collection-created), one sequence
+    // number advanced.
+    EXPECT_EQ(3, stream->public_readyQSize());
+
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    //! The purgeSeqno should be present.
+    EXPECT_EQ(purgeSeqno, snapMarker.getPurgeSeqno());
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
