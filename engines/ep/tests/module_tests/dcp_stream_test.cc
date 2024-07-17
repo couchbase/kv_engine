@@ -4483,8 +4483,8 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     auto& bfm = producer->getBFM();
     EXPECT_EQ(1, bfm.getNumBackfills());
     // Before the fix this step throws with:
-    //     Collections::VB::Manifest::verifyFlatbuffersData: getCreateEventData
-    //     data invalid, .., size:0"
+    //     Collections::VB::Manifest::verifyFlatbuffersData:
+    //     getCollectionEventData data invalid, .., size:0"
     EXPECT_EQ(backfill_success, bfm.backfill()); // create->scan
 
     const auto& readyQ = stream->public_readyQ();

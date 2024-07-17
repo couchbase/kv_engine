@@ -383,9 +383,8 @@ public:
                                                        false,
                                                        qi->getBySeqno());
                     } else {
-                        auto dcpData =
-                                Collections::VB::Manifest::getCreateEventData(
-                                        *qi);
+                        auto dcpData = Collections::VB::Manifest::
+                                getCollectionEventData(*qi);
                         std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreate(
                                 *vbR,

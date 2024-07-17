@@ -16,10 +16,11 @@
 namespace Collections {
 
 /**
- * All of the data a system event needs
+ * Begin/Modify collection related data (stores manifest-uid generating the
+ * event and the collection metadata).
  */
-struct CreateEventData {
-    CreateEventData(ManifestUid manifestUid, CollectionMetaData metaData)
+struct CollectionEventData {
+    CollectionEventData(ManifestUid manifestUid, CollectionMetaData metaData)
         : manifestUid(manifestUid), metaData(std::move(metaData)) {
     }
     ManifestUid manifestUid; // The Manifest which generated the event
@@ -59,7 +60,7 @@ struct DropScopeEventData {
     bool isSystemScope{false}; // The dropped scope, was system?
 };
 
-std::string to_string(const CreateEventData& event);
+std::string to_string(const CollectionEventData& event);
 std::string to_string(const DropEventData& event);
 std::string to_string(const CreateScopeEventData& event);
 std::string to_string(const DropScopeEventData& event);
@@ -70,7 +71,7 @@ std::string to_string(const DropScopeEventData& event);
  * byte order
  */
 struct CreateEventDcpData {
-    explicit CreateEventDcpData(const CreateEventData& ev)
+    explicit CreateEventDcpData(const CollectionEventData& ev)
         : manifestUid(ev.manifestUid),
           sid(ev.metaData.sid),
           cid(ev.metaData.cid) {
@@ -92,7 +93,7 @@ struct CreateEventDcpData {
  * the layout to be used on the wire and is in the correct byte order
  */
 struct CreateWithMaxTtlEventDcpData {
-    explicit CreateWithMaxTtlEventDcpData(const CreateEventData& ev)
+    explicit CreateWithMaxTtlEventDcpData(const CollectionEventData& ev)
         : manifestUid(ev.manifestUid),
           sid(ev.metaData.sid),
           cid(ev.metaData.cid),

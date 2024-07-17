@@ -15,7 +15,7 @@
 
 namespace Collections {
 
-std::string to_string(const CreateEventData& event) {
+std::string to_string(const CollectionEventData& event) {
     return fmt::format(FMT_STRING("CreateCollection{{uid:{:#x} scopeID:{} "
                                   "collectionID:{} name:'{}' "
                                   "maxTTLEnabled:{} maxTTL:{}}}"),

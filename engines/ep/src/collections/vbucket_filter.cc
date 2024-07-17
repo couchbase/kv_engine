@@ -344,7 +344,7 @@ bool Filter::processCollectionEvent(const Item& item) {
     Visibility collectionVisibility{Visibility::User};
     ScopeID sid;
     if (!item.isDeleted()) {
-        auto dcpData = VB::Manifest::getCreateEventData(item);
+        auto dcpData = VB::Manifest::getCollectionEventData(item);
         sid = dcpData.metaData.sid;
         cid = dcpData.metaData.cid;
         collectionVisibility = Collections::getCollectionVisibility(

@@ -165,7 +165,8 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         if (!item->isDeleted()) {
             // Note: constructor is private and make_unique is a pain to make
             // friend
-            auto data = Collections::VB::Manifest::getCreateEventData(*item);
+            auto data =
+                    Collections::VB::Manifest::getCollectionEventData(*item);
             if (data.metaData.maxTtl) {
                 return std::make_unique<
                         CollectionCreateWithMaxTtlProducerMessage>(

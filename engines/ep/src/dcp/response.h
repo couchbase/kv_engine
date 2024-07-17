@@ -1025,7 +1025,7 @@ class CollectionCreateProducerMessage : public SystemEventProducerMessage {
 public:
     CollectionCreateProducerMessage(uint32_t opaque,
                                     const queued_item& itm,
-                                    const Collections::CreateEventData& ev,
+                                    const Collections::CollectionEventData& ev,
                                     cb::mcbp::DcpStreamId sid)
         : SystemEventProducerMessage(opaque, itm, sid),
           key(ev.metaData.name),
@@ -1059,7 +1059,7 @@ public:
     CollectionCreateWithMaxTtlProducerMessage(
             uint32_t opaque,
             const queued_item& itm,
-            const Collections::CreateEventData& ev,
+            const Collections::CollectionEventData& ev,
             cb::mcbp::DcpStreamId sid)
         : SystemEventProducerMessage(opaque, itm, sid),
           key(ev.metaData.name),

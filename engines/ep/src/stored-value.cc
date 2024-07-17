@@ -567,11 +567,9 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
     case SystemEvent::Collection:
     case SystemEvent::ModifyCollection: {
         if (sv.isDeleted()) {
-            auto eventData = Manifest::getDropEventData(itemValue);
-            return to_string(eventData);
+            return to_string(Manifest::getDropEventData(itemValue));
         }
-        auto eventData = Manifest::getCreateEventData(itemValue);
-        return to_string(eventData);
+        return to_string(Manifest::getCollectionEventData(itemValue));
     }
     }
 

@@ -1359,14 +1359,15 @@ const DroppedScope* Manifest::getDroppedScopeFlatbuffer(std::string_view view) {
             reinterpret_cast<const uint8_t*>(view.data()));
 }
 
-CreateEventData Manifest::getCreateEventData(const Item& item) {
+CollectionEventData Manifest::getCollectionEventData(const Item& item) {
     const auto& collection = getCollectionFlatbuffer(item);
-    return getCreateEventData(collection);
+    return getCollectionEventData(collection);
 }
 
-CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
+CollectionEventData Manifest::getCollectionEventData(
+        std::string_view flatbufferData) {
     const auto& collection = getCollectionFlatbuffer(flatbufferData);
-    return getCreateEventData(collection);
+    return getCollectionEventData(collection);
 }
 
 DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
@@ -1378,14 +1379,14 @@ DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
             droppedCollection->systemCollection()};
 }
 
-CreateEventData Manifest::getCreateEventData(const Collection& collection) {
+CollectionEventData Manifest::getCollectionEventData(
+        const Collection& collection) {
     // if maxTtlValid needs considering
     cb::ExpiryLimit maxTtl;
     if (collection.ttlValid()) {
         maxTtl = std::chrono::seconds(collection.maxTtl());
     }
-    // Creating a collection - flush_uid is currently just set to epoch (0) to
-    // make it clearer that no flush has yet occurred.
+
     return {ManifestUid(collection.uid()),
             {collection.scopeId(),
              collection.collectionId(),

@@ -299,36 +299,37 @@ public:
     static const DroppedScope* getDroppedScopeFlatbuffer(std::string_view view);
 
     /**
-     * Get the Collection CreateEventData collection from a SystemEvent Item.
+     * Get CollectionEventData from a SystemEvent Item.
      *
-     * The supplied Item can be a create or modify collection. The item cannot
+     * The supplied Item can be a begin or modify collection. The item cannot
      * be compressed.
      *
-     * @param item create or modify collection event
-     * @returns CreateEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message.
+     * @param item begin or modify collection event
+     * @returns CollectionEventData which carries all of the data which needs to
+     *          be marshalled into a DCP system event message.
      */
-    static CreateEventData getCreateEventData(const Item& item);
+    static CollectionEventData getCollectionEventData(const Item& item);
 
     /**
-     * Get the Collection CreateEventData collection from the supplied view. The
-     * view must be a FlatBuffers Collection object (validation will be done)
+     * Get CollectionEventData from the supplied string_view (view of
+     * FlatBuffers Collection object).
      *
      * @param flatbufferData string_view of FlatBuffers Collection data
-     * @returns CreateEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message.
+     * @returns CollectionEventData which carries all of the data which needs to
+     *          be marshalled into a DCP system event message.
      */
-    static CreateEventData getCreateEventData(std::string_view flatbufferData);
+    static CollectionEventData getCollectionEventData(
+            std::string_view flatbufferData);
 
     /**
-     * Get the Collection CreateEventData collection from FlatBuffers Collection
-     * object.
+     * Get CollectionEventData from FlatBuffers Collection object.
      *
      * @param collection FlatBuffers Collection object
-     * @returns CreateEventData which carries all of the data which needs to be
-     *          marshalled into a DCP system event message.
+     * @returns CollectionEventData which carries all of the data which needs to
+     *          be marshalled into a DCP system event message.
      */
-    static CreateEventData getCreateEventData(const Collection& collection);
+    static CollectionEventData getCollectionEventData(
+            const Collection& collection);
 
     /**
      * Get the system event collection drop data from a SystemEvent

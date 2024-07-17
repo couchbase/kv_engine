@@ -220,7 +220,7 @@ void Flush::setManifestUid(ManifestUid in) {
 }
 
 void Flush::recordCreateCollection(const Item& item) {
-    auto createEvent = Collections::VB::Manifest::getCreateEventData(item);
+    auto createEvent = Collections::VB::Manifest::getCollectionEventData(item);
     KVStore::OpenCollection collection{uint64_t(item.getBySeqno()),
                                        createEvent.metaData};
     auto [itr, emplaced] = collections.try_emplace(
@@ -239,8 +239,8 @@ void Flush::recordCreateCollection(const Item& item) {
 
 void Flush::recordModifyCollection(const Item& item) {
     // Modify and Create carry the same data - all of the collection meta, hence
-    // call to getCreateEventData
-    auto createEvent = Collections::VB::Manifest::getCreateEventData(item);
+    // call to getCollectionEventData
+    auto createEvent = Collections::VB::Manifest::getCollectionEventData(item);
     KVStore::OpenCollection collection{uint64_t(item.getBySeqno()),
                                        createEvent.metaData};
     auto [itr, emplaced] =
