@@ -99,15 +99,20 @@ protected:
 
     enum class Xattrs : uint8_t { None, User, UserAndSys };
 
+    enum class ExpiryPath : uint8_t { Access, Deletion };
+
     /**
      * Verify that at Expiration we remove everything from the value but System
      * Xattrs.
      *
-     * @param flags DcpOpen flags for simulating a pre-6.6 and 6.6 connections
+     * @param flags DcpOpen flags for simulating pre-6.6 and 6.6+ connections
      * @param xattrs Whether the value contain only the body or user/sys xattrs
      *  too
+     * @param ExpiryPath The path to execute for triggering the expiration
      */
-    void testExpirationRemovesBody(uint32_t flags, Xattrs xattrs);
+    void testExpirationRemovesBody(uint32_t flags,
+                                   Xattrs xattrs,
+                                   ExpiryPath path);
 
     std::shared_ptr<MockDcpProducer> producer;
     std::shared_ptr<MockActiveStream> stream;

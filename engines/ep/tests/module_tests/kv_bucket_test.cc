@@ -339,10 +339,12 @@ size_t KVBucketTest::flushAndExpelFromCheckpoints(Vbid vbid) {
     return vb.checkpointManager->expelUnreferencedCheckpointItems().count;
 }
 
-void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
+void KVBucketTest::delete_item(Vbid vbid,
+                               const DocKey& key,
+                               cb::engine_errc expected) {
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
-    EXPECT_EQ(cb::engine_errc::success,
+    EXPECT_EQ(expected,
               store->deleteItem(key,
                                 cas,
                                 vbid,
