@@ -72,7 +72,7 @@ std::vector<std::string> getMap(const std::filesystem::path& directory) {
     auto file = directory / "error_map_v2.json";
     // throws an exception if the file doesn't exist, file IO problems
     // and JSON parse problems
-    auto v2 = nlohmann::json::parse(cb::io::loadFile(file.generic_string()));
+    auto v2 = nlohmann::json::parse(cb::io::loadFile(file));
     auto v1 = cb::errormap::v2to1(v2);
     maps[2] = v2.dump();
     maps[1] = v1.dump();

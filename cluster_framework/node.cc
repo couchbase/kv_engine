@@ -143,7 +143,7 @@ void NodeImpl::startMemcachedServer() {
             for (const auto& p :
                  std::filesystem::directory_iterator(directory / "log")) {
                 if (is_regular_file(p)) {
-                    auto content = cb::io::loadFile(p.path().generic_string());
+                    auto content = cb::io::loadFile(p.path());
                     if (content.size() > 8192) {
                         content = content.substr(
                                 content.find('\n', content.size() - 8192));

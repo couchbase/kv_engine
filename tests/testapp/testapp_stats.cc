@@ -25,10 +25,7 @@ public:
             const auto path = std::filesystem::path(SOURCE_ROOT) /
                               "statistics" / "stat_definitions.json";
             stats_definitions = nlohmann::json::parse(
-                    cb::io::loadFile(path.generic_string()),
-                    nullptr,
-                    true,
-                    true);
+                    cb::io::loadFile(path), nullptr, true, true);
         } catch (const std::exception& e) {
             fmt::print(
                     stderr, "Failed to load stat definitions: {}\n", e.what());

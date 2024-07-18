@@ -2439,7 +2439,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
     {
         const auto fname = std::filesystem::path{SOURCE_ROOT} / "tests" /
                            "testapp" / "testapp_xattr.cc";
-        auto content = cb::io::loadFile(fname.generic_string());
+        auto content = cb::io::loadFile(fname);
         payload = folly::StringPiece{
                 cb::compression::deflateSnappy(content)->coalesce()};
     }

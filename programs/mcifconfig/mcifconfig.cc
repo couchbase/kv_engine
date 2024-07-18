@@ -47,7 +47,7 @@ std::string getPayload(std::string_view param) {
     std::filesystem::path nm(param);
     std::string value = std::string{param};
     if (exists(nm)) {
-        value = cb::io::loadFile(nm.generic_string());
+        value = cb::io::loadFile(nm);
     }
     try {
         const auto parsed = nlohmann::json::parse(value);

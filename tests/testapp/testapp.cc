@@ -567,11 +567,10 @@ void TestappTest::parse_portnumber_file() {
         // load. Instead of having a "false timeout" just because the
         // server is slow, lets set the deadline to a high value so that
         // if we hit it we have a real problem and not just a loaded
-        // server (rebuilding all of the source one more time is just
+        // server (rebuilding all the source one more time is just
         // putting more load on the servers).
-        connectionMap.initialize(nlohmann::json::parse(
-                cb::io::loadFile(mcd_env->getPortnumberFile().string(),
-                                 std::chrono::minutes{5})));
+        connectionMap.initialize(nlohmann::json::parse(cb::io::loadFile(
+                mcd_env->getPortnumberFile(), std::chrono::minutes{5})));
 
         // The tests which don't use the MemcachedConnection class needs the
         // global variables port and ssl_port to be set

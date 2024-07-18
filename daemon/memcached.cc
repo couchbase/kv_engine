@@ -771,8 +771,8 @@ static void initialize_serverless_config() {
         LOG_INFO_CTX("Using serverless static configuration",
                      {"path", serverless.generic_string()});
         try {
-            config.update_from_json(nlohmann::json::parse(
-                    cb::io::loadFile(serverless.generic_string())));
+            config.update_from_json(
+                    nlohmann::json::parse(cb::io::loadFile(serverless)));
         } catch (const std::exception& e) {
             LOG_WARNING_CTX("Failed to read serverless configuration",
                             {"error", e.what()});

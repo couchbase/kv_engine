@@ -195,7 +195,7 @@ int main(int argc, char** argv) {
 
     std::vector<std::string> passwords;
     try {
-        auto content = cb::io::loadFile(password_file->generic_string());
+        auto content = cb::io::loadFile(*password_file);
         auto views = cb::string::split(content, '\n');
         for (const auto& v : views) {
             passwords.emplace_back(v);
