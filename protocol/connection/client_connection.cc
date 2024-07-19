@@ -1291,8 +1291,6 @@ static std::string bucketTypeToModule(BucketType type) {
                 "bucketTypeToModule: Can't create an unknown bucket type");
     case BucketType::NoBucket:
         throw std::runtime_error("NoBucket can't be created from clients");
-    case BucketType::Memcached:
-        return "default_engine.so";
     case BucketType::Couchbase:
         return "ep.so";
     case BucketType::ClusterConfigOnly:

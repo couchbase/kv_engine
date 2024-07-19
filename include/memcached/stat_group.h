@@ -81,12 +81,6 @@ enum class StatGroupId {
     Uuid,
     RangeScans,
 
-    // memcached bucket internal stats
-    Slabs,
-    Items,
-    Sizes,
-    Scrub,
-
     // stat command timings
 
     StatTimings,

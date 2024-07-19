@@ -1620,7 +1620,6 @@ static Status create_bucket_validator(Cookie& cookie) {
                 "The internal bucket type nobucket.so can't be created");
         return Status::NotSupported;
 
-    case BucketType::Memcached:
     case BucketType::ClusterConfigOnly:
     case BucketType::Couchbase:
     case BucketType::EWouldBlock:

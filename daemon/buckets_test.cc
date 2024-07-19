@@ -25,9 +25,9 @@ TEST(BucketTest, Reset) {
     // check the main ones we run against.
     static constexpr size_t expectedBucketSize =
 #if defined(__linux) && defined(__x86_64__)
-            5680;
+            5616;
 #elif defined(__APPLE__)
-            5776;
+            5712;
 #else
             0;
 #endif

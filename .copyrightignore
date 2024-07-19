@@ -1,4 +1,3 @@
-engines/default_engine/.*
 scripts/jemalloc/jemalloc_analyse\.py
 tests/cbnt_tests/cbnt_test_list\.yml
 tests/cert/create\.sh

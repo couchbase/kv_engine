@@ -146,67 +146,6 @@
 
 
 [
-/* default_engine stats */
-    {
-        "key": "default_evictions",
-        "description": "Number of items evicted from the bucket",
-        "unit": "none",
-        "cbstat": "evictions",
-        "prometheus": {
-            "family": "memcache_evictions"
-        },
-        "added": "7.0.0"
-    },
-    {
-        "key": "default_curr_items",
-        "unit": "none",
-        "cbstat": "curr_items",
-        "prometheus": {
-            "family": "memcache_curr_items"
-        },
-        "description": "Number of active items in memory",
-        "added": "7.0.0"
-    },
-    {
-        "key": "default_total_items",
-        "description": "Total number of items in the bucket",
-        "unit": "none",
-        "cbstat": "total_items",
-        "prometheus": {
-            "family": "memcache_total_items"
-        },
-        "added": "7.0.0"
-    },
-    {
-        "key": "default_bytes",
-        "unit": "bytes",
-        "cbstat": "bytes",
-        "prometheus": {
-            "family": "memcache_mem_size"
-        },
-        "description": "Engine's total memory usage",
-        "added": "7.0.0"
-    },
-    {
-        "key": "default_reclaimed",
-        "description": "Number of items allocated by reusing expired objects",
-        "unit": "none",
-        "cbstat": "reclaimed",
-        "prometheus": {
-            "family": "memcache_reclaimed"
-        },
-        "added": "7.0.0"
-    },
-    {
-        "key": "default_engine_maxbytes",
-        "description": "The max size of the bucket",
-        "unit": "none",
-        "cbstat": "engine_maxbytes",
-        "prometheus": {
-            "family": "memcache_engine_maxbytes"
-        },
-        "added": "7.0.0"
-    },
 /* TODO: applying a "kv_" prefix globally would be consistent but lead to kv_ep_
  *  for some stats. Providing metric family names without ep_ would avoid this
  * "All" stats group (doEngineStats)

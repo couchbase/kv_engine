@@ -139,7 +139,6 @@ target_link_libraries(memcached_daemon
                       auditd
                       cbsocket
                       crash_engine
-                      default_engine
                       ep
                       ewouldblock_engine
                       folly_io_callbacks

@@ -462,21 +462,10 @@ TEST_F(BasicClusterTest, AllStatGroups) {
 
         SCOPED_TRACE(key);
 
-        // Some stat groups require particular server state to return
-        // anything. Skip these in this simple smoketest for now.
-        switch (group.id) {
-        case StatGroupId::Slabs:
-        case StatGroupId::Items:
-        case StatGroupId::Sizes:
-        case StatGroupId::Scrub:
-            // These are all specific to default engine.
-            break;
-        default:
-            // Use adminConnection as some stats are privileged.
-            // stats() throws if the request is not successful (and
-            // hence test would fail).
-            EXPECT_NO_THROW(conn->stats(key));
-        }
+        // Use adminConnection as some stats are privileged.
+        // stats() throws if the request is not successful (and
+        // hence test would fail).
+        EXPECT_NO_THROW(conn->stats(key));
     });
 }
 

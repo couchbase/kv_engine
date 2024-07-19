@@ -15,8 +15,6 @@ Areas of interest in the repository:
   _server_). This is where [`main()`](daemon/memcached.cc) lives.
 * `engines/` - Source for the different engines (aka bucket types)
   supported. Includes:
-    * [`default engine`](engines/default_engine/) - The original
-      _memcache_ engine. Powers the _Memcache_ bucket type.
     * [`ep`](engines/ep/) - _Eventually Persistent_ Engine. Powers the
     _Couchbase_ and _Ephemeral_ bucket types.
     * [`ewouldblock engine`](engines/ewouldblock_engine) - Test engine

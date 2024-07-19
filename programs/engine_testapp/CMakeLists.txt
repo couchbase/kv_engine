@@ -41,7 +41,6 @@ target_link_libraries(engine_testapp_dependencies INTERFACE
                       hdrhistogram
                       mock_server
                       crash_engine
-                      default_engine
                       ep
                       ewouldblock_engine
                       nobucket

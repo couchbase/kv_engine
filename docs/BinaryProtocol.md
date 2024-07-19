@@ -2147,7 +2147,6 @@ the properties for the bucket to create in the format:
 
 Module may be one of the following:
    * nobucket.so
-   * default_engine.so
    * ep.so
    * ewouldblock_engine.so
 

@@ -9,12 +9,10 @@
  */
 #include "enginemap.h"
 #include "engines/crash_engine/crash_engine_public.h"
-#include "engines/default_engine/default_engine_public.h"
 #include "engines/ep/src/ep_engine_public.h"
 #include "engines/ewouldblock_engine/ewouldblock_engine_public.h"
 #include "engines/nobucket/nobucket_public.h"
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 #include <string>
 
 unique_engine_ptr new_engine_instance(BucketType type,
@@ -25,9 +23,6 @@ unique_engine_ptr new_engine_instance(BucketType type,
         switch (type) {
         case BucketType::NoBucket:
             return create_no_bucket_instance();
-        case BucketType::Memcached:
-            status = create_memcache_instance(get_server_api, &ret);
-            break;
         case BucketType::Couchbase:
             status = create_ep_engine_instance(get_server_api, &ret);
             break;
@@ -75,8 +70,6 @@ void shutdown_all_engines() {
     case BucketType::ClusterConfigOnly:
     case BucketType::NoBucket:
         // no cleanup needed;
-    case BucketType::Memcached:
-        destroy_memcache_engine();
     case BucketType::Couchbase:
         destroy_ep_engine();
     case BucketType::EWouldBlock:

@@ -51,12 +51,6 @@ cb::engine_errc BucketManagementCommandContext::create() {
     }
 
     auto type = module_to_bucket_type(value);
-    if (cb::serverless::isEnabled() && type == BucketType::Memcached) {
-        cookie.setErrorContext(
-                "memcached buckets can't be used in serverless configuration");
-        return cb::engine_errc::not_supported;
-    }
-
     std::string taskname{"Create bucket [" + name + "]"};
     ExecutorPool::get()->schedule(std::make_shared<
                                   OneShotLimitedConcurrencyTask>(

@@ -15,8 +15,6 @@
 
 std::string to_string(BucketType type) {
     switch (type) {
-    case BucketType::Memcached:
-        return "Memcached";
     case BucketType::Couchbase:
         return "Couchbase";
     case BucketType::ClusterConfigOnly:
@@ -37,10 +35,6 @@ std::string to_string(BucketType type) {
 
 BucketType parse_bucket_type(std::string_view type) {
     using namespace std::string_view_literals;
-
-    if (type == "Memcached"sv) {
-        return BucketType::Memcached;
-    }
 
     if (type == "Couchbase"sv) {
         return BucketType::Couchbase;
@@ -65,9 +59,6 @@ BucketType module_to_bucket_type(const std::filesystem::path& module) {
     if (nm == "nobucket") {
         return BucketType::NoBucket;
     }
-    if (nm == "default_engine") {
-        return BucketType::Memcached;
-    }
     if (nm == "ep") {
         return BucketType::Couchbase;
     }
@@ -84,8 +75,6 @@ std::string bucket_type_to_module(BucketType type) {
         break;
     case BucketType::NoBucket:
         return "nobucket.so";
-    case BucketType::Memcached:
-        return "default_engine.so";
     case BucketType::Couchbase:
         return "ep.so";
     case BucketType::EWouldBlock:

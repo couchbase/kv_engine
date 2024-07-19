@@ -66,11 +66,6 @@ TEST(BucketTypeValidatorTest, Nobucket) {
               module_to_bucket_type("/foo/bar/nobucket.so"));
 }
 
-TEST(BucketTypeValidatorTest, Memcached) {
-    EXPECT_EQ(BucketType::Memcached,
-              module_to_bucket_type("/foo/bar/default_engine.so"));
-}
-
 TEST(BucketTypeValidatorTest, Couchstore) {
     EXPECT_EQ(BucketType::Couchbase, module_to_bucket_type("/foo/bar/ep.so"));
 }

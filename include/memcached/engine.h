@@ -71,8 +71,6 @@ class CancellationToken;
  * \section docs_sec API Documentation
  *
  * Jump right into <a href="modules.html">the modules docs</a> to get started.
- *
- * \example default_engine.cc
  */
 
 /**
