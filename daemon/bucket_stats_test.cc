@@ -10,8 +10,8 @@
 
 #include <daemon/buckets.h>
 #include <daemon/stats.h>
+#include <platform/dirutils.h>
 #include <statistics/cardinality.h>
-#include <statistics/labelled_collector.h>
 #include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
 #include <test/dummy_cookie.h>
@@ -19,19 +19,26 @@
 class BucketStatsTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        bucketPath = cb::io::mkdtemp("BucketStatsTest");
+        const auto config =
+                fmt::format("dbname={};max_vbuckets=8;max_num_shards=1",
+                            bucketPath.string());
         // create a bucket named foobar
-        BucketManager::instance().create(
-                cookie, "foobar", {}, BucketType::Memcached);
+        EXPECT_EQ(cb::engine_errc::success,
+                  BucketManager::instance().create(
+                          cookie, "foobar", config, BucketType::Couchbase));
         bucket = &BucketManager::instance().at(1);
     }
 
     void TearDown() override {
         // destroy the bucket which was created for this test
         BucketManager::instance().doBlockingDestroy(cookie, "foobar", true, {});
+        remove_all(bucketPath);
     }
 
     Bucket* bucket = nullptr;
     cb::test::DummyCookie cookie;
+    std::filesystem::path bucketPath;
 };
 
 class MetricAndOpcode {
@@ -120,11 +127,6 @@ TEST_F(BucketStatsTest, BucketStats) {
     EXPECT_FALSE(bucketHigh.count({"kv_cmd_mutation"sv}));
     EXPECT_FALSE(noBucketLow.count({"kv_cmd_mutation"sv}));
     EXPECT_FALSE(noBucketHigh.count({"kv_cmd_mutation"sv}));
-
-    EXPECT_TRUE(bucketLow.count({"kv_memcache_total_items"sv}));
-    EXPECT_FALSE(bucketHigh.count({"kv_memcache_total_items"sv}));
-    EXPECT_FALSE(noBucketLow.count({"kv_memcache_total_items"sv}));
-    EXPECT_FALSE(noBucketHigh.count({"kv_memcache_total_items"sv}));
 
     EXPECT_FALSE(bucketLow.count({"kv_cmd_duration_seconds"sv}));
     EXPECT_TRUE(bucketHigh.count({"kv_cmd_duration_seconds"sv}));
