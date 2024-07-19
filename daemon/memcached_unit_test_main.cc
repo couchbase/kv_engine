@@ -8,9 +8,11 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "environment.h"
 #include "external_auth_manager_thread.h"
 
 #include <daemon/enginemap.h>
+#include <executor/executorpool.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
 #include <getopt.h>
@@ -43,6 +45,17 @@ int main(int argc, char** argv) {
         cb::logger::createBlackholeLogger();
     }
 
+    environment.max_file_descriptors = 2048;
+    environment.engine_file_descriptors = 1024;
+
+    ExecutorPool::create(ExecutorPool::Backend::Folly,
+                         0,
+                         ThreadPoolConfig::ThreadCount::Default,
+                         ThreadPoolConfig::ThreadCount::Default,
+                         ThreadPoolConfig::AuxIoThreadCount::Default,
+                         ThreadPoolConfig::NonIoThreadCount::Default,
+                         ThreadPoolConfig::IOThreadsPerCore::Default);
+
     externalAuthManager = std::make_unique<ExternalAuthManagerThread>();
     externalAuthManager->start();
 
@@ -58,6 +71,7 @@ int main(int argc, char** argv) {
     // is allowed to be destroyed normally.
     shutdown_all_engines();
     cb::logger::shutdown();
+    ExecutorPool::shutdown();
 
     return ret;
 }

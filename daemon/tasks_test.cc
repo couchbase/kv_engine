@@ -25,6 +25,22 @@
  */
 class TasksTest : public ::testing::Test {
 public:
+    static void SetUpTestCase() {
+        // Shut down the executor pool started in main
+        ExecutorPool::shutdown();
+    }
+
+    static void TearDownTestCase() {
+        // Restart the one started in main
+        ExecutorPool::create(ExecutorPool::Backend::Folly,
+                             0,
+                             ThreadPoolConfig::ThreadCount::Default,
+                             ThreadPoolConfig::ThreadCount::Default,
+                             ThreadPoolConfig::AuxIoThreadCount::Default,
+                             ThreadPoolConfig::NonIoThreadCount::Default,
+                             ThreadPoolConfig::IOThreadsPerCore::Default);
+    }
+
     void SetUp() override {
         ExecutorPool::create(ExecutorPool::Backend::Fake);
         ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
