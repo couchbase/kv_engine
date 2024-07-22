@@ -2637,6 +2637,10 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
     folly::SharedMutex::WriteHolder wlh(vb->getStateLock());
     if ((vb->getState() == vbucket_state_replica) ||
         (vb->getState() == vbucket_state_pending)) {
+        // Before rollback gets busy with tidying hash-tables and clearing
+        // checkpoints, ensure DCP streams are closed
+        engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
+
         auto prevHighSeqno =
                 static_cast<uint64_t>(vb->checkpointManager->getHighSeqno());
         if (rollbackSeqno != 0) {
@@ -2649,7 +2653,6 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                         auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
                         epVb.postProcessRollback(
                                 wlh, result, prevHighSeqno, *this);
-                        engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
                         return TaskStatus::Complete;
                     }
                     EP_LOG_WARN(
@@ -2671,7 +2674,6 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
         if (resetVBucket_UNLOCKED(vb, vbset)) {
             VBucketPtr newVb = vbMap.getBucket(vbid);
             newVb->incrRollbackItemCount(prevHighSeqno);
-            engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
             return TaskStatus::Complete;
         }
         EP_LOG_WARN("{} Aborting rollback as reset of the vbucket failed",
