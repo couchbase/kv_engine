@@ -71,7 +71,7 @@ protected:
                value.data(),
                value.length());
 
-        return ValidatorTest::validate(opcode, static_cast<void*>(blob.data()));
+        return ValidatorTest::validate(opcode, blob.data());
     }
 
     bool needPayload() {
@@ -226,8 +226,7 @@ protected:
         std::vector<uint8_t> packet;
         request.encode(packet);
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::SubdocMultiLookup,
-                static_cast<void*>(packet.data()));
+                cb::mcbp::ClientOpcode::SubdocMultiLookup, packet.data());
     }
 
     BinprotSubdocMultiLookupCommand request;
@@ -329,8 +328,7 @@ protected:
         std::vector<uint8_t> packet;
         request.encode(packet);
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::SubdocMultiMutation,
-                static_cast<void*>(packet.data()));
+                cb::mcbp::ClientOpcode::SubdocMultiMutation, packet.data());
     }
 
     BinprotSubdocMultiMutationCommand request;

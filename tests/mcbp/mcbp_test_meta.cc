@@ -33,7 +33,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 

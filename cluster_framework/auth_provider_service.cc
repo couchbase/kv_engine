@@ -60,7 +60,7 @@ AuthProviderService::AuthProviderService(Cluster& cluster) : cluster(cluster) {
                           AuthProviderService::read_callback,
                           nullptr,
                           AuthProviderService::event_callback,
-                          static_cast<void*>(this));
+                          this);
         bufferevent_enable(bev, EV_READ);
     }
 

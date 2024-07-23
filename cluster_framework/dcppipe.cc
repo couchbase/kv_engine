@@ -45,14 +45,14 @@ DcpPipe::DcpPipe(event_base* base,
                       DcpPipe::read_callback,
                       nullptr,
                       DcpPipe::event_callback,
-                      static_cast<void*>(this));
+                      this);
 
     consumer.reset(bufferevent_socket_new(base, csd, BEV_OPT_CLOSE_ON_FREE));
     bufferevent_setcb(consumer.get(),
                       DcpPipe::read_callback,
                       nullptr,
                       DcpPipe::event_callback,
-                      static_cast<void*>(this));
+                      this);
 
     notification.reset(bufferevent_socket_new(
             base, notification_pipe[1], BEV_OPT_CLOSE_ON_FREE));
@@ -60,7 +60,7 @@ DcpPipe::DcpPipe(event_base* base,
                       DcpPipe::read_callback,
                       nullptr,
                       DcpPipe::event_callback,
-                      static_cast<void*>(this));
+                      this);
 
     bufferevent_enable(producer.get(), EV_READ);
     bufferevent_enable(consumer.get(), EV_READ);
@@ -160,12 +160,12 @@ void DcpPipe::read_callback(bufferevent* bev) {
                                       DcpPipe::read_callback_passthrough,
                                       nullptr,
                                       DcpPipe::event_callback,
-                                      static_cast<void*>(this));
+                                      this);
                     bufferevent_setcb(consumer.get(),
                                       DcpPipe::read_callback_passthrough,
                                       nullptr,
                                       DcpPipe::event_callback,
-                                      static_cast<void*>(this));
+                                      this);
                     // Switch to the new callback immediately
                     read_callback_passthrough(bev);
                     return;

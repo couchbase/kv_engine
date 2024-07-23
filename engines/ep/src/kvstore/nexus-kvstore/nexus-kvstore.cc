@@ -2815,10 +2815,8 @@ ScanStatus NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     }
 
     if (primaryCtx.lastReadSeqno != secondaryCtx.lastReadSeqno) {
-        if (static_cast<uint64_t>(primaryCtx.lastReadSeqno) >
-                    getPurgeSeqno(ctx.vbid) &&
-            static_cast<uint64_t>(secondaryCtx.lastReadSeqno) >
-                    getPurgeSeqno(ctx.vbid)) {
+        if (primaryCtx.lastReadSeqno > getPurgeSeqno(ctx.vbid) &&
+            secondaryCtx.lastReadSeqno > getPurgeSeqno(ctx.vbid)) {
             auto msg = fmt::format(
                     "NexusKVStore::scan: {}: last read seqno not "
                     "equal primary:{} secondary:{}",

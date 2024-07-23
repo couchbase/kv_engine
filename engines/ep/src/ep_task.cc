@@ -59,7 +59,7 @@ bool EpNotifiableTask::run() {
 void EpNotifiableTask::wakeup() {
     bool expected = false;
     if (pendingRun.compare_exchange_strong(expected, true)) {
-        ExecutorPool::get()->wake(static_cast<size_t>(uid));
+        ExecutorPool::get()->wake(uid);
     }
 }
 

@@ -444,19 +444,11 @@ SOCKET try_connect_socket(struct addrinfo* next,
     // connect. Mark the socket reusable so that the kernel may
     // reuse the socket earlier
     const int flag = 1;
-    cb::net::setsockopt(sfd,
-                        SOL_SOCKET,
-                        SO_REUSEADDR,
-                        reinterpret_cast<const void*>(&flag),
-                        sizeof(flag));
+    cb::net::setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
 
     // Try to set the nodelay mode on the socket (but ignore
     // if we fail to do so..
-    cb::net::setsockopt(sfd,
-                        IPPROTO_TCP,
-                        TCP_NODELAY,
-                        reinterpret_cast<const void*>(&flag),
-                        sizeof(flag));
+    cb::net::setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
 
     if (cb::net::connect(sfd, next->ai_addr, next->ai_addrlen) ==
         SOCKET_ERROR) {

@@ -42,7 +42,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpOpen,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 
     cb::mcbp::Request& request = *reinterpret_cast<cb::mcbp::Request*>(blob);
@@ -88,7 +88,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpAddStream,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -127,7 +127,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpCloseStream,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -167,8 +167,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::DcpGetFailoverLog,
-                static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::DcpGetFailoverLog, &request);
     }
 };
 
@@ -219,7 +218,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpStreamReq,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 
     cb::mcbp::RequestBuilder builder;
@@ -334,7 +333,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpStreamEnd,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -383,14 +382,13 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-                static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::DcpSnapshotMarker, &request);
     }
     std::string validate_error_context(
             cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         return ValidatorTest::validate_error_context(
                 cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-                static_cast<void*>(blob),
+                blob,
                 expectedStatus);
     }
     cb::mcbp::RequestBuilder builder;
@@ -479,9 +477,7 @@ protected:
     std::string validate_error_context(
             cb::mcbp::Status expectedStatus = cb::mcbp::Status::Einval) {
         return ValidatorTest::validate_error_context(
-                cb::mcbp::ClientOpcode::DcpMutation,
-                static_cast<void*>(blob),
-                expectedStatus);
+                cb::mcbp::ClientOpcode::DcpMutation, blob, expectedStatus);
     }
 };
 
@@ -562,7 +558,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpDeletion,
-                                       static_cast<void*>(blob));
+                                       blob);
     }
 
     cb::mcbp::RequestBuilder builder;
@@ -682,7 +678,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpExpiration,
-                                       static_cast<void*>(blob));
+                                       blob);
     }
 };
 
@@ -730,8 +726,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::DcpSetVbucketState,
-                static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::DcpSetVbucketState, &request);
     }
 };
 
@@ -792,7 +787,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpNoop,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -836,8 +831,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
-                static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::DcpBufferAcknowledgement, &request);
     }
 };
 
@@ -881,7 +875,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpControl,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1003,7 +997,7 @@ TEST_P(DcpXattrValidatorTest, SystemXattrTooLarge) {
     builder.setValue(value);
     EXPECT_EQ("The provided xattr segment is not valid",
               validate_error_context(std::get<0>(GetParam()),
-                                     static_cast<void*>(scratch.data()),
+                                     scratch.data(),
                                      cb::mcbp::Status::XattrEinval));
 }
 

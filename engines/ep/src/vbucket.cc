@@ -4126,9 +4126,7 @@ std::unique_ptr<Item> VBucket::pruneXattrDocument(
     }
 
     // Something remains - Create a Blob and copy-in just the XATTRs
-    auto newValue =
-            Blob::New(reinterpret_cast<const char*>(prunedXattrs.data()),
-                      prunedXattrs.size());
+    auto newValue = Blob::New(prunedXattrs.data(), prunedXattrs.size());
     auto rv = v.toItem(getId());
     rv->setCas(itemMeta.cas);
     rv->setFlags(itemMeta.flags);

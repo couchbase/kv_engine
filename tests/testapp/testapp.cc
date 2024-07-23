@@ -521,7 +521,7 @@ nlohmann::json TestappTest::generate_config() {
     };
 
     if (!embedded_memcached_server) {
-        ret["parent_identifier"] = (int)getpid();
+        ret["parent_identifier"] = getpid();
     }
 
     if (memcached_verbose == 0) {

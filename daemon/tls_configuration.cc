@@ -181,8 +181,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     // the callback as we cannot throw an exception from the callback handler as
     // that would cause OpenSSL to leak memory
     SSL_CTX_set_default_passwd_cb(server_ctx, my_pem_password_cb);
-    SSL_CTX_set_default_passwd_cb_userdata(server_ctx,
-                                           static_cast<void*>(&userpassword));
+    SSL_CTX_set_default_passwd_cb_userdata(server_ctx, &userpassword);
 
     if (!SSL_CTX_use_certificate_chain_file(server_ctx,
                                             certificate_chain.c_str())) {

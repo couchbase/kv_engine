@@ -186,7 +186,7 @@ OutputCouchFile::BufferedOutputDocuments::Document::Document(
     }
 
     // Update the ID fields with the newDocKey
-    newDoc.id.buf = const_cast<char*>(this->newDocKey.data());
+    newDoc.id.buf = this->newDocKey.data();
     newDoc.id.size = this->newDocKey.size();
     newDocInfo.id = newDoc.id;
 
@@ -206,7 +206,7 @@ OutputCouchFile::BufferedOutputDocuments::Document::Document(Document&& other) {
     newDocInfo = other.newDocInfo;
 
     // Now make sure pointers make sense
-    newDoc.id.buf = const_cast<char*>(newDocKey.data());
+    newDoc.id.buf = newDocKey.data();
     newDoc.id.size = newDocKey.size();
     newDocInfo.id = newDoc.id;
 

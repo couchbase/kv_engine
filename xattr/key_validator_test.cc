@@ -52,7 +52,7 @@ TEST(XattrKeyValidator, KeyLengthWithPath) {
     for (auto ii = key.length(); ii > 1; --ii) {
         // Just make a copy and inject a dot ;)
         std::string copy = key;
-        const_cast<char*>(copy.data())[ii - 1] = '.';
+        copy.data()[ii - 1] = '.';
         if (ii > SUBDOC_MAX_XATTR_LENGTH) {
             EXPECT_FALSE(is_valid_xattr_key({copy.data(), copy.size()}))
                     << "[" << copy << "]";

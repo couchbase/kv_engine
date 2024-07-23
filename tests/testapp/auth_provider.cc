@@ -78,9 +78,7 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::start(
                 R"({"error":{"context":"mechanism not supported"}})");
     }
 
-    const auto ch = cb::base64::decode(challenge);
-    return plain_auth({reinterpret_cast<const char*>(ch.data()), ch.size()},
-                      authOnly);
+    return plain_auth(cb::base64::decode(challenge), authOnly);
 }
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::plain_auth(

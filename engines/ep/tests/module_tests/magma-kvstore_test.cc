@@ -147,7 +147,7 @@ TEST_F(MagmaKVStoreRollbackTest, Rollback) {
 TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     uint64_t seqno = 1;
 
-    auto cfg = reinterpret_cast<MagmaKVStoreConfig*>(kvstoreConfig.get());
+    auto cfg = kvstoreConfig.get();
     auto maxCheckpoints = cfg->getMagmaMaxCheckpoints();
 
     // Create maxCheckpoints+2 checkpoints

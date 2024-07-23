@@ -243,8 +243,7 @@ cb::engine_errc MockDcpMessageProducers::deletionInner(
         last_packet_size += item->getKey().size();
     }
 
-    last_value.assign(static_cast<const char*>(item->getData()),
-                      item->getNBytes());
+    last_value.assign(item->getData(), item->getNBytes());
     last_delete_time = deleteTime;
     last_collection_id = item->getKey().getCollectionID();
 

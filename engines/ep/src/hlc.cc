@@ -62,7 +62,7 @@ void HLCT<Clock>::addStats(const std::string& prefix,
                              sizeof(finalString),
                              "%s.%" PRId64,
                              timeString,
-                             static_cast<int64_t>(nanoseconds.count()));
+                             nanoseconds.count());
         } catch (...) {
             // snprint fail, point at timeString which at least has the
             // majority of the time data.

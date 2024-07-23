@@ -709,7 +709,7 @@ TEST_P(STDcpTest, test_producer_stream_end_on_client_close_stream) {
 
     /* Check that the new stream is opened properly */
     auto stream = producer->findStream(vbid);
-    auto* as = static_cast<ActiveStream*>(stream.get());
+    auto* as = stream.get();
     EXPECT_TRUE(as->isInMemory());
 
     // MB-27769: Prior to the fix, this would fail here because we would skip

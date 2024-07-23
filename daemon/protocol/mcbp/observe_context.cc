@@ -108,8 +108,7 @@ cb::engine_errc ObserveCommandContext::observe() {
         const auto netcas = htonll(cas);
         output.write(reinterpret_cast<const char*>(&vb), sizeof(vb));
         output.write(reinterpret_cast<const char*>(&keylen), sizeof(keylen));
-        output.write(reinterpret_cast<const char*>(keybuf.data()),
-                     keybuf.size());
+        output.write(keybuf.data(), keybuf.size());
         output.write(reinterpret_cast<const char*>(&st), sizeof(st));
         output.write(reinterpret_cast<const char*>(&netcas), sizeof(cas));
     };

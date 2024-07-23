@@ -114,7 +114,7 @@ static rel_time_t mock_realtime(rel_time_t exptime) {
             rv = (rel_time_t)(exptime - process_started);
         }
     } else {
-        rv = (rel_time_t)(exptime + mock_get_current_time());
+        rv = exptime + mock_get_current_time();
     }
 
     return rv;

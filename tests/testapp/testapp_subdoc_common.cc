@@ -143,9 +143,7 @@ uint64_t recv_subdoc_response(
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
     mcbp_validate_response_header(
-            *reinterpret_cast<cb::mcbp::Response*>(&receive.response),
-            expected_cmd,
-            expected_status);
+            receive.response, expected_cmd, expected_status);
 
     // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
 

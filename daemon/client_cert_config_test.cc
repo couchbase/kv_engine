@@ -77,9 +77,8 @@ public:
         certPath.append("/tests/cert/parse-test/parse-test.cert");
         certPath = cb::io::sanitizePath(certPath);
         auto data = cb::io::loadFile(certPath);
-        auto* certbio = BIO_new_mem_buf(
-                const_cast<void*>(static_cast<const void*>(data.data())),
-                gsl::narrow<int>(data.size()));
+        auto* certbio =
+                BIO_new_mem_buf(data.data(), gsl::narrow<int>(data.size()));
         cert.reset(PEM_read_bio_X509(certbio, nullptr, nullptr, nullptr));
         BIO_free(certbio);
         ASSERT_TRUE(cert.get()) << "Error in reading certificate file: "

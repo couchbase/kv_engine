@@ -272,7 +272,7 @@ TEST_P(EPBucketTest, FreqCountTest) {
     auto item_v1 = store_item(vbid, a, "old");
 
     // Perform one or more gets to increase the frequency count
-    auto options = static_cast<get_options_t>(TRACK_REFERENCE);
+    auto options = TRACK_REFERENCE;
     GetValue v = store->get(a, vbid, cookie, options);
     while (v.item->getFreqCounterValue() == initialFreqCount) {
         v = store->get(a, vbid, cookie, options);

@@ -112,15 +112,13 @@ public:
         stream->public_processItems(input);
 
         for (const auto& e : expected.responses) {
-            auto rsp = stream->public_nextQueuedItem(
-                    static_cast<DcpProducer&>(*producer));
+            auto rsp = stream->public_nextQueuedItem(*producer);
             if (rsp) {
                 EXPECT_EQ(*e, *rsp);
             }
             EXPECT_TRUE(rsp) << "DCP response expected:" << e->to_string();
         }
-        auto rsp = stream->public_nextQueuedItem(
-                static_cast<DcpProducer&>(*producer));
+        auto rsp = stream->public_nextQueuedItem(*producer);
         EXPECT_FALSE(rsp) << "Unexpected DcpResponse:" << rsp->to_string();
 
         stream.reset();

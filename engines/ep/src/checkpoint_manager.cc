@@ -76,7 +76,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
       memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
     Expects(static_cast<uint64_t>(lastSeqno) >= lastSnapStart);
     Expects(static_cast<uint64_t>(lastSeqno) <= lastSnapEnd);
-    Expects(static_cast<uint64_t>(maxVisibleSeqno) <= lastSnapEnd);
+    Expects(maxVisibleSeqno <= lastSnapEnd);
 
     // Note: this is the last moment in the CheckpointManager lifetime
     //     when the checkpointList is empty.

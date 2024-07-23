@@ -153,12 +153,12 @@ void to_json(nlohmann::json& json, const DcpOpenPayload& payload) {
 }
 
 void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload) {
-    json = {{"flags", static_cast<DcpAddStreamFlag>(payload.getFlags())}};
+    json = {{"flags", payload.getFlags()}};
 }
 
 void to_json(nlohmann::json& json, const DcpStreamReqPayloadV1& payload) {
     json = {
-            {"flags", static_cast<DcpAddStreamFlag>(payload.getFlags())},
+            {"flags", payload.getFlags()},
             {"start_seqno", std::to_string(payload.getStartSeqno())},
             {"end_seqno", std::to_string(payload.getEndSeqno())},
             {"vbucket_uuid", std::to_string(payload.getVbucketUuid())},

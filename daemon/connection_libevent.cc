@@ -58,7 +58,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
                           LibeventConnection::ssl_read_callback,
                           LibeventConnection::write_callback,
                           LibeventConnection::event_callback,
-                          static_cast<void*>(this));
+                          this);
     } else {
         bev.reset(bufferevent_socket_new(
                 thr.eventBase.getLibeventBase(), sfd, options));
@@ -66,7 +66,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
                           LibeventConnection::read_callback,
                           LibeventConnection::write_callback,
                           LibeventConnection::event_callback,
-                          static_cast<void*>(this));
+                          this);
     }
 
     bufferevent_enable(bev.get(), EV_READ);

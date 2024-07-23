@@ -57,7 +57,7 @@ TEST(PreExpiry, DocumentWithJsonBodyAndXattrs) {
     blob.set("user", "1");
     auto xattr = blob.finalize();
 
-    std::string body((const char*)xattr.data(), xattr.size());
+    std::string body(xattr.data(), xattr.size());
     body.append(R"({"foo":"bar"})");
     auto rv = document_pre_expiry(
             body,

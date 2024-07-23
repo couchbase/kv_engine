@@ -45,8 +45,7 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetVbucket,
-                                       static_cast<void*>(blob));
+        return ValidatorTest::validate(ClientOpcode::SetVbucket, blob);
     }
 
     /**

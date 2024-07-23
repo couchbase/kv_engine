@@ -681,7 +681,7 @@ std::ostream& operator<<(std::ostream& os, const StoredValue& sv) {
 
     if (sv.isOrdered()) {
         auto& osv = static_cast<const OrderedStoredValue&>(sv);
-        os << " prepareSeqno: " << static_cast<uint64_t>(osv.prepareSeqno);
+        os << " prepareSeqno: " << osv.prepareSeqno;
     }
     return os;
 }

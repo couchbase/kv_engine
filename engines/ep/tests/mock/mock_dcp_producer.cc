@@ -70,7 +70,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         std::optional<std::string_view> jsonFilter,
         std::function<void(MockActiveStream&)> preSetActiveHook) {
     auto stream = std::make_shared<MockActiveStream>(
-            static_cast<EventuallyPersistentEngine*>(&engine_),
+            &engine_,
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
             flags,
             opaque,

@@ -128,7 +128,7 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
                    sfd,
                    EV_READ | EV_PERSIST,
                    listen_event_handler,
-                   reinterpret_cast<void*>(this))) {
+                   this)) {
     if (!ev) {
         throw std::bad_alloc();
     }

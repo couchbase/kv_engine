@@ -601,7 +601,7 @@ TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {
     // Next the backfill should switch to takeover-send
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
-    auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
+    auto* as0 = vb0Stream.get();
     EXPECT_TRUE(as0->isTakeoverSend());
 
     // Add some more keys because we don't want to run immediately through

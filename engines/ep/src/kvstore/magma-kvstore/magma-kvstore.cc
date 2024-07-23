@@ -1459,7 +1459,7 @@ GetValue MagmaKVStore::makeItem(Vbid vb,
     }
 
     if (meta.isDeleted()) {
-        item->setDeleted(static_cast<DeleteSource>(meta.getDeleteSource()));
+        item->setDeleted(meta.getDeleteSource());
     }
 
     if (magmakv::isPrepared(keySlice, meta)) {

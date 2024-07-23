@@ -267,7 +267,7 @@ TEST_P(AccessLogTest, ReadAndWarmup) {
     // Reading a key will require a bg-fetch at this point, the test will check
     // it becomes interleaved with the access-log loading (which can also
     // read the key and populate the cache).
-    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH);
+    auto options = QUEUE_BG_FETCH;
 
     for (const auto& key : keys) {
         auto gv = store->get(key.second, key.first, cookie, options);

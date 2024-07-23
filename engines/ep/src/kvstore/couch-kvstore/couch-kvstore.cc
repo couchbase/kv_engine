@@ -641,8 +641,8 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
 
     sized_buf id = to_sized_buf(key);
 
-    couchstore_error_t errCode = couchstore_docinfo_by_id(db, (uint8_t *)id.buf,
-                                                          id.size, &docInfo);
+    couchstore_error_t errCode =
+            couchstore_docinfo_by_id(db, id.buf, id.size, &docInfo);
     if (errCode == COUCHSTORE_SUCCESS) {
         if (docInfo == nullptr) {
             throw std::logic_error("CouchKVStore::getWithHeader: "
@@ -2262,12 +2262,8 @@ ScanStatus CouchKVStore::scan(BySeqnoScanContext& ctx) const {
         start = ctx.lastReadSeqno + 1;
     }
 
-    couchstore_error_t errorCode =
-            couchstore_changes_since(db,
-                                     start,
-                                     getDocFilter(ctx.docFilter),
-                                     bySeqnoScanCallback,
-                                     static_cast<void*>(&ctx));
+    couchstore_error_t errorCode = couchstore_changes_since(
+            db, start, getDocFilter(ctx.docFilter), bySeqnoScanCallback, &ctx);
 
     TRACE_EVENT_END1(
             "CouchKVStore", "scan", "lastReadSeqno", ctx.lastReadSeqno);
@@ -2317,12 +2313,8 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
                                    range.endKey.data())),
                            range.endKey.size()};
 
-        errorCode = couchstore_docinfos_by_id(db,
-                                              ids.data(),
-                                              2,
-                                              RANGES,
-                                              byIdScanCallback,
-                                              static_cast<void*>(&ctx));
+        errorCode = couchstore_docinfos_by_id(
+                db, ids.data(), 2, RANGES, byIdScanCallback, &ctx);
         if (errorCode != COUCHSTORE_SUCCESS) {
             if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
                 // Update the startKey so backfill can resume from the right
@@ -3265,7 +3257,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
     id.buf = const_cast<char*>(LocalDocKey::vbstate.data());
     id.size = LocalDocKey::vbstate.size();
     auto couchStoreStatus =
-            couchstore_open_local_document(db, (void*)id.buf, id.size, &ldoc);
+            couchstore_open_local_document(db, id.buf, id.size, &ldoc);
 
     if (couchStoreStatus == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         logger.warn(
@@ -3461,7 +3453,7 @@ CouchKVStore::getCollectionStats(Db& db, const std::string& statDocName) const {
 
     LocalDocHolder lDoc;
     auto errCode = couchstore_open_local_document(
-            &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
+            &db, id.buf, id.size, lDoc.getLocalDocAddress());
 
     if (errCode != COUCHSTORE_SUCCESS) {
         // Could be a deleted collection, so not found not an issue
@@ -3838,11 +3830,8 @@ cb::engine_errc CouchKVStore::getAllKeys(
     AllKeysCtx ctx(cb, count);
 
     auto start = std::chrono::steady_clock::now();
-    errCode = couchstore_all_docs(db,
-                                  &ref,
-                                  COUCHSTORE_NO_DELETES,
-                                  populateAllKeys,
-                                  static_cast<void*>(&ctx));
+    errCode = couchstore_all_docs(
+            db, &ref, COUCHSTORE_NO_DELETES, populateAllKeys, &ctx);
     if (!(errCode == COUCHSTORE_SUCCESS ||
           errCode == COUCHSTORE_ERROR_CANCEL)) {
         logger.warn(
@@ -3960,7 +3949,7 @@ CouchKVStore::ReadLocalDocResult CouchKVStore::readLocalDoc(
 
     LocalDocHolder lDoc;
     auto errCode = couchstore_open_local_document(
-            &db, (void*)id.buf, id.size, lDoc.getLocalDocAddress());
+            &db, id.buf, id.size, lDoc.getLocalDocAddress());
     if (errCode != COUCHSTORE_SUCCESS) {
         if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             logger.debug("CouchKVStore::readLocalDoc({}): doc not found", name);
@@ -4357,12 +4346,12 @@ CouchLocalDocRequest::CouchLocalDocRequest(std::string&& key,
 }
 
 void CouchLocalDocRequest::setupKey() {
-    doc.id.buf = const_cast<char*>(key.data());
+    doc.id.buf = key.data();
     doc.id.size = key.size();
 }
 
 void CouchLocalDocRequest::setupValue() {
-    doc.json.buf = const_cast<char*>(value.data());
+    doc.json.buf = value.data();
     doc.json.size = value.size();
 }
 

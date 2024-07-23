@@ -644,8 +644,7 @@ nlohmann::json Request::to_json(bool validated) const {
                     std::copy(extrasState.begin(),
                               extrasState.end(),
                               reinterpret_cast<uint8_t*>(&cid));
-                    cid = static_cast<CollectionIDType>(
-                            ntohl(static_cast<int>(state)));
+                    cid = ntohl(static_cast<int>(state));
                     extras["collection"] = CollectionID(cid).to_string();
                 }
             }

@@ -1465,7 +1465,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         // Use find_if2 which will return the matching shared_ptr<Stream>
         auto stream = find_if2(streamFindFn);
         if (stream) {
-            auto* as = static_cast<ActiveStream*>(stream.get());
+            auto* as = stream.get();
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
                 as->setVBucketStateAckRecieved(*this);
             } else {
@@ -1885,8 +1885,7 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
             for (auto handle = rv->second->rlock(); !handle.end();
                  handle.next()) {
                 if (handle.get()->getCursor().lock().get() == cursor) {
-                    auto* as =
-                            static_cast<ActiveStream*>(handle.get().get());
+                    auto* as = handle.get().get();
                     return as->handleSlowStream();
                 }
             }

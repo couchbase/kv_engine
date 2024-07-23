@@ -30,8 +30,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::CollectionsSetManifest,
-                static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::CollectionsSetManifest, &request);
     }
 };
 
@@ -80,7 +79,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::CollectionsGetID,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 

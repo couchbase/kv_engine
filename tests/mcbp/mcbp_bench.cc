@@ -48,7 +48,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, GetBench)(benchmark::State& state) {
     request.setKeylen(10);
     request.setBodylen(10);
 
-    void* packet = static_cast<void*>(&request);
+    void* packet = &request;
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
     Cookie cookie(connection);
 
@@ -64,7 +64,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, SetBench)(benchmark::State& state) {
     request.setKeylen(10);
     request.setBodylen(20);
 
-    void* packet = static_cast<void*>(&request);
+    void* packet = &request;
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
     Cookie cookie(connection);
 
@@ -80,7 +80,7 @@ BENCHMARK_DEFINE_F(McbpValidatorBench, AddBench)(benchmark::State& state) {
     request.setKeylen(10);
     request.setBodylen(20);
 
-    void* packet = static_cast<void*>(&request);
+    void* packet = &request;
     const auto& req = *reinterpret_cast<const cb::mcbp::Header*>(packet);
     Cookie cookie(connection);
 

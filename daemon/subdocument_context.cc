@@ -663,7 +663,7 @@ std::string_view SubdocExecutionContext::get_xtoc_vattr() {
     if (xtoc_vattr.empty()) {
         const auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
         cb::char_buffer blob_buffer{const_cast<char*>(in_doc.view.data()),
-                                    (size_t)bodyoffset};
+                                    bodyoffset};
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    cb::mcbp::datatype::is_snappy(in_datatype));
 
@@ -1093,7 +1093,7 @@ void SubdocExecutionContext::do_xattr_delete_phase() {
     // We need to remove the user keys from the Xattrs and rebuild the document
 
     const auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
-    cb::char_buffer blob_buffer{(char*)in_doc.view.data(), (size_t)bodyoffset};
+    cb::char_buffer blob_buffer{(char*)in_doc.view.data(), bodyoffset};
 
     const cb::xattr::Blob xattr_blob(blob_buffer, false);
 

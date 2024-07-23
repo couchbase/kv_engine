@@ -84,7 +84,7 @@ std::string ValidatorTest::validate_error_context(
 
 std::string ValidatorTest::validate_error_context(
         cb::mcbp::ClientOpcode opcode, cb::mcbp::Status expectedStatus) {
-    void* packet = static_cast<void*>(&request);
+    void* packet = &request;
     return ValidatorTest::validate_error_context(
             opcode, packet, expectedStatus);
 }
@@ -126,7 +126,7 @@ protected:
 
     cb::mcbp::Status validate() {
         auto opcode = cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -368,7 +368,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -443,7 +443,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -544,7 +544,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -649,7 +649,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -721,7 +721,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -828,7 +828,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -885,7 +885,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -966,8 +966,7 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Noop,
-                                       static_cast<void*>(&request));
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Noop, &request);
     }
 };
 
@@ -1012,7 +1011,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::Version,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1060,8 +1059,7 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Stat,
-                                       static_cast<void*>(&request));
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Stat, &request);
     }
 };
 
@@ -1120,7 +1118,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::Verbosity,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1164,8 +1162,7 @@ public:
 
 protected:
     cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Hello,
-                                       static_cast<void*>(&request));
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Hello, &request);
     }
 };
 
@@ -1219,7 +1216,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::SaslListMechs,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1268,7 +1265,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -1330,7 +1327,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetErrorMap,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1359,7 +1356,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::IoctlGet,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1403,7 +1400,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::IoctlSet,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1448,7 +1445,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::AuditPut,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1494,8 +1491,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(
-                cb::mcbp::ClientOpcode::AuditConfigReload,
-                static_cast<void*>(&request));
+                cb::mcbp::ClientOpcode::AuditConfigReload, &request);
     }
 };
 
@@ -1544,7 +1540,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::Shutdown,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1593,7 +1589,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::ObserveSeqno,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1655,7 +1651,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         auto opcode = (cb::mcbp::ClientOpcode)std::get<0>(GetParam());
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 };
 
@@ -1713,7 +1709,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetCmdTimer,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1759,7 +1755,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetCtrlToken,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -1812,7 +1808,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetCtrlToken,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 
     cb::mcbp::Request& request = *reinterpret_cast<cb::mcbp::Request*>(blob);
@@ -1873,7 +1869,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetAllVbSeqnos,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 
     protocol_binary_request_get_all_vb_seqnos &request =
@@ -1899,7 +1895,7 @@ TEST_P(GetAllVbSeqnoValidatorTest, CorrectMessageWithCollectionID) {
     request.header.setExtlen(8);
     request.header.setBodylen(8);
     request.body.state = static_cast<RequestedVBState>(htonl(1));
-    request.body.cid = static_cast<CollectionIDType>(htonl(8));
+    request.body.cid = htonl(8);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
@@ -1969,7 +1965,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetLocked,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2031,7 +2027,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::UnlockKey,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2082,7 +2078,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::ConfigReload,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2134,7 +2130,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::EvictKey,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2190,7 +2186,7 @@ public:
 protected:
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::EvictKey,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2366,8 +2362,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpOpen) {
     header.setBodylen(18);
     auto extras = header.getExtdata();
     using cb::mcbp::request::DcpOpenPayload;
-    auto* payload = reinterpret_cast<DcpOpenPayload*>(
-            const_cast<uint8_t*>(extras.data()));
+    auto* payload = reinterpret_cast<DcpOpenPayload*>(extras.data());
     payload->setFlags(cb::mcbp::DcpOpenFlag::Unused);
     EXPECT_EQ("Request contains invalid flags: \"unknown:0x10\"",
               validate_error_context(cb::mcbp::ClientOpcode::DcpOpen));
@@ -2803,7 +2798,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetRandomKey,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2853,7 +2848,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DelVbucket,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -2903,7 +2898,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetVbucket,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 

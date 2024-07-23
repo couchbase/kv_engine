@@ -33,7 +33,7 @@ public:
                           LibeventConnection::read_callback,
                           LibeventConnection::write_callback,
                           LibeventConnection::event_callback,
-                          static_cast<void*>(this));
+                          this);
 
         bufferevent_enable(bev.get(), EV_READ);
     }

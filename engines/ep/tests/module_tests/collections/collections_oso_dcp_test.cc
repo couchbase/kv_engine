@@ -738,7 +738,7 @@ TEST_P(CollectionsOSODcpTest, cursor_dropped) {
 
     auto stream = producer->findStream(vbid);
     ASSERT_TRUE(stream);
-    auto* as = static_cast<ActiveStream*>(stream.get());
+    auto* as = stream.get();
     as->handleSlowStream();
 
     // backfill:scan() -> complete

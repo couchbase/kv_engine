@@ -1016,14 +1016,7 @@ bool Cookie::fetchEuidPrivilegeSet() {
         }
 
         if (getAuthorizationTask) {
-            auto* task = dynamic_cast<GetAuthorizationTask*>(
-                    getAuthorizationTask.get());
-            if (task == nullptr) {
-                throw std::runtime_error(
-                        "Cookie::fetchEuidPrivilegeSet: Invalid object stored "
-                        "in getAuthorizationTask");
-            }
-
+            auto* task = getAuthorizationTask.get();
             const auto ret = task->getStatus();
             getAuthorizationTask.reset();
             if (ret != cb::sasl::Error::OK) {

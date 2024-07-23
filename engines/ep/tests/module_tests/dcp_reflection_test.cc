@@ -453,8 +453,7 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
 
 std::pair<ActiveStream*, MockPassiveStream*>
 DCPLoopbackTestHelper::DcpRoute::getStreams() {
-    auto* pStream =
-            dynamic_cast<ActiveStream*>(producer->findStream(vbid).get());
+    auto* pStream = producer->findStream(vbid).get();
     auto* cStream = dynamic_cast<MockPassiveStream*>(
             consumer->getVbucketStream(vbid).get());
     EXPECT_TRUE(pStream);
@@ -678,8 +677,7 @@ void DCPLoopbackStreamTest::takeoverTest(
     EXPECT_EQ(cb::engine_errc::success,
               route0_1.doStreamRequest(cb::mcbp::DcpAddStreamFlag::TakeOver)
                       .first);
-    auto* producerStream = static_cast<ActiveStream*>(
-            route0_1.producer->findStream(vbid).get());
+    auto* producerStream = route0_1.producer->findStream(vbid).get();
     ASSERT_TRUE(producerStream);
 
     // Both streams created. Check state is as expected.
@@ -987,8 +985,7 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     EXPECT_EQ(cb::engine_errc::success, storeSet("c"));
 
     // Trigger cursor dropping. That removes the old checkpoint.
-    auto* pStream = static_cast<ActiveStream*>(
-            route0_1.producer->findStream(vbid).get());
+    auto* pStream = route0_1.producer->findStream(vbid).get();
     ASSERT_TRUE(route0_1.producer->handleSlowStream(
             vbid, pStream->getCursor().lock().get()));
     // No new checkpoint created

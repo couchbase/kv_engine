@@ -203,7 +203,7 @@ std::string to_string(task_state_t state) {
         return "DEAD";
     }
     throw std::invalid_argument("to_string(task_state_t) unknown state " +
-                                std::to_string(static_cast<int>(state)));
+                                std::to_string(state));
 }
 
 std::ostream& operator<<(std::ostream& os, const task_state_t& state) {

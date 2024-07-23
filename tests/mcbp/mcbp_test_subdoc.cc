@@ -42,7 +42,7 @@ public:
 
 protected:
     cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+        return ValidatorTest::validate(opcode, &request);
     }
 
     protocol_binary_request_subdocument &request =

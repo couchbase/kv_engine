@@ -333,12 +333,11 @@ NetworkInterfaceManager::createInterface(
             continue;
         }
 
-        if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) ==
-            SOCKET_ERROR) {
+        if (bind(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
             const auto bind_error = cb::net::get_socket_error();
             auto name = cb::net::to_string(
                     reinterpret_cast<sockaddr_storage*>(next->ai_addr),
-                    static_cast<socklen_t>(next->ai_addrlen));
+                    next->ai_addrlen);
             errors.push_back("Failed to bind to " + name + " - " +
                              cb_strerror(bind_error));
             safe_close(sfd);

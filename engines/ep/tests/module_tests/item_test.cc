@@ -336,7 +336,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
     item = make_STRCPtr<Item>(makeStoredDocKey("key"),
                               0,
                               0,
-                              const_cast<char*>(valueData.data()),
+                              valueData.data(),
                               valueData.size(),
                               datatype);
 
@@ -359,7 +359,7 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
     item = make_STRCPtr<Item>(makeStoredDocKey("key"),
                               0,
                               0,
-                              const_cast<char*>(valueData.data()),
+                              valueData.data(),
                               valueData.size(),
                               datatype);
 

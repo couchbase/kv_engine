@@ -39,7 +39,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DropPrivilege,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -85,7 +85,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetClusterConfig,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -143,7 +143,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetClusterConfig,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -213,11 +213,10 @@ protected:
     cb::mcbp::Status validate(bool start) {
         if (start) {
             return ValidatorTest::validate(
-                    cb::mcbp::ClientOpcode::StartPersistence,
-                    static_cast<void*>(&request));
+                    cb::mcbp::ClientOpcode::StartPersistence, &request);
         }
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::StopPersistence,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -271,11 +270,10 @@ protected:
     cb::mcbp::Status validate(bool start) {
         if (start) {
             return ValidatorTest::validate(
-                    cb::mcbp::ClientOpcode::EnableTraffic,
-                    static_cast<void*>(&request));
+                    cb::mcbp::ClientOpcode::EnableTraffic, &request);
         }
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DisableTraffic,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -325,8 +323,7 @@ public:
 protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Scrub,
-                                       static_cast<void*>(&request));
+        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Scrub, &request);
     }
 };
 
@@ -377,7 +374,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetKeys,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -434,7 +431,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::SetParam,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -485,7 +482,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::GetReplica,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -547,7 +544,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::ReturnMeta,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -623,7 +620,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::SeqnoPersistence,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
@@ -688,7 +685,7 @@ protected:
     cb::mcbp::Request& req;
     cb::mcbp::Status validate() {
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::CompactDb,
-                                       static_cast<void*>(&request));
+                                       &request);
     }
 };
 
