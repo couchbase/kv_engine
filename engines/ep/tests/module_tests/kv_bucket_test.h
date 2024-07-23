@@ -194,10 +194,13 @@ public:
      */
     size_t flushAndExpelFromCheckpoints(Vbid vbid);
 
-    /* Delete the given item from the given vbucket, verifying it was
+    /**
+     * Delete the given item from the given vbucket, verifying it was
      * successfully deleted.
      */
-    void delete_item(Vbid vbid, const DocKey& key);
+    void delete_item(Vbid vbid,
+                     const DocKey& key,
+                     cb::engine_errc expected = cb::engine_errc::success);
 
     /**
      * Store and delete a given key
