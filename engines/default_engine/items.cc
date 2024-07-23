@@ -451,10 +451,20 @@ static void do_item_stats(struct default_engine* engine,
                            "%u", engine->items.itemstats[i].evicted_time);
             add_statistics(c, add_stats, prefix, i, "outofmemory",
                            "%u", engine->items.itemstats[i].outofmemory);
-            add_statistics(c, add_stats, prefix, i, "tailrepairs",
-                           "%u", engine->items.itemstats[i].tailrepairs);;
-            add_statistics(c, add_stats, prefix, i, "reclaimed",
-                           "%u", engine->items.itemstats[i].reclaimed);;
+            add_statistics(c,
+                           add_stats,
+                           prefix,
+                           i,
+                           "tailrepairs",
+                           "%u",
+                           engine->items.itemstats[i].tailrepairs);
+            add_statistics(c,
+                           add_stats,
+                           prefix,
+                           i,
+                           "reclaimed",
+                           "%u",
+                           engine->items.itemstats[i].reclaimed);
         }
     }
 }

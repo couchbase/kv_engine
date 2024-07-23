@@ -43,7 +43,6 @@ cb::engine_errc RbacReloadCommandContext::doRbacReload() {
                 error.what());
     }
     return cb::engine_errc::failed;
-    ;
 }
 
 cb::engine_errc RbacReloadCommandContext::reload() {

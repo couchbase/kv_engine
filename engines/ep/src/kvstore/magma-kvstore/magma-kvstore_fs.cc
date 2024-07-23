@@ -223,7 +223,7 @@ magma::FileSystem getMagmaTrackingFileSystem(FileOpsTracker& tracker,
             auto g = tracker.startWithScopeGuard(FileOp::write(0));
             return wrapped(path, blocking, callback);
         };
-    };
+    }
 
     if (baseFs.Rename) {
         fs.Rename = [&tracker, wrapped = baseFs.Rename](

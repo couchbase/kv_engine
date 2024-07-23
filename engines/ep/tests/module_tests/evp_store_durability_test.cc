@@ -489,7 +489,7 @@ protected:
     }
     void TearDown() override {
             // The test should do the TearDown
-    };
+    }
 };
 
 class BackingStoreMaxVisibleSeqnoTest : public DurabilityBucketTest {
@@ -510,7 +510,7 @@ public:
     void TearDown() override {
         vb.reset();
         DurabilityBucketTest::TearDown();
-    };
+    }
 
     uint64_t getMVS() {
         // All tests using this function only work with the default collection

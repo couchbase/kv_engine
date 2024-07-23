@@ -61,7 +61,6 @@ void Flusher::wait() {
             break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        ;
     }
     auto endt = std::chrono::steady_clock::now();
     if ((endt - startt) > std::chrono::milliseconds{10}) {

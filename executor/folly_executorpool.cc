@@ -612,7 +612,7 @@ struct FollyExecutorPool::State {
     int numTasksForOwner(const Taskable& taskable) {
         auto& owner = taskOwners.at(&taskable);
         return owner.locator.size() + owner.pendingTaskResets;
-    };
+    }
 
     /**
      * Returns a vector of all tasks owned by the given Taskable

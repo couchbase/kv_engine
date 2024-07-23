@@ -218,7 +218,8 @@ TEST_F(AuditFileTest, TestRollover) {
 TEST_F(AuditFileTest, MB53282) {
     class MockAuditFile : public AuditFile {
     public:
-        MockAuditFile() : AuditFile("testing"){};
+        MockAuditFile() : AuditFile("testing") {
+        }
         void test_mb53282() {
             ensure_open();
             close_and_rotate_log();
@@ -241,7 +242,7 @@ TEST_F(AuditFileTest, PruneFiles) {
                 createAuditLogFile(
                         logdir, "PruneFiles", std::chrono::hours(ii));
             }
-        };
+        }
 
         static void createAuditLogFile(const std::filesystem::path& logdir,
                                        std::string_view hostname,

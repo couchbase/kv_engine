@@ -129,7 +129,7 @@ private:
     struct Labeller {
         std::string getLabel(const char* name) const {
             return fmt::format("ActiveDM::ResolvedQueue[{}]::{}", vbid, name);
-        };
+        }
         const Vbid vbid;
     };
     // Track the highest Enqueued Seqno to enforce enqueue ordering. Throws as
@@ -564,7 +564,7 @@ void ActiveDurabilityMonitor::processCompletedSyncWriteQueue(
             continue;
         }
         folly::assume_unreachable();
-    };
+    }
 }
 
 void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {

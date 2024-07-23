@@ -1326,7 +1326,7 @@ TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
     class CacheCallback : public StatusCallback<CacheLookup> {
         void callback(CacheLookup& lookup) override {
             setStatus(cb::engine_errc::success);
-        };
+        }
     };
     // Disk callback - Simulate backfill pause/resume
     class DiskCallback : public StatusCallback<GetValue> {
@@ -1348,7 +1348,7 @@ TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
             // in ActiveStream::backfillReceived, so we increase the counter
             // here for both temporary_failure/success
             ++numBackfilled;
-        };
+        }
 
         size_t numCalls = 0;
         DiskDocKey lastBackfilledKey{nullptr, 0};
@@ -1421,7 +1421,6 @@ TEST_P(KVStoreParamTest, GetAllKeysSanity) {
             .Times(AtLeast(1));
 
     auto* cookie = create_mock_cookie();
-    ;
     kvstore->addTimingStats(cbFunc, *cookie);
     destroy_mock_cookie(cookie);
 }
@@ -1601,9 +1600,8 @@ public:
     ReuseSnapshotCallback(uint64_t startSeqno,
                           uint64_t endSeqno,
                           uint64_t enomemSeqno)
-        : startSeqno(startSeqno),
-          endSeqno(endSeqno),
-          enomemSeqno(enomemSeqno){};
+        : startSeqno(startSeqno), endSeqno(endSeqno), enomemSeqno(enomemSeqno) {
+    }
 
     void callback(GetValue& result) override {
         EXPECT_LE(startSeqno, result.item->getBySeqno());

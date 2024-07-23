@@ -40,7 +40,7 @@ public:
         // If we didn't get a token we want to run again.
         // We _should_ already be snoozed forever.
         return !guard;
-    };
+    }
 
     std::string getDescription() const override {
         return "test task";

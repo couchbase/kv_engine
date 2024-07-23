@@ -56,7 +56,7 @@ protected:
         }
         std::string ret{buffer.data(), buffer.size()};
         return ret;
-    };
+    }
 
     cb::mcbp::Datatype expectedDatatype = cb::mcbp::Datatype::Raw;
 };

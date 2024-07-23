@@ -748,7 +748,7 @@ EPVBucket::softDeleteStoredValue(const HashTable::HashBucketLock& hbl,
     case DeletionStatus::IsPendingSyncWrite:
         return std::make_tuple(
                 result.deletedValue, result.status, VBNotifyCtx{});
-    };
+    }
     folly::assume_unreachable();
 }
 

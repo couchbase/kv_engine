@@ -72,7 +72,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
                 break;
             case State::Failed:
                 break;
-            };
+            }
         }
 
         // All inserts to disk (mutation, prepare, commit,system event) take up
@@ -85,7 +85,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
         case State::Update:
         case State::Failed:
             break;
-        };
+        }
 
         return;
     }

@@ -70,7 +70,7 @@ public:
         engine.get_deleter().force = true;
         engine.reset();
         ObjectRegistry::onSwitchThread(nullptr);
-    };
+    }
 
     void testOperationsInterlockedWithWarmup(bool abortWarmup);
 };
@@ -2536,13 +2536,13 @@ public:
             return file.path();
         }
         throw std::runtime_error("failed to find any data files");
-    };
+    }
 
     void deleteDataFile() {
         auto dataFile = getDataFile();
         EXPECT_TRUE(std::filesystem::remove(dataFile));
         ASSERT_FALSE(std::filesystem::is_regular_file(dataFile));
-    };
+    }
 
     void makeFileReadOnly() {
         auto dataFile = getDataFile();

@@ -54,7 +54,7 @@ struct CommonNameMapping : public ClientCertConfig::Mapping {
         }
         std::string error = "Not able to find common name from cert";
         return make_pair(Status::Error, error);
-    };
+    }
 };
 
 struct SanMapping : public ClientCertConfig::Mapping {
@@ -115,7 +115,7 @@ struct SanMapping : public ClientCertConfig::Mapping {
         }
 
         return std::make_pair(status, userName);
-    };
+    }
 
     const int field;
 };

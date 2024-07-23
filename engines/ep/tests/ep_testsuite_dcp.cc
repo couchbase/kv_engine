@@ -1143,7 +1143,7 @@ extern "C" {
             if (ctx->compactor_waiting) {
                 break;
             }
-        };
+        }
         // Now compactor is waiting to run (and we are just about to start DCP
         // stream, activate compaction.
         {

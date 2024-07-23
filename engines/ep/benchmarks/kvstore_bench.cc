@@ -45,7 +45,7 @@ public:
         // So, here I return what KVStore understands as "Item not in the
         // HashTable, go to the Storage".
         setStatus(cb::engine_errc::success);
-    };
+    }
 };
 
 class MockDiskCallback : public StatusCallback<GetValue> {
@@ -57,7 +57,7 @@ public:
         //     This is where the real DiskCallback pushes the Item to
         //     the DCP stream.
         itemCount++;
-    };
+    }
     // Get the number of items found during a scan
     size_t getItemCount() const {
         return itemCount;

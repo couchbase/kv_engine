@@ -83,7 +83,7 @@ public:
         if (deltaDeadlineFromNow) {
             deadline = (chunkStart + *deltaDeadlineFromNow);
         }
-    };
+    }
 
 private:
     bool shouldEject() const;
@@ -264,7 +264,8 @@ public:
           shardId(shard),
           warmup(warmup),
           description("Warmup - loading prepared SyncWrites: shard " +
-                      std::to_string(shardId)){};
+                      std::to_string(shardId)) {
+    }
 
     std::string getDescription() const override {
         return description;
@@ -304,7 +305,8 @@ public:
           shardId(shard),
           warmup(warmup),
           description("Warmup - populate VB Map: shard " +
-                      std::to_string(shardId)){};
+                      std::to_string(shardId)) {
+    }
 
     std::string getDescription() const override {
         return description;
@@ -339,7 +341,8 @@ class WarmupBackfillTask;
 class WarmupVbucketVisitor : public PauseResumeVBVisitor {
 public:
     WarmupVbucketVisitor(EPBucket& ep, const WarmupBackfillTask& task)
-        : ep(ep), backfillTask(task){};
+        : ep(ep), backfillTask(task) {
+    }
 
     /**
      * Informs the visitor that it is about to start visiting one or more
@@ -466,11 +469,11 @@ public:
 
     size_t getShardId() const {
         return shardId;
-    };
+    }
 
     Warmup& getWarmup() const {
         return warmup;
-    };
+    }
 
     virtual WarmupState::State getNextState() const = 0;
     virtual ValueFilter getValueFilter() const = 0;
@@ -756,23 +759,24 @@ public:
                              warmup,
                              TaskId::WarmupLoadingKVPairs,
                              "loading KV Pairs",
-                             threadTaskCount){};
+                             threadTaskCount) {
+    }
 
     WarmupState::State getNextState() const override {
         return WarmupState::State::Done;
-    };
+    }
 
     ValueFilter getValueFilter() const override {
         return warmup.store.getValueFilterForCompressionMode();
-    };
+    }
 
     bool shouldCheckIfWarmupThresholdReached() const override {
         return warmup.store.getItemEvictionPolicy() == EvictionPolicy::Full;
-    };
+    }
 
     CacheLookupCallBackPtr makeCacheLookupCallback() const override {
         return std::make_unique<LoadValueCallback>(warmup);
-    };
+    }
 };
 
 /**
@@ -790,23 +794,24 @@ public:
                              warmup,
                              TaskId::WarmupLoadingData,
                              "loading data",
-                             threadTaskCount){};
+                             threadTaskCount) {
+    }
 
     WarmupState::State getNextState() const override {
         return WarmupState::State::Done;
-    };
+    }
 
     ValueFilter getValueFilter() const override {
         return warmup.store.getValueFilterForCompressionMode();
-    };
+    }
 
     bool shouldCheckIfWarmupThresholdReached() const override {
         return true;
-    };
+    }
 
     CacheLookupCallBackPtr makeCacheLookupCallback() const override {
         return std::make_unique<LoadValueCallback>(warmup);
-    };
+    }
 };
 
 class WarmupCompletion : public EpTask {

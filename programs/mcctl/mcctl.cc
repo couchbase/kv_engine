@@ -125,7 +125,7 @@ void printPropertyHelp() {
             // if you've got a small terminal we'll just print it in the normal
             // way.
             width = std::numeric_limits<size_t>::max();
-        };
+        }
 
         dw = width - 34;
     } catch (std::exception&) {

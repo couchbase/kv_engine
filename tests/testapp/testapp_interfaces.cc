@@ -587,7 +587,7 @@ protected:
                 return true;
             });
         } while (!found);
-    };
+    }
 
     /**
      * Test the connection reset logging by first connecting a client, then

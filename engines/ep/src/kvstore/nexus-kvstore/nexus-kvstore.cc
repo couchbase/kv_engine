@@ -2264,7 +2264,7 @@ public:
                     return;
                 } else {
                     break;
-                };
+                }
             }
         }
 

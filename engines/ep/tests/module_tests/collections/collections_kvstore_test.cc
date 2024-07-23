@@ -264,7 +264,7 @@ public:
         checkUid(md, cm);
         checkCollections(md, cm, expectedDropped);
         checkScopes(md, cm);
-    };
+    }
 
 protected:
     EPStats global_stats;

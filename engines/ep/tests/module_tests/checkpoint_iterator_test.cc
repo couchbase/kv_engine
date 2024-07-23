@@ -135,7 +135,7 @@ TEST(CheckpointIteratorTest, nonNullFirstElementIterateBackwards) {
     for (auto cursor = listContainerEnd(c); cursor != listContainerBegin(c);
          --cursor) {
         ++iteratorCount;
-    };
+    }
 
     EXPECT_EQ(1, iteratorCount);
 }
@@ -233,7 +233,7 @@ TEST(CheckpointIteratorTest, backwardsNullAndNonNullElements) {
         }
 
         ++iteratorCount;
-    };
+    }
     EXPECT_EQ(2, iteratorCount);
 }
 
@@ -268,6 +268,6 @@ TEST(CheckpointIteratorTest, backwardsNullAndNonNullElementsWithFirstNull) {
         }
 
         ++iteratorCount;
-    };
+    }
     EXPECT_EQ(2, iteratorCount);
 }

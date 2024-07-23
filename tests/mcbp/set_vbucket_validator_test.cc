@@ -128,7 +128,6 @@ TEST_P(SetVBucketValidatorTest, MadHatterMessage) {
     builder.setOpcode(ClientOpcode::SetVbucket);
     auto state = uint8_t(vbucket_state_active);
     builder.setExtras({&state, sizeof(state)});
-    ;
     EXPECT_EQ(Status::Success, validate());
 
     // Validate that we detect invalid vbucket state:
@@ -141,7 +140,6 @@ TEST_P(SetVBucketValidatorTest, MadHatterMessage) {
                                             100}}) {
         state = uint8_t(val);
         builder.setExtras({&state, sizeof(state)});
-        ;
         if (is_valid_vbucket_state_t(val)) {
             EXPECT_EQ(Status::Success, validate());
         } else {
@@ -152,7 +150,6 @@ TEST_P(SetVBucketValidatorTest, MadHatterMessage) {
     EXPECT_TRUE(found_invalid) << "No invalid vbucket states was tested";
     state = uint8_t(vbucket_state_active);
     builder.setExtras({&state, sizeof(state)});
-    ;
 
     // CAS may be anything (0 == override, otherwise it is the session token
     builder.setCas(uint64_t(time(nullptr)));

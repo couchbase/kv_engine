@@ -44,7 +44,7 @@ public:
                     << "Expected range:" << expected << " but got "
                     << guard.getRange();
         }
-    };
+    }
 
 protected:
     void SetUp() override {

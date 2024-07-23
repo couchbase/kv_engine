@@ -27,12 +27,14 @@
 
 class HdrHistogramEmpty : public HdrHistogram {
 public:
-    HdrHistogramEmpty() : HdrHistogram(1, 1, 1){};
+    HdrHistogramEmpty() : HdrHistogram(1, 1, 1) {
+    }
 };
 
 class HdrHistogramBench : public HdrHistogram {
 public:
-    HdrHistogramBench() : HdrHistogram(1, 60000000, 2){};
+    HdrHistogramBench() : HdrHistogram(1, 60000000, 2) {
+    }
 };
 
 template <typename T>

@@ -1001,7 +1001,7 @@ void WithMetaTest::conflict_win(cb::mcbp::ClientOpcode op,
     // ... Finally give an Item with a datatype (not xattr) and the op for test
     // uniqueness
     std::string key = "mykey" + std::to_string(counter) + to_string(op);
-    ;
+
     auto swm = buildWithMetaPacket(cb::mcbp::ClientOpcode::AddWithMeta,
                                    PROTOCOL_BINARY_DATATYPE_JSON,
                                    vbid /*vbucket*/,

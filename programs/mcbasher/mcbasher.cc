@@ -100,7 +100,7 @@ public:
         for (int ii = 0; ii < 1024; ++ii) {
             vbmap[ii] = Vbid(ii);
         }
-    };
+    }
 
     ~McBasherConnection() override = default;
 

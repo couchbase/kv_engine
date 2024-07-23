@@ -46,7 +46,7 @@ public:
         // Initialise a uniform distribution between 0 and 1
         std::uniform_real_distribution<double> unifInitialise(0, 1);
         unif = unifInitialise;
-    };
+    }
 
     int getSample() {
         while (true) {

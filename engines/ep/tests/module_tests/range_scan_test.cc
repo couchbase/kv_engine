@@ -1820,7 +1820,7 @@ bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     case cb::engine_errc::cancelled:
     case cb::engine_errc::bucket_paused:
         return false;
-    };
+    }
     throw std::invalid_argument(
             "TestRangeScanHandler::validateContinueStatus: code does not "
             "represent a legal error code: " +

@@ -1533,7 +1533,7 @@ TEST_P(ConnectionTest, MillisecondNoopIntervalAcceptedByProducer) {
             break;
         }
         handleProducerResponseIfStepBlocked(consumer, producers);
-    };
+    }
     EXPECT_EQ(State::PendingMillisecondsResponse, noopRegState.state);
     // Have producer respond to consumer with success.
     auto sendDcpControlResponse = [&producers](auto& consumer, auto status) {
@@ -1581,7 +1581,7 @@ TEST_P(ConnectionTest, MillisecondNoopIntervalRejectedByDownlevelProducer) {
             break;
         }
         handleProducerResponseIfStepBlocked(consumer, producers);
-    };
+    }
     EXPECT_EQ(State::PendingMillisecondsResponse, noopRegState.state);
     // Have producer respond to consumer with invalid_arguments as per producer
     // if a non-integer value is seen.

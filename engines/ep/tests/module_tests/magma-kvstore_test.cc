@@ -88,7 +88,7 @@ protected:
         qi->setBySeqno(seqno);
         setAndCommit(qi, expected);
         return qi;
-    };
+    }
 
     std::string configStr;
     bool rollbackTest{false};
@@ -1039,7 +1039,7 @@ protected:
         qi->setCanDeduplicate(CanDeduplicate::No);
         setAndCommit(qi, expected);
         return qi;
-    };
+    }
 
     void TearDown() override {
         MagmaKVStoreTest::TearDown();

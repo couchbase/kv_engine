@@ -37,7 +37,8 @@ private:
     // setupForImplicitCompactionTest. This is a bit hacky but some of our gcc
     // versions error due to a 'is already defined' error if we use a default
     // empty lambda of [] () {}.
-    static void doNothing(){};
+    static void doNothing() {
+    }
 
 public:
     /**

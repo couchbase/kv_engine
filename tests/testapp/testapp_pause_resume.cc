@@ -26,7 +26,7 @@ protected:
                 [&stats](auto k, auto v) { stats = nlohmann::json::parse(v); },
                 statName);
         return stats;
-    };
+    }
 
     bool waitUntilBucketStateIs(std::string_view bucket,
                                 std::string_view stateName,
