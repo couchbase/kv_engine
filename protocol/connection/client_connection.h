@@ -963,6 +963,16 @@ public:
         return auto_retry_tmpfail;
     }
 
+    /// Automatically back off and retry the operation if the server
+    /// returned Enomem
+    void setAutoRetryEnomem(bool value) {
+        auto_retry_enomem = value;
+    }
+
+    bool getAutoRetryEnomem() const {
+        return auto_retry_enomem;
+    }
+
     Document getRandomKey(Vbid vbid);
 
     void dcpOpenProducer(std::string_view name);
@@ -1141,7 +1151,7 @@ protected:
      * @param executeTimeout The number of seconds until an exception is thrown
      * @throws std::runtime_error for timeouts
      */
-    void backoff_execute(
+    static void backoff_execute(
             const std::function<bool()>& executor,
             const std::string& context,
             std::chrono::milliseconds backoff = std::chrono::milliseconds(10),
@@ -1151,6 +1161,7 @@ protected:
     in_port_t port;
     sa_family_t family;
     bool auto_retry_tmpfail = false;
+    bool auto_retry_enomem = false;
     bool ssl;
     TlsVersion tls_protocol = TlsVersion::Any;
     std::string tls12_ciphers{"HIGH"};

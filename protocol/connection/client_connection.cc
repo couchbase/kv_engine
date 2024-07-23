@@ -901,6 +901,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
         std::string agent_name) const {
     auto ret = std::make_unique<MemcachedConnection>(host, port, family, ssl);
     ret->auto_retry_tmpfail = auto_retry_tmpfail;
+    ret->auto_retry_enomem = auto_retry_enomem;
     ret->ssl_cert_file = ssl_cert_file;
     ret->ssl_key_file = ssl_key_file;
     ret->ca_file = ca_file;
@@ -2208,8 +2209,15 @@ BinprotResponse MemcachedConnection::execute(
             [&command, &response, &readTimeout, this]() -> bool {
                 sendCommand(command);
                 recvResponse(response, command.getOp(), readTimeout);
-                return !(auto_retry_tmpfail &&
-                         response.getStatus() == cb::mcbp::Status::Etmpfail);
+
+                bool retry_by_tmpfail =
+                        auto_retry_tmpfail &&
+                        response.getStatus() == cb::mcbp::Status::Etmpfail;
+                bool retry_by_enomem =
+                        auto_retry_enomem &&
+                        response.getStatus() == cb::mcbp::Status::Enomem;
+
+                return !(retry_by_tmpfail || retry_by_enomem);
             },
             context);
     return response;

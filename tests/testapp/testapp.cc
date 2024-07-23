@@ -134,6 +134,7 @@ void TestappTest::rebuildUserConnection(bool tls) {
         throw std::runtime_error("Failed to rebuild the user connection");
     }
     userConnection->setAutoRetryTmpfail(true);
+    userConnection->setAutoRetryEnomem(true);
 }
 
 void TestappTest::CreateTestBucket(const std::string& bucketConf) {
