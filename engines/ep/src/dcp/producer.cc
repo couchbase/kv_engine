@@ -862,9 +862,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
                 // send the streamEnd We have done that now, remove it.
                 engine_.getDcpConnMap().removeVBConnByVBId(getCookie(),
                                                            se->getVbucket());
-                std::shared_ptr<Stream> stream;
-                bool vbFound;
-                std::tie(stream, vbFound) = closeStreamInner(
+                auto [stream, vbFound] = closeStreamInner(
                         se->getVbucket(), resp->getStreamId(), true);
                 if (!stream) {
                     throw std::logic_error(
@@ -873,9 +871,8 @@ cb::engine_errc DcpProducer::step(bool throttled,
                             "for " +
                             se->getVbucket().to_string() + " " +
                             resp->getStreamId().to_string());
-                } else {
-                    Expects(!stream->isActive());
                 }
+                Expects(!stream->isActive());
             }
             break;
         }

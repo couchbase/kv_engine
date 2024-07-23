@@ -22,24 +22,16 @@ protected:
 };
 
 TEST_F(HostnameUtilsTest, PlainPortByNumber) {
-    std::string host;
-    in_port_t in_port;
-    sa_family_t family;
-
-    std::tie(host, in_port, family) = cb::inet::parse_hostname("localhost",
-                                                               "11210");
+    const auto [host, in_port, family] =
+            cb::inet::parse_hostname("localhost", "11210");
     EXPECT_EQ("localhost", host);
     EXPECT_EQ(11210, in_port);
     EXPECT_EQ(AF_UNSPEC, family);
 }
 
 TEST_F(HostnameUtilsTest, PlainPortByName) {
-    std::string host;
-    in_port_t in_port;
-    sa_family_t family;
-
-    std::tie(host, in_port, family) = cb::inet::parse_hostname("localhost",
-                                                               "echo");
+    const auto [host, in_port, family] =
+            cb::inet::parse_hostname("localhost", "echo");
     EXPECT_EQ("localhost", host);
     EXPECT_EQ(7, ntohs(in_port));
     EXPECT_EQ(AF_UNSPEC, family);
@@ -51,24 +43,16 @@ TEST_F(HostnameUtilsTest, PlainInvalidPort) {
 }
 
 TEST_F(HostnameUtilsTest, IPv4PortByNumberInHost) {
-    std::string host;
-    in_port_t in_port;
-    sa_family_t family;
-
-    std::tie(host, in_port, family) = cb::inet::parse_hostname("localhost:11210",
-                                                               "6666");
+    const auto [host, in_port, family] =
+            cb::inet::parse_hostname("localhost:11210", "6666");
     EXPECT_EQ("localhost", host);
     EXPECT_EQ(11210, in_port);
     EXPECT_EQ(AF_INET, family);
 }
 
 TEST_F(HostnameUtilsTest, IPv4PortByNameInHost) {
-    std::string host;
-    in_port_t in_port;
-    sa_family_t family;
-
-    std::tie(host, in_port, family) = cb::inet::parse_hostname("localhost:echo",
-                                                               "6666");
+    const auto [host, in_port, family] =
+            cb::inet::parse_hostname("localhost:echo", "6666");
     EXPECT_EQ("localhost", host);
     EXPECT_EQ(7, ntohs(in_port));
     EXPECT_EQ(AF_INET, family);
@@ -76,24 +60,16 @@ TEST_F(HostnameUtilsTest, IPv4PortByNameInHost) {
 
 
 TEST_F(HostnameUtilsTest, IPv6PortByNumberInHost) {
-    std::string host;
-    in_port_t in_port;
-    sa_family_t family;
-
-    std::tie(host, in_port, family) = cb::inet::parse_hostname("[::1]:11210",
-                                                               "6666");
+    const auto [host, in_port, family] =
+            cb::inet::parse_hostname("[::1]:11210", "6666");
     EXPECT_EQ("::1", host);
     EXPECT_EQ(11210, in_port);
     EXPECT_EQ(AF_INET6, family);
 }
 
 TEST_F(HostnameUtilsTest, IPv6PortByNameInHost) {
-    std::string host;
-    in_port_t in_port;
-    sa_family_t family;
-
-    std::tie(host, in_port, family) = cb::inet::parse_hostname("[::1]:echo",
-                                                               "6666");
+    const auto [host, in_port, family] =
+            cb::inet::parse_hostname("[::1]:echo", "6666");
     EXPECT_EQ("::1", host);
     EXPECT_EQ(7, ntohs(in_port));
     EXPECT_EQ(AF_INET6, family);

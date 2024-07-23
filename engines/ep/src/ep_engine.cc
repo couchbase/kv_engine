@@ -5134,11 +5134,8 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
-    cb::engine_errc status;
-    std::optional<Vbid> vbid;
-    std::optional<std::string> key;
-    std::optional<CollectionID> cid;
-    std::tie(status, vbid, key, cid) = parseStatKeyArg(cookie, "key", statKey);
+    const auto [status, vbid, key, cid] =
+            parseStatKeyArg(cookie, "key", statKey);
     if (status != cb::engine_errc::success) {
         return status;
     }
@@ -5150,11 +5147,8 @@ cb::engine_errc EventuallyPersistentEngine::doVKeyStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
-    cb::engine_errc status;
-    std::optional<Vbid> vbid;
-    std::optional<std::string> key;
-    std::optional<CollectionID> cid;
-    std::tie(status, vbid, key, cid) = parseStatKeyArg(cookie, "vkey", statKey);
+    const auto [status, vbid, key, cid] =
+            parseStatKeyArg(cookie, "vkey", statKey);
     if (status != cb::engine_errc::success) {
         return status;
     }

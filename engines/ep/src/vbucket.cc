@@ -1594,17 +1594,15 @@ cb::engine_errc VBucket::set(
                     DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
         }
         queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
-        MutationStatus status;
-        std::optional<VBNotifyCtx> notifyCtx;
-        std::tie(status, notifyCtx) = processSet(htRes,
-                                                 v,
-                                                 itm,
-                                                 itm.getCas(),
-                                                 /*allowExisting*/ true,
-                                                 /*hashMetaData*/ false,
-                                                 queueItmCtx,
-                                                 storeIfStatus,
-                                                 maybeKeyExists);
+        auto [status, notifyCtx] = processSet(htRes,
+                                              v,
+                                              itm,
+                                              itm.getCas(),
+                                              /*allowExisting*/ true,
+                                              /*hashMetaData*/ false,
+                                              queueItmCtx,
+                                              storeIfStatus,
+                                              maybeKeyExists);
 
         // For pending SyncWrites we initially return
         // cb::engine_errc::sync_write_pending; will notify client when request
@@ -2086,17 +2084,15 @@ cb::engine_errc VBucket::setWithMeta(
             cHandle.getCanDeduplicate(),
             enforceMemCheck};
 
-    MutationStatus status;
-    std::optional<VBNotifyCtx> notifyCtx;
-    std::tie(status, notifyCtx) = processSet(htRes,
-                                             v,
-                                             itm,
-                                             cas,
-                                             allowExisting,
-                                             true,
-                                             queueItmCtx,
-                                             {/*no predicate*/},
-                                             maybeKeyExists);
+    auto [status, notifyCtx] = processSet(htRes,
+                                          v,
+                                          itm,
+                                          cas,
+                                          allowExisting,
+                                          true,
+                                          queueItmCtx,
+                                          {/*no predicate*/},
+                                          maybeKeyExists);
 
     cb::engine_errc ret = cb::engine_errc::success;
     switch (status) {
@@ -2654,9 +2650,7 @@ cb::engine_errc VBucket::add(
             queueItmCtx.durability =
                     DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
         }
-        AddStatus status;
-        std::optional<VBNotifyCtx> notifyCtx;
-        std::tie(status, notifyCtx) =
+        auto [status, notifyCtx] =
                 processAdd(htRes, v, itm, maybeKeyExists, queueItmCtx, cHandle);
 
         switch (status) {
@@ -3871,10 +3865,7 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
     bool onlyMarkDeleted =
             value && cb::mcbp::datatype::is_xattr(v.getDatatype());
     v.setRevSeqno(v.getRevSeqno() + 1);
-    VBNotifyCtx notifyCtx;
-    StoredValue* newSv;
-    DeletionStatus delStatus;
-    std::tie(newSv, delStatus, notifyCtx) =
+    auto [newSv, delStatus, notifyCtx] =
             softDeleteStoredValue(htRes.getHBL(),
                                   v,
                                   onlyMarkDeleted,

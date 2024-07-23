@@ -325,9 +325,7 @@ backfill_status_t BackfillManager::backfill() {
         return reschedule ? backfill_success : backfill_snooze;
     }
 
-    UniqueDCPBackfillPtr backfill;
-    Source source;
-    std::tie(backfill, source) = dequeueNextBackfill(lh);
+    auto [backfill, source] = dequeueNextBackfill(lh);
 
     // If no backfills ready to run then snooze
     if (!backfill) {

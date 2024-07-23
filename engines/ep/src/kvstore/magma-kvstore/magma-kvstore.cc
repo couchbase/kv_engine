@@ -3329,10 +3329,7 @@ std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
 
 std::pair<Status, std::string> MagmaKVStore::getCollectionsManifestUidDoc(
         Vbid vbid) const {
-    Status status;
-
-    std::string manifest;
-    std::tie(status, manifest) = readLocalDoc(vbid, LocalDocKey::manifest);
+    auto [status, manifest] = readLocalDoc(vbid, LocalDocKey::manifest);
     if (!status) {
         return {status, std::string{}};
     }
@@ -3353,10 +3350,7 @@ MagmaKVStore::getCollectionsManifestUid(Vbid vbid) const {
 
 std::pair<bool, Collections::KVStore::Manifest>
 MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
-    Status status;
-
-    std::string manifest;
-    std::tie(status, manifest) = getCollectionsManifestUidDoc(vbid);
+    auto [status, manifest] = getCollectionsManifestUidDoc(vbid);
     if (!status) {
         return {false,
                 Collections::KVStore::Manifest{

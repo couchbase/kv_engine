@@ -2857,13 +2857,10 @@ TEST_P(VBucketDurabilityTest, TouchAfterCommitIsNormalMutation) {
     using namespace std::chrono;
     auto expiry = system_clock::now() + seconds(10);
 
-    GetValue gv;
-    MutationStatus status;
-
     // prior to fix, fails expects when queueDirty-ing a
     // queue_op::commit_sync_write after fix, succeeds, stores the item as a
     // normal mutation.
-    std::tie(status, gv) =
+    auto [status, gv] =
             public_getAndUpdateTtl(key, system_clock::to_time_t(expiry));
 
     ASSERT_EQ(MutationStatus::WasClean, status);
