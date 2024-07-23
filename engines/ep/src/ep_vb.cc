@@ -1640,14 +1640,14 @@ bool EPVBucket::maybeKeyExistsInFilter(const DocKeyView& key) {
             return locked.bFilter->maybeKeyExists(key)
                            ? Status::KeyMayExist
                            : Status::KeyDoesNotExist;
-        } else if (locked.kvStoreBfilterEnabled) {
-            return Status::TryInKvStore;
-        } else {
-            //  Force callers of this function to perform a bg-fetch task to
-            //  check if the key exists in corresponding kvstore. Execution
-            //  should never reach here for couchstore.
-            return Status::KeyMayExist;
         }
+        if (locked.kvStoreBfilterEnabled) {
+            return Status::TryInKvStore;
+        }
+        //  Force callers of this function to perform a bg-fetch task to
+        //  check if the key exists in corresponding kvstore. Execution
+        //  should never reach here for couchstore.
+        return Status::KeyMayExist;
     });
 
     switch (status) {
@@ -1730,11 +1730,11 @@ std::string EPVBucket::getFilterStatusString() {
     auto bFilterDataLocked = bFilterData.lock();
     if (bFilterDataLocked->bFilter) {
         return bFilterDataLocked->bFilter->getStatusString();
-    } else if (bFilterDataLocked->tempFilter) {
-        return bFilterDataLocked->tempFilter->getStatusString();
-    } else {
-        return "DOESN'T EXIST";
     }
+    if (bFilterDataLocked->tempFilter) {
+        return bFilterDataLocked->tempFilter->getStatusString();
+    }
+    return "DOESN'T EXIST";
 }
 
 size_t EPVBucket::getFilterSize() {

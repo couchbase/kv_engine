@@ -766,7 +766,7 @@ public:
 
     void setXattrEnabled(bool value);
 
-    InvalidCasStrategy parseHlcInvalidStrategy(std::string_view strat);
+    static InvalidCasStrategy parseHlcInvalidStrategy(std::string_view strat);
 
     void setHlcInvalidStrategy(InvalidCasStrategy value) {
         hlcInvalidStrategy = value;

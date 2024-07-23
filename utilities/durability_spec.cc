@@ -65,13 +65,17 @@ std::string to_string(Level l) {
 }
 
 Level to_level(std::string_view s) {
-    if (s == "none") {
+    using namespace std::string_view_literals;
+    if (s == "none"sv) {
         return Level::None;
-    } else if (s == "majority") {
+    }
+    if (s == "majority"sv) {
         return Level::Majority;
-    } else if (s == "majority_and_persist_on_master") {
+    }
+    if (s == "majority_and_persist_on_master"sv) {
         return Level::MajorityAndPersistOnMaster;
-    } else if (s == "persist_to_majority") {
+    }
+    if (s == "persist_to_majority"sv) {
         return Level::PersistToMajority;
     }
     throw std::invalid_argument("cb::durability::to_level: unknown level " +

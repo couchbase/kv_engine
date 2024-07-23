@@ -12,14 +12,15 @@
 #include "string_utils.h"
 #include <cstring>
 
-bool cb_stob(const std::string& s) {
-    if (s == "true") {
+bool cb_stob(const std::string_view s) {
+    using namespace std::string_view_literals;
+    if (s == "true"sv) {
         return true;
-    } else if (s == "false") {
-        return false;
-    } else {
-        throw invalid_argument_bool("Argument was not `true` or `false`");
     }
+    if (s == "false"sv) {
+        return false;
+    }
+    throw invalid_argument_bool("Argument was not `true` or `false`");
 }
 
 bool cb_isPrefix(const std::string& input, const std::string& prefix) {

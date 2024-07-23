@@ -2907,16 +2907,18 @@ void KVBucket::setXattrEnabled(bool value) {
 }
 
 InvalidCasStrategy KVBucket::parseHlcInvalidStrategy(std::string_view strat) {
-    if (strat == "error") {
+    using namespace std::string_view_literals;
+    if (strat == "error"sv) {
         return InvalidCasStrategy::Error;
-    } else if (strat == "ignore") {
-        return InvalidCasStrategy::Ignore;
-    } else if (strat == "replace") {
-        return InvalidCasStrategy::Replace;
-    } else {
-        throw std::invalid_argument(
-                "parseHlcInvalidStrategy: invalid mode specified");
     }
+    if (strat == "ignore"sv) {
+        return InvalidCasStrategy::Ignore;
+    }
+    if (strat == "replace"sv) {
+        return InvalidCasStrategy::Replace;
+    }
+    throw std::invalid_argument(
+            "parseHlcInvalidStrategy: invalid mode specified");
 }
 
 bool KVBucket::isCrossBucketHtQuotaSharing() const {
@@ -3146,17 +3148,15 @@ KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
 
     if (usage < recoveryThreshold) {
         return CheckpointMemoryState::Available;
-    } else if (usage < checkpointQuota) {
+    }
+    if (usage < checkpointQuota) {
         return isCMMemoryReductionRequired()
                        ? CheckpointMemoryState::HighAndNeedsRecovery
                        : CheckpointMemoryState::High;
-    } else {
-        return isCMMemoryReductionRequired()
-                       ? CheckpointMemoryState::FullAndNeedsRecovery
-                       : CheckpointMemoryState::Full;
     }
-
-    folly::assume_unreachable();
+    return isCMMemoryReductionRequired()
+                   ? CheckpointMemoryState::FullAndNeedsRecovery
+                   : CheckpointMemoryState::Full;
 }
 
 KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {

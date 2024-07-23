@@ -470,8 +470,9 @@ DcpProducer::constructFilterForStreamRequest(
                 "required.",
                 vbucket);
         return cb::engine_errc::dcp_streamid_invalid;
-    } else if (filter.getStreamId() &&
-               multipleStreamRequests == MultipleStreamRequests::No) {
+    }
+    if (filter.getStreamId() &&
+        multipleStreamRequests == MultipleStreamRequests::No) {
         logger->warn(
                 "Stream request for {} failed because a stream-ID:{} is "
                 "present "
@@ -479,7 +480,8 @@ DcpProducer::constructFilterForStreamRequest(
                 vbucket,
                 filter.getStreamId());
         return cb::engine_errc::dcp_streamid_invalid;
-    } else if (filter.isCollectionFilter() && isSyncWritesEnabled()) {
+    }
+    if (filter.isCollectionFilter() && isSyncWritesEnabled()) {
         // These two don't (or may not) quite work together (very little
         // coverage and never required)
         logger->warn(
@@ -1220,11 +1222,13 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             getCookie()->getConnectionIface().setPriority(
                     ConnectionPriority::High);
             return cb::engine_errc::success;
-        } else if (valueStr == "medium") {
+        }
+        if (valueStr == "medium") {
             getCookie()->getConnectionIface().setPriority(
                     ConnectionPriority::Medium);
             return cb::engine_errc::success;
-        } else if (valueStr == "low") {
+        }
+        if (valueStr == "low") {
             getCookie()->getConnectionIface().setPriority(
                     ConnectionPriority::Low);
             return cb::engine_errc::success;

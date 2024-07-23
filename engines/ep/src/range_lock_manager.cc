@@ -42,16 +42,17 @@ SeqRange SeqRange::makeNonOverlapping(const SeqRange& other) const {
     if (!overlaps(other)) {
         // case A (from comments in header)
         return *this;
-    } else if (begin < other.begin) {
+    }
+    if (begin < other.begin) {
         // case B or E
         return {begin, other.begin - 1};
-    } else if (end > other.end) {
+    }
+    if (end > other.end) {
         // case C
         return {other.end + 1, end};
-    } else {
-        // case D
-        return {0, 0};
     }
+    // case D
+    return {0, 0};
 }
 
 std::ostream& operator<<(std::ostream& os, const SeqRange& sr) {

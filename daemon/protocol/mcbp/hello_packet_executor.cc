@@ -342,11 +342,6 @@ void process_hello_packet_executor(Cookie& cookie) {
             if (Settings::instance().isTracingEnabled()) {
                 connection.setTracingEnabled(true);
                 added = true;
-                break;
-            } else {
-                LOG_INFO("{}: {} Request for [disabled] Tracing feature",
-                         connection.getId(),
-                         connection.getDescription().dump());
             }
             break;
 

@@ -16,16 +16,17 @@
 namespace cb {
 
 ErrorHandlingMethod getErrorHandlingMethod(std::string_view str) {
-    if (str == "abort") {
+    using namespace std::string_view_literals;
+    if (str == "abort"sv) {
         return ErrorHandlingMethod::Abort;
-    } else if (str == "log") {
-        return ErrorHandlingMethod::Log;
-    } else if (str == "throw") {
-        return ErrorHandlingMethod::Throw;
-    } else {
-        throw std::logic_error("Invalid error handler parameter");
     }
-    folly::assume_unreachable();
+    if (str == "log"sv) {
+        return ErrorHandlingMethod::Log;
+    }
+    if (str == "throw"sv) {
+        return ErrorHandlingMethod::Throw;
+    }
+    throw std::logic_error("Invalid error handler parameter");
 }
 
 void handleError(spdlog::logger& logger,

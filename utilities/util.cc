@@ -131,15 +131,16 @@ std::string to_string(const BucketCompressionMode mode) {
             std::to_string(int(mode)));
 }
 
-BucketCompressionMode parseCompressionMode(const std::string& mode) {
-    if (mode == "off") {
+BucketCompressionMode parseCompressionMode(const std::string_view mode) {
+    using namespace std::string_view_literals;
+    if (mode == "off"sv) {
         return BucketCompressionMode::Off;
-    } else if (mode == "passive") {
-        return BucketCompressionMode::Passive;
-    } else if (mode == "active") {
-        return BucketCompressionMode::Active;
-    } else {
-        throw std::invalid_argument(
-                "setCompressionMode: invalid mode specified");
     }
+    if (mode == "passive"sv) {
+        return BucketCompressionMode::Passive;
+    }
+    if (mode == "active"sv) {
+        return BucketCompressionMode::Active;
+    }
+    throw std::invalid_argument("setCompressionMode: invalid mode specified");
 }

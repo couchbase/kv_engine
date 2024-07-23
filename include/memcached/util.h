@@ -46,4 +46,4 @@ std::string to_string(BucketCompressionMode mode);
  *
  * @throws std::invalid_argument if the mode isn't one of the legal values
  */
-BucketCompressionMode parseCompressionMode(const std::string& mode);
+BucketCompressionMode parseCompressionMode(std::string_view mode);

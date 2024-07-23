@@ -2046,30 +2046,38 @@ StorageProperties CouchKVStore::getStorageProperties() const {
 }
 
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
-    if (name == "failure_get") {
+    using namespace std::string_view_literals;
+    if (name == "failure_get"sv) {
         value = st.numGetFailure.load();
         return true;
-    } else if (name == "io_document_write_bytes") {
+    }
+    if (name == "io_document_write_bytes"sv) {
         value = st.io_document_write_bytes;
         return true;
-    } else if (name == "io_flusher_write_bytes") {
+    }
+    if (name == "io_flusher_write_bytes"sv) {
         value = fsStats.totalBytesWritten;
         return true;
-    } else if (name == "io_total_read_bytes") {
+    }
+    if (name == "io_total_read_bytes"sv) {
         value = fsStats.totalBytesRead.load() +
                 fsStatsCompaction.totalBytesRead.load();
         return true;
-    } else if (name == "io_total_write_bytes") {
+    }
+    if (name == "io_total_write_bytes"sv) {
         value = fsStats.totalBytesWritten.load() +
                 fsStatsCompaction.totalBytesWritten.load();
         return true;
-    } else if (name == "io_compaction_read_bytes") {
+    }
+    if (name == "io_compaction_read_bytes"sv) {
         value = fsStatsCompaction.totalBytesRead;
         return true;
-    } else if (name == "io_compaction_write_bytes") {
+    }
+    if (name == "io_compaction_write_bytes"sv) {
         value = fsStatsCompaction.totalBytesWritten;
         return true;
-    } else if (name == "io_bg_fetch_read_count") {
+    }
+    if (name == "io_bg_fetch_read_count"sv) {
         value = st.getMultiFsReadCount;
         return true;
     }
@@ -2270,9 +2278,11 @@ ScanStatus CouchKVStore::scan(BySeqnoScanContext& ctx) const {
 
     if (errorCode == COUCHSTORE_SUCCESS) {
         return ScanStatus::Success;
-    } else if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
+    }
+    if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
         return ScanStatus::Yield;
-    } else if (errorCode == COUCHSTORE_ERROR_SCAN_CANCELLED) {
+    }
+    if (errorCode == COUCHSTORE_ERROR_SCAN_CANCELLED) {
         return ScanStatus::Cancelled;
     }
 
@@ -2330,9 +2340,11 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
 
     if (errorCode == COUCHSTORE_SUCCESS) {
         return ScanStatus::Success;
-    } else if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
+    }
+    if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
         return ScanStatus::Yield;
-    } else if (errorCode == COUCHSTORE_ERROR_SCAN_CANCELLED) {
+    }
+    if (errorCode == COUCHSTORE_ERROR_SCAN_CANCELLED) {
         return ScanStatus::Cancelled;
     }
 

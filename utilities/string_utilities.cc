@@ -76,16 +76,15 @@ std::pair<std::string, StrToStrMap> decode_query(const std::string& s) {
             auto pair = split_string(str_pair, "=", 1);
 
             if (pair.size() != 2) {
-                throw std::invalid_argument(
-                        "decode_query(): Query pair '"
-                        + str_pair + "' did not contain '='");
-            } else if (pair[0].empty()) {
+                throw std::invalid_argument("decode_query(): Query pair '" +
+                                            str_pair + "' did not contain '='");
+            }
+            if (pair[0].empty()) {
                 throw std::invalid_argument(
                         "decode_query(): Query pair had empty argument name");
-            } else {
-                result.second.emplace(percent_decode(pair[0]),
-                                      percent_decode(pair[1]));
             }
+            result.second.emplace(percent_decode(pair[0]),
+                                  percent_decode(pair[1]));
         }
     }
     return result;

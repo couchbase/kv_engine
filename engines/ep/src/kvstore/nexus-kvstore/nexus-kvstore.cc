@@ -1111,24 +1111,22 @@ NexusCompactionContext NexusKVStore::calculateCompactionOrder(
                 primaryCtx,
                 secondaryCtx,
                 false};
-    } else if (primaryStaleCallbacks && !secondaryStaleCallbacks) {
+    }
+    if (primaryStaleCallbacks && !secondaryStaleCallbacks) {
         // Magma + Couchstore
         // Run primary first to attempt to prune the stale callbacks
         return {primary.get(), secondary.get(), primaryCtx, secondaryCtx, true};
-    } else if (!primaryStaleCallbacks && secondaryStaleCallbacks) {
+    }
+    if (!primaryStaleCallbacks && secondaryStaleCallbacks) {
         // Couchstore + Magma
         // Run secondary first to attempt to prune the stale callbacks
         return {secondary.get(), primary.get(), secondaryCtx, primaryCtx, true};
-    } else {
-        // Magma + Magma
-        // Order shouldn't matter, the stale callback pruning may/may not work
-        // depending on how/when files are compacted in magma
-        return {primary.get(),
-                secondary.get(),
-                primaryCtx,
-                secondaryCtx,
-                false};
     }
+
+    // Magma + Magma
+    // Order shouldn't matter, the stale callback pruning may/may not work
+    // depending on how/when files are compacted in magma
+    return {primary.get(), secondary.get(), primaryCtx, secondaryCtx, false};
 }
 
 /**

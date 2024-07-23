@@ -621,7 +621,7 @@ public:
 
     static const char* toString(vbucket_state_t s);
 
-    static vbucket_state_t fromString(const char* state);
+    static vbucket_state_t fromString(std::string_view state);
 
     /**
      * Checks and decides whether to add high priority request on the vbucket.

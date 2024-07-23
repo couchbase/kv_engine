@@ -167,9 +167,8 @@ static Status parseFrameExtras(Cookie& cookie,
                     status = Status::Einval;
                     // terminate parsing
                     return false;
-                } else {
-                    cookie.setBarrier();
                 }
+                cookie.setBarrier();
                 return true;
             case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
                 try {

@@ -27,9 +27,11 @@ uint8_t convertFreqCountToNRUValue(uint8_t probCounter) {
      */
     if (probCounter >= 64) {
         return MIN_NRU_VALUE; /* 0 - the hottest */
-    } else if (probCounter >= 32) {
+    }
+    if (probCounter >= 32) {
         return 1;
-    } else if (probCounter >= 4) {
+    }
+    if (probCounter >= 4) {
         return INITIAL_NRU_VALUE; /* 2 */
     }
     return MAX_NRU_VALUE; /* 3 - the coldest */

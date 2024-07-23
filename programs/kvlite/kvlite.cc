@@ -98,13 +98,13 @@ decode_encoded_string(const std::string& string) {
             throw std::invalid_argument(
                     "decode_encoded_string(): Query pair '" + str_pair +
                     "' did not contain '='");
-        } else if (pair[0].empty()) {
+        }
+        if (pair[0].empty()) {
             throw std::invalid_argument(
                     "decode_encoded_string(): Query pair had empty argument "
                     "name");
-        } else {
-            vals.emplace(percent_decode(pair[0]), percent_decode(pair[1]));
         }
+        vals.emplace(percent_decode(pair[0]), percent_decode(pair[1]));
     }
     return vals;
 }

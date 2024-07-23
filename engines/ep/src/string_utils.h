@@ -27,7 +27,7 @@
  * @return Converted string
  * @throws std::invalid_argument_bool if argument is not true or false
  */
-bool cb_stob(const std::string& s);
+bool cb_stob(std::string_view s);
 
 /**
  * Checks input to determine whether it is prefixed with 'prefix'.

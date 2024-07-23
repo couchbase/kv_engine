@@ -1014,7 +1014,8 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
                     "does not exist in opaqueMap",
                     opaque);
             return false;
-        } else if (!isValidOpaque(opaque, oitr->second.second)) {
+        }
+        if (!isValidOpaque(opaque, oitr->second.second)) {
             EP_LOG_WARN(
                     "Received response with opaque {} and that stream does not "
                     "exist for {}",
@@ -1061,9 +1062,11 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
 
         streamAccepted(opaque, status, value.data(), value.size());
         return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
+    }
+    if (opcode == cb::mcbp::ClientOpcode::DcpBufferAcknowledgement) {
         return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpControl) {
+    }
+    if (opcode == cb::mcbp::ClientOpcode::DcpControl) {
         // The Consumer-Producer negotiation for Sync Replication, deleted user
         // xattrs and v7 DCP status codes happens over DCP_CONTROL and
         // introduces a blocking step. The blocking DCP_CONTROL request is
@@ -1131,7 +1134,8 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
             }
         }
         return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
+    }
+    if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
         auto status = response.getStatus();
         // GetErrorMap is supported on versions >= 5.0.0.
         // "Unknown Command" is returned on pre-5.0.0 versions.
@@ -1145,8 +1149,7 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         if (!producerIsVersion5orHigher) {
             logger->error(
                     "Incompatible Producer node version detected - this "
-                    "version "
-                    "of CB Server requires version 6 or higher - "
+                    "version of CB Server requires version 6 or higher - "
                     "disconnecting. (Producer responded with {} to GetErrorMap "
                     "request indicating version <5.0.0)",
                     status);
@@ -1154,7 +1157,8 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         }
         getErrorMapState = GetErrorMapState::Skip;
         return true;
-    } else if (opcode == cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged) {
+    }
+    if (opcode == cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged) {
         // Seqno ack might respond in a non-success case if the vBucket has gone
         // away on the producer. We don't really care if this happens, the
         // stream has probably already gone away, but we don't want to take down

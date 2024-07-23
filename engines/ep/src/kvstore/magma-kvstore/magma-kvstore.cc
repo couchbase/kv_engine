@@ -2351,7 +2351,8 @@ ScanStatus MagmaKVStore::scanOne(
                         seqno);
             }
             return ScanStatus::Success;
-        } else if (ctx.getCacheCallback().shouldYield()) {
+        }
+        if (ctx.getCacheCallback().shouldYield()) {
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scanOne lookup->callback {} "
@@ -2360,8 +2361,8 @@ ScanStatus MagmaKVStore::scanOne(
                         cb::UserData{lookup.getKey().to_string()});
             }
             return ScanStatus::Yield;
-        } else if (ctx.getCacheCallback().getStatus() !=
-                   cb::engine_errc::success) {
+        }
+        if (ctx.getCacheCallback().getStatus() != cb::engine_errc::success) {
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scanOne lookup->callback {} "

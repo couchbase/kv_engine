@@ -37,6 +37,8 @@
 
 #include "mock/mock_dcp.h"
 
+#include <string_utils.h>
+
 using namespace std::string_literals;
 
 CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
@@ -1334,15 +1336,7 @@ std::string get_str_stat(EngineIface* h,
 bool get_bool_stat(EngineIface* h,
                    const char* statname,
                    const char* statkey) {
-    const auto s = get_str_stat(h, statname, statkey);
-
-    if (s == "true") {
-        return true;
-    } else if (s == "false") {
-        return false;
-    } else {
-        throw std::invalid_argument("Unable to convert string '" + s + "' to type bool");
-    }
+    return cb_stob(get_str_stat(h, statname, statkey));
 }
 
 /* Fetches the value for a given statname in the given statkey set.

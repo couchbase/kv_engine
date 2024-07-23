@@ -265,7 +265,7 @@ void to_json(nlohmann::json& json, const vbucket_transition_state& state) {
 }
 
 void from_json(const nlohmann::json& j, vbucket_transition_state& state) {
-    state.state = VBucket::fromString(j.at("state").get<std::string>().c_str());
+    state.state = VBucket::fromString(j.at("state").get<std::string>());
 
     // Now check for optional fields.
     auto failoverIt = j.find("failover_table");

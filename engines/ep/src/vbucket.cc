@@ -506,16 +506,18 @@ const char* VBucket::toString(vbucket_state_t s) {
     return "unknown";
 }
 
-vbucket_state_t VBucket::fromString(const char* state) {
-    if (strcmp(state, "active") == 0) {
+vbucket_state_t VBucket::fromString(const std::string_view state) {
+    using namespace std::string_view_literals;
+    if (state == "active"sv) {
         return vbucket_state_active;
-    } else if (strcmp(state, "replica") == 0) {
-        return vbucket_state_replica;
-    } else if (strcmp(state, "pending") == 0) {
-        return vbucket_state_pending;
-    } else {
-        return vbucket_state_dead;
     }
+    if (state == "replica"sv) {
+        return vbucket_state_replica;
+    }
+    if (state == "pending"sv) {
+        return vbucket_state_pending;
+    }
+    return vbucket_state_dead;
 }
 
 void VBucket::setState(vbucket_state_t to, const nlohmann::json* meta) {
@@ -579,10 +581,9 @@ std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
     for (const auto& el : meta.items()) {
         if (el.key() == "topology") {
             return validateReplicationTopology(el.value());
-        } else {
-            return "'topology' contains unsupported key:"s + el.key() +
-                   " with value:" + el.value().dump();
         }
+        return "'topology' contains unsupported key:"s + el.key() +
+               " with value:" + el.value().dump();
     }
     return {};
 }
@@ -2189,37 +2190,39 @@ cb::engine_errc VBucket::deleteItem(
             isLogicallyNonExistent(*htRes.committed, cHandle)) {
             if (eviction == EvictionPolicy::Value) {
                 return cb::engine_errc::no_such_key;
-            } else { // Full eviction.
-                if (!htRes.committed) { // Item might be evicted from cache.
-                    if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                        return addTempItemAndBGFetch(std::move(hbl),
-                                                     cHandle.getKey(),
-                                                     cookie,
-                                                     engine,
-                                                     true);
-                    } else {
-                        // As bloomfilter predicted that item surely doesn't
-                        // exist on disk, return ENOENT for deleteItem().
-                        return cb::engine_errc::no_such_key;
-                    }
-                } else if (htRes.committed->isTempInitialItem()) {
-                    return bgFetch(std::move(hbl),
-                                   cHandle.getKey(),
-                                   *htRes.committed,
-                                   cookie,
-                                   engine,
-                                   true);
-                } else { // Non-existent or deleted key.
-                    if (htRes.committed->isTempNonExistentItem() ||
-                        htRes.committed->isTempDeletedItem()) {
-                        // Delete a temp non-existent item to ensure that
-                        // if a delete were issued over an item that doesn't
-                        // exist, then we don't preserve a temp item.
-                        deleteStoredValue(hbl, *htRes.committed);
-                    }
-                    return cb::engine_errc::no_such_key;
-                }
             }
+            // Full eviction.
+            if (!htRes.committed) { // Item might be evicted from cache.
+                if (maybeKeyExistsInFilter(cHandle.getKey())) {
+                    return addTempItemAndBGFetch(std::move(hbl),
+                                                 cHandle.getKey(),
+                                                 cookie,
+                                                 engine,
+                                                 true);
+                }
+                // As bloomfilter predicted that item surely doesn't
+                // exist on disk, return ENOENT for deleteItem().
+                return cb::engine_errc::no_such_key;
+            }
+
+            if (htRes.committed->isTempInitialItem()) {
+                return bgFetch(std::move(hbl),
+                               cHandle.getKey(),
+                               *htRes.committed,
+                               cookie,
+                               engine,
+                               true);
+            }
+
+            // Non-existent or deleted key.
+            if (htRes.committed->isTempNonExistentItem() ||
+                htRes.committed->isTempDeletedItem()) {
+                // Delete a temp non-existent item to ensure that
+                // if a delete were issued over an item that doesn't
+                // exist, then we don't preserve a temp item.
+                deleteStoredValue(hbl, *htRes.committed);
+            }
+            return cb::engine_errc::no_such_key;
         }
 
         if (htRes.committed->isLocked(ep_current_time()) &&
@@ -2965,47 +2968,47 @@ cb::engine_errc VBucket::getMetaData(
             // Need bg meta fetch.
             return bgFetch(
                     std::move(hbl), cHandle.getKey(), *v, cookie, engine, true);
-        } else if (v->isTempNonExistentItem()) {
+        }
+        if (v->isTempNonExistentItem()) {
             metadata.cas = v->getCas();
             return cb::engine_errc::no_such_key;
-        } else if (cHandle.isLogicallyDeleted(v->getBySeqno())) {
-            return cb::engine_errc::no_such_key;
-        } else {
-            if (v->isTempDeletedItem() || v->isDeleted() ||
-                v->isExpired(ep_real_time())) {
-                deleted |= GET_META_ITEM_DELETED_FLAG;
-            }
-
-            if (v->isLocked(ep_current_time())) {
-                metadata.cas = static_cast<uint64_t>(-1);
-            } else {
-                metadata.cas = v->getCas();
-            }
-            metadata.flags = v->getFlags();
-            metadata.exptime = v->getExptime();
-            metadata.revSeqno = v->getRevSeqno();
-            datatype = v->getDatatype();
-
-            return cb::engine_errc::success;
         }
-    } else {
-        // The key wasn't found. However, this may be because it was previously
-        // deleted or evicted with the full eviction strategy.
-        // So, add a temporary item corresponding to the key to the hash table
-        // and schedule a background fetch for its metadata from the persistent
-        // store. The item's state will be updated after the fetch completes.
-        //
-        // Schedule this bgFetch only if the key is predicted to be may-be
-        // existent on disk by the bloomfilter.
-
-        if (maybeKeyExistsInFilter(cHandle.getKey())) {
-            return addTempItemAndBGFetch(
-                    std::move(hbl), cHandle.getKey(), cookie, engine, true);
-        } else {
-            stats.numOpsGetMeta++;
+        if (cHandle.isLogicallyDeleted(v->getBySeqno())) {
             return cb::engine_errc::no_such_key;
         }
+        if (v->isTempDeletedItem() || v->isDeleted() ||
+            v->isExpired(ep_real_time())) {
+            deleted |= GET_META_ITEM_DELETED_FLAG;
+        }
+
+        if (v->isLocked(ep_current_time())) {
+            metadata.cas = static_cast<uint64_t>(-1);
+        } else {
+            metadata.cas = v->getCas();
+        }
+        metadata.flags = v->getFlags();
+        metadata.exptime = v->getExptime();
+        metadata.revSeqno = v->getRevSeqno();
+        datatype = v->getDatatype();
+
+        return cb::engine_errc::success;
     }
+
+    // The key wasn't found. However, this may be because it was previously
+    // deleted or evicted with the full eviction strategy.
+    // So, add a temporary item corresponding to the key to the hash table
+    // and schedule a background fetch for its metadata from the persistent
+    // store. The item's state will be updated after the fetch completes.
+    //
+    // Schedule this bgFetch only if the key is predicted to be may-be
+    // existent on disk by the bloomfilter.
+
+    if (maybeKeyExistsInFilter(cHandle.getKey())) {
+        return addTempItemAndBGFetch(
+                std::move(hbl), cHandle.getKey(), cookie, engine, true);
+    }
+    stats.numOpsGetMeta++;
+    return cb::engine_errc::no_such_key;
 }
 
 cb::engine_errc VBucket::getKeyStats(
@@ -3125,11 +3128,10 @@ GetValue VBucket::getLocked(rel_time_t currentTime,
                                                            engine,
                                                            false);
                 return GetValue(nullptr, ec, -1, true);
-            } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for getLocked().
-                return GetValue(nullptr, cb::engine_errc::no_such_key);
             }
+            // As bloomfilter predicted that item surely doesn't exist
+            // on disk, return ENOENT for getLocked().
+            return GetValue(nullptr, cb::engine_errc::no_such_key);
         }
         folly::assume_unreachable();
     case FetchForWriteResult::Status::ESyncWriteInProgress:

@@ -85,18 +85,22 @@ std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::OpenCollections>(
                 key.data(), "OpenCollections", value);
-    } else if (key == LocalDocKey::droppedCollections) {
+    }
+    if (key == LocalDocKey::droppedCollections) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::DroppedCollections>(
                 key.data(), "DroppedCollections", value);
-    } else if (key == LocalDocKey::openScopes) {
+    }
+    if (key == LocalDocKey::openScopes) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::Scopes>(key.data(), "Scopes", value);
-    } else if (key == LocalDocKey::manifest) {
+    }
+    if (key == LocalDocKey::manifest) {
         return read_collection_flatbuffer_collections<
                 Collections::KVStore::CommittedManifest>(
                 key.data(), "CommittedManifest", value);
-    } else if (key.data()[0] == '|') {
+    }
+    if (key.data()[0] == '|') {
         return {true /*success*/, read_collection_leb128_metadata(value)};
     }
 

@@ -253,19 +253,22 @@ size_t HashTable::getPreferredSize() const {
     if (candidate == prime_size_table.end()) {
         // We're at the end, take the biggest
         return prime_size_table.back();
-    } else if (*candidate < minSize) {
+    }
+    if (*candidate < minSize) {
         // Was going to be smaller than the minimum size.
         return minSize;
-    } else if (candidate == prime_size_table.begin()) {
+    }
+    if (candidate == prime_size_table.begin()) {
         return *candidate;
-    } else if (currSize == *(candidate - 1) || currSize == *candidate) {
+    }
+    if (currSize == *(candidate - 1) || currSize == *candidate) {
         // If one of the candidate sizes is the current size, maintain
         // the current size in order to remain stable.
         return currSize;
-    } else {
-        // Somewhere in the middle, use the one we're closer to.
-        return nearest(numItems, *(candidate - 1), *candidate);
     }
+
+    // Somewhere in the middle, use the one we're closer to.
+    return nearest(numItems, *(candidate - 1), *candidate);
 }
 
 NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
