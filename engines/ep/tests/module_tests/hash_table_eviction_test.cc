@@ -228,7 +228,7 @@ protected:
                 complete = false;
                 auto key = makeStoredDocKey("DOC_" + std::to_string(kk));
                 EventuallyPersistentEngine* epe =
-                        ObjectRegistry::onSwitchThread(NULL, true);
+                        ObjectRegistry::onSwitchThread(nullptr, true);
                 Vbid vbucket = Vbid(0);
                 auto it = vbucketLookup.find(kk);
                 if (it != vbucketLookup.end()) {

@@ -1649,8 +1649,8 @@ TEST_P(KVBucketParamTest, getAndUpdateTtlTempDeletedItemTest) {
 
     //Check that the temp item is removed for getAndUpdateTtl
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    GetValue gv = store->getAndUpdateTtl(makeStoredDocKey("key"), vbid,
-                                         cookie, time(NULL));
+    GetValue gv = store->getAndUpdateTtl(
+            makeStoredDocKey("key"), vbid, cookie, time(nullptr));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
