@@ -91,7 +91,6 @@ struct WriteCallback {
 };
 
 struct DeleteCallback {
-public:
     void operator()(TransactionContext&, FlushStateDeletion) {
     }
 };

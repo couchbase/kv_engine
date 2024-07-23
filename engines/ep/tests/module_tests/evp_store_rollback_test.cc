@@ -587,7 +587,6 @@ protected:
         EXPECT_EQ(0, store->getVBucket(vbid)->getPersistenceSeqno());
     }
 
-protected:
     int64_t initial_seqno;
     vbucket_state_t vbStateAtRollback;
 };

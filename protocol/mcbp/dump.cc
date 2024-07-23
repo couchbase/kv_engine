@@ -149,7 +149,6 @@ protected:
         }
     }
 
-protected:
     const cb::mcbp::Header& header;
 };
 

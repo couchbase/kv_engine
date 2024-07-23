@@ -47,7 +47,6 @@ protected:
         json = nlohmann::json::parse(input);
     }
 
-protected:
     nlohmann::json json;
 };
 

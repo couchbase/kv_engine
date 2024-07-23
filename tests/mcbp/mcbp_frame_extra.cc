@@ -55,7 +55,6 @@ protected:
         return result;
     }
 
-protected:
     cb::mcbp::RequestBuilder builder;
 };
 

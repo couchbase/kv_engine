@@ -71,7 +71,6 @@ FOLLY_NOINLINE FOLLY_DISABLE_SANITIZERS void* memcpy_nosanitize(
  * the address of the *this object and the stack frame of the operator().
  */
 struct StackCapture {
-public:
     StackCapture() = default;
 
     StackCapture(const StackCapture&) = delete;

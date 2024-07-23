@@ -56,7 +56,6 @@ protected:
         set_enterprise_edition(false);
     }
 
-protected:
     nlohmann::json json;
 };
 
@@ -103,7 +102,6 @@ protected:
         set_enterprise_edition(true);
     }
 
-protected:
     nlohmann::json json;
 };
 

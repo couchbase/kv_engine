@@ -105,7 +105,6 @@ protected:
         }
     }
 
-protected:
     std::vector<Vbid> vbids;
 };
 

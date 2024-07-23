@@ -16,7 +16,6 @@
 
 /* Test class which inherits from RCValue */
 struct DummyValue : public RCValue {
-public:
     explicit DummyValue(size_t value_) : value(value_) {
     }
 

@@ -90,7 +90,6 @@ protected:
         userConnection->mutate(document, Vbid(0), MutationType::Set);
     }
 
-protected:
     void doArrayInsertTest(const std::string& path) {
         auto resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
                            name,

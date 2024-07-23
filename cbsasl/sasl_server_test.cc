@@ -28,7 +28,6 @@ protected:
         swap_password_database(std::move(passwordDatabase));
     }
 
-protected:
     cb::sasl::server::ServerContext context;
 };
 
