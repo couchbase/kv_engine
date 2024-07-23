@@ -2758,9 +2758,7 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
             << "The meta attribute should be gone";
 }
 
-class MB_36087 : public STParameterizedBucketTest {
-public:
-};
+class MB_36087 : public STParameterizedBucketTest {};
 
 // Test for MB-36087 - simply check that an evicted xattr item doesn't crash
 // when a winning del-with-meta arrives.

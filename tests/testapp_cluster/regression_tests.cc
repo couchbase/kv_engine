@@ -15,9 +15,7 @@
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 
-class RegressionTest : public cb::test::ClusterTest {
-protected:
-};
+class RegressionTest : public cb::test::ClusterTest {};
 
 /// MB-51135 - data_writer role failed to use subdoc multi-mutation
 ///            as it would require read privilege

@@ -17,9 +17,7 @@
 
 #include <algorithm>
 
-class RbacTest : public TestappClientTest {
-public:
-};
+class RbacTest : public TestappClientTest {};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          RbacTest,

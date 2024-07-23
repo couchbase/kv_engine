@@ -827,9 +827,7 @@ TEST_P(CollectionsOSODcpTest, fallbackToSeqnoIfOsoDisabled) {
 
 // OSO doesn't support ephemeral - this one test checks it falls back to normal
 // snapshots
-class CollectionsOSOEphemeralTest : public CollectionsDcpParameterizedTest {
-public:
-};
+class CollectionsOSOEphemeralTest : public CollectionsDcpParameterizedTest {};
 
 // Run through how we expect OSO to work, this is a minimal test which will
 // use the default collection

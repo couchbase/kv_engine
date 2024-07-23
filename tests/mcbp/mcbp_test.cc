@@ -2071,7 +2071,6 @@ TEST_P(UnlockValidatorTest, InvalidBodylen) {
 class ConfigReloadValidatorTest : public ::testing::WithParamInterface<bool>,
                                   public ValidatorTest {
 public:
-public:
     ConfigReloadValidatorTest() : ValidatorTest(GetParam()) {
     }
 

@@ -19,7 +19,6 @@
 /// @todo Add extra unit tests to verify that we check for the JSON types
 
 class ModuleListParseTest : public ::testing::Test {
-public:
 protected:
     void SetUp() override {
         /**
@@ -85,7 +84,6 @@ TEST_F(ModuleListParseTest, LoadModulesNonexistingFile) {
 }
 
 class SingleModuleParseTest : public ::testing::Test {
-public:
 protected:
     void SetUp() override {
         /**

@@ -61,9 +61,7 @@
 #include "client/linux/handler/exception_handler.h"
 #else
 namespace google_breakpad {
-class ExceptionHandler {
-public:
-};
+class ExceptionHandler {};
 } // namespace google_breakpad
 #endif
 

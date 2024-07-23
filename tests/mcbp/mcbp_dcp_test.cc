@@ -451,7 +451,6 @@ TEST_P(DcpSnapshotMarkerValidatorTest, InvalidV2Version) {
 class DcpMutationValidatorTest : public ::testing::WithParamInterface<bool>,
                                  public ValidatorTest {
 public:
-public:
     DcpMutationValidatorTest() : ValidatorTest(GetParam()) {
     }
 
@@ -657,7 +656,6 @@ TEST_P(DcpDeletionValidatorTest, WithValue) {
  */
 class DcpExpirationValidatorTest : public ::testing::WithParamInterface<bool>,
                                    public ValidatorTest {
-public:
 public:
     DcpExpirationValidatorTest() : ValidatorTest(GetParam()) {
     }

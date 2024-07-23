@@ -327,7 +327,6 @@ TEST_F(ScopePrivCollectionVisibility, collections) {
 // case is scope{c1,c2}  privs scope{c1} lookup for c2
 
 class CollectionPrivVisibility : public ::testing::Test {
-public:
     // In this test fixture, the 'user' has no collection privileges for the
     // bucket or scope, they only have collection privileges at given
     // collections (depending on the test)

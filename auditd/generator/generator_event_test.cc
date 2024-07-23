@@ -17,7 +17,6 @@
 /// @todo Add extra unit tests to verify that we check for the JSON types
 
 class EventParseTest : public ::testing::Test {
-public:
 protected:
     void SetUp() override {
         /**
