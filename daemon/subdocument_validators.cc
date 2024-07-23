@@ -40,7 +40,7 @@ static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
     return cb::mcbp::Status::Success;
 }
 
-static inline bool validMutationSemantics(cb::mcbp::subdoc::DocFlag a) {
+static bool validMutationSemantics(cb::mcbp::subdoc::DocFlag a) {
     // Can't have both the Add flag and Mkdoc flag set as this doesn't mean
     // anything at the moment.
     return !(hasAdd(a) && hasMkdoc(a));
@@ -78,12 +78,11 @@ static cb::mcbp::Status validate_macro(std::string_view value) {
  * @param value The value passed (if it is a macro this must be a legal macro)
  * @return cb::mcbp::Status::Success if everything is correct
  */
-static inline cb::mcbp::Status validate_xattr_section(
-        Cookie& cookie,
-        bool mutator,
-        cb::mcbp::subdoc::PathFlag flags,
-        std::string_view path,
-        std::string_view value) {
+static cb::mcbp::Status validate_xattr_section(Cookie& cookie,
+                                               bool mutator,
+                                               cb::mcbp::subdoc::PathFlag flags,
+                                               std::string_view path,
+                                               std::string_view value) {
     if (!hasXattrPath(flags)) {
         if (hasExpandedMacros(flags)) {
             cookie.setErrorContext(

@@ -19,7 +19,7 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-static inline cb::engine_errc do_dcp_mutation(Cookie& cookie) {
+static cb::engine_errc do_dcp_mutation(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto& extras =
             req.getCommandSpecifics<cb::mcbp::request::DcpMutationPayload>();

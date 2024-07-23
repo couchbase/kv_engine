@@ -103,11 +103,11 @@ bool McbpValidator::is_document_key_valid(Cookie& cookie) {
     return rv;
 }
 
-static inline bool may_accept_dcp_deleteV2(const Cookie& cookie) {
+static bool may_accept_dcp_deleteV2(const Cookie& cookie) {
     return cookie.getConnection().isDcpDeleteV2();
 }
 
-static inline std::string get_peer_description(const Cookie& cookie) {
+static std::string get_peer_description(const Cookie& cookie) {
     return std::string{cookie.getConnection().getDescription().dump()};
 }
 

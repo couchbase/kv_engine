@@ -156,8 +156,7 @@ ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
     return ::pwrite(fd, buf, nbyte, offset);
 }
 
-static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
-                              size_t nbytes) {
+static ssize_t doWrite(file_handle_t fd, const uint8_t* buf, size_t nbytes) {
     ssize_t ret;
     while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -170,7 +169,7 @@ static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
     return ret;
 }
 
-static inline void doClose(file_handle_t fd) {
+static void doClose(file_handle_t fd) {
     int ret;
     while ((ret = close(fd)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -182,7 +181,7 @@ static inline void doClose(file_handle_t fd) {
     }
 }
 
-static inline void doFsync(file_handle_t fd) {
+static void doFsync(file_handle_t fd) {
     int ret;
     while ((ret = fsync(fd)) == -1 && (errno == EINTR)) {
         /* Retry */
