@@ -361,8 +361,7 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCertInvalidPassphrase) {
 TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_AddressInUse) {
     SOCKET server_socket = cb::net::socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_NE(INVALID_SOCKET, server_socket);
-    sockaddr_in sin;
-    std::memset(&sin, 0, sizeof(sin));
+    sockaddr_in sin = {};
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = INADDR_ANY;
     ASSERT_EQ(0,

@@ -147,8 +147,7 @@ TEST_P(AsyncReaderUnitTests, errorReset) {
 }
 
 TEST_P(AsyncReaderUnitTests, MessageReceived) {
-    cb::mcbp::Request request;
-    memset(&request, 0, sizeof(request));
+    cb::mcbp::Request request = {};
     request.setMagic(cb::mcbp::Magic::ClientRequest);
     request.setOpcode(cb::mcbp::ClientOpcode::Noop);
     request.setCas(0xdeadbeef);
