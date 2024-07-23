@@ -160,7 +160,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // new checkpoint as we don't want the new commit to dedup a
                 // previous commit or a previous normal mutation.
                 return {QueueDirtyStatus::FailureDuplicateItem, 0};
-            } else if (indexEntry.getPosition() == toWrite.end()) {
+            }
+            if (indexEntry.getPosition() == toWrite.end()) {
                 // Case: normal mutation expelled
 
                 // CDC: Duplicates for historical collections must be queued

@@ -52,10 +52,9 @@ bool check_credentials(struct evhttp_request* req) {
 
     if (credentials == std::string(auth + 6)) {
         return true;
-    } else {
-        evhttp_send_reply(req, 401, "Unauthorized", nullptr);
-        return false;
     }
+    evhttp_send_reply(req, 401, "Unauthorized", nullptr);
+    return false;
 }
 
 static void add_default_headers(struct evhttp_request* req,

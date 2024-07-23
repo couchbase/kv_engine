@@ -131,9 +131,8 @@ ConnStore::CookieToConnMapHandle::findConnHandlerByCookie(CookieIface* cookie) {
     auto itr = cookieToConn.find(cookie);
     if (itr == cookieToConn.end()) {
         return {};
-    } else {
-        return itr->second;
     }
+    return itr->second;
 }
 
 std::shared_ptr<ConnHandler>
@@ -157,9 +156,8 @@ void ConnStore::CookieToConnMapHandle::addConnByCookie(
                 "ConnStore::addConnByCookie attempting to add a "
                 "consumer but a connection already exists"
                 "for this cookie");
-    } else {
-        cookieToConn[cookie] = conn;
     }
+    cookieToConn[cookie] = conn;
 }
 
 void ConnStore::CookieToConnMapHandle::removeConnByCookie(CookieIface* cookie) {

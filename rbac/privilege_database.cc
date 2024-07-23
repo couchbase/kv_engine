@@ -580,7 +580,8 @@ PrivilegeAccess PrivilegeContext::checkForPrivilegeAtLeastInOneCollection(
 std::string PrivilegeContext::to_string() const {
     if (mask.all()) {
         return "[all]";
-    } else if (mask.none()) {
+    }
+    if (mask.none()) {
         return "[none]";
     }
 

@@ -1017,14 +1017,13 @@ cb::engine_errc VBucket::abort(
                         id,
                         cb::UserData(ss.str()));
                 return cb::engine_errc::invalid_arguments;
-            } else {
-                EP_LOG_ERR(
-                        "VBucket::abort ({}) - active failed as no HashTable"
-                        "item found with key:{}",
-                        id,
-                        cb::UserDataView(key.to_string()));
-                return cb::engine_errc::no_such_key;
             }
+            EP_LOG_ERR(
+                    "VBucket::abort ({}) - active failed as no HashTable"
+                    "item found with key:{}",
+                    id,
+                    cb::UserDataView(key.to_string()));
+            return cb::engine_errc::no_such_key;
         }
 
         // If we did not find the corresponding prepare for this abort then we
@@ -1166,9 +1165,8 @@ bool VBucket::isResidentRatioUnderThreshold(float threshold) {
                     : 0.0;
     if (threshold >= ratio) {
         return true;
-    } else {
-        return false;
     }
+    return false;
 }
 
 void VBucket::createFilter(size_t key_count, double probability) {
@@ -1777,11 +1775,10 @@ cb::engine_errc VBucket::replace(
             if (maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemAndBGFetch(
                         std::move(hbl), itm.getKey(), cookie, engine, false);
-            } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for replace().
-                return cb::engine_errc::no_such_key;
             }
+            // As bloomfilter predicted that item surely doesn't exist
+            // on disk, return ENOENT for replace().
+            return cb::engine_errc::no_such_key;
         }
     }
 
@@ -2056,9 +2053,8 @@ cb::engine_errc VBucket::setWithMeta(
             if (maybeKeyExistsInFilter(itm.getKey())) {
                 return addTempItemAndBGFetch(
                         std::move(hbl), itm.getKey(), cookie, engine, true);
-            } else {
-                maybeKeyExists = false;
             }
+            maybeKeyExists = false;
         }
     } else {
         if (eviction == EvictionPolicy::Full) {
@@ -2370,16 +2366,15 @@ cb::engine_errc VBucket::deleteWithMeta(
             if (maybeKeyExistsInFilter(key)) {
                 return addTempItemAndBGFetch(
                         std::move(hbl), key, cookie, engine, true);
-            } else {
-                // Even though bloomfilter predicted that item doesn't exist
-                // on disk, we must put this delete on disk if the cas is valid.
-                auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
-                if (rv.status == TempAddStatus::NoMem) {
-                    return cb::engine_errc::no_memory;
-                }
-                v = rv.storedValue;
-                v->setTempDeleted();
             }
+            // Even though bloomfilter predicted that item doesn't exist
+            // on disk, we must put this delete on disk if the cas is valid.
+            auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
+            if (rv.status == TempAddStatus::NoMem) {
+                return cb::engine_errc::no_memory;
+            }
+            v = rv.storedValue;
+            v->setTempDeleted();
         }
     } else {
         if (!v) {
@@ -2765,19 +2760,16 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
         }
 
         return {MutationStatus::WasClean, std::move(rv)};
-    } else {
-        if (eviction == EvictionPolicy::Value) {
-            return {MutationStatus::NotFound, GetValue()};
-        } else {
-            if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                return {MutationStatus::NeedBgFetch, GetValue()};
-            } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for getAndUpdateTtl().
-                return {MutationStatus::NotFound, GetValue()};
-            }
-        }
     }
+    if (eviction == EvictionPolicy::Value) {
+        return {MutationStatus::NotFound, GetValue()};
+    }
+    if (maybeKeyExistsInFilter(cHandle.getKey())) {
+        return {MutationStatus::NeedBgFetch, GetValue()};
+    }
+    // As bloomfilter predicted that item surely doesn't exist
+    // on disk, return ENOENT for getAndUpdateTtl().
+    return {MutationStatus::NotFound, GetValue()};
 }
 
 GetValue VBucket::getAndUpdateTtl(
@@ -2805,14 +2797,13 @@ GetValue VBucket::getAndUpdateTtl(
                                              cookie,
                                              engine);
                 return GetValue(nullptr, ec, res.storedValue->getBySeqno());
-            } else {
-                cb::engine_errc ec = addTempItemAndBGFetch(std::move(res.lock),
-                                                           cHandle.getKey(),
-                                                           cookie,
-                                                           engine,
-                                                           false);
-                return GetValue(nullptr, ec, -1, true);
             }
+            auto ec = addTempItemAndBGFetch(std::move(res.lock),
+                                            cHandle.getKey(),
+                                            cookie,
+                                            engine,
+                                            false);
+            return GetValue(nullptr, ec, -1, true);
         }
         return gv;
     }
@@ -2923,27 +2914,25 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
                         cb::engine_errc::success,
                         v->getBySeqno(),
                         !v->isResident());
-    } else {
-        if (!getDeletedValue && (eviction == EvictionPolicy::Value)) {
-            return {};
-        }
-
-        if (maybeKeyExistsInFilter(cHandle.getKey())) {
-            cb::engine_errc ec = cb::engine_errc::would_block;
-            if (bgFetchRequired) { // Full eviction and need a bg fetch.
-                ec = addTempItemAndBGFetch(std::move(res.lock),
-                                           cHandle.getKey(),
-                                           cookie,
-                                           engine,
-                                           metadataOnly);
-            }
-            return GetValue(nullptr, ec, -1, true);
-        } else {
-            // As bloomfilter predicted that item surely doesn't exist
-            // on disk, return ENOENT, for getInternal().
-            return {};
-        }
     }
+    if (!getDeletedValue && (eviction == EvictionPolicy::Value)) {
+        return {};
+    }
+
+    if (maybeKeyExistsInFilter(cHandle.getKey())) {
+        cb::engine_errc ec = cb::engine_errc::would_block;
+        if (bgFetchRequired) { // Full eviction and need a bg fetch.
+            ec = addTempItemAndBGFetch(std::move(res.lock),
+                                       cHandle.getKey(),
+                                       cookie,
+                                       engine,
+                                       metadataOnly);
+        }
+        return GetValue(nullptr, ec, -1, true);
+    }
+    // As bloomfilter predicted that item surely doesn't exist
+    // on disk, return ENOENT, for getInternal().
+    return {};
 }
 
 cb::engine_errc VBucket::getMetaData(
@@ -3054,24 +3043,18 @@ cb::engine_errc VBucket::getKeyStats(
         kstats.resident = v->isResident();
 
         return cb::engine_errc::success;
-    } else {
-        if (eviction == EvictionPolicy::Value) {
-            return cb::engine_errc::no_such_key;
-        } else {
-            if (maybeKeyExistsInFilter(cHandle.getKey())) {
-                return addTempItemAndBGFetch(std::move(res.lock),
-                                             cHandle.getKey(),
-                                             &cookie,
-                                             engine,
-                                             true);
-            } else {
-                // If bgFetch were false, or bloomfilter predicted that
-                // item surely doesn't exist on disk, return ENOENT for
-                // getKeyStats().
-                return cb::engine_errc::no_such_key;
-            }
-        }
     }
+    if (eviction == EvictionPolicy::Value) {
+        return cb::engine_errc::no_such_key;
+    }
+    if (maybeKeyExistsInFilter(cHandle.getKey())) {
+        return addTempItemAndBGFetch(
+                std::move(res.lock), cHandle.getKey(), &cookie, engine, true);
+    }
+    // If bgFetch were false, or bloomfilter predicted that
+    // item surely doesn't exist on disk, return ENOENT for
+    // getKeyStats().
+    return cb::engine_errc::no_such_key;
 }
 
 GetValue VBucket::getLocked(rel_time_t currentTime,

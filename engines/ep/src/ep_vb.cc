@@ -389,11 +389,10 @@ size_t EPVBucket::getNumItems() const {
         return ht.getNumInMemoryItems() -
                (ht.getNumDeletedItems() + ht.getNumSystemItems() +
                 ht.getNumPreparedSyncWrites());
-    } else {
-        // onDiskTotalItems includes everything not deleted. It does not include
-        // prepared SyncWrites so just return it.
-        return onDiskTotalItems;
     }
+    // onDiskTotalItems includes everything not deleted. It does not include
+    // prepared SyncWrites so just return it.
+    return onDiskTotalItems;
 }
 
 size_t EPVBucket::getNumTotalItems() const {
@@ -415,12 +414,11 @@ void EPVBucket::decrNumTotalItems(size_t numItemsRemoved) {
 size_t EPVBucket::getNumNonResidentItems() const {
     if (eviction == EvictionPolicy::Value) {
         return ht.getNumInMemoryNonResItems();
-    } else {
-        size_t num_items = onDiskTotalItems;
-        size_t num_res_items =
-                ht.getNumInMemoryItems() - ht.getNumInMemoryNonResItems();
-        return num_items > num_res_items ? (num_items - num_res_items) : 0;
     }
+    size_t num_items = onDiskTotalItems;
+    size_t num_res_items =
+            ht.getNumInMemoryItems() - ht.getNumInMemoryNonResItems();
+    return num_items > num_res_items ? (num_items - num_res_items) : 0;
 }
 
 size_t EPVBucket::getNumSystemItems() const {
@@ -476,26 +474,24 @@ cb::engine_errc EPVBucket::statsVKey(const DocKeyView& key,
                 engine, key, getId(), v->getBySeqno(), cookie, false);
         iom->schedule(task);
         return cb::engine_errc::would_block;
-    } else {
-        if (eviction == EvictionPolicy::Value) {
-            return cb::engine_errc::no_such_key;
-        } else {
-            auto rv = addTempStoredValue(res.lock, key, EnforceMemCheck::Yes);
-            switch (rv.status) {
-            case TempAddStatus::NoMem:
-                return cb::engine_errc::no_memory;
-            case TempAddStatus::BgFetch: {
-                ++stats.numRemainingBgJobs;
-                ExecutorPool* iom = ExecutorPool::get();
-                ExTask task = std::make_shared<VKeyStatBGFetchTask>(
-                        engine, key, getId(), -1, cookie, false);
-                iom->schedule(task);
-                return cb::engine_errc::would_block;
-            }
-            }
-            folly::assume_unreachable();
-        }
     }
+    if (eviction == EvictionPolicy::Value) {
+        return cb::engine_errc::no_such_key;
+    }
+    auto rv = addTempStoredValue(res.lock, key, EnforceMemCheck::Yes);
+    switch (rv.status) {
+    case TempAddStatus::NoMem:
+        return cb::engine_errc::no_memory;
+    case TempAddStatus::BgFetch: {
+        ++stats.numRemainingBgJobs;
+        ExecutorPool* iom = ExecutorPool::get();
+        ExTask task = std::make_shared<VKeyStatBGFetchTask>(
+                engine, key, getId(), -1, cookie, false);
+        iom->schedule(task);
+        return cb::engine_errc::would_block;
+    }
+    }
+    folly::assume_unreachable();
 }
 
 void EPVBucket::completeStatsVKey(const DocKeyView& key, const GetValue& gcb) {
@@ -659,9 +655,8 @@ bool EPVBucket::isEligibleForEviction(const HashTable::HashBucketLock& lh,
 size_t EPVBucket::getPageableMemUsage() {
     if (eviction == EvictionPolicy::Full) {
         return ht.getItemMemory();
-    } else {
-        return ht.getItemMemory() - ht.getMetadataMemory();
     }
+    return ht.getItemMemory() - ht.getMetadataMemory();
 }
 
 size_t EPVBucket::queueBGFetchItem(const DocKeyView& key,
@@ -1670,9 +1665,8 @@ bool EPVBucket::isTempFilterAvailable() {
         (bFilterDataLocked->tempFilter->getStatus() == BFILTER_COMPACTING ||
          bFilterDataLocked->tempFilter->getStatus() == BFILTER_ENABLED)) {
         return true;
-    } else {
-        return false;
     }
+    return false;
 }
 
 void EPVBucket::addToTempFilter(const DocKeyView& key) {
@@ -1741,18 +1735,16 @@ size_t EPVBucket::getFilterSize() {
     auto bFilterDataLocked = bFilterData.lock();
     if (bFilterDataLocked->bFilter) {
         return bFilterDataLocked->bFilter->getFilterSize();
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 size_t EPVBucket::getNumOfKeysInFilter() {
     auto bFilterDataLocked = bFilterData.lock();
     if (bFilterDataLocked->bFilter) {
         return bFilterDataLocked->bFilter->getNumOfKeysInFilter();
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 size_t EPVBucket::getFilterMemoryFootprint() {

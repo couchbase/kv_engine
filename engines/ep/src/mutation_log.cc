@@ -929,9 +929,8 @@ MutationLog::MutationLogEntryHolder MutationLog::iterator::operator*() {
     // If the file version is down-level return an upgraded entry
     if (log->headerBlock.version() == MutationLogVersion::Current) {
         return {entryBuf.data(), false /*not allocated*/};
-    } else {
-        return upgradeEntry();
     }
+    return upgradeEntry();
 }
 
 size_t MutationLog::iterator::bufferBytesRemaining() {

@@ -415,10 +415,9 @@ struct FollyExecutorPool::State {
                     task->getDescription(),
                     GlobalTask::getTaskName(task->getTaskId()));
             return false;
-        } else {
-            // Inserted a new entry into map - create a TaskProxy object for it.
-            it->second = std::make_unique<TaskProxy>(executor, pool, task);
         }
+        // Inserted a new entry into map - create a TaskProxy object for it.
+        it->second = std::make_unique<TaskProxy>(executor, pool, task);
 
         // If we are rescheduling a previously cancelled task, we should
         // reset the task state to the initial value of running.

@@ -246,7 +246,8 @@ StrictQuotaItemPager::getEvictionStrategyFactory(
         return [thresholds] {
             return std::make_unique<MFUOnlyItemEviction>(thresholds);
         };
-    } else if (strategy == "learning_age_and_mfu") {
+    }
+    if (strategy == "learning_age_and_mfu") {
         auto agePercentage = cfg.getItemEvictionAgePercentage();
         auto ageThreshold = cfg.getItemEvictionFreqCounterAgeThreshold();
 

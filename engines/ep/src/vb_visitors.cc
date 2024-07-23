@@ -55,7 +55,6 @@ bool PauseResumeVBAdapter::visit(VBucket& vb) {
         // we got to and return false.
         resume_vbucket_id = vb.getId();
         return false;
-    } else {
-        return true;
     }
+    return true;
 }

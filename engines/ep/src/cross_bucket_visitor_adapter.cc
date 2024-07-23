@@ -109,13 +109,12 @@ void CrossBucketVisitorAdapter::scheduleNext() {
 
             scheduleNextHook(orderedTasks, expectedTask);
             return;
-        } else {
-            EP_LOG_DEBUG(
-                    "Cross-bucket visitor: Task '{}' ({}) will not be "
-                    "scheduled, as its engine is not available.",
-                    task->getDescription(),
-                    (void*)task.get());
         }
+        EP_LOG_DEBUG(
+                "Cross-bucket visitor: Task '{}' ({}) will not be "
+                "scheduled, as its engine is not available.",
+                task->getDescription(),
+                (void*)task.get());
     }
 
     EP_LOG_DEBUG("Cross-bucket visitor: '{}' completed.", label);

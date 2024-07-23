@@ -32,20 +32,18 @@ PrivilegeAccess McbpPrivilegeChains::invoke(cb::mcbp::ClientOpcode command,
                     command)];
     if (chain.empty()) {
         return cb::rbac::PrivilegeAccessFail;
-    } else {
-        try {
-            return chain.invoke(cookie);
-        } catch (const std::bad_function_call&) {
-            LOG_WARNING(
-                    "{}: bad_function_call caught while evaluating access "
-                    "control for opcode: {:x}",
-                    cookie.getConnectionId(),
-                    std::underlying_type<cb::mcbp::ClientOpcode>::type(
-                            command));
-            // Let the connection catch the exception and shut down the
-            // connection
-            throw;
-        }
+    }
+    try {
+        return chain.invoke(cookie);
+    } catch (const std::bad_function_call&) {
+        LOG_WARNING(
+                "{}: bad_function_call caught while evaluating access "
+                "control for opcode: {:x}",
+                cookie.getConnectionId(),
+                std::underlying_type<cb::mcbp::ClientOpcode>::type(command));
+        // Let the connection catch the exception and shut down the
+        // connection
+        throw;
     }
 }
 

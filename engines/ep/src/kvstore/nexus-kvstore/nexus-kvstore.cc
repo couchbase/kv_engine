@@ -2260,9 +2260,8 @@ public:
                     primaryCallbacks.clear();
                     yield();
                     return;
-                } else {
-                    break;
                 }
+                break;
             }
         }
 

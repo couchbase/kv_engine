@@ -84,9 +84,8 @@ VBucketMap::VBucketMap(KVBucket& bucket)
 VBucketPtr VBucketMap::getBucket(Vbid id) const {
     if (id.get() < size) {
         return getShardByVbId(id)->getBucket(id);
-    } else {
-        return {};
     }
+    return {};
 }
 
 cb::engine_errc VBucketMap::addBucket(VBucketPtr vb) {

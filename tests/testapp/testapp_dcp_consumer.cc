@@ -111,10 +111,9 @@ public:
                 connection.dcpStreamRequestResponse(request->getOpaque(),
                                                     failovers);
                 break;
-            } else {
-                connection.sendCommand(BinprotCommandResponse{
-                        request->getClientOpcode(), request->getOpaque()});
             }
+            connection.sendCommand(BinprotCommandResponse{
+                    request->getClientOpcode(), request->getOpaque()});
         }
 
         // And finally AddStream response now that the stream is ready.

@@ -105,9 +105,8 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
 
     if (notifyCookieOnSend) {
         return cb::engine_errc::would_block;
-    } else {
-        return cb::engine_errc::success;
     }
+    return cb::engine_errc::success;
 }
 
 size_t StatsTask::getBufferSize() const {
@@ -199,9 +198,8 @@ void StatsTaskConnectionStats::getStats(cb::engine_errc& command_error,
 std::string StatsTaskConnectionStats::getDescription() const {
     if (fd == -1) {
         return "stats connections";
-    } else {
-        return "stats connection " + std::to_string(fd);
     }
+    return "stats connection " + std::to_string(fd);
 }
 
 std::chrono::microseconds StatsTaskConnectionStats::maxExpectedDuration()

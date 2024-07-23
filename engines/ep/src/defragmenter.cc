@@ -201,8 +201,8 @@ DefragmenterTask::calculateSleepTimeAndRunState(
     if (engine->getConfiguration().getDefragmenterModeString() ==
         "auto_linear") {
         return calculateSleepLinear(fragStats);
-    } else if (engine->getConfiguration().getDefragmenterModeString() ==
-               "auto_pid") {
+    }
+    if (engine->getConfiguration().getDefragmenterModeString() == "auto_pid") {
         return calculateSleepPID(fragStats);
     }
     return {std::chrono::duration<double>{

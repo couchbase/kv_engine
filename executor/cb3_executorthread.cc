@@ -178,18 +178,16 @@ std::string CB3ExecutorThread::getTaskName() {
     std::lock_guard<std::mutex> lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getDescription();
-    } else {
-        return "Not currently running any task";
     }
+    return "Not currently running any task";
 }
 
 const std::string CB3ExecutorThread::getTaskableName() {
     std::lock_guard<std::mutex> lh(currentTaskMutex);
     if (currentTask) {
         return currentTask->getTaskable().getName();
-    } else {
-        return std::string();
     }
+    return {};
 }
 
 const std::string CB3ExecutorThread::getStateName() {

@@ -56,10 +56,10 @@ protected:
                     fmt::format("vkey {} 0", name));
             if (compressed) {
                 break;
-            } else {
-                // Don't busy-wait. back off and try again
-                std::this_thread::sleep_for(std::chrono::milliseconds{50});
             }
+
+            // Don't busy-wait. back off and try again
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
         }
         ASSERT_TRUE(compressed)
                 << "Timed out waiting for the document to be compressed";

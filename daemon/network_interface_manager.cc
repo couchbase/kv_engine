@@ -307,10 +307,8 @@ NetworkInterfaceManager::createInterface(
         if (error != EAI_SYSTEM) {
             throw std::runtime_error(std::string("getaddrinfo(): ") +
                                      gai_strerror(error));
-        } else {
-            throw std::system_error(
-                    errno, std::system_category(), "getaddrinfo");
         }
+        throw std::system_error(errno, std::system_category(), "getaddrinfo");
 #endif
     }
 

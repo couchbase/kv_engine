@@ -97,16 +97,13 @@ StoredValue* HashTable::FindUpdateResult::selectSVToModify(bool durability) {
     if (durability) {
         if (pending) {
             return pending.getSV();
-        } else {
-            return committed;
         }
-    } else {
-        if (pending && !pending->isPrepareCompleted()) {
-            return pending.getSV();
-        } else {
-            return committed;
-        }
+        return committed;
     }
+    if (pending && !pending->isPrepareCompleted()) {
+        return pending.getSV();
+    }
+    return committed;
 }
 
 StoredValue* HashTable::FindUpdateResult::selectSVToModify(const Item& itm) {
@@ -655,10 +652,9 @@ MutationStatus HashTable::set(const Item& val) {
     if (htRes.storedValue) {
         return unlocked_updateStoredValue(htRes.lock, *htRes.storedValue, val)
                 .status;
-    } else {
-        unlocked_addNewStoredValue(htRes.lock, val);
-        return MutationStatus::WasClean;
     }
+    unlocked_addNewStoredValue(htRes.lock, val);
+    return MutationStatus::WasClean;
 }
 
 void HashTable::rollbackItem(const Item& item) {

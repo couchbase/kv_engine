@@ -1255,9 +1255,8 @@ TEST_F(SettingsTest, TestSettingNumThreads) {
         if (shouldFail) {
             return numberOfFailures == (threadKeys.size() - 1) &&
                    numberOfJsonErrors == 1;
-        } else {
-            return numberOfFailures == 0 && numberOfJsonErrors == 0;
         }
+        return numberOfFailures == 0 && numberOfJsonErrors == 0;
     };
     EXPECT_TRUE(updateConfig("default"));
 

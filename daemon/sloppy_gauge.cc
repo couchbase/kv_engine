@@ -24,19 +24,18 @@ void SloppyGauge::tick(size_t max) {
             if (value > max) {
                 value -= max;
                 return;
-            } else {
-                // try to reset the value to 0, but deal with race
-                // incrementing the value
-                std::size_t next{value.load()};
-                if (value.compare_exchange_strong(next, 0)) {
-                    return;
-                }
+            }
+
+            // try to reset the value to 0, but deal with race
+            // incrementing the value
+            std::size_t next{value.load()};
+            if (value.compare_exchange_strong(next, 0)) {
+                return;
             }
         } while (true);
-    } else {
-        // Don't roll over anything
-        value = 0;
     }
+    // Don't roll over anything
+    value = 0;
 }
 
 void SloppyGauge::reset() {

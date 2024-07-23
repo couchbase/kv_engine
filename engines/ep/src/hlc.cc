@@ -30,10 +30,9 @@ cb::HlcTime HLCT<Clock>::peekHLC() const {
     if (timeNow > l) {
         nanoseconds ns(timeNow);
         return {duration_cast<seconds>(ns), cb::HlcTime::Mode::Real};
-    } else {
-        nanoseconds ns(l + 1);
-        return {duration_cast<seconds>(ns), cb::HlcTime::Mode::Logical};
     }
+    nanoseconds ns(l + 1);
+    return {duration_cast<seconds>(ns), cb::HlcTime::Mode::Logical};
 }
 
 template <class Clock>

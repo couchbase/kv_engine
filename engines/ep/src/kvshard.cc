@@ -43,9 +43,8 @@ VBucketPtr KVShard::getBucket(Vbid id) const {
         auto element = getElement(id);
         Expects(element.get() == nullptr || element.get()->getId() == id);
         return element.get();
-    } else {
-        return nullptr;
     }
+    return nullptr;
 }
 
 KVShard::VBMapElement::Access<KVShard::VBMapElement&> KVShard::getElement(

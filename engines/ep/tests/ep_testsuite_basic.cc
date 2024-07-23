@@ -66,10 +66,9 @@ static enum test_result test_memory_tracking(EngineIface* h) {
     std::string tracker = get_str_stat(h, "ep_mem_tracker_enabled");
     if (tracker == "true") {
         return SUCCESS;
-    } else {
-        std::cerr << "Memory tracker not enabled ...";
-        return SKIPPED;
     }
+    std::cerr << "Memory tracker not enabled ...";
+    return SKIPPED;
 }
 
 static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {

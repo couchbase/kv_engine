@@ -41,8 +41,8 @@ static int get_verbosity(MemcachedConnection& connection) {
                       << "Verbosity not returned from the server"
                       << TerminalColor::Reset << std::endl;
             return EXIT_FAILURE;
-        } else if (verbosity->type() ==
-                   nlohmann::json::value_t::number_integer) {
+        }
+        if (verbosity->type() == nlohmann::json::value_t::number_integer) {
             const char* levels[] = {"warning",
                                     "info",
                                     "debug",
@@ -108,12 +108,11 @@ static int set_verbosity(MemcachedConnection& connection,
 
     if (resp.isSuccess()) {
         return EXIT_SUCCESS;
-    } else {
-        std::cerr << TerminalColor::Red
-                  << "Command failed: " << to_string(resp.getStatus())
-                  << TerminalColor::Reset << std::endl;
-        return EXIT_FAILURE;
     }
+    std::cerr << TerminalColor::Red
+              << "Command failed: " << to_string(resp.getStatus())
+              << TerminalColor::Reset << std::endl;
+    return EXIT_FAILURE;
 }
 
 void printPropertyHelp() {
@@ -243,11 +242,12 @@ int main(int argc, char** argv) {
         if (command == "get") {
             if (property == "verbosity") {
                 return get_verbosity(*connection);
-            } else {
-                std::cout << connection->ioctl_get(property) << std::endl;
-                return EXIT_SUCCESS;
             }
-        } else if (command == "set") {
+
+            std::cout << connection->ioctl_get(property) << std::endl;
+            return EXIT_SUCCESS;
+        }
+        if (command == "set") {
             std::string value;
             if (arguments.size() > 2) {
                 value = std::string{arguments[2]};

@@ -23,9 +23,8 @@ static bool verifyEngine(EventuallyPersistentEngine* engine) {
         static const char* allowNoStatsUpdate = getenv("ALLOW_NO_STATS_UPDATE");
         if (allowNoStatsUpdate) {
             return false;
-        } else {
-            throw std::logic_error("verifyEngine: engine should be non-NULL");
         }
+        throw std::logic_error("verifyEngine: engine should be non-NULL");
     }
     return true;
 }

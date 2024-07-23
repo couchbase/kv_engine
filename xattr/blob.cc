@@ -81,10 +81,9 @@ std::string_view Blob::get(std::string_view key) const {
                     // Yay this is the key!!!
                     auto* value = blob.data() + current + key.size() + 1;
                     return {value, strlen(value)};
-                } else {
-                    // jump to the next key!!
-                    current += size;
                 }
+                // jump to the next key!!
+                current += size;
             } else {
                 current += size;
             }

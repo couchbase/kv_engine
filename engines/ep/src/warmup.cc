@@ -591,8 +591,9 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
                                         std::string_view who) {
             if (status == cb::engine_errc::success) {
                 return;
-            } else if (status != cb::engine_errc::cancelled &&
-                       status != cb::engine_errc::not_my_vbucket) {
+            }
+            if (status != cb::engine_errc::cancelled &&
+                status != cb::engine_errc::not_my_vbucket) {
                 throw std::logic_error(
                         "WarmupVbucketVisitor::visit unexpected callback "
                         "status:" +
@@ -900,10 +901,9 @@ static bool batchWarmupCallback(Vbid vbId,
         }
 
         return true;
-    } else {
-        c.log.incrementKeySkipped();
-        return false;
     }
+    c.log.incrementKeySkipped();
+    return false;
 }
 
 const char* WarmupState::toString() const {

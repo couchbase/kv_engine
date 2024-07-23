@@ -57,12 +57,11 @@ public:
             EP_LOG_WARN("Failed to open access log: '{}'", next);
             throw std::runtime_error(fmt::format(
                     "ItemAccessVisitor failed log->isOpen {}", next));
-        } else {
-            EP_LOG_INFO(
-                    "Attempting to generate new access file "
-                    "'{}'",
-                    next);
         }
+        EP_LOG_INFO(
+                "Attempting to generate new access file "
+                "'{}'",
+                next);
     }
 
     ~ItemAccessVisitor() override {

@@ -346,9 +346,8 @@ int64_t ActiveDurabilityMonitor::getHighestTrackedSeqno() const {
     auto s = state.rlock();
     if (!s->trackedWrites.empty()) {
         return s->trackedWrites.back().getBySeqno();
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 bool ActiveDurabilityMonitor::isDurabilityPossible() const {

@@ -236,10 +236,9 @@ public:
             if (index & 1) {
                 // The odd deleted docs have no body to validate
                 return;
-            } else {
-                EXPECT_TRUE(result.item->getDataType() &
-                            PROTOCOL_BINARY_DATATYPE_XATTR);
             }
+            EXPECT_TRUE(result.item->getDataType() &
+                        PROTOCOL_BINARY_DATATYPE_XATTR);
         }
         EXPECT_TRUE(PROTOCOL_BINARY_DATATYPE_SNAPPY &
                     result.item->getDataType());

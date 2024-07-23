@@ -135,9 +135,8 @@ bool AsyncReadCallback::isPacketAvailable(bool throwOnError) {
                     fmt::format("AsyncReadCallback::isPacketAvailable(): "
                                 "Invalid packet header detected: ({})",
                                 packet));
-        } else {
-            return true;
         }
+        return true;
     }
 
     const auto framesize = packet.getFrame().size();
@@ -148,9 +147,8 @@ bool AsyncReadCallback::isPacketAvailable(bool throwOnError) {
                     "{} exceeds the max allowed packet size {}",
                     std::to_string(framesize),
                     std::to_string(MaxFrameSize)));
-        } else {
-            return true;
         }
+        return true;
     }
 
     try {

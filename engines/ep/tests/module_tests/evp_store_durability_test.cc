@@ -522,10 +522,9 @@ public:
             const auto* persistedVbState =
                     rwUnderlying->getCachedVBucketState(vbid);
             return persistedVbState->maxVisibleSeqno;
-        } else {
-            auto& evb = dynamic_cast<const EphemeralVBucket&>(*vb);
-            return gsl::narrow_cast<uint64_t>(evb.getMaxVisibleSeqno());
         }
+        auto& evb = dynamic_cast<const EphemeralVBucket&>(*vb);
+        return gsl::narrow_cast<uint64_t>(evb.getMaxVisibleSeqno());
     }
 
     const StoredDocKey key = makeStoredDocKey("key");

@@ -599,7 +599,8 @@ void KVBucket::getValue(Item& it) {
                 it.getBySeqno(),
                 gv.getStatus());
         return;
-    } else if (!gv.item->isDeleted()) {
+    }
+    if (!gv.item->isDeleted()) {
         it.replaceValue(gv.item->getValue().get());
     }
 
@@ -874,9 +875,8 @@ uint64_t KVBucket::getLastPersistedSeqno(Vbid vb) {
     auto vbucket = vbMap.getBucket(vb);
     if (vbucket) {
         return vbucket->getPersistenceSeqno();
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 void KVBucket::releaseBlockedCookies() {
@@ -1552,8 +1552,9 @@ cb::engine_errc KVBucket::requireVBucketState(
     auto vbState = vb.getState();
     if (permittedVBStates.test(vbState)) {
         return cb::engine_errc::success;
-    } else if (permittedVBStates.test(vbucket_state_active) &&
-               vbState == vbucket_state_pending) {
+    }
+    if (permittedVBStates.test(vbucket_state_active) &&
+        vbState == vbucket_state_pending) {
         // We only enqueue ops for pending vBuckets if the operation is for
         // actives. For replicas, we do not reach this code and always NVMB.
         Expects(vb.addPendingOp(&cookie));
@@ -1663,14 +1664,13 @@ GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
     if (!entry) {
         engine.setUnknownCollectionErrorContext(cookie, uid);
         return GetValue(nullptr, cb::engine_errc::unknown_collection);
-    } else {
-        cookie.setCurrentCollectionInfo(
-                entry->sid,
-                cid,
-                uid,
-                entry->metered == Collections::Metered::Yes,
-                Collections::isSystemCollection(entry->name, cid));
     }
+    cookie.setCurrentCollectionInfo(
+            entry->sid,
+            cid,
+            uid,
+            entry->metered == Collections::Metered::Yes,
+            Collections::isSystemCollection(entry->name, cid));
 
     while (itm == nullptr) {
         VBucketPtr vb = getVBucket(Vbid(curr++));
@@ -1780,7 +1780,8 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
         ++stats.numInvalidCas;
         if (strategy == InvalidCasStrategy::Error) {
             return cb::engine_errc::cas_value_invalid;
-        } else if (strategy == InvalidCasStrategy::Replace) {
+        }
+        if (strategy == InvalidCasStrategy::Replace) {
             ++stats.numCasRegenerated;
             genCas = GenerateCas::Yes;
         }
@@ -1847,7 +1848,8 @@ cb::engine_errc KVBucket::prepare(Item& itm,
         ++stats.numInvalidCas;
         if (strategy == InvalidCasStrategy::Error) {
             return cb::engine_errc::cas_value_invalid;
-        } else if (strategy == InvalidCasStrategy::Replace) {
+        }
+        if (strategy == InvalidCasStrategy::Replace) {
             ++stats.numCasRegenerated;
             generateCas = GenerateCas::Yes;
         }
@@ -2119,9 +2121,8 @@ std::string KVBucket::validateKey(const DocKeyView& key,
         }
 
         return "valid";
-    } else {
-        return "item_deleted";
     }
+    return "item_deleted";
 }
 
 cb::engine_errc KVBucket::deleteItem(
@@ -2210,7 +2211,8 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKeyView& key,
         ++stats.numInvalidCas;
         if (strategy == InvalidCasStrategy::Error) {
             return cb::engine_errc::cas_value_invalid;
-        } else if (strategy == InvalidCasStrategy::Replace) {
+        }
+        if (strategy == InvalidCasStrategy::Replace) {
             ++stats.numCasRegenerated;
             generateCas = GenerateCas::Yes;
         }
@@ -2679,12 +2681,11 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
         EP_LOG_WARN("{} Aborting rollback as reset of the vbucket failed",
                     vbid);
         return TaskStatus::Abort;
-    } else {
-        EP_LOG_WARN("{} Rollback not supported on the vbucket state {}",
-                    vbid,
-                    VBucket::toString(vb->getState()));
-        return TaskStatus::Abort;
     }
+    EP_LOG_WARN("{} Rollback not supported on the vbucket state {}",
+                vbid,
+                VBucket::toString(vb->getState()));
+    return TaskStatus::Abort;
 }
 
 void KVBucket::attemptToFreeMemory() {

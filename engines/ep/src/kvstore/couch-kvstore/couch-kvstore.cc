@@ -995,7 +995,8 @@ static int time_purge_hook(Db& d,
         ctx.purgedItemCtx->purgedItem(PurgedItemType::LogicalDelete,
                                       info->db_seq);
         return COUCHSTORE_COMPACT_DROP_ITEM;
-    } else if (docKey.isInSystemEventCollection()) {
+    }
+    if (docKey.isInSystemEventCollection()) {
         ctx.eraserContext->processSystemEvent(
                 docKey, SystemEvent(metadata->getFlags()));
     }
@@ -2332,10 +2333,10 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
                 range.startKey = ctx.resumeFromKey;
             }
             break;
-        } else {
-            // This range has been fully scanned and should not be scanned again
-            range.rangeScanSuccess = true;
         }
+
+        // This range has been fully scanned and should not be scanned again
+        range.rangeScanSuccess = true;
     }
 
     if (errorCode == COUCHSTORE_SUCCESS) {
@@ -2615,7 +2616,8 @@ CouchKVStore::populateRevMapAndRemoveStaleFiles() {
             uint64_t current = getDbRevision(vbid);
             if (current == revision) {
                 continue;
-            } else if (current < revision) {
+            }
+            if (current < revision) {
                 // current file is stale, update to the new revision
                 updateDbFileMap(vbid, revision);
             } else { // stale file found (revision id has rolled over)
@@ -2861,7 +2863,8 @@ static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     if (cb.shouldYield()) {
         return COUCHSTORE_ERROR_SCAN_YIELD;
-    } else if (cb.getStatus() != cb::engine_errc::success) {
+    }
+    if (cb.getStatus() != cb::engine_errc::success) {
         return COUCHSTORE_ERROR_SCAN_CANCELLED;
     }
 
@@ -3987,13 +3990,12 @@ std::optional<Collections::ManifestUid> CouchKVStore::getCollectionsManifestUid(
     if (manifestRes.status != COUCHSTORE_SUCCESS) {
         if (manifestRes.status == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             return Collections::ManifestUid{0};
-        } else {
-            logger.warn(
-                    "CouchKVStore::getCollectionsManifestUid(): "
-                    "error:{}",
-                    couchstore_strerror(manifestRes.status));
-            return std::nullopt;
         }
+        logger.warn(
+                "CouchKVStore::getCollectionsManifestUid(): "
+                "error:{}",
+                couchstore_strerror(manifestRes.status));
+        return std::nullopt;
     }
     return Collections::KVStore::decodeManifestUid(manifestRes.doc.getBuffer());
 }

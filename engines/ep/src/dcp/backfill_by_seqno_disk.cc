@@ -187,7 +187,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
                 "is deleted by the producer conn",
                 getVBucketId());
         return backfill_finished;
-    } else if (!(stream->isActive())) {
+    }
+    if (!(stream->isActive())) {
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::scan(): ({}) ended prematurely as "
                     "stream is not active",
@@ -580,11 +581,10 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        cb.maxVisibleSeqno,
                                        {},
                                        SnapshotType::NoHistory);
-    } else {
-        endStreamIfNeeded();
-        // Found nothing committed at all
-        return false;
     }
+    endStreamIfNeeded();
+    // Found nothing committed at all
+    return false;
 }
 
 backfill_status_t DCPBackfillBySeqnoDisk::scanHistory() {

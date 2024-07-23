@@ -101,16 +101,15 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         stream->log(spdlog::level::level_enum::warn, "{}", log.str());
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
-    } else {
-        // Will check if a history scan is required.
-        setupForHistoryScan(*stream, *scanCtx, 0);
+    }
+    // Will check if a history scan is required.
+    setupForHistoryScan(*stream, *scanCtx, 0);
 
-        bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);
-        if (markerSent) {
-            status = backfill_success;
-        } else {
-            complete(*stream);
-        }
+    bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);
+    if (markerSent) {
+        status = backfill_success;
+    } else {
+        complete(*stream);
     }
 
     return status;
@@ -125,7 +124,8 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
                 "is deleted by the producer conn",
                 getVBucketId());
         return backfill_finished;
-    } else if (!stream->isActive()) {
+    }
+    if (!stream->isActive()) {
         stream->log(spdlog::level::warn,
                     "DCPBackfillByIdDisk::scan(): ({}) ended prematurely as "
                     "stream is not active",

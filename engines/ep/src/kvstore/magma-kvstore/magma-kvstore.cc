@@ -194,7 +194,8 @@ static std::optional<std::chrono::seconds> getHistoryTimeNow(
     if (std::optional<cb::HlcTime> hlc;
         engine && (hlc = engine->getVBucketHlcNow(Vbid(kvid)))) {
         return hlc->now;
-    } else if (engine) {
+    }
+    if (engine) {
         // "NMVB" - indicate to caller that no time could be determined.
         // This occurs whilst compacting runs against a vbucket that KV has
         // removed from the vbucket map. In this case returning "no-time"
@@ -1127,12 +1128,10 @@ bool MagmaKVStore::keyMayExist(Vbid vbid, const DocKeyView& key) const {
         Slice keySlice = {reinterpret_cast<const char*>(key.data()),
                           key.size()};
         return magma->KeyMayExist(vbid.get(), keySlice);
-    } else {
-        StoredDocKey key1{key};
-        Slice keySlice = {reinterpret_cast<const char*>(key1.data()),
-                          key1.size()};
-        return magma->KeyMayExist(vbid.get(), keySlice);
     }
+    StoredDocKey key1{key};
+    Slice keySlice = {reinterpret_cast<const char*>(key1.data()), key1.size()};
+    return magma->KeyMayExist(vbid.get(), keySlice);
 }
 
 using GetOperations = magma::OperationsList<Magma::GetOperation>;
@@ -2436,7 +2435,8 @@ ScanStatus MagmaKVStore::scanOne(
     auto callbackStatus = ctx.getValueCallback().getStatus();
     if (callbackStatus == cb::engine_errc::success) {
         return ScanStatus::Success;
-    } else if (ctx.getValueCallback().shouldYield()) {
+    }
+    if (ctx.getValueCallback().shouldYield()) {
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::scanOne callback {} "
@@ -3039,14 +3039,13 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         if (!status) {
             if (status.ErrorCode() == Status::Cancelled) {
                 return CompactDBStatus::Aborted;
-            } else {
-                logger->warn(
-                        "MagmaKVStore::compactDBInternal CompactKVStore {} "
-                        "of system namespace failed status:{}",
-                        vbid,
-                        status.String());
-                return CompactDBStatus::Failed;
             }
+            logger->warn(
+                    "MagmaKVStore::compactDBInternal CompactKVStore {} "
+                    "of system namespace failed status:{}",
+                    vbid,
+                    status.String());
+            return CompactDBStatus::Failed;
         }
     }
 
@@ -3910,9 +3909,8 @@ std::shared_ptr<CompactionContext> MagmaKVStore::makeImplicitCompactionContext(
            << " failed to read vbstate from disk. Status:"
            << to_string(readState.status);
         throw std::runtime_error(ss.str());
-    } else {
-        ctx->highCompletedSeqno = readState.state.persistedCompletedSeqno;
     }
+    ctx->highCompletedSeqno = readState.state.persistedCompletedSeqno;
 
     logger->debug(
             "MagmaKVStore::makeImplicitCompactionContext {} purge_before_ts:{} "

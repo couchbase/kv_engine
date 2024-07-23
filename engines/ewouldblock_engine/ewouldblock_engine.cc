@@ -549,9 +549,8 @@ private:
                 --count;
                 err = injected_error;
                 return true;
-            } else {
-                return false;
             }
+            return false;
         }
 
         std::string to_string() const override {
@@ -578,9 +577,8 @@ private:
             if (dis(gen) < percentage_to_err) {
                 err = injected_error;
                 return true;
-            } else {
-                return false;
             }
+            return false;
         }
 
         std::string to_string() const override {
@@ -693,9 +691,8 @@ private:
                     issued_return_error = true;
                     err = injected_error;
                     return true;
-                } else {
-                    return false;
                 }
+                return false;
             }
 
             std::string to_string() const override {
@@ -722,9 +719,8 @@ private:
                 --count;
                 err = injected_error;
                 return true;
-            } else {
-                return false;
             }
+            return false;
         }
 
         std::string to_string() const override {
@@ -941,16 +937,15 @@ cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::ALLOCATE, &cookie, err)) {
         throw cb::engine_error(err, "ewb: injecting error");
-    } else {
-        return real_engine->allocateItem(cookie,
-                                         key,
-                                         nbytes,
-                                         priv_nbytes,
-                                         flags,
-                                         exptime,
-                                         datatype,
-                                         vbucket);
     }
+    return real_engine->allocateItem(cookie,
+                                     key,
+                                     nbytes,
+                                     priv_nbytes,
+                                     flags,
+                                     exptime,
+                                     datatype,
+                                     vbucket);
 }
 
 cb::engine_errc EWB_Engine::remove(
@@ -963,10 +958,8 @@ cb::engine_errc EWB_Engine::remove(
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::REMOVE, &cookie, err)) {
         return err;
-    } else {
-        return real_engine->remove(
-                cookie, key, cas, vbucket, durability, mut_info);
     }
+    return real_engine->remove(cookie, key, cas, vbucket, durability, mut_info);
 }
 
 void EWB_Engine::release(ItemIface& item) {
@@ -982,9 +975,8 @@ cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
     if (should_inject_error(Cmd::GET, &cookie, err)) {
         return std::make_pair(
                 err, cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
-    } else {
-        return real_engine->get(cookie, key, vbucket, documentStateFilter);
     }
+    return real_engine->get(cookie, key, vbucket, documentStateFilter);
 }
 
 cb::EngineErrorItemPair EWB_Engine::get_random_document(CookieIface& cookie,
@@ -1005,9 +997,8 @@ cb::EngineErrorItemPair EWB_Engine::get_if(
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET, &cookie, err)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
-    } else {
-        return real_engine->get_if(cookie, key, vbucket, filter);
     }
+    return real_engine->get_if(cookie, key, vbucket, filter);
 }
 
 cb::EngineErrorItemPair EWB_Engine::get_and_touch(
@@ -1019,10 +1010,9 @@ cb::EngineErrorItemPair EWB_Engine::get_and_touch(
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET, &cookie, err)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
-    } else {
-        return real_engine->get_and_touch(
-                cookie, key, vbucket, exptime, durability);
     }
+    return real_engine->get_and_touch(
+            cookie, key, vbucket, exptime, durability);
 }
 
 cb::EngineErrorItemPair EWB_Engine::get_locked(
@@ -1033,9 +1023,8 @@ cb::EngineErrorItemPair EWB_Engine::get_locked(
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::LOCK, &cookie, err)) {
         return cb::makeEngineErrorItemPair(err);
-    } else {
-        return real_engine->get_locked(cookie, key, vbucket, lock_timeout);
     }
+    return real_engine->get_locked(cookie, key, vbucket, lock_timeout);
 }
 
 cb::engine_errc EWB_Engine::unlock(CookieIface& cookie,
@@ -1045,9 +1034,8 @@ cb::engine_errc EWB_Engine::unlock(CookieIface& cookie,
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::UNLOCK, &cookie, err)) {
         return err;
-    } else {
-        return real_engine->unlock(cookie, key, vbucket, cas);
     }
+    return real_engine->unlock(cookie, key, vbucket, cas);
 }
 
 cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
@@ -1056,9 +1044,8 @@ cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET_META, &cookie, err)) {
         return std::make_pair(err, item_info());
-    } else {
-        return real_engine->get_meta(cookie, key, vbucket);
     }
+    return real_engine->get_meta(cookie, key, vbucket);
 }
 
 cb::engine_errc EWB_Engine::evict_key(CookieIface& cookie,
@@ -1089,15 +1076,14 @@ cb::engine_errc EWB_Engine::store(
     Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
     if (should_inject_error(opcode, &cookie, err)) {
         return err;
-    } else {
-        return real_engine->store(cookie,
-                                  item,
-                                  cas,
-                                  operation,
-                                  durability,
-                                  document_state,
-                                  preserveTtl);
     }
+    return real_engine->store(cookie,
+                              item,
+                              cas,
+                              operation,
+                              durability,
+                              document_state,
+                              preserveTtl);
 }
 
 cb::EngineErrorCasPair EWB_Engine::store_if(
@@ -1113,16 +1099,15 @@ cb::EngineErrorCasPair EWB_Engine::store_if(
     Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
     if (should_inject_error(opcode, &cookie, err)) {
         return {err, 0};
-    } else {
-        return real_engine->store_if(cookie,
-                                     item,
-                                     cas,
-                                     operation,
-                                     predicate,
-                                     durability,
-                                     document_state,
-                                     preserveTtl);
     }
+    return real_engine->store_if(cookie,
+                                 item,
+                                 cas,
+                                 operation,
+                                 predicate,
+                                 durability,
+                                 document_state,
+                                 preserveTtl);
 }
 
 cb::engine_errc EWB_Engine::flush(CookieIface& cookie) {
@@ -1138,13 +1123,11 @@ cb::engine_errc EWB_Engine::get_stats(CookieIface& cookie,
                                       std::string_view value,
                                       const AddStatFn& add_stat,
                                       const CheckYieldFn& check_yield) {
-    cb::engine_errc err = cb::engine_errc::success;
+    auto err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET_STATS, &cookie, err)) {
         return err;
-    } else {
-        return real_engine->get_stats(
-                cookie, key, value, add_stat, check_yield);
     }
+    return real_engine->get_stats(cookie, key, value, add_stat, check_yield);
 }
 
 void EWB_Engine::reset_stats(CookieIface& cookie) {
@@ -1255,39 +1238,36 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
                      /*cas*/ 0,
                      cookie);
             return cb::engine_errc::failed;
-        } else {
-            try {
-                LOG_DEBUG(
-                        "EWB_Engine::unknown_command(): Setting EWB mode "
-                        "to {} for cookie {}",
-                        new_mode->to_string(),
-                        static_cast<const void*>(&cookie));
-
-                connection_map.withLock([&cookie, new_mode](auto& map) {
-                    map[uint64_t(&cookie.getConnectionIface())] = {&cookie,
-                                                                   new_mode};
-                });
-
-                response({},
-                         {},
-                         {},
-                         ValueIsJson::No,
-                         cb::mcbp::Status::Success,
-                         /*cas*/ 0,
-                         cookie);
-                return cb::engine_errc::success;
-            } catch (std::bad_alloc&) {
-                return cb::engine_errc::no_memory;
-            }
         }
-    } else {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::UNKNOWN_COMMAND, &cookie, err)) {
-            return err;
-        } else {
-            return real_engine->unknown_command(cookie, req, response);
+        try {
+            LOG_DEBUG(
+                    "EWB_Engine::unknown_command(): Setting EWB mode "
+                    "to {} for cookie {}",
+                    new_mode->to_string(),
+                    static_cast<const void*>(&cookie));
+
+            connection_map.withLock([&cookie, new_mode](auto& map) {
+                map[uint64_t(&cookie.getConnectionIface())] = {&cookie,
+                                                               new_mode};
+            });
+
+            response({},
+                     {},
+                     {},
+                     ValueIsJson::No,
+                     cb::mcbp::Status::Success,
+                     /*cas*/ 0,
+                     cookie);
+            return cb::engine_errc::success;
+        } catch (std::bad_alloc&) {
+            return cb::engine_errc::no_memory;
         }
     }
+    auto err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::UNKNOWN_COMMAND, &cookie, err)) {
+        return err;
+    }
+    return real_engine->unknown_command(cookie, req, response);
 }
 
 bool EWB_Engine::get_item_info(const ItemIface& item, item_info& item_info) {
@@ -1455,9 +1435,8 @@ cb::engine_errc EWB_Engine::add_stream(CookieIface& cookie,
                                        cb::mcbp::DcpAddStreamFlag flags) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->add_stream(cookie, opaque, vbucket, flags);
     }
+    return real_engine_dcp->add_stream(cookie, opaque, vbucket, flags);
 }
 
 cb::engine_errc EWB_Engine::close_stream(CookieIface& cookie,
@@ -1466,9 +1445,8 @@ cb::engine_errc EWB_Engine::close_stream(CookieIface& cookie,
                                          cb::mcbp::DcpStreamId sid) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
     }
+    return real_engine_dcp->close_stream(cookie, opaque, vbucket, sid);
 }
 
 cb::engine_errc EWB_Engine::get_failover_log(CookieIface& cookie,
@@ -1477,10 +1455,8 @@ cb::engine_errc EWB_Engine::get_failover_log(CookieIface& cookie,
                                              dcp_add_failover_log callback) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->get_failover_log(
-                cookie, opaque, vbucket, callback);
     }
+    return real_engine_dcp->get_failover_log(cookie, opaque, vbucket, callback);
 }
 
 cb::engine_errc EWB_Engine::stream_end(CookieIface& cookie,
@@ -1489,9 +1465,8 @@ cb::engine_errc EWB_Engine::stream_end(CookieIface& cookie,
                                        cb::mcbp::DcpStreamEndStatus status) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->stream_end(cookie, opaque, vbucket, status);
     }
+    return real_engine_dcp->stream_end(cookie, opaque, vbucket, status);
 }
 
 cb::engine_errc EWB_Engine::snapshot_marker(
@@ -1505,16 +1480,15 @@ cb::engine_errc EWB_Engine::snapshot_marker(
         std::optional<uint64_t> max_visible_seqno) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->snapshot_marker(cookie,
-                                                opaque,
-                                                vbucket,
-                                                start_seqno,
-                                                end_seqno,
-                                                flags,
-                                                high_completed_seqno,
-                                                max_visible_seqno);
     }
+    return real_engine_dcp->snapshot_marker(cookie,
+                                            opaque,
+                                            vbucket,
+                                            start_seqno,
+                                            end_seqno,
+                                            flags,
+                                            high_completed_seqno,
+                                            max_visible_seqno);
 }
 
 cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
@@ -1533,22 +1507,21 @@ cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
                                      uint8_t nru) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->mutation(cookie,
-                                         opaque,
-                                         key,
-                                         value,
-                                         datatype,
-                                         cas,
-                                         vbucket,
-                                         flags,
-                                         by_seqno,
-                                         rev_seqno,
-                                         expiration,
-                                         lock_time,
-                                         meta,
-                                         nru);
     }
+    return real_engine_dcp->mutation(cookie,
+                                     opaque,
+                                     key,
+                                     value,
+                                     datatype,
+                                     cas,
+                                     vbucket,
+                                     flags,
+                                     by_seqno,
+                                     rev_seqno,
+                                     expiration,
+                                     lock_time,
+                                     meta,
+                                     nru);
 }
 
 cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
@@ -1563,18 +1536,17 @@ cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
                                      cb::const_byte_buffer meta) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->deletion(cookie,
-                                         opaque,
-                                         key,
-                                         value,
-                                         datatype,
-                                         cas,
-                                         vbucket,
-                                         by_seqno,
-                                         rev_seqno,
-                                         meta);
     }
+    return real_engine_dcp->deletion(cookie,
+                                     opaque,
+                                     key,
+                                     value,
+                                     datatype,
+                                     cas,
+                                     vbucket,
+                                     by_seqno,
+                                     rev_seqno,
+                                     meta);
 }
 
 cb::engine_errc EWB_Engine::deletion_v2(CookieIface& cookie,
@@ -1589,18 +1561,17 @@ cb::engine_errc EWB_Engine::deletion_v2(CookieIface& cookie,
                                         uint32_t delete_time) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->deletion_v2(cookie,
-                                            opaque,
-                                            key,
-                                            value,
-                                            datatype,
-                                            cas,
-                                            vbucket,
-                                            by_seqno,
-                                            rev_seqno,
-                                            delete_time);
     }
+    return real_engine_dcp->deletion_v2(cookie,
+                                        opaque,
+                                        key,
+                                        value,
+                                        datatype,
+                                        cas,
+                                        vbucket,
+                                        by_seqno,
+                                        rev_seqno,
+                                        delete_time);
 }
 
 cb::engine_errc EWB_Engine::expiration(CookieIface& cookie,
@@ -1615,18 +1586,17 @@ cb::engine_errc EWB_Engine::expiration(CookieIface& cookie,
                                        uint32_t deleteTime) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->expiration(cookie,
-                                           opaque,
-                                           key,
-                                           value,
-                                           datatype,
-                                           cas,
-                                           vbucket,
-                                           by_seqno,
-                                           rev_seqno,
-                                           deleteTime);
     }
+    return real_engine_dcp->expiration(cookie,
+                                       opaque,
+                                       key,
+                                       value,
+                                       datatype,
+                                       cas,
+                                       vbucket,
+                                       by_seqno,
+                                       rev_seqno,
+                                       deleteTime);
 }
 
 cb::engine_errc EWB_Engine::set_vbucket_state(CookieIface& cookie,
@@ -1635,18 +1605,15 @@ cb::engine_errc EWB_Engine::set_vbucket_state(CookieIface& cookie,
                                               vbucket_state_t state) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->set_vbucket_state(
-                cookie, opaque, vbucket, state);
     }
+    return real_engine_dcp->set_vbucket_state(cookie, opaque, vbucket, state);
 }
 
 cb::engine_errc EWB_Engine::noop(CookieIface& cookie, uint32_t opaque) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->noop(cookie, opaque);
     }
+    return real_engine_dcp->noop(cookie, opaque);
 }
 
 cb::engine_errc EWB_Engine::buffer_acknowledgement(CookieIface& cookie,
@@ -1654,10 +1621,9 @@ cb::engine_errc EWB_Engine::buffer_acknowledgement(CookieIface& cookie,
                                                    uint32_t buffer_bytes) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->buffer_acknowledgement(
-                cookie, opaque, buffer_bytes);
     }
+    return real_engine_dcp->buffer_acknowledgement(
+            cookie, opaque, buffer_bytes);
 }
 
 cb::engine_errc EWB_Engine::control(CookieIface& cookie,
@@ -1666,18 +1632,16 @@ cb::engine_errc EWB_Engine::control(CookieIface& cookie,
                                     std::string_view value) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->control(cookie, opaque, key, value);
     }
+    return real_engine_dcp->control(cookie, opaque, key, value);
 }
 
 cb::engine_errc EWB_Engine::response_handler(
         CookieIface& cookie, const cb::mcbp::Response& response) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->response_handler(cookie, response);
     }
+    return real_engine_dcp->response_handler(cookie, response);
 }
 
 cb::engine_errc EWB_Engine::system_event(CookieIface& cookie,
@@ -1690,16 +1654,9 @@ cb::engine_errc EWB_Engine::system_event(CookieIface& cookie,
                                          cb::const_byte_buffer eventData) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->system_event(cookie,
-                                             opaque,
-                                             vbucket,
-                                             event,
-                                             bySeqno,
-                                             version,
-                                             key,
-                                             eventData);
     }
+    return real_engine_dcp->system_event(
+            cookie, opaque, vbucket, event, bySeqno, version, key, eventData);
 }
 
 cb::engine_errc EWB_Engine::prepare(CookieIface& cookie,
@@ -1719,23 +1676,22 @@ cb::engine_errc EWB_Engine::prepare(CookieIface& cookie,
                                     cb::durability::Level level) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->prepare(cookie,
-                                        opaque,
-                                        key,
-                                        value,
-                                        datatype,
-                                        cas,
-                                        vbucket,
-                                        flags,
-                                        by_seqno,
-                                        rev_seqno,
-                                        expiration,
-                                        lock_time,
-                                        nru,
-                                        document_state,
-                                        level);
     }
+    return real_engine_dcp->prepare(cookie,
+                                    opaque,
+                                    key,
+                                    value,
+                                    datatype,
+                                    cas,
+                                    vbucket,
+                                    flags,
+                                    by_seqno,
+                                    rev_seqno,
+                                    expiration,
+                                    lock_time,
+                                    nru,
+                                    document_state,
+                                    level);
 }
 cb::engine_errc EWB_Engine::seqno_acknowledged(CookieIface& cookie,
                                                uint32_t opaque,
@@ -1743,10 +1699,9 @@ cb::engine_errc EWB_Engine::seqno_acknowledged(CookieIface& cookie,
                                                uint64_t prepared_seqno) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->seqno_acknowledged(
-                cookie, opaque, vbucket, prepared_seqno);
     }
+    return real_engine_dcp->seqno_acknowledged(
+            cookie, opaque, vbucket, prepared_seqno);
 }
 cb::engine_errc EWB_Engine::commit(CookieIface& cookie,
                                    uint32_t opaque,
@@ -1756,10 +1711,9 @@ cb::engine_errc EWB_Engine::commit(CookieIface& cookie,
                                    uint64_t commit_seqno) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->commit(
-                cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
     }
+    return real_engine_dcp->commit(
+            cookie, opaque, vbucket, key, prepared_seqno, commit_seqno);
 }
 
 cb::engine_errc EWB_Engine::abort(CookieIface& cookie,
@@ -1770,10 +1724,9 @@ cb::engine_errc EWB_Engine::abort(CookieIface& cookie,
                                   uint64_t abort_seqno) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
-    } else {
-        return real_engine_dcp->abort(
-                cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
     }
+    return real_engine_dcp->abort(
+            cookie, opaque, vbucket, key, prepared_seqno, abort_seqno);
 }
 
 unique_engine_ptr create_ewouldblock_instance(GET_SERVER_API gsa) {
@@ -1924,11 +1877,9 @@ cb::engine_errc EWB_Engine::handleSuspend(CookieIface* cookie,
                  /*cas*/ 0,
                  *cookie);
         return cb::engine_errc::success;
-    } else {
-        LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered",
-                    id);
-        return cb::engine_errc::key_already_exists;
     }
+    LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered", id);
+    return cb::engine_errc::key_already_exists;
 }
 
 cb::engine_errc EWB_Engine::handleResume(CookieIface* cookie,
@@ -1944,13 +1895,12 @@ cb::engine_errc EWB_Engine::handleResume(CookieIface* cookie,
                  /*cas*/ 0,
                  *cookie);
         return cb::engine_errc::success;
-    } else {
-        LOG_WARNING(
-                "EWB_Engine::unknown_command(): No "
-                "connection registered with id {}",
-                id);
-        return cb::engine_errc::invalid_arguments;
     }
+    LOG_WARNING(
+            "EWB_Engine::unknown_command(): No connection registered with id "
+            "{}",
+            id);
+    return cb::engine_errc::invalid_arguments;
 }
 
 cb::engine_errc EWB_Engine::setItemCas(CookieIface* cookie,

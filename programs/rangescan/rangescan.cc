@@ -191,9 +191,8 @@ public:
                     }
                     if (header.isRequest()) {
                         Expects(false); // no requests
-                    } else {
-                        handleResponse(header.getResponse());
                     }
+                    handleResponse(header.getResponse());
                 });
     }
 

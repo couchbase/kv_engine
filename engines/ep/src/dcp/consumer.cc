@@ -315,9 +315,8 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
             logger->warn("({}) Cannot add stream because one already exists",
                          vbucket);
             return cb::engine_errc::key_already_exists;
-        } else {
-            removeStream(vbucket);
         }
+        removeStream(vbucket);
     }
 
     /* We need 'Processor' task only when we have a stream. Hence create it
@@ -1206,16 +1205,15 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
 
             stream->streamRequest(entry.vb_uuid);
             return true;
-        } else {
-            logger->info(
-                    "({}) Cannot avoid rollback to 0, vb_uuid:{} cannot be used"
-                    " as entry.by_seqno:{} does not match stream "
-                    "start_seqno:{}",
-                    vbid,
-                    entry.vb_uuid,
-                    entry.by_seqno,
-                    stream->getStartSeqno());
         }
+        logger->info(
+                "({}) Cannot avoid rollback to 0, vb_uuid:{} cannot be used"
+                " as entry.by_seqno:{} does not match stream "
+                "start_seqno:{}",
+                vbid,
+                entry.vb_uuid,
+                entry.by_seqno,
+                stream->getStartSeqno());
     }
 
     logger->info("({}) Received rollback request. Rolling back to seqno:{}",
@@ -1879,9 +1877,8 @@ std::shared_ptr<PassiveStream> DcpConsumer::findStream(Vbid vbid) {
     auto it = streams.find(vbid);
     if (it.second) {
         return it.first;
-    } else {
-        return nullptr;
     }
+    return {};
 }
 
 cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,
@@ -1983,7 +1980,8 @@ cb::engine_errc DcpConsumer::lookupStreamAndDispatchMessage(
     auto stream = findStream(vbucket);
     if (!stream) {
         return getNoStreamFoundErrorCode();
-    } else if (stream->getOpaque() != opaque) {
+    }
+    if (stream->getOpaque() != opaque) {
         return getOpaqueMissMatchErrorCode();
     }
 

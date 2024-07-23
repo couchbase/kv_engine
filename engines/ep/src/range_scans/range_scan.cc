@@ -249,7 +249,8 @@ cb::rangescan::Id RangeScan::createScan(
                                     start.getDocKey().getCollectionID(),
                                     stats.second.itemCount,
                                     samplingConfig->samples));
-            } else if (stats.second.itemCount > samplingConfig->samples) {
+            }
+            if (stats.second.itemCount > samplingConfig->samples) {
                 // Create the prng so that sampling is enabled
                 prng = std::make_unique<std::mt19937>(samplingConfig->seed);
 
@@ -850,7 +851,8 @@ cb::engine_errc RangeScan::ContinueRunState::getYieldStatusCodeAndReset() {
         // ready for the a future continue.
         *this = {};
         return cb::engine_errc::range_scan_more;
-    } else if (hasExceededBufferLimit()) {
+    }
+    if (hasExceededBufferLimit()) {
         // This second case is for a yield which must "auto" continue. Signal
         // this case with success. The worker thread will send the scanned data
         // and reschedule the IO task to run this scan.

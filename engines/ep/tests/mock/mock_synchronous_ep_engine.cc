@@ -220,7 +220,8 @@ std::unique_ptr<KVBucket> SynchronousEPEngine::public_makeMockBucket(
         auto bucket = std::make_unique<testing::NiceMock<MockEPBucket>>(*this);
         bucket->initializeMockBucket();
         return bucket;
-    } else if (bucketType == "ephemeral") {
+    }
+    if (bucketType == "ephemeral") {
         EphemeralBucket::reconfigureForEphemeral(configuration);
         return std::make_unique<MockEphemeralBucket>(*this);
     }

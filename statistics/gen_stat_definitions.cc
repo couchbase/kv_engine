@@ -485,7 +485,8 @@ void addDocumentation(const Spec& spec,
     if (!documentation.contains(statName)) {
         documentation[statName] = std::move(statDoc);
         return;
-    } else if (documentation[statName].type() == json::value_t::array) {
+    }
+    if (documentation[statName].type() == json::value_t::array) {
         documentation[statName].push_back(std::move(statDoc));
         return;
     }

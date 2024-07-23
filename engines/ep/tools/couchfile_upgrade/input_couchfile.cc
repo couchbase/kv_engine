@@ -71,10 +71,9 @@ static int upgradeCallback(Db* db, DocInfo* docinfo, void* ctx) {
                 "InputCouchFile::upgradeCallback "
                 "couchstore_open_doc_with_docinfo errcode:" +
                 std::to_string(errcode));
-    } else {
-        auto* context = reinterpret_cast<UpgradeCouchFileContext*>(ctx);
-        context->output.processDocument(doc, *docinfo);
     }
+    auto* context = reinterpret_cast<UpgradeCouchFileContext*>(ctx);
+    context->output.processDocument(doc, *docinfo);
     return 0;
 }
 

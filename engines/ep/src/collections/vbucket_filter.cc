@@ -290,9 +290,8 @@ bool Filter::remove(const Item& item) {
     if (collection == CollectionID::Default && defaultAllowed) {
         disableDefaultCollection();
         return true;
-    } else {
-        return filter.erase(collection);
     }
+    return filter.erase(collection);
 }
 
 bool Filter::empty() const {
@@ -372,12 +371,11 @@ bool Filter::processCollectionEvent(const Item& item) {
             // Return true and take no further actions.
             // Or this is a System filter - the drop is Visibility::User
             return true;
-        } else {
-            // update the filter set as this collection is in our scope or
-            // this is a system filter and the filter set stores all user
-            // collections
-            filter.insert({cid, DcpFilterMeta{collectionVisibility, sid}});
         }
+        // update the filter set as this collection is in our scope or
+        // this is a system filter and the filter set stores all user
+        // collections
+        filter.insert({cid, DcpFilterMeta{collectionVisibility, sid}});
     }
 
     // When filtered allow only if there is a match

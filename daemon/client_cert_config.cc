@@ -47,9 +47,8 @@ struct CommonNameMapping : public ClientCertConfig::Mapping {
                 if (userName.empty()) {
                     std::string error = "Not able to match prefix/delimiter";
                     return make_pair(Status::NoMatch, error);
-                } else {
-                    return make_pair(Status::Success, userName);
                 }
+                return make_pair(Status::Success, userName);
             }
         }
         std::string error = "Not able to find common name from cert";
@@ -270,9 +269,8 @@ std::pair<Status, std::string> ClientCertMapper::lookupUser(X509* cert) const {
     return config.withRLock([cert](auto& c) -> std::pair<Status, std::string> {
         if (c) {
             return c->lookupUser(cert);
-        } else {
-            return std::make_pair(Status::Error, "No database configured");
         }
+        return std::make_pair(Status::Error, "No database configured");
     });
 }
 
@@ -280,9 +278,8 @@ std::string ClientCertMapper::to_string() const {
     return config.withRLock([](auto& c) {
         if (c) {
             return c->to_string();
-        } else {
-            return std::string{R"({})"};
         }
+        return std::string{R"({})"};
     });
 }
 

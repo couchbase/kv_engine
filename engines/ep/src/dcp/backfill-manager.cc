@@ -79,7 +79,8 @@ bool BackfillManagerTask::run() {
     backfill_status_t status = manager->backfill();
     if (status == backfill_finished) {
         return false;
-    } else if (status == backfill_snooze) {
+    }
+    if (status == backfill_snooze) {
         snooze(sleepTime);
     }
 

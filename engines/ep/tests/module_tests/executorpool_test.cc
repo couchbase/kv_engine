@@ -830,14 +830,13 @@ TYPED_TEST(ExecutorPoolTest, ReturnTrueWithoutSnoozeUpdatesWakeTime) {
             firstWaketime = task.getWaketime();
             // return without snoozing
             return true;
-        } else {
-            // If the waketime was not updated before running the task a
-            // second time, the apparent scheduling delay will be from the
-            // _original_ wake time.
-            EXPECT_LT(firstWaketime, task.getWaketime());
-            taskFinished.post();
-            return false;
         }
+        // If the waketime was not updated before running the task a
+        // second time, the apparent scheduling delay will be from the
+        // _original_ wake time.
+        EXPECT_LT(firstWaketime, task.getWaketime());
+        taskFinished.post();
+        return false;
     };
 
     auto initialSleepTime = 0.0; // run ASAP

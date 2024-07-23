@@ -63,7 +63,6 @@ std::unique_ptr<SendBuffer> ItemDissector::takeSendBuffer(std::string_view view,
     if (inflated_value) {
         return std::make_unique<IOBufSendBuffer>(std::move(inflated_value),
                                                  view);
-    } else {
-        return std::make_unique<ItemSendBuffer>(std::move(item), view, bucket);
     }
+    return std::make_unique<ItemSendBuffer>(std::move(item), view, bucket);
 }

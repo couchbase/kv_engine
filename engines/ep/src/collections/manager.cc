@@ -108,11 +108,10 @@ cb::engine_error Collections::Manager::update(
                                 bucket,
                                 current,
                                 std::move(newManifest));
-    } else {
-        *lockedUpdateCookie = cookie;
-        return {cb::engine_errc::would_block,
-                "Collections::Manager::update part one complete"};
     }
+    *lockedUpdateCookie = cookie;
+    return {cb::engine_errc::would_block,
+            "Collections::Manager::update part one complete"};
 }
 
 cb::engine_error Collections::Manager::updateFromIOComplete(

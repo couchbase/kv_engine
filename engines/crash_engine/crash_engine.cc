@@ -101,9 +101,8 @@ public:
             thread.join();
             // Thread should crash before it joins.
             folly::assume_unreachable();
-        } else {
-            return cb::engine_errc(recursive_crash_function(25, mode));
         }
+        return cb::engine_errc(recursive_crash_function(25, mode));
     }
 
     void destroy(bool) override {

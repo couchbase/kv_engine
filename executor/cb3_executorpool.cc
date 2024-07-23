@@ -120,9 +120,8 @@ TaskQueue* CB3ExecutorPool::_nextTask(CB3ExecutorThread& t, uint8_t tick) {
             TaskQueue* sleepQ = getSleepQ(myq);
             if (sleepQ->sleepThenFetchNextTask(t)) {
                 return sleepQ;
-            } else {
-                return nullptr;
             }
+            return nullptr;
         }
         toggle = checkQ;
         checkQ = checkNextQ;
@@ -161,16 +160,15 @@ void CB3ExecutorPool::startWork(TaskType taskType) {
                 "invalid "
                 "type {" +
                 to_string(taskType) + "}");
-    } else {
-        ++curWorkers[static_cast<size_t>(taskType)];
-        LOG_TRACE(
-                "Taking up work in task "
-                "type:{{{}}} "
-                "current:{{{}}}, max:{{{}}}",
-                taskType,
-                curWorkers[static_cast<size_t>(taskType)].load(),
-                numWorkers[static_cast<size_t>(taskType)].load());
     }
+    ++curWorkers[static_cast<size_t>(taskType)];
+    LOG_TRACE(
+            "Taking up work in task "
+            "type:{{{}}} "
+            "current:{{{}}}, max:{{{}}}",
+            taskType,
+            curWorkers[static_cast<size_t>(taskType)].load(),
+            numWorkers[static_cast<size_t>(taskType)].load());
 }
 
 void CB3ExecutorPool::doneWork(TaskType taskType) {
@@ -180,13 +178,12 @@ void CB3ExecutorPool::doneWork(TaskType taskType) {
                 "invalid "
                 "type {" +
                 to_string(taskType) + "}");
-    } else {
-        --curWorkers[static_cast<size_t>(taskType)];
-        // Record that a thread is done working on a particular queue type
-        LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
-                  taskType,
-                  numWorkers[static_cast<size_t>(taskType)].load());
     }
+    --curWorkers[static_cast<size_t>(taskType)];
+    // Record that a thread is done working on a particular queue type
+    LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
+              taskType,
+              numWorkers[static_cast<size_t>(taskType)].load());
 }
 
 ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {

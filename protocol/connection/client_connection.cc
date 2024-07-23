@@ -232,9 +232,8 @@ public:
                         fmt::format("AsyncReadCallback::isPacketAvailable(): "
                                     "Invalid packet header detected: ({})",
                                     packet));
-            } else {
-                return true;
             }
+            return true;
         }
 
         const auto framesize = packet.getFrame().size();
@@ -1092,15 +1091,14 @@ void MemcachedConnection::recvFrame(Frame& frame,
                                 "ms for a response",
                         opcode,
                         readTimeout);
-            } else {
-                throw TimeoutException(
-                        "MemcachedConnection::recvFrame(): Timed out after "
-                        "waiting " +
-                                std::to_string(timeoutvalue.count()) +
-                                "ms for a response for " + ::to_string(opcode),
-                        opcode,
-                        readTimeout);
             }
+            throw TimeoutException(
+                    "MemcachedConnection::recvFrame(): Timed out after "
+                    "waiting " +
+                            std::to_string(timeoutvalue.count()) +
+                            "ms for a response for " + ::to_string(opcode),
+                    opcode,
+                    readTimeout);
         }
     }
 

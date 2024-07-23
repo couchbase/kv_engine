@@ -1304,9 +1304,8 @@ void Connection::close() {
             if (cookie->isEwouldblock()) {
                 ewb = true;
                 break;
-            } else {
-                cookie->reset();
             }
+            cookie->reset();
         }
     }
 

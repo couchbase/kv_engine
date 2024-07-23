@@ -836,7 +836,8 @@ std::unique_ptr<DcpResponse> ActiveStream::inMemoryPhase(
             transitionState(StreamState::Backfilling);
             pendingBackfill = false;
             return {};
-        } else if (nextCheckpointItem(producer)) {
+        }
+        if (nextCheckpointItem(producer)) {
             return {};
         }
     }
@@ -860,10 +861,9 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
 
     if (!readyQ.empty()) {
         return nextQueuedItem(producer);
-    } else {
-        if (nextCheckpointItem(producer)) {
-            return {};
-        }
+    }
+    if (nextCheckpointItem(producer)) {
+        return {};
     }
 
     if (waitForSnapshot != 0) {
@@ -875,12 +875,11 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
     if (producer.bufferLogInsert(SetVBucketState::baseMsgBytes)) {
         transitionState(StreamState::TakeoverWait);
         return std::make_unique<SetVBucketState>(opaque_, vb_, takeoverState);
-    } else {
-        // Force notification of the stream, with no new mutations we might get
-        // stuck otherwise as returning no item doesn't add this vBucket back to
-        // the producer's readyQueue
-        notifyStreamReady(true, &producer);
     }
+    // Force notification of the stream, with no new mutations we might get
+    // stuck otherwise as returning no item doesn't add this vBucket back to
+    // the producer's readyQueue
+    notifyStreamReady(true, &producer);
 
     return {};
 }
@@ -2060,7 +2059,8 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
     if (!requireBackfill) {
         abortScheduleBackfill(reschedule, producer);
         return;
-    } else if (tryAndScheduleOSOBackfill(producer, *vbucket)) {
+    }
+    if (tryAndScheduleOSOBackfill(producer, *vbucket)) {
         return;
     }
 

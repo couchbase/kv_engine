@@ -518,15 +518,13 @@ std::pair<cb::engine_errc, bool> DcpProducer::shouldAddVBToProducerConnection(
                                 vbucket,
                                 filter.getStreamId().to_string());
                         return {cb::engine_errc::key_already_exists, false};
-                    } else {
-                        // Found a 'dead' stream which can be replaced.
-                        handle.erase();
-
-                        // Don't need to add an entry to vbucket-to-conns map
-                        callAddVBConnByVBId = false;
-
-                        break;
                     }
+                    // Found a 'dead' stream which can be replaced.
+                    handle.erase();
+
+                    // Don't need to add an entry to vbucket-to-conns map
+                    callAddVBConnByVBId = false;
+                    break;
                 }
             }
         }
@@ -1142,8 +1140,9 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             return cb::engine_errc::invalid_arguments;
         }
         return cb::engine_errc::success;
+    }
 
-    } else if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
+    if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
         uint32_t size;
         if (safe_strtoul(valueStr, size)) {
             /* Size 0 implies the client (DCP consumer) does not support
@@ -1284,7 +1283,8 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         if (valueStr == "true") {
             outOfOrderSnapshots = OutOfOrderSnapshots::Yes;
             return cb::engine_errc::success;
-        } else if (valueStr == "true_with_seqno_advanced") {
+        }
+        if (valueStr == "true_with_seqno_advanced") {
             outOfOrderSnapshots = OutOfOrderSnapshots::YesWithSeqnoAdvanced;
             return cb::engine_errc::success;
         }
@@ -1292,20 +1292,18 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         if (valueStr == "true") {
             if (includeDeletedUserXattrs == IncludeDeletedUserXattrs::Yes) {
                 return cb::engine_errc::success;
-            } else {
-                // Note: Return here as there is no invalid param, we just want
-                // to inform the DCP client that this Producer does not enable
-                // IncludeDeletedUserXattrs, so we do not want to log as below
-                return cb::engine_errc::invalid_arguments;
             }
+            // Note: Return here as there is no invalid param, we just want
+            // to inform the DCP client that this Producer does not enable
+            // IncludeDeletedUserXattrs, so we do not want to log as below
+            return cb::engine_errc::invalid_arguments;
         }
     } else if (key == "v7_dcp_status_codes") {
         if (valueStr == "true") {
             enabledV7DcpStatus = true;
             return cb::engine_errc::success;
-        } else {
-            return cb::engine_errc::invalid_arguments;
         }
+        return cb::engine_errc::invalid_arguments;
     } else if (key == DcpControlKeys::FlatBuffersSystemEvents &&
                valueStr == "true") {
         flatBuffersSystemEventsEnabled = true;
@@ -1563,7 +1561,8 @@ cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
                 "stream-ID is required.",
                 vbucket);
         return cb::engine_errc::dcp_streamid_invalid;
-    } else if (sid && multipleStreamRequests == MultipleStreamRequests::No) {
+    }
+    if (sid && multipleStreamRequests == MultipleStreamRequests::No) {
         logger->warn(
                 "({}) closeStream request failed because a "
                 "stream-ID:{} is present "
@@ -1588,23 +1587,22 @@ cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
                 sid);
         return sid && rv.second ? cb::engine_errc::dcp_streamid_invalid
                                 : cb::engine_errc::no_such_key;
+    }
+    if (!rv.first->isActive()) {
+        logger->warn(
+                "({}) Cannot close stream because "
+                "stream is already marked as dead {}",
+                vbucket,
+                sid);
+        ret = cb::engine_errc::no_such_key;
     } else {
-        if (!rv.first->isActive()) {
-            logger->warn(
-                    "({}) Cannot close stream because "
-                    "stream is already marked as dead {}",
-                    vbucket,
-                    sid);
-            ret = cb::engine_errc::no_such_key;
-        } else {
-            rv.first->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
-            ret = cb::engine_errc::success;
-        }
-        if (!sendStreamEndOnClientStreamClose) {
-            /* Remove the conn from 'vb_conns map' only when we have removed the
-               stream from the producer connections StreamsMap */
-            engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
-        }
+        rv.first->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
+        ret = cb::engine_errc::success;
+    }
+    if (!sendStreamEndOnClientStreamClose) {
+        /* Remove the conn from 'vb_conns map' only when we have removed the
+           stream from the producer connections StreamsMap */
+        engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbucket);
     }
 
     return ret;

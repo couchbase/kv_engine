@@ -179,9 +179,8 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, QueueDirty)
         std::uniform_real_distribution<> dis(0, 1.0);
         if (dis(gen) < 0.1) {
             return std::string("key") + std::to_string((i + 1) / 2);
-        } else {
-            return std::string("key") + std::to_string(i);
         }
+        return std::string("key") + std::to_string(i);
     };
 
     int itemsQueuedTotal = 0;

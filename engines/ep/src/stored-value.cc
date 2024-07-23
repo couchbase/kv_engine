@@ -139,9 +139,8 @@ bool StoredValue::eligibleForEviction(EvictionPolicy policy) const {
 void StoredValue::setValue(const Item& itm) {
     if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->setValueImpl(itm);
-    } else {
-        return this->setValueImpl(itm);
     }
+    return this->setValueImpl(itm);
 }
 
 void StoredValue::ejectValue() {
@@ -219,9 +218,8 @@ size_t StoredValue::uncompressedValuelen() const {
 bool StoredValue::del(DeleteSource delSource) {
     if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->deleteImpl(delSource);
-    } else {
-        return this->deleteImpl(delSource);
     }
+    return this->deleteImpl(delSource);
 }
 
 size_t StoredValue::getRequiredStorage(const DocKeyView& key) {
@@ -506,9 +504,8 @@ void StoredValue::setCompletedOrDeletedTime(time_t time) {
     if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)
                 ->setCompletedOrDeletedTime(time);
-    } else {
-        // Do nothing, only applicable to OSV
     }
+    // Do nothing, only applicable to OSV
 }
 
 void to_json(nlohmann::json& json, const StoredValue& sv) {
@@ -563,22 +560,18 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
         if (sv.isDeleted()) {
             auto eventData = Manifest::getDropScopeEventData(itemValue);
             return to_string(eventData);
-        } else {
-            auto eventData = Manifest::getCreateScopeEventData(itemValue);
-            return to_string(eventData);
         }
-        break;
+        auto eventData = Manifest::getCreateScopeEventData(itemValue);
+        return to_string(eventData);
     }
     case SystemEvent::Collection:
     case SystemEvent::ModifyCollection: {
         if (sv.isDeleted()) {
             auto eventData = Manifest::getDropEventData(itemValue);
             return to_string(eventData);
-        } else {
-            auto eventData = Manifest::getCreateEventData(itemValue);
-            return to_string(eventData);
         }
-        break;
+        auto eventData = Manifest::getCreateEventData(itemValue);
+        return to_string(eventData);
     }
     }
 
@@ -701,10 +694,9 @@ size_t OrderedStoredValue::getRequiredStorage(const DocKeyView& key) {
 time_t OrderedStoredValue::getCompletedOrDeletedTime() const {
     if (isDeleted() || isPrepareCompleted()) {
         return lock_expiry_or_delete_or_complete_time.delete_or_complete_time;
-    } else {
-        throw std::logic_error(
-                "OrderedStoredValue::getDeletedItem: Called on Alive item");
     }
+    throw std::logic_error(
+            "OrderedStoredValue::getDeletedItem: Called on Alive item");
 }
 
 bool OrderedStoredValue::deleteImpl(DeleteSource delSource) {

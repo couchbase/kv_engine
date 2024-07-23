@@ -438,9 +438,8 @@ void PassiveDurabilityMonitor::completeSyncWrite(
                 // Common path - most things won't belong to a dropped
                 // Collection
                 break;
-            } else {
-                next = s->safeEraseSyncWrite(next);
             }
+            next = s->safeEraseSyncWrite(next);
         }
     }
 
@@ -605,9 +604,8 @@ int64_t PassiveDurabilityMonitor::getHighestTrackedSeqno() const {
     auto s = state.rlock();
     if (!s->trackedWrites.empty()) {
         return s->trackedWrites.back().getBySeqno();
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 void PassiveDurabilityMonitor::dump() const {

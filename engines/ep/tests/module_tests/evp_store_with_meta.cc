@@ -111,9 +111,8 @@ public:
         if (op == cb::mcbp::ClientOpcode::DelWithMeta ||
             op == cb::mcbp::ClientOpcode::DelqWithMeta) {
             return engine->deleteWithMeta(*cookie, *req, this->addResponse);
-        } else {
-            return engine->setWithMeta(*cookie, *req, this->addResponse);
         }
+        return engine->setWithMeta(*cookie, *req, this->addResponse);
     }
 
     /**

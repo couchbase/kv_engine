@@ -950,10 +950,9 @@ SequenceList::UpdateStatus EphemeralVBucket::modifySeqList(
            listWriteLg, by generating a sequence number */
         seqList->appendToList(seqLock, writeLock, osv);
         return SequenceList::UpdateStatus::Success;
-    } else {
-        /* Update the OrderedStoredValue in the Ordered data structure (list) */
-        return seqList->updateListElem(seqLock, writeLock, osv);
     }
+    /* Update the OrderedStoredValue in the Ordered data structure (list) */
+    return seqList->updateListElem(seqLock, writeLock, osv);
 }
 
 size_t EphemeralVBucket::getNumPersistedDeletes() const {

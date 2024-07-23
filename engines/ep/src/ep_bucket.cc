@@ -1598,10 +1598,9 @@ bool EPBucket::updateCompactionTasks(Vbid vbid) {
         if (task->isRescheduleRequired()) {
             // Nope can't erase! Must re-schedule this task.
             return true;
-        } else {
-            // Done, can now erase from the compactionTasks map
-            handle->erase(itr);
         }
+        // Done, can now erase from the compactionTasks map
+        handle->erase(itr);
     } else {
         throw std::logic_error(
                 "EPBucket::updateCompactionTasks no task for vbid:" +

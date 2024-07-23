@@ -81,19 +81,18 @@ bool DCPBackfillDiskToStream::setupForHistoryScan(ActiveStream& stream,
                 snapshot_info_t{startSeqno, completeRange},
                 SnapshotType::History);
         return true;
-    } else {
-        // The scan will be in both ranges, scan crosses from the non-history
-        // into the history window.
-        // Set the start then as the historyStartSeqno
-        historyScan = std::make_unique<HistoryScanCtx>(
-                scanCtx.historyStartSeqno,
-                snapshot_info_t{scanCtx.historyStartSeqno, completeRange},
-                SnapshotType::HistoryFollowingNoHistory);
-        // Adjust the current scan so that it doesn't enter into the history
-        // range, it will include, then stop after the last seqno before history
-        // begins.
-        scanCtx.maxSeqno = scanCtx.historyStartSeqno - 1;
     }
+    // The scan will be in both ranges, scan crosses from the non-history
+    // into the history window.
+    // Set the start then as the historyStartSeqno
+    historyScan = std::make_unique<HistoryScanCtx>(
+            scanCtx.historyStartSeqno,
+            snapshot_info_t{scanCtx.historyStartSeqno, completeRange},
+            SnapshotType::HistoryFollowingNoHistory);
+    // Adjust the current scan so that it doesn't enter into the history
+    // range, it will include, then stop after the last seqno before history
+    // begins.
+    scanCtx.maxSeqno = scanCtx.historyStartSeqno - 1;
 
     return false;
 }

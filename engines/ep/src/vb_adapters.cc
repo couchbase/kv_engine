@@ -43,10 +43,9 @@ std::string VBCBAdaptor::getDescription() const {
     auto value = currentvb.load();
     if (value == None) {
         return std::string(label) + " no vbucket assigned";
-    } else {
-        // MB-61220: Now prints the vBucket that was last visited.
-        return std::string(label) + " on " + Vbid(value).to_string();
     }
+    // MB-61220: Now prints the vBucket that was last visited.
+    return std::string(label) + " on " + Vbid(value).to_string();
 }
 
 bool VBCBAdaptor::run() {
@@ -186,9 +185,8 @@ bool SingleSteppingVisitorAdapter::runInner(bool) {
             // Processed all vBuckets now, do not need to run again.
             visitor->complete();
             return false;
-        } else {
-            return true;
         }
+        return true;
     }();
 
     callContinuation(runAgain);

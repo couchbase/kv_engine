@@ -138,25 +138,22 @@ bool BloomFilter::maybeKeyExists(const DocKeyView& key) {
 size_t BloomFilter::getNumOfKeysInFilter() const {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         return keyCounter;
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 size_t BloomFilter::getFilterSize() const {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         return filterSize;
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 size_t BloomFilter::getNoOfHashes() const {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         return noOfHashes;
-    } else {
-        return 0;
     }
+    return 0;
 }
 
 size_t BloomFilter::getMemoryFootprint() const {

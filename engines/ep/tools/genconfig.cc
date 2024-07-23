@@ -448,9 +448,8 @@ static std::string formatValue(const std::string value,
                                const std::string& type) {
     if (type == "std::string" || type.find("Configuration::") == 0) {
         return fmt::format("\"{}\"s", value);
-    } else {
-        return fmt::format("static_cast<{}>({})", type, value);
     }
+    return fmt::format("static_cast<{}>({})", type, value);
 }
 
 /**

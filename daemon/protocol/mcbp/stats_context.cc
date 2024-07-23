@@ -170,9 +170,8 @@ static cb::engine_errc stat_audit_executor(const std::string& arg,
         CBStatCollector collector(appendStatsFn, cookie);
         stats_audit(collector, &cookie);
         return cb::engine_errc::success;
-    } else {
-        return cb::engine_errc::invalid_arguments;
     }
+    return cb::engine_errc::invalid_arguments;
 }
 
 /**
@@ -338,9 +337,8 @@ static cb::engine_errc stat_histogram_executor(
         }
         append_stats(key, json_str, cookie);
         return cb::engine_errc::success;
-    } else {
-        return cb::engine_errc::invalid_arguments;
     }
+    return cb::engine_errc::invalid_arguments;
 }
 
 /**
@@ -444,9 +442,8 @@ static cb::engine_errc stat_tracing_executor(const std::string& arg,
         MemcachedCallback cb{cookie};
         phosphor::TraceLog::getInstance().getStats(cb);
         return cb::engine_errc::success;
-    } else {
-        return cb::engine_errc::invalid_arguments;
     }
+    return cb::engine_errc::invalid_arguments;
 }
 
 static cb::engine_errc stat_bucket_stats(const std::string&, Cookie& cookie) {
@@ -742,9 +739,8 @@ static std::pair<command_stat_handler, bool> getStatHandler(
         // default one which would fan out its own task and run it
         // in the thread pool.
         return {command_stat_handler{true, stat_bucket_stats}, false};
-    } else {
-        return {iter->second, true};
     }
+    return {iter->second, true};
 }
 
 StatsCommandContext::StatsCommandContext(Cookie& cookie)

@@ -192,7 +192,8 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                 "stream is deleted by the producer conn ",
                 getVBucketId());
         return backfill_finished;
-    } else if (!(stream->isActive())) {
+    }
+    if (!(stream->isActive())) {
         /* Stop prematurely if the stream state changes */
         complete(*stream);
         return backfill_finished;

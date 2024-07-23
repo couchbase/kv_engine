@@ -86,9 +86,8 @@ bool VBReadyQueue::pushUnique(Vbid vbucket) {
         pushUniqueQueuedValuesUpdatedPostQueueWrite();
 #endif
         return queueSize.fetch_add(1) == 0;
-    } else {
-        return false;
     }
+    return false;
 }
 
 size_t VBReadyQueue::size() const {

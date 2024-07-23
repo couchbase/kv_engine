@@ -67,7 +67,8 @@ bool ScanContext::isLogicallyDeleted(const DocKeyView& key,
 
     if (!dropped.empty() && isLogicallyDeleted(cid, isDeleted, seqno)) {
         return true;
-    } else if (canCheckOpenMap) {
+    }
+    if (canCheckOpenMap) {
         // Check open/alive collections
         auto itr = open.find(cid);
         if (itr != open.end()) {
