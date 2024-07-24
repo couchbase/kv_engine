@@ -197,8 +197,7 @@ void KVStoreStats::reset() {
 }
 
 std::unique_ptr<KVStoreIface> KVStoreFactory::create(
-        KVStoreConfig& config,
-        EncryptionKeyLookupFunction encryptionKeyLookupFunction) {
+        KVStoreConfig& config, EncryptionKeyProvider* encryptionKeyProvider) {
     // Directory for kvstore files should exist already (see
     // EventuallyPersistentEngine::initialize).
     if (!cb::io::isDirectory(config.getDBName())) {
@@ -211,20 +210,20 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(
     if (backend == "couchdb") {
         return std::make_unique<CouchKVStore>(
                 dynamic_cast<CouchKVStoreConfig&>(config),
-                std::move(encryptionKeyLookupFunction));
+                encryptionKeyProvider);
     }
 
     if (backend == "nexus") {
         return std::make_unique<NexusKVStore>(
                 dynamic_cast<NexusKVStoreConfig&>(config),
-                std::move(encryptionKeyLookupFunction));
+                encryptionKeyProvider);
     }
 
 #ifdef EP_USE_MAGMA
     if (backend == "magma") {
         return std::make_unique<MagmaKVStore>(
                 dynamic_cast<MagmaKVStoreConfig&>(config),
-                std::move(encryptionKeyLookupFunction));
+                encryptionKeyProvider);
     }
 #endif
 

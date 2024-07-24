@@ -21,6 +21,7 @@
 namespace cb::crypto {
 struct DataEncryptionKey;
 using SharedEncryptionKey = std::shared_ptr<const DataEncryptionKey>;
+class KeyStore;
 }
 
 /**
@@ -65,9 +66,7 @@ using SharedEncryptionKey = std::shared_ptr<const DataEncryptionKey>;
 class Configuration;
 class CookieIface;
 class KVStoreIface;
-
-using EncryptionKeyLookupFunction =
-        std::function<cb::crypto::SharedEncryptionKey(std::string_view)>;
+class EncryptionKeyProvider;
 
 class KVShard {
 public:
@@ -76,7 +75,7 @@ public:
     KVShard(Configuration& config,
             id_type numShards,
             id_type id,
-            EncryptionKeyLookupFunction encryptionKeyLookupFunction);
+            EncryptionKeyProvider* encryptionKeyProvider);
     ~KVShard();
     KVShard(const KVShard&) = delete;
     KVShard(KVShard&&) = delete;

@@ -16,6 +16,7 @@
 #include "couch-kvstore-config.h"
 #include "couch-kvstore-db-holder.h"
 #include "diskdockey.h"
+#include "encryption_key_provider.h"
 #include "ep_time.h"
 #include "getkeys.h"
 #include "item.h"
@@ -379,25 +380,23 @@ CouchRequest::CouchRequest(queued_item it)
 
 CouchRequest::~CouchRequest() = default;
 
-CouchKVStore::CouchKVStore(
-        const CouchKVStoreConfig& config,
-        EncryptionKeyLookupFunction encryptionKeyLookupFunction)
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
+                           EncryptionKeyProvider* encryptionKeyProvider)
     : CouchKVStore(config,
                    *couchstore_get_default_file_ops(),
-                   std::move(encryptionKeyLookupFunction)) {
+                   encryptionKeyProvider) {
 }
 
-CouchKVStore::CouchKVStore(
-        const CouchKVStoreConfig& config,
-        FileOpsInterface& ops,
-        EncryptionKeyLookupFunction encryptionKeyLookupFunction,
-        std::shared_ptr<RevisionMap> revMap)
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
+                           FileOpsInterface& ops,
+                           EncryptionKeyProvider* encryptionKeyProvider,
+                           std::shared_ptr<RevisionMap> revMap)
     : configuration(config),
       dbname(config.getDBName()),
       dbFileRevMap(std::move(revMap)),
       logger(config.getLogger()),
       base_ops(ops),
-      encryptionKeyLookupFunction(std::move(encryptionKeyLookupFunction)) {
+      encryptionKeyProvider(encryptionKeyProvider) {
     statCollectingFileOps =
             getCouchstoreStatsOps(fsStats, fileOpsTracker, base_ops);
     statCollectingFileOpsCompaction =
@@ -425,14 +424,11 @@ std::shared_ptr<CouchKVStore::RevisionMap> CouchKVStore::makeRevisionMap(
     return map;
 }
 
-CouchKVStore::CouchKVStore(
-        const CouchKVStoreConfig& config,
-        FileOpsInterface& ops,
-        EncryptionKeyLookupFunction encryptionKeyLookupFunction)
-    : CouchKVStore(config,
-                   ops,
-                   std::move(encryptionKeyLookupFunction),
-                   makeRevisionMap(config)) {
+CouchKVStore::CouchKVStore(const CouchKVStoreConfig& config,
+                           FileOpsInterface& ops,
+                           EncryptionKeyProvider* encryptionKeyProvider)
+    : CouchKVStore(
+              config, ops, encryptionKeyProvider, makeRevisionMap(config)) {
     // 1) populate the dbFileRevMap which can remove old revisions, this returns
     //    a map, which the keys (vbid) will be needed for step 3 and 4.
     auto map = populateRevMapAndRemoveStaleFiles();
@@ -1521,11 +1517,12 @@ CompactDBStatus CouchKVStore::compactDBInternal(
         hook_ctx->eraserContext =
                 std::make_unique<Collections::VB::EraserContext>(
                         droppedCollections);
+
         errCode = cb::couchstore::compact(
                 *sourceDb,
                 compact_file.c_str(),
                 flags,
-                encryptionKeyLookupFunction,
+                getEncryptionLookupFunction(),
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
@@ -2483,7 +2480,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
 
     errorCode = couchstore_open_db_ex(dbFileName.c_str(),
                                       options,
-                                      encryptionKeyLookupFunction,
+                                      getEncryptionLookupFunction(),
                                       ops,
                                       db.getDbAddress());
 
@@ -4534,4 +4531,12 @@ bool CouchKVStore::pause() {
 
 void CouchKVStore::resume() {
     // Nothing to do for Couchstore, no background tasks etc to resume.
+}
+
+std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+CouchKVStore::getEncryptionLookupFunction() const {
+    return [this](auto id) {
+        return (encryptionKeyProvider) ? encryptionKeyProvider->lookup(id)
+                                       : cb::crypto::SharedEncryptionKey{};
+    };
 }

@@ -39,6 +39,7 @@
 /* Forward declarations */
 class BucketLogger;
 class CookieIface;
+class EncryptionKeyProvider;
 class EPStats;
 class FileOpsTracker;
 class Item;
@@ -51,6 +52,7 @@ class VBucket;
 
 namespace cb::crypto {
 struct DataEncryptionKey;
+class KeyStore;
 }
 
 namespace cb::mcbp {
@@ -62,16 +64,6 @@ enum class GetMetaOnly { Yes, No };
 using BloomFilterCBPtr =
         std::shared_ptr<Callback<Vbid&, const DocKeyView&, bool&>>;
 using ExpiredItemsCBPtr = std::shared_ptr<Callback<Item&, time_t&>>;
-
-using EncryptionKeyLookupFunction =
-        std::function<std::shared_ptr<const cb::crypto::DataEncryptionKey>(
-                std::string_view)>;
-
-/// Create a function which returns "not found"
-inline std::shared_ptr<cb::crypto::DataEncryptionKey>
-noEncryptionKeyLookupFunction(std::string_view) {
-    return {};
-}
 
 /**
  * Generic information about a KVStore file
@@ -1061,7 +1053,7 @@ public:
      */
     static std::unique_ptr<KVStoreIface> create(
             KVStoreConfig& config,
-            EncryptionKeyLookupFunction encryptionKeyLookupFunction);
+            EncryptionKeyProvider* encryptionKeyProvider);
 };
 
 std::ostream& operator<<(std::ostream& os, const ValueFilter& vf);

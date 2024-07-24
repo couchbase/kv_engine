@@ -66,7 +66,7 @@ VBucketMap::VBucketMap(KVBucket& bucket)
                 bucket.getEPEngine().getConfiguration(),
                 numShards,
                 shardId,
-                [&engine](auto id) { return engine.lookupEncryptionKey(id); });
+                engine.getEncryptionKeyProvider());
     }
 
     auto& config = engine.getConfiguration();

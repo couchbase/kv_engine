@@ -51,6 +51,11 @@ struct vbucket_state;
  */
 class MagmaKVStore : public KVStore {
 public:
+    MagmaKVStore(MagmaKVStoreConfig& config,
+                 EncryptionKeyProvider* encryptionKeyProvider);
+
+    ~MagmaKVStore() override;
+
     using WriteOps = std::vector<magma::Magma::WriteOperation>;
 
     /**
@@ -97,11 +102,6 @@ public:
      * @param writeOps vector of Magma::WriteOperations
      */
     void addStatUpdateToWriteOps(MagmaDbStats& stats, WriteOps& writeOps) const;
-
-    MagmaKVStore(MagmaKVStoreConfig& config,
-                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
-
-    ~MagmaKVStore() override;
 
     void deinitialize() override;
 

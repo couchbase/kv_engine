@@ -13,6 +13,7 @@
 
 #include "blob.h"
 #include "configuration.h"
+#include "encryption_key_provider.h"
 #include "ep_engine_public.h"
 #include "ep_engine_storage.h"
 #include "ep_types.h"
@@ -1065,15 +1066,10 @@ public:
      */
     void setDcpBackfillByteLimit(size_t bytes);
 
-    /**
-     * Fetch the key for the provided id (empty == active key)
-     *
-     * @param id The key to fetch (An empty string indicates the active key)
-     * @return The key if we know the key or {} for unknown id (or if one
-     * asks for the active key and encryption is turned off)
-     */
-    [[nodiscard]] cb::crypto::SharedEncryptionKey lookupEncryptionKey(
-            std::string_view id);
+    /// Get the encryption key provider used by this instance of ep-engine
+    [[nodiscard]] EncryptionKeyProvider* getEncryptionKeyProvider() {
+        return &encryptionKeyProvider;
+    }
 
 protected:
     friend class EpEngineValueChangeListener;
@@ -1653,8 +1649,9 @@ protected:
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
 
-    /// The keys provided by ns_server
-    folly::Synchronized<cb::crypto::KeyStore> encryptionAtRestKeyStore;
+    /// The encryption key provider used to store keys and notify others when
+    /// the list of keys change
+    EncryptionKeyProvider encryptionKeyProvider;
 };
 
 /**

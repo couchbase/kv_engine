@@ -2182,7 +2182,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     resetStats();
 
     if (!encryption.empty()) {
-        encryptionAtRestKeyStore = encryption;
+        encryptionKeyProvider.setKeys(encryption);
     }
 
     if (!configuration.parseConfiguration(config)) {
@@ -7609,8 +7609,7 @@ cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
     if (!json.empty()) {
         ks = json;
     }
-    encryptionAtRestKeyStore.withWLock(
-            [&ks](auto& store) { store = std::move(ks); });
+    encryptionKeyProvider.setKeys(std::move(ks));
     return cb::engine_errc::success;
 }
 
@@ -7688,15 +7687,4 @@ void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
     if (dcpConnMap_) {
         dcpConnMap_->setBackfillByteLimit(bytes);
     }
-}
-
-cb::crypto::SharedEncryptionKey EventuallyPersistentEngine::lookupEncryptionKey(
-        const std::string_view id) {
-    return encryptionAtRestKeyStore.withRLock([&id](auto& keystore) {
-        if (id.empty()) {
-            return keystore.getActiveKey();
-        }
-
-        return keystore.lookup(id);
-    });
 }

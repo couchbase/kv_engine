@@ -333,6 +333,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/durability/durability_monitor_impl.cc
             src/durability/passive_durability_monitor.cc
             src/durability_timeout_task.cc
+            src/encryption_key_provider.cc
             src/ep_bucket.cc
             src/ep_vb.cc
             src/ep_engine.cc

@@ -52,7 +52,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     KVShard kvShard(engine->getConfiguration(),
                     engine->getConfiguration().getMaxNumShards(),
                     0,
-                    noEncryptionKeyLookupFunction);
+                    {});
     BgFetcher bgFetcher(*mockEPBucket.get());
 
     for (unsigned int ii = 0; ii < 100000; ii++) {

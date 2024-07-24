@@ -153,12 +153,11 @@ public:
     /**
      * Constructor - creates a read/write CouchKVStore
      *
-     * @param config    Configuration information
-     * @param encryptionKeyLookupFunction the method to call to look up an
-     *        encryption key
+     * @param config Configuration information
+     * @param encryptionKeyProvider Used to look up the current key
      */
     CouchKVStore(const CouchKVStoreConfig& config,
-                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
+                 EncryptionKeyProvider* encryptionKeyProvider);
 
     /**
      * Construction for a read-write CouchKVStore.
@@ -173,12 +172,11 @@ public:
      *
      * @param config config to use
      * @param ops The ops interface to use for File I/O
-     * @param encryptionKeyLookupFunction the method to call to look up an
-     *        encryption key
+     * @param encryptionKeyProvider used to look up the current key
      */
     CouchKVStore(const CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
-                 EncryptionKeyLookupFunction encryptionKeyLookupFunction);
+                 EncryptionKeyProvider* encryptionKeyProvider);
 
     /**
      * Deconstructor
@@ -1014,11 +1012,16 @@ protected:
      */
     CouchKVStore(const CouchKVStoreConfig& config,
                  FileOpsInterface& ops,
-                 EncryptionKeyLookupFunction encryptionKeyLookupFunction,
+                 EncryptionKeyProvider* encryptionKeyProvider,
                  std::shared_ptr<RevisionMap> revMap);
 
-    /// The lookup function used to look up the encryption key
-    const EncryptionKeyLookupFunction encryptionKeyLookupFunction;
+    /// The encryption key provider used to look up encryption keys
+    const EncryptionKeyProvider* const encryptionKeyProvider;
+
+    /// Get a function to use the encryptionKeyProvider to look up the
+    /// encryption key to use
+    std::function<cb::crypto::SharedEncryptionKey(std::string_view)>
+    getEncryptionLookupFunction() const;
 
     /**
      * Common RO/RW initialisation

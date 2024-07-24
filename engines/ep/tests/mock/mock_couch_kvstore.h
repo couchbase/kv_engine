@@ -63,11 +63,11 @@ class MockCouchKVStore : public CouchKVStore {
 public:
     /// Read-write constructor
     explicit MockCouchKVStore(const CouchKVStoreConfig& config)
-        : CouchKVStore(config, noEncryptionKeyLookupFunction) {
+        : CouchKVStore(config, {}) {
     }
 
     MockCouchKVStore(const CouchKVStoreConfig& config, FileOpsInterface& ops)
-        : CouchKVStore(config, ops, noEncryptionKeyLookupFunction) {
+        : CouchKVStore(config, ops, {}) {
     }
 
     /// Read-Only constructor where we are given a RevisionMap
@@ -75,7 +75,7 @@ public:
                      std::shared_ptr<RevisionMap> dbFileRevMap)
         : CouchKVStore(config,
                        *couchstore_get_default_file_ops(),
-                       noEncryptionKeyLookupFunction,
+                       {},
                        dbFileRevMap) {
     }
 
