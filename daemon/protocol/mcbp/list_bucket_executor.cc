@@ -21,36 +21,19 @@ std::pair<cb::engine_errc, std::string> list_bucket(Connection& connection) {
         return std::make_pair(cb::engine_errc::no_access, "");
     }
 
-    // The list bucket command is a bit racy (as it other threads may
-    // create/delete/remove access to buckets while we check them), but
-    // we don't care about that (we don't want to hold a lock for the
-    // entire period, _AND_ the access could be changed right after we
-    // built the response anyway.
     std::string blob;
     // The blob string will contain all of the buckets, and to
     // avoid too many reallocations we should probably just reserve
     // a chunk
     blob.reserve(100);
-
-    for (auto& bucket : all_buckets) {
-        std::string bucketname;
-
-        {
-            std::lock_guard<std::mutex> guard(bucket.mutex);
-            if (bucket.state == Bucket::State::Ready) {
-                bucketname = bucket.name;
-            }
+    BucketManager::instance().forEach([&connection, &blob](auto& bucket) {
+        if (bucket.type != BucketType::NoBucket &&
+            connection.mayAccessBucket(bucket.name)) {
+            blob.append(bucket.name);
+            blob.push_back(' ');
         }
-
-        if (bucketname.empty()) {
-            // ignore this one
-            continue;
-        }
-
-        if (connection.mayAccessBucket(bucketname)) {
-            blob += bucketname + " ";
-        }
-    }
+        return true;
+    });
 
     if (!blob.empty()) {
         /* remove trailing " " */
