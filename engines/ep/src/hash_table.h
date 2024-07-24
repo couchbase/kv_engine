@@ -663,6 +663,13 @@ public:
     }
 
     /**
+     * Get the time the last successful resize completed at.
+     */
+    std::chrono::steady_clock::time_point getLastResizeTime() const {
+        return lastResizeTime;
+    }
+
+    /**
      * Sets the frequencyCounterSaturated function to the callback function
      * passed in.
      * @param - callbackFunction  The function to set
@@ -779,10 +786,22 @@ public:
     }
 
     /**
-     * Compute the new size the hash-table should have based on the current
-     * number of items and size.
+     * Compute a new size for the hashtable, based on the current number of
+     * items, size and delay. If the new size is less than the current, then
+     * only return the new size if the delay has surpassed since the
+     * last resize.
+     *
+     * @param delay The time which must surpass from the last resize
+     *              operation to return a decrease in size.
+     * @return - New size if it's greater than or equal to current size,
+     *           regardless of delay.
+     *         - New size if it's less than the current size and the delay
+     *           has surpassed.
+     *         - Same size if it's less than the current size and the delay
+     *           has not surpassed.
      */
-    size_t getPreferredSize() const;
+    size_t getPreferredSize(
+            std::chrono::steady_clock::duration delay = {}) const;
 
     /**
      * Automatically resize to fit the current data.
@@ -1738,6 +1757,8 @@ protected:
     // Ensures that the hash-table is not resized with visitors
     cb::NonBlockingSharedMutex visitorMutex;
     std::atomic<ResizeAlgo> resizeInProgress{ResizeAlgo::None};
+    // The time of the previously completed resize
+    std::chrono::steady_clock::time_point lastResizeTime;
 
     EPStats&             stats;
     std::unique_ptr<AbstractStoredValueFactory> valFact;

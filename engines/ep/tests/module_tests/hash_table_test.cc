@@ -30,14 +30,24 @@
 
 #include <signal.h>
 #include <algorithm>
+#include <chrono>
 #include <limits>
 #include <random>
 #include <string>
 #include <utility>
 
+using namespace std::chrono_literals;
+
 EPStats global_stats;
 
 using ResizeAlgo = HashTable::ResizeAlgo;
+
+class MockHashTable : public HashTable {
+public:
+    using HashTable::HashTable;
+
+    using HashTable::lastResizeTime;
+};
 
 class Counter : public HashTableVisitor {
 public:
@@ -310,6 +320,47 @@ TEST_F(HashTableTest, ResizeStablity) {
     EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep());
     EXPECT_EQ(h.getNumResizes(), 2);
     EXPECT_EQ(47, h.getSize());
+}
+
+// Test for added delay when reducing the size of a HashTable.
+// This prevents the size from fluctuating when items are added and removed,
+// reducing the number of reallocations required.
+TEST_F(HashTableTest, ResizeDecreaseDelay) {
+    // Set initial size to 7 - prime number
+    MockHashTable ht(global_stats, makeFactory(), 7, 3, 0);
+    ASSERT_EQ(7, ht.getSize());
+    ASSERT_EQ(7, ht.getPreferredSize());
+    ASSERT_EQ(0, ht.getNumResizes());
+
+    auto keys = generateKeys(47);
+
+    // Populate to 47 items - size remains the same
+    storeMany(ht, keys);
+    ASSERT_EQ(47, ht.getNumItems());
+    ASSERT_EQ(7, ht.getSize());
+
+    // Returns new increased size, regardless of delay
+    EXPECT_EQ(47, ht.getPreferredSize(100s));
+    EXPECT_EQ(47, ht.getPreferredSize(0s));
+
+    // Increase size - assigns lastResizeTime the current time
+    ASSERT_EQ(NeedsRevisit::No, ht.resizeInOneStep());
+    ASSERT_EQ(1, ht.getNumResizes());
+    ASSERT_EQ(47, ht.getSize());
+
+    // Reduce total number of items to 13
+    for (auto key : gsl::span(keys).subspan(13)) {
+        ASSERT_TRUE(HashTableTest::del(ht, key));
+    }
+    ASSERT_EQ(13, ht.getNumItems());
+
+    // Should not return sdecrease in size if delay has not been surpassed
+    EXPECT_EQ(47, ht.getPreferredSize(100s));
+
+    // 100 seconds have "passed"
+    ht.lastResizeTime -= 100s;
+    // Returns decrease in size as delay has been passed now
+    EXPECT_EQ(13, ht.getPreferredSize(100s));
 }
 
 TEST_F(HashTableTest, ResizeDeferredByVisitor) {

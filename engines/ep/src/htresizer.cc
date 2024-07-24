@@ -17,6 +17,7 @@
 
 #include <phosphor/phosphor.h>
 
+#include <chrono>
 #include <memory>
 
 /**
@@ -24,16 +25,20 @@
  */
 class ResizingVisitor : public CappedDurationVBucketVisitor {
 public:
-    ResizingVisitor(HashTable::ResizeAlgo algo) : resizeAlgoToUse(algo) {
+    ResizingVisitor(HashTable::ResizeAlgo algo,
+                    std::chrono::steady_clock::duration delay)
+        : resizeAlgoToUse(algo), sizeDecreaseDelay(delay) {
     }
 
     void visitBucket(VBucket& vb) override {
         switch (vb.ht.getResizeInProgress()) {
         case HashTable::ResizeAlgo::None:
             if (resizeAlgoToUse == HashTable::ResizeAlgo::Incremental) {
-                needsRevisit = vb.ht.beginIncrementalResize();
+                needsRevisit = vb.ht.beginIncrementalResize(
+                        vb.ht.getPreferredSize(sizeDecreaseDelay));
             } else {
-                needsRevisit = vb.ht.resizeInOneStep();
+                needsRevisit = vb.ht.resizeInOneStep(
+                        vb.ht.getPreferredSize(sizeDecreaseDelay));
             }
             break;
         case HashTable::ResizeAlgo::OneStep:
@@ -53,6 +58,7 @@ protected:
     NeedsRevisit needsRevisit = NeedsRevisit::No;
 
     const HashTable::ResizeAlgo resizeAlgoToUse;
+    const std::chrono::steady_clock::duration sizeDecreaseDelay;
 };
 
 HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
@@ -70,7 +76,11 @@ bool HashtableResizerTask::run() {
         resizeAlgoToUse = HashTable::ResizeAlgo::OneStep;
     }
 
-    auto pv = std::make_unique<ResizingVisitor>(resizeAlgoToUse);
+    std::chrono::seconds sizeDecreaseDelay(
+            engine->getConfiguration().getHtSizeDecreaseDelay());
+
+    auto pv = std::make_unique<ResizingVisitor>(resizeAlgoToUse,
+                                                sizeDecreaseDelay);
 
     // OneStep:
     // [per-VBucket Task] While a Hashtable is resizing no user

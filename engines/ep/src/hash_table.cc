@@ -20,6 +20,7 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <utilities/logtags.h>
+#include <chrono>
 #include <cstring>
 #include <utility>
 
@@ -236,7 +237,8 @@ static size_t nearest(size_t n, size_t a, size_t b) {
     return (distance(n, a) < distance(b, n)) ? a : b;
 }
 
-size_t HashTable::getPreferredSize() const {
+size_t HashTable::getPreferredSize(
+        std::chrono::steady_clock::duration delay) const {
     const size_t minSize = minimumSize();
     const size_t numItems = getNumInMemoryItems();
     const size_t currSize = getSize();
@@ -247,25 +249,36 @@ size_t HashTable::getPreferredSize() const {
                          prime_size_table.end(),
                          [numItems](auto prime) { return prime >= numItems; });
 
+    size_t newSize;
+
     if (candidate == prime_size_table.end()) {
         // We're at the end, take the biggest
         return prime_size_table.back();
     }
     if (*candidate < minSize) {
         // Was going to be smaller than the minimum size.
-        return minSize;
-    }
-    if (candidate == prime_size_table.begin()) {
-        return *candidate;
-    }
-    if (currSize == *(candidate - 1) || currSize == *candidate) {
+        newSize = minSize;
+    } else if (candidate == prime_size_table.begin()) {
+        newSize = *candidate;
+    } else if (currSize == *(candidate - 1) || currSize == *candidate) {
         // If one of the candidate sizes is the current size, maintain
         // the current size in order to remain stable.
         return currSize;
+    } else {
+        // Somewhere in the middle, use the one we're closer to.
+        newSize = nearest(numItems, *(candidate - 1), *candidate);
     }
 
-    // Somewhere in the middle, use the one we're closer to.
-    return nearest(numItems, *(candidate - 1), *candidate);
+    if (newSize < currSize) {
+        auto duration = std::chrono::steady_clock::now() - getLastResizeTime();
+        // Don't resize down if the delay interval has not passed since last
+        // resize.
+        if (duration < delay) {
+            return currSize;
+        }
+    }
+
+    return newSize;
 }
 
 NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
@@ -337,6 +350,10 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
     values = std::move(newValues);
 
     resizeInProgress.store(ResizeAlgo::None, std::memory_order_release);
+
+    // Record resize completion time
+    lastResizeTime = std::chrono::steady_clock::now();
+
     return NeedsRevisit::No;
 }
 
@@ -434,6 +451,10 @@ NeedsRevisit HashTable::continueIncrementalResize() {
 
         // Move to deallocate outside the critical section
         resizingTemporaryValues.swap(sortedByLock);
+
+        // Record resize completion time
+        lastResizeTime = std::chrono::steady_clock::now();
+
         return NeedsRevisit::No;
     }
 

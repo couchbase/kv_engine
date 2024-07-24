@@ -683,6 +683,12 @@
                 }
             }
         },
+        "ht_size_decrease_delay" : {
+            "default": "60",
+            "descr": "Delay in seconds before decreasing the size of a HashTable following a previous resize.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "item_compressor_interval": {
             "default": "250",
             "descr": "How often the item compressor task should run (in milliseconds)",
