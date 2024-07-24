@@ -189,7 +189,7 @@ bool Request::isQuiet() const {
         case ClientOpcode::SetBucketThrottleProperties:
         case ClientOpcode::SetBucketDataLimitExceeded:
         case ClientOpcode::SetNodeThrottleProperties:
-        case ClientOpcode::SetActiveEncryptionKey:
+        case ClientOpcode::SetActiveEncryptionKeys:
         case ClientOpcode::Rget_Unsupported:
         case ClientOpcode::Rset_Unsupported:
         case ClientOpcode::Rappend_Unsupported:
@@ -525,7 +525,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::DeregisterTapClient_Unsupported:
         case ClientOpcode::ResetReplicationChain_Unsupported:
         case ClientOpcode::SetNodeThrottleProperties:
-        case ClientOpcode::SetActiveEncryptionKey:
+        case ClientOpcode::SetActiveEncryptionKeys:
         case ClientOpcode::DcpCloseStream:
         case ClientOpcode::DcpGetFailoverLog:
         case ClientOpcode::DcpFlush_Unsupported:

@@ -52,6 +52,7 @@ class ManagerImpl : public Manager {
 
     void reset(const nlohmann::json& json) override;
     void setActive(Entity entity, SharedEncryptionKey key) override;
+    void setActive(Entity entity, crypto::KeyStore ks) override;
     [[nodiscard]] nlohmann::json to_json() const override;
 
 protected:
@@ -94,6 +95,10 @@ void ManagerImpl::reset(const nlohmann::json& json) {
 void ManagerImpl::setActive(const Entity entity, SharedEncryptionKey key) {
     keys.withWLock(
             [entity, &key](auto& map) { map[entity].setActiveKey(key); });
+}
+
+void ManagerImpl::setActive(Entity entity, crypto::KeyStore ks) {
+    keys.withWLock([entity, &ks](auto& map) { map[entity] = std::move(ks); });
 }
 
 nlohmann::json ManagerImpl::to_json() const {

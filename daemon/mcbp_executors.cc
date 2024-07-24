@@ -538,14 +538,19 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     auto entity = req.getKeyString();
     const auto payload = req.getValueString();
-    std::shared_ptr<cb::crypto::DataEncryptionKey> dek;
 
-    if (!payload.empty()) {
+    cb::crypto::KeyStore key_store;
+    nlohmann::json json;
+    if (payload.empty()) {
+        json = nlohmann::json::object();
+    } else {
         // The validator checked that the requested value was JSON
-        // so we should be able to just parse it.
+        // which means that we should be able to parse it (any exception
+        // will be caught by the framework; logged and finally disconnect
+        // client)
+        json = nlohmann::json::parse(payload);
         try {
-            dek = std::make_shared<cb::crypto::DataEncryptionKey>(
-                    nlohmann::json::parse(payload));
+            key_store = json;
         } catch (const std::exception& exception) {
             LOG_ERROR_CTX("Failed to decode active encryption key info",
                           {"error", exception.what()});
@@ -553,9 +558,7 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
                     "Failed to decode active encryption key info: {}",
                     exception.what()));
             cookie.sendResponse(Status::Einval);
-        }
-        if (dek->cipher == cb::crypto::Cipher::None) {
-            dek.reset();
+            return;
         }
     }
 
@@ -563,7 +566,7 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
         using namespace std::string_view_literals;
         try {
             cb::dek::Manager::instance().setActive(cb::dek::to_entity(entity),
-                                                   std::move(dek));
+                                                   std::move(key_store));
             cookie.sendResponse(Status::Success);
         } catch (const std::invalid_argument&) {
             cookie.sendResponse(Status::KeyEnoent);
@@ -573,14 +576,14 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
     }
 
     auto ret = cb::engine_errc::no_such_key;
-    BucketManager::instance().forEach([&ret, &entity, &dek](
-                                              auto& bucket) -> bool {
-        if (bucket.name == entity) {
-            ret = bucket.getEngine().set_active_encryption_key(dek.get());
-            return false;
-        }
-        return true;
-    });
+    BucketManager::instance().forEach(
+            [&ret, &entity, &json](auto& bucket) -> bool {
+                if (bucket.name == entity) {
+                    ret = bucket.getEngine().set_active_encryption_keys(json);
+                    return false;
+                }
+                return true;
+            });
 
     cookie.sendResponse(ret);
 }
@@ -920,7 +923,7 @@ void initialize_mbcp_lookup_map() {
                   set_bucket_data_limit_exceeded_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
                   set_node_throttle_properties_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SetActiveEncryptionKey,
+    setup_handler(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
                   set_active_encryption_key_executor);
     setup_handler(cb::mcbp::ClientOpcode::CreateBucket,
                   create_remove_bucket_executor);

@@ -7606,19 +7606,19 @@ cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,
 }
 
 [[nodiscard]] cb::engine_errc
-EventuallyPersistentEngine::set_active_encryption_key(
-        const cb::crypto::DataEncryptionKey* encryptionKey) {
-    return acquireEngine(this)->setActiveEncryptionKey(encryptionKey);
+EventuallyPersistentEngine::set_active_encryption_keys(
+        const nlohmann::json& json) {
+    return acquireEngine(this)->setActiveEncryptionKeys(json);
 }
 
-cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKey(
-        const cb::crypto::DataEncryptionKey* encryptionKey) {
-    std::shared_ptr<cb::crypto::DataEncryptionKey> dek;
-    if (encryptionKey) {
-        dek = std::make_shared<cb::crypto::DataEncryptionKey>(*encryptionKey);
+cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
+        const nlohmann::json& json) {
+    cb::crypto::KeyStore ks;
+    if (!json.empty()) {
+        ks = json;
     }
     encryptionAtRestKeyStore.withWLock(
-            [&dek](auto& store) { store.setActiveKey(std::move(dek)); });
+            [&ks](auto& store) { store = std::move(ks); });
     return cb::engine_errc::success;
 }
 

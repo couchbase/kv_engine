@@ -1827,7 +1827,7 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
         return Status::Success;
     }
     if (!cookie.isValidJson(payload)) {
-        cookie.setErrorContext("Invalid payload for SetActiveEncryptionKey");
+        cookie.setErrorContext("Invalid payload for SetActiveEncryptionKeys");
         return Status::Einval;
     }
     return Status::Success;
@@ -2572,7 +2572,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
           set_bucket_data_limit_exceeded_validator);
 
-    setup(ClientOpcode::SetActiveEncryptionKey,
+    setup(ClientOpcode::SetActiveEncryptionKeys,
           set_active_encryption_key_validator);
 
     if (cb::serverless::isEnabled()) {

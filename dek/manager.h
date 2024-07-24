@@ -71,5 +71,7 @@ public:
 
     /// Set the active encryption key for a given entity
     virtual void setActive(Entity entity, SharedEncryptionKey key) = 0;
+    /// Set the list of active encryption keys for a given entity
+    virtual void setActive(Entity entity, crypto::KeyStore ks) = 0;
 };
 } // namespace cb::dek

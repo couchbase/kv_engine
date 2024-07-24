@@ -100,10 +100,19 @@ used to be encrypted and should migrate over to an unencrypted data storage
 the field would include all the keys it would need to open the existing
 database files, but `"active"` would be absent (or empty).
 
-## SetActiveEncryptionKey
+## SetActiveEncryptionKeys
 
 The key field of the packet contains the entity to set the keys for (name of the
-bucket, `@logs`, `@config`, `@audit`). The value field contains the new key to
-add (and make it active), or *empty* to disable encryption (note that memcached
-will keep the other keys around in memory until it thinks it is safe to drop
-them)
+bucket, `@logs`, `@config`, `@audit`). The value of the packet contains the list
+of keys and the active key:
+
+      {
+        "active": "489cf03d-07f1-4e4c-be6f-01f227757937",
+        "keys": [
+          {
+            "cipher": "AES-256-GCM",
+            "id": "489cf03d-07f1-4e4c-be6f-01f227757937",
+            "key": "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="
+          }
+        ]
+      }
