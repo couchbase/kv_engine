@@ -438,7 +438,7 @@ private:
 // case markDiskSnapshot for example will get invoked twice by the same source
 // backfill, and markDiskSnapshot needs to ensure cursors don't get
 // re-registered for example.
-enum SnapshotType {
+enum class SnapshotType {
     History,
     NoHistory,
     NoHistoryPrecedingHistory,
