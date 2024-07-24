@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -24,19 +23,16 @@ using namespace cb::mcbp::subdoc;
 
 BinprotSubdocMultiLookupResponse XattrNoDocTest::subdoc_multi_lookup(
         std::vector<BinprotSubdocMultiLookupCommand::LookupSpecifier> specs,
-        cb::mcbp::subdoc::DocFlag docFlags) {
+        DocFlag docFlags) {
     BinprotSubdocMultiLookupCommand cmd{name, std::move(specs), docFlags};
     return BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
 }
 
 BinprotSubdocMultiMutationResponse XattrNoDocTest::subdoc_multi_mutation(
         std::vector<BinprotSubdocMultiMutationCommand::MutationSpecifier> specs,
-        cb::mcbp::subdoc::DocFlag docFlags) {
+        DocFlag docFlags) {
     BinprotSubdocMultiMutationCommand cmd{name, std::move(specs), docFlags};
-    userConnection->sendCommand(cmd);
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    return multiResp;
+    return BinprotSubdocMultiMutationResponse(userConnection->execute(cmd));
 }
 
 GetMetaResponse XattrNoDocTest::get_meta() {
@@ -264,10 +260,8 @@ protected:
             protocol_binary_datatype_t expectedDatatype =
                     PROTOCOL_BINARY_DATATYPE_JSON |
                     PROTOCOL_BINARY_DATATYPE_XATTR) {
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
+        auto multiResp = BinprotSubdocMultiMutationResponse(
+                userConnection->execute(cmd));
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
 
         // Check the body was set correctly
@@ -275,11 +269,11 @@ protected:
         EXPECT_EQ(value, doc.value);
 
         // Check the xattr was set correctly
-        auto resp = subdoc_get(sysXattr, PathFlag::XattrPath);
+        const auto resp = subdoc_get(sysXattr, PathFlag::XattrPath);
         EXPECT_EQ(xattrVal, resp.getValue());
 
         // Check the datatype.
-        auto meta = get_meta();
+        const auto meta = get_meta();
         EXPECT_EQ(expectedDatatype, meta.datatype);
 
         return multiResp;
@@ -297,19 +291,16 @@ protected:
         cmd.addGet("$XTOC", PathFlag::XattrPath);
         cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiLookupResponse multiResp;
-        userConnection->recvResponse(multiResp);
+        auto multiResp =
+                BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
         EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
         EXPECT_EQ(value, multiResp.getResults()[1].value);
 
         xattr_upsert("userXattr", R"(["Test"])");
-        userConnection->sendCommand(cmd);
-        multiResp.clear();
-        userConnection->recvResponse(multiResp);
+        multiResp =
+                BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
         EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
         EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
@@ -536,13 +527,9 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
         cmd.setKey(name);
 
         // Should not be able to set all XATTRs
-        cmd.addMutation(cb::mcbp::ClientOpcode::Set, flag, "", value);
-
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        EXPECT_EQ(cb::mcbp::Status::Einval, multiResp.getStatus());
+        cmd.addMutation(ClientOpcode::Set, flag, "", value);
+        const auto resp = userConnection->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
     }
 
     // Now test the invalid doc flags
@@ -553,11 +540,8 @@ TEST_P(XattrTest, SetXattrAndBodyInvalidFlags) {
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::AccessDeleted);
 
-    userConnection->sendCommand(cmd);
-
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Einval, multiResp.getStatus());
+    const auto resp = userConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
 TEST_P(XattrTest, SetBodyInMultiLookup) {
@@ -575,11 +559,8 @@ TEST_P(XattrTest, GetBodyInMultiMutation) {
 
     // Should not be able to put a get in a multi multi-mutation
     cmd.addMutation(cb::mcbp::ClientOpcode::Get, PathFlag::None, "", value);
-    userConnection->sendCommand(cmd);
-
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, multiResp.getStatus());
+    const auto resp = userConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, resp.getStatus());
 }
 
 TEST_P(XattrTest, AddBodyAndXattr) {
@@ -597,11 +578,8 @@ TEST_P(XattrTest, AddBodyAndXattr) {
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
 
-    userConnection->sendCommand(cmd);
-
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto resp = userConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
 TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
@@ -620,11 +598,8 @@ TEST_P(XattrTest, AddBodyAndXattrAlreadyExistDoc) {
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
     cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
 
-    userConnection->sendCommand(cmd);
-
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, multiResp.getStatus());
+    const auto resp = userConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, resp.getStatus());
 }
 
 TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
@@ -646,11 +621,8 @@ TEST_P(XattrTest, AddBodyAndXattrInvalidDocFlags) {
     cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Add);
     cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
 
-    userConnection->sendCommand(cmd);
-
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Einval, multiResp.getStatus());
+    const auto resp = userConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 }
 
 TEST_P(XattrTest, TestSeqnoMacroExpansion) {
@@ -1199,18 +1171,14 @@ TEST_P(XattrDisabledTest, VerifyNotEnabled) {
     // to validate the xattr portion of the command so we'll just
     // check one
     BinprotSubdocCommand cmd;
-    cmd.setOp(cb::mcbp::ClientOpcode::SubdocDictAdd);
+    cmd.setOp(ClientOpcode::SubdocDictAdd);
     cmd.setKey(name);
     cmd.setPath("_sync.deleted");
     cmd.setValue("true");
     cmd.addPathFlags(PathFlag::XattrPath | PathFlag::Mkdir_p);
-    cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted |
-                    cb::mcbp::subdoc::DocFlag::Mkdoc);
-    userConnection->sendCommand(cmd);
+    cmd.addDocFlags(DocFlag::AccessDeleted | DocFlag::Mkdoc);
 
-    BinprotSubdocResponse resp;
-    userConnection->recvResponse(resp);
-
+    const auto resp = userConnection->execute(cmd);
     ASSERT_EQ(cb::mcbp::Status::NotSupported, resp.getStatus());
 }
 
@@ -1334,12 +1302,8 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
                     "foo");
     cmd.addMutation(cb::mcbp::ClientOpcode::Set, PathFlag::None, "", value);
 
-    userConnection->sendCommand(cmd);
-
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::SubdocXattrCantModifyVattr,
-              multiResp.getStatus());
+    const auto resp = userConnection->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::SubdocXattrCantModifyVattr, resp.getStatus());
 }
 
 TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
@@ -1355,17 +1319,15 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
 
 TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
     verify_xtoc_user_system_xattr();
+    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
+
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addGet("$XTOC", PathFlag::XattrPath);
     cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
-    BinprotSubdocMultiLookupResponse multiResp;
-
-    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
-    multiResp.clear();
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(multiResp);
+    const auto multiResp =
+            BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(R"(["userXattr"])", multiResp.getResults()[0].value);
@@ -1379,11 +1341,8 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPriv) {
     cmd.addGet("$XTOC", PathFlag::XattrPath);
     cmd.addLookup("", cb::mcbp::ClientOpcode::Get, PathFlag::None);
 
-    BinprotSubdocMultiLookupResponse multiResp;
-
-    multiResp.clear();
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(multiResp);
+    const auto multiResp =
+            BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
     EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
@@ -1706,11 +1665,9 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
                     sysXattr,
                     xattrVal);
     cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
-    userConnection->sendCommand(cmd);
 
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              userConnection->execute(cmd).getStatus());
 
     // Should now only be XATTR datatype
     auto meta = get_meta();
@@ -1751,11 +1708,9 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
                     "userXattr",
                     "66");
     cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
-    userConnection->sendCommand(cmd);
 
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              userConnection->execute(cmd).getStatus());
 
     // Should now only be XATTR datatype
     auto meta = get_meta();
@@ -1784,23 +1739,19 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
 TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
-    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
                     PathFlag::XattrPath,
                     "userXattr",
                     "66");
-    cmd.addMutation(
-            cb::mcbp::ClientOpcode::Set, PathFlag::None, "", "{\"Field\": 88}");
-    userConnection->sendCommand(cmd);
+    cmd.addMutation(ClientOpcode::Set, PathFlag::None, "", "{\"Field\": 88}");
 
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              userConnection->execute(cmd).getStatus());
 
     cmd.clearMutations();
-    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    cmd.addMutation(ClientOpcode::Delete, PathFlag::None, "", "");
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              userConnection->execute(cmd).getStatus());
 }
 
 TEST_P(XattrTest, TestXattrDeleteDatatypes) {
@@ -1809,16 +1760,14 @@ TEST_P(XattrTest, TestXattrDeleteDatatypes) {
     setBodyAndXattr(value, {{sysXattr, "55"}});
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
-    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+    cmd.addMutation(ClientOpcode::SubdocDictUpsert,
                     PathFlag::XattrPath,
                     sysXattr,
                     xattrVal);
-    cmd.addMutation(cb::mcbp::ClientOpcode::Delete, PathFlag::None, "", "");
-    userConnection->sendCommand(cmd);
+    cmd.addMutation(ClientOpcode::Delete, PathFlag::None, "", "");
 
-    BinprotSubdocMultiMutationResponse multiResp;
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success,
+              userConnection->execute(cmd).getStatus());
 
     // Should now only be XATTR datatype
     auto meta = get_meta();
@@ -2060,11 +2009,9 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
                         PathFlag::XattrPath | PathFlag::ExpandMacros,
                         "tnx.doc",
                         "\"${$document}\"");
-        userConnection->sendCommand(cmd);
 
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus())
                 << "Failed to update the document to expand the Input macros";
     }
 
@@ -2118,11 +2065,8 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
                 PathFlag::None,
                 "couchbase",
                 R"({"version": "mad-hatter", "next_version": "cheshire-cat"})");
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus())
                 << "Failed to update the document to expand the Input macros";
     }
 
@@ -2149,12 +2093,8 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
                         PathFlag::XattrPath,
                         "tnx.op.staged",
                         {});
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
-                << multiResp.getDataString();
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus());
     }
 
     // Verify that things looks like we expect them to
@@ -2456,11 +2396,8 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
                 PathFlag::None,
                 "couchbase",
                 R"({"version": "mad-hatter", "next_version": "cheshire-cat"})");
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+        EXPECT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus())
                 << "Failed to store the data";
     }
 
@@ -2507,12 +2444,9 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
                         PathFlag::XattrPath,
                         "tnx.op.staged",
                         {});
-        userConnection->sendCommand(cmd);
 
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
-                << multiResp.getDataString();
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus());
     }
 
     auto val = userConnection->get(name, Vbid{0});
@@ -2534,12 +2468,8 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
                         PathFlag::XattrPath,
                         "tnx.op.staged",
                         {});
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
-                << multiResp.getDataString();
+        ASSERT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus());
     }
 
     val = userConnection->get(name, Vbid{0});
@@ -2557,10 +2487,8 @@ TEST_P(XattrTest, UpsertWithXattrBase64EncodedBinaryValue) {
                         PathFlag::XattrPath | PathFlag::Mkdir_p,
                         "base64",
                         value);
-        userConnection->sendCommand(cmd);
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
+        EXPECT_EQ(cb::mcbp::Status::Success,
+                  userConnection->execute(cmd).getStatus())
                 << "Failed to store the data";
     };
 

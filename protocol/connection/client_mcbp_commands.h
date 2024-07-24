@@ -403,6 +403,9 @@ protected:
 
 class BinprotSubdocMultiMutationResponse : public BinprotResponse {
 public:
+    BinprotSubdocMultiMutationResponse() = default;
+    explicit BinprotSubdocMultiMutationResponse(BinprotResponse&& other);
+
     struct MutationResult {
         uint8_t index;
         cb::mcbp::Status status;
@@ -416,6 +419,7 @@ public:
     const std::vector<MutationResult>& getResults() const;
 
 protected:
+    void decode();
     std::vector<MutationResult> results;
 };
 

@@ -1108,8 +1108,18 @@ void BinprotSubdocMultiMutationCommand::clearDocFlags() {
     docFlags = cb::mcbp::subdoc::DocFlag::None;
 }
 
+BinprotSubdocMultiMutationResponse::BinprotSubdocMultiMutationResponse(
+        BinprotResponse&& other)
+    : BinprotResponse(other) {
+    decode();
+}
+
 void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
+    decode();
+}
+
+void BinprotSubdocMultiMutationResponse::decode() {
     switch (getStatus()) {
     case cb::mcbp::Status::Success:
     case cb::mcbp::Status::SubdocSuccessDeleted:
@@ -1157,6 +1167,7 @@ void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
         }
     }
 }
+
 void BinprotSubdocMultiMutationResponse::clear() {
     BinprotResponse::clear();
     results.clear();
