@@ -54,6 +54,7 @@ class ManagerImpl : public Manager {
     void setActive(Entity entity, SharedEncryptionKey key) override;
     void setActive(Entity entity, crypto::KeyStore ks) override;
     [[nodiscard]] nlohmann::json to_json() const override;
+    [[nodiscard]] nlohmann::json to_json(Entity entity) const override;
 
 protected:
     folly::Synchronized<std::unordered_map<Entity, crypto::KeyStore>> keys;
@@ -109,6 +110,17 @@ nlohmann::json ManagerImpl::to_json() const {
             ret[name] = type_keys;
         }
         return ret;
+    });
+}
+
+nlohmann::json ManagerImpl::to_json(Entity entity) const {
+    return keys.withRLock([&entity](auto& keys) -> nlohmann::json {
+        auto iter = keys.find(entity);
+        if (iter == keys.end()) {
+            return nlohmann::json::object();
+        }
+
+        return iter->second;
     });
 }
 

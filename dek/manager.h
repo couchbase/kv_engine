@@ -61,6 +61,9 @@ public:
 
     [[nodiscard]] virtual nlohmann::json to_json() const = 0;
 
+    /// Get a JSON dump for the provided entity
+    [[nodiscard]] virtual nlohmann::json to_json(Entity entity) const = 0;
+
     /// Get a named current encryption key for the named entity
     [[nodiscard]] virtual SharedEncryptionKey lookup(
             Entity entity, std::string_view id = {}) const = 0;

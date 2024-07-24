@@ -1277,3 +1277,13 @@ public:
     }
     std::vector<std::string> getKeys() const;
 };
+
+class BinprotSetActiveEncryptionKeysCommand : public BinprotGenericCommand {
+public:
+    BinprotSetActiveEncryptionKeysCommand() = delete;
+    BinprotSetActiveEncryptionKeysCommand(std::string entity, std::string value)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+                                std::move(entity),
+                                std::move(value)) {
+    }
+};
