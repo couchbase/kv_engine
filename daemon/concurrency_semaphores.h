@@ -42,6 +42,8 @@ public:
     cb::AwaitableSemaphore settings{1};
     /// Compress Cluster Config should be serialized.
     cb::AwaitableSemaphore compress_cluster_config{1};
+    /// SetActiveCompressionKeys should be serialized.
+    cb::AwaitableSemaphore set_active_encryption_keys{1};
 
 protected:
     ConcurrencySemaphores();

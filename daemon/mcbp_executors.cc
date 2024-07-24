@@ -40,6 +40,7 @@
 #include "protocol/mcbp/sasl_start_command_context.h"
 #include "protocol/mcbp/sasl_step_command_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
+#include "protocol/mcbp/set_active_encryption_keys_context.h"
 #include "protocol/mcbp/set_cluster_config_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
@@ -533,59 +534,7 @@ static void set_node_throttle_properties_executor(Cookie& cookie) {
 }
 
 static void set_active_encryption_key_executor(Cookie& cookie) {
-    using cb::mcbp::Status;
-
-    const auto& req = cookie.getRequest();
-    auto entity = req.getKeyString();
-    const auto payload = req.getValueString();
-
-    cb::crypto::KeyStore key_store;
-    nlohmann::json json;
-    if (payload.empty()) {
-        json = nlohmann::json::object();
-    } else {
-        // The validator checked that the requested value was JSON
-        // which means that we should be able to parse it (any exception
-        // will be caught by the framework; logged and finally disconnect
-        // client)
-        json = nlohmann::json::parse(payload);
-        try {
-            key_store = json;
-        } catch (const std::exception& exception) {
-            LOG_ERROR_CTX("Failed to decode active encryption key info",
-                          {"error", exception.what()});
-            cookie.setErrorContext(fmt::format(
-                    "Failed to decode active encryption key info: {}",
-                    exception.what()));
-            cookie.sendResponse(Status::Einval);
-            return;
-        }
-    }
-
-    if (entity.front() == '@') {
-        using namespace std::string_view_literals;
-        try {
-            cb::dek::Manager::instance().setActive(cb::dek::to_entity(entity),
-                                                   std::move(key_store));
-            cookie.sendResponse(Status::Success);
-        } catch (const std::invalid_argument&) {
-            cookie.sendResponse(Status::KeyEnoent);
-        }
-
-        return;
-    }
-
-    auto ret = cb::engine_errc::no_such_key;
-    BucketManager::instance().forEach(
-            [&ret, &entity, &json](auto& bucket) -> bool {
-                if (bucket.name == entity) {
-                    ret = bucket.getEngine().set_active_encryption_keys(json);
-                    return false;
-                }
-                return true;
-            });
-
-    cookie.sendResponse(ret);
+    cookie.obtainContext<SetActiveEncryptionKeysContext>(cookie).drive();
 }
 
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {

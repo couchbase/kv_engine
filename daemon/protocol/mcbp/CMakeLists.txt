@@ -80,6 +80,8 @@ add_library(memcached_daemon_mcbp OBJECT
         select_bucket_executor.cc
         session_validated_command_context.cc
         session_validated_command_context.h
+        set_active_encryption_keys_context.cc
+        set_active_encryption_keys_context.h
         set_cluster_config_command_context.cc
         set_cluster_config_command_context.h
         settings_reload_command_context.cc

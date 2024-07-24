@@ -1,0 +1,92 @@
+/*
+ *     Copyright 2024-Present Couchbase, Inc.
+ *
+ *   Use of this software is governed by the Business Source License included
+ *   in the file licenses/BSL-Couchbase.txt.  As of the Change Date specified
+ *   in that file, in accordance with the Business Source License, use of this
+ *   software will be governed by the Apache License, Version 2.0, included in
+ *   the file licenses/APL2.txt.
+ */
+
+#include "set_active_encryption_keys_context.h"
+
+#include <cbcrypto/key_store.h>
+#include <daemon/buckets.h>
+#include <daemon/concurrency_semaphores.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
+#include <dek/manager.h>
+#include <executor/executorpool.h>
+
+SetActiveEncryptionKeysContext::SetActiveEncryptionKeysContext(Cookie& cookie)
+    : SteppableCommandContext(cookie),
+      json(nlohmann::json::parse(cookie.getRequest().getValueString())),
+      entity(cookie.getRequest().getKeyString()) {
+}
+
+cb::engine_errc SetActiveEncryptionKeysContext::step() {
+    auto ret = cb::engine_errc::success;
+    do {
+        switch (state) {
+        case State::Done:
+            return done();
+
+        case State::ScheduleTask:
+            ret = scheduleTask();
+            break;
+        }
+    } while (ret == cb::engine_errc::success);
+    return ret;
+}
+
+cb::engine_errc SetActiveEncryptionKeysContext::scheduleTask() {
+    auto& semaphore =
+            ConcurrencySemaphores::instance().set_active_encryption_keys;
+
+    ExecutorPool::get()->schedule(std::make_shared<
+                                  OneShotLimitedConcurrencyTask>(
+            TaskId::Core_SetActiveEncryptionKeys,
+            "SetActiveEncryptionKeys",
+            [this]() {
+                try {
+                    if (entity.front() == '@') {
+                        using namespace std::string_view_literals;
+                        try {
+                            cb::dek::Manager::instance().setActive(
+                                    cb::dek::to_entity(entity), json);
+                            status = cb::engine_errc::success;
+                        } catch (const std::invalid_argument&) {
+                            status = cb::engine_errc::no_such_key;
+                        }
+                    } else {
+                        status = cb::engine_errc::no_such_key;
+                        BucketManager::instance().forEach([this](auto& bucket)
+                                                                  -> bool {
+                            if (bucket.name == entity) {
+                                status = bucket.getEngine()
+                                                 .set_active_encryption_keys(
+                                                         json);
+                                return false;
+                            }
+                            return true;
+                        });
+                    }
+                } catch (const std::exception& e) {
+                    LOG_ERROR_CTX(
+                            "Exception occurred while setting active "
+                            "encryption key",
+                            {"error", e.what()});
+                    status = cb::engine_errc::disconnect;
+                }
+
+                cookie.notifyIoComplete(cb::engine_errc::success);
+            },
+            semaphore));
+
+    state = State::Done;
+    return cb::engine_errc::would_block;
+}
+
+cb::engine_errc SetActiveEncryptionKeysContext::done() const {
+    cookie.sendResponse(status);
+    return cb::engine_errc::success;
+}

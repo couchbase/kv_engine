@@ -20,6 +20,8 @@
 #include "subdocument_validators.h"
 #include "tls_configuration.h"
 #include "xattr/utils.h"
+
+#include <cbcrypto/key_store.h>
 #include <logger/logger.h>
 #include <memcached/collections.h>
 #include <memcached/dcp.h>
@@ -1811,7 +1813,7 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
     auto status = McbpValidator::verify_header(cookie,
                                                0,
                                                ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Any,
+                                               ExpectedValueLen::NonZero,
                                                ExpectedCas::NotSet,
                                                GeneratesDocKey::No,
                                                PROTOCOL_BINARY_DATATYPE_JSON);
@@ -1820,15 +1822,17 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
     }
 
     auto payload = cookie.getHeader().getValueString();
-    if (payload.empty()) {
-        // An empty payload indicates that we want to turn off encryption
-        // at rest
-        return Status::Success;
-    }
-    if (!cookie.isValidJson(payload)) {
-        cookie.setErrorContext("Invalid payload for SetActiveEncryptionKeys");
+    try {
+        cb::crypto::KeyStore ks = nlohmann::json::parse(payload);
+    } catch (const std::exception& exception) {
+        LOG_ERROR_CTX("Failed to decode active encryption key info",
+                      {"error", exception.what()});
+        cookie.setErrorContext(
+                fmt::format("Failed to decode active encryption key info: {}",
+                            exception.what()));
         return Status::Einval;
     }
+
     return Status::Success;
 }
 
