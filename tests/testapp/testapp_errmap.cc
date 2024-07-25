@@ -15,12 +15,12 @@
 
 class ErrmapTest : public TestappClientTest {
 protected:
-    void checkVersion(uint16_t ver, uint16_t result) {
+    static void checkVersion(uint16_t ver, uint16_t result) {
         const auto rsp =
                 userConnection->execute(BinprotGetErrorMapCommand{ver});
         if (ver > 0) {
             ASSERT_TRUE(rsp.isSuccess());
-            const auto json = nlohmann::json::parse(rsp.getDataString());
+            const auto json = rsp.getDataJson();
             auto version = json.find("version");
             ASSERT_NE(json.end(), version);
             EXPECT_EQ(result, version->get<int>());
@@ -57,7 +57,7 @@ TEST_P(ErrmapTest, GetErrmapNewer) {
 TEST_P(ErrmapTest, AllErrorsDocumented) {
     const auto rsp = userConnection->execute(BinprotGetErrorMapCommand{2});
     ASSERT_TRUE(rsp.isSuccess());
-    const auto json = nlohmann::json::parse(rsp.getDataString());
+    const auto json = rsp.getDataJson();
     using namespace cb::mcbp;
 
     auto& errors = json.at("errors");

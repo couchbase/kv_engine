@@ -78,7 +78,7 @@ protected:
         cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
         rsp = replica->execute(cmd);
         EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus())
-                << rsp.getDataString();
+                << rsp.getDataView();
     }
 
     void testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode opcode) {
@@ -270,8 +270,7 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
 
     auto rsp = conn->execute(BinprotDcpOpenCommand{
             "my-dcp-stream", cb::mcbp::DcpOpenFlag::Producer});
-    ASSERT_TRUE(rsp.isSuccess())
-            << "Failed to dcp open: " << rsp.getDataString();
+    ASSERT_TRUE(rsp.isSuccess()) << "Failed to dcp open: " << rsp.getDataView();
 
     BinprotDcpStreamRequestCommand streamRequestCommand;
     streamRequestCommand.setDcpReserved(0);
@@ -285,7 +284,7 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
 
     ASSERT_TRUE(rsp.isSuccess())
             << "Stream request failed: " << to_string(rsp.getStatus()) << ". "
-            << rsp.getDataString();
+            << rsp.getDataView();
 
     // as of now we don't really know the message sequence being received
     // so we need to send packages and read until we see the expected packet
@@ -527,5 +526,5 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     // But we can't mix that with access deleted
     cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
     rsp = replica->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataString();
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
 }

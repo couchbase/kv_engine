@@ -269,7 +269,7 @@ TEST_P(RegressionTest, MB_32081) {
     conn.sendFrame(frame);
     BinprotResponse rsp;
     conn.recvResponse(rsp);
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataView();
 }
 
 /// BinprotSetControlTokenCommand did not use the provided old token,
@@ -551,9 +551,9 @@ TEST_P(RegressionTest, MB47151) {
     userConnection->sendFrame(frame);
     BinprotResponse rsp;
     userConnection->recvResponse(rsp);
-    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataString();
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
     EXPECT_EQ(R"({"error":{"context":"Multi lookup spec truncated"}})",
-              rsp.getDataString());
+              rsp.getDataView());
 }
 
 /// Verify that we may request stats from "no-bucket"
@@ -692,8 +692,7 @@ TEST_P(RegressionTest, MB55754) {
     conn->configureEwouldBlockEngine(
             EWBEngineMode::SlowCasMismatch, cb::engine_errc::success, 1000);
     rsp = conn->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Etmpfail, rsp.getStatus())
-            << rsp.getDataString();
+    EXPECT_EQ(cb::mcbp::Status::Etmpfail, rsp.getStatus()) << rsp.getDataView();
 
     std::size_t num_subdoc_races_after = 0;
     userConnection->stats([&num_subdoc_races_after](auto k, auto v) {

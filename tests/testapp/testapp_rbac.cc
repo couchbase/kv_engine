@@ -102,7 +102,7 @@ TEST_P(RbacTest, MB23909_ErrorIncudingErrorInfo) {
     const auto resp = userConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::RbacRefresh});
     ASSERT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
-    auto json = nlohmann::json::parse(resp.getDataString());
+    auto json = resp.getDataJson();
 
     ASSERT_TRUE(json["error"].is_object());
     ASSERT_TRUE(json["error"]["context"].is_string());

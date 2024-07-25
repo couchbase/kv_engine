@@ -265,7 +265,7 @@ void AsyncClientConnection::authenticate(std::string_view user,
         auto response = execute(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
         if (response.isSuccess()) {
-            mechanism = response.getDataString();
+            mechanism = response.getDataView();
             mech = mechanism;
         } else {
             throw std::runtime_error(

@@ -273,9 +273,9 @@ int main(int argc, char** argv) {
                 if (!response.isSuccess()) {
                     std::cerr << TerminalColor::Red
                               << "Failed: " << to_string(response.getStatus());
-                    if (!response.getDataString().empty()) {
+                    if (!response.getDataView().empty()) {
                         std::cerr << std::endl
-                                  << "\t" << response.getDataString();
+                                  << "\t" << response.getDataView();
                     }
                     std::cerr << TerminalColor::Reset << std::endl;
                     return EXIT_FAILURE;
@@ -287,9 +287,9 @@ int main(int argc, char** argv) {
                     std::cerr << TerminalColor::Red
                               << "Failed: " << to_string(response.getStatus());
 
-                    if (!response.getDataString().empty()) {
+                    if (!response.getDataView().empty()) {
                         std::cerr << std::endl
-                                  << "\t" << response.getDataString();
+                                  << "\t" << response.getDataView();
                     }
                     std::cerr << TerminalColor::Reset << std::endl;
 

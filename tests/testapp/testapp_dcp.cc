@@ -154,7 +154,7 @@ TEST_P(DcpTest, CantDcpOpenTwice) {
     const auto rsp = conn->execute(BinprotDcpOpenCommand{
             "CantDcpOpenTwice", cb::mcbp::DcpOpenFlag::Producer});
     ASSERT_FALSE(rsp.isSuccess());
-    const auto json = nlohmann::json::parse(rsp.getDataString());
+    const auto json = rsp.getDataJson();
     EXPECT_EQ("The connection is already opened as a DCP connection",
               json["error"]["context"]);
 }

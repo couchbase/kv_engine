@@ -47,7 +47,7 @@ protected:
                 cb::mcbp::ClientOpcode::Ifconfig, "tls", tls.dump()});
         ASSERT_TRUE(rsp.isSuccess()) << "Failed to set TLS properties: "
                                      << to_string(rsp.getStatus()) << std::endl
-                                     << rsp.getDataString();
+                                     << rsp.getDataView();
     }
 
     void setTlsMinimumSpec(const std::string& version) {

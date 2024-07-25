@@ -127,13 +127,12 @@ int main(int argc, char** argv) {
         auto rsp = connection->execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::Ifconfig, key, value});
         if (rsp.isSuccess()) {
-            std::cout << TerminalColor::Green << rsp.getDataString()
+            std::cout << TerminalColor::Green << rsp.getDataView()
                       << TerminalColor::Reset << std::endl;
         } else {
             std::cerr << TerminalColor::Red
                       << "Failed: " << to_string(rsp.getStatus())
-                      << rsp.getDataString() << TerminalColor::Reset
-                      << std::endl;
+                      << rsp.getDataView() << TerminalColor::Reset << std::endl;
             std::exit(EXIT_FAILURE);
         }
     } catch (const ConnectionError& ex) {

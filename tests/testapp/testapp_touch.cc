@@ -61,7 +61,7 @@ void TouchTest::testHit(bool quiet) {
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(0xcaffee, rsp.getDocumentFlags());
-    EXPECT_EQ(memcached_cfg.dump(), rsp.getDataString());
+    EXPECT_EQ(memcached_cfg.dump(), rsp.getDataView());
     EXPECT_NE(info.cas, rsp.getCas());
 
     // The stat should have been incremented with 1
@@ -137,7 +137,7 @@ TEST_P(TouchTest, Touch_Hit) {
     userConnection->recvResponse(rsp);
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_NE(info.cas, rsp.getCas());
-    EXPECT_TRUE(rsp.getDataString().empty());
+    EXPECT_TRUE(rsp.getDataView().empty());
 }
 
 TEST_P(TouchTest, Touch_Miss) {

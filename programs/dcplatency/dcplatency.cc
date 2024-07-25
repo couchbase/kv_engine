@@ -126,7 +126,7 @@ void setupDcpConnection(MemcachedConnection& connection) {
     if (!rsp.isSuccess()) {
         std::cerr << "Failed to open DCP stream: " << to_string(rsp.getStatus())
                   << std::endl
-                  << "\t" << rsp.getDataString() << std::endl;
+                  << "\t" << rsp.getDataView() << std::endl;
         exit(EXIT_FAILURE);
     }
 
@@ -144,7 +144,7 @@ void setupDcpConnection(MemcachedConnection& connection) {
     if (!rsp.isSuccess()) {
         std::cerr << "DCP stream request failed: " << to_string(rsp.getStatus())
                   << std::endl
-                  << "\t" << rsp.getDataString() << std::endl;
+                  << "\t" << rsp.getDataView() << std::endl;
         exit(EXIT_FAILURE);
     }
 }

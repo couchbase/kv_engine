@@ -102,7 +102,7 @@ protected:
                 command.hasFrameInfos() ? "" : "out",
                 read ? "Yes" : "No",
                 write ? "Yes" : "No",
-                rsp.getDataString());
+                rsp.getDataView());
     }
 
     static void executeInSystemCollectionWithoutAccess(
@@ -152,9 +152,9 @@ TEST_P(CollectionsTest, ManifestUidInResponse) {
     ASSERT_EQ(Status::UnknownCollection, response.getStatus());
     nlohmann::json parsed;
     try {
-        parsed = nlohmann::json::parse(response.getDataString());
+        parsed = response.getDataJson();
     } catch (const nlohmann::json::exception& e) {
-        FAIL() << "Cannot parse json response:" << response.getDataString()
+        FAIL() << "Cannot parse json response:" << response.getDataView()
                << " e:" << e.what();
     }
 
@@ -1955,31 +1955,31 @@ TEST_P(CollectionsTest,
 TEST_P(CollectionsTest, ClientOpcode_CollectionsGetManifest_no_access) {
     BinprotGenericCommand command(ClientOpcode::CollectionsGetManifest);
     auto rsp = execute(*user, command);
-    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataString();
-    const auto manifest = rsp.getDataString();
+    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+    const auto manifest = rsp.getDataView();
     EXPECT_EQ(std::string::npos, manifest.find("_system")) << manifest;
 }
 TEST_P(CollectionsTest,
        ClientOpcode_CollectionsGetManifest_with_euid_no_access) {
     BinprotGenericCommand command(ClientOpcode::CollectionsGetManifest);
     auto rsp = execute(*admin, command, true);
-    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataString();
-    const auto manifest = rsp.getDataString();
+    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+    const auto manifest = rsp.getDataView();
     EXPECT_EQ(std::string::npos, manifest.find("_system")) << manifest;
 }
 TEST_P(CollectionsTest, ClientOpcode_CollectionsGetManifest_access) {
     BinprotGenericCommand command(ClientOpcode::CollectionsGetManifest);
     auto rsp = execute(*admin, command);
-    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataString();
-    const auto manifest = rsp.getDataString();
+    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+    const auto manifest = rsp.getDataView();
     EXPECT_NE(std::string::npos, manifest.find("_system")) << manifest;
 }
 TEST_P(CollectionsTest,
        ClientOpcode_CollectionsGetManifest_with_euid_with_access) {
     BinprotGenericCommand command(ClientOpcode::CollectionsGetManifest);
     auto rsp = execute(*admin, command, true, true);
-    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataString();
-    const auto manifest = rsp.getDataString();
+    ASSERT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+    const auto manifest = rsp.getDataView();
     EXPECT_NE(std::string::npos, manifest.find("_system")) << manifest;
 }
 TEST_P(CollectionsTest, ClientOpcode_CollectionsGetID_no_access) {

@@ -481,7 +481,7 @@ TEST_P(AuditTest, AuditPut) {
             {"remote", {{"ip", "::1"}, {"port", 1}}}};
     auto rsp = adminConnection->execute(BinprotAuditPutCommand{
             MEMCACHED_AUDIT_INVALID_PACKET, event.dump()});
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataView();
 }
 
 #ifdef CB_DEVELOPMENT_ASSERTS

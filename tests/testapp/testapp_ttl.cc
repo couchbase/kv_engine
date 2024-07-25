@@ -67,10 +67,11 @@ time_t TtlTest::getTtl(const std::string& key) {
                              cb::mcbp::subdoc::PathFlag::XattrPath);
     auto rsp = userConnection->execute(cmd);
     if (!rsp.isSuccess()) {
-        throw std::runtime_error("TtlTest::getTtl: Failed to get exptime: " +
-                                 rsp.getDataString());
+        throw std::runtime_error(
+                fmt::format("TtlTest::getTtl: Failed to get exptime: {}",
+                            rsp.getDataView()));
     }
-    auto json = nlohmann::json::parse(rsp.getDataString());
+    auto json = rsp.getDataJson();
     return json.get<time_t>();
 }
 
@@ -113,8 +114,8 @@ time_t TtlTest::subdoc_modify(const std::string& key,
     auto rsp = userConnection->execute(cmd);
     if (!rsp.isSuccess()) {
         throw std::runtime_error(
-                "TtlTest::subdoc_modify: SubdocDictAdd failed: " +
-                rsp.getDataString());
+                fmt::format("TtlTest::subdoc_modify: SubdocDictAdd failed: {}",
+                            rsp.getDataView()));
     }
 
     return getTtl(key);

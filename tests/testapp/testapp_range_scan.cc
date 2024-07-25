@@ -699,9 +699,9 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
             // Expect to find the collection manifest id
             nlohmann::json parsed;
             try {
-                parsed = nlohmann::json::parse(resp.getDataString());
+                parsed = resp.getDataJson();
             } catch (const nlohmann::json::exception& e) {
-                FAIL() << "Cannot parse json resp:" << resp.getDataString()
+                FAIL() << "Cannot parse json resp:" << resp.getDataView()
                        << " e:" << e.what();
             }
 

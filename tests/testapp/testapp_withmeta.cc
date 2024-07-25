@@ -37,7 +37,7 @@ public:
         auto resp = userConnection->execute(cmd);
 
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        auto json = nlohmann::json::parse(resp.getDataString());
+        auto json = resp.getDataJson();
         EXPECT_STREQ(testCasStr, json["CAS"].get<std::string>().c_str());
     }
 
@@ -244,7 +244,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
     BinprotDelWithMetaCommand cmd(document, Vbid(0), 0, 0, 1, 0);
     const auto rsp = BinprotMutationResponse(userConnection->execute(cmd));
     ASSERT_FALSE(rsp.isSuccess()) << rsp.getStatus();
-    auto error = nlohmann::json::parse(rsp.getDataString());
+    auto error = rsp.getDataJson();
 
     ASSERT_EQ(
             "It is only possible to specify Xattrs as a value to "
@@ -377,7 +377,7 @@ void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
     } else {
         ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
         ASSERT_TRUE(
-                resp.getDataString().find("only possible to specify Xattrs") !=
+                resp.getDataView().find("only possible to specify Xattrs") !=
                 std::string::npos);
     }
 }
@@ -455,8 +455,9 @@ TEST_P(WithMetaRegenerateCasTest, deleteWithMetaReturnsRegeratedCas) {
     const auto delteOp =
             BinprotMutationResponse(userConnection->execute(delWithMeta));
     if (!delteOp.isSuccess()) {
-        throw ConnectionError("Failed to delete " + doc.info.id + " " +
-                                      delteOp.getDataString(),
+        throw ConnectionError(fmt::format("Failed to delete {} {}",
+                                          doc.info.id,
+                                          delteOp.getDataView()),
                               delteOp.getStatus());
     }
 

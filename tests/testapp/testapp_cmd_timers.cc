@@ -53,10 +53,11 @@ protected:
      * @param payload the JSON returned from the server
      * @return The number of operations we found in there
      */
-    size_t getNumberOfOps(const std::string& payload) {
+    [[nodiscard]] static size_t getNumberOfOps(const std::string_view payload) {
         nlohmann::json json = nlohmann::json::parse(payload);
         if (json.is_null()) {
-            throw std::invalid_argument("Failed to parse payload: " + payload);
+            throw std::invalid_argument(
+                    fmt::format("Failed to parse payload: {}", payload));
         }
 
         auto ret = json["total"].get<size_t>();
@@ -84,7 +85,7 @@ TEST_P(CmdTimerTest, AllBuckets) {
             BinprotGetCmdTimerCommand{"/all/", opcode});
     EXPECT_TRUE(response.isSuccess());
     // One noop in "@no bucket@"; one in "default" and one in "rbac_test"
-    EXPECT_EQ(3, getNumberOfOps(response.getDataString()));
+    EXPECT_EQ(3, getNumberOfOps(response.getDataView()));
 
     // Smith only has access to the bucket rbac_test - should only see numbers
     // from that.
@@ -93,7 +94,7 @@ TEST_P(CmdTimerTest, AllBuckets) {
 
     response = c.execute(BinprotGetCmdTimerCommand{"/all/", opcode});
     EXPECT_TRUE(response.isSuccess());
-    EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+    EXPECT_EQ(1, getNumberOfOps(response.getDataView()));
     c.reconnect();
 }
 
@@ -111,7 +112,7 @@ TEST_P(CmdTimerTest, NoBucket) {
         auto response = adminConnection->execute(
                 BinprotGetCmdTimerCommand{bucket, opcode});
         EXPECT_TRUE(response.isSuccess());
-        EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+        EXPECT_EQ(1, getNumberOfOps(response.getDataView()));
     }
 
     // Smith attempting to access no-bucket should fail.
@@ -155,7 +156,7 @@ TEST_P(CmdTimerTest, CurrentBucket) {
             const auto response =
                     c.execute(BinprotGetCmdTimerCommand{bucket, opcode});
             EXPECT_TRUE(response.isSuccess());
-            EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+            EXPECT_EQ(1, getNumberOfOps(response.getDataView()));
         }
     });
 }
@@ -193,7 +194,7 @@ TEST_P(CmdTimerTest, EmptySuccess) {
         const auto response = c.execute(BinprotGetCmdTimerCommand{
                 bucketName, cb::mcbp::ClientOpcode::Set});
         EXPECT_TRUE(response.isSuccess());
-        EXPECT_EQ(0, getNumberOfOps(response.getDataString()));
+        EXPECT_EQ(0, getNumberOfOps(response.getDataView()));
     });
 }
 
@@ -228,7 +229,7 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
                 cb::rbac::Privilege::SimpleStats));
         const auto response = conn.execute(cmd);
         EXPECT_TRUE(response.isSuccess()) << response.getStatus();
-        EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+        EXPECT_EQ(1, getNumberOfOps(response.getDataView()));
     });
 
     // But we may grant the user the extra privilege (should also work for
@@ -240,7 +241,7 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
                 cb::rbac::Privilege::SimpleStats));
         const auto response = conn.execute(cmd);
         EXPECT_TRUE(response.isSuccess()) << response.getStatus();
-        EXPECT_EQ(2, getNumberOfOps(response.getDataString()));
+        EXPECT_EQ(2, getNumberOfOps(response.getDataView()));
     });
 
     // But we may grant the user the extra privileges and also get "@no bucket@"
@@ -253,6 +254,6 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
                 cb::rbac::Privilege::Stats));
         const auto response = conn.execute(cmd);
         EXPECT_TRUE(response.isSuccess()) << response.getStatus();
-        EXPECT_EQ(3, getNumberOfOps(response.getDataString()));
+        EXPECT_EQ(3, getNumberOfOps(response.getDataView()));
     });
 }

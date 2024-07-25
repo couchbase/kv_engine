@@ -453,11 +453,6 @@ std::string_view BinprotResponse::getKey() const {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
 
-std::string BinprotResponse::getDataString() const {
-    const auto buf = getResponse().getValueString();
-    return {buf.data(), buf.size()};
-}
-
 std::string_view BinprotResponse::getDataView() const {
     return getResponse().getValueString();
 }
@@ -1345,7 +1340,7 @@ void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
     BinprotResponse::assign(std::move(buf));
     if (isSuccess()) {
         try {
-            timings = nlohmann::json::parse(getDataString());
+            timings = getDataJson();
         } catch (nlohmann::json::exception& e) {
             std::string msg(
                     "BinprotGetCmdTimerResponse::assign: Invalid payload "

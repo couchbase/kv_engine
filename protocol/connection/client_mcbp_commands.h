@@ -237,14 +237,12 @@ public:
      * any payload content _after_ the key and extras (if present
      */
     std::string_view getDataView() const;
-    /// convenience method to get a string object
-    std::string getDataString() const;
-
-    std::string_view getExtrasView() const;
 
     /// Parse the payload as JSON and return the parsed payload
     /// @throws exception if a parse error occurs (not json for instance)
     nlohmann::json getDataJson() const;
+
+    std::string_view getExtrasView() const;
 
     /// For error response return the context string. Note minimal validation
     /// occurs and should only be used when a error JSON blob is expected.

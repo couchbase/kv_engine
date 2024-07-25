@@ -1364,7 +1364,7 @@ std::vector<std::string> MemcachedConnection::listBuckets(
     std::vector<std::string> ret;
 
     // the value contains a list of bucket names separated by space.
-    std::istringstream iss(response.getDataString());
+    std::istringstream iss(std::string{response.getDataView()});
     std::copy(std::istream_iterator<std::string>(iss),
               std::istream_iterator<std::string>(),
               std::back_inserter(ret));
@@ -1388,7 +1388,7 @@ Document MemcachedConnection::get(const std::string& id,
     ret.info.cas = response.getCas();
     ret.info.id = id;
     ret.info.datatype = response.getResponse().getDatatype();
-    ret.value = response.getDataString();
+    ret.value = response.getDataView();
     return ret;
 }
 
@@ -1452,7 +1452,7 @@ void MemcachedConnection::mget(
                 doc->info.cas = getResponse.getCas();
                 doc->info.id = key;
                 doc->info.datatype = getResponse.getResponse().getDatatype();
-                doc->value = getResponse.getDataString();
+                doc->value = getResponse.getDataView();
                 documentCallback(doc);
             } else if (errorCallback &&
                        getResponse.getStatus() != cb::mcbp::Status::KeyEnoent) {
@@ -1557,7 +1557,7 @@ void MemcachedConnection::stats(
         }
 
         callback(key,
-                 response.getDataString(),
+                 std::string{response.getDataView()},
                  cb::mcbp::Datatype(response.getDatatype()));
     }
 }
@@ -1677,7 +1677,7 @@ std::string MemcachedConnection::getSaslMechanisms() {
         throw ConnectionError("Failed to fetch sasl mechanisms", response);
     }
 
-    return response.getDataString();
+    return std::string{response.getDataView()};
 }
 
 std::string MemcachedConnection::ioctl_get(
@@ -1689,7 +1689,7 @@ std::string MemcachedConnection::ioctl_get(
     if (!response.isSuccess()) {
         throw ConnectionError("ioctl_get '" + key + "' failed", response);
     }
-    return response.getDataString();
+    return std::string{response.getDataView()};
 }
 
 void MemcachedConnection::ioctl_set(const std::string& key,
@@ -1806,7 +1806,7 @@ Document MemcachedConnection::get_and_lock(
     ret.info.cas = response.getCas();
     ret.info.id = id;
     ret.info.datatype = response.getResponse().getDatatype();
-    ret.value = response.getDataString();
+    ret.value = response.getDataView();
     return ret;
 }
 
@@ -1862,8 +1862,9 @@ MutationInfo MemcachedConnection::mutateWithMeta(
 
     const auto response = BinprotMutationResponse(execute(swm));
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed to mutateWithMeta " + doc.info.id + " " +
-                                      response.getDataString(),
+        throw ConnectionError(fmt::format("Failed to mutateWithMeta {} {}",
+                                          doc.info.id,
+                                          response.getDataView()),
                               response.getStatus());
     }
 
@@ -1947,7 +1948,7 @@ Document MemcachedConnection::getRandomKey(Vbid vbucket) {
     ret.info.cas = response.getCas();
     ret.info.id = response.getKey();
     ret.info.datatype = response.getResponse().getDatatype();
-    ret.value = response.getDataString();
+    ret.value = response.getDataView();
     return ret;
 }
 
@@ -2169,7 +2170,7 @@ nlohmann::json MemcachedConnection::getCollectionsManifest() {
     if (!response.isSuccess()) {
         throw ConnectionError("Failed getCollectionsManifest", response);
     }
-    return nlohmann::json::parse(response.getDataString());
+    return nlohmann::json::parse(response.getDataView());
 }
 
 void MemcachedConnection::setUnorderedExecutionMode(ExecutionMode mode) {
@@ -2362,7 +2363,7 @@ static std::string formatMcbpExceptionMsg(std::string_view prefix,
     if (cb::mcbp::datatype::is_json(response.getDatatype()) &&
         !response.isSuccess()) {
         try {
-            auto json = nlohmann::json::parse(response.getDataString());
+            auto json = response.getDataJson();
             if (json.type() == nlohmann::json::value_t::object) {
                 if (json.contains("error") &&
                     json["error"].contains("context") &&
@@ -2386,7 +2387,7 @@ ConnectionError::ConnectionError(const std::string& prefix,
                                  const BinprotResponse& response)
     : std::runtime_error(formatMcbpExceptionMsg(prefix, response).c_str()),
       reason(response.getStatus()),
-      payload(response.getDataString()) {
+      payload(response.getDataView()) {
 }
 
 std::string ConnectionError::getErrorContext() const {

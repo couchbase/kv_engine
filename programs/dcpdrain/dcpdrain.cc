@@ -884,7 +884,7 @@ int main(int argc, char** argv) {
                 if (!rsp.isSuccess()) {
                     std::cerr << "Failed to open DCP stream: "
                               << to_string(rsp.getStatus()) << std::endl
-                              << "\t" << rsp.getDataString() << std::endl;
+                              << "\t" << rsp.getDataView() << std::endl;
                     return EXIT_FAILURE;
                 }
 

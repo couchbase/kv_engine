@@ -240,7 +240,7 @@ protected:
         userConnection->mutate(document, Vbid(0), MutationType::Replace);
 
         // Validate contents.
-        EXPECT_EQ(xattrVal, getXattr(sysXattr).getDataString());
+        EXPECT_EQ(xattrVal, getXattr(sysXattr).getDataView());
         auto response = userConnection->get(name, Vbid(0));
         EXPECT_EQ(replacedValue, response.value);
         // Combined result will not be compressed; so just check for
@@ -2196,7 +2196,7 @@ TEST_P(XattrTest, MB57864) {
         cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
         auto rsp = userConnection->execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
-                << rsp.getDataString();
+                << rsp.getDataView();
     }
 
     // Validate that the document contains the new xattrs and value
@@ -2240,7 +2240,7 @@ TEST_P(XattrTest, MB57864) {
                         {});
         auto rsp = userConnection->execute(cmd);
         ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
-                << rsp.getDataString();
+                << rsp.getDataView();
     }
 
     // Validate that the document looks as expected
@@ -2334,7 +2334,7 @@ TEST_P(XattrTest, MB57864_macro_expansion) {
         mcmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
         auto mrsp = userConnection->execute(mcmd);
         ASSERT_EQ(cb::mcbp::Status::Success, mrsp.getStatus())
-                << mrsp.getDataString();
+                << mrsp.getDataView();
 
         // Validate that the document contains the new xattrs and value
 
@@ -2568,7 +2568,7 @@ TEST_P(XattrTest, BinaryValueAccessedFromOldClient) {
     EXPECT_EQ(Status::Success, rsp.getStatus());
     EXPECT_EQ(R"({"binary":"cb-content-base64-encoded:dmFsdWU="})",
               rsp.getDataView());
-    auto json = nlohmann::json::parse(rsp.getDataView());
+    auto json = rsp.getDataJson();
 
     // Add a new attribute to the object
     json["ascii"] = "ascii-value";
@@ -2617,5 +2617,5 @@ TEST_P(XattrTest, NonBinaryValueRequestedWithBinaryFlag) {
                                PathFlag::BinaryValue | PathFlag::XattrPath};
     rsp = userConnection->execute(cmd);
     EXPECT_EQ(Status::SubdocFieldNotBinaryValue, rsp.getStatus())
-            << rsp.getDataString();
+            << rsp.getDataView();
 }

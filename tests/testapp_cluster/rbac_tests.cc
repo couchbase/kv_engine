@@ -205,8 +205,7 @@ TEST_F(RbacSeqnosTests, GetAllVbSeqnosBucket) {
     conn->setFeature(cb::mcbp::Feature::Collections, true);
 
     auto rsp = conn->getAllVBucketSequenceNumbers();
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
-            << rsp.getDataString();
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus()) << rsp.getDataView();
 
     for (const auto& user :
          std::vector<std::string>{{"userCan1"}, {"userCan2"}, {"userCan3"}}) {

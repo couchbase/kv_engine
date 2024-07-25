@@ -201,8 +201,7 @@ TEST_P(ExternalAuthTest, TestAllMechsOffered) {
     auto& conn = getConnection();
     auto rsp = conn.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
-    EXPECT_EQ("SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN",
-              rsp.getDataString());
+    EXPECT_EQ("SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 PLAIN", rsp.getDataView());
 }
 
 TEST_P(ExternalAuthTest, TestExternalAuthWithNoExternalProvider) {
@@ -401,7 +400,7 @@ TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
                         "SimpleStats"});
         rsp = c.execute(stat);
         EXPECT_TRUE(rsp.isSuccess())
-                << to_string(rsp.getStatus()) << " " << rsp.getDataString();
+                << to_string(rsp.getStatus()) << " " << rsp.getDataView();
 
         // A stat call would return multiple packets. We need to drain
         // all of them to avoid getting "out of sync" with later use of the

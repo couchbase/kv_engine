@@ -108,7 +108,7 @@ void ClusterConfigTest::test_MB_17506(bool dedupe, bool client_setting) {
     if (dedupe || client_setting) {
         EXPECT_EQ(cb::mcbp::Datatype::Raw,
                   cb::mcbp::Datatype{response.getDatatype()});
-        EXPECT_TRUE(response.getDataString().empty())
+        EXPECT_TRUE(response.getDataView().empty())
                 << "Expected an empty stream, got ["
                 << getInflatedValue(response.getDatatype(),
                                     response.getDataView())
@@ -320,18 +320,18 @@ TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
     // Set the global config
     auto rsp = adminConnection->execute(BinprotSetClusterConfigCommand{
             token, R"({"foo" : "bar"})", 1, 100, ""});
-    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataView();
 
     rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
-    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
-    EXPECT_EQ(R"({"foo" : "bar"})", rsp.getDataString());
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataView();
+    EXPECT_EQ(R"({"foo" : "bar"})", rsp.getDataView());
 
     adminConnection->executeInBucket(bucketName, [](auto& c) {
         auto rsp = c.execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::GetClusterConfig});
-        ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataString();
-        EXPECT_EQ(R"({"rev":1000})", rsp.getDataString());
+        ASSERT_TRUE(rsp.isSuccess()) << rsp.getDataView();
+        EXPECT_EQ(R"({"rev":1000})", rsp.getDataView());
     });
 }
 
@@ -349,7 +349,7 @@ TEST_P(ClusterConfigTest, MB35395) {
         auto rsp = c.execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::GetClusterConfig});
         ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
-        EXPECT_EQ("", rsp.getDataString());
+        EXPECT_EQ("", rsp.getDataView());
     });
 }
 

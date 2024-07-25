@@ -264,7 +264,7 @@ uint64_t recv_subdoc_response(
             if (!isJSON(resp.getDataView())) {
                 return AssertionFailure()
                        << "JSON validation failed for response data:'"
-                       << resp.getDataString() << "''";
+                       << resp.getDataView() << "''";
             }
         }
     }

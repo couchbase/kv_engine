@@ -70,7 +70,7 @@ protected:
         auto rsp = conn.execute(cmd);
         EXPECT_TRUE(rsp.isSuccess())
                 << "Status: " << to_string(rsp.getStatus()) << std::endl
-                << "Value: " << rsp.getDataString();
+                << "Value: " << rsp.getDataView();
         EXPECT_NE(0, rsp.getCas());
     }
 
@@ -213,7 +213,7 @@ TEST_F(DurabilityTest, SubdocMultiMutation) {
     auto rsp = getConnection()->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess())
             << "Status: " << to_string(rsp.getStatus()) << std::endl
-            << "Value: " << rsp.getDataString();
+            << "Value: " << rsp.getDataView();
     EXPECT_NE(0, rsp.getCas());
 }
 

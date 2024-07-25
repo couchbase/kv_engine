@@ -113,7 +113,7 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
             R"({"version":1, "compact_db":{"slow":"1ns"}, "default":{"slow":500}})");
     adminConnection->executeInBucket(bucketName, [](auto& c) {
         const auto rsp = c.execute(BinprotCompactDbCommand());
-        EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataView();
     });
 
     // "grep" like function to pick out the lines in all the log files
