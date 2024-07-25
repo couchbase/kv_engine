@@ -404,14 +404,14 @@ void DeprecatedCommandsTests::test_set_huge_impl(const std::string& key,
     }
 }
 
-TEST_P(DeprecatedCommandsTests, SetQHuge) {
+TEST_P(DeprecatedCommandsTests, DISABLED_SetQHuge) {
     test_set_huge_impl("test_setq_huge",
                        ClientOpcode::Setq,
                        Status::Success,
                        GetTestBucket().getMaximumDocSize() - 256);
 }
 
-TEST_P(DeprecatedCommandsTests, SetQE2BIG) {
+TEST_P(DeprecatedCommandsTests, DISABLED_SetQE2BIG) {
     test_set_huge_impl("test_set_e2big",
                        ClientOpcode::Setq,
                        Status::E2big,

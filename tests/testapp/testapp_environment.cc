@@ -168,9 +168,6 @@ void TestBucketImpl::setUpBucket(const std::string& name,
     }
 
     std::string settings = "dbname=" + dbdir.generic_string();
-    // Increase bucket quota to 300MB to reduce the odds of hitting
-    // tmpfail / oom as we have tests which don't retry
-    settings += ";max_size=300000000";
     // Disable bloom_filters - for all memcahed testapp tests we want
     // to see things like gets of tombstones going to disk and not
     // getting skipped (to ensure correct EWOULDBLOCK handling etc).
