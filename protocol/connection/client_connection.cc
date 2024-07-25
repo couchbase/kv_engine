@@ -1233,10 +1233,7 @@ void MemcachedConnection::doSaslAuthenticate(const std::string& username,
     auto response = execute(authCommand);
 
     while (response.getStatus() == cb::mcbp::Status::AuthContinue) {
-        auto respdata = response.getData();
-        client_data =
-                client.step({reinterpret_cast<const char*>(respdata.data()),
-                             respdata.size()});
+        client_data = client.step(response.getDataView());
         if (client_data.first != cb::sasl::Error::OK &&
             client_data.first != cb::sasl::Error::CONTINUE) {
             reconnect();
@@ -1550,7 +1547,7 @@ void MemcachedConnection::stats(
             throw ConnectionError("Stats failed", response);
         }
 
-        if (response.getKey().empty() && response.getData().empty()) {
+        if (response.getKey().empty() && response.getDataView().empty()) {
             break;
         }
 

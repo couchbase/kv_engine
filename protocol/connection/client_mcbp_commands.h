@@ -236,11 +236,9 @@ public:
      * Get a pointer to the "data" or "value" part of the response. This is
      * any payload content _after_ the key and extras (if present
      */
-    cb::const_byte_buffer getData() const;
-
-    std::string getDataString() const;
-
     std::string_view getDataView() const;
+    /// convenience method to get a string object
+    std::string getDataString() const;
 
     std::string_view getExtrasView() const;
 

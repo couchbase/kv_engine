@@ -298,10 +298,7 @@ void AsyncClientConnection::authenticate(std::string_view user,
             std::string{client_data.second.data(), client_data.second.size()}});
 
     while (response.getStatus() == cb::mcbp::Status::AuthContinue) {
-        auto respdata = response.getData();
-        client_data =
-                client.step({reinterpret_cast<const char*>(respdata.data()),
-                             respdata.size()});
+        client_data = client.step(response.getDataView());
         if (client_data.first != cb::sasl::Error::OK &&
             client_data.first != cb::sasl::Error::CONTINUE) {
             throw std::runtime_error(fmt::format(

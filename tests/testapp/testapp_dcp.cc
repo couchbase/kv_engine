@@ -95,7 +95,7 @@ TEST_P(DcpTest, MB24145_RollbackShouldContainSeqno) {
     const auto rsp = conn->execute(streamReq);
     ASSERT_EQ(cb::mcbp::Status::Rollback, rsp.getStatus());
 
-    const auto data = rsp.getData();
+    const auto data = rsp.getDataView();
     ASSERT_EQ(sizeof(uint64_t), data.size());
     const auto* value = reinterpret_cast<const uint64_t*>(data.data());
     EXPECT_EQ(0, *value);

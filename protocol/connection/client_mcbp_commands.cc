@@ -453,18 +453,13 @@ std::string_view BinprotResponse::getKey() const {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
 
-cb::const_byte_buffer BinprotResponse::getData() const {
-    return getResponse().getValue();
-}
-
 std::string BinprotResponse::getDataString() const {
-    const auto buf = getData();
-    return {reinterpret_cast<const char*>(buf.data()), buf.size()};
+    const auto buf = getResponse().getValueString();
+    return {buf.data(), buf.size()};
 }
 
 std::string_view BinprotResponse::getDataView() const {
-    const auto buf = getData();
-    return {reinterpret_cast<const char*>(buf.data()), buf.size()};
+    return getResponse().getValueString();
 }
 
 std::string_view BinprotResponse::getExtrasView() const {
@@ -473,10 +468,7 @@ std::string_view BinprotResponse::getExtrasView() const {
 }
 
 nlohmann::json BinprotResponse::getDataJson() const {
-    const auto buf = getData();
-    const auto view = std::string_view{
-            reinterpret_cast<const char*>(buf.data()), buf.size()};
-    return nlohmann::json::parse(view);
+    return nlohmann::json::parse(getDataView());
 }
 
 std::string BinprotResponse::getErrorContext() const {
@@ -955,7 +947,12 @@ uint64_t BinprotIncrDecrResponse::getValue() const {
 
 void BinprotIncrDecrResponse::decode() {
     if (isSuccess()) {
-        value = htonll(*reinterpret_cast<const uint64_t*>(getData().data()));
+        auto view = getDataView();
+        if (view.size() < sizeof(uint64_t)) {
+            throw std::invalid_argument(
+                    "BinprotIncrDecrResponse::decode(): value too small");
+        }
+        value = htonll(*reinterpret_cast<const uint64_t*>(view.data()));
     } else {
         value = 0;
     }
@@ -1130,8 +1127,9 @@ void BinprotSubdocMultiMutationResponse::decode() {
         return;
     }
 
-    const uint8_t* bufcur = getData().data();
-    const uint8_t* bufend = getData().data() + getData().size();
+    const auto view = getDataView();
+    const auto* bufcur = view.data();
+    const auto* bufend = view.data() + view.size();
 
     // Result spec is:
     // 1@0          : Request Index
@@ -1157,10 +1155,7 @@ void BinprotSubdocMultiMutationResponse::decode() {
                         "Invalid value length received");
             }
             results.emplace_back(MutationResult{
-                    index,
-                    cur_status,
-                    std::string(reinterpret_cast<const char*>(bufcur),
-                                cur_len)});
+                    index, cur_status, std::string(bufcur, cur_len)});
             bufcur += cur_len;
         } else {
             results.emplace_back(MutationResult{index, cur_status, {}});
@@ -1305,8 +1300,9 @@ void BinprotSubdocMultiLookupResponse::decode() {
         return;
     }
 
-    const uint8_t* bufcur = getData().data();
-    const uint8_t* bufend = getData().data() + getData().size();
+    const auto view = getDataView();
+    const auto* bufcur = view.data();
+    const auto* bufend = view.data() + view.size();
 
     // Result spec is:
     // 2@0          : Status
@@ -1320,9 +1316,8 @@ void BinprotSubdocMultiLookupResponse::decode() {
         uint32_t cur_len = ntohl(*reinterpret_cast<const uint32_t*>(bufcur));
         bufcur += 4;
 
-        results.emplace_back(LookupResult{
-                cb::mcbp::Status(cur_status),
-                std::string(reinterpret_cast<const char*>(bufcur), cur_len)});
+        results.emplace_back(LookupResult{cb::mcbp::Status(cur_status),
+                                          std::string(bufcur, cur_len)});
         bufcur += cur_len;
     }
 }
@@ -2109,40 +2104,41 @@ BinprotObserveResponse::getResults() {
     }
 
     std::vector<Result> ret;
-    auto value = getData();
-    auto* ptr = value.begin();
+    auto value = getDataView();
+    auto* ptr = value.data();
+    const auto* end = ptr + value.size();
 
     do {
         Result r;
 
-        if (ptr + 2 > value.end()) {
+        if (ptr + 2 > end) {
             throw std::runtime_error("No vbid present");
         }
         r.vbid = Vbid{ntohs(*reinterpret_cast<const uint16_t*>(ptr))};
         ptr += 2;
 
-        if (ptr + 2 > value.end()) {
+        if (ptr + 2 > end) {
             throw std::runtime_error("No keylen present");
         }
         uint16_t klen = ntohs(*reinterpret_cast<const uint16_t*>(ptr));
         ptr += 2;
-        if (ptr + klen > value.end()) {
+        if (ptr + klen > end) {
             throw std::runtime_error("no key present");
         }
-        r.key.assign(reinterpret_cast<const char*>(ptr), klen);
+        r.key.assign(ptr, klen);
         ptr += klen;
-        if (ptr + 1 > value.end()) {
+        if (ptr + 1 > end) {
             throw std::runtime_error("no status present");
         }
         r.status = ObserveKeyState(*ptr);
         ++ptr;
-        if (ptr + sizeof(uint64_t) > value.end()) {
+        if (ptr + sizeof(uint64_t) > end) {
             throw std::runtime_error("no cas present");
         }
         r.cas = ntohll(*reinterpret_cast<const uint64_t*>(ptr));
         ptr += sizeof(uint64_t);
         ret.emplace_back(r);
-    } while (ptr < value.end());
+    } while (ptr < end);
 
     return ret;
 }
@@ -2201,12 +2197,13 @@ std::unordered_map<Vbid, uint64_t>
 BinprotGetAllVbucketSequenceNumbersResponse::getVbucketSeqnos() const {
     // Parse the u16:u64 data into a more useful map
     std::unordered_map<Vbid, uint64_t> vbMap;
-    auto value = getData();
-    auto* ptr = value.begin();
+    auto value = getDataView();
+    auto* ptr = value.data();
+    const auto* end = ptr + value.size();
     Expects(value.size() >= (sizeof(uint16_t) + sizeof(uint64_t)));
     Expects(value.size() % (sizeof(uint16_t) + sizeof(uint64_t)) == 0);
 
-    while (ptr < value.end()) {
+    while (ptr < end) {
         Vbid vbid(ntohs(*reinterpret_cast<const uint16_t*>(ptr)));
         ptr += sizeof(uint16_t);
         uint64_t seqno(ntohll(*reinterpret_cast<const uint64_t*>(ptr)));

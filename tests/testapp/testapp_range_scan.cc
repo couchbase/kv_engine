@@ -324,7 +324,7 @@ TEST_P(RangeScanTest, CreateCancel) {
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
 
     BinprotRangeScanCancel cancel(Vbid(0), id);
     userConnection->sendCommand(cancel);
@@ -497,7 +497,7 @@ TEST_P(RangeScanTest, KeyOnly) {
     auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
 
     EXPECT_EQ(userKeys.size(),
               drainScan(id, true, 2, userKeys).records); // 2 items per continue
@@ -508,7 +508,7 @@ TEST_P(RangeScanTest, ValueScan) {
     auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
     EXPECT_EQ(
             userKeys.size(),
             drainScan(id, false, 2, userKeys).records); // 2 items per continue
@@ -536,7 +536,7 @@ void RangeScanTest::smallBufferTest(size_t itemLimit,
     auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
 
     // The 0 byte internal buffer means that every key read triggers a mcbp
     // response (frame) and there is 1 extra frame that contains the final
@@ -572,7 +572,7 @@ TEST_P(RangeScanTest, ExclusiveRangeStart) {
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
     EXPECT_EQ(3, sequential.size() - 1);
     EXPECT_EQ(
             3,
@@ -592,7 +592,7 @@ TEST_P(RangeScanTest, ExclusiveRangeEnd) {
 
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
     EXPECT_EQ(3, sequential.size() - 1);
     EXPECT_EQ(
             3,
@@ -633,7 +633,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
     auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+    std::memcpy(id.data, resp.getDataView().data(), resp.getDataView().size());
 
     BinprotRangeScanContinue scanContinue(
             Vbid(0),
@@ -690,7 +690,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
             EXPECT_EQ(resp.getStatus(), error);
             // Expect no keys/values attached to this error. A cluster would
             // attach vbmap
-            ASSERT_EQ(0, resp.getData().size());
+            ASSERT_TRUE(resp.getDataView().empty());
             scanCanContinue = false;
         } else if (resp.getStatus() == cb::mcbp::Status::UnknownCollection) {
             EXPECT_EQ(resp.getStatus(), error);
@@ -712,7 +712,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
             EXPECT_EQ(resp.getStatus(), error);
 
             // Expect no keys/values attached to this error.
-            ASSERT_EQ(0, resp.getData().size());
+            ASSERT_TRUE(resp.getDataView().empty());
             scanCanContinue = false;
         } else if (resp.getStatus() == cb::mcbp::Status::RangeScanMore) {
             // range-scan-more
@@ -724,7 +724,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
                     0 /*no byte limit*/));
         } else if (resp.getStatus() == cb::mcbp::Status::Success) {
             // keys/values - next packet should be status
-            ASSERT_NE(0, resp.getData().size());
+            ASSERT_NE(0, resp.getDataView().size());
         } else if (resp.getStatus() == cb::mcbp::Status::RangeScanComplete ||
                    resp.getStatus() == cb::mcbp::Status::KeyEnoent) {
             scanCanContinue = false;

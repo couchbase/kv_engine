@@ -261,10 +261,7 @@ uint64_t recv_subdoc_response(
             }
 
             // Check that JSON means JSON
-            auto value = resp.getData();
-            std::string_view str(reinterpret_cast<const char*>(value.data()),
-                                 value.size());
-            if (!isJSON(str)) {
+            if (!isJSON(resp.getDataView())) {
                 return AssertionFailure()
                        << "JSON validation failed for response data:'"
                        << resp.getDataString() << "''";

@@ -158,13 +158,11 @@ void TouchTest::testGatAndTouch(const std::string& input_doc) {
     auto resp = BinprotGetAndTouchResponse{userConnection->execute(
             BinprotGetAndTouchCommand{name, Vbid{0}, 0})};
     EXPECT_TRUE(resp.isSuccess());
-    auto value = resp.getData();
-    std::string val(reinterpret_cast<const char*>(value.data()), value.size());
-    EXPECT_EQ(document.value, val);
+    EXPECT_EQ(document.value, resp.getDataView());
     resp = BinprotGetAndTouchResponse{
             userConnection->execute(BinprotTouchCommand{name})};
     EXPECT_TRUE(resp.isSuccess());
-    EXPECT_TRUE(resp.getData().empty());
+    EXPECT_TRUE(resp.getDataView().empty());
 }
 
 TEST_P(TouchTest, SmallValues) {
