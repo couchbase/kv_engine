@@ -80,7 +80,7 @@ void XattrNoDocTest::testSinglePathDictAdd() {
     resp = subdoc_get(
             "txn.deleted", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("true", resp.getValue());
+    EXPECT_EQ("true", resp.getDataView());
 
     // Check that the value is deleted and empty - which is treated as
     // not existing with normal subdoc operations.
@@ -124,7 +124,7 @@ void XattrNoDocTest::testMultipathDictAdd() {
     // Check the last path was created correctly.
     resp = subdoc_get("txn", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("\"foo\"", resp.getValue());
+    EXPECT_EQ("\"foo\"", resp.getDataView());
 
     // Check that the value is deleted and empty - which is treated as
     // not existing with normal subdoc operations.
@@ -164,7 +164,7 @@ void XattrNoDocTest::testMultipathDictUpsert() {
 
     resp = subdoc_get("txn", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("\"bar\"", resp.getValue());
+    EXPECT_EQ("\"bar\"", resp.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathDictUpsert) {
@@ -190,7 +190,7 @@ void XattrNoDocTest::testMultipathArrayPushLast() {
 
     resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("[1]", resp.getValue());
+    EXPECT_EQ("[1]", resp.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathArrayPushLast) {
@@ -216,7 +216,7 @@ void XattrNoDocTest::testMultipathArrayPushFirst() {
 
     resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("[2]", resp.getValue());
+    EXPECT_EQ("[2]", resp.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathArrayPushFirst) {
@@ -254,7 +254,7 @@ TEST_P(XattrNoDocTest, DISABLED_MultipathArrayInsert) {
 
     resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("[0,1]", resp.getValue());
+    EXPECT_EQ("[0,1]", resp.getDataView());
 }
 
 void XattrNoDocTest::testMultipathArrayAddUnique() {
@@ -272,7 +272,7 @@ void XattrNoDocTest::testMultipathArrayAddUnique() {
 
     resp = subdoc_get("array", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("[4]", resp.getValue());
+    EXPECT_EQ("[4]", resp.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathArrayAddUnique) {
@@ -299,7 +299,7 @@ void XattrNoDocTest::testMultipathCounter() {
     // Check the last path was created correctly.
     resp = subdoc_get("counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("5", resp.getValue());
+    EXPECT_EQ("5", resp.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathCounter) {
@@ -312,7 +312,7 @@ TEST_P(XattrNoDocDurabilityTest, MultipathCounter) {
 
 std::ostream& operator<<(std::ostream& os,
                          const BinprotSubdocMultiMutationResponse& resp) {
-    auto& results = resp.getResults();
+    auto results = resp.getResults();
     auto getValue = [](const std::string& s) {
         if (s.empty()) {
             return s;
@@ -348,7 +348,7 @@ void XattrNoDocTest::testMultipathCombo() {
     auto resp2 = subdoc_get(
             "txn.counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp2.getStatus());
-    EXPECT_EQ("1", resp2.getValue());
+    EXPECT_EQ("1", resp2.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathCombo) {
@@ -383,7 +383,7 @@ void XattrNoDocTest::testMultipathAccessDeletedCreateAsDeleted() {
     resp = subdoc_get(
             "txn.counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("1", resp.getValue());
+    EXPECT_EQ("1", resp.getDataView());
 }
 
 TEST_P(XattrNoDocTest, MultipathAccessDeletedCreateAsDeleted) {
@@ -449,7 +449,7 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
                   PathFlag::None,
                   "couchbase.version"}});
         ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, resp.getStatus());
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[0].status);
         ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
         ASSERT_EQ(R"("cheshire-cat")", results[1].value);

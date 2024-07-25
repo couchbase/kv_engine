@@ -170,8 +170,7 @@ TEST_P(RegressionTest, MB_31070) {
     auto multiResp =
             BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
 
-    auto& results = multiResp.getResults();
-
+    const auto results = multiResp.getResults();
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
     const auto exptime = std::stol(results[0].value);

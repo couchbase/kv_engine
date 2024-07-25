@@ -1881,7 +1881,7 @@ ObserveInfo MemcachedConnection::observeSeqno(
                                       " uuid:" + std::to_string(uuid),
                               response.getStatus());
     }
-    return response.info;
+    return response.getInfo();
 }
 
 void MemcachedConnection::enablePersistence(

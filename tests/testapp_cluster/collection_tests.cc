@@ -155,12 +155,12 @@ void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,
     cmd.addGet("$XTOC", cb::mcbp::subdoc::PathFlag::XattrPath);
     conn.sendCommand(cmd);
     BinprotSubdocMultiLookupResponse resp;
-    resp.clear();
     conn.recvResponse(resp);
     EXPECT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
-    ASSERT_EQ(1, resp.getResults().size());
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getResults().front().status);
-    EXPECT_EQ(R"(["nosys"])", resp.getResults().front().value);
+    const auto results = resp.getResults();
+    ASSERT_EQ(1, results.size());
+    EXPECT_EQ(cb::mcbp::Status::Success, results.front().status);
+    EXPECT_EQ(R"(["nosys"])", results.front().value);
 }
 
 TEST_F(CollectionsTests, TestBasicRbac) {

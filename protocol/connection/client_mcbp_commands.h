@@ -278,9 +278,7 @@ public:
      * The input parameter here is forced to be an rvalue reference because
      * we don't want careless copying of potentially large payloads.
      */
-    virtual void assign(std::vector<uint8_t>&& srcbuf);
-
-    virtual void clear();
+    void assign(std::vector<uint8_t>&& srcbuf);
 
     virtual ~BinprotResponse() = default;
 
@@ -331,14 +329,7 @@ private:
     std::optional<uint32_t> userFlags;
 };
 
-class BinprotSubdocResponse : public BinprotResponse {
-public:
-    std::string_view getValue() const {
-        return getResponse().getValueString();
-    }
-
-    bool operator==(const BinprotSubdocResponse& other) const;
-};
+using BinprotSubdocResponse = BinprotResponse;
 
 class BinprotSubdocMultiMutationCommand : public BinprotCommand {
 public:
@@ -400,7 +391,9 @@ protected:
 class BinprotSubdocMultiMutationResponse : public BinprotResponse {
 public:
     BinprotSubdocMultiMutationResponse() = default;
-    explicit BinprotSubdocMultiMutationResponse(BinprotResponse&& other);
+    explicit BinprotSubdocMultiMutationResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
 
     struct MutationResult {
         uint8_t index;
@@ -408,15 +401,7 @@ public:
         std::string value;
     };
 
-    void assign(std::vector<uint8_t>&& buf) override;
-
-    void clear() override;
-
-    const std::vector<MutationResult>& getResults() const;
-
-protected:
-    void decode();
-    std::vector<MutationResult> results;
+    [[nodiscard]] std::vector<MutationResult> getResults() const;
 };
 
 class BinprotSubdocMultiLookupCommand : public BinprotCommand {
@@ -472,22 +457,16 @@ protected:
 class BinprotSubdocMultiLookupResponse : public BinprotResponse {
 public:
     BinprotSubdocMultiLookupResponse() = default;
-    explicit BinprotSubdocMultiLookupResponse(BinprotResponse&& other);
+    explicit BinprotSubdocMultiLookupResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
 
     struct LookupResult {
         cb::mcbp::Status status;
         std::string value;
     };
 
-    const std::vector<LookupResult>& getResults() const;
-
-    void clear() override;
-
-    void assign(std::vector<uint8_t>&& srcbuf) override;
-
-protected:
-    void decode();
-    std::vector<LookupResult> results;
+    [[nodiscard]] std::vector<LookupResult> getResults() const;
 };
 
 class BinprotSaslAuthCommand : public BinprotGenericCommand {
@@ -536,14 +515,10 @@ private:
 class BinprotHelloResponse : public BinprotResponse {
 public:
     BinprotHelloResponse() = default;
-    explicit BinprotHelloResponse(BinprotResponse&& other);
-
-    void assign(std::vector<uint8_t>&& buf) override;
-    const std::vector<cb::mcbp::Feature>& getFeatures() const;
-
-protected:
-    void decode();
-    std::vector<cb::mcbp::Feature> features;
+    explicit BinprotHelloResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
+    std::vector<cb::mcbp::Feature> getFeatures() const;
 };
 
 class BinprotCreateBucketCommand : public BinprotGenericCommand {
@@ -609,7 +584,7 @@ class BinprotGetResponse : public BinprotResponse {
 public:
     BinprotGetResponse() = default;
     explicit BinprotGetResponse(BinprotResponse&& other)
-        : BinprotResponse(other) {
+        : BinprotResponse(std::move(other)) {
     }
     uint32_t getDocumentFlags() const;
 };
@@ -654,12 +629,12 @@ protected:
 
 class BinprotGetCmdTimerResponse : public BinprotResponse {
 public:
-    void assign(std::vector<uint8_t>&& buf) override;
+    BinprotGetCmdTimerResponse() = default;
+    explicit BinprotGetCmdTimerResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
 
     nlohmann::json getTimings() const;
-
-private:
-    nlohmann::json timings;
 };
 
 class BinprotVerbosityCommand : public BinprotGenericCommand {
@@ -717,15 +692,10 @@ protected:
 class BinprotMutationResponse : public BinprotResponse {
 public:
     BinprotMutationResponse() = default;
-    explicit BinprotMutationResponse(BinprotResponse&& other);
-
-    void assign(std::vector<uint8_t>&& buf) override;
-
-    const MutationInfo& getMutationInfo() const;
-
-protected:
-    void decode();
-    MutationInfo mutation_info;
+    explicit BinprotMutationResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
+    MutationInfo getMutationInfo() const;
 };
 
 class BinprotIncrDecrCommand : public BinprotGenericCommand {
@@ -751,14 +721,9 @@ private:
 class BinprotIncrDecrResponse : public BinprotMutationResponse {
 public:
     BinprotIncrDecrResponse() = default;
-    explicit BinprotIncrDecrResponse(BinprotResponse&& other);
+    explicit BinprotIncrDecrResponse(BinprotResponse&& other)
+        : BinprotMutationResponse(std::move(other)){};
     uint64_t getValue() const;
-
-    void assign(std::vector<uint8_t>&& buf) override;
-
-protected:
-    void decode();
-    uint64_t value = 0;
 };
 
 class BinprotRemoveCommand : public BinprotGenericCommand {
@@ -1106,13 +1071,10 @@ private:
 class BinprotObserveSeqnoResponse : public BinprotResponse {
 public:
     BinprotObserveSeqnoResponse() = default;
-    explicit BinprotObserveSeqnoResponse(BinprotResponse&& other);
-    void assign(std::vector<uint8_t>&& buf) override;
-
-    ObserveInfo info;
-
-protected:
-    void decode();
+    explicit BinprotObserveSeqnoResponse(BinprotResponse&& other)
+        : BinprotResponse(std::move(other)) {
+    }
+    ObserveInfo getInfo() const;
 };
 
 class BinprotObserveCommand : public BinprotGenericCommand {
@@ -1133,11 +1095,7 @@ class BinprotObserveResponse : public BinprotResponse {
 public:
     BinprotObserveResponse() = default;
     explicit BinprotObserveResponse(BinprotResponse&& other)
-        : BinprotResponse(other) {
-    }
-
-    void assign(std::vector<uint8_t>&& buf) override {
-        BinprotResponse::assign(std::move(buf));
+        : BinprotResponse(std::move(other)) {
     }
 
     struct Result {
@@ -1315,7 +1273,7 @@ class BinprotGetKeysResponse : public BinprotResponse {
 public:
     BinprotGetKeysResponse() = default;
     explicit BinprotGetKeysResponse(BinprotResponse&& other)
-        : BinprotResponse(other) {
+        : BinprotResponse(std::move(other)) {
     }
     std::vector<std::string> getKeys() const;
 };

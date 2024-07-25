@@ -70,7 +70,7 @@ void GetSetTest::doTestAppend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'a');
     expected.append(1024, 'b');
     EXPECT_EQ(expected, stored.value);
-    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
+    EXPECT_EQ("\"X-value\"", getXattr("xattr").getDataView());
 }
 
 void GetSetTest::doTestGetMetaValidJSON(bool compressedSource) {
@@ -127,7 +127,7 @@ void GetSetTest::doTestPrepend(bool compressedSource, bool compressedData) {
     std::string expected(1024, 'b');
     expected.append(1024, 'a');
     EXPECT_EQ(expected, stored.value);
-    EXPECT_EQ("\"X-value\"", getXattr("xattr").getValue());
+    EXPECT_EQ("\"X-value\"", getXattr("xattr").getDataView());
 }
 
 void GetSetTest::doTestServerDetectsJSON(bool compressedSource) {
@@ -681,14 +681,14 @@ TEST_P(GetSetTest, TestAppendWithXattr) {
     userConnection->mutate(document, Vbid(0), MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getDataView());
 
     document.value = "b";
     userConnection->mutate(document, Vbid(0), MutationType::Append);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+    EXPECT_EQ(mutation_cas.getDataView(), getXattr("meta.cas").getDataView());
 
     const auto stored = userConnection->get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
@@ -792,14 +792,14 @@ TEST_P(GetSetTest, TestPrependWithXattr) {
     userConnection->mutate(document, Vbid(0), MutationType::Add);
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue());
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getDataView());
 
     document.value = "b";
     userConnection->mutate(document, Vbid(0), MutationType::Prepend);
 
     // The xattr should have been preserved, and the macro should not
     // be expanded more than once..
-    EXPECT_EQ(mutation_cas, getXattr("meta.cas"));
+    EXPECT_EQ(mutation_cas.getDataView(), getXattr("meta.cas").getDataView());
 
     const auto stored = userConnection->get(name, Vbid(0));
     EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));

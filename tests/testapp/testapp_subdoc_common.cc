@@ -231,11 +231,11 @@ uint64_t recv_subdoc_response(
     }
 
     if (!value.empty() && cmd.getOp() != cb::mcbp::ClientOpcode::SubdocExists) {
-        if (value != resp.getValue()) {
+        if (value != resp.getDataView()) {
             return AssertionFailure()
                    << "Value mismatch for " << cmd << std::endl
                    << "  Expected: " << value << std::endl
-                   << "  Got: " << resp.getValue() << std::endl;
+                   << "  Got: " << resp.getDataView() << std::endl;
         }
     }
 

@@ -110,7 +110,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Bart\",\"Jones\",\"Smith\"]", resp.getValue());
+        EXPECT_EQ("[\"Bart\",\"Jones\",\"Smith\"]", resp.getDataView());
     }
 
     void doArrayPushLastTest(const std::string& path) {
@@ -123,7 +123,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Smith\"]", resp.getValue());
+        EXPECT_EQ("[\"Smith\"]", resp.getDataView());
 
         // Add a second one so we know it was added last ;-)
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
@@ -135,7 +135,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
+        EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getDataView());
     }
 
     void doArrayPushFirstTest(const std::string& path) {
@@ -148,7 +148,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Smith\"]", resp.getValue());
+        EXPECT_EQ("[\"Smith\"]", resp.getDataView());
 
         // Add a second one so we know it was added first ;-)
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
@@ -160,7 +160,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Jones\",\"Smith\"]", resp.getValue());
+        EXPECT_EQ("[\"Jones\",\"Smith\"]", resp.getDataView());
     }
 
     void doAddUniqueTest(const std::string& path) {
@@ -173,7 +173,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Smith\"]", resp.getValue());
+        EXPECT_EQ("[\"Smith\"]", resp.getDataView());
 
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                       name,
@@ -184,7 +184,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
+        EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getDataView());
 
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
                       name,
@@ -195,7 +195,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getValue());
+        EXPECT_EQ("[\"Smith\",\"Jones\"]", resp.getDataView());
     }
 
     void doCounterTest(const std::string& path) {
@@ -208,7 +208,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("1", resp.getValue());
+        EXPECT_EQ("1", resp.getDataView());
 
         resp = subdoc(cb::mcbp::ClientOpcode::SubdocCounter,
                       name,
@@ -219,7 +219,7 @@ protected:
 
         resp = subdoc_get(path, PathFlag::XattrPath);
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        EXPECT_EQ("2", resp.getValue());
+        EXPECT_EQ("2", resp.getDataView());
     }
 
     // Test replacing a compressed/uncompressed value (based on test
@@ -270,7 +270,7 @@ protected:
 
         // Check the xattr was set correctly
         const auto resp = subdoc_get(sysXattr, PathFlag::XattrPath);
-        EXPECT_EQ(xattrVal, resp.getValue());
+        EXPECT_EQ(xattrVal, resp.getDataView());
 
         // Check the datatype.
         const auto meta = get_meta();
@@ -293,17 +293,19 @@ protected:
 
         auto multiResp =
                 BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-        EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
-        EXPECT_EQ(value, multiResp.getResults()[1].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        auto results = multiResp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        EXPECT_EQ(R"(["_sync"])", results[0].value);
+        EXPECT_EQ(value, results[1].value);
 
         xattr_upsert("userXattr", R"(["Test"])");
         multiResp =
                 BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-        EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        results = multiResp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        EXPECT_EQ(R"(["_sync","userXattr"])", results[0].value);
     }
 
     std::string value = "{\"Field\":56}";
@@ -367,9 +369,10 @@ TEST_P(XattrTest, GetXattrAndBody) {
             {{cb::mcbp::ClientOpcode::SubdocGet, PathFlag::XattrPath, sysXattr},
              {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}});
 
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
-    EXPECT_EQ(value, multiResp.getResults()[1].value);
+    ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(xattrVal, results[0].value);
+    EXPECT_EQ(value, results[1].value);
 }
 
 TEST_P(XattrTest, SetXattrAndBodyNewDoc) {
@@ -635,7 +638,7 @@ TEST_P(XattrTest, TestSeqnoMacroExpansion) {
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("_sync.seqno", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("\"${Mutation.seqno}\"", resp.getValue());
+    EXPECT_EQ("\"${Mutation.seqno}\"", resp.getDataView());
 
     // Verify that we expand the macro to something that isn't the macro
     // literal. i.e. If we send ${Mutation.SEQNO} we want to check that we
@@ -651,7 +654,7 @@ TEST_P(XattrTest, TestSeqnoMacroExpansion) {
 
     resp = subdoc_get("_sync.seqno", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_NE("\"${Mutation.seqno}\"", resp.getValue());
+    EXPECT_NE("\"${Mutation.seqno}\"", resp.getDataView());
 }
 
 TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
@@ -670,7 +673,7 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
-    EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
+    EXPECT_EQ("\"${Mutation.CAS}\"", resp.getDataView());
 
     // Let's update the body version..
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -682,11 +685,11 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
 
     // The xattr version should have been unchanged...
     resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
-    EXPECT_EQ("\"${Mutation.CAS}\"", resp.getValue());
+    EXPECT_EQ("\"${Mutation.CAS}\"", resp.getDataView());
 
     // And the body version should be what we set it to
     resp = subdoc_get("_sync.cas");
-    EXPECT_EQ("\"If you don't know me by now\"", resp.getValue());
+    EXPECT_EQ("\"If you don't know me by now\"", resp.getDataView());
 
     // Then change it to macro expansion
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -702,7 +705,7 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     const auto first_cas = resp.getCas();
     const auto cas_string = "\"" + cb::to_hex(htonll(resp.getCas())) + "\"";
-    EXPECT_EQ(cas_string, resp.getValue());
+    EXPECT_EQ(cas_string, resp.getDataView());
 
     // Let's update the body version..
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -714,7 +717,7 @@ TEST_P(XattrTest, TestMacroExpansionAndIsolation) {
     // The macro should not have been expanded again...
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("_sync.cas", PathFlag::XattrPath);
-    EXPECT_EQ(cas_string, resp.getValue());
+    EXPECT_EQ(cas_string, resp.getDataView());
     EXPECT_NE(first_cas, resp.getCas());
 }
 
@@ -724,10 +727,10 @@ TEST_P(XattrTest, TestMacroExpansionOccursOnce) {
 
     createXattr("meta.cas", "\"${Mutation.CAS}\"", true);
     const auto mutation_cas = getXattr("meta.cas");
-    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getValue())
+    EXPECT_NE("\"${Mutation.CAS}\"", mutation_cas.getDataView())
             << "Macro expansion did not occur when requested";
     userConnection->mutate(document, Vbid(0), MutationType::Replace);
-    EXPECT_EQ(mutation_cas, getXattr("meta.cas"))
+    EXPECT_EQ(mutation_cas.getDataView(), getXattr("meta.cas").getDataView())
             << "'meta.cas' should be unchanged when value replaced";
 }
 
@@ -747,7 +750,7 @@ TEST_P(XattrTest, AddSystemXattrToDeletedItem) {
                       PathFlag::XattrPath,
                       cb::mcbp::subdoc::DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("true", resp.getValue());
+    EXPECT_EQ("true", resp.getDataView());
 }
 
 TEST_P(XattrTest, AddUserXattrToDeletedItem) {
@@ -766,7 +769,7 @@ TEST_P(XattrTest, AddUserXattrToDeletedItem) {
     resp = subdoc_get(
             "txn.deleted", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ("true", resp.getValue());
+    EXPECT_EQ("true", resp.getDataView());
 }
 
 TEST_P(XattrTest, MB_22318) {
@@ -813,7 +816,7 @@ TEST_P(XattrTest, Get_FullXattrSpec) {
     auto response = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
     EXPECT_EQ(R"({"author":"Bart","rev":0})"_json,
-              nlohmann::json::parse(response.getValue()));
+              nlohmann::json::parse(response.getDataView()));
 }
 
 /**
@@ -825,7 +828,7 @@ TEST_P(XattrTest, Get_PartialXattrSpec) {
 
     auto response = subdoc_get("doc.author", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-    EXPECT_EQ("\"Bart\"", response.getValue());
+    EXPECT_EQ("\"Bart\"", response.getDataView());
 }
 
 /**
@@ -954,7 +957,7 @@ TEST_P(XattrTest, DictUpsert_FullXattrSpec) {
 
     resp = subdoc_get("doc.author", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("\"Jones\"", resp.getValue());
+    EXPECT_EQ("\"Jones\"", resp.getDataView());
 }
 
 /**
@@ -979,7 +982,7 @@ TEST_P(XattrTest, DictUpsert_PartialXattrSpec) {
 
     resp = subdoc_get("doc.author", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("\"Jones\"", resp.getValue());
+    EXPECT_EQ("\"Jones\"", resp.getDataView());
 }
 
 /**
@@ -1024,7 +1027,7 @@ TEST_P(XattrTest, Delete_PartialXattrSpec) {
     // THe entire stuff should be gone
     resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("{\"author\":\"Bart\"}", resp.getValue());
+    EXPECT_EQ("{\"author\":\"Bart\"}", resp.getDataView());
 }
 
 /**
@@ -1055,7 +1058,7 @@ TEST_P(XattrTest, Replace_FullXattrSpec) {
 
     resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("{\"author\":\"Bart\",\"ref\":0}", resp.getValue());
+    EXPECT_EQ("{\"author\":\"Bart\",\"ref\":0}", resp.getDataView());
 }
 
 /**
@@ -1084,7 +1087,7 @@ TEST_P(XattrTest, Replace_PartialXattrSpec) {
 
     resp = subdoc_get("doc", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("{\"author\":\"Jones\",\"rev\":0}", resp.getValue());
+    EXPECT_EQ("{\"author\":\"Jones\",\"rev\":0}", resp.getDataView());
 }
 
 /**
@@ -1214,7 +1217,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
              {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document.CAS"},
              {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document.foobar"},
              {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sync.eg"}});
-    auto& results = multiResp.getResults();
+    const auto results = multiResp.getResults();
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
@@ -1265,7 +1268,7 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs) {
     EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
     const std::string cas{std::string{"\""} + json["CAS"].get<std::string>() +
                           "\""};
-    json = nlohmann::json::parse(multiResp.getResults()[1].value);
+    json = nlohmann::json::parse(results[1].value);
     EXPECT_EQ(cas, json.dump());
 
     // The third one didn't exist
@@ -1289,8 +1292,9 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_GetXattrAndBody) {
              {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}});
 
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ("false", multiResp.getResults()[0].value);
-    EXPECT_EQ(value, multiResp.getResults()[1].value);
+    const auto results = multiResp.getResults();
+    EXPECT_EQ("false", results[0].value);
+    EXPECT_EQ(value, results[1].value);
 }
 
 TEST_P(XattrTest, MB_23882_VirtualXattrs_IsReadOnly) {
@@ -1313,8 +1317,8 @@ TEST_P(XattrTest, MB_23882_VirtualXattrs_UnknownVattr) {
                                   "$documents"}}); // should be $document
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownVattr,
-              multiResp.getResults()[0].status);
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::SubdocXattrUnknownVattr, results[0].status);
 }
 
 TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
@@ -1328,9 +1332,10 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrReadPrivOnly) {
 
     const auto multiResp =
             BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(R"(["userXattr"])", multiResp.getResults()[0].value);
+    ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ(R"(["userXattr"])", results[0].value);
     rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
 }
 
@@ -1343,9 +1348,10 @@ TEST_P(XattrTest, MB_25786_XTOC_Vattr_XattrSystemReadPriv) {
 
     const auto multiResp =
             BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(R"(["_sync","userXattr"])", multiResp.getResults()[0].value);
+    ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ(R"(["_sync","userXattr"])", results[0].value);
     rebuildUserConnection(TestappXattrClientTest::isTlsEnabled());
 }
 
@@ -1363,7 +1369,7 @@ TEST_P(XattrTest, MB_25786_XTOC_VattrNoXattrs) {
 
     auto resp = subdoc_get("$XTOC", PathFlag::XattrPath);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ("[]", resp.getValue());
+    EXPECT_EQ("[]", resp.getDataView());
 }
 
 TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
@@ -1393,7 +1399,7 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
                        PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("userXattr", PathFlag::XattrPath);
-    EXPECT_EQ(R"({"a":1})", resp.getValue());
+    EXPECT_EQ(R"({"a":1})", resp.getDataView());
 
     // Compute the expected value checksum
     auto _crc32c = crc32c(document.value);
@@ -1405,9 +1411,10 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
     cmd.addGet("$document.value_crc32c", PathFlag::XattrPath);
     const auto multiResp =
             BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(expectedValueCrc32c, multiResp.getResults()[0].value);
+    ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ(expectedValueCrc32c, results[0].value);
 }
 
 TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
@@ -1426,7 +1433,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
                        PathFlag::XattrPath | PathFlag::Mkdir_p);
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     resp = subdoc_get("_sync.value_crc32c", PathFlag::XattrPath);
-    EXPECT_EQ("\"${Mutation.value_crc32c}\"", resp.getValue());
+    EXPECT_EQ("\"${Mutation.value_crc32c}\"", resp.getDataView());
 
     // Now change the user xattr to macro expansion
     resp = subdoc(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -1445,14 +1452,14 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
     // expected body checksum
     resp = subdoc_get("_sync.value_crc32c", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    EXPECT_EQ(expectedValueCrc32c, resp.getValue());
+    EXPECT_EQ(expectedValueCrc32c, resp.getDataView());
 
     // Repeat the check fetching the entire '_sync' path. Differently from the
     // check above, this check exposed issues in macro padding.
     resp = subdoc_get("_sync", PathFlag::XattrPath);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     EXPECT_EQ("{\"value_crc32c\":" + expectedValueCrc32c + "}",
-              resp.getValue());
+              resp.getDataView());
 }
 
 // Test that one can fetch both the body and an XATTR on a deleted document.
@@ -1464,9 +1471,10 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeleted) {
              {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::DocFlag::AccessDeleted);
 
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
-    EXPECT_EQ(value, multiResp.getResults()[1].value);
+    ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(xattrVal, results[0].value);
+    EXPECT_EQ(value, results[1].value);
 }
 
 // Test that attempting to get an XATTR and a Body when the XATTR doesn't exist
@@ -1483,13 +1491,11 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyWithoutXattr) {
             cb::mcbp::subdoc::DocFlag::AccessDeleted);
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, multiResp.getStatus());
-
-    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
-              multiResp.getResults()[0].status);
-    EXPECT_EQ("", multiResp.getResults()[0].value);
-
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[1].status);
-    EXPECT_EQ(value, multiResp.getResults()[1].value);
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[0].status);
+    EXPECT_EQ("", results[0].value);
+    EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
+    EXPECT_EQ(value, results[1].value);
 }
 
 // Test that attempting to get an XATTR and a Body when the doc is deleted and
@@ -1507,12 +1513,11 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyDeletedAndEmpty) {
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
-
-    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
-              multiResp.getResults()[1].status);
-    EXPECT_EQ("", multiResp.getResults()[1].value);
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ(xattrVal, results[0].value);
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[1].status);
+    EXPECT_EQ("", results[1].value);
 }
 
 // Test that attempting to get an XATTR and a Body when the body is non-JSON
@@ -1527,12 +1532,12 @@ TEST_P(XattrTest, MB24152_GetXattrAndBodyNonJSON) {
              {cb::mcbp::ClientOpcode::Get, PathFlag::None, ""}},
             cb::mcbp::subdoc::DocFlag::AccessDeleted);
 
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
-
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[1].status);
-    EXPECT_EQ(value, multiResp.getResults()[1].value);
+    ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ(xattrVal, results[0].value);
+    EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
+    EXPECT_EQ(value, results[1].value);
 }
 
 // Test that the $vbucket VATTR can be accessed and all properties are present
@@ -1548,8 +1553,7 @@ TEST_P(XattrTest, MB_35388_VATTR_Vbucket) {
             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$vbucket.HLC.now"},
             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sync.eg"},
     });
-    auto& results = multiResp.getResults();
-
+    const auto results = multiResp.getResults();
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
 
@@ -1582,8 +1586,7 @@ TEST_P(XattrTest, MB_35388_VATTR_Document_Vbucket) {
             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "$vbucket"},
             {ClientOpcode::SubdocGet, PathFlag::XattrPath, "_sync.eg"},
     });
-    auto& results = multiResp.getResults();
-
+    const auto results = multiResp.getResults();
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(3, results.size());
     for (const auto& result : results) {
@@ -1608,8 +1611,7 @@ TEST_P(XattrTest, MB_35388_VbucketHlcNowIsValid) {
              PathFlag::XattrPath,
              "$vbucket.HLC.now"},
     });
-    auto& results = multiResp.getResults();
-
+    const auto results = multiResp.getResults();
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(3, results.size());
 
@@ -1649,11 +1651,10 @@ TEST_P(XattrTest, MB23808_MultiPathFailureDeleted) {
     // the second.
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ(xattrVal, multiResp.getResults()[0].value);
-
-    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
-              multiResp.getResults()[1].status);
+    const auto results = multiResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+    EXPECT_EQ(xattrVal, results[0].value);
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[1].status);
 }
 
 TEST_P(XattrTest, SetXattrAndDeleteBasic) {
@@ -1679,7 +1680,7 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
                            PathFlag::XattrPath,
                            cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ(xattrVal, resp.getValue());
+    EXPECT_EQ(xattrVal, resp.getDataView());
 
     // Check we can't access the deleted document
     resp = subdoc_get(sysXattr, PathFlag::XattrPath);
@@ -1695,8 +1696,8 @@ TEST_P(XattrTest, SetXattrAndDeleteBasic) {
             cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailureDeleted,
               getResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent,
-              getResp.getResults().at(0).status);
+    const auto results = getResp.getResults();
+    EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, results[0].status);
 }
 
 TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
@@ -1733,7 +1734,7 @@ TEST_P(XattrTest, SetXattrAndDeleteCheckUserXattrsDeleted) {
                       PathFlag::XattrPath,
                       cb::mcbp::subdoc::DocFlag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
-    EXPECT_EQ(xattrVal, resp.getValue());
+    EXPECT_EQ(xattrVal, resp.getDataView());
 }
 
 TEST_P(XattrTest, SetXattrAndDeleteJustUserXattrs) {
@@ -1925,7 +1926,7 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
                  {ClientOpcode::SubdocGet, PathFlag::None, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
         EXPECT_EQ(R"({"id":666})", results[0].value);
         EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
@@ -1944,7 +1945,7 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
                  {ClientOpcode::SubdocGet, PathFlag::None, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
         // We can't really check the CAS, but it should be a hex value
         EXPECT_EQ(0, results[0].value.find("\"0x"));
@@ -1962,7 +1963,7 @@ TEST_P(XattrTest, MB35079_virtual_xattr_mix) {
                  {ClientOpcode::SubdocGet, PathFlag::None, "value"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
         EXPECT_EQ(R"(["tnx"])", results[0].value);
         EXPECT_EQ(cb::mcbp::Status::Success, results[1].status);
@@ -1983,7 +1984,7 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
         auto resp = subdoc_multi_lookup(
                 {{ClientOpcode::SubdocGet, PathFlag::XattrPath, "$document"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
         original = nlohmann::json::parse(results[0].value);
     }
@@ -2026,7 +2027,7 @@ TEST_P(XattrTest, MB40980_InputMacroExpansion) {
                  {ClientOpcode::SubdocGet, PathFlag::XattrPath, "tnx"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
         modified = nlohmann::json::parse(results[0].value);
 
@@ -2076,7 +2077,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
                 {ClientOpcode::SubdocGet, PathFlag::None, "couchbase.version"},
         });
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
         ASSERT_EQ(R"("mad-hatter")", results[0].value);
     }
@@ -2105,7 +2106,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr) {
                   PathFlag::None,
                   "couchbase.version"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
         ASSERT_EQ("{}", results[0].value);
         ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
@@ -2138,9 +2139,10 @@ TEST_P(XattrTest, MB54776) {
     {
         BinprotSubdocMultiLookupResponse multiResp(
                 userConnection->execute(cmd));
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-        EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        const auto results = multiResp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        EXPECT_EQ(R"(["_sync"])", results[0].value);
     }
 
     // Drop the privilege and rerun the command and verify
@@ -2149,9 +2151,10 @@ TEST_P(XattrTest, MB54776) {
     {
         BinprotSubdocMultiLookupResponse multiResp(
                 userConnection->execute(cmd));
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-        EXPECT_EQ("[]", multiResp.getResults()[0].value);
+        ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        const auto results = multiResp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
+        EXPECT_EQ("[]", results[0].value);
     }
     userConnection.reset();
 }
@@ -2168,11 +2171,12 @@ TEST_P(XattrTest, MB57864) {
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-        ASSERT_EQ(2, response.getResults().size());
-        auto& xtoc = response.getResults()[0];
+        const auto results = response.getResults();
+        ASSERT_EQ(2, results.size());
+        auto& xtoc = results[0];
         EXPECT_EQ(cb::mcbp::Status::Success, xtoc.status);
         EXPECT_EQ("[]", xtoc.value);
-        auto& doc = response.getResults()[1];
+        auto& doc = results[1];
         EXPECT_EQ(cb::mcbp::Status::Success, doc.status);
         EXPECT_EQ(
                 R"({"couchbase": {"version": "spock", "next_version": "vulcan"}})",
@@ -2210,17 +2214,18 @@ TEST_P(XattrTest, MB57864) {
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-        ASSERT_EQ(4, response.getResults().size());
-        auto& xtoc = response.getResults()[0];
+        const auto results = response.getResults();
+        ASSERT_EQ(4, results.size());
+        auto& xtoc = results[0];
         EXPECT_EQ(cb::mcbp::Status::Success, xtoc.status);
         EXPECT_EQ(R"(["_system","user"])", xtoc.value);
-        auto& user = response.getResults()[1];
+        auto& user = results[1];
         EXPECT_EQ(cb::mcbp::Status::Success, user.status);
         EXPECT_EQ(R"({"MB57864":"user"})", user.value);
-        auto& _system = response.getResults()[2];
+        auto& _system = results[2];
         EXPECT_EQ(cb::mcbp::Status::Success, _system.status);
         EXPECT_EQ(R"({"MB57864":"_system"})", _system.value);
-        auto& doc = response.getResults()[3];
+        auto& doc = results[3];
         EXPECT_EQ(cb::mcbp::Status::Success, doc.status);
         EXPECT_EQ(value, doc.value);
     }
@@ -2256,19 +2261,20 @@ TEST_P(XattrTest, MB57864) {
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure,
                   response.getStatus());
-        ASSERT_EQ(5, response.getResults().size());
-        auto& xtoc = response.getResults()[0];
+        const auto results = response.getResults();
+        ASSERT_EQ(5, results.size());
+        auto& xtoc = results[0];
         EXPECT_EQ(cb::mcbp::Status::Success, xtoc.status);
         EXPECT_EQ(R"(["user","user2"])", xtoc.value);
-        auto& user = response.getResults()[1];
+        auto& user = results[1];
         EXPECT_EQ(cb::mcbp::Status::Success, user.status);
         EXPECT_EQ(R"({"MB57864":"user"})", user.value);
-        auto& user2 = response.getResults()[2];
+        auto& user2 = results[2];
         EXPECT_EQ(cb::mcbp::Status::Success, user2.status);
         EXPECT_EQ("true", user2.value);
-        auto& _system = response.getResults()[3];
+        auto& _system = results[3];
         EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, _system.status);
-        auto& doc = response.getResults()[4];
+        auto& doc = results[4];
         EXPECT_EQ(cb::mcbp::Status::Success, doc.status);
         EXPECT_EQ(value, doc.value);
     }
@@ -2346,10 +2352,11 @@ TEST_P(XattrTest, MB57864_macro_expansion) {
         auto rsp = userConnection->execute(lcmd);
         const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
         ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-        ASSERT_EQ(3, response.getResults().size());
-        auto& user = response.getResults()[0];
-        auto& _system = response.getResults()[1];
-        auto& never = response.getResults()[2];
+        const auto results = response.getResults();
+        ASSERT_EQ(3, results.size());
+        auto& user = results[0];
+        auto& _system = results[1];
+        auto& never = results[2];
         EXPECT_EQ(cb::mcbp::Status::Success, user.status);
         EXPECT_EQ(cb::mcbp::Status::Success, _system.status);
         EXPECT_EQ(cb::mcbp::Status::Success, never.status);
@@ -2410,7 +2417,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
                                           PathFlag::None,
                                           "couchbase.version"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
         ASSERT_EQ(base64_encode_value(payload), results[0].value);
         ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);
@@ -2427,7 +2434,7 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_binary_value) {
                   PathFlag::None,
                   "couchbase.version"}});
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-        auto& results = resp.getResults();
+        const auto results = resp.getResults();
         ASSERT_EQ(cb::mcbp::Status::Success, results[0].status);
         ASSERT_EQ(payload, results[0].value);
         ASSERT_EQ(cb::mcbp::Status::Success, results[1].status);

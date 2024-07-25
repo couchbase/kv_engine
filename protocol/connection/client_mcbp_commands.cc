@@ -474,10 +474,6 @@ const cb::mcbp::Response& BinprotResponse::getResponse() const {
     return getHeader().getResponse();
 }
 
-void BinprotResponse::clear() {
-    payload.clear();
-}
-
 const cb::mcbp::Header& BinprotResponse::getHeader() const {
     if (payload.size() < sizeof(cb::mcbp::Header)) {
         throw std::logic_error("BinprotResponse::getHeader: not enough bytes");
@@ -488,16 +484,6 @@ const cb::mcbp::Header& BinprotResponse::getHeader() const {
                 "BinprotResponse::getHeader: Not a valid header");
     }
     return ret;
-}
-
-bool BinprotSubdocResponse::operator==(
-        const BinprotSubdocResponse& other) const {
-    bool rv = getStatus() == other.getStatus();
-
-    if (getStatus() == cb::mcbp::Status::Success) {
-        rv = getValue() == other.getValue();
-    }
-    return rv;
 }
 
 void BinprotSaslAuthCommand::encode(std::vector<uint8_t>& buf) const {
@@ -812,26 +798,12 @@ BinprotMutationCommand& BinprotMutationCommand::setExpiry(uint32_t expiry_) {
     return *this;
 }
 
-BinprotMutationResponse::BinprotMutationResponse(BinprotResponse&& other)
-    : BinprotResponse(other) {
-    decode();
-}
-
-void BinprotMutationResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
-    decode();
-}
-
-const MutationInfo& BinprotMutationResponse::getMutationInfo() const {
-    return mutation_info;
-}
-
-void BinprotMutationResponse::decode() {
+MutationInfo BinprotMutationResponse::getMutationInfo() const {
     if (!isSuccess()) {
         // No point parsing the other info..
-        return;
+        return {};
     }
-
+    MutationInfo mutation_info;
     mutation_info.cas = getCas();
     mutation_info.size = 0; // TODO: what's this?
 
@@ -848,6 +820,8 @@ void BinprotMutationResponse::decode() {
         throw std::runtime_error(
                 "BinprotMutationResponse::decode: Bad extras length");
     }
+
+    return mutation_info;
 }
 
 void BinprotHelloCommand::encode(std::vector<uint8_t>& buf) const {
@@ -874,29 +848,14 @@ BinprotHelloCommand& BinprotHelloCommand::enableFeature(
     return *this;
 }
 
-BinprotHelloResponse::BinprotHelloResponse(BinprotResponse&& other)
-    : BinprotResponse(other) {
-    decode();
-}
-
-void BinprotHelloResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
-    decode();
-}
-const std::vector<cb::mcbp::Feature>& BinprotHelloResponse::getFeatures()
-        const {
-    return features;
-}
-
-void BinprotHelloResponse::decode() {
+std::vector<cb::mcbp::Feature> BinprotHelloResponse::getFeatures() const {
+    std::vector<cb::mcbp::Feature> features;
     if (isSuccess()) {
         // Ensure body length is even
-        auto value = getResponse().getValue();
-
+        const auto value = getDataView();
         if ((value.size() & 1) != 0) {
             throw std::runtime_error(
-                    "BinprotHelloResponse::assign: "
-                    "Invalid response returned. "
+                    "BinprotHelloResponse::assign: Invalid response returned. "
                     "Uneven body length");
         }
 
@@ -908,6 +867,7 @@ void BinprotHelloResponse::decode() {
             features.push_back(cb::mcbp::Feature(htons(*cur)));
         }
     }
+    return features;
 }
 
 void BinprotIncrDecrCommand::encode(std::vector<uint8_t>& buf) const {
@@ -926,31 +886,20 @@ void BinprotIncrDecrCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), key.begin(), key.end());
 }
 
-BinprotIncrDecrResponse::BinprotIncrDecrResponse(BinprotResponse&& other)
-    : BinprotMutationResponse(std::move(other)) {
-    decode();
-}
-
-void BinprotIncrDecrResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotMutationResponse::assign(std::move(buf));
-    decode();
-}
-
 uint64_t BinprotIncrDecrResponse::getValue() const {
-    return value;
-}
-
-void BinprotIncrDecrResponse::decode() {
+    uint64_t value = 0;
     if (isSuccess()) {
         auto view = getDataView();
         if (view.size() < sizeof(uint64_t)) {
             throw std::invalid_argument(
-                    "BinprotIncrDecrResponse::decode(): value too small");
+                    "BinprotIncrDecrResponse::getValue(): value too small");
         }
         value = htonll(*reinterpret_cast<const uint64_t*>(view.data()));
     } else {
         value = 0;
     }
+
+    return value;
 }
 
 void BinprotRemoveCommand::encode(std::vector<uint8_t>& buf) const {
@@ -1100,18 +1049,8 @@ void BinprotSubdocMultiMutationCommand::clearDocFlags() {
     docFlags = cb::mcbp::subdoc::DocFlag::None;
 }
 
-BinprotSubdocMultiMutationResponse::BinprotSubdocMultiMutationResponse(
-        BinprotResponse&& other)
-    : BinprotResponse(other) {
-    decode();
-}
-
-void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
-    decode();
-}
-
-void BinprotSubdocMultiMutationResponse::decode() {
+std::vector<BinprotSubdocMultiMutationResponse::MutationResult>
+BinprotSubdocMultiMutationResponse::getResults() const {
     switch (getStatus()) {
     case cb::mcbp::Status::Success:
     case cb::mcbp::Status::SubdocSuccessDeleted:
@@ -1119,9 +1058,10 @@ void BinprotSubdocMultiMutationResponse::decode() {
     case cb::mcbp::Status::SubdocMultiPathFailureDeleted:
         break;
     default:
-        return;
+        return {};
     }
 
+    std::vector<MutationResult> results;
     const auto view = getDataView();
     const auto* bufcur = view.data();
     const auto* bufend = view.data() + view.size();
@@ -1156,14 +1096,6 @@ void BinprotSubdocMultiMutationResponse::decode() {
             results.emplace_back(MutationResult{index, cur_status, {}});
         }
     }
-}
-
-void BinprotSubdocMultiMutationResponse::clear() {
-    BinprotResponse::clear();
-    results.clear();
-}
-const std::vector<BinprotSubdocMultiMutationResponse::MutationResult>&
-BinprotSubdocMultiMutationResponse::getResults() const {
     return results;
 }
 
@@ -1270,20 +1202,8 @@ void BinprotSubdocMultiLookupCommand::clearDocFlags() {
     docFlags = cb::mcbp::subdoc::DocFlag::None;
 }
 
-void BinprotSubdocMultiLookupResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
-    decode();
-}
-const std::vector<BinprotSubdocMultiLookupResponse::LookupResult>&
+std::vector<BinprotSubdocMultiLookupResponse::LookupResult>
 BinprotSubdocMultiLookupResponse::getResults() const {
-    return results;
-}
-void BinprotSubdocMultiLookupResponse::clear() {
-    BinprotResponse::clear();
-    results.clear();
-}
-
-void BinprotSubdocMultiLookupResponse::decode() {
     // Check if this is a success - either full or partial.
     switch (getStatus()) {
     case cb::mcbp::Status::Success:
@@ -1292,9 +1212,10 @@ void BinprotSubdocMultiLookupResponse::decode() {
     case cb::mcbp::Status::SubdocMultiPathFailureDeleted:
         break;
     default:
-        return;
+        return {};
     }
 
+    std::vector<LookupResult> results;
     const auto view = getDataView();
     const auto* bufcur = view.data();
     const auto* bufend = view.data() + view.size();
@@ -1315,12 +1236,7 @@ void BinprotSubdocMultiLookupResponse::decode() {
                                           std::string(bufcur, cur_len)});
         bufcur += cur_len;
     }
-}
-
-BinprotSubdocMultiLookupResponse::BinprotSubdocMultiLookupResponse(
-        BinprotResponse&& other)
-    : BinprotResponse(other) {
-    decode();
+    return results;
 }
 
 void BinprotGetCmdTimerCommand::encode(std::vector<uint8_t>& buf) const {
@@ -1336,21 +1252,18 @@ BinprotGetCmdTimerCommand::BinprotGetCmdTimerCommand(
       opcode(opcode) {
 }
 
-void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
+nlohmann::json BinprotGetCmdTimerResponse::getTimings() const {
+    nlohmann::json timings;
     if (isSuccess()) {
         try {
             timings = getDataJson();
         } catch (nlohmann::json::exception& e) {
-            std::string msg(
-                    "BinprotGetCmdTimerResponse::assign: Invalid payload "
-                    "returned");
-            msg += (std::string(" Reason: ") + e.what());
-            throw std::runtime_error(msg);
+            throw std::runtime_error(
+                    fmt::format("BinprotGetCmdTimerResponse::getTimings: "
+                                "Invalid payload returned. Reason: {}",
+                                e.what()));
         }
     }
-}
-nlohmann::json BinprotGetCmdTimerResponse::getTimings() const {
     return timings;
 }
 
@@ -1724,17 +1637,12 @@ void BinprotObserveSeqnoCommand::encode(std::vector<uint8_t>& buf) const {
     append(buf, uuid);
 }
 
-BinprotObserveSeqnoResponse::BinprotObserveSeqnoResponse(
-        BinprotResponse&& other)
-    : BinprotResponse(other) {
-    decode();
-}
-
-void BinprotObserveSeqnoResponse::decode() {
+ObserveInfo BinprotObserveSeqnoResponse::getInfo() const {
     if (!isSuccess()) {
-        return;
+        return {};
     }
 
+    ObserveInfo info = {};
     const auto value = getHeader().getValue();
     if ((value.size() != 43) && (value.size() != 27)) {
         throw std::runtime_error(
@@ -1766,11 +1674,7 @@ void BinprotObserveSeqnoResponse::decode() {
                 "BinprotObserveSeqnoResponse::decode: Unexpected formatType:" +
                 std::to_string(info.formatType));
     }
-}
-
-void BinprotObserveSeqnoResponse::assign(std::vector<uint8_t>&& buf) {
-    BinprotResponse::assign(std::move(buf));
-    decode();
+    return info;
 }
 
 BinprotUpdateUserPermissionsCommand::BinprotUpdateUserPermissionsCommand(

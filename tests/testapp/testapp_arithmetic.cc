@@ -429,7 +429,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         BinprotSubdocResponse resp;
         userConnection->recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
-        EXPECT_EQ("\"Trond Norbye\"", resp.getValue());
+        EXPECT_EQ("\"Trond Norbye\"", resp.getDataView());
     }
 }
 
@@ -451,8 +451,7 @@ TEST_P(ArithmeticXattrOnTest, MB25402) {
     BinprotSubdocMultiLookupResponse multiResp;
     userConnection->recvResponse(multiResp);
 
-    auto& results = multiResp.getResults();
-
+    const auto results = multiResp.getResults();
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
 

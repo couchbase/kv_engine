@@ -134,7 +134,7 @@ TEST_F(HelloTest, AltRequestSupport) {
     cmd.enableFeature(cb::mcbp::Feature::AltRequestSupport);
     const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
     ASSERT_TRUE(rsp.isSuccess());
-    const auto& features = rsp.getFeatures();
+    const auto features = rsp.getFeatures();
     ASSERT_EQ(1, features.size());
     ASSERT_EQ(cb::mcbp::Feature::AltRequestSupport, features[0]);
 }
@@ -145,7 +145,7 @@ TEST_F(HelloTest, SyncReplication) {
     cmd.enableFeature(cb::mcbp::Feature::SyncReplication);
     const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
     ASSERT_TRUE(rsp.isSuccess());
-    const auto& features = rsp.getFeatures();
+    const auto features = rsp.getFeatures();
     ASSERT_EQ(1, features.size());
     ASSERT_EQ(cb::mcbp::Feature::SyncReplication, features[0]);
 }
@@ -156,7 +156,7 @@ TEST_F(HelloTest, Collections) {
     const auto rsp = BinprotHelloResponse(getConnection().execute(cmd));
 
     ASSERT_TRUE(rsp.isSuccess());
-    const auto& features = rsp.getFeatures();
+    const auto features = rsp.getFeatures();
     ASSERT_EQ(1, features.size());
     ASSERT_EQ(cb::mcbp::Feature::Collections, features[0]);
 }

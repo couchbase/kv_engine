@@ -98,6 +98,7 @@ TEST_F(RegressionTest, MB51135) {
         conn->recvResponse(resp);
 
         ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, resp.getStatus());
-        EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getResults().front().status);
+        const auto results = resp.getResults();
+        EXPECT_EQ(cb::mcbp::Status::Eaccess, results.front().status);
     }
 }

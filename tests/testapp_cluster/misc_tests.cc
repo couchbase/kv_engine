@@ -499,9 +499,9 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     auto getResultPair = [](BinprotResponse resp) {
         BinprotSubdocMultiLookupResponse response(std::move(resp));
+        const auto results = response.getResults();
         return std::pair<nlohmann::json, std::string>{
-                nlohmann::json::parse(response.getResults()[0].value),
-                response.getResults()[1].value};
+                nlohmann::json::parse(results[0].value), results[1].value};
     };
     const auto [active_meta, active_value] = getResultPair(rsp);
     EXPECT_EQ(doc.value, active_value);

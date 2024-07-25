@@ -127,7 +127,7 @@ TEST_P(RemoveTest, RemoveWithXattr) {
     // The system xattr should have been preserved
     const auto status = getXattr("_rbac.attribute", true);
     if (status.getStatus() == cb::mcbp::Status::Success) {
-        EXPECT_EQ("\"read-only\"", status.getValue());
+        EXPECT_EQ("\"read-only\"", status.getDataView());
     }
 
     // The user xattr should not be there

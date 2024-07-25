@@ -104,7 +104,7 @@ protected:
         BinprotSubdocResponse resp;
         userConnection->recvResponse(resp);
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
-        EXPECT_EQ(value, resp.getValue());
+        EXPECT_EQ(value, resp.getDataView());
     }
 
     void validateXAttrs() {
