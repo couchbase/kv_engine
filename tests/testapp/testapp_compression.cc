@@ -100,9 +100,7 @@ protected:
         if (xattr) {
             cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         }
-        userConnection->sendCommand(cmd);
-        BinprotSubdocResponse resp;
-        userConnection->recvResponse(resp);
+        const auto resp = BinprotSubdocResponse(userConnection->execute(cmd));
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
         EXPECT_EQ(value, resp.getDataView());
     }

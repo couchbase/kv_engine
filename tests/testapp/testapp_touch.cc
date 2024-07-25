@@ -44,20 +44,14 @@ void TouchTest::testHit(bool quiet) {
     // getting a new cas value generated
     BinprotGetAndTouchCommand cmd(name, Vbid{0}, 0);
     cmd.setQuiet(quiet);
-    userConnection->sendCommand(cmd);
-
-    BinprotGetAndTouchResponse rsp;
-    userConnection->recvResponse(rsp);
-
+    auto rsp = BinprotGetAndTouchResponse(userConnection->execute(cmd));
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(info.cas, rsp.getCas());
 
     // Verify that get_hits and the cas get updated with the gat calls
     const auto before = get_cmd_counter("get_hits");
     cmd.setExpirytime(10);
-    userConnection->sendCommand(cmd);
-
-    userConnection->recvResponse(rsp);
+    rsp = BinprotGetAndTouchResponse(userConnection->execute(cmd));
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(0xcaffee, rsp.getDocumentFlags());
@@ -123,18 +117,15 @@ TEST_P(TouchTest, Touch_Hit) {
     // getting a new cas value generated (we're using 0 as the value)
     BinprotTouchCommand cmd;
     cmd.setKey(name);
-    userConnection->sendCommand(cmd);
 
-    BinprotTouchResponse rsp;
-    userConnection->recvResponse(rsp);
+    auto rsp = userConnection->execute(cmd);
 
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_EQ(info.cas, rsp.getCas());
 
     // Verify that we can set it to something else and get a new CAS
     cmd.setExpirytime(10);
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(rsp);
+    rsp = userConnection->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess());
     EXPECT_NE(info.cas, rsp.getCas());
     EXPECT_TRUE(rsp.getDataView().empty());
@@ -144,10 +135,7 @@ TEST_P(TouchTest, Touch_Miss) {
     BinprotTouchCommand cmd;
     cmd.setKey(name);
     cmd.setExpirytime(10);
-    userConnection->sendCommand(cmd);
-
-    BinprotTouchResponse rsp;
-    userConnection->recvResponse(rsp);
+    auto rsp = userConnection->execute(cmd);
     EXPECT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
 }

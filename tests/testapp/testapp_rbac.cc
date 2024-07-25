@@ -51,11 +51,7 @@ TEST_P(RbacTest, ReloadRbacData_NoAccess) {
     conn.reconnect();
     conn.setXerrorSupport(true);
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::RbacRefresh, {}, {});
-    conn.sendCommand(cmd);
-
-    BinprotResponse resp;
-    conn.recvResponse(resp);
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, conn.execute(cmd).getStatus());
 }
 
 TEST_P(RbacTest, ReloadSasl_HaveAccess) {
@@ -67,11 +63,7 @@ TEST_P(RbacTest, ReloadSasl_HaveAccess) {
 TEST_P(RbacTest, ReloadSasl_NoAccess) {
     auto& conn = getConnection();
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::IsaslRefresh);
-
-    conn.sendCommand(cmd);
-    BinprotResponse resp;
-    conn.recvResponse(resp);
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, conn.execute(cmd).getStatus());
 }
 
 TEST_P(RbacTest, ScrubNoAccess) {
@@ -79,11 +71,7 @@ TEST_P(RbacTest, ScrubNoAccess) {
     c.authenticate("larry");
 
     BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
-    BinprotResponse response;
-
-    c.sendCommand(command);
-    c.recvResponse(response);
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, c.execute(command).getStatus());
 }
 
 TEST_P(RbacTest, DropPrivilege) {
@@ -198,11 +186,7 @@ protected:
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath |
                          cb::mcbp::subdoc::PathFlag::Mkdir_p);
 
-        conn.sendCommand(cmd);
-
-        BinprotResponse resp;
-        conn.recvResponse(resp);
-        return resp;
+        return conn.execute(cmd);
     }
 
     BinprotResponse getXattr(MemcachedConnection& conn,
@@ -212,11 +196,7 @@ protected:
         cmd.setKey(name);
         cmd.setPath(key);
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
-        conn.sendCommand(cmd);
-
-        BinprotResponse resp;
-        conn.recvResponse(resp);
-        return resp;
+        return conn.execute(cmd);
     }
 
     static void prepare_auth_connection(MemcachedConnection& c,

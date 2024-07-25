@@ -107,19 +107,12 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
                 durReqs->getLevel(), durReqs->getTimeout()));
     }
 
-    userConnection->sendCommand(cmd);
-    BinprotSubdocResponse resp;
-    userConnection->recvResponse(resp);
-
-    return resp;
+    return BinprotSubdocResponse(userConnection->execute(cmd));
 }
 
 BinprotSubdocResponse TestappXattrClientTest::subdocMultiMutation(
         const BinprotSubdocMultiMutationCommand& cmd) {
-    userConnection->sendCommand(cmd);
-    BinprotSubdocResponse resp;
-    userConnection->recvResponse(resp);
-    return resp;
+    return BinprotSubdocResponse(userConnection->execute(cmd));
 }
 
 cb::mcbp::Status TestappXattrClientTest::xattr_upsert(
@@ -273,10 +266,8 @@ BinprotSubdocResponse TestappXattrClientTest::runGetXattr(
     } else {
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
     }
-    userConnection->sendCommand(cmd);
 
-    BinprotSubdocResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = BinprotSubdocResponse(userConnection->execute(cmd));
     auto status = resp.getStatus();
     if (deleted && status == cb::mcbp::Status::SubdocSuccessDeleted) {
         status = cb::mcbp::Status::Success;

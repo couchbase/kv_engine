@@ -338,10 +338,8 @@ void XattrNoDocTest::testMultipathCombo() {
         cmd.setDurabilityReqs(*durReqs);
     }
 
-    userConnection->sendCommand(cmd);
-    BinprotSubdocMultiMutationResponse resp;
-    userConnection->recvResponse(resp);
-
+    const auto resp =
+            BinprotSubdocMultiMutationResponse(userConnection->execute(cmd));
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus()) << resp;
 
     // Check the last path was created correctly.
@@ -374,13 +372,11 @@ void XattrNoDocTest::testMultipathAccessDeletedCreateAsDeleted() {
         cmd.setDurabilityReqs(*durReqs);
     }
 
-    userConnection->sendCommand(cmd);
-    BinprotSubdocResponse resp;
-    userConnection->recvResponse(resp);
-    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::SubdocSuccessDeleted,
+              userConnection->execute(cmd).getStatus());
 
     // Check the last path was created correctly.
-    resp = subdoc_get(
+    const auto resp = subdoc_get(
             "txn.counter", PathFlag::XattrPath, DocFlag::AccessDeleted);
     ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, resp.getStatus());
     EXPECT_EQ("1", resp.getDataView());
@@ -407,10 +403,9 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
                 PathFlag::XattrPath | PathFlag::Mkdir_p,
                 "tnx.op.staged",
                 R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})");
-        userConnection->sendCommand(cmd);
 
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
+        const auto multiResp = BinprotSubdocMultiMutationResponse(
+                userConnection->execute(cmd));
         ASSERT_EQ(cb::mcbp::Status::SubdocSuccessDeleted, multiResp.getStatus())
                 << "Failed to update the document to expand the Input macros"
                 << std::endl
@@ -433,10 +428,8 @@ TEST_P(XattrNoDocTest, ReplaceBodyWithXattr_DeletedDocument) {
                         PathFlag::XattrPath,
                         "tnx",
                         {});
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocMultiMutationResponse multiResp;
-        userConnection->recvResponse(multiResp);
+        const auto multiResp = BinprotSubdocMultiMutationResponse(
+                userConnection->execute(cmd));
         ASSERT_EQ(cb::mcbp::Status::Success, multiResp.getStatus())
                 << multiResp;
     }
@@ -466,10 +459,9 @@ TEST_P(XattrNoDocTest, ReviveRequireDeletedDocument) {
             PathFlag::XattrPath | PathFlag::Mkdir_p,
             "tnx.op.staged",
             R"({"couchbase": {"version": "cheshire-cat", "next_version": "unknown"}})");
-    userConnection->sendCommand(cmd);
 
-    BinprotSubdocMultiMutationResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp =
+            BinprotSubdocMultiMutationResponse(userConnection->execute(cmd));
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus()) << resp;
 
     cmd = {};
@@ -480,8 +472,7 @@ TEST_P(XattrNoDocTest, ReviveRequireDeletedDocument) {
                     PathFlag::XattrPath,
                     "tnx.bubba",
                     R"("This should fail")");
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(resp);
+    resp = BinprotSubdocMultiMutationResponse(userConnection->execute(cmd));
     ASSERT_EQ(cb::mcbp::Status::SubdocCanOnlyReviveDeletedDocuments,
               resp.getStatus());
 }

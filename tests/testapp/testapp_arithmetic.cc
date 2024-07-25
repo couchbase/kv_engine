@@ -424,10 +424,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.setKey(name);
         cmd.setPath("meta.author");
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
-        userConnection->sendCommand(cmd);
-
-        BinprotSubdocResponse resp;
-        userConnection->recvResponse(resp);
+        const auto resp = BinprotSubdocResponse(userConnection->execute(cmd));
         ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
         EXPECT_EQ("\"Trond Norbye\"", resp.getDataView());
     }
@@ -446,11 +443,9 @@ TEST_P(ArithmeticXattrOnTest, MB25402) {
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addGet("$document", cb::mcbp::subdoc::PathFlag::XattrPath);
-    userConnection->sendCommand(cmd);
 
-    BinprotSubdocMultiLookupResponse multiResp;
-    userConnection->recvResponse(multiResp);
-
+    const auto multiResp =
+            BinprotSubdocMultiLookupResponse(userConnection->execute(cmd));
     const auto results = multiResp.getResults();
     EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
     EXPECT_EQ(cb::mcbp::Status::Success, results[0].status);
