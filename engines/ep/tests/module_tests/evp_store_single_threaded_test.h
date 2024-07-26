@@ -110,7 +110,10 @@ public:
     /**
      * Create a DCP stream on the producer for vbid
      */
-    void createDcpStream(MockDcpProducer& producer, Vbid vbid);
+    void createDcpStream(
+            MockDcpProducer& producer,
+            Vbid vbid,
+            std::optional<std::string_view> streamConfig = std::nullopt);
 
     /**
      * Schedule and run the compaction task

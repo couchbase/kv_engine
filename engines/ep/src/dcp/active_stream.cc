@@ -1320,6 +1320,10 @@ void ActiveStream::processItems(
          */
         std::optional<uint64_t> highNonVisibleSeqno;
         uint64_t newLastReadSeqno = 0;
+
+        // Record each seqno of all items which *could* replicate (they may not
+        // due to configuration). This value is needed for SeqnoAdvance trigger
+        uint64_t lastReplicateableSeqno = 0;
         for (auto& qi : outstandingItemsResult.items) {
             if (qi->getOperation() == queue_op::checkpoint_end) {
                 // At the end of each checkpoint remove its snapshot range, so
@@ -1365,7 +1369,9 @@ void ActiveStream::processItems(
             }
 
             if (!qi->isCheckPointMetaItem()) {
-                curChkSeqno = qi->getBySeqno();
+                // Set curChkSeqno to the seqno we have visited and record the
+                // seqno of this item for use in seqno-advance decision
+                curChkSeqno = lastReplicateableSeqno = qi->getBySeqno();
             }
 
             if (shouldProcessItem(*qi)) {
@@ -1409,7 +1415,7 @@ void ActiveStream::processItems(
                                              snap_start_seqno_,
                                              snap_end_seqno_);
                 firstMarkerSent = true;
-            } else if (isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
+            } else if (isSeqnoGapAtEndOfSnapshot(lastReplicateableSeqno)) {
                 auto vb = engine->getVBucket(getVBucket());
                 if (vb) {
                     if (vb->getState() == vbucket_state_replica) {
@@ -1421,8 +1427,8 @@ void ActiveStream::processItems(
                          * snapshot marker for both items on disk and in memory.
                          * Thus, we need to send a SeqnoAdvanced to push the
                          * consumer's seqno to the end of the snapshot. This is
-                         * needed when no items for the collection we're
-                         * streaming are present in memory.
+                         * needed when no items for the stream are present in
+                         * memory
                          */
                         queueSeqnoAdvanced();
                     }

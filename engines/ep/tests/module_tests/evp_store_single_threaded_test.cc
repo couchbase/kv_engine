@@ -423,8 +423,10 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer) {
     createDcpStream(producer, vbid);
 }
 
-void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
-                                                 Vbid vbid) {
+void SingleThreadedKVBucketTest::createDcpStream(
+        MockDcpProducer& producer,
+        Vbid vbid,
+        std::optional<std::string_view> streamConfig) {
     uint64_t rollbackSeqno;
     ASSERT_EQ(cb::engine_errc::success,
               producer.streamRequest(0, // flags
@@ -437,7 +439,7 @@ void SingleThreadedKVBucketTest::createDcpStream(MockDcpProducer& producer,
                                      0, // snap_end_seqno,
                                      &rollbackSeqno,
                                      &dcpAddFailoverLog,
-                                     {}));
+                                     streamConfig));
 }
 
 void SingleThreadedKVBucketTest::runCompaction(Vbid id,
