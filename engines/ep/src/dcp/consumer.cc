@@ -1747,8 +1747,8 @@ cb::engine_errc DcpConsumer::enableSynchronousReplication(
     if (pendingSendConsumerName && isSyncReplicationEnabled()) {
         uint32_t opaque = ++opaqueCounter;
         NonBucketAllocationGuard guard;
-        cb::engine_errc ret = producers.control(
-                opaque, "consumer_name", consumerName.c_str());
+        cb::engine_errc ret =
+                producers.control(opaque, "consumer_name", consumerName);
         pendingSendConsumerName = false;
         return ret;
     }

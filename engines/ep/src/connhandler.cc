@@ -347,12 +347,12 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
         if (count) {
             std::string key{"paused_previous_" +
                             to_string(PausedReason(reason)) + "_count"};
-            addStat(key.c_str(), count, add_stat, c);
+            addStat(key, count, add_stat, c);
 
             const auto duration = details.reasonDurations[reason];
             key = {"paused_previous_" + to_string(PausedReason(reason)) +
                    "_duration"};
-            addStat(key.c_str(), cb::time2text(duration), add_stat, c);
+            addStat(key, cb::time2text(duration), add_stat, c);
         }
     }
     const auto priority = cookie.load()->getConnectionIface().getPriority();

@@ -110,11 +110,10 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
      * overallocated by two bytes. This would push it over the bin size
      */
 
-    auto sv = this->factory(
-            make_item(Vbid(0),
-                      makeStoredDocKey(std::string(10, 'k').c_str()),
-                      std::string(182, 'v').c_str()),
-            {});
+    auto sv = this->factory(make_item(Vbid(0),
+                                      makeStoredDocKey(std::string(10, 'k')),
+                                      std::string(182, 'v')),
+                            {});
 
     auto blob = sv->getValue();
     ASSERT_EQ(191, blob->getSize());
@@ -140,11 +139,10 @@ TYPED_TEST(ValueTest, DISABLED_StoredValueReallocateGivesSameSize) {
  * the size of the Blob doesn't change on a reallocation
  */
 TYPED_TEST(ValueTest, StoredValueUncompressibleReallocateGivesSameSize) {
-    auto sv = this->factory(
-            make_item(Vbid(0),
-                      makeStoredDocKey(std::string(10, 'k').c_str()),
-                      std::string(182, 'v').c_str()),
-            {});
+    auto sv = this->factory(make_item(Vbid(0),
+                                      makeStoredDocKey(std::string(10, 'k')),
+                                      std::string(182, 'v')),
+                            {});
 
     sv->setAge(this->ageInitialValue);
     auto blob = sv->getValue();
@@ -270,9 +268,8 @@ TYPED_TEST(ValueTest, freqCounter) {
 }
 
 TYPED_TEST(ValueTest, initialFreqCounterForTemp) {
-    Item itm = make_item(Vbid(0),
-                         makeStoredDocKey(std::string("key").c_str()),
-                         std::string("value").c_str());
+    Item itm =
+            make_item(Vbid(0), makeStoredDocKey(std::string("key")), "value");
     itm.setBySeqno(StoredValue::state_temp_init);
 
     auto storedVal = this->factory(itm, {});
@@ -288,10 +285,7 @@ TYPED_TEST(ValueTest, replaceValue) {
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 
     auto sv = this->factory(
-            make_item(Vbid(0),
-                      makeStoredDocKey(std::string("key").c_str()),
-                      std::string("value").c_str()),
-            {});
+            make_item(Vbid(0), makeStoredDocKey("key"), "value"), {});
 
     this->sv->replaceValue(std::unique_ptr<Blob>(sv->getValue().get().get()));
     EXPECT_EQ(100, this->sv->getFreqCounterValue());
@@ -303,9 +297,7 @@ TYPED_TEST(ValueTest, restoreValue) {
     this->sv->setFreqCounterValue(100);
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 
-    auto itm = make_item(Vbid(0),
-                         makeStoredDocKey(std::string("key").c_str()),
-                         std::string("value").c_str());
+    auto itm = make_item(Vbid(0), makeStoredDocKey("key"), "value");
 
     this->sv->restoreValue(itm);
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
@@ -317,9 +309,7 @@ TYPED_TEST(ValueTest, restoreMeta) {
     this->sv->setFreqCounterValue(100);
     ASSERT_EQ(100, this->sv->getFreqCounterValue());
 
-    auto itm = make_item(Vbid(0),
-                         makeStoredDocKey(std::string("key").c_str()),
-                         std::string("value").c_str());
+    auto itm = make_item(Vbid(0), makeStoredDocKey("key"), "value");
 
     this->sv->restoreMeta(itm);
     EXPECT_EQ(4, this->sv->getFreqCounterValue());
@@ -414,7 +404,7 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
-                          makeStoredDocKey(std::string(keySize, 'k').c_str()),
+                          makeStoredDocKey(std::string(keySize, 'k')),
                           ""),
                 {});
 
@@ -427,7 +417,7 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
         auto stats = EPStats();
         auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
-                          makeStoredDocKey(std::string(keySize, 'k').c_str()),
+                          makeStoredDocKey(std::string(keySize, 'k')),
                           ""),
                 {});
 

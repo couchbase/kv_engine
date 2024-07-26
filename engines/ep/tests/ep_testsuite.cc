@@ -250,7 +250,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     std::vector<std::string>::iterator itr;
     for (itr = keys.begin(); itr != keys.end(); ++itr) {
         checkeq(cb::engine_errc::success,
-                store(h, nullptr, StoreSemantics::Set, itr->c_str(), "oracle"),
+                store(h, nullptr, StoreSemantics::Set, *itr, "oracle"),
                 "Failed to store a value");
     }
 
@@ -678,7 +678,7 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     });
     err_msg.assign("Updated time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
-    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
+    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg);
 
     // Update exp_pager_stime by 30 minutes and ensure that the update is successful
     const auto update_by = 30min;
@@ -707,8 +707,8 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     // targetTaskTime1 and targetTaskTime2
     err_msg.assign("Unexpected task time range, expect: " +
                    targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
-    checkle(targetTaskTime1, str, err_msg.c_str());
-    checkle(str, targetTaskTime2, err_msg.c_str());
+    checkle(targetTaskTime1, str, err_msg);
+    checkle(str, targetTaskTime2, err_msg);
 
     return SUCCESS;
 }
@@ -859,7 +859,7 @@ static enum test_result test_expiry(EngineIface* h) {
     std::stringstream ss;
     ss << "curr_items stat should be still 1 after ";
     ss << "overwriting the key that was expired, but not purged yet";
-    checkeq(1, get_int_stat(h, "curr_items"), ss.str().c_str());
+    checkeq(1, get_int_stat(h, "curr_items"), ss.str());
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -935,7 +935,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      ss.str().c_str(),
+                      ss.str(),
                       "somevalue",
                       nullptr,
                       0,
@@ -1479,12 +1479,12 @@ static enum test_result test_takeover_stats_num_persisted_deletes(
     /* set an item */
     std::string key("key");
     checkeq(cb::engine_errc::success,
-            store(h, nullptr, StoreSemantics::Set, key.c_str(), "data"),
+            store(h, nullptr, StoreSemantics::Set, key, "data"),
             "Failed to store an item");
 
     /* delete the item */
     checkeq(cb::engine_errc::success,
-            del(h, key.c_str(), 0, Vbid(0)),
+            del(h, key, 0, Vbid(0)),
             "Failed to delete the item");
 
     /* wait for persistence */
@@ -1673,8 +1673,8 @@ static enum test_result test_multiple_vb_compactions(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str(),
+                      *it,
+                      *it,
                       nullptr,
                       0,
                       vbid),
@@ -1735,8 +1735,8 @@ static enum test_result test_multi_vb_compactions_with_workload(
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str(),
+                      *it,
+                      *it,
                       nullptr,
                       0,
                       vbid),
@@ -1750,7 +1750,7 @@ static enum test_result test_multi_vb_compactions_with_workload(
         for (it = keys.begin(); it != keys.end(); ++it) {
             Vbid vbid = Vbid(count % 4);
             checkeq(cb::engine_errc::success,
-                    get(h, nullptr, it->c_str(), vbid).first,
+                    get(h, nullptr, *it, vbid).first,
                     "Unable to get stored item");
             ++count;
         }
@@ -1822,8 +1822,8 @@ static enum test_result test_vbucket_destroy_stats(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str(),
+                      *it,
+                      *it,
                       nullptr,
                       0,
                       Vbid(1)),
@@ -1977,7 +1977,7 @@ static enum test_result test_stats_seqno(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      ss.str().c_str(),
+                      ss.str(),
                       "value",
                       nullptr,
                       0,
@@ -2048,7 +2048,7 @@ static enum test_result test_stats_diskinfo(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      ss.str().c_str(),
+                      ss.str(),
                       "value",
                       nullptr,
                       0,
@@ -2225,7 +2225,7 @@ static enum test_result test_io_stats(EngineIface* h) {
 
     const std::string key("a");
     const std::string value("b\r\n");
-    wait_for_persisted_value(h, key.c_str(), value.c_str());
+    wait_for_persisted_value(h, key, value.c_str());
     checkeq(0,
             get_int_stat(h, "rw_0:io_bg_fetch_docs_read", "kvstore"),
             "Expected storing one value to not change the read counter");
@@ -2246,7 +2246,7 @@ static enum test_result test_io_stats(EngineIface* h) {
             10.0f,
             "Expected storing the key to update Flusher Write Amplification");
 
-    evict_key(h, key.c_str(), Vbid(0), "Ejected.");
+    evict_key(h, key, Vbid(0), "Ejected.");
 
     check_key_value(h, "a", value.c_str(), value.size(), Vbid(0));
 
@@ -2320,11 +2320,7 @@ static enum test_result test_vb_file_stats_after_warmup(EngineIface* h) {
         std::stringstream key;
         key << "key-" << i;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      key.str().c_str(),
-                      "somevalue"),
+                store(h, nullptr, StoreSemantics::Set, key.str(), "somevalue"),
                 "Error setting.");
     }
     wait_for_flusher_to_settle(h);
@@ -2671,11 +2667,7 @@ static enum test_result test_warmup_conf(EngineIface* h) {
         std::stringstream key;
         key << "key-" << i;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      key.str().c_str(),
-                      "somevalue"),
+                store(h, nullptr, StoreSemantics::Set, key.str(), "somevalue"),
                 "Error setting.");
     }
 
@@ -2830,11 +2822,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
         std::stringstream key;
         key << "key-" << i;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      key.str().c_str(),
-                      "somevalue"),
+                store(h, nullptr, StoreSemantics::Set, key.str(), "somevalue"),
                 "Error setting.");
     }
     wait_for_flusher_to_settle(h);
@@ -2843,7 +2831,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
     for (i = 0; i < 10; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        evict_key(h, key.str().c_str(), Vbid(0), "Ejected.");
+        evict_key(h, key.str(), Vbid(0), "Ejected.");
     }
     wait_for_flusher_to_settle(h);
 
@@ -2855,7 +2843,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
         std::stringstream key;
         key << "key-" << i;
         checkeq(cb::engine_errc::success,
-                del(h, key.str().c_str(), 0, Vbid(0)),
+                del(h, key.str(), 0, Vbid(0)),
                 "Failed remove with value.");
     }
     wait_for_flusher_to_settle(h);
@@ -2885,7 +2873,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
             key << "key-" << i;
-            check(get_meta(h, key.str().c_str()), "Get meta failed");
+            check(get_meta(h, key.str()), "Get meta failed");
         }
 
         // GetMeta would cause bgFetches as bloomfilter contains
@@ -2903,7 +2891,7 @@ static enum test_result test_bloomfilters(EngineIface* h) {
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
             key << "key-" << i;
-            check(get_meta(h, key.str().c_str()), "Get meta failed");
+            check(get_meta(h, key.str()), "Get meta failed");
         }
         checkeq(num_read_attempts + 5,
                 get_int_stat(h, "ep_bg_num_samples"),
@@ -2966,7 +2954,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
     for (int i = 0; i < 1000; i++) {
         std::stringstream key;
         key << "key-" << i;
-        check(!get_meta(h, key.str().c_str()), "Get meta should fail.");
+        check(!get_meta(h, key.str()), "Get meta should fail.");
     }
 
     checkeq(num_read_attempts,
@@ -3008,7 +2996,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
                     store(h,
                           nullptr,
                           StoreSemantics::Add,
-                          key.str().c_str(),
+                          key.str(),
                           "newvalue"),
                     "Failed to add value again.");
         }
@@ -3022,7 +3010,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
             std::stringstream key;
             key << "del-" << j;
             checkeq(cb::engine_errc::no_such_key,
-                    del(h, key.str().c_str(), 0, Vbid(0)),
+                    del(h, key.str(), 0, Vbid(0)),
                     "Failed remove with value.");
         }
 
@@ -3219,7 +3207,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     std::string newconfig =
             std::string(testHarness->get_current_testcase()->cfg) + alog_path;
 
-    testHarness->reload_engine(&h, newconfig.c_str(), true, false);
+    testHarness->reload_engine(&h, newconfig, true, false);
 
     wait_for_warmup_complete(h);
 
@@ -3239,7 +3227,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     std::string expected_time = "02:00";
     err_msg.assign("Initial time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
-    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
+    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg);
 
     // Update alog_task_time and ensure the update is successful
     expected_time = "05:00";
@@ -3254,7 +3242,7 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
 
     err_msg.assign("Updated time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
-    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
+    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg);
 
     // Update alog_sleep_time by 10 mins and ensure the update is successful.
     const std::chrono::minutes update_by{10};
@@ -3276,8 +3264,8 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     // targetTaskTime1 and targetTaskTime2
     err_msg.assign("Unexpected task time range, expect: " +
                    targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
-    checkle(targetTaskTime1, str, err_msg.c_str());
-    checkle(str, targetTaskTime2, err_msg.c_str());
+    checkle(targetTaskTime1, str, err_msg);
+    checkle(str, targetTaskTime2, err_msg);
 
     return SUCCESS;
 }
@@ -3312,7 +3300,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
             std::string(testHarness->get_current_testcase()->cfg) + alog_path +
             ";" + alog_task_time;
 
-    testHarness->reload_engine(&h, newconfig.c_str(), true, false);
+    testHarness->reload_engine(&h, newconfig, true, false);
 
     wait_for_warmup_complete(h);
 
@@ -3367,8 +3355,8 @@ static enum test_result test_access_scanner(EngineIface* h) {
         }
 
         std::string key("key" + std::to_string(num_items));
-        cb::engine_errc ret = store(
-                h, nullptr, StoreSemantics::Set, key.c_str(), value.c_str());
+        cb::engine_errc ret =
+                store(h, nullptr, StoreSemantics::Set, key, value);
         switch (ret) {
         case cb::engine_errc::success:
             num_items++;
@@ -3411,7 +3399,7 @@ static enum test_result test_access_scanner(EngineIface* h) {
                   nullptr,
                   StoreSemantics::Set,
                   "something",
-                  value.c_str(),
+                  value,
                   nullptr,
                   0,
                   Vbid(0)),
@@ -3500,11 +3488,7 @@ static enum test_result test_warmup_stats(EngineIface* h) {
         std::stringstream key;
         key << "key-" << i;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      key.str().c_str(),
-                      "somevalue"),
+                store(h, nullptr, StoreSemantics::Set, key.str(), "somevalue"),
                 "Error setting.");
     }
 
@@ -3576,7 +3560,7 @@ static enum test_result test_warmup_with_threshold(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      key.str().c_str(),
+                      key.str(),
                       "somevalue",
                       nullptr,
                       0,
@@ -3639,7 +3623,7 @@ static enum test_result test_warmup_oom(EngineIface* h) {
     std::string config(testHarness->get_current_testcase()->cfg);
     config = config + "max_size=2097152;item_eviction_policy=value_only";
 
-    testHarness->reload_engine(&h, config.c_str(), true, false);
+    testHarness->reload_engine(&h, config, true, false);
 
     wait_for_warmup_complete(h);
 
@@ -3806,8 +3790,8 @@ static enum test_result test_all_keys_api(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str(),
+                      *it,
+                      *it,
                       &itm,
                       0,
                       Vbid(0)),
@@ -3816,7 +3800,7 @@ static enum test_result test_all_keys_api(EngineIface* h) {
     }
     std::string del_key("key_" + std::to_string(del_key_idx));
     checkeq(cb::engine_errc::success,
-            del(h, del_key.c_str(), 0, Vbid(0)),
+            del(h, del_key, 0, Vbid(0)),
             "Failed to delete key");
     wait_for_flusher_to_settle(h);
     checkeq(total_keys - 1,
@@ -3860,7 +3844,8 @@ static enum test_result test_all_keys_api(EngineIface* h) {
         checkeq(keylen, len, "Key length mismatch in all_docs response");
         std::string key("key_" + std::to_string(start_key_idx + i));
         offset += sizeof(uint16_t);
-        checkeq(0, last_body.compare(offset, keylen, key.c_str()),
+        checkeq(0,
+                last_body.compare(offset, keylen, key),
                 "Key mismatch in all_keys response");
         offset += keylen;
     }
@@ -4111,7 +4096,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
+                      *it,
                       "value",
                       nullptr,
                       0,
@@ -4141,8 +4126,8 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str(),
+                      *it,
+                      *it,
                       &i,
                       0,
                       Vbid(1)),
@@ -4162,7 +4147,7 @@ static enum test_result test_duplicate_items_disk(EngineIface* h) {
           "Failed to set vbucket state.");
     // Make sure that a key/value item is persisted correctly
     for (it = keys.begin(); it != keys.end(); ++it) {
-        evict_key(h, it->c_str(), Vbid(1), "Ejected.");
+        evict_key(h, *it, Vbid(1), "Ejected.");
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, it->c_str(), it->data(), it->size(), Vbid(1));
@@ -4383,11 +4368,7 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str()),
+                store(h, nullptr, StoreSemantics::Set, *it, *it),
                 "Failed to store a value");
     }
 
@@ -4413,8 +4394,8 @@ static enum test_result test_kill9_bucket(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      it->c_str(),
-                      it->c_str(),
+                      *it,
+                      *it,
                       &i,
                       0,
                       Vbid(0)),
@@ -4824,8 +4805,7 @@ static enum test_result test_memory_condition(EngineIface* h) {
         std::string key("key-");
         key += std::to_string(j++);
 
-        cb::engine_errc err = store(
-                h, nullptr, StoreSemantics::Set, key.c_str(), data.data());
+        cb::engine_errc err = store(h, nullptr, StoreSemantics::Set, key, data);
 
         std::string checkMsg("Failed for reason ");
         checkMsg += to_string(err);
@@ -4895,11 +4875,7 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
         std::stringstream s1;
         s1 << "key-0-" << j;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      s1.str().c_str(),
-                      s1.str().c_str()),
+                store(h, nullptr, StoreSemantics::Set, s1.str(), s1.str()),
                 "Failed to store a value");
         std::stringstream s2;
         s2 << "key-1-" << j;
@@ -4907,8 +4883,8 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      s2.str().c_str(),
-                      s2.str().c_str(),
+                      s2.str(),
+                      s2.str(),
                       nullptr,
                       0,
                       Vbid(1)),
@@ -5724,11 +5700,7 @@ static enum test_result test_failover_log_behavior(EngineIface* h) {
         std::stringstream ss;
         ss << "key" << j;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      ss.str().c_str(),
-                      "data"),
+                store(h, nullptr, StoreSemantics::Set, ss.str(), "data"),
                 "Failed to store a value");
     }
 
@@ -5819,11 +5791,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
         std::stringstream val;
         val << "value_" << ii++;
         checkeq(cb::engine_errc::success,
-                store(bucket.h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      "key",
-                      val.str().c_str()),
+                store(bucket.h, nullptr, StoreSemantics::Set, "key", val.str()),
                 "Error setting.");
     }
 
@@ -5910,11 +5878,7 @@ static enum test_result test_mb19635_upgrade_from_25x(EngineIface* h) {
         std::stringstream ss;
         ss << "key" << j;
         checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      ss.str().c_str(),
-                      "data"),
+                store(h, nullptr, StoreSemantics::Set, ss.str(), "data"),
                 "Failed to store a value");
     }
 
@@ -5967,7 +5931,7 @@ static enum test_result test_mb38031_upgrade_from_4x_via_5x_hop(
                     store(h,
                           nullptr,
                           StoreSemantics::Set,
-                          ss.str().c_str(),
+                          ss.str(),
                           "data",
                           nullptr,
                           0,
@@ -7453,7 +7417,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           [&actual](auto key, auto value, const auto&) {
                               actual.emplace_back(key);
                           }),
-                ("Failed to get stats: "s + std::string{entry.first}).c_str());
+                "Failed to get stats: "s + std::string{entry.first});
 
         // Sort the keys from the fetched stats and expected keys (required
         // for set_difference).
@@ -7586,7 +7550,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
                           {entry.first.data(), entry.first.size()},
                           {},
                           add_stats),
-                ("Failed to get stats: "s + entry.first).c_str());
+                "Failed to get stats: "s + entry.first);
 
         // Verify that the stats we expected is there..
         for (const auto& key : entry.second) {
@@ -8094,7 +8058,7 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
                 store(h,
                       cookie1,
                       StoreSemantics::Set,
-                      key.c_str(),
+                      key,
                       "add-value",
                       nullptr,
                       0,

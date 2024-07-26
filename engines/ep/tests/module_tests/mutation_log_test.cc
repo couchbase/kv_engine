@@ -172,7 +172,7 @@ static bool loaderFun(void* arg, Vbid vb, const DocKeyView& k) {
 TEST_F(MutationLogTest, Logging) {
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
@@ -189,7 +189,7 @@ TEST_F(MutationLogTest, Logging) {
     }
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
@@ -226,7 +226,7 @@ TEST_F(MutationLogTest, Logging) {
 TEST_F(MutationLogTest, LoggingDirty) {
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
 
         ml.newItem(Vbid(3), makeStoredDocKey("key1"));
@@ -244,7 +244,7 @@ TEST_F(MutationLogTest, LoggingDirty) {
     }
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
@@ -283,7 +283,7 @@ TEST_F(MutationLogTest, LoggingDirty) {
 TEST_F(MutationLogTest, LoggingBadCRC) {
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
@@ -310,7 +310,7 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
     close(file);
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(1));
@@ -347,7 +347,7 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
 TEST_F(MutationLogTest, LoggingShortRead) {
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
 
         ml.newItem(Vbid(2), makeStoredDocKey("key1"));
@@ -367,7 +367,7 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 5000));
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
 
         ml.open();
         MutationLogHarvester h(ml);
@@ -384,7 +384,7 @@ TEST_F(MutationLogTest, LoggingShortRead) {
     EXPECT_EQ(0, truncate(tmp_log_filename.c_str(), 4000));
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
     }
 }
@@ -392,7 +392,7 @@ TEST_F(MutationLogTest, LoggingShortRead) {
 TEST_F(MutationLogTest, YUNOOPEN) {
     // Make file unreadable
     set_file_perms(FilePerms::None);
-    MutationLog ml(tmp_log_filename.c_str());
+    MutationLog ml(tmp_log_filename);
     EXPECT_THROW(ml.open(), MutationLog::ReadException);
     // Restore permissions to be able to delete file.
     set_file_perms(FilePerms::Read | FilePerms::Write);
@@ -434,7 +434,7 @@ TEST_F(MutationLogTest, WriteFail) {
 TEST_F(MutationLogTest, Iterator) {
     // Create a simple mutation log to work on.
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
         ml.newItem(Vbid(0), makeStoredDocKey("key1"));
         ml.newItem(Vbid(0), makeStoredDocKey("key2"));
@@ -448,7 +448,7 @@ TEST_F(MutationLogTest, Iterator) {
     }
 
     // Now check the iterators.
-    MutationLog ml(tmp_log_filename.c_str());
+    MutationLog ml(tmp_log_filename);
     ml.open();
 
     // Can copy-construct.
@@ -470,7 +470,7 @@ TEST_F(MutationLogTest, Iterator) {
 TEST_F(MutationLogTest, BatchLoad) {
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
 
         // Add a number of items, then check that batch load only returns
@@ -488,7 +488,7 @@ TEST_F(MutationLogTest, BatchLoad) {
     }
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(Vbid(0));
@@ -521,7 +521,7 @@ TEST_F(MutationLogTest, BatchLoad) {
 
 TEST_F(MutationLogTest, ReadOnly) {
     remove(tmp_log_filename.c_str());
-    MutationLog ml(tmp_log_filename.c_str());
+    MutationLog ml(tmp_log_filename);
     EXPECT_THROW(ml.open(true), MutationLog::FileNotFoundException);
 
     MutationLog m2(tmp_log_filename);
@@ -629,7 +629,7 @@ TEST_F(MutationLogTest, upgrade) {
     }
 
     {
-        MutationLog ml(tmp_log_filename.c_str());
+        MutationLog ml(tmp_log_filename);
         ml.open();
         MutationLogHarvester h(ml);
         h.setVBucket(vbid);

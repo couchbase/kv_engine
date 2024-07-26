@@ -437,7 +437,7 @@ static void perf_latency_core(EngineIface* h,
     for (auto& key : keys) {
         const auto start = std::chrono::steady_clock::now();
         checkeq(cb::engine_errc::success,
-                del(h, key.c_str(), 0, Vbid(0), cookie),
+                del(h, key, 0, Vbid(0), cookie),
                 "Failed to delete a value");
         const auto end = std::chrono::steady_clock::now();
         delete_timings.push_back((end - start).count());
@@ -1408,9 +1408,8 @@ static void perf_stat_latency_core(EngineIface* h,
                                                stat.second.key.length()},
                                               {},
                                               add_stats),
-                            (std::string("Failed to get stat:") +
-                             stat.second.key)
-                                    .c_str());
+                            std::string("Failed to get stat:") +
+                                    stat.second.key);
                 }
 
                 auto end = std::chrono::steady_clock::now();

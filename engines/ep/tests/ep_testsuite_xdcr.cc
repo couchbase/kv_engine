@@ -1404,10 +1404,9 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
                           &meta,
                           errorMetaPair.second.cas,
                           true),
-            (std::string{"Expected invalid cas error (KEY_EXISTS or"
-                         " KEY_ENOENT), got: "} +
-             ::to_string(last_status.load()))
-                    .c_str());
+            std::string{"Expected invalid cas error (KEY_EXISTS or"
+                        " KEY_ENOENT), got: "} +
+                    ::to_string(last_status.load()));
 
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");
@@ -2632,7 +2631,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
             "Expected success");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, key.c_str(), errorMetaPair), "Failed to get_meta");
+    check(get_meta(h, key, errorMetaPair), "Failed to get_meta");
     // CAS must be what we set.
     checkeq(itemMeta.cas,
             errorMetaPair.second.cas,
@@ -2662,7 +2661,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
             last_status.load(),
             "Expected success");
 
-    check(get_meta(h, key.c_str(), errorMetaPair), "Failed to get_meta");
+    check(get_meta(h, key, errorMetaPair), "Failed to get_meta");
     uint64_t cas = errorMetaPair.second.cas;
     // Check item has a new CAS
     checkne(itemMeta.cas, cas, "CAS was not regenerated");
@@ -2682,7 +2681,7 @@ static enum test_result test_cas_regeneration_del_with_meta(EngineIface* h) {
             last_status.load(),
             "Expected success");
 
-    check(get_meta(h, key.c_str(), errorMetaPair), "Failed to get_meta");
+    check(get_meta(h, key, errorMetaPair), "Failed to get_meta");
     // Check item has a new CAS
     checkne(itemMeta.cas, errorMetaPair.second.cas, "CAS was not regenerated");
     checkne(cas, errorMetaPair.second.cas, "CAS was not regenerated");

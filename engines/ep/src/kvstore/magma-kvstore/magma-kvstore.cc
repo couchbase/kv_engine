@@ -3856,7 +3856,7 @@ void MagmaKVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
 
     auto stats = magma->GetStats();
     auto statName = prefix + ":magma";
-    add_casted_stat(statName.c_str(), stats->JSON().dump(), add_stat, c);
+    add_casted_stat(statName, stats->JSON().dump(), add_stat, c);
 }
 
 void MagmaKVStore::pendingTasks() {

@@ -547,7 +547,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
     auto dcpCursor = manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, CheckpointCursor::Droppable::Yes);
+            dcp_cursor, 0, CheckpointCursor::Droppable::Yes);
 
     const auto test = [this, numItemsCkpt1, numItemsCkpt2](
                               CheckpointCursor* cursor) -> void {
@@ -671,9 +671,8 @@ TEST_P(CheckpointTest, CursorMovement) {
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
     auto dcpCursor =
-            manager->registerCursorBySeqno(dcp_cursor.c_str(),
-                                           0,
-                                           CheckpointCursor::Droppable::Yes)
+            manager->registerCursorBySeqno(
+                           dcp_cursor, 0, CheckpointCursor::Droppable::Yes)
                     .takeCursor();
 
     /* Get items for persistence cursor */
@@ -752,7 +751,7 @@ TEST_P(CheckpointTest, MB25056_backfill_not_required) {
     std::string dcp_cursor(DCP_CURSOR_PREFIX);
     // Request to register the cursor with a seqno that has been de-duped away
     CursorRegResult result = manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 1005, CheckpointCursor::Droppable::Yes);
+            dcp_cursor, 1005, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1011, result.nextSeqno)
             << "Returned seqno is not expected value.";
     EXPECT_FALSE(result.tryBackfill) << "Backfill is unexpectedly required.";
@@ -2564,13 +2563,13 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursor) {
     // Register a DCP cursor.
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
     auto dcpCursor = manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, CheckpointCursor::Droppable::Yes);
+            dcp_cursor, 0, CheckpointCursor::Droppable::Yes);
 
     EXPECT_EQ(2, ckptList.back()->getNumCursorsInCheckpoint());
 
     // Register a 2nd DCP cursor with the same name.
     auto dcpCursor2 = manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, CheckpointCursor::Droppable::Yes);
+            dcp_cursor, 0, CheckpointCursor::Droppable::Yes);
 
     // Adding the 2nd DCP cursor should not have increased the number of
     // cursors in the checkpoint, as the previous one will have been removed
@@ -2594,7 +2593,7 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
     // Register a DCP cursor.
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
     auto dcpCursor = manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, CheckpointCursor::Droppable::Yes);
+            dcp_cursor, 0, CheckpointCursor::Droppable::Yes);
 
     // Adding the following items will result in 2 checkpoints, with
     // both cursors in the first checkpoint.
@@ -2607,10 +2606,8 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
 
     // Register a 2nd DCP cursor with the same name but this time into the
     // 2nd checkpoint
-    auto dcpCursor2 =
-            manager->registerCursorBySeqno(dcp_cursor.c_str(),
-                                           1000 + numItems,
-                                           CheckpointCursor::Droppable::Yes);
+    auto dcpCursor2 = manager->registerCursorBySeqno(
+            dcp_cursor, 1000 + numItems, CheckpointCursor::Droppable::Yes);
 
     // Adding the 2nd DCP cursor should not have increased the number of
     // cursors as the previous cursor will have been removed when the new one
@@ -2711,21 +2708,21 @@ void CheckpointTest::testExpelCheckpointItems() {
     // Try to register a DCP replication cursor from 1001 - an expelled item.
     std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
     CursorRegResult regResult = manager->registerCursorBySeqno(
-            dcp_cursor1.c_str(), 1001, CheckpointCursor::Droppable::Yes);
+            dcp_cursor1, 1001, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1003, regResult.nextSeqno);
     EXPECT_TRUE(regResult.tryBackfill);
 
     // Try to register a DCP cursor from 1002 - another expelled item
     std::string dcp_cursor2(DCP_CURSOR_PREFIX + std::to_string(2));
     regResult = manager->registerCursorBySeqno(
-            dcp_cursor2.c_str(), 1002, CheckpointCursor::Droppable::Yes);
+            dcp_cursor2, 1002, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1003, regResult.nextSeqno);
     EXPECT_FALSE(regResult.tryBackfill);
 
     // Try to register a DCP cursor from 1003 - the first item still in chk
     std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
     regResult = manager->registerCursorBySeqno(
-            dcp_cursor3.c_str(), 1003, CheckpointCursor::Droppable::Yes);
+            dcp_cursor3, 1003, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1004, regResult.nextSeqno);
     EXPECT_FALSE(regResult.tryBackfill);
 }
@@ -2914,7 +2911,7 @@ void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
     // Add a cursor pointing to the dummy
     std::string dcpCursor1(DCP_CURSOR_PREFIX + std::to_string(1));
     CursorRegResult regResult = manager->registerCursorBySeqno(
-            dcpCursor1.c_str(), 1000, CheckpointCursor::Droppable::Yes);
+            dcpCursor1, 1000, CheckpointCursor::Droppable::Yes);
 
     // Move the cursor forward one step so that it now points to the checkpoint
     // start.
@@ -2928,7 +2925,7 @@ void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
     // has the same seqno.
     std::string dcpCursor2(DCP_CURSOR_PREFIX + std::to_string(2));
     CursorRegResult regResult2 = manager->registerCursorBySeqno(
-            dcpCursor2.c_str(), 1001, CheckpointCursor::Droppable::Yes);
+            dcpCursor2, 1001, CheckpointCursor::Droppable::Yes);
 
     /*
      * Checkpoint now looks as follows:

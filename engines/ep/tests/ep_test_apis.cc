@@ -52,17 +52,15 @@ CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
     const auto dbFiles = cb::io::findFilesContaining(dbName, ".couch.");
     checkeq(size_t{1},
             dbFiles.size(),
-            ("Expected to find exactly 1 data file in db directory '"s +
-             dbName + "', found:" + std::to_string(dbFiles.size()))
-                    .c_str());
+            "Expected to find exactly 1 data file in db directory '"s + dbName +
+                    "', found:" + std::to_string(dbFiles.size()));
 
     filename = dbFiles.front();
     // Save existing permissions
     checkeq(0,
             lstat(filename.c_str(), &originalStat),
-            ("Failed to read existing permissions for file '"s + filename +
-             "': " + cb_strerror())
-                    .c_str());
+            "Failed to read existing permissions for file '"s + filename +
+                    "': " + cb_strerror());
 
 #ifdef WIN32
     /**
@@ -96,18 +94,16 @@ CouchstoreFileAccessGuard::CouchstoreFileAccessGuard(
 
     checkeq(0,
             chmod(filename.c_str(), perms),
-            ("Failed to make file '"s + dbFiles.at(0) +
-             "' read-only: " + cb_strerror())
-                    .c_str());
+            "Failed to make file '"s + dbFiles.at(0) +
+                    "' read-only: " + cb_strerror());
 }
 
 CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
     // Restore permissions to before we changed them.
     checkeq(0,
             chmod(filename.c_str(), originalStat.st_mode),
-            ("Failed to make restore permissions to file '"s + filename +
-             "': " + cb_strerror())
-                    .c_str());
+            "Failed to make restore permissions to file '"s + filename +
+                    "': " + cb_strerror());
 #ifdef WIN32
     if (hFile) {
         checkeq(TRUE,

@@ -216,7 +216,7 @@ TEST_P(EPEngineParamTest, requirements_bucket_type) {
     std::string msg;
 
     for (auto v : values) {
-        auto ret = engine->setFlushParam(v.param.c_str(), v.value.c_str(), msg);
+        auto ret = engine->setFlushParam(v.param, v.value, msg);
         if (bucketType == v.bucketType) {
             EXPECT_EQ(cb::engine_errc::success, ret)
                     << "Parameter " << v.param

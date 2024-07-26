@@ -122,8 +122,8 @@ void StreamTest::setupProducerCompression() {
             "{\"product\": \"Train\",\"price\": \"100000\"}");
     std::string regularValue(R"({"product": "car","price": "100"})");
 
-    store_item(vbid, "key1", compressibleValue.c_str());
-    store_item(vbid, "key2", regularValue.c_str());
+    store_item(vbid, "key1", compressibleValue);
+    store_item(vbid, "key2", regularValue);
 }
 
 void StreamTest::registerCursorAtCMStart() {

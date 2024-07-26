@@ -297,9 +297,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
         itemsFlushedTotal += itemsFlushed;
     }
     state.SetItemsProcessed(itemsFlushedTotal);
-    state.SetLabel(std::string("store:" + to_string(store) +
-                               " mode:" + to_string(mode))
-                           .c_str());
+    state.SetLabel("store:" + to_string(store) + " mode:" + to_string(mode));
     // Peak memory usage while flushing, minus baseline.
     state.counters["PeakFlushBytes"] = peakBytes - baseBytes;
     state.counters["PeakBytesPerItem"] = (peakBytes - baseBytes) / itemCount;
@@ -557,9 +555,8 @@ BENCHMARK_DEFINE_F(CheckpointBench, ExtractItemsToExpel)
         state.ResumeTiming();
     }
 
-    state.SetLabel(("type:" + to_string(ckptType) + " state:" +
-                    to_string(ckptState) + " items:" + std::to_string(numItems))
-                           .c_str());
+    state.SetLabel("type:" + to_string(ckptType) + " state:" +
+                   to_string(ckptState) + " items:" + std::to_string(numItems));
 }
 
 // Run with couchstore backend(0); item counts from 1..10,000,000

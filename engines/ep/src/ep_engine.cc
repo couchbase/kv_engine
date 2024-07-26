@@ -3724,19 +3724,15 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     bool missing =
             cb::ArenaMalloc::getStats(getArenaMallocClient(), alloc_stats);
     for (const auto& it : alloc_stats) {
-        add_prefixed_stat(
-                "ep_arena", it.first.c_str(), it.second, add_stat, cookie);
+        add_prefixed_stat("ep_arena", it.first, it.second, add_stat, cookie);
     }
     if (missing) {
         add_casted_stat("ep_arena_missing_some_keys", true, add_stat, cookie);
     }
     missing = cb::ArenaMalloc::getGlobalStats(alloc_stats);
     for (const auto& it : alloc_stats) {
-        add_prefixed_stat("ep_arena_global",
-                          it.first.c_str(),
-                          it.second,
-                          add_stat,
-                          cookie);
+        add_prefixed_stat(
+                "ep_arena_global", it.first, it.second, add_stat, cookie);
     }
     if (missing) {
         add_casted_stat(
@@ -4718,7 +4714,7 @@ cb::engine_errc EventuallyPersistentEngine::doFrequencyCountersStats(
 cb::engine_errc EventuallyPersistentEngine::doSchedulerStats(
         CookieIface& cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
-        add_casted_stat(GlobalTask::getTaskIdString(id).c_str(),
+        add_casted_stat(GlobalTask::getTaskIdString(id),
                         stats.schedulingHisto[static_cast<int>(id)],
                         add_stat,
                         cookie);

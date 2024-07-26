@@ -204,7 +204,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     // created from this ssl context (because we don't want to keep
     // the password stored in memory)
     SSL_CTX_set_default_passwd_cb_userdata(server_ctx, nullptr);
-    set_ssl_ctx_ciphers(server_ctx, cipher_list.c_str(), cipher_suites.c_str());
+    set_ssl_ctx_ciphers(server_ctx, cipher_list, cipher_suites);
     int ssl_flags = 0;
     switch (clientCertMode) {
     case ClientCertMode::Mandatory:

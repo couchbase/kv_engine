@@ -1213,7 +1213,7 @@ Connection::Connection(SOCKET sfd,
       socketDescriptor(sfd) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
-    setConnectionId(cb::net::getpeername(socketDescriptor).c_str());
+    setConnectionId(cb::net::getpeername(socketDescriptor));
     stats.conn_structs++;
     thread.onConnectionCreate(*this);
 }
@@ -2579,7 +2579,7 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                     audit_auth_failure(*this,
                                        {name, cb::sasl::Domain::Local},
                                        reason.c_str());
-                    setTerminationReason(reason.c_str());
+                    setTerminationReason(reason);
                     disconnect = true;
                 }
             }

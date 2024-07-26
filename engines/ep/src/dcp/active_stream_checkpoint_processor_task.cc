@@ -86,7 +86,7 @@ void ActiveStreamCheckpointProcessorTask::addStats(const std::string& name,
     auto prefix = name + ":ckpt_processor_queue_";
     queue.addStats(prefix, add_stat, c);
 
-    add_casted_stat((prefix + "notified").c_str(), notified, add_stat, c);
+    add_casted_stat(prefix + "notified", notified, add_stat, c);
 }
 
 std::vector<std::shared_ptr<ActiveStream>>

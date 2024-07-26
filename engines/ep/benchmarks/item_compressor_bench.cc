@@ -88,7 +88,7 @@ protected:
 
             // Create a compressible item but with value not compressed
             auto item = makeCompressibleItem(vbucket->getId(),
-                                             makeStoredDocKey(key.c_str()),
+                                             makeStoredDocKey(key),
                                              valueData,
                                              PROTOCOL_BINARY_RAW_BYTES,
                                              false);

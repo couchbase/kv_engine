@@ -103,5 +103,5 @@ void VBReadyQueue::addStats(const std::string& prefix,
                             CookieIface& c) const {
     // We can't access the queue easily in a thread safe way so just report the
     // size
-    add_casted_stat((prefix + "size").c_str(), readyQueue.size(), add_stat, c);
+    add_casted_stat(prefix + "size", readyQueue.size(), add_stat, c);
 }

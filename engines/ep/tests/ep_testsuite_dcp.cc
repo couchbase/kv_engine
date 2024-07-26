@@ -1769,7 +1769,7 @@ static enum test_result test_dcp_producer_stream_req_open(EngineIface* h) {
     ctx.seqno = {0, static_cast<uint64_t>(-1)};
 
     std::string name("unittest");
-    TestDcpConsumer tdc(name.c_str(), cookie, h);
+    TestDcpConsumer tdc(name, cookie, h);
     tdc.addStreamCtx(ctx);
 
     tdc.openConnection();
@@ -1891,7 +1891,7 @@ static enum test_result test_dcp_producer_stream_req_partial(EngineIface* h) {
         std::stringstream ss;
         ss << "key" << j;
         checkeq(cb::engine_errc::success,
-                del(h, ss.str().c_str(), 0, Vbid(0)),
+                del(h, ss.str(), 0, Vbid(0)),
                 "Expected delete to succeed");
     }
 
@@ -2079,7 +2079,7 @@ static test_result testDcpProducerExpiredItemBackfill(
     for (int i = 0; i < expiries; ++i) {
         std::string key("exp" + std::to_string(i + start_seqno));
         cb::EngineErrorItemPair ret =
-                get(h, cookie1, key.c_str(), Vbid(0), DocStateFilter::Alive);
+                get(h, cookie1, key, Vbid(0), DocStateFilter::Alive);
         checkeq(cb::engine_errc::no_such_key,
                 ret.first,
                 "Expected get to return 'no_such_key'");
@@ -2360,7 +2360,7 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     for (int ii = 0; ii < 5; ii++) {
         std::stringstream ss;
         ss << "key" << ii;
-        evict_key(h, ss.str().c_str(), Vbid(0), "Ejected.");
+        evict_key(h, ss.str(), Vbid(0), "Ejected.");
     }
     wait_for_flusher_to_settle(h);
     wait_for_stat_to_be(h, "ep_num_value_ejects", 5);
@@ -6777,7 +6777,7 @@ static enum test_result test_failover_log_dcp(EngineIface* h) {
 
         auto* cookie = testHarness->create_cookie(h);
         std::string conn_name("test_failover_log_dcp");
-        TestDcpConsumer tdc(conn_name.c_str(), cookie, h);
+        TestDcpConsumer tdc(conn_name, cookie, h);
         tdc.addStreamCtx(ctx);
 
         tdc.openConnection();

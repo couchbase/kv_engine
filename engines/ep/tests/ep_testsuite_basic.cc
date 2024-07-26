@@ -180,7 +180,7 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     std::string newConfig(testHarness->get_current_testcase()->cfg);
     newConfig += "mem_low_wat_percent=0.55;mem_high_wat_percent=0.66";
 
-    testHarness->reload_engine(&h, newConfig.c_str(), true, true);
+    testHarness->reload_engine(&h, newConfig, true, true);
 
     wait_for_warmup_complete(h);
 
@@ -220,7 +220,7 @@ static enum test_result test_whitespace_db(EngineIface* h) {
     if (found != config.npos) {
         config.replace(found, oldparam.size(), newparam);
     }
-    testHarness->reload_engine(&h, config.c_str(), true, false);
+    testHarness->reload_engine(&h, config, true, false);
     wait_for_warmup_complete(h);
 
     vals.clear();
@@ -271,20 +271,18 @@ static enum test_result test_set(EngineIface* h) {
             std::string err_str_store("Error setting " + k);
             checkeq(cb::engine_errc::success,
                     store(h, nullptr, StoreSemantics::Set, k, "somevalue"),
-                    err_str_store.c_str());
+                    err_str_store);
 
             std::string err_str_get_item_info("Error getting " + k);
             item_info info;
-            checkeq(true,
-                    get_item_info(h, &info, k.c_str()),
-                    err_str_get_item_info.c_str());
+            checkeq(true, get_item_info(h, &info, k), err_str_get_item_info);
 
             std::string err_str_vb_uuid("Expected valid vbucket uuid for " + k);
-            checkeq(vb_uuid, info.vbucket_uuid, err_str_vb_uuid.c_str());
+            checkeq(vb_uuid, info.vbucket_uuid, err_str_vb_uuid);
 
             std::string err_str_seqno("Expected valid sequence number for " +
                                       k);
-            checkeq(high_seqno + 1, info.seqno, err_str_seqno.c_str());
+            checkeq(high_seqno + 1, info.seqno, err_str_seqno);
         }
     }
 
@@ -298,8 +296,7 @@ static enum test_result test_set(EngineIface* h) {
 
         // The flusher could of ran > 1 times. We can only assert
         // that we persisted between num_keys and upto num_keys*num_sets
-        checkle(num_keys, get_int_stat(h, "ep_total_persisted"),
-                error1.str().c_str());
+        checkle(num_keys, get_int_stat(h, "ep_total_persisted"), error1.str());
         checkge((num_sets * num_keys), get_int_stat(h, "ep_total_persisted"),
                 error2.str().c_str());
     }
@@ -1693,11 +1690,7 @@ static enum test_result test_bug7023(EngineIface* h) {
               "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             checkeq(cb::engine_errc::success,
-                    store(h,
-                          nullptr,
-                          StoreSemantics::Set,
-                          it->c_str(),
-                          it->c_str()),
+                    store(h, nullptr, StoreSemantics::Set, *it, *it),
                     "Failed to store a value");
         }
     }
@@ -1901,16 +1894,13 @@ static enum test_result warmup_mb21769(EngineIface* h) {
 
         checkeq(high_seqnos[vb],
                 get_ull_stat(h, high_seqno.c_str(), vb_group_key.c_str()),
-                std::string("high_seqno incorrect vb:" + std::to_string(vb))
-                        .c_str());
+                "high_seqno incorrect vb:" + std::to_string(vb));
         checkeq(snap_starts[vb],
                 get_ull_stat(h, snap_start.c_str(), vb_group_key.c_str()),
-                std::string("snap_start incorrect vb:" + std::to_string(vb))
-                        .c_str());
+                "snap_start incorrect vb:" + std::to_string(vb));
         checkeq(snap_ends[vb],
                 get_ull_stat(h, snap_end.c_str(), vb_group_key.c_str()),
-                std::string("snap_end incorrect vb:" + std::to_string(vb))
-                        .c_str());
+                "snap_end incorrect vb:" + std::to_string(vb));
         auto failoverTable = get_all_stats(h, failovers_key.c_str());
         if (failoverTable[fail0] != std::to_string(failover_entry0[vb])) {
             std::cerr << "failover table entry 0 is incorrect for vb:" << vb
@@ -1986,7 +1976,7 @@ static test_result get_if(EngineIface* h) {
 
     if (isPersistentBucket(h)) {
         wait_for_flusher_to_settle(h);
-        evict_key(h, key.c_str(), Vbid(0), "Ejected.");
+        evict_key(h, key, Vbid(0), "Ejected.");
     }
 
     auto* cookie = testHarness->create_cookie(h);
@@ -2009,7 +1999,7 @@ static test_result get_if(EngineIface* h) {
     check(!doc.second, "non-existing document should not be found");
 
     checkeq(cb::engine_errc::success,
-            del(h, key.c_str(), 0, Vbid(0)),
+            del(h, key, 0, Vbid(0)),
             "Failed remove with value");
 
     doc = h->get_if(*cookie,
@@ -2154,7 +2144,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
             "Expected to store item");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, keyAbs.c_str(), errorMetaPair), "Get meta failed");
+    check(get_meta(h, keyAbs, errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2162,7 +2152,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(absoluteExpiry + 1);
 
-    auto ret = get(h, nullptr, keyAbs.c_str(), Vbid(0));
+    auto ret = get(h, nullptr, keyAbs, Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
@@ -2181,7 +2171,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
             set_with_meta(h, keyRel, keyRel, Vbid(0), &itemMeta, 0 /*cas*/),
             "Expected to store item");
 
-    check(get_meta(h, keyRel.c_str(), errorMetaPair), "Get meta failed");
+    check(get_meta(h, keyRel, errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2189,7 +2179,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // Force expiry
     testHarness->time_travel(relativeExpiry + 1);
 
-    ret = get(h, nullptr, keyRel.c_str(), Vbid(0));
+    ret = get(h, nullptr, keyRel, Vbid(0));
     checkeq(cb::engine_errc::no_such_key,
             ret.first,
             "Failed, expected no_such_key.");
