@@ -1445,7 +1445,7 @@ TEST_P(EPBucketFullEvictionTest, RaceyFetchingMetaBgFetch) {
             store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
 
     auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
-    auto& bgFetcher = bucket->getBgFetcher(vbid);
+    auto& bgFetcher = bucket->getBgFetcher(vbid, /* distributionKey */ 0);
 
     bgFetcher.preCompleteHook = [this, &key, &options]() {
         store_item(vbid,
@@ -2119,7 +2119,7 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, RaceyFetchingDeletedMetaBgFetch) {
             store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
 
     auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
-    auto& bgFetcher = bucket->getBgFetcher(vbid);
+    auto& bgFetcher = bucket->getBgFetcher(vbid, /* distributionKey */ 0);
 
     bgFetcher.preCompleteHook = [this, &key, &options]() {
         store_item(vbid,

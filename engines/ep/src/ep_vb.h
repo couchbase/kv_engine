@@ -131,7 +131,12 @@ public:
         return shard;
     }
 
-    BgFetcher& getBgFetcher();
+    /**
+     * Gets the BgFetcher for the corresponding vBucket. If there are multiple
+     * BgFetchers assigned to this vBucket, the distributionKey is used to
+     * select a BgFetcher from that set.
+     */
+    BgFetcher& getBgFetcher(uint32_t distributionKey);
     Flusher* getFlusher() override;
 
     UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,

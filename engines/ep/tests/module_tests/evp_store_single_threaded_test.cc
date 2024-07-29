@@ -5128,7 +5128,7 @@ TEST_P(STParamPersistentBucketTest, RaceyFetchingValueBgFetch) {
     auto gv = store->get(key, vbid, cookie, options);
 
     auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
-    auto& bgFetcher = bucket->getBgFetcher(vbid);
+    auto& bgFetcher = bucket->getBgFetcher(vbid, /* distributionKey */ 0);
 
     bgFetcher.preCompleteHook = [this, &key, &options]() {
         store_item(vbid,
@@ -5199,7 +5199,7 @@ TEST_P(STParamPersistentBucketTest, RaceyDeletedValueBgFetch) {
     auto gv = store->get(key, vbid, cookie, options);
 
     auto* bucket = dynamic_cast<EPBucket*>(engine->getKVBucket());
-    auto& bgFetcher = bucket->getBgFetcher(vbid);
+    auto& bgFetcher = bucket->getBgFetcher(vbid, /* distributionKey */ 0);
     bgFetcher.preCompleteHook = [this, &key, &options]() {
         store_item(vbid,
                    key,

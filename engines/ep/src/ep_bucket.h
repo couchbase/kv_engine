@@ -349,7 +349,12 @@ public:
             CookieIface* cookie,
             const Collections::Manifest& newManifest) override;
 
-    BgFetcher& getBgFetcher(Vbid vbid);
+    /**
+     * Gets the BgFetcher for the corresponding vBucket. If there are multiple
+     * BgFetchers assigned to this vBucket, the distributionKey is used to
+     * select a BgFetcher from that set.
+     */
+    BgFetcher& getBgFetcher(Vbid vbid, uint32_t distributionKey);
     Flusher* getFlusher(Vbid vbid);
 
     Flusher* getOneFlusher() override;

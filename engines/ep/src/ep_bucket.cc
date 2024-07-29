@@ -26,6 +26,7 @@
 #include "item.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "work_sharding.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore.h"
 #endif
@@ -296,14 +297,13 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
         flushers.emplace_back(std::make_unique<Flusher>(this, i));
     }
 
-    // Pre-7.0.0 BgFetchers were a part of KVShard so keep the same default
-    // scaling.
+    // Use the same number of BGFetchers as the number of reader threads.
+    // Until 8.0.0 we used the number of shards as the number of BGFetchers.
     auto configBgFetcherLimit = config.getMaxNumBgfetchers();
-    auto bgFetcherLimit = configBgFetcherLimit == 0 ? vbMap.getNumShards()
-                                                    : configBgFetcherLimit;
+    auto bgFetcherLimit = configBgFetcherLimit == 0
+                                  ? ExecutorPool::get()->getNumReaders()
+                                  : configBgFetcherLimit;
 
-    // Limit BgFetchers by the number of vBuckets as any more would be useless.
-    bgFetcherLimit = std::min(bgFetcherLimit, config.getMaxVbuckets());
     for (size_t i = 0; i < bgFetcherLimit; i++) {
         bgFetchers.emplace_back(std::make_unique<BgFetcher>(*this));
     }
@@ -2483,11 +2483,12 @@ std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res) {
     return os;
 }
 
-BgFetcher& EPBucket::getBgFetcher(Vbid vbid) {
-    // For now we just use modulo, same as we do/would for shards to pick out
-    // the associated BgFetcher
-    auto id = vbid.get() % bgFetchers.size();
-    return *bgFetchers.at(id);
+BgFetcher& EPBucket::getBgFetcher(Vbid vbid, uint32_t distributionKey) {
+    const auto numBgFetchers = bgFetchers.size();
+    const auto numActiveVBuckets = vbMap.getVBStateCount(vbucket_state_active);
+    const auto bgFetcher = selectWorkerForVBucket(
+            numBgFetchers, numActiveVBuckets, vbid, distributionKey);
+    return *bgFetchers.at(bgFetcher);
 }
 
 Flusher* EPBucket::getFlusher(Vbid vbid) {

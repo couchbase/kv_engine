@@ -138,6 +138,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/vbucket_test.cc
         module_tests/vbucket_durability_test.cc
         module_tests/vb_ready_queue_test.cc
+        module_tests/work_sharding_test.cc
         module_tests/warmup_test.cc
         module_tests/item_compression_task_test.cc
         $<TARGET_OBJECTS:mock_dcp>

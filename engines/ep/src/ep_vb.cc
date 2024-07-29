@@ -832,7 +832,7 @@ cb::engine_errc EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
     size_t bgfetch_size = queueBGFetchItem(
             key,
             std::make_unique<FrontEndBGFetchItem>(cookie, filter, token),
-            getBgFetcher());
+            getBgFetcher(token));
     EP_LOG_DEBUG("Queued a background fetch, now at {}",
                  uint64_t(bgfetch_size));
     return cb::engine_errc::would_block;
@@ -886,7 +886,7 @@ void EPVBucket::bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
 
     hbl.getHTLock().unlock();
     // add to the current batch of background fetch of the given vbucket
-    auto& bgFetcher = getBgFetcher();
+    auto& bgFetcher = getBgFetcher(bgFetchItem->token);
     auto bgFetchSize = queueBGFetchItem(key, std::move(bgFetchItem), bgFetcher);
     EP_LOG_DEBUG("Queue a background fetch for compaction expiry, now at {}",
                  bgFetchSize);
@@ -1153,8 +1153,9 @@ void EPVBucket::processImplicitlyCompletedPrepare(
     ht.unlocked_del(v.getHBL(), *v.release());
 }
 
-BgFetcher& EPVBucket::getBgFetcher() {
-    return dynamic_cast<EPBucket&>(*bucket).getBgFetcher(getId());
+BgFetcher& EPVBucket::getBgFetcher(uint32_t distributionKey) {
+    return dynamic_cast<EPBucket&>(*bucket).getBgFetcher(getId(),
+                                                         distributionKey);
 }
 
 std::function<void(int64_t)> EPVBucket::getSaveDroppedCollectionCallback(

@@ -119,6 +119,11 @@ void KVBucketTest::initialise(std::string_view baseConfig) {
             config += ";exp_pager_enabled=false";
         }
 
+        // Unless specified, default to 1 BGFetcher.
+        if (config.find("max_num_bgfetchers") == std::string::npos) {
+            config += ";max_num_bgfetchers=1";
+        }
+
         engine = SynchronousEPEngine::build(config);
         Expects(ObjectRegistry::getCurrentEngine() &&
                 "Expect current thread is associated with 'engine' after "
@@ -464,7 +469,7 @@ void KVBucketTest::runBGFetcherTask() {
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
-    epVb->getBgFetcher().run(&mockTask);
+    epVb->getBgFetcher(/* distributionKey */ 0).run(&mockTask);
 }
 
 /**
