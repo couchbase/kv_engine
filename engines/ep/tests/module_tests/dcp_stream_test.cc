@@ -7589,6 +7589,63 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     EXPECT_EQ(messageBytes, control.getFreedBytes());
 }
 
+// MB-62847
+TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
+    // Begin with an active vbucket and do some work to ensure that DCP will
+    // backfill when we start it.
+    store->setVBucketState(vbid, vbucket_state_active);
+    VBucketPtr vb = store->getVBucket(vbid);
+    store_item(vbid, makeStoredDocKey("k1"), "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // Using expel to clear memory item to force backfill.
+    vb->checkpointManager->expelUnreferencedCheckpointItems();
+
+    // Critical step - ensure replica and ensure a set_vbucket_state meta-item
+    // is in the checkpoint
+    store->setVBucketState(vbid, vbucket_state_replica);
+
+    ASSERT_EQ(1, vb->checkpointManager->getSnapshotInfo().range.getEnd());
+    // Next extend the open-checkpoint and verify it is returned as the end of
+    // the range. DCP backfill will Merge and return a range 0, 2
+    vb->checkpointManager->extendOpenCheckpoint(2, 2);
+    ASSERT_EQ(2, vb->checkpointManager->getSnapshotInfo().range.getEnd());
+
+    // Now begin DCP. This is a bucket stream which does not enable sync-repl
+    // this means it will enable SeqnoAdvance.
+    auto cookie = create_mock_cookie(engine.get());
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                      cookie,
+                                                      "MB_62847",
+                                                      /*flags*/ 0);
+    producer->setSyncReplication(SyncReplication::No);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::EnabledButNeverSent);
+    MockDcpMessageProducers producers;
+
+    // Create with an empty config, which enables seqno-advance
+    createDcpStream(*producer, vbid, std::string_view{});
+
+    using namespace cb::mcbp;
+
+    // Step DCP from disk, backfill runs and creates a merged snapshot 0:2
+    notifyAndStepToCheckpoint(
+            *producer, producers, ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    // Drain readyQ which will schedule in-memory processing
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers, ClientOpcode::DcpMutation));
+
+    // Step, with bug this processes the set_vbucket_state and incorrectly
+    // triggered SeqnoAdvance. Without bug nothing happens
+    notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::Invalid);
+
+    // Now along comes the actual seqno:2 mutation
+    writeDocToReplica(vbid, makeStoredDocKey("k1"), 2, false);
+
+    // With MB-62847 this next step throws Monotonic exception.
+    notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::DcpMutation);
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCPassiveStreamTest,
                          STParameterizedBucketTest::magmaConfigValues(),
