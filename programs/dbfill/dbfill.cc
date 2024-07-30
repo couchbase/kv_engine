@@ -253,7 +253,6 @@ std::unique_ptr<Node> create_node(std::string_view host,
 
 int main(int argc, char** argv) {
     std::string bucket;
-    size_t num_threads = 4;
     size_t size = 256;
     size_t documents = 1000000;
     bool random_value = false;
@@ -265,14 +264,6 @@ int main(int argc, char** argv) {
                       Argument::Required,
                       "bucketname",
                       "The name of the bucket to operate on"});
-
-    getopt.addOption({[&num_threads](auto value) {
-                          num_threads = stoul(std::string{value});
-                      },
-                      "threads",
-                      Argument::Required,
-                      "num",
-                      "The number of threads to use"});
 
     getopt.addOption({[&size](auto value) { size = stoul(std::string{value}); },
                       "size",
