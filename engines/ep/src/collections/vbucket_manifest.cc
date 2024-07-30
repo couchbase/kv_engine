@@ -1347,7 +1347,7 @@ CreateEventData Manifest::getCreateEventData(const Collection& collection) {
              maxTtl,
              getCanDeduplicateFromHistory(collection.history()),
              getMetered(collection.metered()),
-             ManifestUid{collection.flushUid()}}};
+             ManifestUid{}}};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(
