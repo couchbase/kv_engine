@@ -1154,11 +1154,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
         // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change its identity.
         saslAuthEnabled = getUser().is_internal();
-    } catch (const cb::rbac::NoSuchUserException& e) {
-        restartAuthentication();
-        LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",
-                    getId(),
-                    cb::UserDataView(e.what()));
+    } catch (const cb::rbac::NoSuchUserException&) {
         return false;
     }
     return true;
@@ -2513,7 +2509,9 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                 static std::pair<cb::x509::Status, std::string> lookup(
                         X509* cert) {
                     static ServerAuthMapper inst;
-                    return inst.mapper->lookupUser(cert);
+                    return inst.mapper->lookupUser(cert, [](const auto& name) {
+                        return name == "internal";
+                    });
                 }
 
             protected:
@@ -2537,11 +2535,21 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
             if (status == cb::x509::Status::Success) {
                 if (name == "internal") {
                     name = "@internal";
+                    tryAuthUserFromX509Cert(name, SSL_get_cipher_name(ssl_st));
                 } else {
                     status = cb::x509::Status::NoMatch;
                 }
             } else {
-                auto pair = Settings::instance().lookupUser(cert.get());
+                auto cipher = SSL_get_cipher_name(ssl_st);
+                auto pair = Settings::instance().lookupUser(
+                        cert.get(), [this, &cipher](const auto& name) -> bool {
+                            try {
+                                return tryAuthUserFromX509Cert(name, cipher);
+                            } catch (const std::exception& e) {
+                                restartAuthentication();
+                                return false;
+                            }
+                        });
                 status = pair.first;
                 name = std::move(pair.second);
             }
@@ -2595,17 +2603,8 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                 }
                 break;
             case cb::x509::Status::Success:
-                if (!tryAuthUserFromX509Cert(name,
-                                             SSL_get_cipher_name(ssl_st))) {
-                    // Already logged
-                    const std::string reason =
-                            "User [" + name + "] not defined in Couchbase";
-                    audit_auth_failure(*this,
-                                       {name, cb::sasl::Domain::Local},
-                                       reason.c_str());
-                    setTerminationReason(reason.c_str());
-                    disconnect = true;
-                }
+                // authenticated as part of the lookup method
+                break;
             }
         }
     }
