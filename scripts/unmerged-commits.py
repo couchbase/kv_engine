@@ -61,8 +61,8 @@ sequences = {
 
     'kv_engine': [
         # main kv_engine release train sequence
-        [('couchbase/trinity', 'couchbase/master')],
-
+        [('couchbase/cypher', 'couchbase/master')],
+        [('couchbase/trinity', 'couchbase/cypher')],
         [('couchbase/neo', 'couchbase/trinity')],
         [('couchbase/7.2.4', 'couchbase/neo')],
 
