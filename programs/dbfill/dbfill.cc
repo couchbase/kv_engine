@@ -31,6 +31,9 @@ uint32_t crc32buf(const uint8_t* buf, size_t len);
 /// The document value to store
 std::string document_value;
 
+enum class RandomValue { Off, On, PerDocument };
+RandomValue random_value = RandomValue::Off;
+
 using cb::terminal::TerminalColor;
 
 static void usage(McProgramGetopt& instance, int exitcode) {
@@ -158,7 +161,15 @@ protected:
 
     void sendCommand(std::string key, Vbid vb, uint32_t identifier) {
         BinprotMutationCommand cmd;
-        cmd.addValueBuffer(document_value);
+        if (random_value == RandomValue::PerDocument) {
+            std::string value;
+            value.resize(document_value.size());
+            cb::RandomGenerator random_generator;
+            random_generator.getBytes(value.data(), value.size());
+            cmd.addValueBuffer(value);
+        } else {
+            cmd.addValueBuffer(document_value);
+        }
         cmd.setMutationType(MutationType::Set);
         cmd.setKey(std::move(key));
         cmd.setVBucket(vb);
@@ -255,7 +266,6 @@ int main(int argc, char** argv) {
     std::string bucket;
     size_t size = 256;
     size_t documents = 1000000;
-    bool random_value = false;
 
     McProgramGetopt getopt;
     using cb::getopt::Argument;
@@ -280,9 +290,17 @@ int main(int argc, char** argv) {
                       "num",
                       "The number of documents"});
 
-    getopt.addOption({[&random_value](auto) { random_value = true; },
+    getopt.addOption({[](auto value) {
+                          if (value == "per-document") {
+                              random_value = RandomValue::PerDocument;
+                          } else {
+                              random_value = RandomValue::On;
+                          }
+                      },
                       'R',
                       "random-body",
+                      Argument::Optional,
+                      "per-document",
                       "Use a random value which don't compress well"});
 
     getopt.addOption({[&getopt](auto value) { usage(getopt, EXIT_SUCCESS); },
@@ -326,13 +344,13 @@ int main(int argc, char** argv) {
         node_locator->iterate(
                 [&getopt, &bucket](auto& node) { node.start(getopt, bucket); });
 
-        if (random_value) {
+        if (random_value == RandomValue::Off) {
+            document_value = std::string(size, 'a');
+        } else {
             document_value.resize(size);
             cb::RandomGenerator random_generator;
             random_generator.getBytes(document_value.data(),
                                       document_value.size());
-        } else {
-            document_value = std::string(size, 'a');
         }
 
         for (size_t ii = 0; ii < documents; ++ii) {
