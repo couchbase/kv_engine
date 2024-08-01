@@ -295,7 +295,6 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
                         : scanCtx.maxSeqno,
             scanCtx.persistedCompletedSeqno,
             scanCtx.maxVisibleSeqno,
-            std::nullopt,
             historyScan ? SnapshotType::NoHistoryPrecedingHistory
                         : SnapshotType::NoHistory);
 }
@@ -372,7 +371,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.maxSeqno,
                                        scanCtx.persistedCompletedSeqno,
                                        scanCtx.maxVisibleSeqno,
-                                       std::nullopt,
                                        SnapshotType::NoHistory);
     }
 
@@ -461,7 +459,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                            stats.highSeqno,
                                            {},
                                            stats.highSeqno,
-                                           {},
                                            SnapshotType::NoHistory);
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
@@ -579,7 +576,6 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        cb.maxVisibleSeqno,
                                        {},
                                        cb.maxVisibleSeqno,
-                                       {},
                                        SnapshotType::NoHistory);
     }
     endStreamIfNeeded();

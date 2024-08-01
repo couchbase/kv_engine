@@ -74,7 +74,6 @@ public:
                  cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                  std::optional<uint64_t> high_completed_seqno,
                  std::optional<uint64_t> maxVisibleSeqno,
-                 std::optional<uint64_t> timestamp,
                  cb::mcbp::DcpStreamId sid),
                 (override));
 

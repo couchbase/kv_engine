@@ -673,7 +673,6 @@ public:
                            cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                            std::optional<uint64_t> high_completed_seqno,
                            std::optional<uint64_t> max_visible_seqno,
-                           std::optional<uint64_t> timestamp,
                            cb::mcbp::DcpStreamId sid) override;
 
     cb::engine_errc mutation(uint32_t opaque,

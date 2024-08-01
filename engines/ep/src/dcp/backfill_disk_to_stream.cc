@@ -181,7 +181,6 @@ bool DCPBackfillDiskToStream::scanHistoryCreate(
                 historyScanCtx.snapshotInfo.range.getEnd(),
                 ctx.persistedCompletedSeqno,
                 ctx.maxVisibleSeqno,
-                std::nullopt,
                 historyScanCtx.getSnapshotType())) {
         // Stream rejected the marker
         return false;

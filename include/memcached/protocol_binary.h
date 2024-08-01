@@ -880,25 +880,6 @@ protected:
 static_assert(sizeof(DcpSnapshotMarkerV2_0Value) == 36,
               "Unexpected struct size");
 
-class DcpSnapshotMarkerV2_1Value : public DcpSnapshotMarkerV2_0Value {
-public:
-    uint64_t getTimestamp() const {
-        return ntohll(timestamp);
-    }
-    void setTimestamp(uint64_t value) {
-        timestamp = htonll(value);
-    }
-
-    cb::const_byte_buffer getBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
-    }
-
-protected:
-    uint64_t timestamp{0};
-};
-static_assert(sizeof(DcpSnapshotMarkerV2_1Value) == 44,
-              "Unexpected struct size");
-
 class DcpMutationPayload {
 public:
     DcpMutationPayload() = default;

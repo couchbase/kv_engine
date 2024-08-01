@@ -37,7 +37,6 @@ void to_json(nlohmann::json& json, const DcpSnapshotMarkerFlag& flags);
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerV1Payload& payload);
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2xPayload& payload);
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2_0Value& payload);
-void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2_1Value& payload);
 void to_json(nlohmann::json& json, const DcpMutationPayload& payload);
 void to_json(nlohmann::json& json, const DcpDeletionV1Payload& payload);
 void to_json(nlohmann::json& json, const DcpDeleteRequestV1& payload);

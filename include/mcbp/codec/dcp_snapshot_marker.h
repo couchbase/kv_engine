@@ -42,14 +42,12 @@ public:
                       uint64_t end_seqno,
                       request::DcpSnapshotMarkerFlag flags,
                       std::optional<uint64_t> hcs,
-                      std::optional<uint64_t> mvs,
-                      std::optional<uint64_t> timestamp)
+                      std::optional<uint64_t> mvs)
         : startSeqno(start_seqno),
           endSeqno(end_seqno),
           flags(flags),
           highCompletedSeqno(std::move(hcs)),
-          maxVisibleSeqno(std::move(mvs)),
-          timestamp(std::move(timestamp)) {
+          maxVisibleSeqno(std::move(mvs)) {
     }
 
     uint64_t getStartSeqno() const {
@@ -67,9 +65,6 @@ public:
     std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
-    std::optional<uint64_t> getTimestamp() const {
-        return timestamp;
-    }
 
     void setStartSeqno(uint64_t value) {
         startSeqno = value;
@@ -85,9 +80,6 @@ public:
     }
     void setMaxVisibleSeqno(uint64_t value) {
         maxVisibleSeqno = value;
-    }
-    void setTimestamp(uint64_t value) {
-        timestamp = value;
     }
 
     nlohmann::json to_json() const;
@@ -115,7 +107,6 @@ protected:
     request::DcpSnapshotMarkerFlag flags = request::DcpSnapshotMarkerFlag::None;
     std::optional<uint64_t> highCompletedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
-    std::optional<uint64_t> timestamp;
 };
 
 /// Get a JSON dump of the DcpSnapshotMarker

@@ -66,7 +66,6 @@ public:
                           DcpSnapshotMarkerFlag flags,
                           std::optional<uint64_t> highCompletedSeqno,
                           std::optional<uint64_t> maxVisibleSeqno,
-                          std::optional<uint64_t> timestamp,
                           cb::mcbp::DcpStreamId sid,
                           const std::vector<Item>& items);
 };
@@ -78,7 +77,6 @@ void HistoryScanTest::validateSnapshot(
         DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
-        std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid,
         const std::vector<Item>& items) {
     stepAndExpect(ClientOpcode::DcpSnapshotMarker);
@@ -89,7 +87,6 @@ void HistoryScanTest::validateSnapshot(
     EXPECT_EQ(producers->last_stream_id, sid);
     EXPECT_EQ(producers->last_high_completed_seqno, highCompletedSeqno);
     EXPECT_EQ(producers->last_max_visible_seqno, maxVisibleSeqno);
-    EXPECT_EQ(producers->last_timestamp, timestamp);
 
     for (const auto& item : items) {
         EXPECT_TRUE(item.getOperation() == queue_op::system_event ||
@@ -165,7 +162,6 @@ TEST_P(HistoryScanTest, basic_unique) {
                      0 /*hcs*/,
                      2 /*mvs*/,
                      {},
-                     {},
                      items);
 }
 
@@ -204,7 +200,6 @@ TEST_P(HistoryScanTest, basic_duplicates) {
                              DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      3 /*mvs*/,
-                     {},
                      {},
                      items);
 }
@@ -255,7 +250,6 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_unique_keys) {
                      0 /*hcs*/,
                      3 /*mvs*/,
                      {},
-                     {},
                      items);
 }
 
@@ -297,7 +291,6 @@ TEST_P(HistoryScanTest, basic_duplicates_and_deletes) {
                              DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      4 /*mvs*/,
-                     {},
                      {},
                      items);
 }
@@ -363,7 +356,6 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_duplicate_keys) {
                              DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      4 /*mvs*/,
-                     {},
                      {},
                      items);
 }
@@ -439,7 +431,6 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
             0 /*hcs*/,
             5 /*mvs*/,
             {},
-            {},
             items1);
 
     EXPECT_EQ(items1.back().getBySeqno(), vbR->getHighSeqno());
@@ -458,7 +449,6 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
                              DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      5 /*mvs*/,
-                     {},
                      {},
                      items2);
 
@@ -616,7 +606,6 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
                      0 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
                      {},
-                     {},
                      items);
 }
 
@@ -687,7 +676,6 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_MB_55590) {
                              DcpSnapshotMarkerFlag::Disk,
                      0 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
-                     {},
                      {},
                      items);
 }
@@ -853,7 +841,6 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
                      0 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
                      {},
-                     {},
                      items);
 }
 
@@ -965,7 +952,6 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
                              DcpSnapshotMarkerFlag::Disk,
                      6 /*hcs*/,
                      items.back().getBySeqno() /*mvs*/,
-                     {},
                      {},
                      items);
 }

@@ -220,7 +220,6 @@ public:
      * range
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
-     * @param timestamp of the disk snapshot (if available)
      * @param snapshotType see enum definition
      * @return If the stream has queued a snapshot marker. If this is false, the
      *         stream determined none of the items in the backfill would be sent
@@ -229,7 +228,6 @@ public:
                           uint64_t endSeqno,
                           std::optional<uint64_t> highCompletedSeqno,
                           uint64_t maxVisibleSeqno,
-                          std::optional<uint64_t> timestamp,
                           SnapshotType snapshotType);
 
     /**

@@ -232,11 +232,6 @@ void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2_0Value& payload) {
             std::to_string(payload.getHighCompletedSeqno());
 }
 
-void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2_1Value& payload) {
-    to_json(json, dynamic_cast<const DcpSnapshotMarkerV2_0Value&>(payload));
-    json["timestamp"] = std::to_string(payload.getTimestamp());
-}
-
 void to_json(nlohmann::json& json, const DcpMutationPayload& payload) {
     json = {
             {"by_seqno", std::to_string(payload.getBySeqno())},

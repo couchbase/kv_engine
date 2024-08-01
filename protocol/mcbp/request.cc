@@ -674,9 +674,8 @@ nlohmann::json Request::to_json(bool validated) const {
                             getValue().data());
                     break;
                 case DcpSnapshotMarkerV2xVersion::One:
-                    value = *reinterpret_cast<
-                            const DcpSnapshotMarkerV2_1Value*>(
-                            getValue().data());
+                    throw std::invalid_argument(
+                            "DcpSnapshotMarkerV2xVersion::One not supported");
                     break;
                 }
             }

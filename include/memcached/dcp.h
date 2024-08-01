@@ -124,7 +124,6 @@ struct DcpMessageProducersIface {
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> highCompletedSeqno,
             std::optional<uint64_t> maxVisibleSeqno,
-            std::optional<uint64_t> timestamp,
             cb::mcbp::DcpStreamId sid) = 0;
 
     /**

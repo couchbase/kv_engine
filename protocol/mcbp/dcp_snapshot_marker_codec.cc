@@ -24,9 +24,6 @@ nlohmann::json DcpSnapshotMarker::to_json() const {
     if (maxVisibleSeqno) {
         ret["max_visible_seqno"] = *maxVisibleSeqno;
     }
-    if (timestamp) {
-        ret["timestamp"] = *timestamp;
-    }
     return ret;
 }
 
@@ -70,26 +67,6 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
     return marker;
 }
 
-static DcpSnapshotMarker decodeDcpSnapshotMarkerV21Value(
-        cb::const_byte_buffer value) {
-    using cb::mcbp::request::DcpSnapshotMarkerV2_1Value;
-
-    if (value.size() != sizeof(DcpSnapshotMarkerV2_1Value)) {
-        throw std::runtime_error(
-                "decodeDcpSnapshotMarkerV21Value: Invalid size");
-    }
-
-    // V2.1 is an extension to 2.0 by adding a timestamp.. use the 2.0 decode
-    // method
-    auto base = cb::const_byte_buffer{value.data(),
-                                      value.size() - sizeof(uint64_t)};
-    DcpSnapshotMarker marker = decodeDcpSnapshotMarkerV20Value(base);
-    const auto* payload =
-            reinterpret_cast<const DcpSnapshotMarkerV2_1Value*>(value.data());
-    marker.setTimestamp(payload->getTimestamp());
-    return marker;
-}
-
 DcpSnapshotMarker DcpSnapshotMarker::decode(const Request& request) {
     if (request.getClientOpcode() != ClientOpcode::DcpSnapshotMarker) {
         throw std::runtime_error(
@@ -103,7 +80,9 @@ DcpSnapshotMarker DcpSnapshotMarker::decode(const Request& request) {
         case 0:
             return decodeDcpSnapshotMarkerV20Value(request.getValue());
         case 1:
-            return decodeDcpSnapshotMarkerV21Value(request.getValue());
+            throw std::runtime_error(
+                    "DcpSnapshotMarker::decode: snapshot marker version 2.1 no "
+                    "longer supported");
         }
         throw std::runtime_error(
                 "DcpSnapshotMarker::decode: Unknown snapshot marker version");
@@ -122,27 +101,14 @@ void DcpSnapshotMarker::encode(
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
-    using cb::mcbp::request::DcpSnapshotMarkerV2_1Value;
     using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
     using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
 
-    if (highCompletedSeqno || timestamp) {
+    if (highCompletedSeqno) {
         Expects(isFlagSet(flags, DcpSnapshotMarkerFlag::Disk));
     }
 
-    if (timestamp) {
-        DcpSnapshotMarkerV2xPayload extras(DcpSnapshotMarkerV2xVersion::One);
-        frame.setExtras(extras.getBuffer());
-
-        DcpSnapshotMarkerV2_1Value value;
-        value.setStartSeqno(startSeqno);
-        value.setEndSeqno(endSeqno);
-        value.setFlags(flags);
-        value.setMaxVisibleSeqno(maxVisibleSeqno.value_or(0));
-        value.setHighCompletedSeqno(highCompletedSeqno.value_or(0));
-        value.setTimestamp(*timestamp);
-        frame.setValue(value.getBuffer());
-    } else if (maxVisibleSeqno || highCompletedSeqno) {
+    if (maxVisibleSeqno || highCompletedSeqno) {
         // V2.0: sending the maxVisibleSeqno and maybe the highCompletedSeqno.
         // The highCompletedSeqno is expected to only be defined when flags has
         // the disk bit set.

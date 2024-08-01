@@ -121,7 +121,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             {}, // maxVisibleSeqno
-            {}, // timestamp
             {}); // sid
 
     const uint32_t smV1_size =
@@ -138,7 +137,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             6, // highCompletedSeqno
             {}, // maxVisibleSeqno
-            {}, // timestamp
             {}); // sid
 
     auto smV2_0_max_visible_seqno = SnapshotMarker(
@@ -149,7 +147,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             6, // maxVisibleSeqno
-            {}, // timestamp
             {}); // sid
 
     const uint32_t smV2_0_size =
@@ -159,24 +156,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
 
     EXPECT_EQ(smV2_0_size, smV2_0_high_completed_seqno.getMessageSize());
     EXPECT_EQ(smV2_0_size, smV2_0_max_visible_seqno.getMessageSize());
-
-    auto smV2_1_timestamp = SnapshotMarker(
-            1, // opaque
-            Vbid(2), // vbucket
-            3, // start_seqno
-            4, // end_seqno
-            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
-            {}, // highCompletedSeqno
-            {}, // maxVisibleSeqno
-            6, // timestamp
-            {}); // sid
-
-    const uint32_t smV2_1_size =
-            SnapshotMarkerResponse::baseMsgBytes +
-            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_1Value);
-
-    EXPECT_EQ(smV2_1_size, smV2_1_timestamp.getMessageSize());
 }
 
 TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
@@ -188,7 +167,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             {}, // maxVisibleSeqno
-            {}, // timestamp
             cb::mcbp::DcpStreamId(6)); // sid
 
     const uint32_t smV1_size =
@@ -206,7 +184,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             6, // highCompletedSeqno
             {}, // maxVisibleSeqno
-            {}, // timestamp
             cb::mcbp::DcpStreamId(7)); // sid
 
     auto smV2_0_max_visible_seqno = SnapshotMarker(
@@ -217,7 +194,6 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
             6, // maxVisibleSeqno
-            {}, // timestamp
             cb::mcbp::DcpStreamId(7)); // sid
 
     const uint32_t smV2_0_size =
@@ -228,23 +204,4 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
 
     EXPECT_EQ(smV2_0_size, smV2_0_high_completed_seqno.getMessageSize());
     EXPECT_EQ(smV2_0_size, smV2_0_max_visible_seqno.getMessageSize());
-
-    auto smV2_1_timestamp = SnapshotMarker(
-            1, // opaque
-            Vbid(2), // vbucket
-            3, // start_seqno
-            4, // end_seqno
-            DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
-            {}, // highCompletedSeqno
-            {}, // maxVisibleSeqno
-            6, // timestamp
-            cb::mcbp::DcpStreamId(7)); // sid
-
-    const uint32_t smV2_1_size =
-            SnapshotMarkerResponse::baseMsgBytes +
-            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_1Value) +
-            sizeof(cb::mcbp::DcpStreamIdFrameInfo);
-
-    EXPECT_EQ(smV2_1_size, smV2_1_timestamp.getMessageSize());
 }

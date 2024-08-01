@@ -229,10 +229,7 @@ uint32_t AbortSyncWrite::getMessageSize() const {
 
 uint32_t SnapshotMarker::getMessageSize() const {
     auto rv = baseMsgBytes;
-    if (timestamp) {
-        rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-              sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_1Value);
-    } else if (highCompletedSeqno || maxVisibleSeqno) {
+    if (highCompletedSeqno || maxVisibleSeqno) {
         rv += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
               sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
     } else {
@@ -287,8 +284,7 @@ bool SnapshotMarker::isEqual(const DcpResponse& rsp) const {
               start_seqno_ == other.start_seqno_ &&
               end_seqno_ == other.end_seqno_ && flags_ == other.flags_ &&
               highCompletedSeqno == other.highCompletedSeqno &&
-              maxVisibleSeqno == other.maxVisibleSeqno &&
-              timestamp == other.timestamp;
+              maxVisibleSeqno == other.maxVisibleSeqno;
     return eq && DcpResponse::isEqual(rsp);
 }
 

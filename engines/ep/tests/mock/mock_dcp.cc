@@ -117,7 +117,6 @@ cb::engine_errc MockDcpMessageProducers::marker(
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
-        std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid) {
     clear_dcp_data();
     last_op = cb::mcbp::ClientOpcode::DcpSnapshotMarker;
@@ -142,7 +141,6 @@ cb::engine_errc MockDcpMessageProducers::marker(
     }
     last_high_completed_seqno = highCompletedSeqno;
     last_max_visible_seqno = maxVisibleSeqno;
-    last_timestamp = timestamp;
     return cb::engine_errc::success;
 }
 

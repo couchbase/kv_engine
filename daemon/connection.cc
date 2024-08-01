@@ -1748,19 +1748,18 @@ cb::engine_errc Connection::marker(
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> hcs,
         std::optional<uint64_t> mvs,
-        std::optional<uint64_t> timestamp,
         cb::mcbp::DcpStreamId sid) {
     using Framebuilder = cb::mcbp::FrameBuilder<cb::mcbp::Request>;
     using cb::mcbp::Request;
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
-    using cb::mcbp::request::DcpSnapshotMarkerV2_1Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
     using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
 
     // Allocate the buffer to be big enough for all cases, which will be the
     // v2.0 packet
     const auto size = sizeof(Request) + sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
                       sizeof(DcpSnapshotMarkerV2xPayload) +
-                      sizeof(DcpSnapshotMarkerV2_1Value);
+                      sizeof(DcpSnapshotMarkerV2_0Value);
     std::vector<uint8_t> buffer(size);
 
     Framebuilder builder({buffer.data(), buffer.size()});
@@ -1775,10 +1774,8 @@ cb::engine_errc Connection::marker(
         builder.setFramingExtras(framedSid.getBuf());
     }
 
-    cb::mcbp::DcpSnapshotMarker marker(
-            start_seqno, end_seqno, flags, hcs, mvs, timestamp);
+    cb::mcbp::DcpSnapshotMarker marker(start_seqno, end_seqno, flags, hcs, mvs);
     marker.encode(builder);
-
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }
 

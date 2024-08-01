@@ -1004,7 +1004,6 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   flags,
                                   0 /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
-                                  {}, // timestamp
                                   {});
     passiveStream->processMarker(&snapshotMarker);
 
@@ -1039,7 +1038,6 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    DcpSnapshotMarkerFlag::Checkpoint,
                                    {} /*HCS*/,
                                    {} /*maxVisibleSeqno*/,
-                                   {}, // timestamp
                                    {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker2);
     EXPECT_EQ(ckptList.size(), 2);
@@ -1136,7 +1134,6 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       flags,
                                       0 /*HCS*/,
                                       {} /*maxVisibleSeqno*/,
-                                      {}, // timestamp
                                       {} /*SID*/);
         passiveStream->processMarker(&snapshotMarker);
         processMutations(*passiveStream, snapshotStart, diskSnapshotEnd);
@@ -1156,7 +1153,6 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                   flags,
                                   0 /*HCS*/,
                                   {} /*maxVisibleSeqno*/,
-                                  {}, // timestamp
                                   {} /*SID*/);
     passiveStream->processMarker(&snapshotMarker);
 
@@ -1939,7 +1935,6 @@ void SingleThreadedCheckpointTest::
                                   2, // end
                                   DcpSnapshotMarkerFlag::Disk,
                                   0,
-                                  {},
                                   {},
                                   {});
     passiveStream->processMarker(&snapshotMarker);

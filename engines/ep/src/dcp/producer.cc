@@ -993,7 +993,6 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                    s->getFlags(),
                                    s->getHighCompletedSeqno(),
                                    s->getMaxVisibleSeqno(),
-                                   s->getTimestamp(),
                                    resp->getStreamId());
             break;
         }

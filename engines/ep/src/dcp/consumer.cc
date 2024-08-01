@@ -814,16 +814,14 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         return cb::engine_errc::invalid_arguments;
     }
 
-    auto msg = std::make_unique<SnapshotMarker>(
-            opaque,
-            vbucket,
-            start_seqno,
-            end_seqno,
-            flags,
-            high_completed_seqno,
-            max_visible_seqno,
-            std::optional<uint64_t>{}, // @todo MB-37319
-            cb::mcbp::DcpStreamId{});
+    auto msg = std::make_unique<SnapshotMarker>(opaque,
+                                                vbucket,
+                                                start_seqno,
+                                                end_seqno,
+                                                flags,
+                                                high_completed_seqno,
+                                                max_visible_seqno,
+                                                cb::mcbp::DcpStreamId{});
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 
