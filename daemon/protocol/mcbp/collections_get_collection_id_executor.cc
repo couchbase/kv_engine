@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -17,16 +16,9 @@
 void collections_get_collection_id_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& req = cookie.getRequest();
-    auto key = req.getKey();
-    std::string_view path{};
-
-    if (key.size()) {
-        path = std::string_view{reinterpret_cast<const char*>(key.data()),
-                                key.size()};
-    } else {
-        auto value = req.getValue();
-        path = std::string_view{reinterpret_cast<const char*>(value.data()),
-                                value.size()};
+    std::string_view path = req.getKeyString();
+    if (path.empty()) {
+        path = req.getValueString();
     }
     auto rv = connection.getBucketEngine().get_collection_id(cookie, path);
     if (rv.result == cb::engine_errc::success) {
