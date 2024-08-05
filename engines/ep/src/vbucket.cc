@@ -2234,6 +2234,7 @@ cb::engine_errc VBucket::deleteItem(
         auto* v = htRes.selectSVToModify(durability.has_value());
 
         if (htRes.committed->isExpired(ep_real_time())) {
+            handlePreExpiry(htRes.getHBL(), *v);
             std::tie(delrv, v, notifyCtx) =
                     processExpiredItem(htRes, cHandle, ExpireBy::Access);
         } else {

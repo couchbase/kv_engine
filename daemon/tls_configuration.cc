@@ -153,6 +153,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     if (cipher_order) {
         options |= SSL_OP_CIPHER_SERVER_PREFERENCE;
     }
+    options |= SSL_OP_IGNORE_UNEXPECTED_EOF;
     SSL_CTX_set_options(server_ctx, options);
     SSL_CTX_set_mode(server_ctx,
                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |

@@ -4019,10 +4019,10 @@ TEST_P(SingleThreadedActiveStreamTest,
                                           cb::durability::Requirements());
 }
 
-void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
-        cb::mcbp::DcpOpenFlag flags, Xattrs xattrs) {
-    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
+using cb::mcbp::DcpOpenFlag;
 
+void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
+        DcpOpenFlag flags, Xattrs xattrs, ExpiryPath path) {
     auto& vb = *engine->getVBucket(vbid);
     recreateProducerAndStream(vb, DcpOpenFlag::IncludeXattrs | flags);
 
@@ -4087,9 +4087,21 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
 
     manager.createNewCheckpoint();
 
-    // Just need to access key for expiring
-    GetValue gv = store->get(docKey, vbid, cookie, get_options_t::NONE);
-    EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+    // Trigger the expiration
+    switch (path) {
+    case ExpiryPath::Access: {
+        // Frontend access (cmd GET)
+        GetValue gv = store->get(docKey, vbid, cookie, get_options_t::NONE);
+        EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+        break;
+    }
+    case ExpiryPath::Deletion: {
+        // Explicit deletion (cmd DEL), which processes the TTL (if any) before
+        // proceeding with the explicit deletion
+        delete_item(vbid, docKey, cb::engine_errc::no_such_key);
+        break;
+    }
+    }
 
     // MB-41989: Expiration removes UserXattrs (if any), but it must do that on
     // a copy of the payload that is then enqueued in the new expired item. So,
@@ -4167,34 +4179,56 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66) {
-    testExpirationRemovesBody({}, Xattrs::None);
+    testExpirationRemovesBody(
+            DcpOpenFlag::None, Xattrs::None, ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_Pre66_UserXa) {
-    testExpirationRemovesBody({}, Xattrs::User);
+    testExpirationRemovesBody(
+            DcpOpenFlag::None, Xattrs::User, ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
        ExpirationRemovesBody_Pre66_UserXa_SysXa) {
-    testExpirationRemovesBody({}, Xattrs::UserAndSys);
+    testExpirationRemovesBody(
+            DcpOpenFlag::None, Xattrs::UserAndSys, ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody) {
-    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
-                              Xattrs::None);
+                              Xattrs::None,
+                              ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa) {
-    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
-                              Xattrs::User);
+                              Xattrs::User,
+                              ExpiryPath::Access);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ExpirationRemovesBody_UserXa_SysXa) {
-    using DcpOpenFlag = cb::mcbp::DcpOpenFlag;
     testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
-                              Xattrs::UserAndSys);
+                              Xattrs::UserAndSys,
+                              ExpiryPath::Access);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ExpByDel_ExpirationRemovesBody) {
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::None,
+                              ExpiryPath::Deletion);
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ExpByDel_ExpirationRemovesBody_UserXa) {
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::User,
+                              ExpiryPath::Deletion);
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       ExpByDel_ExpirationRemovesBody_UserXa_SysXa) {
+    testExpirationRemovesBody(DcpOpenFlag::IncludeDeletedUserXattrs,
+                              Xattrs::UserAndSys,
+                              ExpiryPath::Deletion);
 }
 
 /**
@@ -7659,6 +7693,62 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     // seeing any variation on counters.
     // Note: Before the fix this fails as (freedBytes = 2 * messageBytes)
     EXPECT_EQ(messageBytes, control.getFreedBytes());
+}
+
+// MB-62847
+TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
+    // Begin with an active vbucket and do some work to ensure that DCP will
+    // backfill when we start it.
+    store->setVBucketState(vbid, vbucket_state_active);
+    VBucketPtr vb = store->getVBucket(vbid);
+    store_item(vbid, makeStoredDocKey("k1"), "v1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // Using expel to clear memory item to force backfill.
+    vb->checkpointManager->expelUnreferencedCheckpointItems();
+
+    // Critical step - ensure replica and ensure a set_vbucket_state meta-item
+    // is in the checkpoint
+    store->setVBucketState(vbid, vbucket_state_replica);
+
+    ASSERT_EQ(1, vb->checkpointManager->getSnapshotInfo().range.getEnd());
+    // Next extend the open-checkpoint and verify it is returned as the end of
+    // the range. DCP backfill will Merge and return a range 0, 2
+    vb->checkpointManager->extendOpenCheckpoint(2, 2);
+    ASSERT_EQ(2, vb->checkpointManager->getSnapshotInfo().range.getEnd());
+
+    // Now begin DCP. This is a bucket stream which does not enable sync-repl
+    // this means it will enable SeqnoAdvance.
+    auto cookie = create_mock_cookie(engine.get());
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "MB_62847", DcpOpenFlag::None);
+    producer->setSyncReplication(SyncReplication::No);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::EnabledButNeverSent);
+    MockDcpMessageProducers producers;
+
+    // Create with an empty config, which enables seqno-advance
+    createDcpStream(*producer, vbid, std::string_view{});
+
+    using namespace cb::mcbp;
+
+    // Step DCP from disk, backfill runs and creates a merged snapshot 0:2
+    notifyAndStepToCheckpoint(
+            *producer, producers, ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers.last_snap_start_seqno);
+    EXPECT_EQ(2, producers.last_snap_end_seqno);
+    // Drain readyQ which will schedule in-memory processing
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers, ClientOpcode::DcpMutation));
+
+    // Step, with bug this processes the set_vbucket_state and incorrectly
+    // triggered SeqnoAdvance. Without bug nothing happens
+    notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::Invalid);
+
+    // Now along comes the actual seqno:2 mutation
+    writeDocToReplica(vbid, makeStoredDocKey("k1"), 2, false);
+
+    // With MB-62847 this next step throws Monotonic exception.
+    notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::DcpMutation);
+    destroy_mock_cookie(cookie);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
