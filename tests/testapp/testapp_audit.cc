@@ -327,36 +327,6 @@ TEST_P(AuditTest, AuditX509SuccessfulAuth) {
                                     "Trond"));
 }
 
-TEST_P(AuditTest, AuditX509FailedAuth) {
-    reconfigure_client_cert_auth("mandatory", "subject.cn", "Tr", "");
-
-    std::unique_ptr<MemcachedConnection> conn;
-    connectionMap.iterate([&conn](const MemcachedConnection& c) {
-        if (!conn && c.isSsl()) {
-            auto family = c.getFamily();
-            conn = std::make_unique<MemcachedConnection>(
-                    family == AF_INET ? "127.0.0.1" : "::1",
-                    c.getPort(),
-                    family,
-                    true);
-        }
-    });
-
-    ASSERT_TRUE(conn) << "Failed to locate a SSL port";
-    setClientCertData(*conn, "trond");
-    conn->connect();
-
-    try {
-        conn->listBuckets();
-    } catch (const std::exception&) {
-        // Ignore the exception as all we want to now is that we got the
-        // authentication failed audit event
-    }
-
-    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
-                                    "ond Norbye"));
-}
-
 TEST_P(AuditTest, AuditSelectBucket) {
     mcd_env->getTestBucket().createBucket("bucket-1", {}, *adminConnection);
     adminConnection->executeInBucket("bucket-1", [this](auto&) {

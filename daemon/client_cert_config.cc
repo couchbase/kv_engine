@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -23,7 +22,9 @@ struct CommonNameMapping : public ClientCertConfig::Mapping {
         : ClientCertConfig::Mapping(path, obj) {
     }
 
-    std::pair<Status, std::string> match(X509* cert) const override {
+    std::pair<Status, std::string> match(
+            X509* cert, const std::function<bool(const std::string&)>& exists)
+            const override {
         std::string userName;
         X509_NAME* name = X509_get_subject_name(cert);
         int idx = X509_NAME_get_index_by_NID(name, NID_commonName, -1);
@@ -48,7 +49,11 @@ struct CommonNameMapping : public ClientCertConfig::Mapping {
                     std::string error = "Not able to match prefix/delimiter";
                     return make_pair(Status::NoMatch, error);
                 }
-                return make_pair(Status::Success, userName);
+
+                if (exists(userName)) {
+                    return make_pair(Status::Success, userName);
+                }
+                return {Status::NoMatch, "User not defined in Couchbase"};
             }
         }
         std::string error = "Not able to find common name from cert";
@@ -75,7 +80,9 @@ struct SanMapping : public ClientCertConfig::Mapping {
                 std::to_string(field));
     }
 
-    std::pair<Status, std::string> match(X509* cert) const override {
+    std::pair<Status, std::string> match(
+            X509* cert, const std::function<bool(const std::string&)>& exists)
+            const override {
         Status status = Status::NoMatch;
         auto* names = reinterpret_cast<GENERAL_NAMES*>(
                 X509_get_ext_d2i(cert, NID_subject_alt_name, nullptr, nullptr));
@@ -98,12 +105,11 @@ struct SanMapping : public ClientCertConfig::Mapping {
                     OPENSSL_free(utf8);
                     if ((int)val.size() == len) {
                         userName = matchPattern(val);
-                        if (userName.empty()) {
-                            status = Status::NoMatch;
-                        } else {
+                        if (!userName.empty() && exists(userName)) {
                             status = Status::Success;
                             break;
                         }
+                        status = Status::NoMatch;
                     }
                 }
             }
@@ -175,9 +181,11 @@ const ClientCertConfig::Mapping& ClientCertConfig::getMapping(
     return *mappings[index];
 }
 
-std::pair<Status, std::string> ClientCertConfig::lookupUser(X509* cert) const {
+std::pair<Status, std::string> ClientCertConfig::lookupUser(
+        X509* cert,
+        const std::function<bool(const std::string&)>& exists) const {
     for (const auto& mapping : mappings) {
-        auto ret = mapping->match(cert);
+        auto ret = mapping->match(cert, exists);
         switch (ret.first) {
         case Status::Success:
         case Status::Error:
@@ -252,7 +260,8 @@ std::string ClientCertConfig::Mapping::matchPattern(
 }
 
 std::pair<Status, std::string> ClientCertConfig::Mapping::match(
-        X509* cert) const {
+        X509* cert,
+        const std::function<bool(const std::string&)>& exists) const {
     return std::make_pair(Status::NotPresent, "No mapping defined");
 }
 
@@ -260,18 +269,21 @@ void ClientCertMapper::reconfigure(std::unique_ptr<ClientCertConfig> next) {
     config = std::move(next);
 }
 
-std::pair<Status, std::string> ClientCertMapper::lookupUser(X509* cert) const {
+std::pair<Status, std::string> ClientCertMapper::lookupUser(
+        X509* cert,
+        const std::function<bool(const std::string&)>& exists) const {
     if (cert == nullptr) {
         return std::make_pair(Status::NotPresent,
                               "certificate not presented by client");
     }
 
-    return config.withRLock([cert](auto& c) -> std::pair<Status, std::string> {
-        if (c) {
-            return c->lookupUser(cert);
-        }
-        return std::make_pair(Status::Error, "No database configured");
-    });
+    return config.withRLock(
+            [cert, &exists](auto& c) -> std::pair<Status, std::string> {
+                if (c) {
+                    return c->lookupUser(cert, exists);
+                }
+                return std::make_pair(Status::Error, "No database configured");
+            });
 }
 
 std::string ClientCertMapper::to_string() const {

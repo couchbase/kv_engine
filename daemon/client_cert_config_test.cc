@@ -113,7 +113,8 @@ TEST_F(SslParseCertTest, TestCN_EntireField) {
     ]
 })"_json);
     EXPECT_TRUE(config);
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "testappname");
 }
@@ -130,7 +131,8 @@ TEST_F(SslParseCertTest, TestCN_WithPrefix) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "appname");
 }
@@ -147,7 +149,8 @@ TEST_F(SslParseCertTest, TestCN_WithPrefixAndDelimiter) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "app");
 }
@@ -164,7 +167,8 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndMultipleDelimiters) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "a");
 }
@@ -181,7 +185,8 @@ TEST_F(SslParseCertTest, TestCN_PrefixAndUnknownDelimiters) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "appname");
 }
@@ -198,7 +203,8 @@ TEST_F(SslParseCertTest, TestCN_PrefixMissing) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::NoMatch);
 }
 
@@ -224,7 +230,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_EntireField) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     // We should match the first entry
     ASSERT_EQ(statusPair.second, "urn:li:testurl_1");
@@ -242,7 +249,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithoutDelimiter) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "li:testurl");
 }
@@ -259,7 +267,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_UrnWithDelimiter) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
 
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "li");
@@ -277,7 +286,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_MissingPrefix) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(statusPair.first, cb::x509::Status::NoMatch);
 }
 
@@ -293,7 +303,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
 
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "testapp");
@@ -314,7 +325,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email_With_Domain) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto [status, name] = config->lookupUser(cert.get());
+    auto [status, name] =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
 
     ASSERT_EQ(cb::x509::Status::Success, status);
     ASSERT_EQ("testapp", name);
@@ -336,7 +348,8 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email_With_Domain_which_is_shorter) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto [status, name] = config->lookupUser(cert.get());
+    auto [status, name] =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
 
     ASSERT_EQ(cb::x509::Status::NoMatch, status);
 }
@@ -357,8 +370,35 @@ TEST_F(SslParseCertTest, TestSAN_URI_Email_With_Incorrect_Domain) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto [status, name] = config->lookupUser(cert.get());
+    auto [status, name] =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
     ASSERT_EQ(cb::x509::Status::NoMatch, status);
+}
+
+TEST_F(SslParseCertTest, TestSAN_FirstEntryNotDefined) {
+    // The entry in the cert looks like:
+    // URI.2 = email:testapp@example.com
+    // URI.4 = email:trond..norbye@gmail.com
+    auto config = ClientCertConfig::create(R"({
+    "prefixes": [
+        {
+            "path": "san.uri",
+            "prefix": "email:",
+            "delimiter": "",
+            "suffix" : ".com"
+        }
+    ]
+})"_json);
+    EXPECT_TRUE(config);
+
+    auto [status, name] = config->lookupUser(cert.get(), [](const auto& value) {
+        if (value == "trond.norbye@gmail") {
+            return true;
+        }
+        return false;
+    });
+    ASSERT_EQ(cb::x509::Status::Success, status);
+    ASSERT_EQ("trond.norbye@gmail", name);
 }
 
 TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
@@ -373,7 +413,8 @@ TEST_F(SslParseCertTest, TestSAN_DNS_EntireField) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
 
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "MyServerName");
@@ -446,7 +487,8 @@ TEST_F(SslParseCertTest, TestMatchForMultipleRules) {
 })"_json);
     EXPECT_TRUE(config);
 
-    auto statusPair = config->lookupUser(cert.get());
+    auto statusPair =
+            config->lookupUser(cert.get(), [](const auto&) { return true; });
 
     ASSERT_EQ(statusPair.first, cb::x509::Status::Success);
     ASSERT_EQ(statusPair.second, "MyServerName");
