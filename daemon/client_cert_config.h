@@ -85,7 +85,9 @@ public:
      * @param cert the certificate to pick out the user from
      * @return The status and the username (if found)
      */
-    std::pair<Status, std::string> lookupUser(X509* cert) const;
+    std::pair<Status, std::string> lookupUser(
+            X509* cert,
+            const std::function<bool(const std::string&)>& exists) const;
 
     /**
      * Get a textual representation of this configuration
@@ -103,7 +105,9 @@ public:
         Mapping() = default;
         Mapping(std::string& path_, const nlohmann::json& obj);
         virtual ~Mapping() = default;
-        virtual std::pair<Status, std::string> match(X509* cert) const;
+        virtual std::pair<Status, std::string> match(
+                X509* cert,
+                const std::function<bool(const std::string&)>& exists) const;
 
         std::string matchPattern(const std::string& input) const;
 
@@ -146,9 +150,13 @@ public:
      * Try to look up a username by using the defined mappings
      *
      * @param cert the certificate to pick out the user from
+     * @param exists callback function to check if the user exists in the
+     *               system. Non-existing users will be ignored.
      * @return The status and the username (if found)
      */
-    std::pair<Status, std::string> lookupUser(X509* cert) const;
+    std::pair<Status, std::string> lookupUser(
+            X509* cert,
+            const std::function<bool(const std::string&)>& exists) const;
 
     /**
      * Get a textual representation of this configuration

@@ -499,8 +499,10 @@ public:
         notify_changed("client_cert_auth");
     }
 
-    std::pair<cb::x509::Status, std::string> lookupUser(X509* cert) const {
-        return client_cert_mapper.lookupUser(cert);
+    std::pair<cb::x509::Status, std::string> lookupUser(
+            X509* cert,
+            const std::function<bool(const std::string&)>& exists) const {
+        return client_cert_mapper.lookupUser(cert, exists);
     }
 
     /**

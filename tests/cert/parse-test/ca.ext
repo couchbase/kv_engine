@@ -7,4 +7,5 @@ subjectAltName = @alt_names
 URI.1 = urn:li:testurl_1
 URI.2 = email:testapp@example.com
 URI.3 = couchbase://myuser@mycluster/mybucket
+URI.4 = email:trond.norbye@gmail.com
 DNS.1 = MyServerName
