@@ -7171,6 +7171,7 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
 
     // With MB-62847 this next step throws Monotonic exception.
     notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::DcpMutation);
+    destroy_mock_cookie(cookie);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
