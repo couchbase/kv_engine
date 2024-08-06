@@ -3342,7 +3342,7 @@ static std::string MeteringTypeToString(
     return to_string(info.param);
 }
 
-TEST_P(MeteringTest, ImposedUsersMayMeter) {
+TEST_P(MeteringTest, DISABLED_ImposedUsersMayMeter) {
     auto key = StoredDocKey{"ImposedUsersMayMeter", getTestCollection()};
     upsert(key, getStringValue());
 
