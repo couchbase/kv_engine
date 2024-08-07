@@ -319,10 +319,10 @@ MutationLog::~MutationLog() {
 }
 
 void MutationLog::disable() {
-    if (file >= 0) {
+    if (isOpen()) {
         close();
-        disabled = true;
     }
+    disabled = true;
 }
 
 void MutationLog::newItem(Vbid vbucket, const StoredDocKey& key) {
