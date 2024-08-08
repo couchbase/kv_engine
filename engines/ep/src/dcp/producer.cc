@@ -440,9 +440,11 @@ cb::engine_errc DcpProducer::streamRequest(
         purgeSeqno = 0;
     }
 
+    // Read once as this requires checkpoint lock to obtain
+    const auto highSeqno = gsl::narrow<uint64_t>(vb->getHighSeqno());
     std::pair<bool, std::string> need_rollback =
             vb->failovers->needsRollback(start_seqno,
-                                         vb->getHighSeqno(),
+                                         highSeqno,
                                          vbucket_uuid,
                                          snap_start_seqno,
                                          snap_end_seqno,
@@ -498,7 +500,7 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::out_of_range;
     }
 
-    if (start_seqno > static_cast<uint64_t>(vb->getHighSeqno())) {
+    if (start_seqno > highSeqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the vb highSeqno "
@@ -513,6 +515,41 @@ cb::engine_errc DcpProducer::streamRequest(
                 snap_start_seqno,
                 snap_end_seqno);
         return cb::engine_errc::out_of_range;
+    }
+
+    // The last snapshot marker the client saw might extend past the highSeqno.
+    // This could be due to data loss after failover (client saw just a snapshot
+    // marker before persistence). We do not rollback in this case (and this is
+    // covered by an equivalent check in the rollback logic), but we will ignore
+    // this "invalid" snapEndSeqno as the ActiveStream should not be created
+    // with seqnos past the vBucket high seqno.
+    if (start_seqno == snap_start_seqno && snap_end_seqno > highSeqno) {
+        if (isSeqnoAdvancedEnabled()) {
+            logger->info(
+                    "({}) Stream request start seqno ({}) is at the beginning "
+                    "of a "
+                    "snapshot {{{}, {}}} which extends past the vb highSeqno "
+                    "({}); avoiding rollback and setting snapEndSeqno = {}",
+                    vbucket,
+                    start_seqno,
+                    snap_start_seqno,
+                    snap_end_seqno,
+                    highSeqno,
+                    snap_start_seqno);
+            snap_end_seqno = snap_start_seqno;
+        } else {
+            logger->info(
+                    "({}) Stream request start seqno ({}) is at the beginning "
+                    "of a "
+                    "snapshot {{{}, {}}} which extends past the vb highSeqno "
+                    "({}); allowing to continue",
+                    vbucket,
+                    start_seqno,
+                    snap_start_seqno,
+                    snap_end_seqno,
+                    highSeqno,
+                    snap_start_seqno);
+        }
     }
 
     // Take copy of Filter's streamID, given it will be moved-from when

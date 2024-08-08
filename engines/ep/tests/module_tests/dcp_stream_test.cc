@@ -3214,6 +3214,129 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 }
 
+// When the very first snapshot is to be filtered away (no items to be sent), we
+// send a SnapshotMarker with the snapStartSeqno and snapEndSeqno of the
+// StreamRequest + a SeqnoAdvanced to the snapEndSeqno. This completes the
+// snapshot the consumer is streaming.
+// However, since we apply this logic to the original requested snapshot range,
+// we need to validate that this range does not extend beyond the vBucket
+// highSeqno. The requested range may extend past the vb highSeqno only if the
+// startSeqno and snapStartSeqno are the same (the consumer is a the begninning
+// of a snapshot) in which case we don't rollback (as there is no data to
+// rollback).
+// The consumer may send a range which extends past the highSeqno if it saw a
+// SnapshotMarker before a crash or failover, and the range that was going to be
+// sent with that SnapshotMarker was lost. The consumer is allowed to reconnect
+// with the received SnapshotMarker. This is the case where the consumer
+// reconnects "in the middle" of a snapshot, only "the middle" is actually the
+// start.
+TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
+    // This only applies to connections supporting collections.
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
+    setupProducer({});
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    manager.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
+
+    const uint64_t highSeqno = manager.getHighSeqno();
+    const uint64_t snapStartSeqno = highSeqno;
+    const uint64_t snapEndSeqno = highSeqno + 1;
+    uint64_t rollbackSeqno;
+
+    // Sanity checks
+    ASSERT_EQ(cb::engine_errc::out_of_range,
+              producer->streamRequest(0,
+                                      0,
+                                      vbid,
+                                      snapStartSeqno,
+                                      ~0,
+                                      vb.failovers->getLatestUUID(),
+                                      snapEndSeqno,
+                                      snapEndSeqno,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+    ASSERT_EQ(cb::engine_errc::rollback,
+              producer->streamRequest(0,
+                                      0,
+                                      vbid,
+                                      snapEndSeqno,
+                                      ~0,
+                                      vb.failovers->getLatestUUID(),
+                                      snapEndSeqno,
+                                      snapEndSeqno,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+
+    // Succeed with highSeqno == startSeqno == snapStartSeqno but snapEndSeqno
+    // "in the future".
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(0,
+                                      0,
+                                      vbid,
+                                      highSeqno,
+                                      ~0,
+                                      vb.failovers->getLatestUUID(),
+                                      snapStartSeqno,
+                                      snapEndSeqno,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+
+    auto stream = producer->findStream(vbid);
+    EXPECT_EQ(highSeqno, stream->getSnapEndSeqno())
+            << "Expected that the snapEndSeqno is ignored";
+}
+
+// We decided to not apply the logic tested by ConsumerSnapEndLimitedByHighSeqno
+// to replication streams.
+TEST_P(SingleThreadedActiveStreamTest,
+       ConsumerSnapEndLimitedByHighSeqno_Replication) {
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(false);
+    setupProducer({});
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    manager.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
+
+    const uint64_t highSeqno = manager.getHighSeqno();
+    const uint64_t snapStartSeqno = highSeqno;
+    const uint64_t snapEndSeqno = highSeqno + 1;
+    uint64_t rollbackSeqno;
+
+    // Succeed with highSeqno == startSeqno == snapStartSeqno but snapEndSeqno
+    // "in the future".
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(0,
+                                      0,
+                                      vbid,
+                                      highSeqno,
+                                      ~0,
+                                      vb.failovers->getLatestUUID(),
+                                      snapStartSeqno,
+                                      snapEndSeqno,
+                                      &rollbackSeqno,
+                                      mock_dcp_add_failover_log,
+                                      {}));
+
+    auto stream = producer->findStream(vbid);
+    EXPECT_EQ(snapEndSeqno, stream->getSnapEndSeqno())
+            << "Expected that the snapEndSeqno is preserved when SeqnoAdvanced "
+               "is not available";
+}
+
 // MB-37468: A stepping producer that has found no items (backfill fully
 // processed can race with a completing backfill in such a way that we fail to
 // notify the producer that the stream needs further processing. This causes us
