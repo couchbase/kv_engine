@@ -54,7 +54,7 @@ TEST_F(SetCollectionsValidator, InvalidCas) {
 }
 
 TEST_F(SetCollectionsValidator, InvalidDatatype) {
-    request.setDatatype(cb::mcbp::Datatype(1));
+    request.setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 

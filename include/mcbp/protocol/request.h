@@ -98,7 +98,11 @@ public:
     uint8_t getExtlen() const;
 
     void setDatatype(Datatype datatype_) {
-        datatype = uint8_t(datatype_);
+        datatype = static_cast<uint8_t>(datatype_);
+    }
+
+    void setDatatype(protocol_binary_datatype_t datatype_) {
+        datatype = datatype_;
     }
 
     Datatype getDatatype() const {

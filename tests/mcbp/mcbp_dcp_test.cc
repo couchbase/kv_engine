@@ -576,7 +576,7 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
              uint8_t(Datatype::Xattr),
              uint8_t(Datatype::Xattr) | uint8_t(Datatype::Snappy)}};
     for (auto valid : datatypes) {
-        header.setDatatype(Datatype(valid));
+        header.setDatatype(valid);
 
         std::string_view value = "My value"sv;
         cb::xattr::Blob blob;
@@ -607,7 +607,7 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
              uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON)}};
 
     for (auto invalid : datatypes) {
-        header.setDatatype(Datatype(invalid));
+        header.setDatatype(invalid);
 
         std::string_view value = R"({"foo":"bar"})"sv;
         cb::compression::Buffer deflated;

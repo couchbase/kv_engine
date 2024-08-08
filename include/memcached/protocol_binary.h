@@ -1003,7 +1003,7 @@ public:
         req.setOpaque(opaque);
         req.setVBucket(vbucket);
         req.setCas(cas);
-        req.setDatatype(cb::mcbp::Datatype(datatype));
+        req.setDatatype(datatype);
     }
 
 protected:
@@ -1071,7 +1071,7 @@ public:
         req.setOpaque(opaque);
         req.setVBucket(vbucket);
         req.setCas(cas);
-        req.setDatatype(cb::mcbp::Datatype(datatype));
+        req.setDatatype(datatype);
     }
 
 protected:

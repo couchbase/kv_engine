@@ -34,7 +34,7 @@ unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
     builder.setOpcode(opcode);
     builder.setVBucket(vbid);
     builder.setCas(cas);
-    builder.setDatatype(cb::mcbp::Datatype(datatype));
+    builder.setDatatype(datatype);
     builder.setExtras(
             {reinterpret_cast<const uint8_t*>(ext.data()), ext.size()});
     builder.setKey({reinterpret_cast<const uint8_t*>(key.data()), key.size()});

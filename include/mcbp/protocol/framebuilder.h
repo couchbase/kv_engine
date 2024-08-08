@@ -91,6 +91,10 @@ public:
         getFrame()->setDatatype(datatype);
     }
 
+    void setDatatype(protocol_binary_datatype_t datatype) {
+        getFrame()->setDatatype(datatype);
+    }
+
     void setVBucket(Vbid value) {
         getFrame()->setVBucket(value);
     }

@@ -531,7 +531,7 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
 
     builder.setMagic(cb::mcbp::Magic::AltClientRequest);
     builder.setOpcode(opcode);
-    builder.setDatatype(cb::mcbp::Datatype(datatype));
+    builder.setDatatype(datatype);
     builder.setVBucket(vbucket);
     builder.setOpaque(opaque);
     builder.setCas(cas);

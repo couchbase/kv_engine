@@ -175,8 +175,8 @@ TEST_P(SubdocMultiLookupTest, InvalidDatatype) {
     header->setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
-    header->setDatatype(cb::mcbp::Datatype(PROTOCOL_BINARY_DATATYPE_SNAPPY |
-                                           PROTOCOL_BINARY_DATATYPE_JSON));
+    header->setDatatype(PROTOCOL_BINARY_DATATYPE_SNAPPY |
+                        PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
     header->setDatatype(cb::mcbp::Datatype::Snappy);
@@ -425,8 +425,8 @@ TEST_P(SubdocMultiMutationTest, InvalidDatatype) {
     header->setDatatype(cb::mcbp::Datatype::JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
-    header->setDatatype(cb::mcbp::Datatype(PROTOCOL_BINARY_DATATYPE_SNAPPY |
-                                           PROTOCOL_BINARY_DATATYPE_JSON));
+    header->setDatatype(PROTOCOL_BINARY_DATATYPE_SNAPPY |
+                        PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(payload));
     EXPECT_EQ("Request datatype invalid", validate_error_context(payload));
     header->setDatatype(cb::mcbp::Datatype::Snappy);

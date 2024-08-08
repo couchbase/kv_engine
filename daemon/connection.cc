@@ -1443,7 +1443,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     response.setOpcode(request.getClientOpcode());
     response.setKeylen(gsl::narrow_cast<uint16_t>(key_len));
     response.setExtlen(gsl::narrow_cast<uint8_t>(extras_len));
-    response.setDatatype(cb::mcbp::Datatype(datatype));
+    response.setDatatype(datatype);
     response.setStatus(status);
     response.setOpaque(request.getOpaque());
     response.setCas(cookie.getCas());
@@ -1824,7 +1824,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
-        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+        builder.setDatatype(it->getDataType());
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
@@ -1846,7 +1846,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(it->getCas());
-    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+    req.setDatatype(it->getDataType());
 
     if (sid) {
         req.setFramingExtraslen(sizeof(cb::mcbp::DcpStreamIdFrameInfo));
@@ -1938,7 +1938,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
-        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+        builder.setDatatype(it->getDataType());
 
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
@@ -1967,7 +1967,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(it->getCas());
-    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+    req.setDatatype(it->getDataType());
 
     auto* ptr = blob.data() + sizeof(Request);
     if (sid) {
@@ -2028,7 +2028,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
-        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+        builder.setDatatype(it->getDataType());
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
@@ -2058,7 +2058,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(it->getCas());
-    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+    req.setDatatype(it->getDataType());
     auto size = sizeof(cb::mcbp::Request);
     auto* ptr = blob.data() + size;
     if (sid) {
@@ -2117,7 +2117,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
-        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+        builder.setDatatype(it->getDataType());
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
@@ -2147,7 +2147,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(it->getCas());
-    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+    req.setDatatype(it->getDataType());
     auto size = sizeof(cb::mcbp::Request);
     auto* ptr = blob.data() + size;
     if (sid) {
@@ -2311,7 +2311,7 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
         builder.setOpaque(opaque);
         builder.setVBucket(vbucket);
         builder.setCas(it->getCas());
-        builder.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+        builder.setDatatype(it->getDataType());
         builder.setValue(buffer);
         return add_packet_to_send_pipe(builder.getFrame()->getFrame());
     }
@@ -2326,7 +2326,7 @@ cb::engine_errc Connection::prepare(uint32_t opaque,
     req.setOpaque(opaque);
     req.setVBucket(vbucket);
     req.setCas(it->getCas());
-    req.setDatatype(cb::mcbp::Datatype(it->getDataType()));
+    req.setDatatype(it->getDataType());
 
     try {
         if (buffer.size() > SendBuffer::MinimumDataSize) {

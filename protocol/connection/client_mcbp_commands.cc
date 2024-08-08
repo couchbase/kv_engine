@@ -60,7 +60,7 @@ void BinprotCommand::fillHeader(cb::mcbp::Request& header,
     // that at a later time
     header.setKeylen(gsl::narrow<uint8_t>(key.size()));
     header.setExtlen(gsl::narrow<uint8_t>(extlen));
-    header.setDatatype(cb::mcbp::Datatype(datatype));
+    header.setDatatype(datatype);
     header.setVBucket(vbucket);
     header.setBodylen(gsl::narrow<uint32_t>(key.size() + extlen + payload_len +
                                             frame_info.size()));
@@ -1830,7 +1830,7 @@ void BinprotDcpMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
 
     writeHeader(buf, value_size, sizeof(cb::mcbp::request::DcpMutationPayload));
     auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
-    header->setDatatype(cb::mcbp::Datatype(datatype));
+    header->setDatatype(datatype);
 
     cb::mcbp::request::DcpMutationPayload payload;
     payload.setBySeqno(bySeqno);
@@ -1922,7 +1922,7 @@ void BinprotDcpDeletionV2Command::encodeHeader(
     writeHeader(
             buf, value_size, sizeof(cb::mcbp::request::DcpDeletionV2Payload));
     auto* header = reinterpret_cast<cb::mcbp::Request*>(buf.data());
-    header->setDatatype(cb::mcbp::Datatype(datatype));
+    header->setDatatype(datatype);
 
     cb::mcbp::request::DcpDeletionV2Payload payload{
             bySeqno, revSeqno, deleteTime};

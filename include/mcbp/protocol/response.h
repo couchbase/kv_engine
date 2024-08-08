@@ -124,7 +124,11 @@ public:
     }
 
     void setDatatype(Datatype datatype) {
-        Response::datatype = uint8_t(datatype);
+        Response::datatype = static_cast<uint8_t>(datatype);
+    }
+
+    void setDatatype(protocol_binary_datatype_t datatype_) {
+        datatype = datatype_;
     }
 
     Datatype getDatatype() const {
