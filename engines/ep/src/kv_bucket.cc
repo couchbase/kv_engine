@@ -1397,6 +1397,8 @@ void KVBucket::appendAggregatedVBucketStats(
                          visitor.getSyncWriteAcceptedCount());
         stateCol.addStat(Key::vb_sync_write_committed_count,
                          visitor.getSyncWriteCommittedCount());
+        stateCol.addStat(Key::vb_sync_write_committed_not_durable_count,
+                         visitor.getSyncWriteCommittedNotDurableCount());
         stateCol.addStat(Key::vb_sync_write_aborted_count,
                          visitor.getSyncWriteAbortedCount());
     }

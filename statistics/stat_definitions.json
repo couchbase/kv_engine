@@ -3425,8 +3425,18 @@
         "prometheus": {
             "family": "vb_sync_write_committed_count"
         },
-        "description": "Total number of comitted SyncWrites",
+        "description": "Total number of all committed SyncWrites (includes vb_sync_write_committed_not_durable_count)",
         "added": "7.0.0"
+    },
+    {
+        "key": "vb_sync_write_committed_not_durable_count",
+        "unit": "none",
+        "cbstat": "vb_{state}_sync_write_committed_not_durable_count",
+        "prometheus": {
+            "family": "vb_sync_write_committed_not_durable_count"
+        },
+        "description": "Total number of SyncWrites which could not be written durably, but were committed because the fallback was enabled (see durability_impossible_fallback)",
+        "added": "8.0.0"
     },
     {
         "key": "vb_sync_write_aborted_count",

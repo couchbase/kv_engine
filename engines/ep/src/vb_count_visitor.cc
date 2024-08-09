@@ -91,6 +91,8 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
 
         syncWriteAcceptedCount += vb.getSyncWriteAcceptedCount();
         syncWriteCommittedCount += vb.getSyncWriteCommittedCount();
+        syncWriteCommittedNotDurableCount +=
+                vb.getSyncWriteCommittedNotDurableCount();
         syncWriteAbortedCount += vb.getSyncWriteAbortedCount();
 
         maxHistoryDiskSize =

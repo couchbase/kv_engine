@@ -4064,8 +4064,7 @@ TEST_P(DurabilityBucketTest, CommitFallbackToMasterOnly) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     vb->processResolvedSyncWrites();
 
-    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
-    EXPECT_EQ(1, adm.getNumCommittedNotDurable())
+    EXPECT_EQ(1, vb->getSyncWriteCommittedNotDurableCount())
             << "Expected the SyncWrite to be committed non-durably";
 }
 
@@ -4089,8 +4088,7 @@ TEST_P(DurabilityBucketTest, CommitFallbackToMasterOnlyTwoChains) {
                                     item->getBySeqno()));
     vb->processResolvedSyncWrites();
 
-    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
-    EXPECT_EQ(1, adm.getNumCommittedNotDurable())
+    EXPECT_EQ(1, vb->getSyncWriteCommittedNotDurableCount())
             << "Expected the SyncWrite to be committed non-durably when one "
                "chain does not support durability.";
 }

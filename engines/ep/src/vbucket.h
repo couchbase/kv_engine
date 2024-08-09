@@ -363,10 +363,16 @@ public:
     size_t getSyncWriteAcceptedCount() const;
 
     /**
-     * @returns the cumulative number of SyncWrite operations Committed
+     * @returns the cumulative number of all SyncWrite operations Committed
      * (successfully completed) for this vbucket.
      */
     size_t getSyncWriteCommittedCount() const;
+
+    /**
+     * @returns the cumulative number of SyncWrite operations Committed
+     * without being made durable (due to fallback) for this vbucket.
+     */
+    size_t getSyncWriteCommittedNotDurableCount() const;
 
     /**
      * @returns the cumulative number of SyncWrite operations Aborted

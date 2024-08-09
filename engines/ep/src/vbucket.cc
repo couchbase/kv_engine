@@ -433,6 +433,14 @@ size_t VBucket::getSyncWriteCommittedCount() const {
     return durabilityMonitor->getNumCommitted();
 }
 
+size_t VBucket::getSyncWriteCommittedNotDurableCount() const {
+    folly::SharedMutex::ReadHolder lh(stateLock);
+    if (!durabilityMonitor) {
+        return 0;
+    }
+    return durabilityMonitor->getNumCommittedNotDurable();
+}
+
 size_t VBucket::getSyncWriteAbortedCount() const {
     std::shared_lock<folly::SharedMutex> lh(
             const_cast<folly::SharedMutex&>(stateLock));
@@ -3296,6 +3304,10 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
                 c);
         addStat("sync_write_committed_count",
                 getSyncWriteCommittedCount(),
+                add_stat,
+                c);
+        addStat("sync_write_committed_not_durable_count",
+                getSyncWriteCommittedNotDurableCount(),
                 add_stat,
                 c);
         addStat("sync_write_aborted_count",

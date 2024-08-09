@@ -378,75 +378,77 @@ For introductory information on stats within Couchbase, start with the
 
 *** Active vBucket class stats
 
-| Stat                                     | Description                                |
-|------------------------------------------+--------------------------------------------|
-| vb_active_num                            | Number of active vBuckets                  |
-| vb_active_curr_items                     | Number of active non-deleted items         |
-| vb_active_num_non_resident               | Number of non-resident items               |
-| vb_active_perc_mem_resident              | % memory resident                          |
-| vb_active_eject                          | Number of times item values got ejected    |
-| vb_active_expired                        | Number of times an item was expired        |
-| vb_active_ht_memory                      | Memory overhead of the hashtable           |
-| vb_active_ht_memory_overhead             | Memory overhead of the hashtable           |
-| vb_active_itm_memory                     | Total memory of all items in active        |
-|                                          | vBuckets (StoredValue + key + value Blob)  |
-| vb_active_meta_data_memory               | Metadata memory of all items in active     |
-|                                          | vBuckets (StoredValue + key)               |
-| vb_active_meta_data_disk                 | Total metadata disk                        |
-| vb_active_checkpoint_memory              | Memory of active items in all checkpoints  |
-| vb_active_checkpoint_memory_overhead     | Memory of all active checkpoints structures|
-| vb_active_ops_create                     | Number of create operations                |
-| vb_active_ops_update                     | Number of update operations                |
-| vb_active_ops_delete                     | Number of delete operations                |
-| vb_active_ops_reject                     | Number of rejected operations              |
-| vb_active_queue_size                     | Active items in disk queue                 |
-| vb_active_backfill_queue_size            | Items in active vbucket backfill queue     |
-| vb_active_queue_memory                   | Memory used for disk queue                 |
-| vb_active_queue_age                      | Sum of disk queue item age in milliseconds |
-| vb_active_queue_pending                  | Total bytes of pending writes              |
-| vb_active_queue_fill                     | Total enqueued items                       |
-| vb_active_queue_drain                    | Total drained items                        |
-| vb_active_rollback_item_count            | Num of items rolled back                   |
-| vb_active_sync_write_accepted_count      | Number of SyncWrites accepted              |
-| vb_active_sync_write_committed_count     | Number of SyncWrites committed             |
-| vb_active_sync_write_aborted_count       | Number of SyncWrites aborted               |
-| vb_active_hp_vb_req_size                 | Num of async high priority requests        |
+| Stat                                             | Description                                                   |
+|--------------------------------------------------+---------------------------------------------------------------|
+| vb_active_num                                    | Number of active vBuckets                                     |
+| vb_active_curr_items                             | Number of active non-deleted items                            |
+| vb_active_num_non_resident                       | Number of non-resident items                                  |
+| vb_active_perc_mem_resident                      | % memory resident                                             |
+| vb_active_eject                                  | Number of times item values got ejected                       |
+| vb_active_expired                                | Number of times an item was expired                           |
+| vb_active_ht_memory                              | Memory overhead of the hashtable                              |
+| vb_active_ht_memory_overhead                     | Memory overhead of the hashtable                              |
+| vb_active_itm_memory                             | Total memory of all items in active                           |
+|                                                  | vBuckets (StoredValue + key + value Blob)                     |
+| vb_active_meta_data_memory                       | Metadata memory of all items in active                        |
+|                                                  | vBuckets (StoredValue + key)                                  |
+| vb_active_meta_data_disk                         | Total metadata disk                                           |
+| vb_active_checkpoint_memory                      | Memory of active items in all checkpoints                     |
+| vb_active_checkpoint_memory_overhead             | Memory of all active checkpoints structures                   |
+| vb_active_ops_create                             | Number of create operations                                   |
+| vb_active_ops_update                             | Number of update operations                                   |
+| vb_active_ops_delete                             | Number of delete operations                                   |
+| vb_active_ops_reject                             | Number of rejected operations                                 |
+| vb_active_queue_size                             | Active items in disk queue                                    |
+| vb_active_backfill_queue_size                    | Items in active vbucket backfill queue                        |
+| vb_active_queue_memory                           | Memory used for disk queue                                    |
+| vb_active_queue_age                              | Sum of disk queue item age in milliseconds                    |
+| vb_active_queue_pending                          | Total bytes of pending writes                                 |
+| vb_active_queue_fill                             | Total enqueued items                                          |
+| vb_active_queue_drain                            | Total drained items                                           |
+| vb_active_rollback_item_count                    | Num of items rolled back                                      |
+| vb_active_sync_write_accepted_count              | Number of SyncWrites accepted                                 |
+| vb_active_sync_write_committed_count             | Number of SyncWrites committed                                |
+| vb_active_sync_write_committed_not_durable_count | Number of SyncWrites committed without replica ack (fallback) |
+| vb_active_sync_write_aborted_count               | Number of SyncWrites aborted                                  |
+| vb_active_hp_vb_req_size                         | Num of async high priority requests                           |
 
 *** Replica vBucket stats
 
-| Stat                                      | Description                                 |
-|-------------------------------------------+---------------------------------------------|
-| vb_replica_num                            | Number of replica vBuckets                  |
-| vb_replica_curr_items                     | Number of replica non-deleted items         |
-| vb_replica_num_non_resident               | Number of non-resident items                |
-| vb_replica_perc_mem_resident              | % memory resident                           |
-| vb_replica_eject                          | Number of times item values got ejected     |
-| vb_replica_expired                        | Number of times an item was expired         |
-| vb_replica_ht_memory                      | Memory overhead of the hashtable            |
-| vb_replica_ht_memory_overhead             | Memory overhead of the hashtable            |
-| vb_replica_itm_memory                     | Total memory of all items in replica        |
-|                                           | vBuckets (StoredValue + key + value Blob)   |
-| vb_replica_meta_data_memory               | Metadata memory of all items in replica     |
-|                                           | vBuckets (StoredValue + key)                |
-| vb_replica_meta_data_disk                 | Total metadata disk                         |
-| vb_replica_checkpoint_memory              | Memory of replica items in all checkpoints  |
-| vb_replica_checkpoint_memory_overhead     | Memory of all replica checkpoints structures|
-| vb_replica_ops_create                     | Number of create operations                 |
-| vb_replica_ops_update                     | Number of update operations                 |
-| vb_replica_ops_delete                     | Number of delete operations                 |
-| vb_replica_ops_reject                     | Number of rejected operations               |
-| vb_replica_queue_size                     | Replica items in disk queue                 |
-| vb_replica_backfill_queue_size            | Items in replica vbucket backfill queue     |
-| vb_replica_queue_memory                   | Memory used for disk queue                  |
-| vb_replica_queue_age                      | Sum of disk queue item age in milliseconds  |
-| vb_replica_queue_pending                  | Total bytes of pending writes               |
-| vb_replica_queue_fill                     | Total enqueued items                        |
-| vb_replica_queue_drain                    | Total drained items                         |
-| vb_replica_rollback_item_count            | Num of items rolled back                    |
-| vb_replica_sync_write_accepted_count      | Number of SyncWrites accepted               |
-| vb_replica_sync_write_committed_count     | Number of SyncWrites committed              |
-| vb_replica_sync_write_aborted_count       | Number of SyncWrites aborted                |
-| vb_replica_hp_vb_req_size                 | Num of async high priority requests         |
+| Stat                                              | Description                                                   |
+|---------------------------------------------------+---------------------------------------------------------------|
+| vb_replica_num                                    | Number of replica vBuckets                                    |
+| vb_replica_curr_items                             | Number of replica non-deleted items                           |
+| vb_replica_num_non_resident                       | Number of non-resident items                                  |
+| vb_replica_perc_mem_resident                      | % memory resident                                             |
+| vb_replica_eject                                  | Number of times item values got ejected                       |
+| vb_replica_expired                                | Number of times an item was expired                           |
+| vb_replica_ht_memory                              | Memory overhead of the hashtable                              |
+| vb_replica_ht_memory_overhead                     | Memory overhead of the hashtable                              |
+| vb_replica_itm_memory                             | Total memory of all items in replica                          |
+|                                                   | vBuckets (StoredValue + key + value Blob)                     |
+| vb_replica_meta_data_memory                       | Metadata memory of all items in replica                       |
+|                                                   | vBuckets (StoredValue + key)                                  |
+| vb_replica_meta_data_disk                         | Total metadata disk                                           |
+| vb_replica_checkpoint_memory                      | Memory of replica items in all checkpoints                    |
+| vb_replica_checkpoint_memory_overhead             | Memory of all replica checkpoints structures                  |
+| vb_replica_ops_create                             | Number of create operations                                   |
+| vb_replica_ops_update                             | Number of update operations                                   |
+| vb_replica_ops_delete                             | Number of delete operations                                   |
+| vb_replica_ops_reject                             | Number of rejected operations                                 |
+| vb_replica_queue_size                             | Replica items in disk queue                                   |
+| vb_replica_backfill_queue_size                    | Items in replica vbucket backfill queue                       |
+| vb_replica_queue_memory                           | Memory used for disk queue                                    |
+| vb_replica_queue_age                              | Sum of disk queue item age in milliseconds                    |
+| vb_replica_queue_pending                          | Total bytes of pending writes                                 |
+| vb_replica_queue_fill                             | Total enqueued items                                          |
+| vb_replica_queue_drain                            | Total drained items                                           |
+| vb_replica_rollback_item_count                    | Num of items rolled back                                      |
+| vb_replica_sync_write_accepted_count              | Number of SyncWrites accepted                                 |
+| vb_replica_sync_write_committed_count             | Number of SyncWrites committed                                |
+| vb_replica_sync_write_committed_not_durable_count | Number of SyncWrites committed without replica ack (fallback) |
+| vb_replica_sync_write_aborted_count               | Number of SyncWrites aborted                                  |
+| vb_replica_hp_vb_req_size                         | Num of async high priority requests                           |
 
 *** Pending vBucket stats
 

@@ -199,6 +199,10 @@ public:
         return syncWriteCommittedCount;
     }
 
+    size_t getSyncWriteCommittedNotDurableCount() const {
+        return syncWriteCommittedNotDurableCount;
+    }
+
     size_t getSyncWriteAbortedCount() const {
         return syncWriteAbortedCount;
     }
@@ -264,6 +268,7 @@ private:
     HLC::DriftExceptions totalHLCDriftExceptionCounters;
     size_t syncWriteAcceptedCount{0};
     size_t syncWriteCommittedCount{0};
+    size_t syncWriteCommittedNotDurableCount{0};
     size_t syncWriteAbortedCount{0};
     int64_t logicalDiskSize{0};
     uint64_t maxHistoryDiskSize{0};
