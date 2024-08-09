@@ -149,9 +149,11 @@ bool Cookie::doExecute() {
             "Cookie::doExecute(): Executing while ewouldblock is true could "
             "result in a background task notifying while executing.");
 
-    if (euid && !euidPrivilegeContext) {
+    if (euid && !euidPrivilegeContext && !connection.isInternal()) {
         // We're supposed to run as a different user, but we don't
         // have the privilege set configured yet...
+        // Internal services perform the access checks by using cbauth
+        // before running impersonate
         if (!fetchEuidPrivilegeSet()) {
             // we failed  to fetch the access privileges for the requested user
             audit_command_access_failed(*this);

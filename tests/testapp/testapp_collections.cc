@@ -58,7 +58,7 @@ protected:
 
         if (!admin) {
             admin = adminConnection->clone();
-            admin->authenticate("@admin");
+            admin->authenticate("almighty");
             admin->setFeature(Feature::Collections, true);
             admin->selectBucket(bucketName);
         }
