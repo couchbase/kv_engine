@@ -1705,6 +1705,18 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "durability_impossible_fallback": {
+            "default": "disabled",
+            "descr": "Allows SyncWrites to be committed when there are no replicas available to acknowledge the writes (a scenario which otherwise results in DurabilityImpossible).",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "disabled",
+                    "fallback_to_master_ack"
+                ]
+            }
+        },
         "time_synchronization": {
             "default": "disabled",
             "descr": "No longer supported. This config parameter has no effect.",

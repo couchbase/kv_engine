@@ -4027,6 +4027,74 @@ TEST_P(DurabilityBucketTest, GetAndGetReplicaDontHonorStates) {
     checkReplicaValue(key, "value", options);
 }
 
+/// Allow fallback but make sure we don't apply the fallback logic to the 0
+/// replicas case, where majority=1 and we commit on the active only by design.
+TEST_P(DurabilityBucketTest, CommitNoFallbackToMasterOnly) {
+    using namespace cb::durability;
+    setVBucketToActiveWithValidTopology(nlohmann::json::array({{"active"}}));
+
+    auto vb = store->getVBucket(vbid);
+    vb->setDurabilityImpossibleFallback(
+            std::shared_lock(vb->getStateLock()),
+            cb::config::DurabilityImpossibleFallback::FallbackToMasterAck);
+
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, {}, {Level::Majority, Timeout(10000)});
+
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    vb->processResolvedSyncWrites();
+
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookie))
+            << "Expected the SyncWrite to be committed durably";
+}
+
+TEST_P(DurabilityBucketTest, CommitFallbackToMasterOnly) {
+    using namespace cb::durability;
+    setVBucketToActiveWithValidTopology(
+            nlohmann::json::array({{"active", nullptr}}));
+
+    auto vb = store->getVBucket(vbid);
+    vb->setDurabilityImpossibleFallback(
+            std::shared_lock(vb->getStateLock()),
+            cb::config::DurabilityImpossibleFallback::FallbackToMasterAck);
+
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, {}, {Level::Majority, Timeout(10000)});
+
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    vb->processResolvedSyncWrites();
+
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
+    EXPECT_EQ(1, adm.getNumCommittedNotDurable())
+            << "Expected the SyncWrite to be committed non-durably";
+}
+
+TEST_P(DurabilityBucketTest, CommitFallbackToMasterOnlyTwoChains) {
+    using namespace cb::durability;
+    setVBucketToActiveWithValidTopology(nlohmann::json::array(
+            {{"active", nullptr}, {"active", "replica1"}}));
+
+    auto vb = store->getVBucket(vbid);
+    vb->setDurabilityImpossibleFallback(
+            std::shared_lock(vb->getStateLock()),
+            cb::config::DurabilityImpossibleFallback::FallbackToMasterAck);
+
+    auto key = makeStoredDocKey("key");
+    auto item = makePendingItem(key, {}, {Level::Majority, Timeout(10000)});
+
+    ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+    EXPECT_EQ(cb::engine_errc::success,
+              vb->seqnoAcknowledged(std::shared_lock(vb->getStateLock()),
+                                    "replica1",
+                                    item->getBySeqno()));
+    vb->processResolvedSyncWrites();
+
+    auto& adm = VBucketTestIntrospector::public_getActiveDM(*vb);
+    EXPECT_EQ(1, adm.getNumCommittedNotDurable())
+            << "Expected the SyncWrite to be committed non-durably when one "
+               "chain does not support durability.";
+}
+
 // If a vbucket is changed from active when there are SyncWrites which have been
 // resolved (i.e. we have decided to commit / abort) but *not* yet completed,
 // then we need to put them back into trackedWrites. Previously we would

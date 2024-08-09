@@ -38,6 +38,9 @@ friend class Warmup;
             : map(vbucketMap) {
         }
 
+        void stringValueChanged(std::string_view key,
+                                const char* value) override;
+
         void sizeValueChanged(std::string_view key, size_t value) override;
 
     private:
@@ -132,6 +135,13 @@ public:
     void setHLCDriftAheadThreshold(std::chrono::microseconds threshold);
     void setHLCDriftBehindThreshold(std::chrono::microseconds threshold);
     void setHLCMaxFutureThreshold(std::chrono::microseconds threshold);
+
+    /**
+     * Dynamic configuration for the
+     * durability_impossible_fallback parameter.
+     */
+    void setDurabilityImpossibleFallback(
+            cb::config::DurabilityImpossibleFallback fallback);
 
     /**
      * Decrement the vb count for the given state.

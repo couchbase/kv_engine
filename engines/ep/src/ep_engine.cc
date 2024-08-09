@@ -670,6 +670,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setBackfillMemThreshold(std::stoull(val));
         } else if (key == "durability_min_level") {
             configuration.setDurabilityMinLevel(val);
+        } else if (key == "durability_impossible_fallback") {
+            configuration.setDurabilityImpossibleFallback(val);
         } else if (key == "mutation_mem_ratio") {
             configuration.setMutationMemRatio(std::stof(val));
         } else if (key == "timing_log") {

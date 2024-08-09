@@ -11,6 +11,7 @@
 
 #include "vbucketmap.h"
 #include "bucket_logger.h"
+#include "configuration_types.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "vbucket.h"
@@ -77,6 +78,9 @@ VBucketMap::VBucketMap(KVBucket& bucket)
             std::make_unique<VBucketConfigChangeListener>(*this));
     config.addValueChangedListener(
             "hlc_max_future_threshold_us",
+            std::make_unique<VBucketConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "durability_impossible_fallback",
             std::make_unique<VBucketConfigChangeListener>(*this));
 }
 
@@ -174,6 +178,26 @@ void VBucketMap::setHLCMaxFutureThreshold(std::chrono::microseconds threshold) {
         if (vb) {
             vb->setHLCMaxFutureThreshold(threshold);
         }
+    }
+}
+
+void VBucketMap::setDurabilityImpossibleFallback(
+        cb::config::DurabilityImpossibleFallback fallback) {
+    for (size_t id = 0; id < size; id++) {
+        auto vb = getBucket(Vbid(id));
+        if (vb) {
+            std::shared_lock rlh(vb->getStateLock());
+            vb->setDurabilityImpossibleFallback(rlh, fallback);
+        }
+    }
+}
+
+void VBucketMap::VBucketConfigChangeListener::stringValueChanged(
+        std::string_view key, const char* value) {
+    if (key == "durability_impossible_fallback") {
+        cb::config::DurabilityImpossibleFallback fallback;
+        from_string(fallback, value);
+        map.setDurabilityImpossibleFallback(fallback);
     }
 }
 

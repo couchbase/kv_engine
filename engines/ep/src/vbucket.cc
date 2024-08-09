@@ -51,6 +51,7 @@
 #include <functional>
 #include <list>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -235,6 +236,7 @@ VBucket::VBucket(Vbid i,
       metaDataDisk(0),
       numExpiredItems(0),
       maxAllowedReplicasForSyncWrites(config.getSyncWritesMaxAllowedReplicas()),
+      durabilityImpossibleFallback(config.getDurabilityImpossibleFallback()),
       eviction(evictionPolicy),
       stats(st),
       persistenceSeqno(0),
@@ -287,7 +289,7 @@ VBucket::VBucket(Vbid i,
     stats.coreLocal.get()->memOverhead +=
             sizeof(VBucket) - sizeof(HashTable) + sizeof(CheckpointManager);
 
-    setupSyncReplication(replTopology);
+    setupSyncReplication(std::shared_lock(stateLock), replTopology);
 
     EP_LOG_INFO(
             "VBucket: created {} with state:{} initialState:{} lastSeqno:{} "
@@ -389,6 +391,28 @@ size_t VBucket::getCMMemFreedByItemExpel() const {
 
 size_t VBucket::getCMMemFreedByRemoval() const {
     return checkpointManager->getMemFreedByCheckpointRemoval();
+}
+
+static DurabilityMonitor::CommitStrategy getCommitStrategy(
+        cb::config::DurabilityImpossibleFallback fallback) {
+    using namespace cb::config;
+    using Strategy = DurabilityMonitor::CommitStrategy;
+    switch (fallback) {
+    case DurabilityImpossibleFallback::Disabled:
+        return Strategy::MajorityAck;
+    case DurabilityImpossibleFallback::FallbackToMasterAck:
+        return Strategy::MajorityAckFallbackToMasterAckOnly;
+    }
+    folly::assume_unreachable();
+}
+
+void VBucket::setDurabilityImpossibleFallback(
+        VBucketStateLockRef vbStateLock,
+        cb::config::DurabilityImpossibleFallback fallback) {
+    durabilityImpossibleFallback = fallback;
+
+    const auto newStrategy = getCommitStrategy(fallback);
+    getActiveDM().setAndProcessCommitStrategy(newStrategy);
 }
 
 size_t VBucket::getSyncWriteAcceptedCount() const {
@@ -649,7 +673,7 @@ void VBucket::setState_UNLOCKED(
 
     state = to;
 
-    setupSyncReplication(meta ? &meta->at("topology") : nullptr);
+    setupSyncReplication(vbStateLock, meta ? &meta->at("topology") : nullptr);
 
     updateStatsForStateChange(oldstate, to);
 }
@@ -667,7 +691,8 @@ std::string VBucket::getReplicationTopology() const {
     return *replicationTopology.rlock();
 }
 
-void VBucket::setupSyncReplication(const nlohmann::json* topology) {
+void VBucket::setupSyncReplication(VBucketStateLockRef vbStateLock,
+                                   const nlohmann::json* topology) {
     // First, update the Replication Topology in VBucket
     if (topology) {
         if (state != vbucket_state_active) {
@@ -731,6 +756,8 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
         if (topology) {
             getActiveDM().setReplicationTopology(*topology);
         }
+        setDurabilityImpossibleFallback(vbStateLock,
+                                        durabilityImpossibleFallback);
         return;
     }
     case vbucket_state_replica:
@@ -939,6 +966,9 @@ cb::engine_errc VBucket::commit(
         CommitType commitType,
         const Collections::VB::CachingReadHandle& cHandle,
         CookieIface* cookie) {
+    // Behaviour does not differ depending on the commit type. We return success
+    // to clients.
+    (void)commitType;
     Expects(cHandle.valid());
     auto res = ht.findForUpdate(key);
     if (!res.pending) {
@@ -1009,8 +1039,7 @@ cb::engine_errc VBucket::commit(
 
     // Cookie representing the client connection, provided only at Active
     if (cookie) {
-        const auto status = mapCommitTypeToEngineError(commitType);
-        notifyClientOfSyncWriteComplete(cookie, status);
+        notifyClientOfSyncWriteComplete(cookie, cb::engine_errc::success);
     }
 
     return cb::engine_errc::success;
@@ -1146,17 +1175,6 @@ void VBucket::notifyClientOfSyncWriteComplete(CookieIface* cookie,
 
 void VBucket::notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd) {
     getPassiveDM().notifySnapshotEndReceived(snapEnd);
-}
-
-cb::engine_errc VBucket::mapCommitTypeToEngineError(CommitType type) const {
-    switch (type) {
-    case CommitType::Majority:
-        return cb::engine_errc::success;
-    case CommitType::NotDurable:
-        // TODO(MB-43068): Use a different status code.
-        return cb::engine_errc::success;
-    }
-    folly::assume_unreachable();
 }
 
 void VBucket::sendSeqnoAck(int64_t seqno) {

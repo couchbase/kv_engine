@@ -83,6 +83,10 @@ struct SamplingConfiguration;
 struct SnapshotRequirements;
 }
 
+namespace cb::config {
+enum class DurabilityImpossibleFallback;
+}
+
 /**
  * SeqnoPersistence request to a vbucket.
  *
@@ -343,6 +347,14 @@ public:
         }
         hlc.setEpochSeqno(seqno);
     }
+
+    /**
+     * Dynamic configuration for the
+     * durability_impossible_fallback parameter.
+     */
+    void setDurabilityImpossibleFallback(
+            VBucketStateLockRef vbStateLock,
+            cb::config::DurabilityImpossibleFallback fallback);
 
     /**
      * @returns the cumulative number of SyncWrite operations accepted
@@ -1577,14 +1589,6 @@ public:
     void notifyPassiveDMOfSnapEndReceived(uint64_t snapEnd);
 
     /**
-     * Maps the CommitType to a cb::engine_errc to be returned to the core.
-     *
-     * @param type The commit type.
-     * @return the engine_errc to notify the cookie with.
-     */
-    cb::engine_errc mapCommitTypeToEngineError(CommitType type) const;
-
-    /**
      * Send a SeqnoAck message on the PassiveStream (if any) for this VBucket.
      *
      * @param seqno The payload
@@ -1907,7 +1911,8 @@ public:
      * Should we allow SyncWrites to complete when there there are not enough
      * replicas in the topology for majority-ack.
      */
-    std::atomic_bool allowSyncWritesForNonMajorityTopology;
+    std::atomic<cb::config::DurabilityImpossibleFallback>
+            durabilityImpossibleFallback;
 
     /**
      * A custom delete function for deleting VBucket objects. Any thread could
@@ -2293,9 +2298,11 @@ protected:
      * depending on the current VBucket::state and any previous
      * durabilityMonitor.
      *
+     * @param vbStateLock A lock on the vbucket state.
      * @param topology The new topology, null if no toplogy was specified.
      */
-    void setupSyncReplication(const nlohmann::json* topology);
+    void setupSyncReplication(VBucketStateLockRef vbStateLock,
+                              const nlohmann::json* topology);
 
     /**
      * @return a reference (if valid, i.e. vbstate=active) to the Active DM
