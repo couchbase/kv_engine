@@ -108,6 +108,27 @@ TEST(XattrBlob, TestPruneUser) {
     EXPECT_EQ("{\"foo\":\"bar\"}"sv, blob.get("_rbac"));
 }
 
+TEST(XattrBlob, TestPruneSystem) {
+    cb::xattr::Blob blob;
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
+    blob.set("_rbac", R"({"foo":"bar"})");
+    blob.set("user", R"({"author":"bubba"})");
+    blob.set("meta", R"({"content-type":"text"})");
+    EXPECT_EQ(R"({
+  "_rbac":{"foo":"bar"},
+  "_sync":{"cas":"0xdeadbeefcafefeed"},
+  "meta":{"content-type":"text"},
+  "user":{"author":"bubba"}
+})"_json,
+              blob.to_json());
+    blob.prune_system_keys();
+    EXPECT_EQ(R"({
+  "meta":{"content-type":"text"},
+  "user":{"author":"bubba"}
+})"_json,
+              blob.to_json());
+}
+
 TEST(XattrBlob, TestToJson) {
     cb::xattr::Blob blob;
     blob.set("_sync",
