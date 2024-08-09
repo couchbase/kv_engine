@@ -97,6 +97,25 @@
     "privileges": [],
     "domain": "local"
   },
+  "almighty": {
+    "buckets": {
+      "*": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "Administrator",
+      "Audit",
+      "IdleConnection",
+      "Impersonate",
+      "SystemSettings",
+      "Stats",
+      "BucketThrottleManagement",
+      "Unthrottled",
+      "Unmetered"
+    ],
+    "domain": "local"
+  },
   "@admin": {
     "buckets": {
       "*": [
@@ -110,7 +129,7 @@
   },
   "@fts": {
     "buckets": {
-      "default" : [
+      "default": [
         "Read",
         "Insert",
         "Delete",
@@ -119,8 +138,7 @@
         "SystemXattrWrite"
       ]
     },
-    "privileges": [
-    ],
+    "privileges": [],
     "domain": "local"
   },
   "bucket-1": {

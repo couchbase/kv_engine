@@ -443,6 +443,7 @@ public:
     }
 
     const std::unordered_map<std::string, std::string> users{
+            {"almighty", "bruce"},
             {"@admin", "password"},
             {"@fts", "<#w`?D4QwY/x%j8M"},
             {"bucket-1", "1S|=,%#x1"},
