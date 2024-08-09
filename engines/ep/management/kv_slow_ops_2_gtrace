@@ -124,6 +124,11 @@ def parse_slow_operation(node, m):
     # Build a trace event from each span in the slow op.
     for span in slow_op['trace'].split():
         (name, value) = span.split('=')
+        # The number of spans added in the trace for a slow op is capped at
+        # 500, after which a sentinel span is added. Handle the sentinel span.
+        (_, maybe_dur) = value.split(':')
+        if maybe_dur == "--":
+             continue
         (start_ns, dur) = map(int, value.split(':'))
         # MB-43617: Ignore any spans which have zero time and duration;
         # they are spurious due to missing copy-elision when recording
