@@ -205,7 +205,10 @@ TEST_P(CmdTimerTest, EmptySuccess) {
  */
 TEST_P(CmdTimerTest, ImpersonateNoAccess) {
     using namespace cb::mcbp::request;
-    adminConnection->executeInBucket("rbac_test", [](auto& conn) {
+    auto conn = adminConnection->clone();
+    conn->authenticate("almighty");
+
+    conn->executeInBucket("rbac_test", [](auto& conn) {
         auto cmd = BinprotGetCmdTimerCommand{"", opcode};
         cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
         const auto response = conn.execute(cmd);
@@ -213,7 +216,7 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
         EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     });
 
-    adminConnection->executeInBucket("rbac_test", [](auto& conn) {
+    conn->executeInBucket("rbac_test", [](auto& conn) {
         auto cmd = BinprotGetCmdTimerCommand{"/all/", opcode};
         cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
         const auto response = conn.execute(cmd);
@@ -222,7 +225,7 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
     });
 
     // But we may grant the user the extra privilege...
-    adminConnection->executeInBucket("rbac_test", [this](auto& conn) {
+    conn->executeInBucket("rbac_test", [this](auto& conn) {
         auto cmd = BinprotGetCmdTimerCommand{"", opcode};
         cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
         cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(
@@ -234,7 +237,7 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
 
     // But we may grant the user the extra privilege (should also work for
     // all, but you still won't have access to "@no bucket@")
-    adminConnection->executeInBucket("rbac_test", [this](auto& conn) {
+    conn->executeInBucket("rbac_test", [this](auto& conn) {
         auto cmd = BinprotGetCmdTimerCommand{"/all/", opcode};
         cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
         cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(
@@ -245,7 +248,7 @@ TEST_P(CmdTimerTest, ImpersonateNoAccess) {
     });
 
     // But we may grant the user the extra privileges and also get "@no bucket@"
-    adminConnection->executeInBucket("rbac_test", [this](auto& conn) {
+    conn->executeInBucket("rbac_test", [this](auto& conn) {
         auto cmd = BinprotGetCmdTimerCommand{"/all/", opcode};
         cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
         cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(

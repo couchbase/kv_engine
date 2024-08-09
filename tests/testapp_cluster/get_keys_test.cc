@@ -39,6 +39,28 @@ public:
     static void SetUpTestCase() {
         ClusterTest::SetUpTestCase();
 
+        cluster->getAuthProviderService().upsertUser({"almighty", "bruce", R"(
+{
+    "buckets": {
+      "*": [
+        "all"
+      ]
+    },
+    "privileges": [
+      "Administrator",
+      "Audit",
+      "IdleConnection",
+      "Impersonate",
+      "SystemSettings",
+      "Stats",
+      "BucketThrottleManagement",
+      "NodeSupervisor",
+      "Unthrottled",
+      "Unmetered"
+    ],
+    "domain": "external"
+  })"_json});
+
         auto conn = getConnection(true);
         StoredDocKey id{"X-testGetKeys", CollectionEntry::fruit};
 
@@ -99,7 +121,7 @@ public:
             bool collections) {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
-        conn->authenticate("@admin");
+        conn->authenticate("almighty");
         conn->selectBucket(bucket->getName());
         conn->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                            cb::mcbp::Feature::XATTR,

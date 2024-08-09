@@ -374,7 +374,9 @@ TEST_P(ExternalAuthTest, GetActiveUsers) {
 
 TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
     using cb::mcbp::request::ImpersonateUserFrameInfo;
-    adminConnection->executeInBucket(bucketName, [this](auto& c) {
+    auto connection = adminConnection->clone();
+    connection->authenticate("almighty");
+    connection->executeInBucket(bucketName, [this](auto& c) {
         BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Noop);
         cmd.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
         c.sendCommand(cmd);
