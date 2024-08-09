@@ -1196,8 +1196,8 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_DurabilityPossible) {
 TEST_P(ActiveDurabilityMonitorTest, Fallback_CommitWhenMajorityOne) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
-    adm.setCommitStrategy(
-            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
 
     DurabilityMonitorTest::addSyncWrites({1, 2});
 
@@ -1214,8 +1214,8 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_PersistWithFallback) {
 
     auto& adm = getActiveDM();
     adm.setReplicationTopology(nlohmann::json::array({{active, nullptr}}));
-    adm.setCommitStrategy(
-            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
 
     using namespace cb::durability;
     DurabilityMonitorTest::addSyncWrites(
@@ -1232,8 +1232,8 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_PersistWithFallback) {
 TEST_P(ActiveDurabilityMonitorTest, Fallback_CompleteOnTopologyChange) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(nlohmann::json::array({{active, replica1}}));
-    adm.setCommitStrategy(
-            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
 
     DurabilityMonitorTest::addSyncWrites({1});
 
@@ -1259,8 +1259,8 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_OneReplicaInFirstChain) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(
             nlohmann::json::array({{active, replica1}, {active, nullptr}}));
-    adm.setCommitStrategy(
-            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
 
     DurabilityMonitorTest::addSyncWrites({1});
 
@@ -1278,8 +1278,8 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_OneReplicaInSecondChain) {
     auto& adm = getActiveDM();
     adm.setReplicationTopology(
             nlohmann::json::array({{active, nullptr}, {active, replica1}}));
-    adm.setCommitStrategy(
-            DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly);
+    adm.setAndProcessCommitStrategy(DurabilityMonitor::CommitStrategy::
+                                            MajorityAckFallbackToMasterAckOnly);
 
     DurabilityMonitorTest::addSyncWrites({1});
 
