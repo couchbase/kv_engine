@@ -465,7 +465,6 @@ void threads_shutdown() {
             if (thread.signal_idle_clients(false) == 0) {
                 LOG_INFO("Stopping worker thread {}", thread.index);
                 thread.eventBase.terminateLoopSoon();
-                return;
             }
         });
     }
@@ -481,7 +480,6 @@ void threads_shutdown() {
                 if (thread.signal_idle_clients(false) == 0) {
                     LOG_INFO("Stopping worker thread {}", thread.index);
                     thread.eventBase.terminateLoopSoon();
-                    return;
                 }
             });
             std::this_thread::sleep_for(std::chrono::microseconds(250));

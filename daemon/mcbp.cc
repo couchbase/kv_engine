@@ -52,7 +52,6 @@ static void mcbp_response_handler(std::string_view key,
                    payload,
                    c.getEnabledDatatypes(datatype),
                    {});
-    return;
 }
 
 // Expose a static std::function to wrap mcbp_response_handler, instead of
