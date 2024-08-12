@@ -174,9 +174,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     return {QueueDirtyStatus::FailureDuplicateItem, 0};
                 }
 
-                // Always return PersistAgain because if the old item has been
-                // expelled so all cursors must have passed it.
-                rv.status = QueueDirtyStatus::SuccessPersistAgain;
+                // All cursors must of visited the original (now expelled) item.
+                // Returning SuccessNewItem means this new item is correctly
+                // accounted for in "items-remaining" calculations and stats.
+                rv.status = QueueDirtyStatus::SuccessNewItem;
                 addItemToCheckpoint(qi);
             } else {
                 // Case: item not expelled, normal path
