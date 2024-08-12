@@ -55,7 +55,7 @@ std::shared_ptr<VBucket> TestEPVBucketFactory::makeVBucket(Vbid vbid) {
             /*lastSnapEnd*/ 1000,
             /*table*/ nullptr,
             std::make_shared<DummyCB>(),
-            [](Vbid) { return; },
+            [](Vbid) {},
             NoopSyncWriteCompleteCb,
             NoopSyncWriteTimeoutFactory,
             NoopSeqnoAckCb,

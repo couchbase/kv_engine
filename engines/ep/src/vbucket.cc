@@ -1170,19 +1170,15 @@ bool VBucket::isResidentRatioUnderThreshold(float threshold) {
 }
 
 void VBucket::createFilter(size_t key_count, double probability) {
-    return;
 }
 
 void VBucket::addToFilter(const DocKeyView& key) {
-    return;
 }
 
 void VBucket::clearFilter() {
-    return;
 }
 
 void VBucket::setFilterStatus(bfilter_status_t to) {
-    return;
 }
 
 std::string VBucket::getFilterStatusString() {
@@ -1210,7 +1206,6 @@ void VBucket::addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("bloom_filter_size", getFilterSize(), add_stat, c);
     addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
     addStat("bloom_filter_memory", getFilterMemoryFootprint(), add_stat, c);
-    return;
 }
 
 VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {

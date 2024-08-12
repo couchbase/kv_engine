@@ -264,7 +264,6 @@ static void item_link_q(struct default_engine *engine, hash_item *it) { /* item 
     *head = it;
     if (*tail == nullptr) *tail = it;
     engine->items.sizes[it->slabs_clsid]++;
-    return;
 }
 
 static void item_unlink_q(struct default_engine *engine, hash_item *it) {
@@ -287,7 +286,6 @@ static void item_unlink_q(struct default_engine *engine, hash_item *it) {
     if (it->next) it->next->prev = it->prev;
     if (it->prev) it->prev->next = it->next;
     engine->items.sizes[it->slabs_clsid]--;
-    return;
 }
 
 int do_item_link(struct default_engine* engine,

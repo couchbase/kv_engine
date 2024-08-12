@@ -90,7 +90,6 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
 
     addedKeyCount++;
     setStatus(cb::engine_errc::success);
-    return;
 }
 
 /// An upper bound for the number of keys to return

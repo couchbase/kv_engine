@@ -113,7 +113,6 @@ void CacheCallback::callback(CacheLookup& lookup) {
     } else {
         yield();
     }
-    return;
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {

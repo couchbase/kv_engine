@@ -1891,8 +1891,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     EXPECT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::vegetable.getId(), dropped.front().collectionId);
 
-    kvstore.setConcurrentCompactionPreLockHook(
-            [](auto& compactionKey) { return; });
+    kvstore.setConcurrentCompactionPreLockHook([](auto& compactionKey) {});
 
     // With MB-44590, this would trigger the exception seen in MB-44694
     runCollectionsEraser(vbid);
@@ -1956,8 +1955,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     EXPECT_EQ(1, dropped.size());
     EXPECT_EQ(CollectionEntry::fruit.getId(), dropped.front().collectionId);
 
-    kvstore.setConcurrentCompactionPreLockHook(
-            [](auto& compactionKey) { return; });
+    kvstore.setConcurrentCompactionPreLockHook([](auto& compactionKey) {});
 
     // runCollectionsEraser checks that KVStore::getDroppedCollections is
     // empty after running

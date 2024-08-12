@@ -988,8 +988,6 @@ void EphemeralVBucket::dropKey(const DocKeyView& key, int64_t bySeqno) {
     if (prepareSeqno) {
         dropPendingKey(key, prepareSeqno);
     }
-
-    return;
 }
 
 void EphemeralVBucket::dropStoredValue(const HashTable::HashBucketLock& hbl,

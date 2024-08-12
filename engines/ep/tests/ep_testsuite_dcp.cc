@@ -358,7 +358,6 @@ void TestDcpConsumer::deleteOrExpireCase(TestDcpConsumer::VBStats& stats,
     if (!producers.last_value.empty()) {
         stats.num_values++;
     }
-    return;
 }
 
 void TestDcpConsumer::run(bool openConn) {

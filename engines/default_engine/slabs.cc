@@ -272,7 +272,6 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
     }
     p->slots[p->sl_curr++] = ptr;
     p->requested -= size;
-    return;
 }
 
 void add_statistics(CookieIface& cookie,
