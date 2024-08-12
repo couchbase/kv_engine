@@ -23,7 +23,7 @@ MemcachedConnection& ConnectionMap::getConnection(bool ssl,
     for (auto& conn : connections) {
         if (conn->isSsl() == ssl && conn->getFamily() == family &&
             (port == 0 || conn->getPort() == port)) {
-            return *conn.get();
+            return *conn;
         }
     }
 
@@ -34,7 +34,7 @@ MemcachedConnection& ConnectionMap::getConnection(const std::string& tag,
                                                   sa_family_t family) {
     for (auto& conn : connections) {
         if (conn->getTag() == tag && conn->getFamily() == family) {
-            return *conn.get();
+            return *conn;
         }
     }
 

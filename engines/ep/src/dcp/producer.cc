@@ -2001,7 +2001,7 @@ void DcpProducer::closeAllStreams() {
                               // DcpProducer::removeBackfill needs the
                               // closeAllStreamsLock which is already locked.
                               if (backfillMgr) {
-                                  streamPtr->removeBackfill(*backfillMgr.get());
+                                  streamPtr->removeBackfill(*backfillMgr);
                               }
                               streamPtr->setDead(cb::mcbp::DcpStreamEndStatus::
                                                          Disconnected);

@@ -461,8 +461,7 @@ void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
 void DcpConnMap::idleTimeoutConfigChanged(size_t newValue) {
     auto handle = connStore->getCookieToConnectionMapHandle();
     for (const auto& cookieToConn : *handle) {
-        cookieToConn.second.get()->setIdleTimeout(
-                std::chrono::seconds(newValue));
+        cookieToConn.second->setIdleTimeout(std::chrono::seconds(newValue));
     }
 }
 

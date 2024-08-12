@@ -820,14 +820,14 @@ static enum test_result test_expiry(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
     auto rv = h->store(*cookie,
-                       *ret.second.get(),
+                       *ret.second,
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -884,14 +884,14 @@ static enum test_result test_expiry_loader(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
     auto rv = h->store(*cookie,
-                       *ret.second.get(),
+                       *ret.second,
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1045,14 +1045,14 @@ static enum test_result test_expiration_on_warmup(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
     auto rv = h->store(*cookie,
-                       *ret.second.get(),
+                       *ret.second,
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1126,14 +1126,14 @@ static enum test_result test_bug3454(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
     auto rv = h->store(*cookie,
-                       *ret.second.get(),
+                       *ret.second,
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1158,7 +1158,7 @@ static enum test_result test_bug3454(EngineIface* h) {
                    Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
@@ -1166,7 +1166,7 @@ static enum test_result test_bug3454(EngineIface* h) {
     cas = 0;
     // Add a new item with the same key.
     rv = h->store(*cookie,
-                  *ret.second.get(),
+                  *ret.second,
                   cas,
                   StoreSemantics::Add,
                   {},
@@ -1216,14 +1216,14 @@ static enum test_result test_bug3522(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
     item_info info;
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, data, strlen(data));
 
     uint64_t cas = 0;
     auto rv = h->store(*cookie,
-                       *ret.second.get(),
+                       *ret.second,
                        cas,
                        StoreSemantics::Set,
                        {},
@@ -1245,7 +1245,7 @@ static enum test_result test_bug3522(EngineIface* h) {
                    Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
 
-    if (!h->get_item_info(*ret.second.get(), info)) {
+    if (!h->get_item_info(*ret.second, info)) {
         abort();
     }
     memcpy(info.value[0].iov_base, new_data, strlen(new_data));
@@ -1253,7 +1253,7 @@ static enum test_result test_bug3522(EngineIface* h) {
     int pager_runs = get_int_stat(h, "ep_num_expiry_pager_runs");
     cas = 0;
     rv = h->store(*cookie,
-                  *ret.second.get(),
+                  *ret.second,
                   cas,
                   StoreSemantics::Set,
                   {},
@@ -3109,7 +3109,7 @@ static enum test_result test_datatype(EngineIface* h) {
 
     item_info info;
     checkeq(true,
-            h->get_item_info(*ret.second.get(), info),
+            h->get_item_info(*ret.second, info),
             "Failed to get item info");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON, info.datatype, "Invalid datatype");
 
@@ -3136,7 +3136,7 @@ static enum test_result test_datatype(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Unable to get stored item");
 
     checkeq(true,
-            h->get_item_info(*ret.second.get(), info),
+            h->get_item_info(*ret.second, info),
             "Failed to get item info");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
             info.datatype,
@@ -3170,7 +3170,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
 
     item_info info;
     checkeq(true,
-            h->get_item_info(*ret.second.get(), info),
+            h->get_item_info(*ret.second, info),
             "Failed to get item info");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
             info.datatype,

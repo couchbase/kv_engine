@@ -137,7 +137,7 @@ TEST_F(ConnStoreTest, AddVBConnInvalidVbid) {
 
 TEST_F(ConnStoreTest, AddVbConnValid) {
     auto consumer = addConnHandler(cookie, "consumer");
-    addVbConn(Vbid(0), *consumer.get());
+    addVbConn(Vbid(0), *consumer);
 }
 
 TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
@@ -150,7 +150,7 @@ TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
     auto consumer = addConnHandler(cookie, "consumer");
 
     Vbid vb(0);
-    addVbConn(vb, *consumer.get());
+    addVbConn(vb, *consumer);
 
     for (size_t i = 0; i < map.size(); i++) {
         auto list = map[i];
@@ -161,7 +161,7 @@ TEST_F(ConnStoreTest, AddMultipleVbConnsOneConnHandler) {
         }
     }
 
-    connStore->addVBConnByVbid(vb, *consumer.get());
+    connStore->addVBConnByVbid(vb, *consumer);
 
     // Don't add duplicates
     for (size_t i = 0; i < map.size(); i++) {
@@ -194,7 +194,7 @@ TEST_F(ConnStoreTest, RemoveVbConnInvalidCookie) {
 TEST_F(ConnStoreTest, RemoveVbConnValid) {
     Vbid vb(0);
     auto consumer = addConnHandler(cookie, "consumer");
-    addVbConn(vb, *consumer.get());
+    addVbConn(vb, *consumer);
     removeVbConn(vb, cookie);
 }
 
@@ -211,7 +211,7 @@ TEST_F(ConnStoreTest, RemoveConnHandlerWithVbConns) {
 
     for (size_t i = 0; i < map.size(); i++) {
         Vbid vb(i);
-        addVbConn(vb, *consumer.get());
+        addVbConn(vb, *consumer);
     }
 
     for (const auto& list : map) {
@@ -240,7 +240,7 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     // Add the vbConns
     for (size_t i = 0; i < map.size(); i++) {
         Vbid vb(i);
-        addVbConn(vb, *consumer1.get());
+        addVbConn(vb, *consumer1);
     }
 
     // Check we added something
@@ -254,7 +254,7 @@ TEST_F(ConnStoreTest, RemoveOneConnHandlerWithVbConns) {
     // Add the vbConns
     for (size_t i = 0; i < map.size(); i++) {
         Vbid vb(i);
-        addVbConn(vb, *consumer2.get());
+        addVbConn(vb, *consumer2);
     }
 
     // Check we added something

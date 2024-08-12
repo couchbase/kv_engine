@@ -257,7 +257,7 @@ DCPBackfillBySeqnoDisk::getHighSeqnoOfCollections(
 
     std::optional<uint64_t> collHigh;
 
-    const auto& handle = *seqnoScanCtx.handle.get();
+    const auto& handle = *seqnoScanCtx.handle;
     for (auto cid : filter) {
         auto [status, collStats] =
                 kvStore.getCollectionStats(handle, cid.first);

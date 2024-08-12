@@ -72,7 +72,7 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
     auto conn = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
     conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
-    getReplica(*conn.get(), Vbid(0), "foo");
+    getReplica(*conn, Vbid(0), "foo");
 
     // 4) Now hook up DCP from node 1 to node 2. This mocks the behaviour we
     // have when we fully upgrade this cluster and stream our original items to
@@ -87,7 +87,7 @@ TEST_F(DurabilityUpgradeTest, DiskHCSFromNonSyncRepNode) {
     conn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
     conn->authenticate("@admin");
     conn->selectBucket(bucket->getName());
-    getReplica(*conn.get(), Vbid(0), "foo");
+    getReplica(*conn, Vbid(0), "foo");
 
     conn->close();
 }

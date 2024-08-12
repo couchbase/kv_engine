@@ -189,7 +189,7 @@ cb::rangescan::Id RangeScan::createScan(
     size_t approxBytesRead{0};
 
     if (snapshotReqs) {
-        auto& handle = *scanCtx->handle.get();
+        auto& handle = *scanCtx->handle;
 
         // Must check that vb-uuid of the snapshot matches, it could of changed
         // since the create was scheduled. We could just do failovers[0]["id"]
@@ -233,7 +233,7 @@ cb::rangescan::Id RangeScan::createScan(
     }
 
     if (samplingConfig) {
-        const auto& handle = *scanCtx->handle.get();
+        const auto& handle = *scanCtx->handle;
         auto stats =
                 bucket.getRWUnderlying(getVBucketId())
                         ->getCollectionStats(

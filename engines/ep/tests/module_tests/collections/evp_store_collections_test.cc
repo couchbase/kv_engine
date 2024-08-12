@@ -2435,7 +2435,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
                                                    0,
                                                    -1 /* taskTime */,
                                                    1 /* concurrency */);
-    task.get()->run();
+    task->run();
     runNextTask(*task_executor->getLpTaskQ(TaskType::NonIO),
                 "Expired item remover no vbucket assigned");
 

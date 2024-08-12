@@ -102,7 +102,7 @@ void QuotaSharingItemPager::wakeUp() {
 ItemPager::PageableMemInfo QuotaSharingItemPager::getPageableMemInfo() const {
     ItemPager::PageableMemInfo memInfo;
     for (const auto& handle : group.getActive()) {
-        auto& ep = dynamic_cast<EventuallyPersistentEngine&>(*handle.get());
+        auto& ep = dynamic_cast<EventuallyPersistentEngine&>(*handle);
         memInfo.current += ep.getKVBucket()->getPageableMemCurrent();
         memInfo.lower += ep.getKVBucket()->getPageableMemLowWatermark();
         memInfo.upper += ep.getKVBucket()->getPageableMemHighWatermark();

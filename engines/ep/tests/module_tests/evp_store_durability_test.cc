@@ -2875,7 +2875,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
     // Test: Attempt another SyncWrite, which _should_ fail (in this case just
     // use replace against the same non-existent key).
     auto rc = engine->store(*cookie,
-                            *pending.get(),
+                            *pending,
                             cas,
                             StoreSemantics::Replace,
                             pending->getDurabilityReqs(),
@@ -2885,7 +2885,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
     if (rc == cb::engine_errc::would_block && persistent() && fullEviction()) {
         runBGFetcherTask();
         rc = engine->store(*cookie,
-                           *pending.get(),
+                           *pending,
                            cas,
                            StoreSemantics::Replace,
                            pending->getDurabilityReqs(),
@@ -4936,7 +4936,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                     return cb::StoreIfStatus::Continue;
                 };
         const auto [status, cas] = engine->store_if(*cookie,
-                                                    *item.get(),
+                                                    *item,
                                                     0 /*cas*/,
                                                     StoreSemantics::Set,
                                                     predicate,

@@ -493,7 +493,7 @@ bool get_item_info(EngineIface* h,
     if (ret.first != cb::engine_errc::success) {
         return false;
     }
-    if (!h->get_item_info(*ret.second.get(), *info)) {
+    if (!h->get_item_info(*ret.second, *info)) {
         fprintf(stderr, "get_item_info failed\n");
         return false;
     }
@@ -967,7 +967,7 @@ cb::engine_errc storeCasOut(EngineIface* h,
     check(h->get_item_info(*ret.second.get(), info), "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     cb::engine_errc res = h->store(*cookie,
-                                   *ret.second.get(),
+                                   *ret.second,
                                    out_cas,
                                    StoreSemantics::Set,
                                    {},
@@ -1001,7 +1001,7 @@ cb::EngineErrorItemPair storeCasVb11(
         return rv;
     }
     item_info info;
-    if (!h->get_item_info(*rv.second.get(), info)) {
+    if (!h->get_item_info(*rv.second, info)) {
         abort();
     }
 
@@ -1017,8 +1017,8 @@ cb::EngineErrorItemPair storeCasVb11(
         create_cookie = true;
     }
 
-    auto storeRet = h->store(
-            *cookie, *rv.second.get(), cas, op, durReqs, docState, false);
+    auto storeRet =
+            h->store(*cookie, *rv.second, cas, op, durReqs, docState, false);
 
     if (create_cookie) {
         testHarness->destroy_cookie(cookie);
@@ -1150,7 +1150,7 @@ std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
         return {rv.first, ""};
     }
     item_info info;
-    if (!h->get_item_info(*rv.second.get(), info)) {
+    if (!h->get_item_info(*rv.second, info)) {
         return {cb::engine_errc::failed, ""};
     }
     auto value = std::string(reinterpret_cast<char*>(info.value[0].iov_base),

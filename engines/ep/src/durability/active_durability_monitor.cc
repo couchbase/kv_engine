@@ -499,10 +499,10 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                         cookie);
 
         if (s->firstChain) {
-            addStatsForChain(addStat, cookie, *s->firstChain.get());
+            addStatsForChain(addStat, cookie, *s->firstChain);
         }
         if (s->secondChain) {
-            addStatsForChain(addStat, cookie, *s->secondChain.get());
+            addStatsForChain(addStat, cookie, *s->secondChain);
         }
     } catch (const std::exception& e) {
         EP_LOG_WARN(

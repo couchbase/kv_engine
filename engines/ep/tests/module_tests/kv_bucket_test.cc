@@ -576,7 +576,7 @@ void KVBucketTest::setRandomFunction(std::function<long()>& randFunction) {
 }
 
 Collections::Manager& KVBucketTest::getCollectionsManager() {
-    return *store->collectionsManager.get();
+    return *store->collectionsManager;
 }
 
 /**

@@ -116,7 +116,7 @@ void HistogramConstructionDestructionHeap(benchmark::State& state) {
     nanoseconds testDuration(0);
     while (state.KeepRunning()) {
         std::unique_ptr<T> testHisto(new T());
-        HistoAddNs(*testHisto.get(), testDuration);
+        HistoAddNs(*testHisto, testDuration);
     }
 }
 
@@ -126,7 +126,7 @@ void HdrVariantSizeConstructionDestructionHeap(benchmark::State& state) {
     while (state.KeepRunning()) {
         std::unique_ptr<HdrHistogram> testHisto(
                 new HdrHistogram(1, static_cast<uint64_t>(state.range(0)), 2));
-        HistoAddNs<HdrHistogram>(*testHisto.get(), testDuration);
+        HistoAddNs<HdrHistogram>(*testHisto, testDuration);
     }
 }
 

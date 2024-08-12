@@ -2042,7 +2042,7 @@ void EPBucket::rollbackUnpersistedItems(VBucket& vb, int64_t rollbackSeqno) {
                                    ->get(DiskDocKey{*item}, vb.getId());
 
             if (gcb.getStatus() == cb::engine_errc::success) {
-                vb.setFromInternal(*gcb.item.get());
+                vb.setFromInternal(*gcb.item);
             } else {
                 vb.removeItemFromMemory(*item);
             }

@@ -53,7 +53,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
                     engine->getConfiguration().getMaxNumShards(),
                     0,
                     {});
-    BgFetcher bgFetcher(*mockEPBucket.get());
+    BgFetcher bgFetcher(*mockEPBucket);
 
     for (unsigned int ii = 0; ii < 100000; ii++) {
         auto fetchItem = std::make_unique<FrontEndBGFetchItem>(

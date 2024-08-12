@@ -88,7 +88,7 @@ bool PagingVisitor::maybeExpire(StoredValue& v) {
                      v.isExpired(startTime) && !v.isDeleted();
     if (isExpired) {
         std::unique_ptr<Item> it = v.toItem(currentBucket->getId());
-        expired.push_back(*it.get());
+        expired.push_back(*it);
         return true;
     }
     return false;

@@ -160,13 +160,13 @@ void EngineManager::notifyScrubComplete(struct default_engine* engine,
 }
 
 EngineManager& getEngineManager() {
-    if (engineManager.get() == nullptr) {
+    if (!engineManager) {
         std::lock_guard<std::mutex> lg(createLock);
-        if (engineManager.get() == nullptr) {
-            engineManager.reset(new EngineManager());
+        if (!engineManager) {
+            engineManager = std::make_unique<EngineManager>();
         }
     }
-    return *engineManager.get();
+    return *engineManager;
 }
 
 // C API methods follow.

@@ -718,7 +718,7 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
         // Current DM (if exists) is not Passive; replace it with a Passive one.
         if (durabilityMonitor) {
             durabilityMonitor = std::make_unique<PassiveDurabilityMonitor>(
-                    *this, std::move(*durabilityMonitor.get()));
+                    *this, std::move(*durabilityMonitor));
         } else {
             durabilityMonitor =
                     std::make_unique<PassiveDurabilityMonitor>(*this);
@@ -731,7 +731,7 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
         }
         if (durabilityMonitor) {
             durabilityMonitor = std::make_unique<DeadDurabilityMonitor>(
-                    *this, std::move(*durabilityMonitor.get()));
+                    *this, std::move(*durabilityMonitor));
         } else {
             durabilityMonitor = std::make_unique<DeadDurabilityMonitor>(*this);
         }

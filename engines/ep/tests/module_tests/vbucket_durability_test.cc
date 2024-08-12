@@ -2026,7 +2026,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     auto key = makeStoredDocKey("newPrepare");
     auto newPrepare = makePendingItem(key, "value");
     newPrepare->setBySeqno(baseSeqno + 4);
-    ht->set(*newPrepare.get());
+    ht->set(*newPrepare);
     adm.addSyncWrite(nullptr /*cookie*/, newPrepare);
     EXPECT_EQ(baseSeqno + 3, adm.getHighPreparedSeqno());
     EXPECT_EQ(baseSeqno + 2, adm.getHighCompletedSeqno());
@@ -2236,7 +2236,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
     newPrepare->setBySeqno(5);
 
     // Adding a SyncWrite does not update the HPS
-    ht->set(*newPrepare.get());
+    ht->set(*newPrepare);
     adm.addSyncWrite(nullptr /*cookie*/, newPrepare);
     EXPECT_EQ(4, adm.getHighPreparedSeqno());
     EXPECT_EQ(2, adm.getHighCompletedSeqno());
