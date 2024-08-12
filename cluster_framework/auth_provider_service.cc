@@ -401,9 +401,7 @@ void AuthProviderService::onAuthenticateStep(bufferevent* bev,
 
 void AuthProviderService::onGetAuthorization(bufferevent* bev,
                                              const mcbp::Request& req) {
-    auto key = req.getKey();
-    const auto user =
-            std::string{reinterpret_cast<const char*>(key.data()), key.size()};
+    const std::string user{req.getKeyString()};
     UserEntry ue;
     users.withRLock([&user, &ue](auto& userdb) {
         for (const auto& u : userdb) {

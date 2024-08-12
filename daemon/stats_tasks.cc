@@ -148,13 +148,7 @@ void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
     };
 
     command_error = bucket_get_stats(
-            cookie,
-            key,
-            cb::const_byte_buffer(
-                    reinterpret_cast<const uint8_t*>(value.data()),
-                    value.size()),
-            add_stat_callback,
-            check_yield_callback);
+            cookie, key, value, add_stat_callback, check_yield_callback);
 
     if (key.empty() && command_error == cb::engine_errc::success) {
         CBStatCollector collector(add_stat_callback, cookie);

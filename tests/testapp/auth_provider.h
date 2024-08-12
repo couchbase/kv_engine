@@ -54,9 +54,8 @@ protected:
                 reinterpret_cast<const char*>(value.data()), value.size()});
     }
     std::pair<cb::mcbp::Status, std::string> processAuthzRequest(
-            cb::const_byte_buffer user) {
-        return processAuthzRequest(std::string{
-                reinterpret_cast<const char*>(user.data()), user.size()});
+            std::string_view user) {
+        return processAuthzRequest(std::string{user});
     }
 
     /**

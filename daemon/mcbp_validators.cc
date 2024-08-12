@@ -1563,16 +1563,13 @@ static Status create_bucket_validator(Cookie& cookie) {
     }
 
     const auto& req = cookie.getRequest();
-    const auto k = req.getKey();
-    auto error = BucketValidator::validateBucketName(
-            {reinterpret_cast<const char*>(k.data()), k.size()});
+    auto error = BucketValidator::validateBucketName(req.getKeyString());
     if (!error.empty()) {
         cookie.setErrorContext(error);
         return Status::Einval;
     }
 
-    const auto v = req.getValue();
-    std::string value(reinterpret_cast<const char*>(v.data()), v.size());
+    std::string value(req.getValueString());
     auto marker = value.find('\0');
     if (marker != std::string::npos) {
         value.resize(marker);
@@ -2244,9 +2241,7 @@ static Status ifconfig_validator(Cookie& cookie) {
 
     const auto& req = cookie.getRequest();
 
-    const auto keybuf = req.getKey();
-    const std::string_view key{reinterpret_cast<const char*>(keybuf.data()),
-                               keybuf.size()};
+    const std::string_view key{req.getKeyString()};
     const auto value = req.getValueString();
     if (key == "list") {
         if (!value.empty()) {

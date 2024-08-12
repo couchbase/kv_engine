@@ -59,9 +59,7 @@ uint64_t Request::getCas() const {
 }
 
 std::string Request::getPrintableKey() const {
-    const auto key = getKey();
-
-    std::string buffer{reinterpret_cast<const char*>(key.data()), key.size()};
+    std::string buffer{getKeyString()};
     for (auto& ii : buffer) {
         if (!std::isgraph(ii)) {
             ii = '.';
@@ -372,7 +370,7 @@ std::optional<cb::durability::Requirements> Request::getDurabilityRequirements()
     return {};
 }
 
-std::string printableString(cb::const_byte_buffer buffer) {
+static std::string printableString(const std::string_view buffer) {
     std::string ret;
     ret.reserve(buffer.size() + 9);
     ret.append("<ud>");
@@ -450,8 +448,8 @@ nlohmann::json Request::to_json(bool validated) const {
         ret["opcode"] = ::to_string(getServerOpcode());
     }
 
-    if (validated && !getKey().empty()) {
-        ret["key"] = printableString(getKey());
+    if (validated && !getKeyString().empty()) {
+        ret["key"] = printableString(getKeyString());
     }
 
     ret["keylen"] = getKeylen();

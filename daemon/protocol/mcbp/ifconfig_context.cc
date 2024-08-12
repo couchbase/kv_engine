@@ -17,11 +17,8 @@
 #include <executor/executorpool.h>
 
 cb::engine_errc IfconfigCommandContext::scheduleTask() {
-    const auto keybuf = cookie.getRequest().getKey();
-    const std::string_view key{reinterpret_cast<const char*>(keybuf.data()),
-                               keybuf.size()};
-    auto val = cookie.getRequest().getValue();
-    std::string value(reinterpret_cast<const char*>(val.data()), val.size());
+    const std::string_view key = cookie.getRequest().getKeyString();
+    std::string value(cookie.getRequest().getValueString());
     auto& semaphore = ConcurrencySemaphores::instance().ifconfig;
 
     if (key == "define") {

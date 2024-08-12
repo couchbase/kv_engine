@@ -83,11 +83,9 @@ void select_bucket_executor(Cookie& cookie) {
     using cb::tracing::SpanStopwatch;
     ScopeTimer1<SpanStopwatch> timer(cookie, Code::SelectBucket);
 
-    const auto key = cookie.getRequest().getKey();
     // Unfortunately we need to copy it over to a std::string as the
     // internal methods expects the string to be terminated with '\0'
-    const std::string bucketname{reinterpret_cast<const char*>(key.data()),
-                                 key.size()};
+    const std::string bucketname{cookie.getRequest().getKeyString()};
 
     cb::engine_errc code = cb::engine_errc::success;
     auto& connection = cookie.getConnection();

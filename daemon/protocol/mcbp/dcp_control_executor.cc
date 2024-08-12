@@ -17,14 +17,11 @@ void dcp_control_executor(Cookie& cookie) {
 
     if (ret == cb::engine_errc::success) {
         const auto& req = cookie.getRequest();
-        const auto key = req.getKey();
-        const auto val = req.getValue();
 
-        ret = dcpControl(
-                cookie,
-                req.getOpaque(),
-                {reinterpret_cast<const char*>(key.data()), key.size()},
-                {reinterpret_cast<const char*>(val.data()), val.size()});
+        ret = dcpControl(cookie,
+                         req.getOpaque(),
+                         req.getKeyString(),
+                         req.getValueString());
     }
 
     handle_executor_status(cookie, ret);

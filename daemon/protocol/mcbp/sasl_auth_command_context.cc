@@ -20,10 +20,8 @@
 #include <logger/logger.h>
 #include <utilities/logtags.h>
 
-std::string getMechanism(cb::const_byte_buffer k) {
+std::string getMechanism(std::string_view key) {
     std::string mechanism;
-    const auto key =
-            std::string_view{reinterpret_cast<const char*>(k.data()), k.size()};
     // Uppercase the requested mechanism so that we don't have to remember
     // to do case insensitive comparisons all over the code
     std::transform(
@@ -31,15 +29,11 @@ std::string getMechanism(cb::const_byte_buffer k) {
     return mechanism;
 }
 
-std::string getChallenge(cb::const_byte_buffer value) {
-    return std::string{reinterpret_cast<const char*>(value.data()),
-                       value.size()};
-}
 SaslAuthCommandContext::SaslAuthCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       request(cookie.getRequest()),
-      mechanism(getMechanism(request.getKey())),
-      challenge(getChallenge(request.getValue())),
+      mechanism(getMechanism(request.getKeyString())),
+      challenge(request.getValueString()),
       state(State::Initial) {
 }
 

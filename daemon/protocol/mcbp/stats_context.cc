@@ -460,14 +460,10 @@ static cb::engine_errc stat_bucket_stats(const std::string&, Cookie& cookie) {
 // handler for scopes/collections - engine needs the key for processing
 static cb::engine_errc stat_bucket_collections_stats(const std::string&,
                                                      Cookie& cookie) {
-    auto value = cookie.getRequest().getValue();
-    const auto key = cookie.getRequest().getKey();
-    return bucket_get_stats(
-            cookie,
-            std::string_view{reinterpret_cast<const char*>(key.data()),
-                             key.size()},
-            value,
-            appendStatsFn);
+    return bucket_get_stats(cookie,
+                            cookie.getRequest().getKeyString(),
+                            cookie.getRequest().getValueString(),
+                            appendStatsFn);
 }
 
 static cb::engine_errc stat_allocator_executor(const std::string&,
@@ -777,18 +773,17 @@ cb::engine_errc StatsCommandContext::step() {
 }
 
 cb::engine_errc StatsCommandContext::parseCommandKey() {
-    const auto key = cookie.getRequest().getKey();
+    const auto key = cookie.getRequest().getKeyString();
     if (key.empty()) {
         command = "";
     } else {
         // The raw representing the key
-        const std::string statkey{reinterpret_cast<const char*>(key.data()),
-                                  key.size()};
+        const std::string statkey{key};
 
         // Split the key into a command and argument.
         auto index = statkey.find(' ');
 
-        if (index == key.npos) {
+        if (index == std::string_view::npos) {
             command = statkey;
         } else {
             command = statkey.substr(0, index);

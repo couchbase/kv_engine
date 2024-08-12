@@ -1150,9 +1150,7 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
         const auto value = payload.getValue();
         const auto injected_error =
                 static_cast<cb::engine_errc>(payload.getInjectError());
-        auto k = req.getKey();
-        const std::string key(reinterpret_cast<const char*>(k.data()),
-                              k.size());
+        const std::string key(req.getKeyString());
         std::shared_ptr<FaultInjectMode> new_mode = nullptr;
 
         // Validate mode, and construct new fault injector.

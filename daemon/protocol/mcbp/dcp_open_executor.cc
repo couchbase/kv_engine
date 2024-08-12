@@ -41,9 +41,6 @@ void dcp_open_executor(Cookie& cookie) {
         ret = mcbp::checkPrivilege(cookie, privilege);
 
         if (ret == cb::engine_errc::success) {
-            auto key = request.getKey();
-            auto value = request.getValue();
-
             // MB-43622 There is a race condition in the creation and
             //          notification of the DCP connections. Initially
             //          I tried to reserve the cookie from the constructor
@@ -63,14 +60,12 @@ void dcp_open_executor(Cookie& cookie) {
             //          this thread call reserve.
             cookie.incrementRefcount();
             try {
-                ret = dcpOpen(
-                        cookie,
-                        request.getOpaque(),
-                        payload.getSeqno(),
-                        flags,
-                        {reinterpret_cast<const char*>(key.data()), key.size()},
-                        {reinterpret_cast<const char*>(value.data()),
-                         value.size()});
+                ret = dcpOpen(cookie,
+                              request.getOpaque(),
+                              payload.getSeqno(),
+                              flags,
+                              request.getKeyString(),
+                              request.getValueString());
             } catch (const std::exception& e) {
                 LOG_WARNING(
                         "{}: Received an exception as part DCP Open: {}, "

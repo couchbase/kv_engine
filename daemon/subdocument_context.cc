@@ -163,11 +163,9 @@ void SubdocExecutionContext::create_single_path_context(
     }
 
     if (Settings::instance().getVerbose() > 1) {
-        const auto keybuf = request.getKey();
-        const char* key = reinterpret_cast<const char*>(keybuf.data());
         subdoc_print_command(cookie.getConnection(),
                              request.getClientOpcode(),
-                             {key, keybuf.size()},
+                             request.getKeyString(),
                              path,
                              value);
     }
@@ -247,12 +245,10 @@ void SubdocExecutionContext::create_multi_path_context(
     }
 
     if (Settings::instance().getVerbose() > 1) {
-        const auto keybuf = request.getKey();
-        const char* key = reinterpret_cast<const char*>(keybuf.data());
         using namespace std::literals;
         subdoc_print_command(cookie.getConnection(),
                              request.getClientOpcode(),
-                             {key, keybuf.size()},
+                             request.getKeyString(),
                              "<multipath>"sv,
                              value);
     }

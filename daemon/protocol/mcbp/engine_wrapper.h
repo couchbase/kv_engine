@@ -133,7 +133,7 @@ cb::engine_errc bucket_flush(Cookie& cookie);
 cb::engine_errc bucket_get_stats(
         Cookie& cookie,
         std::string_view key,
-        cb::const_byte_buffer value,
+        std::string_view value,
         const AddStatFn& add_stat,
         const CheckYieldFn& check_yield = []() { return false; });
 

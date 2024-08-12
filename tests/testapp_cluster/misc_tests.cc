@@ -330,9 +330,7 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
         } else if (header->isRequest() &&
                    header->getRequest().getClientOpcode() ==
                            cb::mcbp::ClientOpcode::DcpMutation) {
-            auto k = header->getRequest().getKey();
-            const auto key = std::string_view{
-                    reinterpret_cast<const char*>(k.data()), k.size()};
+            const auto key = header->getRequest().getKeyString();
             if (key == "foo") {
                 dcp_mutation = true;
             }
@@ -350,9 +348,7 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
             if (header->isRequest() &&
                 header->getRequest().getClientOpcode() ==
                         cb::mcbp::ClientOpcode::DcpMutation) {
-                auto k = header->getRequest().getKey();
-                const auto key = std::string_view{
-                        reinterpret_cast<const char*>(k.data()), k.size()};
+                const auto key = header->getRequest().getKeyString();
                 if (key == "foo") {
                     found = true;
                 }

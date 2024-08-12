@@ -26,7 +26,7 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::process(
         return processAuthnRequest(req.getValue());
 
     case cb::mcbp::ServerOpcode::GetAuthorization:
-        return processAuthzRequest(req.getKey());
+        return processAuthzRequest(req.getKeyString());
     }
     throw std::runtime_error("AuthProvider::process: unsupported opcode");
 }

@@ -39,11 +39,8 @@ cb::engine_errc BucketManagementCommandContext::initial() {
 }
 
 cb::engine_errc BucketManagementCommandContext::create() {
-    auto k = request.getKey();
-    auto v = request.getValue();
-
-    std::string name(reinterpret_cast<const char*>(k.data()), k.size());
-    std::string value(reinterpret_cast<const char*>(v.data()), v.size());
+    std::string name(request.getKeyString());
+    std::string value(request.getValueString());
     std::string config;
 
     // Check if (optional) config was included after the value.
@@ -93,8 +90,7 @@ cb::engine_errc BucketManagementCommandContext::create() {
 }
 
 cb::engine_errc BucketManagementCommandContext::remove() {
-    auto k = request.getKey();
-    std::string name(reinterpret_cast<const char*>(k.data()), k.size());
+    std::string name(request.getKeyString());
     const auto config = request.getValueString();
     bool force = false;
     std::optional<BucketType> bucket_type;
@@ -193,8 +189,7 @@ cb::engine_errc BucketManagementCommandContext::remove() {
 }
 
 cb::engine_errc BucketManagementCommandContext::pause() {
-    auto k = request.getKey();
-    std::string name(reinterpret_cast<const char*>(k.data()), k.size());
+    std::string name(request.getKeyString());
     if (name == cookie.getConnection().getBucket().name) {
         LOG_WARNING("{} Can't pause the connections' selected bucket",
                     cookie.getConnectionId());

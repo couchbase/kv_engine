@@ -68,15 +68,11 @@ SetParameterCommandContext::SetParameterCommandContext(Cookie& cookie)
 cb::engine_errc SetParameterCommandContext::sessionLockedStep() {
     // We can't cache the key and value as a ewb would relocate them
     const auto& req = cookie.getRequest();
-    auto key = req.getKey();
-    auto value = req.getValue();
-
-    return bucket_set_parameter(
-            cookie,
-            category,
-            {reinterpret_cast<const char*>(key.data()), key.size()},
-            {reinterpret_cast<const char*>(value.data()), value.size()},
-            req.getVBucket());
+    return bucket_set_parameter(cookie,
+                                category,
+                                req.getKeyString(),
+                                req.getValueString(),
+                                req.getVBucket());
 }
 
 cb::engine_errc CompactDatabaseCommandContext::sessionLockedStep() {
