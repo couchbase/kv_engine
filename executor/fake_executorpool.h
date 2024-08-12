@@ -255,24 +255,17 @@ private:
 
         // Check that the new sizes of the future and ready tally given
         // one executed and n were scheduled as a side effect.
-
-        // there should now be _at least_ minExpectedToBeScheduled extra
-        // tasks
-
-        if (actual < expected + minExpectedToBeScheduled) {
-            throw std::runtime_error(
-                    "CheckedExecutor::oneExecutes(): Expected " +
-                    std::to_string(actual) + " >= " +
-                    std::to_string(expected + minExpectedToBeScheduled));
-        }
-
-        // there should now be _no more than_ maxExpectedToBeScheduled extra
-        // tasks
-        if (actual > expected + maxExpectedToBeScheduled) {
-            throw std::runtime_error(
-                    "CheckedExecutor::oneExecutes(): Expected " +
-                    std::to_string(actual) + " <= " +
-                    std::to_string(expected + maxExpectedToBeScheduled));
+        if (actual < expected + minExpectedToBeScheduled ||
+            actual > expected + maxExpectedToBeScheduled) {
+            throw std::runtime_error(fmt::format(
+                    "CheckedExecutor::oneExecutes(): Unexpected number of "
+                    "queued tasks after running '{}': Expected between {} and "
+                    "{} tasks to be scheduled, but found {} tasks were "
+                    "scheduled.",
+                    getTaskName(),
+                    minExpectedToBeScheduled,
+                    maxExpectedToBeScheduled,
+                    expected - actual));
         }
     }
 
