@@ -4273,7 +4273,7 @@ KVStoreIface::ReadVBStateResult CouchKVStore::getVBucketState(
 
 couchstore_error_t CouchKVStore::updateLocalDocuments(
         Db& db, PendingLocalDocRequestQueue& queue) {
-    if (queue.size() == 0) {
+    if (queue.empty()) {
         return COUCHSTORE_SUCCESS;
     }
 

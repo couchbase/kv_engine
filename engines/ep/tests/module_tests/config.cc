@@ -23,7 +23,7 @@ config::Config& config::Config::add(std::string_view key,
     ParamLists current;
     std::swap(current, paramLists);
 
-    if (current.size() == 0) {
+    if (current.empty()) {
         current.emplace();
     }
 

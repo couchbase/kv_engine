@@ -247,7 +247,7 @@ Item KVBucketTest::store_deleted_item(
                       value,
                       exptime,
                       expected,
-                      value.size() ? datatype : PROTOCOL_BINARY_RAW_BYTES,
+                      value.empty() ? PROTOCOL_BINARY_RAW_BYTES : datatype,
                       reqs,
                       true);
 }

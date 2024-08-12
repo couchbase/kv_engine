@@ -44,7 +44,7 @@ DeadDurabilityMonitor::DeadDurabilityMonitor(VBucket& vb,
 }
 
 int64_t DeadDurabilityMonitor::getHighestTrackedSeqno() const {
-    if (trackedWrites.size() == 0) {
+    if (trackedWrites.empty()) {
         return 0;
     }
 

@@ -27,7 +27,7 @@ std::string document_pre_expiry(std::string_view view, uint8_t datatype) {
     copy.prune_user_keys();
     const auto final = copy.finalize();
 
-    if (final.size() == 0) {
+    if (final.empty()) {
         // The old payload only contained user xattrs and
         // we removed everything
         return {};

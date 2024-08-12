@@ -888,7 +888,7 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     checkIfInTransaction(txnCtx->vbid, "MagmaKVStore::commit");
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(*txnCtx);
-    if (ctx.pendingReqs.size() == 0) {
+    if (ctx.pendingReqs.empty()) {
         return true;
     }
 

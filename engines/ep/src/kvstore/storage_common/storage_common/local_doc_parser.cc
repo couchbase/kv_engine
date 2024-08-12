@@ -29,12 +29,12 @@ std::string read_collection_leb128_metadata(std::string_view buf) {
             {reinterpret_cast<const uint8_t*>(buf.data()), buf.size()});
     count = decoded1.first;
 
-    if (decoded1.second.size()) {
+    if (!decoded1.second.empty()) {
         decoded1 = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded1.second);
         seqno = decoded1.first;
     }
 
-    if (decoded1.second.size()) {
+    if (!decoded1.second.empty()) {
         decoded1 = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded1.second);
         diskSize = decoded1.first;
     }

@@ -2028,7 +2028,7 @@ static Status collections_get_id_validator(Cookie& cookie) {
     }
     const auto& header = cookie.getHeader();
     // now expect value or key, but not both
-    if (header.getKeylen() && header.getValue().size()) {
+    if (!header.getKey().empty() && !header.getValue().empty()) {
         cookie.setErrorContext("Cannot set both key and value");
         return Status::Einval;
     }

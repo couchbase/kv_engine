@@ -1811,7 +1811,7 @@ void Warmup::checkForAccessLog() {
                         file, config.getAlogBlockSize()));
             }
 
-            if (shardLogs.size()) {
+            if (!shardLogs.empty()) {
                 // If we found any access log, increase this counter by 1
                 ++accesslogs;
             }

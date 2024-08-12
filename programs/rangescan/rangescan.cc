@@ -355,7 +355,7 @@ protected:
         }
 
         // If the response has a value, we can now split into the keys/items
-        if (response.getValue().size()) {
+        if (!response.getValue().empty()) {
             if (keyOnly) {
                 cb::mcbp::response::RangeScanContinueKeyPayload payload(
                         response.getValueString());

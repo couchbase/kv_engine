@@ -244,7 +244,7 @@ void FailoverTable::pruneEntries(uint64_t seqno) {
 
     // If table is now empty, push a single element at high seqno. Throughout
     // FailoverTable we rely on there being at least one element.
-    if (table.size() == 0) {
+    if (table.empty()) {
         failover_entry_t entry;
         entry.by_seqno = seqno;
         entry.vb_uuid = generateUuid();

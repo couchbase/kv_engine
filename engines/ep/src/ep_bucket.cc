@@ -2499,7 +2499,7 @@ Flusher* EPBucket::getFlusher(Vbid vbid) {
 }
 
 Flusher* EPBucket::getOneFlusher() {
-    Expects(flushers.size() > 0);
+    Expects(!flushers.empty());
     return flushers.front().get();
 }
 

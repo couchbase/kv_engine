@@ -3953,7 +3953,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     const auto valueBuf = cb::char_buffer(const_cast<char*>(data), nBytes);
 
     // If we have a value..
-    if (valueBuf.size() > 0) {
+    if (!valueBuf.empty()) {
         // Check that we have no body (bodySize=0)
         std::string_view body{data, nBytes};
         body.remove_prefix(cb::xattr::get_body_offset(body));
@@ -5453,7 +5453,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     stream->public_nextCheckpointItemTask();
     // Drain readyQ
     auto& readyQ = stream->public_readyQ();
-    while (readyQ.size() > 0) {
+    while (!readyQ.empty()) {
         readyQ.pop();
     }
     // We want just a new open checkpoint
@@ -6561,7 +6561,7 @@ void CDCActiveStreamTest::clearCMAndPersistenceAndReplication() {
     const auto cursor = stream->getCursor().lock();
     while (manager.getNumCheckpoints() > 1) {
         stream->nextCheckpointItemTask();
-        while (readyQ.size() > 0) {
+        while (!readyQ.empty()) {
             stream->public_nextQueuedItem(*producer);
         }
         flushVBucket(vbid);

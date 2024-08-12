@@ -45,11 +45,11 @@ PersistedStats::PersistedStats(const char* buf,
     decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
     highSeqno = decoded.first;
 
-    if (decoded.second.size()) {
+    if (decoded.second.empty()) {
+        diskSize = dbSpaceUsed;
+    } else {
         decoded = cb::mcbp::unsigned_leb128<uint64_t>::decode(decoded.second);
         diskSize = decoded.first;
-    } else {
-        diskSize = dbSpaceUsed;
     }
 
     if (!decoded.second.empty()) {

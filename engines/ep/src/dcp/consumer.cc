@@ -620,7 +620,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
         // MB-29040: Producer may send deleted doc with value that still has
         // the user xattrs and the body. Fix up that mistake by running the
         // expiry hook which will correctly process the document
-        if (value.size() > 0) {
+        if (!value.empty()) {
             if (cb::mcbp::datatype::is_xattr(datatype)) {
                 auto vb = engine_.getVBucket(vbucket);
                 if (vb) {
