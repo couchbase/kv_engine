@@ -95,14 +95,15 @@ std::string_view Blob::get(std::string_view key) const {
     return {};
 }
 
-void Blob::prune_user_keys() {
+void Blob::prune_keys(Type type) {
     try {
         size_t current = 4;
         while (current < blob.size()) {
             // Get the length of the next kv-pair
             const auto size = read_length(current);
 
-            if (blob[current + 4] != '_') {
+            if ((type == Type::User && blob[current + 4] != '_') ||
+                (type == Type::System && blob[current + 4] == '_')) {
                 remove_segment(current, size + 4);
             } else {
                 current += 4 + size;

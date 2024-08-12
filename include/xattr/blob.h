@@ -77,7 +77,13 @@ public:
      */
     void set(std::string_view key, std::string_view value);
 
-    void prune_user_keys();
+    void prune_user_keys() {
+        prune_keys(Type::User);
+    }
+
+    void prune_system_keys() {
+        prune_keys(Type::System);
+    }
 
     /**
      * Finalize the buffer and return it's content.
@@ -236,6 +242,9 @@ protected:
 
 private:
     enum class Type : uint8_t { System, User };
+
+    /// prune all keys of a given type
+    void prune_keys(Type scope);
 
     /**
      * Get the size of the specific category of Xattrs located in the blob
