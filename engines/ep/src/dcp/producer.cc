@@ -649,6 +649,42 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
         return cb::engine_errc::out_of_range;
     }
 
+    // The last snapshot marker the client saw might extend past the highSeqno.
+    // This could be due to data loss after failover (client saw just a snapshot
+    // marker before persistence). We do not rollback in this case (and this is
+    // covered by an equivalent check in the rollback logic), but we will ignore
+    // this "invalid" snapEndSeqno as the ActiveStream should not be created
+    // with seqnos past the vBucket high seqno.
+    if (req.start_seqno == req.snap_start_seqno &&
+        req.snap_end_seqno > req.high_seqno) {
+        if (isSeqnoAdvancedEnabled()) {
+            logger->info(
+                    "({}) Stream request start seqno ({}) is at the beginning "
+                    "of a "
+                    "snapshot {{{}, {}}} which extends past the vb highSeqno "
+                    "({}); avoiding rollback and setting snapEndSeqno = {}",
+                    vbucket,
+                    req.start_seqno,
+                    req.snap_start_seqno,
+                    req.snap_end_seqno,
+                    req.high_seqno,
+                    req.snap_start_seqno);
+            req.snap_end_seqno = req.snap_start_seqno;
+        } else {
+            logger->info(
+                    "({}) Stream request start seqno ({}) is at the beginning "
+                    "of a "
+                    "snapshot {{{}, {}}} which extends past the vb highSeqno "
+                    "({}); allowing to continue",
+                    vbucket,
+                    req.start_seqno,
+                    req.snap_start_seqno,
+                    req.snap_end_seqno,
+                    req.high_seqno,
+                    req.snap_start_seqno);
+        }
+    }
+
     return cb::engine_errc::success;
 }
 
