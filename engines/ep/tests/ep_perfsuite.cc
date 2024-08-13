@@ -1396,7 +1396,7 @@ static void perf_stat_latency_core(EngineIface* h,
         if (stat.second.runtime == statRuntime) {
             for (int ii = 0; ii < iterations; ii++) {
                 auto start = std::chrono::steady_clock::now();
-                if (stat.first.compare("engine") == 0) {
+                if (stat.first == "engine") {
                     checkeq(cb::engine_errc::success,
                             get_stats_wrapper(h, *cookie, {}, {}, add_stats),
                             "Failed to get engine stats");

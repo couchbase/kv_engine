@@ -282,7 +282,7 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     : KVBucket(engine), rangeScans(engine.getConfiguration()) {
     auto& config = engine.getConfiguration();
     const std::string& policy = config.getItemEvictionPolicyString();
-    if (policy.compare("value_only") == 0) {
+    if (policy == "value_only") {
         eviction_policy = EvictionPolicy::Value;
     } else {
         eviction_policy = EvictionPolicy::Full;

@@ -674,11 +674,11 @@ static enum test_result test_expiry_pager_settings(EngineIface* h) {
     // "exp_pager_initial_run_time" schedules a task that sets the stats later
     repeat_till_true([&]() {
         str = get_str_stat(h, "ep_expiry_pager_task_time");
-        return 0 == str.substr(11, 5).compare(expected_time);
+        return str.substr(11, 5) == expected_time;
     });
     err_msg.assign("Updated time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
-    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg);
+    checkeq(expected_time, str.substr(11, 5), err_msg);
 
     // Update exp_pager_stime by 30 minutes and ensure that the update is successful
     const auto update_by = 30min;
@@ -3237,12 +3237,12 @@ static enum test_result test_access_scanner_settings(EngineIface* h) {
     repeat_till_true([&]() {
         set_param(h, EngineParamCategory::Flush, "alog_task_time", "5");
         str = get_str_stat(h, "ep_access_scanner_task_time");
-        return (0 == str.substr(11, 5).compare(expected_time));
+        return str.substr(11, 5) == expected_time;
     });
 
     err_msg.assign("Updated time incorrect, expect: " +
                    expected_time + ", actual: " + str.substr(11, 5));
-    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg);
+    checkeq(expected_time, str.substr(11, 5), err_msg);
 
     // Update alog_sleep_time by 10 mins and ensure the update is successful.
     const std::chrono::minutes update_by{10};
