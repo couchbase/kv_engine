@@ -7,8 +7,6 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <stdio.h>
-
 #include <algorithm>
 #include <limits>
 

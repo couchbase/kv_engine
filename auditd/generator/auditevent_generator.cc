@@ -14,9 +14,9 @@
 #include "generator_module.h"
 #include "generator_utilities.h"
 
-#include <errno.h>
 #include <getopt.h>
 #include <nlohmann/json.hpp>
+#include <cerrno>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>

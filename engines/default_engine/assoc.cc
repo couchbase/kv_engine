@@ -11,16 +11,15 @@
 #include <platform/platform_thread.h>
 #include <platform/strerror.h>
 
-#include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <thread>
 #include <vector>
-
 
 #define hashsize(n) ((size_t)1<<(n))
 #define hashmask(n) (hashsize(n)-1)

@@ -28,9 +28,9 @@
 #include <folly/portability/GTest.h>
 #include <platform/cb_malloc.h>
 
-#include <signal.h>
 #include <algorithm>
 #include <chrono>
+#include <csignal>
 #include <limits>
 #include <random>
 #include <string>

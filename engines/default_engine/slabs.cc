@@ -7,15 +7,15 @@
  * slab size is always 1MB, since that's the maximum item size allowed by the
  * memcached protocol.
  */
-#include <errno.h>
 #include <fcntl.h>
-#include <inttypes.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cerrno>
+#include <cinttypes>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #ifdef VALGRIND
 // switch to malloc if VALGRIND so we can get some useful insight.
