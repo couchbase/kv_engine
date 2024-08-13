@@ -229,7 +229,7 @@ void create_handler(const std::string& minidump_dir) {
                                        /*pipe*/ (wchar_t*)NULL,
                                        /*custom_info*/ NULL));
 #elif defined(linux) && defined(HAVE_BREAKPAD)
-    MinidumpDescriptor descriptor(minidump_dir.c_str());
+    MinidumpDescriptor descriptor(minidump_dir);
     handler.reset(new ExceptionHandler(descriptor,
                                        /*filter*/ nullptr,
                                        dumpCallback,
