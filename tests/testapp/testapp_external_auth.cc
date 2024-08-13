@@ -224,7 +224,7 @@ TEST_P(ExternalAuthTest, TestExternalAuthSuccessful) {
 
         BinprotSaslAuthCommand saslAuthCommand;
         saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PlAiN");
+        saslAuthCommand.setMechanism("PLAIN");
         conn.sendCommand(saslAuthCommand);
 
         stepAuthProvider();
@@ -502,7 +502,7 @@ TEST_P(ExternalAuthSingleThreadTest, TestCountersForExternalAuthentication) {
     for (int ii = 0; ii < 10; ++ii) {
         BinprotSaslAuthCommand saslAuthCommand;
         saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PlAiN");
+        saslAuthCommand.setMechanism("PLAIN");
         conn->sendCommand(saslAuthCommand);
         ++authRequestsSent;
 
@@ -529,7 +529,7 @@ TEST_P(ExternalAuthSingleThreadTest, TestSlowResponseFromAuthProvider) {
     BinprotSaslAuthCommand saslAuthCommand;
     auto& conn = getConnection();
     saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-    saslAuthCommand.setMechanism("PlAiN");
+    saslAuthCommand.setMechanism("PLAIN");
     conn.sendCommand(saslAuthCommand);
 
     // Delay 101ms to force slow response
@@ -570,7 +570,7 @@ TEST_P(ExternalAuthSingleThreadTest, TestTimeOutRequestToAuthProvider) {
     BinprotSaslAuthCommand saslAuthCommand;
     auto& conn = getConnection();
     saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-    saslAuthCommand.setMechanism("PlAiN");
+    saslAuthCommand.setMechanism("PLAIN");
     conn.sendCommand(saslAuthCommand);
 
     // Delay 101ms (timeout) + 20ms (max ExternalAuthManagerThread::run() will
@@ -625,7 +625,7 @@ TEST_P(ExternalAuthSingleThreadTest, TestExposedExternalAuthTimings) {
     for (int ii = 0; ii < 10; ++ii) {
         BinprotSaslAuthCommand saslAuthCommand;
         saslAuthCommand.setChallenge({"\0osbourne\0password", 18});
-        saslAuthCommand.setMechanism("PlAiN");
+        saslAuthCommand.setMechanism("PLAIN");
         conn->sendCommand(saslAuthCommand);
 
         stepAuthProvider();
