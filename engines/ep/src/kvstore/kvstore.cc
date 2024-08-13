@@ -15,26 +15,26 @@
 #include <string>
 #include <utility>
 
+#include "bucket_logger.h"
 #include "collections/vbucket_manifest.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "file_ops_tracker.h"
 #include "item.h"
+#include "kvstore.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore-config.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore.h"
-#include "vbucket_state.h"
-#ifdef EP_USE_MAGMA
-#include "magma-kvstore/magma-kvstore.h"
-#include "magma-kvstore/magma-kvstore_config.h"
-#endif /* EP_USE_MAGMA */
-#include "bucket_logger.h"
-#include "kvstore.h"
 #include "kvstore_config.h"
 #include "persistence_callback.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
+
+#ifdef EP_USE_MAGMA
+#include "magma-kvstore/magma-kvstore.h"
+#include "magma-kvstore/magma-kvstore_config.h"
+#endif /* EP_USE_MAGMA */
 
 #include <platform/dirutils.h>
 #include <statistics/cbstat_collector.h>

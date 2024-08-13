@@ -25,7 +25,6 @@
 #include "mock/mock_dcp.h"
 
 #include <executor/executorpool.h>
-#include <fmt/format.h>
 #include <folly/ScopeGuard.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
