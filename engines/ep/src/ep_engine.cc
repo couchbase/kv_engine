@@ -2574,8 +2574,9 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
         }
         return cb::makeEngineErrorItemPair(
                 cb::engine_errc::success, gv.item.release(), this);
-    } else if (ret == cb::engine_errc::no_such_key ||
-               ret == cb::engine_errc::not_my_vbucket) {
+    }
+    if (ret == cb::engine_errc::no_such_key ||
+        ret == cb::engine_errc::not_my_vbucket) {
         if (isDegradedMode()) {
             return cb::makeEngineErrorItemPair(
                     cb::engine_errc::temporary_failure);
@@ -2878,11 +2879,10 @@ cb::engine_errc EventuallyPersistentEngine::memoryCondition() {
         // Still below bucket_quota - treat as temporary failure.
         ++stats.tmp_oom_errors;
         return cb::engine_errc::temporary_failure;
-    } else {
-        // Already over bucket quota - make this a hard error.
-        ++stats.oom_errors;
-        return cb::engine_errc::no_memory;
     }
+    // Already over bucket quota - make this a hard error.
+    ++stats.oom_errors;
+    return cb::engine_errc::no_memory;
 }
 
 bool EventuallyPersistentEngine::hasMemoryForItemAllocation(
@@ -4093,7 +4093,8 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
         StatCheckpointVisitor scv(kvbucket, cookie, add_stat);
         kvbucket->visit(scv);
         return cb::engine_errc::success;
-    } else if (nkey > 11) {
+    }
+    if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
         uint16_t vbucket_id(0);
         if (!safe_strtous(vbid, vbucket_id)) {
@@ -4122,7 +4123,8 @@ cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorStats(
         // @todo: Return aggregated stats for all VBuckets.
         //     Implement as async, we don't what to block for too long.
         return cb::engine_errc::not_supported;
-    } else if (nkey > size + 1) {
+    }
+    if (nkey > size + 1) {
         // Case stat_key = "durability-monitor <vbid>"
         const uint16_t vbidPos = size + 1;
         std::string vbid_(&stat_key[vbidPos], nkey - vbidPos);
@@ -4921,9 +4923,8 @@ bool EventuallyPersistentEngine::fetchLookupResult(CookieIface& cookie,
     if (es) {
         itm = std::move(*es);
         return true;
-    } else {
-        return false;
     }
+    return false;
 }
 
 EventuallyPersistentEngine::StatusAndVBPtr
@@ -5045,8 +5046,9 @@ EventuallyPersistentEngine::parseKeyStatCollection(
                     {"status", res.result});
         }
         return res;
-    } else if (statKeyArg == (std::string(expectedStatPrefix) + "-byid") &&
-               collectionStr.size() > 2) {
+    }
+    if (statKeyArg == (std::string(expectedStatPrefix) + "-byid") &&
+        collectionStr.size() > 2) {
         // provided argument should be a hex collection ID N, 0xN or 0XN
         try {
             cid = std::stoul(collectionStr.data(), nullptr, 16);
@@ -5067,9 +5069,8 @@ EventuallyPersistentEngine::parseKeyStatCollection(
                     meta->sid,
                     cid,
                     Collections::isSystemCollection(meta->name, cid)};
-        } else {
-            return {cb::engine_errc::unknown_collection, manifesUid};
         }
+        return {cb::engine_errc::unknown_collection, manifesUid};
     }
     return cb::EngineErrorGetCollectionIDResult(
             cb::engine_errc::invalid_arguments);
@@ -7254,7 +7255,8 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
     const auto bucketType = config.getBucketTypeString();
     if (bucketType == "persistent") {
         return std::make_unique<EPBucket>(*this);
-    } else if (bucketType == "ephemeral") {
+    }
+    if (bucketType == "ephemeral") {
         EphemeralBucket::reconfigureForEphemeral(configuration);
         return std::make_unique<EphemeralBucket>(*this);
     }
@@ -7674,13 +7676,12 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
 ExTask EventuallyPersistentEngine::createItemPager() {
     if (isCrossBucketHtQuotaSharing) {
         return getQuotaSharingManager().getItemPager();
-    } else {
-        auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
-        auto task = std::make_shared<StrictQuotaItemPager>(
-                *this, stats, numConcurrentPagers);
-        ExecutorPool::get()->cancel(task->getId());
-        return task;
     }
+    auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
+    auto task = std::make_shared<StrictQuotaItemPager>(
+            *this, stats, numConcurrentPagers);
+    ExecutorPool::get()->cancel(task->getId());
+    return task;
 }
 
 void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {

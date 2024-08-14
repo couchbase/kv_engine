@@ -161,7 +161,7 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
     switch (SystemEvent(item->getFlags())) {
     case SystemEvent::Collection:
     // Modify stores/sends the same data as create
-    case SystemEvent::ModifyCollection: {
+    case SystemEvent::ModifyCollection:
         if (!item->isDeleted()) {
             // Note: constructor is private and make_unique is a pain to make
             // friend
@@ -170,24 +170,22 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                 return std::make_unique<
                         CollectionCreateWithMaxTtlProducerMessage>(
                         opaque, item, data, sid);
-            } else {
-                return std::make_unique<CollectionCreateProducerMessage>(
-                        opaque, item, data, sid);
             }
-        } else {
-            // Only create can be marked isDeleted
-            Expects(SystemEvent(item->getFlags()) == SystemEvent::Collection);
-            // Note: constructor is private and make_unique is a pain to make
-            // friend
-            return std::make_unique<CollectionDropProducerMessage>(
-                    opaque,
-                    item,
-                    Collections::VB::Manifest::getDropEventData(
-                            {item->getData(), item->getNBytes()}),
-                    sid);
+            return std::make_unique<CollectionCreateProducerMessage>(
+                    opaque, item, data, sid);
         }
-    }
-    case SystemEvent::Scope: {
+        // Only create can be marked isDeleted
+        Expects(SystemEvent(item->getFlags()) == SystemEvent::Collection);
+        // Note: constructor is private and make_unique is a pain to make
+        // friend
+        return std::make_unique<CollectionDropProducerMessage>(
+                opaque,
+                item,
+                Collections::VB::Manifest::getDropEventData(
+                        {item->getData(), item->getNBytes()}),
+                sid);
+
+    case SystemEvent::Scope:
         if (!item->isDeleted()) {
             return std::make_unique<ScopeCreateProducerMessage>(
                     opaque,
@@ -195,15 +193,13 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                     Collections::VB::Manifest::getCreateScopeEventData(
                             {item->getData(), item->getNBytes()}),
                     sid);
-        } else {
-            return std::make_unique<ScopeDropProducerMessage>(
-                    opaque,
-                    item,
-                    Collections::VB::Manifest::getDropScopeEventData(
-                            {item->getData(), item->getNBytes()}),
-                    sid);
         }
-    }
+        return std::make_unique<ScopeDropProducerMessage>(
+                opaque,
+                item,
+                Collections::VB::Manifest::getDropScopeEventData(
+                        {item->getData(), item->getNBytes()}),
+                sid);
     }
 
     throw std::logic_error("SystemEventProducerMessage::make not valid for " +

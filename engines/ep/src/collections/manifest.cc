@@ -671,12 +671,12 @@ std::optional<ScopeID> Manifest::getScopeID(const DocKeyView& key) const {
 std::optional<ScopeID> Manifest::getScopeID(CollectionID cid) const {
     if (cid.isDefaultCollection() && defaultCollectionExists) {
         return ScopeID{ScopeID::Default};
-    } else {
-        auto itr = collections.find(cid);
-        if (itr != collections.end()) {
-            return itr->second.sid;
-        }
     }
+    auto itr = collections.find(cid);
+    if (itr != collections.end()) {
+        return itr->second.sid;
+    }
+
     return {};
 }
 
