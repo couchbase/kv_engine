@@ -28,7 +28,7 @@ struct DummyValue : public RCValue {
 
 class AtomicUnorderedMapTest : public ::testing::Test {
 public:
-    typedef AtomicUnorderedMap<int, SingleThreadedRCPtr<DummyValue>> TestMap;
+    using TestMap = AtomicUnorderedMap<int, SingleThreadedRCPtr<DummyValue>>;
 
     // Add N items to a map starting from the given offset.
     static void insert_into_map(TestMap& map, size_t n, size_t offset) {

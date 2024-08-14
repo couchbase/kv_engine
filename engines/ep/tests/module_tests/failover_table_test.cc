@@ -15,7 +15,7 @@
 #include <engines/ep/src/bucket_logger.h>
 #include <limits>
 
-typedef std::list<failover_entry_t> table_t;
+using table_t = std::list<failover_entry_t>;
 
 //create entries in the Failover table under test with
 //specified no of entries and seqno hint

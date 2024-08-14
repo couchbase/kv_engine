@@ -39,8 +39,7 @@ int main() {
     return RUN_ALL_TESTS();
 }
 
-typedef testing::Types<TestStatsOps>
-    WrappedOpsImplementation;
+using WrappedOpsImplementation = testing::Types<TestStatsOps>;
 
 INSTANTIATE_TYPED_TEST_SUITE_P(CouchstoreOpsTest,
                                WrappedOpsTest,

@@ -19,9 +19,9 @@
 #include <benchmark/benchmark.h>
 #include <list>
 
-typedef std::unique_ptr<int> TestItem;
-typedef std::list<TestItem> ListContainer;
-typedef CheckpointIterator<ListContainer> ListContainerIterator;
+using TestItem = std::unique_ptr<int>;
+using ListContainer = std::list<TestItem>;
+using ListContainerIterator = CheckpointIterator<ListContainer>;
 
 ListContainerIterator listContainerBegin(ListContainer& c) {
     return ListContainerIterator(c, ListContainerIterator::Position::begin);
