@@ -1888,24 +1888,29 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     engine->setDcpConnMap(std::move(connMapPtr));
 
     // create cookies
-    auto* producerCookie1 = create_mock_cookie(engine.get());
-    auto* producerCookie2 = create_mock_cookie(engine.get());
+    std::array<MockCookie*, 4> producerCookies;
+    for (auto& cookie : producerCookies) {
+        cookie = create_mock_cookie(engine.get());
+    }
     auto* consumerCookie = create_mock_cookie(engine.get());
     auto* statsCookie = create_mock_cookie(engine.get());
 
     // create producers
-    // Producer for conn type "fts" - the type is not special, it's just a
-    // string which will be extracted from the conn name.
-    auto producer1 = std::make_shared<MockDcpProducer>(*engine,
-                                                       producerCookie1,
-                                                       "eq_dcpq:fts:foo",
-                                                       /*flags*/ 0);
+    std::array<std::shared_ptr<MockDcpProducer>, 4> producers;
+    size_t idx = 0;
+    for (const char* name :
+         {"eq_dcpq:fts:foo",
+          "eq_dcpq:views:bar",
+          R"(eq_dcpq:"i":"123/abc","a":"kafka-connector/1.0 (baz) 2")",
+          R"(eq_dcpq:"i":"789","a":"bad-connector x)"}) {
+        producers.at(idx) =
+                std::make_shared<MockDcpProducer>(*engine,
+                                                  producerCookies.at(idx),
+                                                  name,
+                                                  /*flags*/ 0);
+        ++idx;
+    }
 
-    // Oroducer for "views"
-    auto producer2 = std::make_shared<MockDcpProducer>(*engine,
-                                                       producerCookie2,
-                                                       "eq_dcpq:views:bar",
-                                                       /*flags*/ 0);
     // Create a consumer for conn type "replication"
     auto consumer = std::make_shared<MockDcpConsumer>(*engine,
                                                       consumerCookie,
@@ -1913,18 +1918,23 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
                                                       "test_consumerA");
 
     // add conns to map
-    connMap.addConn(producerCookie1, producer1);
-    connMap.addConn(producerCookie2, producer2);
+    for (idx = 0; idx < producers.size(); ++idx) {
+        connMap.addConn(producerCookies[idx], producers[idx]);
+    }
     connMap.addConn(consumerCookie, consumer);
 
     // manufacture specific stats to test they are aggregated
     // correctly
-    auto producerBytes1 = 1234;
-    auto producerBytes2 = 4321;
+    auto producerBytes0 = 1234;
+    auto producerBytes1 = 4321;
+    auto producerBytes2 = 5678;
+    auto producerBytes3 = 8765;
     auto consumerBackoffs = 1991;
 
-    producer1->setTotalBtyesSent(producerBytes1);
-    producer2->setTotalBtyesSent(producerBytes2);
+    producers[0]->setTotalBtyesSent(producerBytes0);
+    producers[1]->setTotalBtyesSent(producerBytes1);
+    producers[2]->setTotalBtyesSent(producerBytes2);
+    producers[3]->setTotalBtyesSent(producerBytes3);
     consumer->setNumBackoffs(consumerBackoffs);
 
     std::unordered_map<std::string, std::string> statsOutput;
@@ -1943,24 +1953,33 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     // a total output.
     std::unordered_map<std::string, std::string> expected{
             {"replication:total_bytes", "0"},
-            {"fts:total_bytes", std::to_string(producerBytes1)},
-            {"views:total_bytes", std::to_string(producerBytes2)},
+            {"fts:total_bytes", std::to_string(producerBytes0)},
+            {"views:total_bytes", std::to_string(producerBytes1)},
+            {"kafka-connector:total_bytes", std::to_string(producerBytes2)},
+            {"bad-connector x:total_bytes", std::to_string(producerBytes3)},
             {":total:total_bytes",
-             std::to_string(producerBytes1 + producerBytes2)},
+             std::to_string(producerBytes0 + producerBytes1 + producerBytes2 +
+                            producerBytes3)},
 
             {"replication:producer_count", "0"},
             {"fts:producer_count", "1"},
             {"views:producer_count", "1"},
-            {":total:producer_count", "2"},
+            {"kafka-connector:producer_count", "1"},
+            {"bad-connector x:producer_count", "1"},
+            {":total:producer_count", "4"},
 
             {"replication:count", "1"},
             {"fts:count", "1"},
             {"views:count", "1"},
-            {":total:count", "3"},
+            {"kafka-connector:count", "1"},
+            {"bad-connector x:count", "1"},
+            {":total:count", "5"},
 
             {"replication:backoff", std::to_string(consumerBackoffs)},
             {"fts:backoff", "0"},
             {"views:backoff", "0"},
+            {"kafka-connector:backoff", "0"},
+            {"bad-connector x:backoff", "0"},
             {":total:backoff", std::to_string(consumerBackoffs)},
     };
 
@@ -1972,8 +1991,9 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
         EXPECT_EQ(value, itr->second);
     }
 
-    destroy_mock_cookie(producerCookie1);
-    destroy_mock_cookie(producerCookie2);
+    for (auto cookie : producerCookies) {
+        destroy_mock_cookie(cookie);
+    }
     destroy_mock_cookie(consumerCookie);
     destroy_mock_cookie(statsCookie);
 }
