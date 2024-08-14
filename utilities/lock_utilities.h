@@ -17,11 +17,10 @@
 namespace cb {
 
 /**
- * An opaque reference to either of SharedMutex::ReadHolder or
- * SharedMutex::WriteHolder.
+ * An opaque reference to either of std::shared_lock or std::unique_lock.
  *
  * The intention is to provide the same level of assurance that a lock is held
- * as that achieved by passing the ReadHolder/WriteHolder by const& into
+ * as that achieved by passing the shared_lock/unique_lock by const& into
  * functions. The user of this struct needs to make sure that the proper locks
  * are used and that the lock used to initialize this object outlives this tag.
  *

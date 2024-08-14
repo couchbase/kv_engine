@@ -461,7 +461,7 @@ protected:
      * @param changes Set of changes to make
      */
     void completeUpdate(VBucketStateLockRef vbStateLock,
-                        mutex_type::UpgradeHolder&& upgradeLock,
+                        folly::upgrade_lock<mutex_type>&& upgradeLock,
                         ::VBucket& vb,
                         ManifestChanges& changes);
 

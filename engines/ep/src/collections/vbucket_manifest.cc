@@ -91,7 +91,7 @@ Manifest::~Manifest() {
 
 Manifest::Manifest(Manifest& other) : manager(other.manager) {
     // Prevent other from being modified while we copy.
-    Manifest::mutex_type::WriteHolder wlock(other.rwlock);
+    std::unique_lock<Manifest::mutex_type> wlock(other.rwlock);
 
     // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
@@ -276,11 +276,11 @@ void Manifest::updateUid(ManifestUid uid, bool reset) {
 // 1) Input validation and change processing (only need read lock)
 // 2) Applying the change(s) (need write lock)
 // We utilise the upgrade feature of our mutex so that we can switch from
-// read (using UpgradeHolder) to write
+// read (using folly::upgrade_lock) to write
 ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
                                       VBucket& vb,
                                       const Collections::Manifest& manifest) {
-    mutex_type::UpgradeHolder upgradeLock(rwlock);
+    folly::upgrade_lock<mutex_type> upgradeLock(rwlock);
     auto status = canUpdate(manifest);
     if (status != ManifestUpdateStatus::Success) {
         EP_LOG_WARN(
@@ -353,7 +353,7 @@ void Manifest::applyFlusherStats(
 // to associate with the system-events. The new manifest UID is only "exposed"
 // for the final event of the changeset.
 void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
-                              mutex_type::UpgradeHolder&& upgradeLock,
+                              folly::upgrade_lock<mutex_type>&& upgradeLock,
                               ::VBucket& vb,
                               Manifest::ManifestChanges& changeset) {
     // Write Handle now needed

@@ -585,7 +585,7 @@ void ActiveDurabilityMonitor::processCompletedSyncWriteQueue(
 
 void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
     // First, remove all of the writes from the resolvedQueue. We should be
-    // called from under a WriteHolder of the vBucket state lock so it's safe to
+    // called from under a unique_lock of the vBucket state lock so it's safe to
     // release the resolvedQueue consumer lock afterwards.
     Container writesToTrack{trackedWritesAllocator};
     { // Scope for ResolvedQueue::ConsumerLock

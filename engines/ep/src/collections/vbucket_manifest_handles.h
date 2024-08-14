@@ -12,6 +12,7 @@
 #pragma once
 
 #include "collections/vbucket_manifest.h"
+#include <folly/synchronization/Lock.h>
 
 #include <utility>
 
@@ -285,7 +286,7 @@ public:
 protected:
     friend std::ostream& operator<<(std::ostream& os,
                                     const ReadHandle& readHandle);
-    Manifest::mutex_type::ReadHolder readLock{nullptr};
+    std::shared_lock<Manifest::mutex_type> readLock;
     const Manifest* manifest{nullptr};
 };
 
@@ -674,9 +675,9 @@ public:
     WriteHandle(Manifest& m,
                 // NOLINTNEXTLINE(modernize-pass-by-value)
                 VBucketStateLockRef vbStateLock,
-                Manifest::mutex_type::UpgradeHolder&& upgradeHolder)
+                folly::upgrade_lock<Manifest::mutex_type>&& upgradeHolder)
         : vbStateLock(vbStateLock),
-          writeLock(std::move(upgradeHolder)),
+          writeLock(folly::transition_lock<std::unique_lock>(upgradeHolder)),
           manifest(m) {
     }
 
@@ -873,7 +874,7 @@ public:
 
 private:
     VBucketStateLockRef vbStateLock;
-    Manifest::mutex_type::WriteHolder writeLock;
+    std::unique_lock<Manifest::mutex_type> writeLock;
     Manifest& manifest;
 };
 
