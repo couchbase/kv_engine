@@ -242,6 +242,10 @@ public:
                 setHistoryRetentionSeconds,
                 (std::chrono::seconds seconds),
                 (override));
+    MOCK_METHOD(bool,
+                keyMayExist,
+                (Vbid vbid, const DocKeyView& key),
+                (const, override));
 
     /**
      * Helper function to replace the existing read-write KVStore in the given

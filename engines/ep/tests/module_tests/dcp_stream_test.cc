@@ -41,6 +41,7 @@
 #include "../mock/mock_dcp_consumer.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_kvstore.h"
+#include "../mock/mock_paging_visitor.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
@@ -1888,6 +1889,74 @@ TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
     if (HasFailure()) {
         std::cerr << "Unexpected stats " << stats.dump(2);
     }
+}
+
+TEST_P(SingleThreadedActiveStreamTest,
+       SkipMagmaBFilterWhenBackfillingFromDisk) {
+    if (!isMagma()) {
+        GTEST_SKIP() << "Magma specific test";
+    }
+    /* Test Setup - begin */
+
+    // 1. Add an item.
+    // 2. Flush the item to disk & clear all checkpoints to force the backfill
+    //    from disk.
+    // 3. Adjust the low-watermarks & force the item pager to run.
+
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    ckptMgr.clear(0 /*seqno*/);
+
+    stream.reset();
+
+    const auto key = makeStoredDocKey("key");
+    const std::string value = "value";
+    auto item = make_item(vbid, key, value);
+
+    EXPECT_EQ(
+            MutationStatus::WasClean,
+            public_processSet(*vb, item, VBQueueItemCtx(CanDeduplicate::Yes)));
+
+    // Ensure mutation is on disk; no longer present in CheckpointManager.
+    vb->checkpointManager->createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(1, vb->checkpointManager->getNumCheckpoints());
+
+    vb->ht.clear();
+
+    const auto numResidentItems =
+            vb->getNumItems() - vb->getNumNonResidentItems();
+
+    // Ensure there are no resident item.
+    ASSERT_EQ(0, numResidentItems);
+    /* Test Setup - end */
+
+    //! Set the expectation keyMayExist is never called for Magma.
+    using namespace ::testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+    EXPECT_CALL(mockKVStore, keyMayExist(_, _)).Times(0);
+
+    const std::string jsonFilter =
+            fmt::format(R"({{"collections":["{}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId()));
+
+    recreateStream(*vb, true, jsonFilter);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+
+    // Note the following assert just make sure the backfill scan indeed ran &
+    // we received all the items we expect.
+
+    // readyQ must contain a SnapshotMarker & a single mutation.
+    ASSERT_EQ(stream->public_readyQSize(), 2);
+    auto resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
 }
 
 TEST_P(SingleThreadedActiveStreamTest, ProducerStatsLegacy) {

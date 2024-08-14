@@ -123,6 +123,30 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
                 .WillByDefault([this](auto vbid) {
                     return this->realKVS->getPersistedVBucketState(vbid);
                 });
+        ON_CALL(*this,
+                getCollectionStats(An<const KVFileHandle&>(),
+                                   An<CollectionID>()))
+                .WillByDefault(
+                        [this](const auto& kvFileHandle, auto collection) {
+                            return this->realKVS->getCollectionStats(
+                                    kvFileHandle, collection);
+                        });
+        ON_CALL(*this, getCollectionStats(An<Vbid>(), An<CollectionID>()))
+                .WillByDefault([this](auto vbid, auto collection) {
+                    return this->realKVS->getCollectionStats(vbid, collection);
+                });
+        ON_CALL(*this, keyMayExist(_, _))
+                .WillByDefault([this](auto vbid, auto key) {
+                    return this->realKVS->keyMayExist(vbid, std::move(key));
+                });
+        ON_CALL(*this, scan(An<ByIdScanContext&>()))
+                .WillByDefault([this](auto& scanCtx) {
+                    return this->realKVS->scan(scanCtx);
+                });
+        ON_CALL(*this, scan(An<BySeqnoScanContext&>()))
+                .WillByDefault([this](auto& scanCtx) {
+                    return this->realKVS->scan(scanCtx);
+                });
     }
 }
 
