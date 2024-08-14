@@ -424,7 +424,7 @@ protected:
         // the roll back function will rewind disk to this collection state.
         // note: we add 'meat' and keep it empty, this reproduces MB-37940
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::dairy)
                                      .add(CollectionEntry::meat)));
 
@@ -463,7 +463,7 @@ protected:
 
         cm.remove(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Expect failure to store
@@ -1444,7 +1444,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
     stream->processMarker(&marker);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -1493,7 +1493,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
     stream->processMarker(&marker);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             key,
@@ -1533,7 +1533,7 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
             {} /*streamID*/);
     stream->processMarker(&marker);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ItemMetaData meta;
         uint64_t cas = 0;
         meta.cas = 99;

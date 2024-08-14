@@ -998,7 +998,7 @@ GetValue DurabilityWarmupTest::getItemFromDisk(const DocKeyView& key,
     // works for replica vBuckets
     const char* msg;
     auto vb = store->getVBucket(vbid);
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     vb->evictKey(&msg, rlh, vb->lockCollections(key));
     // When a key is evicted, it's added to the bloom filter (full-eviction
     // mode) - clear the filter here to make sure the doc is fetched from disk.
@@ -1138,14 +1138,15 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
         if (vbState == vbucket_state_active) {
             // Commit on active is driven by the ADM so we need to drive our
             // commit via seqno ack
-            EXPECT_EQ(cb::engine_errc::success,
-                      vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(
-                                                    vb->getStateLock()),
-                                            "replica",
-                                            prepareSeqno++));
+            EXPECT_EQ(
+                    cb::engine_errc::success,
+                    vb->seqnoAcknowledged(std::shared_lock<folly::SharedMutex>(
+                                                  vb->getStateLock()),
+                                          "replica",
+                                          prepareSeqno++));
             vb->processResolvedSyncWrites();
         } else {
-            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            std::shared_lock rlh(vb->getStateLock());
             // Commit on non-active is driven by VBucket::commit
             vb->commit(rlh,
                        key,
@@ -1266,7 +1267,7 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // Abort the prepare so we can validate the previous Committed value
     // is present, readable and the same it was before warmup.
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto handle = vb->lockCollections(item->getKey());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(rlh, key, item->getBySeqno(), {}, handle));
@@ -1393,7 +1394,7 @@ void DurabilityWarmupTest::setupForPrepareWarmup(VBucket& vb,
     setVBucketToActiveWithValidTopology(topology);
     auto item = makePendingItem(key, "do");
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         auto cHandle = vb.lockCollections(item->getKey());
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
@@ -1581,7 +1582,7 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
     auto item = makePendingItem(key, "do");
     item->setBySeqno(1);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
@@ -1812,7 +1813,7 @@ void DurabilityWarmupTest::testHCSPersistedAndLoadedIntoVBState() {
     ASSERT_TRUE(vb);
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       preparedSeqno));
     vb->processResolvedSyncWrites();
@@ -1935,7 +1936,7 @@ TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     {
         auto vb = engine->getVBucket(vbid);
         vb->seqnoAcknowledged(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 "replica",
                 1);
         vb->processResolvedSyncWrites();
@@ -1946,7 +1947,7 @@ TEST_P(DurabilityWarmupTest, CommittedWithAckAfterWarmup) {
     {
         auto vb = engine->getVBucket(vbid);
         vb->seqnoAcknowledged(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 "replica",
                 1);
     }
@@ -1970,7 +1971,7 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     {
         auto vb = engine->getVBucket(vbid);
         vb->seqnoAcknowledged(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 "replica",
                 2);
         vb->processResolvedSyncWrites();
@@ -1982,7 +1983,7 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     {
         auto vb = engine->getVBucket(vbid);
         vb->seqnoAcknowledged(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 "replica",
                 2);
     }
@@ -2016,7 +2017,7 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     vb->checkpointManager->createSnapshot(
             2, 2, {} /*HCS*/, CheckpointType::Memory, 0);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -2077,7 +2078,7 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
         // 2) Receive the abort
         auto abortKey = makeStoredDocKey("abort");
         {
-            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            std::shared_lock rlh(vb->getStateLock());
             vb->abort(rlh, abortKey, 3, 4, vb->lockCollections(abortKey));
         }
         EXPECT_EQ(4, vb->getHighSeqno());

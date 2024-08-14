@@ -852,8 +852,9 @@ Collections::KVStore::Manifest CollectionsFlushTest::createCollectionAndFlush(
     VBucketPtr vb = store->getVBucket(vbid);
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{json});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{json});
     storeItems(collection, items);
     flushVBucketToDiskIfPersistent(vbid, 1 + items); // create event + items
     EXPECT_EQ(items, vb->lockCollections().getItemCount(collection));
@@ -864,8 +865,9 @@ Collections::KVStore::Manifest CollectionsFlushTest::dropCollectionAndFlush(
         const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, items);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest(json));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest(json));
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     flushVBucketToDiskIfPersistent(vbid,
@@ -1031,7 +1033,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
 
         // add performs a +1 on the manifest uid
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::meat)));
 
         // Trigger a flush to disk. Flushes the meat create event
@@ -1061,7 +1063,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
 
         // create an extra collection which we do not write to (note uid++)
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::fruit)));
         flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1152,7 +1154,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         // Add the meat collection
         CollectionsManifest cm(CollectionEntry::meat);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
@@ -1168,7 +1170,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
 
         // Remove the meat collection
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::meat)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1201,7 +1203,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
         // Add the meat collection
         CollectionsManifest cm(CollectionEntry::meat);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
@@ -1218,7 +1220,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
         // Remove the default collection
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::defaultC)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1253,7 +1255,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
         CollectionsManifest cm;
         cm.setUid(0xface2); // cm.add will +1 this uid
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::meat)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1276,7 +1278,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
         CollectionsManifest cm;
         cm.setUid(0xface2); // cm.remove will +1 this uid
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::defaultC)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1432,7 +1434,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         // _before_ the creation event tries to call setPersistedHighSeqno()
         cm.remove(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
     });
     // flushing the creation to disk should not throw, even though the
@@ -1465,7 +1467,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactNewPrepare) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     vb->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             "replica",
             vb->getHighSeqno());
     vb->processResolvedSyncWrites();
@@ -1562,9 +1564,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactPrepareAbort) {
               store->set(*dairyPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          vb->getHighSeqno());
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            vb->getHighSeqno());
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1655,9 +1658,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactAbortPrepare) {
               store->set(*dairyPending, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          vb->getHighSeqno());
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            vb->getHighSeqno());
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1770,7 +1774,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactDropCollection) {
         // And drop the collection to check that we don't try to update the size
         cm.remove(CollectionEntry::meat);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
     });
@@ -1871,9 +1875,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
             [&vb, &cm, this](auto& compactionKey) {
                 // Drop a collection during flush
                 cm.remove(CollectionEntry::vegetable);
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
             });
 
@@ -1993,7 +1997,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
     store->getVBucket(vbid)->updateFromManifest(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     store->getVBucket(vbid)->getStateLock()),
             makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2045,7 +2049,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
     store->getVBucket(vbid)->updateFromManifest(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     store->getVBucket(vbid)->getStateLock()),
             makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2096,7 +2100,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
     store->getVBucket(vbid)->updateFromManifest(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     store->getVBucket(vbid)->getStateLock()),
             makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2118,7 +2122,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
         cm.remove(CollectionEntry::defaultC);
         cm.remove(CollectionEntry::vegetable);
         store->getVBucket(vbid)->updateFromManifest(
-                folly::SharedMutex::ReadHolder(
+                std::shared_lock<folly::SharedMutex>(
                         store->getVBucket(vbid)->getStateLock()),
                 makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 4);
@@ -2158,7 +2162,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
     store->getVBucket(vbid)->updateFromManifest(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     store->getVBucket(vbid)->getStateLock()),
             makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2176,7 +2180,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
         cm.remove(CollectionEntry::defaultC);
         cm.remove(CollectionEntry::vegetable);
         store->getVBucket(vbid)->updateFromManifest(
-                folly::SharedMutex::ReadHolder(
+                std::shared_lock<folly::SharedMutex>(
                         store->getVBucket(vbid)->getStateLock()),
                 makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 4);
@@ -2211,7 +2215,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactResurrectCollection) {
 
     cm.add(CollectionEntry::vegetable);
     store->getVBucket(vbid)->updateFromManifest(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     store->getVBucket(vbid)->getStateLock()),
             makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -2240,7 +2244,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactResurrectCollection) {
         cm.remove(CollectionEntry::defaultC);
         cm.remove(CollectionEntry::vegetable);
         store->getVBucket(vbid)->updateFromManifest(
-                folly::SharedMutex::ReadHolder(
+                std::shared_lock<folly::SharedMutex>(
                         store->getVBucket(vbid)->getStateLock()),
                 makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 2);
@@ -2248,7 +2252,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactResurrectCollection) {
         cm.add(CollectionEntry::defaultC);
         cm.add(CollectionEntry::vegetable);
         store->getVBucket(vbid)->updateFromManifest(
-                folly::SharedMutex::ReadHolder(
+                std::shared_lock<folly::SharedMutex>(
                         store->getVBucket(vbid)->getStateLock()),
                 makeManifest(cm));
         store_item(vbid, key_1a, "Still smaller value");
@@ -2334,7 +2338,7 @@ TEST_P(ConcurrentCompactPurge, ConcCompactPurgeTombstones) {
         flushVBucketToDiskIfPersistent(vbid, 1);
 
         vb->seqnoAcknowledged(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 "replica",
                 vb->getHighSeqno());
         vb->processResolvedSyncWrites();
@@ -2493,7 +2497,7 @@ void CollectionsExpiryLimitTest::operation_test(
     {
         VBucketPtr vb = store->getVBucket(vbid);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
     }
 
@@ -2980,7 +2984,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
         // default collection disk size should _increase_
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
 
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         vb->commit(rlh,
                    key,
                    vb->getHighSeqno(),
@@ -3041,7 +3045,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
                              getPrepareStatCheckerPostFuncForBackend(
                                      getBackendString(), std::less<>()));
 
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         vb->abort(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
     }
@@ -4322,10 +4326,12 @@ TEST_P(CollectionsParameterizedTest, MB_45899) {
     vb0->lockCollections().accumulateStats(collections, summary);
     EXPECT_EQ(1, summary.count(CollectionID::Default));
     auto copyStats = summary.find(CollectionID::Default)->second;
-    vb0->updateFromManifest(folly::SharedMutex::ReadHolder(vb0->getStateLock()),
-                            makeManifest(cm));
-    vb1->updateFromManifest(folly::SharedMutex::ReadHolder(vb1->getStateLock()),
-                            makeManifest(cm));
+    vb0->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb0->getStateLock()),
+            makeManifest(cm));
+    vb1->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb1->getStateLock()),
+            makeManifest(cm));
     vb1->lockCollections().accumulateStats(collections, summary);
 
     // No changes made, collection doesn't exist in vb1
@@ -4375,9 +4381,9 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
                     // Drop a collection and flush so that the dropped
                     // collections local doc gets updated
                     cm.remove(CollectionEntry::meat);
-                    vb->updateFromManifest(
-                            folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                            makeManifest(cm));
+                    vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                                   vb->getStateLock()),
+                                           makeManifest(cm));
                     flushVBucketToDiskIfPersistent(vbid, 1);
 
                     // Meat should be now too

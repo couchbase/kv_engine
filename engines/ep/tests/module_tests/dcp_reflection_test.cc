@@ -236,7 +236,7 @@ public:
     cb::engine_errc storeCommit(std::string key) {
         auto docKey = makeStoredDocKey(key);
         auto vb = engine->getVBucket(vbid);
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         return vb->commit(rlh,
                           docKey,
                           1,
@@ -1315,7 +1315,7 @@ TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
     {
         const char* msg;
         auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-        folly::SharedMutex::ReadHolder rlh(replicaVB->getStateLock());
+        std::shared_lock rlh(replicaVB->getStateLock());
         auto cHandle = replicaVB->lockCollections(k1);
         EXPECT_EQ(cb::engine_errc::success,
                   replicaVB->evictKey(&msg, rlh, cHandle));

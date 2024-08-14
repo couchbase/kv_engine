@@ -1143,9 +1143,10 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     vb->checkpointManager->createSnapshot(2, 2, 0, CheckpointType::Disk, 2);
 
     // 3) Seqno ack and commit the prepare
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          1 /*prepareSeqno*/);
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            1 /*prepareSeqno*/);
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -3184,8 +3185,9 @@ void EPBucketCDCTest::SetUp() {
                  cb::NoExpiryLimit,
                  true /*history*/,
                  ScopeEntry::defaultS);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{manifest}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{manifest}});
     flush_vbucket_to_disk(vbid, 1);
 }
 
@@ -3513,8 +3515,9 @@ TEST_P(EPBucketCDCTest, CompactionPreservesHistory) {
                  cb::NoExpiryLimit,
                  false /*history*/,
                  ScopeEntry::defaultS);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{manifest}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{manifest}});
     EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
     // .. write some data into it
     store_item(vbid, makeStoredDocKey("key", CollectionEntry::fruit), "value");
@@ -3523,8 +3526,9 @@ TEST_P(EPBucketCDCTest, CompactionPreservesHistory) {
     flush_vbucket_to_disk(vbid, 2);
     // Now drop the newly created collection..
     manifest.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{manifest}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{manifest}});
     EXPECT_EQ(initialHighSeqno + 4, vb->getHighSeqno());
     // .. and persist the drop to disk
     flush_vbucket_to_disk(vbid, 1);

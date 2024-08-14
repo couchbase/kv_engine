@@ -175,7 +175,7 @@ public:
             VBucket& vb,
             vbucket_state_t newState,
             const nlohmann::json* meta,
-            folly::SharedMutex::WriteHolder& vbStateLock);
+            std::unique_lock<folly::SharedMutex>& vbStateLock);
 
     /**
      * Call the function p and supply each shard as a parameter.

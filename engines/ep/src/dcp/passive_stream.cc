@@ -566,7 +566,7 @@ cb::engine_errc PassiveStream::processCommit(
     // VBucket::commit() may generated expired items.
     // NOTE: Theoretically this will never occur, because we kill all streams
     // when changing the VBucket state.
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
@@ -591,7 +591,7 @@ cb::engine_errc PassiveStream::processAbort(
     // VBucket::abort() may generated expired items.
     // NOTE: Theoretically this will never occur, because we kill all streams
     // when changing the VBucket state.
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
 
     if (!permittedVBStates.test(vb->getState())) {
         return cb::engine_errc::not_my_vbucket;
@@ -611,7 +611,7 @@ cb::engine_errc PassiveStream::processSystemEvent(
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
     }
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
@@ -904,7 +904,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         return;
     }
     // Vbucket must be in a permitted state to apply the snapshot
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         return;
     }

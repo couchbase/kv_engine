@@ -273,7 +273,7 @@ TEST_P(StreamTest, VerifyProducerStats) {
     auto prepareToCommit = store_pending_item(vbid, "pending1", "value3", reqs);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              prepareToCommit->getKey(),
@@ -291,7 +291,7 @@ TEST_P(StreamTest, VerifyProducerStats) {
 
     auto prepareToAbort = store_pending_item(vbid, "pending2", "value4", reqs);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             prepareToAbort->getKey(),
@@ -2279,7 +2279,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
     auto item = make_item(vbid, key, value);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item.getKey());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(rlh, item, cookie, *engine, {}, cHandle));
@@ -2859,7 +2859,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
         // Need to commit the first prepare for queuing a new one in the next
         // steps.
         {
-            folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+            std::shared_lock rlh(vb.getStateLock());
             EXPECT_EQ(cb::engine_errc::success,
                       vb.commit(rlh,
                                 key,
@@ -4452,8 +4452,9 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     CollectionsManifest cm;
     const auto& collection = CollectionEntry::fruit;
     cm.add(collection);
-    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
-                          makeManifest(cm));
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            makeManifest(cm));
     EXPECT_EQ(2, vb.getHighSeqno());
 
     // Ensure backfill
@@ -5918,8 +5919,9 @@ TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
     manifest.add(
             cFruit, cb::NoExpiryLimit, true /*history*/, ScopeEntry::defaultS);
     auto& vb = *store->getVBucket(vbid);
-    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
-                          Collections::Manifest{std::string{manifest}});
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
     ASSERT_EQ(1, vb.getHighSeqno());
 
     // seqno:2 in cFruit
@@ -6645,8 +6647,9 @@ void CDCActiveStreamTest::SetUp() {
 
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{manifest}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{manifest}});
     ASSERT_EQ(1, vb->getHighSeqno());
 
     ASSERT_TRUE(producer);
@@ -6963,8 +6966,9 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     // to start from a clean CM and stream.
     manifest.remove(CollectionEntry::historical);
     auto& vb = *store->getVBucket(vbid);
-    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
-                          Collections::Manifest{std::string{manifest}});
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
     clearCMAndPersistenceAndReplication();
 
     producer->closeStream(0, vbid, stream->getStreamId());
@@ -6998,8 +7002,9 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
                  cb::NoExpiryLimit,
                  true /*history*/,
                  ScopeEntry::defaultS);
-    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
-                          Collections::Manifest{std::string{manifest}});
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
 
     const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(0, readyQ.size());
@@ -7027,8 +7032,9 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
                     cb::NoExpiryLimit,
                     {} /*history*/,
                     ScopeEntry::defaultS);
-    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
-                          Collections::Manifest{std::string{manifest}});
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
 
     stream->nextCheckpointItemTask();
     ASSERT_EQ(2, readyQ.size()); // SnapshotMarker + SeqnoAdvance
@@ -7091,7 +7097,7 @@ TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
 
     // ABORT
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            pre1.getKey(),
@@ -7114,7 +7120,7 @@ TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
 
     // COMMIT
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             pre2.getKey(),

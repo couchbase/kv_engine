@@ -1553,7 +1553,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             return;
         }
 
-        folly::SharedMutex::WriteHolder wlh(vb->getStateLock());
+        std::unique_lock wlh(vb->getStateLock());
         auto wh = vb->getManifest().wlock(wlh);
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
@@ -1695,7 +1695,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
             {
                 // Note this lock is here for correctness - the VBucket is not
                 // accessible yet, so its state cannot be changed by other code.
-                folly::SharedMutex::ReadHolder rlh(vbPtr->getStateLock());
+                std::shared_lock rlh(vbPtr->getStateLock());
                 if (vbPtr->getState() == vbucket_state_active) {
                     // For all active vbuckets, call through to the manager so
                     // that they are made 'current' with the manifest.

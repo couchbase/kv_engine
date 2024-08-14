@@ -167,7 +167,7 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
         // Create a collection so we can get a stream, but don't flush it
         CollectionsManifest cm(CollectionEntry::fruit);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Must call this to ensure collection start-seqno optimisation doesn't
@@ -395,7 +395,7 @@ TEST_P(CollectionsOSODcpTest, dropped_collection) {
     // items in the OSO snapshot
     VBucketPtr vb = store->getVBucket(vbid);
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(setup.first.remove(CollectionEntry::vegetable)));
     flush_vbucket_to_disk(vbid, 1);
 

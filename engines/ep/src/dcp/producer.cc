@@ -706,7 +706,7 @@ cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         if (vb.getState() == vbucket_state_dead) {
             logger->warn(
                     "({}) Stream request failed because "
@@ -1893,7 +1893,7 @@ void DcpProducer::notifySeqnoAvailable(Vbid vbucket, queue_op op) {
 void DcpProducer::closeStreamDueToVbStateChange(
         Vbid vbucket,
         vbucket_state_t state,
-        folly::SharedMutex::WriteHolder* vbstateLock) {
+        std::unique_lock<folly::SharedMutex>* vbstateLock) {
     if (setStreamDeadStatus(vbucket,
                             cb::mcbp::DcpStreamEndStatus::StateChanged,
                             vbstateLock)) {
@@ -1931,7 +1931,7 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
 bool DcpProducer::setStreamDeadStatus(
         Vbid vbid,
         cb::mcbp::DcpStreamEndStatus status,
-        folly::SharedMutex::WriteHolder* vbstateLock) {
+        std::unique_lock<folly::SharedMutex>* vbstateLock) {
     auto rv = streams->find(vbid.get());
     if (rv != streams->end()) {
         std::vector<std::shared_ptr<ActiveStream>> streamPtrs;

@@ -182,7 +182,7 @@ public:
     }
 
     void setUpHashBucketVisit() override {
-        vbStateLock = folly::SharedMutex::ReadHolder(vb.getStateLock());
+        vbStateLock = std::shared_lock<folly::SharedMutex>(vb.getStateLock());
         readHandle = vb.lockCollections();
     }
 
@@ -194,7 +194,7 @@ public:
     VBucket& vb;
     std::function<bool(const HashTable::HashBucketLock&, StoredValue&)> visitFn;
 
-    folly::SharedMutex::ReadHolder vbStateLock{nullptr};
+    std::shared_lock<folly::SharedMutex> vbStateLock;
     Collections::VB::ReadHandle readHandle;
 };
 

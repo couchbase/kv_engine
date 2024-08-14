@@ -116,9 +116,10 @@ public:
     void applyEvents(TransactionContext& txnCtx,
                      VB::Commit& commitData,
                      const CollectionsManifest& cm) {
-        manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                        *vbucket,
-                        makeManifest(cm));
+        manifest.update(
+                std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+                *vbucket,
+                makeManifest(cm));
 
         std::vector<queued_item> events;
         auto res = getEventsFromCheckpoint(events);
@@ -491,9 +492,10 @@ TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true)
             .add(CollectionEntry::vegetable);
-    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                    *vbucket,
-                    makeManifest(cm));
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm));
     // Switch the history setting
     cm.remove(CollectionEntry::vegetable)
             .remove(CollectionEntry::fruit)
@@ -549,9 +551,10 @@ TEST_P(CollectionsKVStoreTest, max_ttl_changes) {
     // update.
     cm.update(CollectionEntry::vegetable, std::chrono::seconds{1});
     // have to bypass some of the helpers to update twice
-    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                    *vbucket,
-                    makeManifest(cm));
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm));
     cm.update(CollectionEntry::vegetable, {});
     applyAndCheck(cm);
 }
@@ -596,18 +599,20 @@ void CollectionsKVStoreTest::failForDuplicate() {
 TEST_P(CollectionsKVStoreTest, failForDuplicateCollection) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                    *vbucket,
-                    makeManifest(cm));
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm));
     failForDuplicate();
 }
 
 TEST_P(CollectionsKVStoreTest, failForDuplicateScope) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
-    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                    *vbucket,
-                    makeManifest(cm));
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm));
     failForDuplicate();
 }
 
@@ -615,9 +620,10 @@ TEST_P(CollectionsKVStoreTest, systemCollection) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::systemCollection);
     cm.add(ScopeEntry::systemScope);
-    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                    *vbucket,
-                    makeManifest(cm));
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm));
     // Check the events have the correct flag
     std::vector<queued_item> events;
     getEventsFromCheckpoint(events);
@@ -645,9 +651,10 @@ TEST_P(CollectionsKVStoreTest, systemCollection) {
 
     cm.remove(CollectionEntry::systemCollection);
     cm.remove(ScopeEntry::systemScope);
-    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                    *vbucket,
-                    makeManifest(cm));
+    manifest.update(
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
+            *vbucket,
+            makeManifest(cm));
 
     getEventsFromCheckpoint(events);
     ASSERT_EQ(2, events.size());
@@ -674,7 +681,7 @@ TEST_P(CollectionsKVStoreTest, systemCollectionReplicaTombstones) {
     vbucket->checkpointManager->createSnapshot(
             1, 2, std::nullopt, CheckpointType::Memory, 2);
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         manifest.wlock(rlh).replicaDrop(*vbucket,
                                         Collections::ManifestUid(1),
                                         CollectionID(8),

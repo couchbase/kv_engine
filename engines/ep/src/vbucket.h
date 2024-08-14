@@ -469,9 +469,10 @@ public:
      * @param meta optional meta information to apply alongside the state.
      * @param vbStateLock write lock holder on 'stateLock'
      */
-    void setState_UNLOCKED(vbucket_state_t to,
-                           const nlohmann::json* meta,
-                           const folly::SharedMutex::WriteHolder& vbStateLock);
+    void setState_UNLOCKED(
+            vbucket_state_t to,
+            const nlohmann::json* meta,
+            const std::unique_lock<folly::SharedMutex>& vbStateLock);
 
     auto& getStateLock() {
         return stateLock;
@@ -1736,7 +1737,7 @@ public:
      * @param preparedSeqno The sequence number the replica has prepared up to.
      */
     cb::engine_errc seqnoAcknowledged(
-            const folly::SharedMutex::ReadHolder& vbStateLock,
+            const std::shared_lock<folly::SharedMutex>& vbStateLock,
             const std::string& replicaId,
             uint64_t preparedSeqno);
 
@@ -1759,8 +1760,9 @@ public:
      * @param node Name of the node for which we wish to remove the ack
      * @param vbstateLock Exclusive lock to vbstate
      */
-    void removeAcksFromADM(const std::string& node,
-                           const folly::SharedMutex::WriteHolder& vbstateLock);
+    void removeAcksFromADM(
+            const std::string& node,
+            const std::unique_lock<folly::SharedMutex>& vbstateLock);
 
     /**
      * Remove any queued acks for the given node from the ActiveDM.
@@ -1770,8 +1772,9 @@ public:
      * @param node Name of the node for which we wish to remove the ack
      * @param vbstateLock Shared lock to vbstate
      */
-    void removeAcksFromADM(const std::string& node,
-                           const folly::SharedMutex::ReadHolder& vbstateLock);
+    void removeAcksFromADM(
+            const std::string& node,
+            const std::shared_lock<folly::SharedMutex>& vbstateLock);
 
     /**
      * Set the window for which a duplicate prepare may be valid. This is any

@@ -12,6 +12,7 @@
 
 #include <folly/SharedMutex.h>
 #include <folly/lang/Hint.h>
+#include <shared_mutex>
 
 namespace cb {
 
@@ -34,10 +35,10 @@ namespace cb {
 template <typename Tag = void>
 class SharedLockRef {
 public:
-    SharedLockRef(const folly::SharedMutex::ReadHolder& rhl) : ptr(&rhl) {
+    SharedLockRef(const std::shared_lock<folly::SharedMutex>& rhl) : ptr(&rhl) {
     }
 
-    SharedLockRef(const folly::SharedMutex::WriteHolder& whl) : ptr(&whl) {
+    SharedLockRef(const std::unique_lock<folly::SharedMutex>& whl) : ptr(&whl) {
     }
 
     // SharedLockRefs are just opaque pointers and can be copied.

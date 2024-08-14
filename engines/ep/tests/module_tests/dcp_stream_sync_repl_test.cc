@@ -628,7 +628,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
 
     EXPECT_EQ(cb::engine_errc::success,
               vb0->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb0->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb0->getStateLock()),
                       "replica",
                       vb0->getHighSeqno() /*prepareSeqno*/));
     vb0->processResolvedSyncWrites();
@@ -722,7 +722,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
     {
-        folly::SharedMutex::ReadHolder rlh(vb0->getStateLock());
+        std::shared_lock rlh(vb0->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb0->abort(rlh,
                              prepared->getKey(),

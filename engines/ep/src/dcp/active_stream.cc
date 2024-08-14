@@ -102,7 +102,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         end_seqno_ = dcpMaxSeqno;
     }
 
-    folly::SharedMutex::ReadHolder rlh(vbucket.getStateLock());
+    std::shared_lock rlh(vbucket.getStateLock());
     if (vbucket.getState() == vbucket_state_replica) {
         snapshot_info_t info = vbucket.checkpointManager->getSnapshotInfo();
         if (info.range.getEnd() > en_seqno) {
@@ -695,7 +695,7 @@ void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
         // by lock-inversion or double-lock otherwise.
         std::unique_lock<std::mutex> epVbSetLh(
                 engine->getKVBucket()->getVbSetMutexLock());
-        folly::SharedMutex::WriteHolder vbStateLh(vbucket->getStateLock());
+        std::unique_lock vbStateLh(vbucket->getStateLock());
 
         bool needToSetVbState = false;
         {
@@ -1813,13 +1813,13 @@ uint32_t ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
 }
 
 void ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status,
-                           folly::SharedMutex::WriteHolder& vbstateLock) {
+                           std::unique_lock<folly::SharedMutex>& vbstateLock) {
     setDeadInner(status);
     removeAcksFromDM(&vbstateLock);
 }
 
 void ActiveStream::removeAcksFromDM(
-        folly::SharedMutex::WriteHolder* vbstateLock) {
+        std::unique_lock<folly::SharedMutex>* vbstateLock) {
     // Remove any unknown acks for the stream. Why here and not on
     // destruction of the object? We could be replacing an existing
     // DcpProducer with another. This old ActiveStream may then live on
@@ -1858,7 +1858,7 @@ void ActiveStream::removeAcksFromDM(
         } else {
             vb->removeAcksFromADM(
                     consumerName,
-                    folly::SharedMutex::ReadHolder(vb->getStateLock()));
+                    std::shared_lock<folly::SharedMutex>(vb->getStateLock()));
         }
     }
 }
@@ -2666,7 +2666,7 @@ cb::engine_errc ActiveStream::seqnoAck(const std::string& consumerName,
     // this vb. Done before the streamMutex is acquired to prevent a lock order
     // inversion.
     {
-        folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
+        std::shared_lock vbStateLh(vb->getStateLock());
 
         // Locked with the streamMutex to ensure that we cannot race with a
         // stream end

@@ -163,7 +163,7 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
 
     { // locking scope
         auto docKey = key.getDocKey();
-        folly::SharedMutex::ReadHolder rlh(getStateLock());
+        std::shared_lock rlh(getStateLock());
         auto cHandle = lockCollections(docKey);
         auto res = fetchValidValue(rlh,
                                    WantsDeleted::Yes,
@@ -284,7 +284,7 @@ void EPVBucket::completeCompactionExpiryBgFetch(
     Item* fetchedValue = fetchedItem.value->item.get();
     { // locking scope
         auto docKey = key.getDocKey();
-        folly::SharedMutex::ReadHolder rlh(getStateLock());
+        std::shared_lock rlh(getStateLock());
         if (getState() != vbucket_state_active) {
             return;
         }
@@ -453,7 +453,7 @@ uint64_t EPVBucket::getHistoryDiskSize() {
 cb::engine_errc EPVBucket::statsVKey(const DocKeyView& key,
                                      CookieIface& cookie,
                                      EventuallyPersistentEngine& engine) {
-    folly::SharedMutex::ReadHolder rlh(getStateLock());
+    std::shared_lock rlh(getStateLock());
     auto readHandle = lockCollections(key);
     if (!readHandle.valid()) {
         return cb::engine_errc::unknown_collection;
@@ -495,7 +495,7 @@ cb::engine_errc EPVBucket::statsVKey(const DocKeyView& key,
 }
 
 void EPVBucket::completeStatsVKey(const DocKeyView& key, const GetValue& gcb) {
-    folly::SharedMutex::ReadHolder rlh(getStateLock());
+    std::shared_lock rlh(getStateLock());
 
     auto cHandle = lockCollections(key);
     auto res = fetchValidValue(

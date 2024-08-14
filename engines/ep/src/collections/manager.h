@@ -32,7 +32,7 @@ class VBucket;
 
 /// A convenience typedef for a map of read locks on the VBucket states.
 using VBucketStateRLockMap =
-        VBucketStateLockMap<folly::SharedMutex::ReadHolder>;
+        VBucketStateLockMap<std::shared_lock<folly::SharedMutex>>;
 
 namespace Collections {
 

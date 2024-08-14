@@ -144,7 +144,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     EXPECT_FALSE(mock_cookie_notified(cookieP))
             << "Prepare not expected to notify";
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             key,
@@ -182,8 +182,9 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     cm.add(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -234,8 +235,9 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -307,8 +309,9 @@ TEST_F(CollectionsDcpStreamsTest,
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -361,8 +364,9 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -437,8 +441,9 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(

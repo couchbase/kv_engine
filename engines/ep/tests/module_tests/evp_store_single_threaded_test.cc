@@ -4460,7 +4460,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
     if (persistent()) {
         auto replicaVB = engine->getKVBucket()->getVBucket(vbid);
         const char* msg;
-        folly::SharedMutex::ReadHolder rlh(replicaVB->getStateLock());
+        std::shared_lock rlh(replicaVB->getStateLock());
         auto cHandle = replicaVB->lockCollections(key);
         EXPECT_EQ(cb::engine_errc::success,
                   replicaVB->evictKey(&msg, rlh, cHandle));
@@ -4711,7 +4711,7 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
     // ABORT:2
     ASSERT_EQ(1, manager.getHighSeqno());
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -5272,9 +5272,10 @@ TEST_P(STParameterizedBucketTest, SyncWriteXattrExpiryResetsCommittedState) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // 2) Seqno ack and commit the prepare
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          1 /*prepareSeqno*/);
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            1 /*prepareSeqno*/);
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -5289,7 +5290,7 @@ TEST_P(STParameterizedBucketTest, SyncWriteXattrExpiryResetsCommittedState) {
     // deleted.
     TimeTraveller t(1000);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto res = vb->fetchValidValue(rlh,
                                        WantsDeleted::No,
                                        TrackReference::No,
@@ -5342,9 +5343,10 @@ TEST_P(STParamPersistentBucketTest, SyncWriteXattrExpiryViaDcp) {
     auto vb = store->getVBucket(vbid);
 
     // 2) Seqno ack and commit the prepare
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          1 /*prepareSeqno*/);
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            1 /*prepareSeqno*/);
     vb->processResolvedSyncWrites();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -5870,7 +5872,7 @@ TEST_P(STParamPersistentBucketTest,
 
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1));
 

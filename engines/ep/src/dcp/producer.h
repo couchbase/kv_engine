@@ -154,7 +154,7 @@ public:
     void closeStreamDueToVbStateChange(
             Vbid vbucket,
             vbucket_state_t state,
-            folly::SharedMutex::WriteHolder* vbstateLock);
+            std::unique_lock<folly::SharedMutex>* vbstateLock);
 
     void closeStreamDueToRollback(Vbid vbucket);
 
@@ -615,7 +615,7 @@ protected:
     bool setStreamDeadStatus(
             Vbid vbid,
             cb::mcbp::DcpStreamEndStatus status,
-            folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
+            std::unique_lock<folly::SharedMutex>* vbstateLock = nullptr);
 
     /**
      * Return the hotness value to use for this item in a DCP message.

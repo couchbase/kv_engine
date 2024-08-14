@@ -367,7 +367,8 @@ size_t VBucket::getCMMemFreedByRemoval() const {
 }
 
 size_t VBucket::getSyncWriteAcceptedCount() const {
-    folly::SharedMutex::ReadHolder lh(stateLock);
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
     if (!durabilityMonitor) {
         return 0;
     }
@@ -375,7 +376,8 @@ size_t VBucket::getSyncWriteAcceptedCount() const {
 }
 
 size_t VBucket::getSyncWriteCommittedCount() const {
-    folly::SharedMutex::ReadHolder lh(stateLock);
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
     if (!durabilityMonitor) {
         return 0;
     }
@@ -383,7 +385,8 @@ size_t VBucket::getSyncWriteCommittedCount() const {
 }
 
 size_t VBucket::getSyncWriteAbortedCount() const {
-    folly::SharedMutex::ReadHolder lh(stateLock);
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
     if (!durabilityMonitor) {
         return 0;
     }
@@ -391,7 +394,8 @@ size_t VBucket::getSyncWriteAbortedCount() const {
 }
 
 size_t VBucket::getDurabilityMonitorMemory() const {
-    folly::SharedMutex::ReadHolder lh(stateLock);
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
     if (!durabilityMonitor) {
         return 0;
     }
@@ -399,7 +403,8 @@ size_t VBucket::getDurabilityMonitorMemory() const {
 }
 
 size_t VBucket::getDurabilityNumTracked() const {
-    folly::SharedMutex::ReadHolder lh(stateLock);
+    std::shared_lock<folly::SharedMutex> lh(
+            const_cast<folly::SharedMutex&>(stateLock));
     if (!durabilityMonitor) {
         return 0;
     }
@@ -521,7 +526,7 @@ vbucket_state_t VBucket::fromString(const std::string_view state) {
 }
 
 void VBucket::setState(vbucket_state_t to, const nlohmann::json* meta) {
-    folly::SharedMutex::WriteHolder wlh(getStateLock());
+    std::unique_lock wlh(getStateLock());
     setState_UNLOCKED(to, meta, wlh);
 }
 
@@ -591,7 +596,7 @@ std::string VBucket::validateSetStateMeta(const nlohmann::json& meta) {
 void VBucket::setState_UNLOCKED(
         vbucket_state_t to,
         const nlohmann::json* meta,
-        const folly::SharedMutex::WriteHolder& vbStateLock) {
+        const std::unique_lock<folly::SharedMutex>& vbStateLock) {
     vbucket_state_t oldstate = state;
 
     // Validate (optional) meta content.
@@ -747,7 +752,7 @@ PassiveDurabilityMonitor& VBucket::getPassiveDM() {
 
 void VBucket::processDurabilityTimeout(
         const std::chrono::steady_clock::time_point asOf) {
-    folly::SharedMutex::ReadHolder lh(stateLock);
+    std::shared_lock lh(stateLock);
     if (getState() != vbucket_state_active) {
         return;
     }
@@ -761,7 +766,7 @@ void VBucket::notifySyncWritesPendingCompletion() {
 void VBucket::processResolvedSyncWrites() {
     // Acquire shared access on stateLock as need to ensure the vbucket is
     // active (and we have an ActiveDM).
-    folly::SharedMutex::ReadHolder rlh(getStateLock());
+    std::shared_lock rlh(getStateLock());
     if (getState() != vbucket_state_active) {
         return;
     }
@@ -1813,7 +1818,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
     // NOTE: We kill all streams when changing the VBucket state and this
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
-    folly::SharedMutex::ReadHolder rlh(stateLock);
+    std::shared_lock rlh(stateLock);
     manifest->wlock(rlh).replicaCreate(*this,
                                        uid,
                                        identifiers,
@@ -1835,7 +1840,7 @@ void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
     // NOTE: We kill all streams when changing the VBucket state and this
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
-    folly::SharedMutex::ReadHolder rlh(stateLock);
+    std::shared_lock rlh(stateLock);
     manifest->wlock(rlh).replicaModifyCollection(
             *this, uid, cid, maxTtl, metered, canDeduplicate, bySeqno);
 }
@@ -1849,7 +1854,7 @@ void VBucket::replicaDropCollection(Collections::ManifestUid uid,
     // NOTE: We kill all streams when changing the VBucket state and this
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
-    folly::SharedMutex::ReadHolder rlh(stateLock);
+    std::shared_lock rlh(stateLock);
     manifest->wlock(rlh).replicaDrop(
             *this, uid, cid, isSystemCollection, bySeqno);
 }
@@ -1863,7 +1868,7 @@ void VBucket::replicaCreateScope(Collections::ManifestUid uid,
     // NOTE: We kill all streams when changing the VBucket state and this
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
-    folly::SharedMutex::ReadHolder rlh(stateLock);
+    std::shared_lock rlh(stateLock);
     manifest->wlock(rlh).replicaCreateScope(
             *this, uid, sid, scopeName, bySeqno);
 }
@@ -1877,7 +1882,7 @@ void VBucket::replicaDropScope(Collections::ManifestUid uid,
     // NOTE: We kill all streams when changing the VBucket state and this
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
-    folly::SharedMutex::ReadHolder rlh(stateLock);
+    std::shared_lock rlh(stateLock);
     manifest->wlock(rlh).replicaDropScope(
             *this, uid, sid, isSystemScope, bySeqno);
 }
@@ -4119,7 +4124,7 @@ bool VBucket::isLogicallyNonExistent(
 }
 
 cb::engine_errc VBucket::seqnoAcknowledged(
-        const folly::SharedMutex::ReadHolder& vbStateLock,
+        const std::shared_lock<folly::SharedMutex>& vbStateLock,
         const std::string& replicaId,
         uint64_t preparedSeqno) {
     // We may receive an ack after we have set a vBucket to dead during a
@@ -4131,7 +4136,7 @@ cb::engine_errc VBucket::seqnoAcknowledged(
 }
 
 void VBucket::notifyPersistenceToDurabilityMonitor() {
-    folly::SharedMutex::ReadHolder wlh(stateLock);
+    std::shared_lock wlh(stateLock);
 
     if (state == vbucket_state_dead) {
         return;
@@ -4184,13 +4189,13 @@ void VBucket::removeAcksFromADM(const std::string& node) {
 
 void VBucket::removeAcksFromADM(
         const std::string& node,
-        const folly::SharedMutex::WriteHolder& vbstateLock) {
+        const std::unique_lock<folly::SharedMutex>& vbstateLock) {
     removeAcksFromADM(node);
 }
 
 void VBucket::removeAcksFromADM(
         const std::string& node,
-        const folly::SharedMutex::ReadHolder& vbstateLock) {
+        const std::shared_lock<folly::SharedMutex>& vbstateLock) {
     removeAcksFromADM(node);
 }
 
@@ -4218,7 +4223,7 @@ uint64_t VBucket::getMaxVisibleSeqno() const {
 }
 
 void VBucket::dropPendingKey(const DocKeyView& key, int64_t seqno) {
-    folly::SharedMutex::ReadHolder vbStateLh(getStateLock());
+    std::shared_lock vbStateLh(getStateLock());
     switch (state) {
     case vbucket_state_active:
         getActiveDM().eraseSyncWrite(key, seqno);

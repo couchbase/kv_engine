@@ -103,7 +103,7 @@ public:
     // Wire through to private method
     std::optional<Manifest::CollectionCreation> public_applyCreates(
             ::VBucket& vb, Manifest::ManifestChanges& changes) {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         auto wHandle = wlock(rlh);
         return applyCreates(rlh, wHandle, vb, changes.collectionsToCreate);
     }
@@ -243,7 +243,7 @@ public:
 
     ::testing::AssertionResult update(const std::string& json) {
         try {
-            folly::SharedMutex::ReadHolder rlh(vbA->getStateLock());
+            std::shared_lock rlh(vbA->getStateLock());
             active.update(rlh, *vbA, Collections::Manifest{json});
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
@@ -374,7 +374,7 @@ public:
                                 Collections::VB::Manifest::getDropEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaDrop(*vbR,
                                                        dcpData.manifestUid,
                                                        dcpData.cid,
@@ -384,7 +384,7 @@ public:
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
                                         *qi);
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreate(
                                 *vbR,
                                 dcpData.manifestUid,
@@ -403,7 +403,7 @@ public:
                                 getDropScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaDropScope(*vbR,
                                                             dcpData.manifestUid,
                                                             dcpData.sid,
@@ -413,7 +413,7 @@ public:
                         auto dcpData = Collections::VB::Manifest::
                                 getCreateScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreateScope(
                                 *vbR,
                                 dcpData.manifestUid,
@@ -443,7 +443,7 @@ public:
                         const auto* collection = Collections::VB::Manifest::
                                 getDroppedCollectionFlatbuffer(
                                         qi->getValueView());
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaDrop(
                                 *vbR,
                                 Collections::ManifestUid{collection->uid()},
@@ -457,7 +457,7 @@ public:
                         if (collection.ttlValid()) {
                             maxTtl = std::chrono::seconds(collection.maxTtl());
                         }
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreate(
                                 *vbR,
                                 Collections::ManifestUid{collection.uid()},
@@ -481,7 +481,7 @@ public:
                     if (collection.ttlValid()) {
                         maxTtl = std::chrono::seconds(collection.maxTtl());
                     }
-                    folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                    std::shared_lock rlh(vbR->getStateLock());
                     replica.wlock(rlh).replicaModifyCollection(
                             *vbR,
                             Collections::ManifestUid{collection.uid()},
@@ -496,7 +496,7 @@ public:
                     if (qi->isDeleted()) {
                         const auto* scope = Collections::VB::Manifest::
                                 getDroppedScopeFlatbuffer(qi->getValueView());
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaDropScope(
                                 *vbR,
                                 Collections::ManifestUid{scope->uid()},
@@ -507,7 +507,7 @@ public:
                         const auto* scope =
                                 Collections::VB::Manifest::getScopeFlatbuffer(
                                         qi->getValueView());
-                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        std::shared_lock rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreateScope(
                                 *vbR,
                                 Collections::ManifestUid{scope->uid()},
@@ -1111,7 +1111,7 @@ TEST_P(VBucketManifestTest, doubleDelete) {
     // deleted. Apply direct to vbm, not via manifest.update as that would
     // complain about the lack of events
     manifest.getActiveManifest().update(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     manifest.getActiveVB().getStateLock()),
             manifest.getActiveVB(),
             makeManifest(cm));
@@ -1127,7 +1127,7 @@ TEST_P(VBucketManifestTest, doubleDelete) {
 
     // same again, should have nothing created or deleted
     manifest.getActiveManifest().update(
-            folly::SharedMutex::ReadHolder(
+            std::shared_lock<folly::SharedMutex>(
                     manifest.getActiveVB().getStateLock()),
             manifest.getActiveVB(),
             makeManifest(cm));

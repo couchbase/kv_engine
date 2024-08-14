@@ -89,7 +89,8 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
 
         void setUpHashBucketVisit() override {
             // Need to lock the vbucket state before collections.
-            vbStateLock = folly::SharedMutex::ReadHolder(vb.getStateLock());
+            vbStateLock =
+                    std::shared_lock<folly::SharedMutex>(vb.getStateLock());
             // Need to lock collections before we visit each SV.
             readHandle = vb.lockCollections();
         }
@@ -101,7 +102,7 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
 
         VBucket& vb;
         StoredDocKey key;
-        folly::SharedMutex::ReadHolder vbStateLock{nullptr};
+        std::shared_lock<folly::SharedMutex> vbStateLock;
         Collections::VB::ReadHandle readHandle;
     };
 
@@ -314,7 +315,7 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
     auto& vb = dynamic_cast<EphemeralVBucket&>(*vbucket);
     store_item(vbid, key, "value");
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         auto readHandle = vb.lockCollections();
 
         auto result = vb.ht.findForUpdate(key);
@@ -581,7 +582,7 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
         ASSERT_FALSE(res.committed);
     }
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -664,7 +665,7 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         // Commit:4
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
@@ -829,7 +830,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         // Proceed with checking that everything behaves as expected at Prepare
         // completion.
         ASSERT_EQ(cb::engine_errc::success,
@@ -905,7 +906,7 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
     EXPECT_EQ(1, vb.getSeqListNumItems());
     EXPECT_EQ(1, vb.getSeqListNumDeletedItems());
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             keyA,

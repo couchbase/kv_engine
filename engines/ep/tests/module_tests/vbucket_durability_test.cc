@@ -160,7 +160,7 @@ void VBucketDurabilityTest::testAddPrepareAndCommit(
 
     // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             replica1,
             writes.back().seqno);
     simulateLocalAck(writes.back().seqno);
@@ -232,7 +232,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
               public_processSet(*item, 0 /*cas*/, ctx));
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -278,7 +278,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
         ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
                   public_processSet(*item, 0 /*cas*/, ctx));
 
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // And commit
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
@@ -316,7 +316,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
                   public_processSet(*item, 0 /*cas*/, ctx));
 
         {
-            folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+            std::shared_lock rlh(vbucket->getStateLock());
             // And commit
             ASSERT_EQ(cb::engine_errc::success,
                       vbucket->abort(rlh,
@@ -609,7 +609,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
 
     // replica2 acks, Durability Requirements not satisfied yet
     vbucket->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             replica2,
             preparedSeqno);
     checkPending();
@@ -618,7 +618,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
     // Note: ensure 1 Ckpt in CM, easier to inspect the CkptList after Commit
     ckptMgr->clear();
     vbucket->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             replica3,
             preparedSeqno);
     vbucket->processResolvedSyncWrites();
@@ -700,7 +700,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
 
     // Simulate replica and active seqno-ack
     vbucket->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             replica1,
             preparedSeqno);
     simulateLocalAck(preparedSeqno);
@@ -740,7 +740,7 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
 
 TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbort) {
     auto noentKey = makeStoredDocKey("non-existing-key");
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     EXPECT_EQ(cb::engine_errc::no_such_key,
               vbucket->abort(rlh,
                              noentKey,
@@ -760,7 +760,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
     ASSERT_TRUE(sv);
     const int64_t bySeqno = lastSeqno + 1;
     ASSERT_EQ(bySeqno, sv->getBySeqno());
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
               vbucket->abort(rlh,
                              nonPendingKey,
@@ -790,7 +790,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     ASSERT_GT(abortSeqno, ckptMgr->getHighSeqno());
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // try abort without preceding prepare, should fail
         EXPECT_EQ(cb::engine_errc::invalid_arguments,
                   vbucket->abort(rlh,
@@ -808,7 +808,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
                             lastSeqno);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // now abort should be accepted because the prepare can have validly
         // been deduped.
         EXPECT_EQ(cb::engine_errc::success,
@@ -872,7 +872,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     ASSERT_GT(abortSeqno, ckptMgr->getHighSeqno());
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // try abort without preceding prepare, should fail
         EXPECT_EQ(cb::engine_errc::invalid_arguments,
                   vbucket->abort(rlh,
@@ -892,7 +892,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
                             lastSeqno);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // now abort should be accepted because the prepare can have validly
         // been deduped.
         EXPECT_EQ(cb::engine_errc::success,
@@ -980,7 +980,7 @@ TEST_P(VBucketDurabilityTest, Active_AbortSyncWrite) {
               swCompleteTrace);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // Note: abort-seqno must be provided only at Replica
         EXPECT_EQ(cb::engine_errc::success,
                   vbucket->abort(rlh,
@@ -1123,7 +1123,7 @@ TEST_P(VBucketDurabilityTest, Commit) {
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // Test
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
@@ -1165,7 +1165,7 @@ void VBucketDurabilityTest::testHTCommitExisting() {
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // Test
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
@@ -1242,7 +1242,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     // prepare so that we can test commit under range read.
     {
         auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -1284,7 +1284,7 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
     // Test
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(rlh,
                               key,
@@ -1344,7 +1344,7 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     EXPECT_TRUE(readView->getValue());
 
     ASSERT_EQ(CommittedState::Pending, writeView->getCommitted());
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(rlh,
                               key,
@@ -1407,7 +1407,7 @@ void VBucketDurabilityTest::testSyncDeleteUpdateMaxDelRevSeqno(Resolution res) {
     ASSERT_TRUE(sv);
 
     if (res == Resolution::Commit) {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -1433,7 +1433,7 @@ void VBucketDurabilityTest::testSyncDeleteUpdateMaxDelRevSeqno(Resolution res) {
         EXPECT_EQ(3, sv->getRevSeqno());
     } else {
         {
-            folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+            std::shared_lock rlh(vbucket->getStateLock());
             EXPECT_EQ(cb::engine_errc::success,
                       vbucket->abort(rlh,
                                      key,
@@ -1512,7 +1512,7 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
     // Do the SyncDelete Commit in a range read
     {
         auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -1550,7 +1550,7 @@ TEST_P(VBucketDurabilityTest, CommitNonPendingFails) {
     ASSERT_EQ(CommittedState::CommittedViaMutation, result->getCommitted());
 
     // Test
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     EXPECT_EQ(cb::engine_errc::no_such_key,
               vbucket->commit(rlh,
                               key,
@@ -1573,7 +1573,7 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
     ASSERT_TRUE(result);
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -1611,7 +1611,7 @@ void VBucketDurabilityTest::doSyncWriteAndCommit() {
 
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(rlh,
                               key,
@@ -1673,7 +1673,7 @@ void VBucketDurabilityTest::doSyncDelete() {
 
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vbucket->commit(rlh,
                               key,
@@ -1787,7 +1787,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     // Check that any attempts to read keys which are have Prepared SyncWrites
     // against them fail with SyncWriteReCommitting (until they are committed).
     for (const auto& spec : seqnos) {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(rlh,
                                                WantsDeleted::No,
@@ -1816,7 +1816,7 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     // After commit() check that the keys are now accessible and appear as
     // committed.
     for (const auto& spec : seqnos) {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(rlh,
                                                WantsDeleted::No,
@@ -1920,7 +1920,7 @@ void VBucketDurabilityTest::
     vbucket->setPersistenceSeqno(3);
     adm.notifyLocalPersistence();
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()));
     EXPECT_EQ(3, adm.getHighPreparedSeqno());
     EXPECT_EQ(3, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
@@ -2034,7 +2034,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
 
     adm.checkForCommit();
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()));
     EXPECT_EQ(baseSeqno + 4, adm.getHighPreparedSeqno());
     EXPECT_EQ(baseSeqno + 4, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
@@ -2112,7 +2112,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetup(
     // Tell the PDM to commit the prepare
     auto key = makeStoredDocKey("key1");
     ckptMgr->extendOpenCheckpoint(4, 4);
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     vbucket->commit(rlh,
                     key,
                     1 /*prepareSeqno*/,
@@ -2179,7 +2179,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapSetupPersistAfterChange(
     EXPECT_EQ(1, adm.getNumTracked());
     adm.checkForCommit();
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()));
 
     // HPS is equal to seqno of last prepare
     EXPECT_EQ(2, adm.getHighPreparedSeqno());
@@ -2206,7 +2206,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
     ckptMgr->extendOpenCheckpoint(5, 5);
     auto key = makeStoredDocKey("key2");
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         vbucket->commit(rlh,
                         key,
                         2 /*prepareSeqno*/,
@@ -2244,7 +2244,7 @@ void VBucketDurabilityTest::testConvertPDMToADMMidSnapAllPreparesCompleted(
 
     adm.checkForCommit();
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()));
     EXPECT_EQ(5, adm.getHighPreparedSeqno());
     EXPECT_EQ(5, adm.getHighCompletedSeqno());
     EXPECT_EQ(0, adm.getNumTracked());
@@ -2613,7 +2613,7 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
     // After commit() check that the keys are now accessible and appear as
     // committed.
     for (const auto& spec : seqnos) {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(rlh,
                                                WantsDeleted::No,
@@ -2674,14 +2674,14 @@ TEST_P(EPVBucketDurabilityTest,
 
     // Client should be notified once processed.
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()));
     EXPECT_EQ(SWCompleteTrace(2 /*count*/, cookie, cb::engine_errc::success),
               swCompleteTrace);
 
     // After commit() check that the keys are now accessible and appear as
     // committed.
     for (const auto& spec : seqnos) {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
         auto result = vbucket->fetchValidValue(rlh,
                                                WantsDeleted::No,
@@ -2702,10 +2702,10 @@ TEST_P(VBucketDurabilityTest, IgnoreAckAtTakeoverDead) {
     simulateSetVBState(vbucket_state_dead, nlohmann::json{});
 
     EXPECT_EQ(cb::engine_errc::success,
-              vbucket->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
-                      "replica1",
-                      3));
+              vbucket->seqnoAcknowledged(std::shared_lock<folly::SharedMutex>(
+                                                 vbucket->getStateLock()),
+                                         "replica1",
+                                         3));
     // We won't have crashed and we will have ignored the ack
     EXPECT_EQ(seqnos.size(), vbucket->getDurabilityMonitor().getNumTracked());
 }
@@ -2891,7 +2891,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
 
         switch (res) {
         case Resolution::Commit: {
-            folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+            std::shared_lock rlh(vbucket->getStateLock());
             EXPECT_EQ(cb::engine_errc::success,
                       vbucket->commit(rlh,
                                       key,
@@ -2908,7 +2908,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
             break;
         }
         case Resolution::Abort: {
-            folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+            std::shared_lock rlh(vbucket->getStateLock());
             EXPECT_EQ(cb::engine_errc::success,
                       vbucket->abort(rlh,
                                      key,
@@ -3160,7 +3160,7 @@ TEST_P(EPVBucketDurabilityTest,
     // (1.2) Commit the SyncWrite
     auto preparedSeqno = vbucket->getHighSeqno();
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -3272,7 +3272,7 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -3314,7 +3314,7 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,

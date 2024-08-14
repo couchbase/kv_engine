@@ -1307,7 +1307,7 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
         }
     } else {
         {
-            folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+            std::shared_lock rlh(vb.getStateLock());
             if (qi->deletionSource() == DeleteSource::TTL &&
                 vb.getState() == vbucket_state_active) {
                 cb::server::document_expired(engine, qi->getNBytes());
@@ -2557,7 +2557,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
         return {cb::engine_errc::not_my_vbucket, {}};
     }
     // Scanning of active only
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return {cb::engine_errc::not_my_vbucket, {}};

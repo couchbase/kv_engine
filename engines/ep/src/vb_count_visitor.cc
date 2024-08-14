@@ -30,7 +30,7 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
     // consider tracking this value "upfront".
     {
         // Lock needed because the manifest could change concurrently otherwise.
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         for (const auto& [id, collection] : vb.getManifest().lock()) {
             logicalDiskSize += collection.getDiskSize();
         }

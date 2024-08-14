@@ -128,7 +128,7 @@ protected:
     VBucket* currentBucket{nullptr};
 
     // The VBucket state lock handle that we use around HashBucket visits.
-    folly::SharedMutex::ReadHolder vbStateLock{nullptr};
+    std::shared_lock<folly::SharedMutex> vbStateLock;
 
     // The VB::Manifest read handle that we use to lock around HashBucket
     // visits. Will contain a nullptr if we aren't currently locking anything.

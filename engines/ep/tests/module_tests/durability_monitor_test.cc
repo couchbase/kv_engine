@@ -141,7 +141,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         mutation_descr_t mutation_descr;
         ASSERT_EQ(cb::engine_errc::sync_write_pending,
                   vb->deleteItem(rlh,
@@ -203,7 +203,7 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
 cb::engine_errc DurabilityMonitorTest::set(Item& item) {
     cb::engine_errc result;
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         result = vb->set(rlh,
                          item,
                          cookie,
@@ -1246,7 +1246,7 @@ TEST_P(ActiveDurabilityMonitorTest, Fallback_CompleteOnTopologyChange) {
     EXPECT_EQ(0, adm.getNumTracked());
 
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()));
 
     EXPECT_EQ(1, adm.getNumCommittedNotDurable());
 }
@@ -1472,7 +1472,7 @@ void ActiveDurabilityMonitorTest::simulateTimeoutCheck(
         std::chrono::steady_clock::time_point now) const {
     adm.processTimeout(now);
     adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()));
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()));
 }
 
 TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
@@ -4047,7 +4047,7 @@ void NoTopologyActiveDurabilityMonitorTest::SetUp() {
 
 TEST_P(NoTopologyActiveDurabilityMonitorTest, SeqnoAckReceivedBeforeTopology) {
     {
-        folly::SharedMutex::ReadHolder vbStateLh(vb->getStateLock());
+        std::shared_lock vbStateLh(vb->getStateLock());
         // Prior to MB-37188 this would fail an Expects as the first chain
         // has not yet been set.
         // This should now queue the ack until the topology is set
@@ -4101,7 +4101,7 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
 
     adm.checkForCommit();
     EXPECT_NO_THROW(adm.processCompletedSyncWriteQueue(
-            folly::SharedMutex::ReadHolder(vb->getStateLock())));
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock())));
 }
 
 TEST(DurabilityMonitorTrackedWritesTest, emplace_and_erase) {

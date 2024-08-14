@@ -563,7 +563,7 @@ TEST_P(CollectionsLegacyDcpTest,
                   store->set(*item, cookie));
         flushVBucketToDiskIfPersistent(vbid);
 
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -787,7 +787,7 @@ TEST_P(CollectionsDcpParameterizedTest,
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,

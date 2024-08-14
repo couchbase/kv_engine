@@ -242,7 +242,7 @@ failover_entry_t CollectionsSyncWriteParamTest::
     // Commit on the active and add an extra prepare
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       3 /*prepareSeqno*/));
 

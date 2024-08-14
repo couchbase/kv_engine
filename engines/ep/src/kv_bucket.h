@@ -299,14 +299,15 @@ public:
      *              in the EventuallyPersistentStore class
      * @param vbStateLock WriterLockHolder of 'stateLock' in the vbucket class
      */
-    void setVBucketState_UNLOCKED(VBucketPtr& vb,
-                                  vbucket_state_t to,
-                                  bool deleteVB,
-                                  const nlohmann::json* meta,
-                                  TransferVB transfer,
-                                  bool notifyDcp,
-                                  std::unique_lock<std::mutex>& vbset,
-                                  folly::SharedMutex::WriteHolder& vbStateLock);
+    void setVBucketState_UNLOCKED(
+            VBucketPtr& vb,
+            vbucket_state_t to,
+            bool deleteVB,
+            const nlohmann::json* meta,
+            TransferVB transfer,
+            bool notifyDcp,
+            std::unique_lock<std::mutex>& vbset,
+            std::unique_lock<folly::SharedMutex>& vbStateLock);
 
     /**
      * Creates the vbucket in the desired state
@@ -334,7 +335,8 @@ public:
      * Takes a read lock on all vbucket states.
      * Must always be called after locking vbsetMutex.
      */
-    VBucketStateLockMap<folly::SharedMutex::ReadHolder> lockAllVBucketStates();
+    VBucketStateLockMap<std::shared_lock<folly::SharedMutex>>
+    lockAllVBucketStates();
 
     cb::engine_errc deleteVBucket(Vbid vbid, CookieIface* c = nullptr) override;
 
@@ -1227,7 +1229,7 @@ protected:
      * @param debugOpcode The debug name of the opcode (for logging purposes).
      * @return success if the operation can proceed, and the locked vBucket
      */
-    KVBucketResult<std::tuple<VBucketPtr, folly::SharedMutex::ReadHolder>>
+    KVBucketResult<std::tuple<VBucketPtr, std::shared_lock<folly::SharedMutex>>>
     operationPrologue(Vbid vbid,
                       CookieIface& cookie,
                       PermittedVBStates permittedVBStates,
@@ -1251,7 +1253,7 @@ protected:
     void continueToActive(vbucket_state_t oldstate,
                           TransferVB transfer,
                           VBucketPtr& vb,
-                          folly::SharedMutex::WriteHolder& vbStateLock);
+                          std::unique_lock<folly::SharedMutex>& vbStateLock);
 
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);

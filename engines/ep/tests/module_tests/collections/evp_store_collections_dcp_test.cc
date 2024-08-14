@@ -299,8 +299,9 @@ TEST_F(CollectionsDcpTest, failover_after_drop_collection) {
     flushVBucketToDiskIfPersistent(vbid1, 4);
 
     // Now drop the collection
-    vb0->updateFromManifest(folly::SharedMutex::ReadHolder(vb0->getStateLock()),
-                            makeManifest(cm.remove(CollectionEntry::fruit)));
+    vb0->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb0->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::fruit)));
     flushVBucketToDiskIfPersistent(vbid0, 1);
 
     // vb:0 is at seqno:3 and has 1 collection
@@ -515,7 +516,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
         CollectionsManifest cm;
         cm.add(CollectionEntry::meat, std::chrono::seconds(100) /*maxttl*/);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         notifyAndStepToCheckpoint();
@@ -602,7 +603,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_non_default_scope) {
 
     // remove meat
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::meat, ScopeEntry::shop1)));
 
     notifyAndStepToCheckpoint();
@@ -626,10 +627,11 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     // Add 3 collections in one update
     CollectionsManifest cm;
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm.add(CollectionEntry::fruit)
-                                                .add(CollectionEntry::dairy)
-                                                .add(CollectionEntry::meat)));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm.add(CollectionEntry::fruit)
+                                 .add(CollectionEntry::dairy)
+                                 .add(CollectionEntry::meat)));
 
     notifyAndStepToCheckpoint();
 
@@ -677,7 +679,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     // Remove two
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::fruit)
                                  .remove(CollectionEntry::dairy)));
 
@@ -702,7 +704,7 @@ TEST_P(CollectionsDcpParameterizedTest, mb30893_dcp_partial_updates) {
 
     // Add and remove
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.add(CollectionEntry::dairy2)
                                  .remove(CollectionEntry::meat)));
 
@@ -726,7 +728,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
         // Create dairy and fruit.
         CollectionsManifest cm(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::fruit,
                                     cb::NoExpiryLimit,
                                     true /*history*/)));
@@ -749,7 +751,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
 
         // Delete dairy
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::dairy)));
 
         // Persist everything ready for warmup and check.
@@ -821,7 +823,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create dairy & fruit
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::fruit)
                                      .add(CollectionEntry::dairy)));
 
@@ -849,7 +851,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_warmup) {
     // Now delete the dairy collection
     {
         store->getVBucket(vbid)->updateFromManifest(
-                folly::SharedMutex::ReadHolder(
+                std::shared_lock<folly::SharedMutex>(
                         store->getVBucket(vbid)->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::dairy)));
 
@@ -898,7 +900,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
         // Create dairy
         CollectionsManifest cm(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Mutate dairy
@@ -911,12 +913,12 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
         // Delete dairy
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::dairy)));
 
         // Create dairy (new uid)
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.add(CollectionEntry::dairy2)));
 
         // Persist everything ready for warmup and check.
@@ -961,7 +963,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
         // Create dairy
         CollectionsManifest cm(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Mutate dairy
@@ -974,7 +976,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create2) {
 
         // Delete dairy/create dairy in *one* update
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::dairy)
                                      .add(CollectionEntry::dairy2)));
 
@@ -1014,13 +1016,13 @@ TEST_F(CollectionsDcpTest, MB_26455) {
 
         CollectionsManifest cm;
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         for (uint32_t n = 2; n < m; n++) {
 
             // add fruit (new generation), + 10 to use valid collection range
             vb->updateFromManifest(
-                    folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                    std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                     makeManifest(cm.add(CollectionEntry::Entry{
                             CollectionName::fruit, n + 10})));
 
@@ -1037,9 +1039,9 @@ TEST_F(CollectionsDcpTest, MB_26455) {
                 dropped.push_back(
                         CollectionEntry::Entry{CollectionName::fruit, n + 10});
                 // Drop fruit, except for the last 'generation'
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm.remove(dropped.back())));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm.remove(dropped.back())));
 
                 flush_vbucket_to_disk(vbid, 1);
             }
@@ -1073,7 +1075,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
         // Create dairy
         CollectionsManifest cm(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         // Mutate dairy
@@ -1086,7 +1088,7 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_erase) {
 
         // Delete dairy/create dairy in *one* update
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::dairy)
                                      .add(CollectionEntry::dairy2)));
 
@@ -1128,14 +1130,14 @@ TEST_F(CollectionsDcpTest, tombstone_replication) {
         cm.add(ScopeEntry::shop1);
         cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         flush_vbucket_to_disk(vbid, 2);
 
         // remove the scope (and the collection)
         cm.remove(ScopeEntry::shop1);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         flush_vbucket_to_disk(vbid, 2);
     }
@@ -1227,7 +1229,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         cm.add(CollectionEntry::fruit);
         cm.add(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         store_item(vbid, StoredDocKey{"d_k1", CollectionEntry::defaultC}, "v");
         store_item(vbid, StoredDocKey{"d_k2", CollectionEntry::defaultC}, "v");
@@ -1238,7 +1240,7 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
         store_item(vbid, StoredDocKey{"k2", CollectionEntry::fruit}, "v");
 
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::fruit)));
         flushVBucketToDiskIfPersistent(Vbid(0), 4);
 
@@ -3844,7 +3846,7 @@ TEST_P(CollectionsDcpParameterizedTest,
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -3908,7 +3910,7 @@ TEST_P(CollectionsDcpParameterizedTest,
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -3955,7 +3957,7 @@ TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -5301,7 +5303,7 @@ void CollectionsDcpPersistentOnly::defaultCollectionLegacySeqnos(
         // by-pass the manifest update path as this variant of the test needs to
         // create an xattr system-event as per 7.2
         auto vb = store->getVBucket(vbid);
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(3,
                   vb->addSystemEventItem(makeModifyWithXattr(),
                                          {},
@@ -5532,7 +5534,7 @@ TEST_P(CollectionsDcpPersistentOnly, backfillWithSystemCollectionsNoAccess) {
         cm.add(CollectionEntry::fruit);
         cm.add(CollectionEntry::systemCollection);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         store_item(vbid,

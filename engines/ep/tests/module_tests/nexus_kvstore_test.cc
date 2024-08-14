@@ -265,10 +265,10 @@ void NexusKVStoreTest::implicitCompactionPrepareTest(StoredDocKey purgedKey) {
         purgedPrepareSeqno = vb->getHighSeqno();
 
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->seqnoAcknowledged(
-                          folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          vb->getHighSeqno() /*prepareSeqno*/));
+                  vb->seqnoAcknowledged(std::shared_lock<folly::SharedMutex>(
+                                                vb->getStateLock()),
+                                        "replica",
+                                        vb->getHighSeqno() /*prepareSeqno*/));
         vb->processResolvedSyncWrites();
         flushVBucketToDiskIfPersistent(vbid, 1);
     });
@@ -424,7 +424,7 @@ TEST_P(NexusKVStoreTest, DropCollectionMidFlush) {
     auto* kvstore = store->getRWUnderlying(vbid);
     kvstore->setPostFlushHook([&vb, &cm]() {
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::meat)));
     });
 
@@ -504,7 +504,7 @@ void NexusKVStoreTest::implicitCompactionLogicalDeleteTest(
         cm.add(CollectionEntry::fruit);
 
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         store_item(vbid, purgedKey, "value");
@@ -514,7 +514,7 @@ void NexusKVStoreTest::implicitCompactionLogicalDeleteTest(
         cm.remove(CollectionEntry::fruit);
 
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -723,9 +723,9 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionLogicalDeletionToOneKVStore) {
                 }
 
                 cm.remove(CollectionEntry::fruit);
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
             };
 
@@ -767,9 +767,9 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionFlushResurrection) {
                 auto gv = kvstore->get(DiskDocKey(purgedKey), vbid);
 
                 cm.add(CollectionEntry::fruit);
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm));
                 store_item(vbid, purgedKey, "value");
                 flushVBucketToDiskIfPersistent(vbid, 2);
             };

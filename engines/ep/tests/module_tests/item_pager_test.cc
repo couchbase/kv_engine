@@ -836,7 +836,7 @@ void STItemPagerTest::pagerEvictsSomething(bool dropCollection) {
         // Add 1 scope which reproduces MB-58333
         cm.add(ScopeEntry::shop1);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
     }
 
@@ -1285,7 +1285,7 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     auto vb = store->getVBucket(vbid);
 
     const char* msg;
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     vb->evictKey(&msg, rlh, vb->lockCollections(key));
 
     // 3) Get to schedule our BGFetch

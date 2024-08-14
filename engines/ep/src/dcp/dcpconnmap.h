@@ -96,7 +96,7 @@ public:
             Vbid vbucket,
             vbucket_state_t state,
             bool closeInboundStreams = true,
-            folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
+            std::unique_lock<folly::SharedMutex>* vbstateLock = nullptr);
 
     /**
      * Close outbound (active) streams for a vbucket on vBucket rollback.

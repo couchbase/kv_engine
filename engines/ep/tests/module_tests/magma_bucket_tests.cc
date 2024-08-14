@@ -321,10 +321,10 @@ TEST_P(STParamMagmaBucketTest,
         flushVBucketToDiskIfPersistent(vbid, 1);
 
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->seqnoAcknowledged(
-                          folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          vb->getHighSeqno() /*prepareSeqno*/));
+                  vb->seqnoAcknowledged(std::shared_lock<folly::SharedMutex>(
+                                                vb->getStateLock()),
+                                        "replica",
+                                        vb->getHighSeqno() /*prepareSeqno*/));
         vb->processResolvedSyncWrites();
         flushVBucketToDiskIfPersistent(vbid, 1);
     });
@@ -353,9 +353,9 @@ TEST_P(STParamMagmaBucketTest, ImplicitCompactionDoesNotDropCollectionItems) {
                 expectedPurgeSeqno = vb->getHighSeqno();
 
                 cm.add(CollectionEntry::fruit);
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm));
                 store_item(vbid, purgedKey, "value");
                 flushVBucketToDiskIfPersistent(vbid, 2);
             },
@@ -365,9 +365,9 @@ TEST_P(STParamMagmaBucketTest, ImplicitCompactionDoesNotDropCollectionItems) {
                 // the purge seqno and invalidates the test
                 auto vb = store->getVBucket(vbid);
                 cm.remove(CollectionEntry::fruit);
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
             });
 
@@ -453,8 +453,9 @@ TEST_P(STParamMagmaBucketTest,
     // Drop the fruit collection and run compaction - explicit compaction runs
     // and will interleave an implicit compaction from the completion hook
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     runCollectionsEraser(vbid);
@@ -809,9 +810,9 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
                 // a "logical" insert which needs to adjust the dropped
                 // stats
                 cm.add(CollectionEntry::fruit);
-                vb->updateFromManifest(
-                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                        makeManifest(cm));
+                vb->updateFromManifest(std::shared_lock<folly::SharedMutex>(
+                                               vb->getStateLock()),
+                                       makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
                 EXPECT_EQ(2, magmaKVStore.getItemCount(vbid));
                 EXPECT_EQ(1, vb->getNumTotalItems());
@@ -988,7 +989,7 @@ TEST_P(STParamMagmaBucketTest, ImplicitCompactionCompletedPrepareRollback) {
                 // Complete the prepare
                 EXPECT_EQ(cb::engine_errc::success,
                           vb->seqnoAcknowledged(
-                                  folly::SharedMutex::ReadHolder(
+                                  std::shared_lock<folly::SharedMutex>(
                                           vb->getStateLock()),
                                   "replica",
                                   vb->getHighSeqno() /*prepareSeqno*/));

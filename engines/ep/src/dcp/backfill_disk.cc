@@ -34,7 +34,7 @@ GetValue CacheCallback::get(VBucket& vb,
     // vbucket state to prevent inconsistencies between replicas and actives.
     // getInternal will also update the collection high-seqno, so get a handle
     // on the collection manifest.
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     auto cHandle = vb.lockCollections(lookup.getKey().getDocKey());
     if (!cHandle.valid()) {
         return {};

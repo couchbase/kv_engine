@@ -170,7 +170,7 @@ public:
      * @param vbstateLock Exclusive lock to vbstate
      */
     void setDead(cb::mcbp::DcpStreamEndStatus status,
-                 folly::SharedMutex::WriteHolder& vbstateLock);
+                 std::unique_lock<folly::SharedMutex>& vbstateLock);
 
     StreamState getState() const {
         return state_;
@@ -804,7 +804,7 @@ private:
      *     acquires the lock if not provided.
      */
     void removeAcksFromDM(
-            folly::SharedMutex::WriteHolder* vbstateLock = nullptr);
+            std::unique_lock<folly::SharedMutex>* vbstateLock = nullptr);
 
     /**
      * Checks if a DcpSeqnoAdvanced can be sent on this stream

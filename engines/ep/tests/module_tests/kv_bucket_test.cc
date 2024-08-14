@@ -636,7 +636,7 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
     ASSERT_TRUE(vb);
 
     if (!prepare) {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->setWithMeta(rlh,
                                   std::ref(item),
@@ -656,7 +656,7 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
     using namespace cb::durability;
     item.setPendingSyncWrite(
             Requirements{Level::Majority, Timeout::Infinity()});
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
               vb->prepare(rlh,
                           std::ref(item),

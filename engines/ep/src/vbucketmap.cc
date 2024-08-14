@@ -212,7 +212,7 @@ uint16_t VBucketMap::getVBStateCount(vbucket_state_t state) const {
 vbucket_state_t VBucketMap::setState(VBucket& vb,
                                      vbucket_state_t newState,
                                      const nlohmann::json* meta) {
-    folly::SharedMutex::WriteHolder vbStateLock(vb.getStateLock());
+    std::unique_lock vbStateLock(vb.getStateLock());
     return setState_UNLOCKED(vb, newState, meta, vbStateLock);
 }
 
@@ -220,7 +220,7 @@ vbucket_state_t VBucketMap::setState_UNLOCKED(
         VBucket& vb,
         vbucket_state_t newState,
         const nlohmann::json* meta,
-        folly::SharedMutex::WriteHolder& vbStateLock) {
+        std::unique_lock<folly::SharedMutex>& vbStateLock) {
     vbucket_state_t oldState = vb.getState();
     vb.setState_UNLOCKED(newState, meta, vbStateLock);
 

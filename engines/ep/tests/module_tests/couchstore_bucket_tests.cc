@@ -185,7 +185,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     auto& epVB = dynamic_cast<EPVBucket&>(vb);
     const auto docKey = makeStoredDocKey(key);
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         const auto readHandle = vb.lockCollections();
         auto res = vb.ht.findOnlyCommitted(docKey);
         ASSERT_TRUE(res.storedValue);

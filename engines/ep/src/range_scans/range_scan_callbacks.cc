@@ -155,7 +155,7 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         setScanErrorStatus(cb::engine_errc::not_my_vbucket);
         return;
     }
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (!scan.isVbucketScannable(*vb)) {
         setScanErrorStatus(cb::engine_errc::not_my_vbucket);
         return;

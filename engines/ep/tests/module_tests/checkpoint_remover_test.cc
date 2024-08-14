@@ -809,7 +809,7 @@ TEST_P(CheckpointRemoverEPTest, ItemExpellingInvalidatesKeyIndexCorrectly) {
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         // Commit - we need this step as in the following we want to SyncWrite
         // again for the same key
         EXPECT_EQ(cb::engine_errc::success,

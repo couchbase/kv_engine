@@ -159,7 +159,8 @@ std::chrono::microseconds PagingVisitor::getElapsedTime() const {
 void PagingVisitor::setUpHashBucketVisit() {
     // We need to lock the VBucket state here, because if the vb changes state
     // during paging, this could lead to data loss.
-    vbStateLock = folly::SharedMutex::ReadHolder(currentBucket->getStateLock());
+    vbStateLock =
+            std::shared_lock<folly::SharedMutex>(currentBucket->getStateLock());
     // Grab a locked ReadHandle
     readHandle = currentBucket->lockCollections();
 }

@@ -53,7 +53,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                  "vbid",
                  (evb->getId()).get());
 
-    folly::SharedMutex::ReadHolder rlh(evb->getStateLock());
+    std::shared_lock rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
@@ -169,7 +169,7 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                  "endSeqno",
                  endSeqno);
 
-    folly::SharedMutex::ReadHolder rlh(evb->getStateLock());
+    std::shared_lock rlh(evb->getStateLock());
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */

@@ -81,7 +81,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *item, cookie, *engine, {}, cHandle));
@@ -481,7 +481,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
 
     const auto openId = ckptMgr.getOpenCheckpointId();
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             key,
@@ -700,7 +700,7 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         // Seqno 2 - Followed by a commit (the consumer does not get this)
         vb->commit(rlh,
                    key,
@@ -720,7 +720,7 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     // Seqno 4 - A commit that the consumer would receive when reconnecting with
     // seqno 1
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         vb->commit(rlh,
                    key,
                    vb->getHighSeqno(),
@@ -883,7 +883,7 @@ TEST_P(DurabilityActiveStreamTest,
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
 
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *item, cookie, *engine, {}, cHandle));
@@ -915,7 +915,7 @@ TEST_P(DurabilityActiveStreamTest,
         VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *item, cookie, *engine, {}, cHandle));
@@ -1017,7 +1017,7 @@ TEST_P(DurabilityActiveStreamTest,
     // 3) Complete prepare
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1));
     vb->processResolvedSyncWrites();
@@ -1056,9 +1056,10 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     vb->notifyActiveDMOfLocalSyncWrite();
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          replica,
-                          1 /*prepareSeqno*/);
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            replica,
+            1 /*prepareSeqno*/);
     vb->processResolvedSyncWrites();
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1780,7 +1781,7 @@ void DurabilityPassiveStreamTest::
             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
               vb->commit(rlh,
                          key,
@@ -4622,7 +4623,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     const auto prepare = makePendingItem(
             key, value, Requirements(Level::Majority, Timeout::Infinity()));
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(rlh, *item, cookie, *engine, {}, cHandle));
@@ -4892,7 +4893,7 @@ void DurabilityPromotionStreamTest::
     // 3) Queue M:4 in the new MemoryCheckpoint.
     item = makeCommittedItem(makeStoredDocKey("key2"), value);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(rlh, *item, cookie, *engine, {}, cHandle));
@@ -5668,7 +5669,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
     auto mutation = makeCommittedItem(makeStoredDocKey("mutation"), "value");
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(mutation->getKey());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(rlh, *mutation, cookie, *engine, {}, cHandle));
@@ -5679,7 +5680,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
             makePendingItem(makeStoredDocKey("prepare"), "value", {level, {}});
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
@@ -5688,7 +5689,7 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
     removeCheckpoint(*vb);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             prepare->getKey(),
@@ -5796,7 +5797,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
 
     auto vb = engine->getVBucket(vbid);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
@@ -5805,7 +5806,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     removeCheckpoint(*vb);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             key,
@@ -5966,7 +5967,7 @@ void DurabilityActiveStreamTest::
     //   Abort
     const auto prepare = makePendingItem(key, "value", {level, {}});
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
@@ -5975,7 +5976,7 @@ void DurabilityActiveStreamTest::
     removeCheckpoint(*vb);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             key,
@@ -6091,7 +6092,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
@@ -6101,7 +6102,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
 
     auto item = makeCommittedItem(makeStoredDocKey("mut1"), "value");
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(rlh, *item, cookie, *engine, {}, cHandle));
@@ -6113,7 +6114,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
@@ -6250,7 +6251,9 @@ void DurabilityDemotionStreamTest::
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
     vb->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 1);
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            1);
 
     auto key2 = makeStoredDocKey("k2");
     item = makePendingItem(
@@ -6262,7 +6265,9 @@ void DurabilityDemotionStreamTest::
     EXPECT_EQ(0, vb->getDurabilityMonitor().getHighCompletedSeqno());
 
     vb->seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()), "replica", 1);
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            1);
 
     // Remote ack does not attempt to commit, need local ack (persistence)
     EXPECT_EQ(1, vb->getDurabilityMonitor().getNumTracked());

@@ -127,7 +127,7 @@ cb::engine_errc FetchAllKeysTask::doRun() {
         return cb::engine_errc::not_my_vbucket;
     }
 
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
         return cb::engine_errc::not_my_vbucket;
     }

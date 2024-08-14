@@ -260,7 +260,7 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     ASSERT_EQ(4, manager.getNumOpenChkItems());
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,

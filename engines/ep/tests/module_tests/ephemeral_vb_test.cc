@@ -85,7 +85,7 @@ TEST_F(EphemeralVBucketTest, DoublePageOut) {
     ASSERT_EQ(AddStatus::Success, addOne(key));
     ASSERT_EQ(1, vbucket->getNumItems());
 
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     // Get a normal collections ReadHandle, no need to use a Caching one here
     // as we are only calling pageOut (which has to get the ManifestEntry
     // manually). We must take this before the HashBucketLock to prevent
@@ -135,7 +135,7 @@ TEST_F(EphemeralVBucketTest, PageOutAfterDeleteWithValue) {
     ASSERT_EQ(AddStatus::Success, public_processAdd(item));
     ASSERT_EQ(0, vbucket->getNumItems());
 
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     // Get a normal collections ReadHandle, no need to use a Caching one here
     // as we are only calling pageOut (which has to get the ManifestEntry
     // manually). We must take this before the HashBucketLock to prevent
@@ -165,10 +165,10 @@ TEST_F(EphemeralVBucketTest, PageOutAfterCollectionsDrop) {
     // Drop the collection
     CollectionsManifest cm;
     vbucket->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::defaultC)));
 
-    folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+    std::shared_lock rlh(vbucket->getStateLock());
     auto readHandle = vbucket->lockCollections();
     auto lock_sv = lockAndFind(key);
     auto* storedVal = lock_sv.second;
@@ -188,7 +188,7 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
     // Add a key, then page out.
     ASSERT_EQ(AddStatus::Success, addOne(key));
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // Get a normal collections ReadHandle, no need to use a Caching one
         // here as we are only calling pageOut (which has to get the
         // ManifestEntry manually). We must take this before the HashBucketLock
@@ -222,7 +222,7 @@ TEST_F(EphemeralVBucketTest, CreatePageoutCreate) {
 
     // Finally for good measure, delete again and check the numbers are correct.
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         // Get a normal collections ReadHandle, no need to use a Caching one
         // here as we are only calling pageOut (which has to get the
         // ManifestEntry manually). We must take this before the HashBucketLock
@@ -716,7 +716,7 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
 TEST_F(EphTombstoneTest, CollectionErasureDoesNotMovePurgeSeqno) {
     CollectionsManifest cm;
     vbucket->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::defaultC)));
 
     EXPECT_EQ(3, mockEpheVB->purgeStaleItems());
@@ -732,7 +732,7 @@ TEST_F(EphTombstoneTest, CollectionDeletionErasureDoesNotMovePurgeSeqno) {
 
     CollectionsManifest cm;
     vbucket->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::defaultC)));
 
     EXPECT_EQ(3, mockEpheVB->purgeStaleItems());

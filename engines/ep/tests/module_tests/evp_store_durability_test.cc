@@ -201,7 +201,7 @@ protected:
 
         auto vb = store->getVBucket(vbid);
         {
-            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            std::shared_lock rlh(vb->getStateLock());
             vb->commit(rlh,
                        key,
                        1 /*prepareSeqno*/,
@@ -339,7 +339,7 @@ protected:
         ASSERT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*prepared, cookie));
         auto& vb = *store->getVBucket(vbid);
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -361,7 +361,7 @@ protected:
                   store->deleteItem(
                           key, cas, vbid, cookie, reqs, nullptr, delInfo));
         auto& vb = *store->getVBucket(vbid);
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -648,7 +648,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
                       queue_op::pending_sync_write);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -722,7 +722,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -798,7 +798,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -815,7 +815,7 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending2, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -885,7 +885,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -935,7 +935,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsDelete);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -988,7 +988,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsDelete);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1049,7 +1049,7 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1107,7 +1107,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         // Setup: commit SyncDelete (but no flush yet).
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
@@ -1136,7 +1136,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
             << "SyncWrite prepare should still exist";
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1164,7 +1164,7 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1227,7 +1227,7 @@ TEST_P(DurabilityBucketTest, SyncWriteComparesToCorrectCas) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1273,7 +1273,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectSVExists) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1310,7 +1310,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectExpiry) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1355,7 +1355,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectSVExists) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1393,7 +1393,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectExpiry) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1437,7 +1437,7 @@ TEST_P(DurabilityEphemeralBucketTest, SyncWriteChecksCorrectExpiry) {
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -1538,7 +1538,7 @@ void DurabilityEPBucketTest::performCommitForKey(
         uint64_t prepareSeqno,
         uint64_t expectedDiskCount,
         uint64_t expectedCollectedCount) {
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vb.commit(rlh,
                         key,
@@ -1986,7 +1986,7 @@ TEST_P(DurabilityEPBucketTest, ActiveLocalNotifyPersistedSeqno) {
     // Replica acks disk-seqno
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       3 /*preparedSeqno*/));
     // Active has not persisted, so Durability Requirements not satisfied yet
@@ -2335,7 +2335,7 @@ TEST_P(DurabilityBucketTest, SyncAddAfterAbortedSyncWrite) {
               addPendingItem(*prepared2, cookie));
 
     auto& vb = *store->getVBucket(vbid);
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
               vb.commit(rlh,
                         key,
@@ -2383,7 +2383,7 @@ TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncDelete) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->replace(*prepared2, cookie));
     auto& vb = *store->getVBucket(vbid);
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
               vb.commit(rlh,
                         key,
@@ -2417,7 +2417,7 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
 
     // Test: Should be able to Commit also.
     auto& vb = *store->getVBucket(vbid);
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
               vb.commit(rlh,
                         key,
@@ -2590,7 +2590,7 @@ TEST_P(DurabilityBucketTest, RunCompletionTaskNoVBucket) {
         EXPECT_EQ(1, dm.getNumTracked());
 
         {
-            auto rlh = folly::SharedMutex::ReadHolder(vb->getStateLock());
+            auto rlh = std::shared_lock<folly::SharedMutex>(vb->getStateLock());
             vb->seqnoAcknowledged(rlh, "replica", 1);
         }
 
@@ -2627,9 +2627,10 @@ void DurabilityBucketTest::takeoverSendsDurabilityAmbiguous(
               store->set(*pending2, cookie2));
 
     auto vb = store->getVBucket(vbid);
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          pending1->getBySeqno());
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            pending1->getBySeqno());
 
     // We don't send cb::engine_errc::sync_write_pending to clients
     auto mockCookie = cookie_to_mock_cookie(cookie);
@@ -2739,9 +2740,10 @@ TEST_P(DurabilityBucketTest, SetDeadAndReorderTasks) {
               store->set(*pending2, cookie2));
 
     auto vb = store->getVBucket(vbid);
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          pending1->getBySeqno());
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            pending1->getBySeqno());
 
     // We don't send cb::engine_errc::sync_write_pending to clients
     auto mockCookie = cookie_to_mock_cookie(cookie);
@@ -2806,9 +2808,10 @@ TEST_P(DurabilityBucketTest, DeleteVbucket) {
               store->set(*pending2, cookie2));
 
     auto vb = store->getVBucket(vbid);
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          pending1->getBySeqno());
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            pending1->getBySeqno());
 
     // We don't send cb::engine_errc::sync_write_pending to clients
     auto mockCookie = cookie_to_mock_cookie(cookie);
@@ -2859,7 +2862,7 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
 
     auto& vb = *store->getVBucket(vbid);
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.abort(rlh,
                            key,
@@ -3169,7 +3172,7 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
 
     auto vb = store->getVBucket(vbid);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         vb->commit(rlh,
                    key,
                    1 /*prepareSeqno*/,
@@ -3258,7 +3261,7 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     auto vb = store->getVBucket(vbid);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         vb->abort(rlh,
                   key,
                   1 /*prepareSeqno*/,
@@ -3542,7 +3545,7 @@ void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
 
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> cb::engine_errc {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         return vb.commit(rlh,
                          key,
                          1 /*prepareSeqno*/,
@@ -3555,7 +3558,7 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
 
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> cb::engine_errc {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         return vb.abort(rlh,
                         key,
                         1 /*prepareSeqno*/,
@@ -3587,7 +3590,7 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -3675,7 +3678,7 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     // seqno:4 the prepare at seqno:1 is committed
     vb.checkpointManager->createSnapshot(
             4, 4, {} /*HCS*/, CheckpointType::Memory, 0);
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vb.commit(rlh,
                         key,
@@ -3727,7 +3730,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     item->setBySeqno(seqno);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->setWithMeta(rlh,
                                        *item,
@@ -3749,7 +3752,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
             seqno, seqno, {}, CheckpointType::Memory, seqno);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vbucket->commit(rlh,
                                   key,
@@ -3775,7 +3778,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     validateHighAndVisibleSeqno(*store->getVBucket(vbid), seqno - 1, seqno - 1);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        std::shared_lock rlh(vbucket->getStateLock());
         uint64_t cas = 0;
         ItemMetaData metadata;
         EXPECT_EQ(cb::engine_errc::success,
@@ -3850,7 +3853,9 @@ TEST_P(DurabilityBucketTest, GetReplicaWithPendingSyncWriteOnKey) {
     auto& vb = *store->getVBucket(vbid);
     EXPECT_EQ(1, vb.getDurabilityMonitor().getNumTracked());
     vb.seqnoAcknowledged(
-            folly::SharedMutex::ReadHolder(vb.getStateLock()), "replica", 2);
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            "replica",
+            2);
     vb.notifyActiveDMOfLocalSyncWrite();
     vb.processResolvedSyncWrites();
     EXPECT_EQ(0, vb.getDurabilityMonitor().getNumTracked());
@@ -4049,7 +4054,7 @@ void DurabilityBucketTest::
     // ACK, locally and remotely, but *don't* process the resolved Queue yet.
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4198,7 +4203,7 @@ TEST_P(DurabilityEPBucketTest, ActivePersistedDurabilitySeqnosAdvanceOnSyncWrite
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4301,7 +4306,7 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareCommit) {
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4367,7 +4372,7 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareDeleteCommit) {
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4429,7 +4434,7 @@ TEST_P(BackingStoreMaxVisibleSeqnoTest, PrepareCommitExpire) {
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4471,7 +4476,7 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommit) {
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4514,7 +4519,7 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       1 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4533,7 +4538,7 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
     // ACK, locally and remotely
     EXPECT_EQ(cb::engine_errc::success,
               vb->seqnoAcknowledged(
-                      folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                      std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                       "replica",
                       3 /*preparedSeqno*/));
     vb->notifyActiveDMOfLocalSyncWrite();
@@ -4720,7 +4725,7 @@ void DurabilityBucketTest::testReplaceAtPendingSW(DocState docState) {
             auto res = vb.ht.findForWrite(key);
             ASSERT_TRUE(res.storedValue);
         }
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         auto cHandle = vb.lockCollections(key);
         ASSERT_TRUE(cHandle.valid());
         const auto buffer = std::make_unique<const char[]>(128);
@@ -5110,7 +5115,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     // Now access the StoredValue via the expiry code path, must NOT expire has
     // TTL not reached
     const auto checkNotExpired = [&vb, &key]() -> void {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         auto res = vb.fetchValidValue(rlh,
                                       WantsDeleted::No,
                                       TrackReference::No,
@@ -5128,7 +5133,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     checkNotExpired();
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        std::shared_lock rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb.commit(rlh,
                             key,
@@ -5144,7 +5149,7 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     ObjectRegistry::onSwitchThread(engine.get());
 
     // Item committed, TTL must kick in
-    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    std::shared_lock rlh(vb.getStateLock());
     auto res = vb.fetchValidValue(rlh,
                                   WantsDeleted::Yes,
                                   TrackReference::No,
@@ -5275,7 +5280,7 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
     // Commit it
     auto vb = store->getVBucket(vbid);
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,

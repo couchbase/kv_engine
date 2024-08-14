@@ -302,7 +302,7 @@ TEST_F(DCPBackfillDiskTest,
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     vbucket->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vbucket->getStateLock()),
             makeManifest((cm)));
 
     flushAndRemoveCheckpoints(vbid);

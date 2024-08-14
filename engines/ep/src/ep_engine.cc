@@ -5798,7 +5798,7 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    std::shared_lock rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         return cb::engine_errc::not_my_vbucket;
     }
@@ -6746,7 +6746,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
             return cb::engine_errc::not_my_vbucket;
         }
 
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         if (vb->getState() != vbucket_state_active) {
             return cb::engine_errc::not_my_vbucket;
         }

@@ -880,7 +880,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout::Infinity()));
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -908,7 +908,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
                                          cb::durability::Timeout::Infinity()));
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,

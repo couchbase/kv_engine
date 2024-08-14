@@ -214,7 +214,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 
     // delete the collections
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::dairy)
                                  .remove(CollectionEntry::fruit)));
 
@@ -292,10 +292,11 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     // delete the collections and re-add a new dairy
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm.remove(CollectionEntry::fruit)
-                                                .remove(CollectionEntry::dairy)
-                                                .add(CollectionEntry::dairy2)));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::fruit)
+                                 .remove(CollectionEntry::dairy)
+                                 .add(CollectionEntry::dairy2)));
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
@@ -377,10 +378,11 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     // delete the collections and re-add a new dairy
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm.remove(CollectionEntry::fruit)
-                                                .remove(CollectionEntry::dairy)
-                                                .add(CollectionEntry::dairy2)));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::fruit)
+                                 .remove(CollectionEntry::dairy)
+                                 .add(CollectionEntry::dairy2)));
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy2));
@@ -761,7 +763,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         // And commit it
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
@@ -792,7 +794,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         // And commit it
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
@@ -1036,8 +1038,9 @@ TEST_P(CollectionsEraserTest, ScopePurgedItemsCorrectAfterDrop) {
 void CollectionsEraserTest::expiryResurrectionTestSetup(Item& item) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Add the item that we want to expire
@@ -1047,14 +1050,16 @@ void CollectionsEraserTest::expiryResurrectionTestSetup(Item& item) {
 
     // Drop the old gen collection
     cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Add new gen
     cm.add(CollectionEntry::dairy);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
@@ -1068,7 +1073,7 @@ TEST_P(CollectionsEraserTest, FetchValidValueExpiryResurrectionTest) {
 
     // And run the expiry which should not generate a new seqno
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(key);
         auto result = vb->fetchValidValue(
                 rlh, WantsDeleted::Yes, TrackReference::Yes, cHandle);
@@ -1168,7 +1173,7 @@ protected:
     void addCollection() {
         cm.add(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
     }
@@ -1176,7 +1181,7 @@ protected:
     void dropCollection() {
         cm.remove(CollectionEntry::dairy);
         vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
     }
@@ -1236,7 +1241,7 @@ protected:
 
     void processAck(uint64_t prepareSeqno) {
         vb->seqnoAcknowledged(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
                 "replica",
                 prepareSeqno);
     }
@@ -1246,7 +1251,7 @@ protected:
     }
 
     void commit() {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
                              key,
@@ -1265,7 +1270,7 @@ protected:
     }
 
     void abort() {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->abort(rlh,
                             key,
@@ -1407,9 +1412,10 @@ TEST_P(CollectionsEraserSyncWriteTest,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Seqno ack to start a commit
-    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                          "replica",
-                          4 /*prepareSeqno*/);
+    vb->seqnoAcknowledged(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            "replica",
+            4 /*prepareSeqno*/);
 
     // Should have moved the prepare to the resolvedQ but not run the task.
     // Try to process the queue and we should commit the new prepare and skip
@@ -1566,7 +1572,7 @@ TEST_P(CollectionsEraserSyncWriteTest, EraserFindsPrepares) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        std::shared_lock rlh(vb->getStateLock());
         // And commit it
         EXPECT_EQ(cb::engine_errc::success,
                   vb->commit(rlh,
@@ -1660,7 +1666,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
 
     // Delete the collections
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::dairy)
                                  .remove(CollectionEntry::fruit)));
     waitingForFlush += 2;
@@ -1749,7 +1755,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
 
     // Drop the collections
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::dairy)
                                  .remove(CollectionEntry::fruit)));
 
@@ -1800,12 +1806,14 @@ TEST_P(CollectionsEraserPersistentOnly, empty_collection_but_modified) {
     setCollections(cookie, cm);
 
     // Modify and drop, test that erase was schedule
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm.update(CollectionEntry::dairy,
-                                                  std::chrono::seconds(1))));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm.update(CollectionEntry::dairy,
+                                   std::chrono::seconds(1))));
     // Drop the collections
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm.remove(CollectionEntry::dairy)));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::dairy)));
 
     EXPECT_EQ(0, getFutureQueueSize(TaskType::AuxIO));
 
@@ -2314,8 +2322,9 @@ TEST_P(CollectionsEraserTest, MB_50747_delete_and_drop) {
 TEST_P(CollectionsEraserTest, drop_after_modify) {
     // add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                           makeManifest(cm.add(CollectionEntry::fruit)));
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm.add(CollectionEntry::fruit)));
 
     flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
 
@@ -2337,7 +2346,7 @@ TEST_P(CollectionsEraserTest, drop_after_modify) {
 
     // Modify history setting of dairy false->true
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.update(
                     CollectionEntry::fruit, cb::NoExpiryLimit, true)));
     store_item(
@@ -2347,7 +2356,7 @@ TEST_P(CollectionsEraserTest, drop_after_modify) {
 
     // delete the collections
     vb->updateFromManifest(
-            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::dairy)
                                  .remove(CollectionEntry::fruit)));
 
