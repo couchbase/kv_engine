@@ -285,6 +285,10 @@ public:
     cb::engine_errc doRangeScanStats(const StatCollector&) override;
     size_t getAutoDeleteCount() const;
 
+    // Test hook for checking that a backfill respects the purgeSeqno after
+    // purgeTombstones runs.
+    TestingHook<> postPurgeTombstonesHook;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
