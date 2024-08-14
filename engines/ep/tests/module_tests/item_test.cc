@@ -18,6 +18,7 @@
 
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
+#include <xattr/blob.h>
 #include <memory>
 #include <sstream>
 
@@ -264,6 +265,44 @@ TEST_F(ItemPruneTest, testPruneXattrs) {
     EXPECT_EQ(valueData.size(), item->getNBytes());
     EXPECT_EQ(0, memcmp(item->getData(), valueData.c_str(),
                          item->getNBytes()));
+}
+
+TEST_F(ItemPruneTest, testPruneSystemXattrs) {
+    item->removeSystemXattrs();
+
+    auto datatype = item->getDataType();
+    EXPECT_TRUE(cb::mcbp::datatype::is_json(datatype));
+    EXPECT_TRUE(cb::mcbp::datatype::is_xattr(datatype));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(datatype));
+    EXPECT_FALSE(cb::mcbp::datatype::is_raw(datatype));
+
+    // Data should include the value and user xattrs
+    auto expectedData = createXattrValue(valueData, false /* withSystemKey */);
+    EXPECT_EQ(expectedData.size(), item->getNBytes());
+    EXPECT_TRUE(expectedData == item->getValueView());
+}
+
+TEST_F(ItemPruneTest, testPruneSystemXattrsAndDatatype) {
+    // Create item with value and system xattrs - no user xattrs
+    cb::xattr::Blob blob;
+    blob.set("_sync", R"({"cas":"0xdeadbeefcafefeed"})");
+    std::string data = std::string(blob.finalize()) + valueData;
+    protocol_binary_datatype_t datatype =
+            (PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR);
+    item = make_STRCPtr<Item>(
+            makeStoredDocKey("key"), 0, 0, data.data(), data.size(), datatype);
+
+    item->removeSystemXattrs();
+    auto newDatatype = item->getDataType();
+    EXPECT_TRUE(cb::mcbp::datatype::is_json(newDatatype));
+    // No more xattrs, so type should be removed too
+    EXPECT_FALSE(cb::mcbp::datatype::is_xattr(newDatatype));
+    EXPECT_FALSE(cb::mcbp::datatype::is_snappy(newDatatype));
+    EXPECT_FALSE(cb::mcbp::datatype::is_raw(newDatatype));
+
+    // Data should include just the value
+    EXPECT_EQ(valueData.size(), item->getNBytes());
+    EXPECT_TRUE(valueData == item->getValueView());
 }
 
 TEST_F(ItemPruneTest, testPruneValue) {

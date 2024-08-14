@@ -90,6 +90,7 @@ void buildRequestVector(FeatureSet& requested,
         case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
         case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         case cb::mcbp::Feature::SubdocBinaryXattr:
+        case cb::mcbp::Feature::RangeScanIncludeXattr:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -159,6 +160,7 @@ void buildRequestVector(FeatureSet& requested,
             break;
         case cb::mcbp::Feature::SubdocDocumentMacroSupport:
         case cb::mcbp::Feature::VAttr:
+        case cb::mcbp::Feature::RangeScanIncludeXattr:
             // Needs XATTR
             if (!containsFeature(requested, cb::mcbp::Feature::XATTR)) {
                 throw std::invalid_argument(to_string(feature) +
@@ -395,6 +397,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::SELECT_BUCKET:
         case cb::mcbp::Feature::AltRequestSupport:
         case cb::mcbp::Feature::SyncReplication:
+        case cb::mcbp::Feature::RangeScanIncludeXattr:
             // Informative features don't need special handling
             added = true;
             break;

@@ -42,6 +42,17 @@ The following keys will be checked for at the root of the JSON object
   * When set to false (or omitted) the scan will return the complete "document",
     that is the key, metadata and value
 
+* Extended Attributes configuration of the scan
+  * `"include_xattrs"`
+  * The value is a bool
+  * When set to true the scan will also include the xattrs for each "document",
+    now consisting of the key, metadata, xattrs and value
+  * When set to false (or omitted) the scan will not include xattrs for
+    each document
+  * System xattrs will be included if the user has privilege,
+    otherwise only user xattrs are returned, if any
+  * This value cannot be set to true if `"key_only": true`
+
 * Range-scan configuration
   * `"range"`
   * value is a JSON object (described below)

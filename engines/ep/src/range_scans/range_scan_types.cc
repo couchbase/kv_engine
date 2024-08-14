@@ -17,8 +17,11 @@
 #include <memcached/engine_error.h>
 
 RangeScanContinueResult::RangeScanContinueResult(std::vector<uint8_t> buffer,
-                                                 bool keyOnly)
-    : responseBuffer(std::move(buffer)), keyOnly(keyOnly) {
+                                                 bool keyOnly,
+                                                 bool includeXattrs)
+    : responseBuffer(std::move(buffer)),
+      keyOnly(keyOnly),
+      includeXattrs(includeXattrs) {
 }
 
 void RangeScanContinueResult::send(CookieIface& cookie,
@@ -36,8 +39,8 @@ void RangeScanContinueResult::send(CookieIface& cookie,
 }
 
 RangeScanContinueResultPartial::RangeScanContinueResultPartial(
-        std::vector<uint8_t> buffer, bool keyOnly)
-    : RangeScanContinueResult(std::move(buffer), keyOnly) {
+        std::vector<uint8_t> buffer, bool keyOnly, bool includeXattrs)
+    : RangeScanContinueResult(std::move(buffer), keyOnly, includeXattrs) {
 }
 
 void RangeScanContinueResultPartial::complete(CookieIface& cookie) {
@@ -47,8 +50,11 @@ void RangeScanContinueResultPartial::complete(CookieIface& cookie) {
 }
 
 RangeScanContinueResultWithReadBytes::RangeScanContinueResultWithReadBytes(
-        std::vector<uint8_t> buffer, size_t readBytes, bool keyOnly)
-    : RangeScanContinueResult(std::move(buffer), keyOnly),
+        std::vector<uint8_t> buffer,
+        size_t readBytes,
+        bool keyOnly,
+        bool includeXattrs)
+    : RangeScanContinueResult(std::move(buffer), keyOnly, includeXattrs),
       readBytes(readBytes) {
 }
 
@@ -57,9 +63,12 @@ void RangeScanContinueResultWithReadBytes::complete(CookieIface& cookie) {
 }
 
 RangeScanContinueResultMore::RangeScanContinueResultMore(
-        std::vector<uint8_t> buffer, size_t readBytes, bool keyOnly)
+        std::vector<uint8_t> buffer,
+        size_t readBytes,
+        bool keyOnly,
+        bool includeXattrs)
     : RangeScanContinueResultWithReadBytes(
-              std::move(buffer), readBytes, keyOnly) {
+              std::move(buffer), readBytes, keyOnly, includeXattrs) {
 }
 
 void RangeScanContinueResultMore::complete(CookieIface& cookie) {
@@ -69,9 +78,12 @@ void RangeScanContinueResultMore::complete(CookieIface& cookie) {
 }
 
 RangeScanContinueResultComplete::RangeScanContinueResultComplete(
-        std::vector<uint8_t> buffer, size_t readBytes, bool keyOnly)
+        std::vector<uint8_t> buffer,
+        size_t readBytes,
+        bool keyOnly,
+        bool includeXattrs)
     : RangeScanContinueResultWithReadBytes(
-              std::move(buffer), readBytes, keyOnly) {
+              std::move(buffer), readBytes, keyOnly, includeXattrs) {
 }
 
 void RangeScanContinueResultComplete::complete(CookieIface& cookie) {
@@ -80,7 +92,10 @@ void RangeScanContinueResultComplete::complete(CookieIface& cookie) {
 }
 
 RangeScanContinueResultCancelled::RangeScanContinueResultCancelled(
-        std::vector<uint8_t> buffer, size_t readBytes, bool keyOnly)
+        std::vector<uint8_t> buffer,
+        size_t readBytes,
+        bool keyOnly,
+        bool includeXattrs)
     : RangeScanContinueResultWithReadBytes(
-              std::move(buffer), readBytes, keyOnly) {
+              std::move(buffer), readBytes, keyOnly, includeXattrs) {
 }

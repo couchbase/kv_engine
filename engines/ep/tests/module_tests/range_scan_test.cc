@@ -14,6 +14,9 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "kvstore/kvstore.h"
+#include "mcbp/protocol/datatype.h"
+#include "memcached/engine_error.h"
+#include "memcached/range_scan.h"
 #include "range_scans/range_scan.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -22,6 +25,7 @@
 #include "vbucket.h"
 
 #include <boost/uuid/name_generator.hpp>
+#include <gtest/gtest.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -151,17 +155,27 @@ public:
         return std::get<2>(GetParam()) == "key_scan";
     }
 
+    bool isIncludeXattr() const {
+        return std::get<2>(GetParam()) == "value_scan_include_xattrs";
+    }
+
     cb::rangescan::KeyOnly getScanType() const {
         return std::get<2>(GetParam()) == "key_scan"
                        ? cb::rangescan::KeyOnly::Yes
                        : cb::rangescan::KeyOnly::No;
     }
 
+    cb::rangescan::IncludeXattrs getIncludeXattrs() const {
+        return std::get<2>(GetParam()) == "value_scan_include_xattrs"
+                       ? cb::rangescan::IncludeXattrs::Yes
+                       : cb::rangescan::IncludeXattrs::No;
+    }
+
     cb::rangescan::Id createScan(
             CollectionID cid,
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
-            std::optional<cb::rangescan::SnapshotRequirements> seqno =
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs =
                     std::nullopt,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig =
                     std::nullopt,
@@ -232,7 +246,7 @@ public:
 
     void storeTestKeys() {
         for (const auto& key : generateTestKeys()) {
-            // store one key with xattrs to check it gets stripped
+            // store one key with xattrs to test when includeXattrs=Yes
             if (key == makeStoredDocKey("users", scanCollection)) {
                 store_item(vbid,
                            key,
@@ -319,8 +333,16 @@ void RangeScanTest::validateItemScan(
         auto itr = expectedKeys.find(scanItem->getKey());
         // Expect to find the key
         EXPECT_NE(itr, expectedKeys.end());
-        // And the value of StoredDocKey::to_string should equal the value
-        EXPECT_EQ(itr->to_string(), scanItem->getValueView());
+
+        if (isIncludeXattr() &&
+            (scanItem->getDataType() & PROTOCOL_BINARY_DATATYPE_XATTR)) {
+            // Scan should include xattrs
+            EXPECT_EQ(createXattrValue(itr->to_string()),
+                      scanItem->getValueView());
+        } else {
+            // The value of StoredDocKey::to_string should equal the value
+            EXPECT_EQ(itr->to_string(), scanItem->getValueView());
+        }
     }
 }
 
@@ -343,6 +365,7 @@ cb::rangescan::Id RangeScanTest::createScan(
                                                            start,
                                                            end,
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            snapshotReqs,
                                                            samplingConfig})
                       .first);
@@ -365,6 +388,7 @@ cb::rangescan::Id RangeScanTest::createScan(
                                             start,
                                             end,
                                             getScanType(),
+                                            getIncludeXattrs(),
                                             snapshotReqs,
                                             samplingConfig});
     EXPECT_EQ(cb::engine_errc::success, status.first);
@@ -980,6 +1004,7 @@ TEST_P(RangeScanCreateTest, future_seqno_fails) {
                                              {"user"},
                                              {"user\xFF"},
                                              getScanType(),
+                                             getIncludeXattrs(),
                                              reqs,
                                              {/* no sampling config*/}})
                       .first);
@@ -1000,6 +1025,7 @@ TEST_P(RangeScanCreateTest, vb_uuid_check) {
                                              {"user"},
                                              {"user\xFF"},
                                              getScanType(),
+                                             getIncludeXattrs(),
                                              reqs,
                                              {/* no sampling config*/}})
                       .first);
@@ -1079,8 +1105,6 @@ TEST_P(RangeScanCreateAndContinueTest, random_sample) {
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 1});
 
-    auto vb = store->getVBucket(vbid);
-
     // run the scan with a limit, this gives more coverage of checks for
     // sampleSize. This loop also runs the scan one extra time to ensure we
     // enter the continue code with the isTotalLimitReached() condition true
@@ -1139,6 +1163,7 @@ TEST_P(RangeScanCreateTest, not_my_vbucket) {
                                                            {"\0", 1},
                                                            {"\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            {},
                                                            {}})
                       .first);
@@ -1154,6 +1179,7 @@ TEST_P(RangeScanCreateTest, unknown_collection) {
                                              {"\0", 1},
                                              {"\xFF"},
                                              getScanType(),
+                                             getIncludeXattrs(),
                                              {},
                                              {}})
                       .first);
@@ -1170,6 +1196,7 @@ TEST_P(RangeScanCreateAndContinueTest, scan_cancels_after_create) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            {},
                                                            {}})
                       .first);
@@ -1194,6 +1221,7 @@ TEST_P(RangeScanCreateAndContinueTest, scan_cancels_after_create) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            {},
                                                            {}})
                       .first);
@@ -1219,6 +1247,7 @@ TEST_P(RangeScanCreateTest, scan_detects_vbucket_change) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            reqs,
                                                            {}})
                       .first);
@@ -1256,6 +1285,7 @@ TEST_P(RangeScanCreateTest, create_on_replica) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            {},
                                                            {}})
                       .first);
@@ -1325,6 +1355,7 @@ TEST_P(RangeScanCreateAndContinueTest, wait_for_persistence_success) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            reqs,
                                                            {}})
                       .first);
@@ -1368,6 +1399,7 @@ TEST_P(RangeScanCreateTest, wait_for_persistence_fails) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            reqs,
                                                            {}})
                       .first);
@@ -1392,6 +1424,7 @@ TEST_P(RangeScanCreateTest, wait_for_persistence_timeout) {
                                                            {"user"},
                                                            {"user\xFF"},
                                                            getScanType(),
+                                                           getIncludeXattrs(),
                                                            reqs,
                                                            {}})
                       .first);
@@ -1773,6 +1806,69 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
                 "RangeScanContinueTask");
 }
 
+TEST_P(RangeScanCreateAndContinueTest, rangeScanWithXattrs) {
+    auto keyXattr = makeStoredDocKey("xattrsIncluded", scanCollection);
+    auto keyNoXattr = makeStoredDocKey("xattrsExcluded", scanCollection);
+
+    // Store one document with xattrs
+    store_item(vbid,
+               keyXattr,
+               createXattrValue(keyXattr.to_string()),
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_XATTR);
+    // And another without xattrs
+    store_item(vbid, keyNoXattr, keyNoXattr.to_string());
+    flushVBucket(vbid);
+
+    std::unordered_set<StoredDocKey> expectedKeys;
+    expectedKeys.emplace(keyXattr);
+    expectedKeys.emplace(keyNoXattr);
+
+    // Run scan - will also validate xattrs included/excluded respectively
+    testRangeScan(expectedKeys, scanCollection, {"xattrs"}, {"xattrs\xFF"});
+}
+
+TEST_P(RangeScanCreateAndContinueTest, randomSampleWithXattrs) {
+    // Empty collection
+    setCollections(cookie, cm.remove(CollectionEntry::vegetable));
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
+
+    auto keyXattr = makeStoredDocKey("xattrsIncluded", scanCollection);
+    auto keyNoXattr = makeStoredDocKey("xattrsExcluded", scanCollection);
+
+    // Store one document with xattrs
+    store_item(vbid,
+               keyXattr,
+               createXattrValue(keyXattr.to_string()),
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_XATTR);
+    // Add another without xattrs
+    store_item(vbid, keyNoXattr, keyNoXattr.to_string());
+    flushVBucket(vbid);
+
+    std::unordered_set<StoredDocKey> expectedKeys;
+    expectedKeys.emplace(keyXattr);
+    expectedKeys.emplace(keyNoXattr);
+
+    // Request whole collection
+    auto sampleSize = expectedKeys.size();
+    auto uuid = createScan(scanCollection,
+                           {"\0", 1},
+                           {"\xFF"},
+                           {/* no snapshot requirements */},
+                           cb::rangescan::SamplingConfiguration{sampleSize, 0});
+    continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_complete);
+
+    if (isKeyOnly()) {
+        validateKeyScan(expectedKeys);
+    } else {
+        // Will also validate xattrs included/excluded
+        validateItemScan(expectedKeys);
+    }
+}
+
 bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     switch (code) {
     case cb::engine_errc::range_scan_more:
@@ -2009,6 +2105,7 @@ TEST_P(RangeScanTestSimple, limitRangeScans) {
                                              {"\0"},
                                              {"\xff"},
                                              getScanType(),
+                                             getIncludeXattrs(),
                                              {},
                                              {}})
                       .first);
@@ -2030,16 +2127,17 @@ TEST_P(RangeScanTestSimple, beforeFlush) {
     // The vbucket is in "creating" state, i.e. nothing flushed (for couchstore
     // there is no 1.couch.1 file)
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              store->createRangeScan(
-                           *cookie,
-                           std::move(handler),
-                           cb::rangescan::CreateParameters{testvb,
-                                                           CollectionID::Default,
-                                                           {"\0"},
-                                                           {"\xff"},
-                                                           getScanType(),
-                                                           {},
-                                                           {}})
+              store->createRangeScan(*cookie,
+                                     std::move(handler),
+                                     cb::rangescan::CreateParameters{
+                                             testvb,
+                                             CollectionID::Default,
+                                             {"\0"},
+                                             {"\xff"},
+                                             getScanType(),
+                                             getIncludeXattrs(),
+                                             {},
+                                             {}})
                       .first);
 }
 
@@ -2127,6 +2225,7 @@ TEST_P(RangeScanTestSimple, MB_54053) {
             std::make_unique<MB_54053Handler>(std::move(callback)),
             *cookie,
             cb::rangescan::KeyOnly::Yes,
+            cb::rangescan::IncludeXattrs::No,
             std::optional<cb::rangescan::SnapshotRequirements>{},
             std::optional<cb::rangescan::SamplingConfiguration>{},
             std::string{});
@@ -2153,16 +2252,16 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     EXPECT_FALSE(result2.cookie);
 }
 
-auto valueScanConfig =
-        ::testing::Combine(::testing::Values("persistent_couchdb"
+auto valueScanConfig = ::testing::Combine(
+        ::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
-                                             ,
-                                             "persistent_magma",
-                                             "persistent_nexus_couchstore_magma"
+                          ,
+                          "persistent_magma",
+                          "persistent_nexus_couchstore_magma"
 #endif
-                                             ),
-                           ::testing::Values("value_only", "full_eviction"),
-                           ::testing::Values("value_scan"));
+                          ),
+        ::testing::Values("value_only", "full_eviction"),
+        ::testing::Values("value_scan", "value_scan_include_xattrs"));
 
 auto keyScanConfig =
         ::testing::Combine(::testing::Values("persistent_couchdb"

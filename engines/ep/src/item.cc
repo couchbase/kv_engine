@@ -22,6 +22,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <string>
 #include <utility>
 
 std::atomic<uint64_t> Item::casCounter(1);
@@ -526,6 +527,54 @@ Item::WasValueInflated Item::removeXattrs() {
     valBuffer.remove_prefix(bodyOffset);
     setData(valBuffer.data(), valBuffer.size());
     setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    if (getNBytes() == 0) {
+        // Docs with no body and Xattrs may be created with DATATYPE_JSON to
+        // bypass the Subdoc restriction on DATATYPE_RAW | DATATYPE_XATTR, see
+        // Subdoc logic for details. Here we have to rectify.
+        setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_JSON);
+    }
+
+    return wasInflated ? WasValueInflated::Yes : WasValueInflated::No;
+}
+
+Item::WasValueInflated Item::removeSystemXattrs() {
+    if (!value) {
+        // No value, nothing to do
+        return WasValueInflated::No;
+    }
+
+    if (!cb::mcbp::datatype::is_xattr(getDataType())) {
+        // No Xattrs, nothing to do
+        return WasValueInflated::No;
+    }
+
+    // No-op if already uncompressed
+    const auto wasInflated = decompressValue();
+
+    // Body of the document - excluding all xattrs
+    std::string_view bodyBuffer{value->getData(), value->valueSize()};
+    const auto bodyOffset = cb::xattr::get_body_offset(bodyBuffer);
+
+    // Create xattrs blob and remove the system xattrs
+    cb::char_buffer valBuf{const_cast<char*>(value->getData()),
+                           value->valueSize()};
+    // Operate on a copy!
+    const cb::xattr::Blob originalBlob(valBuf, false /*compressed*/);
+    cb::xattr::Blob valXattrBlob(originalBlob);
+
+    valXattrBlob.prune_system_keys();
+    bodyBuffer.remove_prefix(bodyOffset);
+
+    // Join the user xattrs(if any) and body
+    auto newValue =
+            std::string(valXattrBlob.finalize()) + std::string(bodyBuffer);
+    setData(newValue.data(), newValue.size());
+
+    // We have removed all sys-xattrs, clear the xattr dt if no xattrs left
+    if (valXattrBlob.get_user_size() == 0) {
+        setDataType(getDataType() & ~PROTOCOL_BINARY_DATATYPE_XATTR);
+    }
 
     if (getNBytes() == 0) {
         // Docs with no body and Xattrs may be created with DATATYPE_JSON to

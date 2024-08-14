@@ -24,6 +24,9 @@ namespace cb::rangescan {
 // client can request a Key or Key/Value scan.
 enum class KeyOnly : char { No, Yes };
 
+// Client can request for xattrs to be included for each document
+enum class IncludeXattrs : char { No, Yes };
+
 // How the key is to be interpreted in a range start/end
 enum class KeyType : char { Inclusive, Exclusive };
 
@@ -68,6 +71,7 @@ struct CreateParameters {
                      KeyView start,
                      KeyView end,
                      KeyOnly keyOnly,
+                     IncludeXattrs includeXattrs,
                      std::optional<SnapshotRequirements> snapshotReqs,
                      std::optional<SamplingConfiguration> samplingConfig,
                      std::string_view name = {})
@@ -76,6 +80,7 @@ struct CreateParameters {
           start(start),
           end(end),
           keyOnly(keyOnly),
+          includeXattrs(includeXattrs),
           snapshotReqs(snapshotReqs),
           samplingConfig(samplingConfig),
           name(name) {
@@ -95,6 +100,9 @@ struct CreateParameters {
 
     /// key or value configuration
     KeyOnly keyOnly{KeyOnly::Yes};
+
+    /// include xattrs with document
+    IncludeXattrs includeXattrs{IncludeXattrs::No};
 
     /// optional snapshot requirements
     std::optional<SnapshotRequirements> snapshotReqs;

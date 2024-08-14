@@ -68,6 +68,7 @@ public:
      * @param handler key/item handler to process key/items of the scan
      * @param cookie connection cookie creating the RangeScan
      * @param keyOnly configure key or value scan
+     * @param includeXattrs return xattrs of the document
      * @param snapshotReqs optional requirements for the snapshot
      * @param samplingConfig optional configuration for random sampling mode
      * @param a name for logging/observability, the view can be empty
@@ -80,6 +81,7 @@ public:
             std::unique_ptr<RangeScanDataHandlerIFace> handler,
             CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
+            cb::rangescan::IncludeXattrs includeXattrs,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
             std::string name);
@@ -109,6 +111,19 @@ public:
      */
     cb::engine_errc hasPrivilege(CookieIface& cookie,
                                  const EventuallyPersistentEngine& engine);
+
+    /**
+     * Update the user's privilege status to system xattrs for this collection
+     * and scope. Utilised for each continue to return system xattrs only while
+     * the user has access.
+     *
+     * Throws std::runtime_error on failure
+     *
+     * @param cookie The client's cookie for this range-scan.
+     * @param engine The engine this scan is associated with.
+     */
+    void updateSystemXattrsPrivilege(CookieIface& cookie,
+                                     const EventuallyPersistentEngine& engine);
 
     /**
      * Frontend executor invokes this method after an IO complete notification.
@@ -243,6 +258,16 @@ public:
     /// @return true if the scan is configured for keys only
     bool isKeyOnly() const {
         return keyOnly == cb::rangescan::KeyOnly::Yes;
+    }
+
+    /// @return true if the scan is configured to include xattrs in document
+    bool isIncludeXattrs() const {
+        return includeXattrs == cb::rangescan::IncludeXattrs::Yes;
+    }
+
+    /// @return true if the scan has access to system xattrs
+    bool hasSystemXattrAccess() const {
+        return systemXattrAccess;
     }
 
     /// method for use by RangeScans to ensure we only queue a scan once
@@ -658,6 +683,12 @@ protected:
     } continueRunState;
 
     const cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};
+
+    const cb::rangescan::IncludeXattrs includeXattrs{
+            cb::rangescan::IncludeXattrs::No};
+
+    bool systemXattrAccess{false};
+
     /// is this scan in the run queue? This bool is read/written only by
     /// RangeScans under the queue lock
     bool queued{false};

@@ -25,10 +25,12 @@
 #include <statistics/cbstat_collector.h>
 
 RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine,
-                                           bool keyOnly)
+                                           bool keyOnly,
+                                           bool includeXattrs)
     : sendTriggerThreshold(
               engine.getConfiguration().getRangeScanReadBufferSendSize()),
-      keyOnly(keyOnly) {
+      keyOnly(keyOnly),
+      includeXattrs(includeXattrs) {
 }
 
 RangeScanDataHandler::Status RangeScanDataHandler::getScanStatus(
@@ -44,7 +46,7 @@ RangeScanDataHandler::continuePartialOnFrontendThread() {
     // lock and move the current buffered data.
     return scannedData.withLock([this](auto& ls) {
         return std::make_unique<RangeScanContinueResultPartial>(
-                std::move(ls.responseBuffer), keyOnly);
+                std::move(ls.responseBuffer), keyOnly, includeXattrs);
     });
 }
 
@@ -55,7 +57,10 @@ RangeScanDataHandler::continueMoreOnFrontendThread() {
         auto readBytes = ls.pendingReadBytes;
         ls.pendingReadBytes = 0;
         return std::make_unique<RangeScanContinueResultMore>(
-                std::move(ls.responseBuffer), readBytes, keyOnly);
+                std::move(ls.responseBuffer),
+                readBytes,
+                keyOnly,
+                includeXattrs);
     });
 }
 
@@ -66,7 +71,10 @@ RangeScanDataHandler::completeOnFrontendThread() {
         auto readBytes = ls.pendingReadBytes;
         ls.pendingReadBytes = 0;
         return std::make_unique<RangeScanContinueResultComplete>(
-                std::move(ls.responseBuffer), readBytes, keyOnly);
+                std::move(ls.responseBuffer),
+                readBytes,
+                keyOnly,
+                includeXattrs);
     });
 }
 
@@ -77,7 +85,10 @@ RangeScanDataHandler::cancelOnFrontendThread() {
         auto readBytes = ls.pendingReadBytes;
         ls.pendingReadBytes = 0;
         return std::make_unique<RangeScanContinueResultCancelled>(
-                std::move(ls.responseBuffer), readBytes, keyOnly);
+                std::move(ls.responseBuffer),
+                readBytes,
+                keyOnly,
+                includeXattrs);
     });
 }
 
@@ -191,8 +202,15 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     auto gv = get(rlh, *vb, cHandle, lookup);
     if (gv.getStatus() == cb::engine_errc::success &&
         gv.item->getBySeqno() == lookup.getBySeqno()) {
-        // RangeScans do not transmit xattrs
-        gv.item->removeXattrs();
+        if (!scan.isIncludeXattrs()) {
+            // strip all xattrs if not requested
+            gv.item->removeXattrs();
+        } else if (!scan.hasSystemXattrAccess()) {
+            // Strip system xattrs if no read access
+            // User xattrs, if any will still be returned
+            gv.item->removeSystemXattrs();
+        }
+
         scan.handleItem(std::move(gv.item), RangeScan::Source::Memory);
 
         if (scan.shouldScanYield()) {
@@ -229,8 +247,15 @@ void RangeScanDiskCallback::callback(GetValue& val) {
         return;
     }
 
-    // RangeScans do not transmit xattrs
-    val.item->removeXattrs();
+    if (!scan.isIncludeXattrs()) {
+        // strip all xattrs if not requested
+        val.item->removeXattrs();
+    } else if (!scan.hasSystemXattrAccess()) {
+        // Strip system xattrs if no read access
+        // User xattrs, if any will still be returned
+        val.item->removeSystemXattrs();
+    }
+
     scan.handleItem(std::move(val.item), RangeScan::Source::Disk);
 
     if (scan.shouldScanYield()) {

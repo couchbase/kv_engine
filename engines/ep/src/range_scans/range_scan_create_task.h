@@ -62,6 +62,7 @@ protected:
     std::unique_ptr<RangeScanDataHandlerIFace> handler;
     CookieIface& cookie;
     cb::rangescan::KeyOnly keyOnly;
+    cb::rangescan::IncludeXattrs includeXattrs;
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;
     std::optional<cb::rangescan::SamplingConfiguration> samplingConfig;
     std::unique_ptr<RangeScanCreateToken> scanData;

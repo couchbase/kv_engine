@@ -18,6 +18,9 @@
 #include "failover-table.h"
 #include "item.h"
 #include "kvstore/kvstore.h"
+#include "memcached/engine_error.h"
+#include "memcached/range_scan.h"
+#include "memcached/rbac/privileges.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "vbucket.h"
 
@@ -37,6 +40,7 @@ RangeScan::RangeScan(
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
         CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
+        cb::rangescan::IncludeXattrs includeXattrs,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
         std::string name)
@@ -47,7 +51,8 @@ RangeScan::RangeScan(
       resourceTracker(bucket.getKVStoreScanTracker()),
       name(std::move(name)),
       vbid(vbucket.getId()),
-      keyOnly(keyOnly) {
+      keyOnly(keyOnly),
+      includeXattrs(includeXattrs) {
     try {
         uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
         createTime = now();
@@ -85,11 +90,12 @@ RangeScan::RangeScan(
         }
     }
 
-    EP_LOG_DEBUG("{}: {} created. cid:{}, mode:{}{}{}",
+    EP_LOG_DEBUG("{}: {} created. cid:{}, mode:{}, includeXattrs:{}{}{}",
                  cookie.getConnectionId(),
                  getLogId(),
                  this->start.getDocKey().getCollectionID(),
-                 keyOnly == cb::rangescan::KeyOnly::Yes ? "keys" : "values",
+                 isKeyOnly() ? "keys" : "values",
+                 isIncludeXattrs() ? "yes" : "no",
                  std::string_view{snapshotLog.data(), snapshotLog.size()},
                  std::string_view{samplingLog.data(), samplingLog.size()});
 }
@@ -154,7 +160,9 @@ cb::rangescan::Id RangeScan::createScan(
         EPBucket& bucket,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
-    auto privStatus = hasPrivilege(cookie, bucket.getEPEngine());
+    const auto& epEngine = bucket.getEPEngine();
+
+    auto privStatus = hasPrivilege(cookie, epEngine);
     if (privStatus != cb::engine_errc::success) {
         throw cb::engine_error(
                 privStatus,
@@ -198,7 +206,7 @@ cb::rangescan::Id RangeScan::createScan(
         auto state = bucket.getRWUnderlying(getVBucketId())
                              ->getPersistedVBucketState(handle, getVBucketId());
         FailoverTable ft(state.state.transition.failovers,
-                         bucket.getEPEngine().getMaxFailoverEntries(),
+                         epEngine.getMaxFailoverEntries(),
                          state.state.highSeqno);
         if (ft.getLatestUUID() != snapshotReqs->vbUuid) {
             throw cb::engine_error(cb::engine_errc::vbuuid_not_equal,
@@ -351,6 +359,35 @@ cb::engine_errc RangeScan::hasPrivilege(
             cb::rbac::Privilege::SystemCollectionLookup,
             cb::rbac::Privilege::RangeScan,
             start.getDocKey().getCollectionID());
+}
+
+void RangeScan::updateSystemXattrsPrivilege(
+        CookieIface& cookie, const EventuallyPersistentEngine& engine) {
+    if (!isIncludeXattrs()) {
+        return;
+    }
+
+    auto status =
+            engine.checkCollectionAccess(cookie,
+                                         {},
+                                         {},
+                                         cb::rbac::Privilege::SystemXattrRead,
+                                         start.getDocKey().getCollectionID());
+
+    if (status == cb::engine_errc::success) {
+        // User has access to system xattrs for this scan
+        systemXattrAccess = true;
+    } else if (status == cb::engine_errc::no_access) {
+        // User does not have access to xattrs for this scan
+        systemXattrAccess = false;
+    } else {
+        // Invalid value for privilege - failure
+        throw cb::engine_error(
+                status,
+                fmt::format("{} createScan hasSystemXattrPrivilege"
+                            "returned failure",
+                            getLogId()));
+    }
 }
 
 RangeScan::ContinueIOThreadResult RangeScan::prepareToRunOnContinueTask() {
@@ -657,8 +694,8 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("vbuuid", vbUuid);
     addStat("start", cb::UserDataView(start.to_string()).getRawValue());
     addStat("end", cb::UserDataView(end.to_string()).getRawValue());
-    addStat("key_value",
-            keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value");
+    addStat("key_value", isKeyOnly() ? "key" : "value");
+    addStat("include_xattrs", isIncludeXattrs() ? "yes" : "no");
     addStat("queued", queued);
     addStat("total_keys", totalKeys);
     addStat("total_items_from_memory", totalValuesFromMemory);
@@ -697,14 +734,16 @@ std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
     auto cs = *scan.continueState.rlock();
     fmt::print(os,
                "{} vbuuid:{}, created:{}. range:({},{}), "
-               "mode:{}, queued:{}, totalKeys:{} values m:{}, d:{}, "
+               "mode:{}, includeXattrs:{}, queued:{}, totalKeys:{} values "
+               "m:{}, d:{}, "
                "crs{{{}}}, cs{{{}}} name",
                scan.getLogId(),
                scan.vbUuid,
                scan.createTime.time_since_epoch().count(),
                cb::UserDataView(scan.start.to_string()),
                cb::UserDataView(scan.end.to_string()),
-               (scan.keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value"),
+               (scan.isKeyOnly() ? "key" : "value"),
+               (scan.isIncludeXattrs() ? "yes" : "no"),
                scan.queued,
                scan.totalKeys,
                scan.totalValuesFromMemory,

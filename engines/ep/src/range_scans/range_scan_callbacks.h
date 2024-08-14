@@ -123,7 +123,9 @@ public:
  */
 class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
-    RangeScanDataHandler(EventuallyPersistentEngine& engine, bool keyOnly);
+    RangeScanDataHandler(EventuallyPersistentEngine& engine,
+                         bool keyOnly,
+                         bool includeXattrs);
 
     Status handleKey(DocKey key) override;
 
@@ -171,6 +173,8 @@ private:
     const size_t sendTriggerThreshold{0};
 
     const bool keyOnly{false};
+
+    const bool includeXattrs{false};
 };
 
 /**

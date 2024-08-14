@@ -420,7 +420,7 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
     return scan;
 }
 
-cb::engine_errc VB::RangeScanOwner::hasPrivilege(
+cb::engine_errc VB::RangeScanOwner::checkPrivileges(
         cb::rangescan::Id id,
         CookieIface& cookie,
         const EventuallyPersistentEngine& engine) const {
@@ -428,8 +428,14 @@ cb::engine_errc VB::RangeScanOwner::hasPrivilege(
     if (!scan) {
         return cb::engine_errc::no_such_key;
     }
+    auto status = scan->hasPrivilege(cookie, engine);
 
-    return scan->hasPrivilege(cookie, engine);
+    if (status == cb::engine_errc::success) {
+        // Also update whether caller has access to the system xattrs
+        scan->updateSystemXattrsPrivilege(cookie, engine);
+    }
+
+    return status;
 }
 
 size_t VB::RangeScanOwner::size() const {

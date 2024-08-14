@@ -502,6 +502,15 @@ public:
     WasValueInflated removeXattrs();
 
     /**
+     * Remove sys-xattrs from the xattrs chunk of this item's value.
+     * No-op if no value or no system-xattr present.
+     * Keeps the body and the user-xattrs intact, if any.
+     *
+     * @return whether the value has been decompressed for processing
+     */
+    WasValueInflated removeSystemXattrs();
+
+    /**
      * Remove user-xattrs from the Xattrs chunk of this item's value.
      * No-op if no Value or no user-xattr present.
      * Keeps the Body and the sys-xattrs intact, if any.

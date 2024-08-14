@@ -51,12 +51,15 @@ public:
     virtual void complete(CookieIface& cookie) = 0;
 
 protected:
-    RangeScanContinueResult(std::vector<uint8_t> buffer, bool keyOnly);
+    RangeScanContinueResult(std::vector<uint8_t> buffer,
+                            bool keyOnly,
+                            bool includeXattrs);
 
     void send(CookieIface& cookie, cb::engine_errc status);
 
     const std::vector<uint8_t> responseBuffer;
     const bool keyOnly{false};
+    const bool includeXattrs{false};
 };
 
 /**
@@ -66,7 +69,9 @@ protected:
  */
 class RangeScanContinueResultPartial : public RangeScanContinueResult {
 public:
-    RangeScanContinueResultPartial(std::vector<uint8_t> buffer, bool keyOnly);
+    RangeScanContinueResultPartial(std::vector<uint8_t> buffer,
+                                   bool keyOnly,
+                                   bool includeXattrs);
 
     /**
      * Sends the buffered data using Cookie::sendResponse with a status code of
@@ -80,7 +85,8 @@ class RangeScanContinueResultWithReadBytes : public RangeScanContinueResult {
 protected:
     RangeScanContinueResultWithReadBytes(std::vector<uint8_t> buffer,
                                          size_t readBytes,
-                                         bool keyOnly);
+                                         bool keyOnly,
+                                         bool includeXattrs);
 
     /**
      * Passes the value of readBytes to Cookie::addDocumentReadBytes
@@ -101,7 +107,8 @@ class RangeScanContinueResultMore
 public:
     RangeScanContinueResultMore(std::vector<uint8_t> buffer,
                                 size_t readBytes,
-                                bool keyOnly);
+                                bool keyOnly,
+                                bool includeXattrs);
 
     /**
      * Sends the buffered data using Cookie::sendResponse with a status code of
@@ -119,7 +126,8 @@ class RangeScanContinueResultComplete
 public:
     RangeScanContinueResultComplete(std::vector<uint8_t> buffer,
                                     size_t readBytes,
-                                    bool keyOnly);
+                                    bool keyOnly,
+                                    bool includeXattrs);
     /**
      * Sends the buffered data using Cookie::sendResponse with a status code of
      * range_scan_complete.
@@ -138,7 +146,8 @@ class RangeScanContinueResultCancelled
 public:
     RangeScanContinueResultCancelled(std::vector<uint8_t> buffer,
                                      size_t readBytes,
-                                     bool keyOnly);
+                                     bool keyOnly,
+                                     bool includeXattrs);
 
     /**
      * Does not send the buffered data, but only ensures the current readBytes

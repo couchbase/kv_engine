@@ -1343,7 +1343,8 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
     if (!handler) {
         handler = std::make_unique<RangeScanDataHandler>(
                 bucket->getEPEngine(),
-                params.keyOnly == cb::rangescan::KeyOnly::Yes);
+                params.keyOnly == cb::rangescan::KeyOnly::Yes,
+                params.includeXattrs == cb::rangescan::IncludeXattrs::Yes);
     }
 
     // At this point the scan can proceed to create, but we need to check and
@@ -1468,7 +1469,7 @@ cb::engine_errc EPVBucket::continueRangeScan(
 
     auto status = setupCookieForRangeScan(params.uuid, cookie);
     if (status == cb::engine_errc::success) {
-        status = rangeScans.hasPrivilege(
+        status = rangeScans.checkPrivileges(
                 params.uuid, cookie, bucket->getEPEngine());
     }
 
@@ -1519,7 +1520,7 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
                                            CookieIface* cookie) {
     cb::engine_errc status{cb::engine_errc::success};
     if (cookie) {
-        status = rangeScans.hasPrivilege(id, *cookie, bucket->getEPEngine());
+        status = rangeScans.checkPrivileges(id, *cookie, bucket->getEPEngine());
         if (status == cb::engine_errc::no_access ||
             status == cb::engine_errc::no_such_key) {
             return status;
