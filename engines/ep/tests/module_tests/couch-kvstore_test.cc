@@ -1297,7 +1297,7 @@ public:
                                 error.code().message()));
         }
         kvstore = std::make_unique<MockCouchKVStore>(config);
-        std::string failoverLog("");
+        std::string failoverLog;
         // simulate a setVBState - increment the rev and then persist the
         // state
         kvstore->prepareToCreateImpl(vbid);

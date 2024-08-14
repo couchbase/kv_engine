@@ -847,7 +847,7 @@ void NexusKVStore::getRange(Vbid vb,
         if (primaryGetValues.front().getStatus() !=
             secondaryGetValues.front().getStatus()) {
             // Might be able to log key if one is success
-            std::string key = "";
+            std::string key;
             if (primaryGetValues.front().getStatus() ==
                 cb::engine_errc::success) {
                 key = primaryGetValues.front().item->getKey().to_string();

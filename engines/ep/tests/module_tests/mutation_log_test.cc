@@ -600,7 +600,7 @@ TEST_F(MutationLogTest, upgrade) {
     std::array<MutationLogType, 2> types = {
             {MutationLogType::Commit1, MutationLogType::Commit2}};
     for (auto t : types) {
-        std::string key = "";
+        std::string key;
         std::vector<uint8_t> bytes(MockMutationLogEntryV1::len(key.size()));
         (void)MockMutationLogEntryV1::newEntry(bytes.data(), 0, t, vbid, key);
         toWrite.insert(toWrite.end(), bytes.begin(), bytes.end());
