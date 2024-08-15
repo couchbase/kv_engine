@@ -354,14 +354,8 @@ cb::engine_errc PassiveStream::messageReceived(
     }
     case KVBucket::ReplicationThrottleStatus::Pause: {
         forceMessage(*dcpResponse);
-
-        // @todo MB-60439: Review and possibly remove.
-        //  Legacy active check for preventing that we consume memory by
-        //  buffering message for dead streams are being removes. We can
-        //  probably remove the check once we get rid of the buffer.
-        if (isActive()) {
-            unackedBytes += ufc.release();
-        }
+        // Don't ack the bytes
+        unackedBytes += ufc.release();
         return cb::engine_errc::temporary_failure;
     }
     }
