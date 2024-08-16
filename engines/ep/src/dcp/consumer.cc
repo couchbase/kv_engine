@@ -1332,7 +1332,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
         case KVBucket::ReplicationThrottleStatus::Process:
             bytesProcessed = 0;
             rval = stream->processUnackedBytes(bytesProcessed);
-            if ((rval == cannot_process) || (rval == stop_processing)) {
+            if (rval == more_to_process) {
                 backoffs++;
             }
             flowControl.incrFreedBytes(bytesProcessed);

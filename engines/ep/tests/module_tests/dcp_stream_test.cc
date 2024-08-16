@@ -7657,7 +7657,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
 
     // Still OOM, DcpConsumerTask can't process unacked bytes
     uint32_t processedBytes = 0;
-    EXPECT_EQ(cannot_process, stream->processUnackedBytes(processedBytes));
+    EXPECT_EQ(more_to_process, stream->processUnackedBytes(processedBytes));
     EXPECT_EQ(0, processedBytes);
     EXPECT_EQ(messageBytes, stream->getUnackedBytes());
 

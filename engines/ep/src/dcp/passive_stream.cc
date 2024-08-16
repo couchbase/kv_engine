@@ -380,7 +380,7 @@ ProcessUnackedBytesResult PassiveStream::processUnackedBytes(
     processed_bytes += ackableBytes;
 
     unackedBytes -= ackableBytes;
-    return unackedBytes > 0 ? cannot_process : all_processed;
+    return unackedBytes > 0 ? more_to_process : all_processed;
 }
 
 cb::engine_errc PassiveStream::processMessageInner(
