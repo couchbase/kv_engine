@@ -1040,7 +1040,8 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
                     store->getVBucket(vbid)),
             stream,
             2, // purgeTombstones() has just purged seqno 3
-            ~0);
+            ~0,
+            std::chrono::seconds(0));
 
     dcpbfm.run();
 
@@ -1094,7 +1095,8 @@ TEST_F(SingleThreadedEphemeralPurgerTest,
                         store->getVBucket(vbid)),
                 stream,
                 2, // purgeTombstones() has just purged seqno 3
-                ~0);
+                ~0,
+                std::chrono::seconds(0));
 
         // Run the backfill - it should request rollback.
         dcpbfm.run();

@@ -8607,11 +8607,6 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
 // Test related to MB-62703, check stream ends and backfill cancels if no
 // progress can be made.
 TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
-    if (!persistent()) {
-        // @todo: Add detection of stall to memory backfill
-        GTEST_SKIP();
-    }
-
     auto vb = engine->getVBucket(vbid);
     // Remove the initial stream, we want to force it to backfill.
     stream.reset();

@@ -27,11 +27,13 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
         EphemeralVBucketPtr evb,
         std::shared_ptr<ActiveStream> s,
         uint64_t startSeqno,
-        uint64_t endSeqno)
+        uint64_t endSeqno,
+        std::chrono::seconds maxNoProgressDuration)
     : DCPBackfillToStream(s),
       DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
-      rangeItr(nullptr) {
+      rangeItr(nullptr),
+      maxNoProgressDuration(maxNoProgressDuration) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
                        this,
@@ -354,4 +356,33 @@ DCPBackfill::State DCPBackfillMemoryBuffered::getNextScanState(
     throw std::invalid_argument(fmt::format(
             "DCPBackfillMemoryBuffered::getNextScanState invalid input {}",
             current));
+}
+
+bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
+    if (!trackedPosition) {
+        lastPositionChangedTime = ep_uptime_now();
+        trackedPosition = rangeItr.curr();
+        return false;
+    }
+
+    if (*trackedPosition != rangeItr.curr()) {
+        // The position has changed, save new position and the time.
+        trackedPosition = rangeItr.curr();
+        lastPositionChangedTime = ep_uptime_now();
+        return false;
+    }
+
+    // No change in position, check if the limit we are within limit
+    if ((ep_uptime_now() - lastPositionChangedTime) < maxNoProgressDuration) {
+        return false;
+    }
+
+    // No change and outside of threshold.
+    stream.log(spdlog::level::level_enum::warn,
+               "({}) DCPBackfillMemoryBuffered no progress has been made "
+               "on the scan for more than {}s. seqno:{}",
+               vbid,
+               maxNoProgressDuration.count(),
+               *trackedPosition);
+    return true;
 }

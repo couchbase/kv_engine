@@ -41,7 +41,8 @@ TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
 
     auto evb = std::shared_ptr<EphemeralVBucket>(
             std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-    DCPBackfillMemoryBuffered dcpbfm(evb, stream, 1, 1);
+    DCPBackfillMemoryBuffered dcpbfm(
+            evb, stream, 1, 1, std::chrono::seconds(10));
     dcpbfm.run();
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
