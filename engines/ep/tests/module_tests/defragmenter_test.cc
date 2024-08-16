@@ -60,8 +60,7 @@ DefragmenterTest::DefragmenterTest()
       keyPattern(isModeStoredValue() ? keyPattern2 : keyPattern1) {
 }
 
-DefragmenterTest::~DefragmenterTest() {
-}
+DefragmenterTest::~DefragmenterTest() = default;
 
 EvictionPolicy DefragmenterTest::getEvictionPolicy() const {
     return std::get<0>(GetParam());

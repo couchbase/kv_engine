@@ -22,8 +22,7 @@ ItemCompressorVisitor::ItemCompressorVisitor()
       currentMinCompressionRatio(0.0) {
 }
 
-ItemCompressorVisitor::~ItemCompressorVisitor() {
-}
+ItemCompressorVisitor::~ItemCompressorVisitor() = default;
 
 void ItemCompressorVisitor::setDeadline(
         std::chrono::steady_clock::time_point deadline) {

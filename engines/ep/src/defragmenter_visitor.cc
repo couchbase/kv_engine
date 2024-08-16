@@ -21,8 +21,7 @@ DefragmentVisitor::DefragmentVisitor(size_t max_size_class)
       currentVb(nullptr) {
 }
 
-DefragmentVisitor::~DefragmentVisitor() {
-}
+DefragmentVisitor::~DefragmentVisitor() = default;
 
 void DefragmentVisitor::setDeadline(
         std::chrono::steady_clock::time_point deadline) {

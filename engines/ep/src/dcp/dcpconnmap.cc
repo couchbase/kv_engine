@@ -27,8 +27,7 @@
 class DcpConnMap::DcpConfigChangeListener : public ValueChangedListener {
 public:
     explicit DcpConfigChangeListener(DcpConnMap& connMap);
-    ~DcpConfigChangeListener() override {
-    }
+    ~DcpConfigChangeListener() override = default;
     void sizeValueChanged(std::string_view key, size_t value) override;
     void booleanValueChanged(std::string_view key, bool value) override;
 

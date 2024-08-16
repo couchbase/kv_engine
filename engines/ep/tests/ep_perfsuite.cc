@@ -661,46 +661,6 @@ enum class Doc_format {
     BINARY_RANDOM
 };
 
-struct Handle_args {
-    Handle_args(EngineIface* _h,
-                EngineIface* _h1,
-                int _count,
-                Doc_format _type,
-                std::string _name,
-                uint32_t _opaque,
-                Vbid _vb,
-                bool _getCompressed)
-        : h(_h),
-          h1(_h1),
-          itemCount(_count),
-          typeOfData(_type),
-          name(std::move(_name)),
-          opaque(_opaque),
-          vb(_vb),
-          retrieveCompressed(_getCompressed) {
-        timings.reserve(_count);
-        bytes_received.reserve(_count);
-    }
-
-    Handle_args(struct Handle_args const &ha) :
-        h(ha.h), h1(ha.h1), itemCount(ha.itemCount),
-        typeOfData(ha.typeOfData), name(ha.name), opaque(ha.opaque),
-        vb(ha.vb), retrieveCompressed(ha.retrieveCompressed),
-        timings(ha.timings), bytes_received(ha.bytes_received)
-    { }
-
-    EngineIface* h;
-    EngineIface* h1;
-    int itemCount;
-    Doc_format typeOfData;
-    std::string name;
-    uint32_t opaque;
-    Vbid vb;
-    bool retrieveCompressed;
-    std::vector<hrtime_t> timings;
-    std::vector<size_t> bytes_received;
-};
-
 /* Generates random strings of characters based on the input alphabet.
  */
 class UniformCharacterDistribution {
@@ -1040,18 +1000,6 @@ static void perf_dcp_client(EngineIface* h,
     testHarness->destroy_cookie(cookie);
 }
 
-struct Ret_vals {
-    Ret_vals(struct Handle_args _ha, size_t n) :
-        ha(_ha)
-    {
-        timings.reserve(n);
-        received.reserve(n);
-    }
-    struct Handle_args ha;
-    std::vector<hrtime_t> timings;
-    std::vector<size_t> received;
-};
-
 /*
  * Performs a single DCP latency / bandwidth test with the given parameters.
  * Returns vectors of item timings and recived bytes.
@@ -1114,8 +1062,6 @@ static enum test_result perf_dcp_latency_and_bandwidth(EngineIface* h,
                                                        size_t item_count) {
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     std::vector<std::pair<std::string, std::vector<size_t>*> > all_sizes;
-
-    std::vector<struct Ret_vals> iterations;
 
     // For Loader & DCP client to get documents as is from vbucket 0
     auto as_is_results = single_dcp_latency_bw_test(h,

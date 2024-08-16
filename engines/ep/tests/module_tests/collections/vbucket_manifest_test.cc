@@ -187,8 +187,7 @@ public:
     /// Dummy callback to replace the flusher callback so we can create VBuckets
     class DummyCB : public Callback<Vbid> {
     public:
-        DummyCB() {
-        }
+        DummyCB() = default;
 
         void callback(Vbid& dummy) override {
         }
