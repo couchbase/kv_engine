@@ -76,9 +76,8 @@ cb::engine_error Collections::Manager::update(
     // Construct a new Manifest (ctor will throw if JSON was illegal)
     Manifest newManifest;
     try {
-        newManifest = Manifest(
-                manifestString,
-                bucket.getEPEngine().getConfiguration().getMaxVbuckets());
+        newManifest = Manifest(manifestString,
+                               bucket.getConfiguration().getMaxVbuckets());
     } catch (std::exception& e) {
         EP_LOG_WARN(
                 "Collections::Manager::update can't construct manifest "

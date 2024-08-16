@@ -499,6 +499,10 @@ public:
         return engine;
     }
 
+    // Retrieve Configuration from engine
+    const Configuration& getConfiguration() const;
+    Configuration& getConfiguration();
+
     size_t getExpiryPagerSleeptime() override;
 
     size_t getTransactionTimePerItem() override {

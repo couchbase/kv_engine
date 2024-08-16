@@ -2161,7 +2161,7 @@ TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketRollback) {
 
     // Note: The CM was cleared, so mem-usage must track the correct allocation
     // for the single/empty checkpoint in CheckpointList
-    auto config = CheckpointConfig(store->getEPEngine().getConfiguration());
+    auto config = CheckpointConfig(store->getConfiguration());
     const auto emptyManager =
             CheckpointManager(store->getEPEngine().getEpStats(),
                               vb,

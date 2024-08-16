@@ -56,17 +56,16 @@ VBucketMap::Iterator::EndSentinel VBucketMap::end() const {
 }
 
 VBucketMap::VBucketMap(KVBucket& bucket)
-    : size(bucket.getEPEngine().getConfiguration().getMaxVbuckets()),
-      bucket(bucket) {
+    : size(bucket.getConfiguration().getMaxVbuckets()), bucket(bucket) {
     auto& engine = bucket.getEPEngine();
     const auto numShards = engine.getWorkLoadPolicy().getNumShards();
     shards.resize(numShards);
     for (size_t shardId = 0; shardId < numShards; shardId++) {
-        shards[shardId] = std::make_unique<KVShard>(
-                bucket.getEPEngine().getConfiguration(),
-                numShards,
-                shardId,
-                engine.getEncryptionKeyProvider());
+        shards[shardId] =
+                std::make_unique<KVShard>(bucket.getConfiguration(),
+                                          numShards,
+                                          shardId,
+                                          engine.getEncryptionKeyProvider());
     }
 
     auto& config = engine.getConfiguration();

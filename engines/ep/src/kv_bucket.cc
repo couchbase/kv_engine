@@ -3466,3 +3466,11 @@ size_t KVBucket::getMemAvailableForReplication() {
                    ? (replicationThreshold - memoryUsed)
                    : 0;
 }
+
+const Configuration& KVBucket::getConfiguration() const {
+    return engine.getConfiguration();
+}
+
+Configuration& KVBucket::getConfiguration() {
+    return engine.getConfiguration();
+}

@@ -1349,7 +1349,7 @@ void Warmup::initialize() {
     }
 
     if (!store.getCollectionsManager().warmupLoadManifest(
-                store.getEPEngine().getConfiguration().getDbname())) {
+                store.getConfiguration().getDbname())) {
         EP_LOG_CRITICAL(
                 "Warmup({})::initialize aborting as "
                 "CollectionsManager::warmupLoadManifest failed",

@@ -131,7 +131,7 @@ private:
 };
 
 bool BloomFilterCallback::initTempFilter(Vbid vbucketId) {
-    Configuration& config = store.getEPEngine().getConfiguration();
+    const auto& config = store.getConfiguration();
     VBucketPtr vb = store.getVBucket(vbucketId);
     if (!vb) {
         return false;
@@ -1353,7 +1353,7 @@ void EPBucket::dropKey(VBucket& vb,
 
 std::shared_ptr<CompactionContext> EPBucket::makeCompactionContext(
         Vbid vbid, CompactionConfig& config, uint64_t purgeSeqno) {
-    auto& configuration = getEPEngine().getConfiguration();
+    const auto& configuration = getConfiguration();
 
     if (config.purge_before_ts == 0) {
         config.purge_before_ts =
@@ -1504,7 +1504,7 @@ bool EPBucket::compactInternal(LockedVBucketPtr& vb, CompactionConfig& config) {
     }
 
     auto& epVb = vb.getEPVbucket();
-    if (getEPEngine().getConfiguration().isBfilterEnabled() &&
+    if (getConfiguration().isBfilterEnabled() &&
         result == CompactDBStatus::Success) {
         epVb.swapFilter();
     } else {
