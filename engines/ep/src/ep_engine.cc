@@ -991,9 +991,6 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
             getConfiguration().setConnectionManagerInterval(std::stof(val));
         } else if (key == "connection_cleanup_interval") {
             getConfiguration().setConnectionCleanupInterval(std::stof(val));
-        } else if (key == "dcp_consumer_process_unacked_bytes_yield_limit") {
-            getConfiguration().setDcpConsumerProcessUnackedBytesYieldLimit(
-                    std::stoull(val));
         } else if (key == "dcp_enable_noop") {
             getConfiguration().setDcpEnableNoop(cb_stob(val));
         } else if (key == "dcp_idle_timeout") {

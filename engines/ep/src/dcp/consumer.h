@@ -322,10 +322,6 @@ public:
      */
     void scheduleNotifyIfNecessary();
 
-    void setProcessUnackedBytesYieldLimit(size_t newValue) {
-        processUnackedBytesYieldLimit = newValue;
-    }
-
     void setDisconnect() override;
 
     void setAllowSanitizeValueInDeletion(bool value) {
@@ -429,7 +425,7 @@ protected:
      * @return ProcessUnackedBytesResult, see struct definition for details
      */
     ProcessUnackedBytesResult processUnackedBytes(
-            std::shared_ptr<PassiveStream> stream, size_t yieldThreshold);
+            std::shared_ptr<PassiveStream> stream);
 
     /**
      * This function is called when an addStream command gets a rollback
@@ -639,15 +635,6 @@ protected:
     std::atomic<bool> processorTaskRunning;
 
     FlowControl flowControl;
-
-    // @todo MB-60436: Review and possibly remove
-    /**
-     * An upper bound on how many times drainStreamsUnakcedBytes will call
-     * call into processUnackedBytes before returning and triggering
-     * DcpConsumerTask to yield. Initialised from the configuration
-     * 'dcp_consumer_process_unacked_bytes_yield_limit'
-     */
-    size_t processUnackedBytesYieldLimit;
 
     /**
      * Whether this consumer should just sanitize invalid payloads in deletions

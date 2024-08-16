@@ -152,10 +152,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       pendingSendStreamEndOnClientStreamClose(true),
       consumerName(std::move(consumerName_)),
       processorTaskRunning(false),
-      flowControl(engine, *this),
-      processUnackedBytesYieldLimit(
-              engine.getConfiguration()
-                      .getDcpConsumerProcessUnackedBytesYieldLimit()) {
+      flowControl(engine, *this) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
@@ -1306,10 +1303,9 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
 }
 
 ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
-        std::shared_ptr<PassiveStream> stream, size_t yieldThreshold) {
+        std::shared_ptr<PassiveStream> stream) {
     ProcessUnackedBytesResult rval = all_processed;
     uint32_t bytesProcessed = 0;
-    size_t iterations = 0;
     do {
         switch (engine_.getKVBucket()->getReplicationThrottleStatus()) {
         case KVBucket::ReplicationThrottleStatus::Pause:
@@ -1336,13 +1332,9 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
 
             // Notifying memcached on clearing items for flow control
             scheduleNotifyIfNecessary();
-
-            iterations++;
             break;
         }
-    } while (bytesProcessed > 0 &&
-             rval == all_processed &&
-             iterations <= yieldThreshold);
+    } while (bytesProcessed > 0 && rval == all_processed);
 
     // The stream may not be done yet so must go back in the ready queue
     if (bytesProcessed > 0) {
@@ -1363,8 +1355,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
             continue;
         }
 
-        process_ret =
-                processUnackedBytes(stream, processUnackedBytesYieldLimit);
+        process_ret = processUnackedBytes(stream);
 
         switch (process_ret) {
         case all_processed:

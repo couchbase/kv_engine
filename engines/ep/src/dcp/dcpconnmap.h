@@ -159,11 +159,6 @@ protected:
     folly::Synchronized<std::list<std::shared_ptr<ConnHandler>>>
             deadConnections;
 
-    /*
-     * Change the value at which a DcpConsumer::Processor task will yield
-     */
-    void consumerYieldConfigChanged(size_t newValue);
-
     /**
      * Change the idle timeout that Producers and Consumers operate with
      */

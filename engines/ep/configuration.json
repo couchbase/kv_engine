@@ -1287,18 +1287,6 @@
             "dynamic": false,
             "type": "size_t"
         },
-        "dcp_consumer_process_unacked_bytes_yield_limit" : {
-            "default": "10",
-            "descr": "The number of DcpConsumerTask iterations before forcing the task to yield.",
-	        "dynamic": true,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000000,
-                    "min": 1
-                }
-            }
-        },
         "fsync_after_every_n_bytes_written": {
             "default": "1048576",
             "descr": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",

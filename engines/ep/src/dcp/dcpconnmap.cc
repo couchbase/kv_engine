@@ -44,9 +44,6 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     // Note: these allocations are deleted by ~Configuration
     auto& config = engine.getConfiguration();
     config.addValueChangedListener(
-            "dcp_consumer_process_unacked_bytes_yield_limit",
-            std::make_unique<DcpConfigChangeListener>(*this));
-    config.addValueChangedListener(
             "dcp_idle_timeout",
             std::make_unique<DcpConfigChangeListener>(*this));
     config.addValueChangedListener(
@@ -429,9 +426,7 @@ DcpConnMap::DcpConfigChangeListener::DcpConfigChangeListener(DcpConnMap& connMap
 
 void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(std::string_view key,
                                                            size_t value) {
-    if (key == "dcp_consumer_process_unacked_bytes_yield_limit") {
-        myConnMap.consumerYieldConfigChanged(value);
-    } else if (key == "dcp_idle_timeout") {
+    if (key == "dcp_idle_timeout") {
         myConnMap.idleTimeoutConfigChanged(value);
     }
 }
@@ -440,20 +435,6 @@ void DcpConnMap::DcpConfigChangeListener::booleanValueChanged(
         std::string_view key, bool value) {
     if (key == "allow_sanitize_value_in_deletion") {
         myConnMap.consumerAllowSanitizeValueInDeletionConfigChanged(value);
-    }
-}
-
-/*
- * Find all DcpConsumers and set the yield threshold
- */
-void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
-    auto handle = connStore->getCookieToConnectionMapHandle();
-    for (const auto& cookieToConn : *handle) {
-        auto* dcpConsumer =
-                dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
-        if (dcpConsumer) {
-            dcpConsumer->setProcessUnackedBytesYieldLimit(newValue);
-        }
     }
 }
 
