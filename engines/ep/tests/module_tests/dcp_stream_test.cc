@@ -8603,3 +8603,56 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
     notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::DcpMutation);
     destroy_mock_cookie(cookie);
 }
+
+// Test related to MB-62703, check stream ends and backfill cancels if no
+// progress can be made.
+TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
+    if (!persistent()) {
+        // @todo: Add detection of stall to memory backfill
+        GTEST_SKIP();
+    }
+
+    auto vb = engine->getVBucket(vbid);
+    // Remove the initial stream, we want to force it to backfill.
+    stream.reset();
+    store_item(vbid, makeStoredDocKey("k0"), "v");
+    store_item(vbid, makeStoredDocKey("k1"), "v");
+    // Ensure mutation is on disk; no longer present in CheckpointManager.
+    vb->checkpointManager->createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    producer->setBackfillBufferSize(1);
+    engine->getConfiguration().setDcpBackfillIdleLimitSeconds(0);
+    recreateStream(*vb);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    // first run will introduce the pause, the buffer is now full
+    EXPECT_FALSE(producer->getBackfillBufferFullStatus());
+    bfm.backfill();
+    EXPECT_TRUE(producer->getBackfillBufferFullStatus());
+
+    // Next attempt will enter shouldCancel checking because the buffer is full.
+    // This first attempt will setup Position tracking.
+    EXPECT_EQ(backfill_snooze, bfm.backfill());
+    EXPECT_EQ(1, bfm.getNumBackfills());
+    ASSERT_EQ(2, stream->public_readyQSize());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+
+    // Next attempt will see no change in Position within the time (0s).
+    // backfill cancels and stream ends.
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_EQ(0, bfm.getNumBackfills());
+
+    // Stream is set to dead, so has all messages cleared and then 1 StreamEnd
+    // will be queued
+    ASSERT_TRUE(stream->isDead());
+    ASSERT_EQ(1, stream->public_readyQSize());
+    auto resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::StreamEnd, resp->getEvent());
+    auto& endStream = dynamic_cast<StreamEndResponse&>(*resp);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Slow, endStream.getFlags());
+}

@@ -66,7 +66,7 @@ struct DCPBackfillIface {
     /**
      * @returns true if the backfill task should be cancelled
      */
-    virtual bool shouldCancel() const = 0;
+    virtual bool shouldCancel() = 0;
 
     /**
      * Get the u64 value which uniquely identifies this object

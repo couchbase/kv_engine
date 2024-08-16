@@ -2311,6 +2311,8 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
     Slice keySlice = {reinterpret_cast<const char*>(range.startKey.data()),
                       range.startKey.size()};
     for (itr->Seek(keySlice); itr->Valid(); itr->Next()) {
+        ++ctx.keysScanned;
+
         // Read the key and check we're not outside the range
         keySlice = itr->GetKey();
         if (std::string_view(keySlice) > std::string_view(range.endKey)) {
@@ -2370,7 +2372,6 @@ ScanStatus MagmaKVStore::scanOne(
                 std::to_string(std::numeric_limits<uint16_t>::max()));
     }
 
-    ctx.keysScanned++;
     ctx.diskBytesRead += keySlice.Len() + metaSlice.Len() + valSlice.Len();
 
     CacheLookup lookup(makeDiskDocKey(keySlice), seqno, ctx.vbid);

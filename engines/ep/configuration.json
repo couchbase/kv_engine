@@ -1146,6 +1146,12 @@
                 }
             }
         },
+        "dcp_backfill_idle_limit_seconds" : {
+            "default": "120",
+            "descr": "How long (in seconds) a DCP Backfill can be held open with no progress being made. When this limit is exceeded the stream is force ended (reason Slow) releasing the resources being held by the stream.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_backfill_in_progress_per_connection_limit": {
             "default": "64",
             "descr": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",

@@ -26,7 +26,7 @@ public:
     MOCK_METHOD0(scanHistory, backfill_status_t());
     MOCK_METHOD1(getNextScanState, State(State));
     MOCK_CONST_METHOD0(getVBucketId, Vbid());
-    MOCK_CONST_METHOD0(shouldCancel, bool());
+    MOCK_METHOD0(shouldCancel, bool());
 };
 
 TEST(BackfillTest, CreateOnlyMode) {

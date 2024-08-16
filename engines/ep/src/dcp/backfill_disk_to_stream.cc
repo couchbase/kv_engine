@@ -21,7 +21,10 @@
 
 DCPBackfillDiskToStream::DCPBackfillDiskToStream(
         KVBucket& bucket, std::shared_ptr<ActiveStream> s)
-    : DCPBackfillToStream(std::move(s)), bucket(bucket) {
+    : DCPBackfillToStream(std::move(s)),
+      bucket(bucket),
+      maxNoProgressDuration(std::chrono::seconds{
+              bucket.getConfiguration().getDcpBackfillIdleLimitSeconds()}) {
 }
 
 DCPBackfillDiskToStream::~DCPBackfillDiskToStream() = default;
@@ -263,6 +266,8 @@ void DCPBackfillDiskToStream::historyScanComplete(ActiveStream& stream) {
                       historyScanCtx.snapshotInfo.range.getStart(),
                       historyScanCtx.snapshotInfo.range.getEnd(),
                       historyScanCtx.scanCtx->lastReadSeqno);
+    historyScan.reset();
+    trackedPosition = std::nullopt;
 }
 
 void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
@@ -278,4 +283,51 @@ void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
                vbid,
                startSeqno,
                endSeqno);
+}
+
+bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
+    // If history scan, care only about the progress of that, as
+    if (historyScan && historyScan->scanCtx &&
+        isProgressStalled(historyScan->scanCtx->getPosition())) {
+        stream.log(spdlog::level::level_enum::warn,
+                   "({}) Backfill task cancelled as no progress has been made "
+                   "on the history-scan for more than {}s",
+                   vbid,
+                   maxNoProgressDuration.count());
+        return true;
+    }
+    if (scanCtx && isProgressStalled(scanCtx->getPosition())) {
+        stream.log(spdlog::level::level_enum::warn,
+                   "({}) Backfill task cancelled as no progress has been made "
+                   "on the scan for more than {}s",
+                   vbid,
+                   maxNoProgressDuration.count());
+        return true;
+    }
+    return false;
+}
+
+bool DCPBackfillDiskToStream::isProgressStalled(
+        const ScanContext::Position& position) {
+    if (!trackedPosition) {
+        // Begin tracking for changes and return true.
+        lastPositionChangedTime = ep_uptime_now();
+        trackedPosition = position;
+        return false;
+    }
+
+    if (*trackedPosition != position) {
+        // The position has changed, save new position and the time.
+        trackedPosition = position;
+        lastPositionChangedTime = ep_uptime_now();
+        return false;
+    }
+
+    // No change in position, check if the limit we are within limit
+    if ((ep_uptime_now() - lastPositionChangedTime) < maxNoProgressDuration) {
+        return false;
+    }
+
+    // No change and outside of threshold.
+    return true;
 }

@@ -27,7 +27,7 @@ public:
     MOCK_METHOD0(cancel, void());
     MOCK_METHOD1(setCreateMode, void(DCPBackfillCreateMode));
     MOCK_CONST_METHOD0(getVBucketId, Vbid());
-    MOCK_CONST_METHOD0(shouldCancel, bool());
+    MOCK_METHOD0(shouldCancel, bool());
     MOCK_CONST_METHOD0(getUID, uint64_t());
 };
 

@@ -13,6 +13,7 @@
 
 #include "dcp/backfill_to_stream.h"
 #include "ep_types.h"
+#include "kvstore/kvstore.h"
 
 #include <memory>
 
@@ -20,7 +21,6 @@ class ActiveStream;
 class BySeqnoScanContext;
 class KVBucket;
 class KVStoreIface;
-class ScanContext;
 
 /**
  * Class holding common code (that itself is a subclass of DCPBackfill) but for
@@ -34,6 +34,11 @@ public:
     DCPBackfillDiskToStream(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
 
     ~DCPBackfillDiskToStream() override;
+
+    /**
+     * @return true if the current scan makes no progress (within a time check)
+     */
+    bool isSlow(const ActiveStream&) override;
 
 protected:
     DCPBackfill::State getNextScanState(DCPBackfill::State current) override;
@@ -113,6 +118,14 @@ protected:
      */
     bool createHistoryScanContext(KVBucket& bucket, ScanContext& scanCtx);
 
+    /**
+     * When shouldCancel is called, backfill progress tracking begins. This
+     * works by keeping a copy of the ScanContext::Position and verifying that
+     * it is changing with a configurable threshold.
+     * @return true if no progress has been made within the threshold
+     */
+    bool isProgressStalled(const ScanContext::Position& position);
+
     struct HistoryScanCtx {
         /**
          * Constructor records information for use in the history scan phase
@@ -165,4 +178,11 @@ protected:
 
     // If a history scan is required this optional will be initialised.
     std::unique_ptr<HistoryScanCtx> historyScan;
+
+    // Once backfill reaches scanning, the scan Position is tracked for changes
+    std::optional<ScanContext::Position> trackedPosition;
+    // time when the Position last changed
+    std::chrono::steady_clock::time_point lastPositionChangedTime;
+    // the maximum duration that the scan is permitted no Position change
+    std::chrono::seconds maxNoProgressDuration;
 };

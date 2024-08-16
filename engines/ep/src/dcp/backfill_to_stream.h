@@ -13,6 +13,8 @@
 
 #include "dcp/backfill.h"
 
+#include <mcbp/protocol/dcp_stream_end_status.h>
+
 #include <memory>
 
 class ActiveStream;
@@ -33,7 +35,19 @@ public:
      *
      * @return true if stream is in dead state; else false
      */
-    bool shouldCancel() const override;
+    bool shouldCancel() override;
+
+    /**
+     * Cancel the backfill. If a stream can be acquired from the weak_ptr and
+     * that stream is active, then the stream will be set to dead with the Slow
+     * reason.
+     **/
+    void cancel() override;
+
+    /**
+     * Sub-class can check for progress
+     */
+    virtual bool isSlow(const ActiveStream&) = 0;
 
 protected:
     /**
@@ -45,4 +59,7 @@ protected:
      * should only hold a weak_ptr to the stream objs.
      */
     std::weak_ptr<ActiveStream> streamPtr;
+
+    // status may change by shouldCancel and be used in a subsequent cancel
+    cb::mcbp::DcpStreamEndStatus status = cb::mcbp::DcpStreamEndStatus::Ok;
 };

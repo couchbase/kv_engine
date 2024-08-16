@@ -433,6 +433,33 @@ public:
         return *lookup;
     }
 
+    // see getPosition
+    class Position {
+    public:
+        Position(uint64_t p) : pos(p) {
+        }
+
+        bool operator==(const Position& other) const {
+            return pos == other.pos;
+        }
+        bool operator!=(const Position& other) const {
+            return !(*this == other);
+        }
+
+    private:
+        uint64_t pos{0};
+    };
+
+    /**
+     * Return a Position for the scan. This object serves only only to
+     * detect that the Position has changed and not further detail, e.g. not
+     * a progress percent tracker.
+     */
+    Position getPosition() const {
+        // Use the count of keysScanned to indicate Position changes.
+        return Position{keysScanned};
+    }
+
     const Vbid vbid{0};
     std::unique_ptr<KVFileHandle> handle;
     const DocumentFilter docFilter{DocumentFilter::ALL_ITEMS};
@@ -546,6 +573,7 @@ public:
                             droppedCollections,
                     uint64_t maxSeqno,
                     uint64_t historyStartSeqno = 0);
+
     std::vector<ByIdRange> ranges;
     // Key should be set by KVStore when a scan must be paused, this is where
     // a scan can resume from (inclusive)

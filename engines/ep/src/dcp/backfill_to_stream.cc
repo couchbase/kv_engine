@@ -16,7 +16,28 @@ DCPBackfillToStream::DCPBackfillToStream(std::shared_ptr<ActiveStream> s)
     : DCPBackfill(s->getVBucket()), streamPtr(s) {
 }
 
-bool DCPBackfillToStream::shouldCancel() const {
+bool DCPBackfillToStream::shouldCancel() {
     auto stream = streamPtr.lock();
-    return !stream || !stream->isActive();
+
+    if (!stream || !stream->isActive()) {
+        return true;
+    }
+    if (isSlow(*stream)) {
+        status = cb::mcbp::DcpStreamEndStatus::Slow;
+        return true;
+    }
+    // No cancelling
+    return false;
+}
+
+void DCPBackfillToStream::cancel() {
+    DCPBackfill::cancel();
+
+    if (status != cb::mcbp::DcpStreamEndStatus::Ok) {
+        // Set dead if we can
+        auto stream = streamPtr.lock();
+        if (stream && stream->isActive()) {
+            stream->setDead(status);
+        }
+    }
 }

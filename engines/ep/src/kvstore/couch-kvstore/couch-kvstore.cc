@@ -2760,6 +2760,7 @@ static int scanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto* sctx = static_cast<ScanContext*>(ctx);
     auto& cb = sctx->getValueCallback();
     auto& cl = sctx->getCacheCallback();
+    ++sctx->keysScanned;
 
     Doc *doc = nullptr;
     uint64_t byseqno = docinfo->db_seq;
@@ -2774,7 +2775,6 @@ static int scanCallback(Db* db, DocInfo* docinfo, void* ctx) {
                 std::to_string(UINT16_MAX));
     }
 
-    sctx->keysScanned++;
     sctx->diskBytesRead += docinfo->id.size + docinfo->rev_meta.size;
 
     // Whilst couchstore supports a NO_DELETES option which would not even

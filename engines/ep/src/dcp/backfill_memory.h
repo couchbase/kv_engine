@@ -33,6 +33,11 @@ public:
 
     ~DCPBackfillMemoryBuffered() override;
 
+    bool isSlow(const ActiveStream&) override {
+        // no checks implemented in memory backfill.
+        return false;
+    }
+
 private:
     /**
      * Creates a range iterator on Ephemeral VBucket to read items as a snapshot

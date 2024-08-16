@@ -24,8 +24,7 @@ enum class DcpStreamEndStatus : uint32_t {
     StateChanged = 2,
     //! The stream closed early because the connection was disconnected
     Disconnected = 3,
-    //! The stream was closed early because it was too slow (currently unused,
-    //! but not deleted because it is part of the externally-visible API)
+    //! The stream was closed early because it was too slow
     Slow = 4,
     //! The stream closed early due to backfill failure
     BackfillFail = 5,

@@ -2895,6 +2895,7 @@ ScanStatus NexusKVStore::scan(ByIdScanContext& ctx) const {
     // over to the nexus context in-case of a scan being resumed.
     nexusCtx.resumeFromKey = primaryCtx.resumeFromKey;
     nexusCtx.ranges = primaryCtx.ranges;
+    nexusCtx.keysScanned = primaryCtx.keysScanned;
 
     return primaryScanResult;
 }

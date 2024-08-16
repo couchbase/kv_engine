@@ -1323,8 +1323,9 @@ TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
         }
 
         void callback(GetValue& v) override {
+            keys.push_back(v.item->getKey());
             if (numCalls == 1) {
-                setStatus(cb::engine_errc::temporary_failure);
+                yield();
             } else {
                 // call 0 + extra calls
                 lastBackfilledKey = DiskDocKey(v.item->getKey());
@@ -1339,12 +1340,17 @@ TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
 
         size_t numCalls = 0;
         DiskDocKey lastBackfilledKey{nullptr, 0};
+        std::vector<StoredDocKey> keys;
         size_t numBackfilled = 0;
     };
 
-    const auto key1 = DiskDocKey(makeStoredDocKey("key1"));
-    const auto key2 = DiskDocKey(makeStoredDocKey("key2"));
-    const auto key3 = DiskDocKey(makeStoredDocKey("key3"));
+    const auto sKey1 = makeStoredDocKey("key1");
+    const auto sKey2 = makeStoredDocKey("key2");
+    const auto sKey3 = makeStoredDocKey("key3");
+
+    const auto key1 = DiskDocKey(sKey1);
+    const auto key2 = DiskDocKey(sKey2);
+    const auto key3 = DiskDocKey(sKey3);
     auto cb = std::make_unique<DiskCallback>();
     auto* callback = cb.get();
     auto scanCtx =
@@ -1358,14 +1364,18 @@ TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
     ASSERT_EQ(cb::engine_errc::invalid_arguments, callback->getStatus());
     ASSERT_EQ(0, callback->lastBackfilledKey.size());
     ASSERT_EQ(0, callback->numBackfilled);
+    EXPECT_EQ(0, scanCtx->keysScanned);
+    auto position1 = scanCtx->getPosition();
     // key1 backfilled -> key2 backfilled -> no mem -> paused -> resume point is
     // key3
     kvstore->scan(*scanCtx);
-    // Note: In Trinity we signal OOM by temporary_failure, while on Neo we use
-    // no_memory
-    EXPECT_EQ(cb::engine_errc::temporary_failure, callback->getStatus());
+    EXPECT_TRUE(callback->shouldYield());
     EXPECT_EQ(key1, callback->lastBackfilledKey);
     EXPECT_EQ(2, callback->numBackfilled);
+    EXPECT_EQ(2, scanCtx->keysScanned);
+    auto position2 = scanCtx->getPosition();
+    EXPECT_NE(position1, position2);
+    EXPECT_EQ(2, callback->keys.size());
     // Before the fix for MB-57106 the resume point is wrongly set to key1, so
     // backfill sends key1 again at resume
     auto expectedResumePoint = key2;
@@ -1376,6 +1386,12 @@ TEST_P(KVStoreParamTest, IdScanResumesFromNextItemAfterPause) {
     EXPECT_EQ(cb::engine_errc::success, callback->getStatus());
     EXPECT_EQ(key3, callback->lastBackfilledKey);
     EXPECT_EQ(3, callback->numBackfilled);
+    EXPECT_EQ(3, scanCtx->keysScanned);
+    EXPECT_NE(position2, scanCtx->getPosition());
+    ASSERT_EQ(3, callback->keys.size());
+    EXPECT_EQ(sKey1, callback->keys.at(0));
+    EXPECT_EQ(sKey2, callback->keys.at(1));
+    EXPECT_EQ(sKey3, callback->keys.at(2));
 }
 
 TEST_P(KVStoreParamTest, GetAllKeysSanity) {

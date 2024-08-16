@@ -300,14 +300,16 @@ backfill_status_t BackfillManager::backfill() {
     moveSnoozingToActiveQueue();
 
     if (buffer.full) {
-        // If the buffer is full check to make sure we don't have any backfills
-        // that no longer have active streams and remove them. This prevents an
-        // issue where we have dead backfills taking up buffer space.
+        // If the buffer is full ask each backfill if it should be cancelled.
+        // shouldCancel can check for dead streams or with MB-62703 streams that
+        // appear stalled for an unacceptably long period of time. Backfills in
+        // this state can then be cancelled freeing up buffer space and
+        // releasing backfill resources (critically releasing any reference to
+        // disk snapshot).
         std::list<UniqueDCPBackfillPtr> toDelete;
         for (auto a_itr = activeBackfills.begin();
              a_itr != activeBackfills.end();) {
             if ((*a_itr)->shouldCancel()) {
-                (*a_itr)->cancel();
                 toDelete.push_back(std::move(*a_itr));
                 a_itr = activeBackfills.erase(a_itr);
                 scanTracker.decrNumRunningBackfills();
@@ -320,6 +322,10 @@ backfill_status_t BackfillManager::backfill() {
         bool reschedule = !toDelete.empty();
         while (!toDelete.empty()) {
             UniqueDCPBackfillPtr backfill = std::move(toDelete.front());
+            // cancel is done after the lock is dropped as it may call setDead
+            // on the stream which can call back into this object for bytes
+            // sent/read accounting.
+            backfill->cancel();
             toDelete.pop_front();
         }
         return reschedule ? backfill_success : backfill_snooze;
