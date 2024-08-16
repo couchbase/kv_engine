@@ -1350,9 +1350,6 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
     // The stream may not be done yet so must go back in the ready queue
     if (bytesProcessed > 0) {
         bufferedVBQueue.pushUnique(stream->getVBucket());
-        if (rval == stop_processing) {
-            return stop_processing;
-        }
         rval = more_to_process; // Return more_to_process to force a snooze(0.0)
     }
 
