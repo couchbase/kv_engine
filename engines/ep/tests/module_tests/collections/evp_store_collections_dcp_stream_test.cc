@@ -27,16 +27,18 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
+#include <gtest/gtest.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
-class CollectionsDcpStreamsTest : public CollectionsDcpTest {
+class CollectionsDcpStreamsTest : public CollectionsDcpTest,
+                                  public STParameterizedBucketTest {
 public:
     CollectionsDcpStreamsTest() : CollectionsDcpTest() {
     }
     // Create producer without any streams.
     void SetUp() override {
-        SingleThreadedKVBucketTest::SetUp();
+        STParameterizedBucketTest::SetUp();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active);
         producers = std::make_unique<CollectionsDcpTestProducers>();
@@ -49,7 +51,7 @@ public:
     void close_stream_by_id_test(bool enableStreamEnd, bool manyStreams);
 };
 
-TEST_F(CollectionsDcpStreamsTest, request_validation) {
+TEST_P(CollectionsDcpStreamsTest, request_validation) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -95,7 +97,7 @@ TEST_F(CollectionsDcpStreamsTest, request_validation) {
 // so that a suitable seqno-advance message can be transmitted. For MB-56148
 // aborts were not waking a collection enabled (but sync-write disabled)
 // producer leaving an indexing client behind the high-seqno.
-TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
+TEST_P(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     // Setup the active vbucket so sync-writes can be created.
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -175,7 +177,7 @@ TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
-TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
+TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
@@ -201,10 +203,11 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     store_item(vbid, StoredDocKey{"Beef5", CollectionEntry::meat}, "nice");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(vbid, 0, true);
+    purgeTombstonesBefore(vb->getHighSeqno());
 
     EXPECT_EQ(7, streamSeqno);
     EXPECT_EQ(13, vb->getHighSeqno());
+    EXPECT_EQ(12, vb->getPurgeSeqno());
 
     ensureDcpWillBackfill();
 
@@ -228,7 +231,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
-TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
+TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -246,7 +249,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     delete_item(vbid, StoredDocKey{"orange1", CollectionEntry::fruit});
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(vbid, 0, true);
+    purgeTombstonesBefore(vb->getHighSeqno());
 
     auto streamSeqno = vb->getHighSeqno();
     EXPECT_EQ(6, vb->getHighSeqno());
@@ -257,9 +260,6 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     ensureDcpWillBackfill();
-
-    store_item(vbid, StoredDocKey{"Apple2", CollectionEntry::fruit}, "nice");
-    // flushVBucketToDiskIfPersistent(vbid, 1);
 
     uint64_t rollbackSeqno{0};
     EXPECT_EQ(cb::engine_errc::success,
@@ -278,7 +278,11 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
     EXPECT_EQ(streamSeqno, producers->last_snap_start_seqno);
-    EXPECT_EQ(vb->getHighSeqno() - 1, producers->last_snap_end_seqno);
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_snap_end_seqno);
+
+    // Write another item for the stream.
+    store_item(vbid, StoredDocKey{"Apple2", CollectionEntry::fruit}, "nice");
+    EXPECT_EQ(8, vb->getHighSeqno());
 
     stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation,
                   cb::engine_errc::success);
@@ -300,7 +304,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
-TEST_F(CollectionsDcpStreamsTest,
+TEST_P(CollectionsDcpStreamsTest,
        streamRequestNoRollbackPurgeBetweenRequestAndSnapshot) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
@@ -346,7 +350,7 @@ TEST_F(CollectionsDcpStreamsTest,
                                       {{R"({"collections":["9"]})"}}));
     EXPECT_EQ(0, rollbackSeqno);
 
-    runCompaction(vbid, 0, true);
+    purgeTombstonesBefore(vb->getHighSeqno());
 
     EXPECT_EQ(13, vb->getHighSeqno());
 
@@ -355,7 +359,13 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
-TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
+TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
+    if (!isPersistent()) {
+        // MB-62963: Ephemeral sends a SnapshotMarker (but no items) for the
+        // initial marker, which changes the test expectations.
+        GTEST_SKIP();
+    }
+
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -383,7 +393,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
             vbid, StoredDocKey{"KeyTwo", CollectionEntry::defaultC}, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(vbid, 0, true);
+    purgeTombstonesBefore(vb->getHighSeqno());
 
     EXPECT_EQ(6, streamSeqno);
     EXPECT_EQ(9, vb->getHighSeqno());
@@ -431,7 +441,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
-TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
+TEST_P(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -458,7 +468,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     store_item(vbid, StoredDocKey{"Lamb", CollectionEntry::meat}, "value");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    runCompaction(vbid, 0, true);
+    purgeTombstonesBefore(vb->getHighSeqno());
 
     EXPECT_EQ(6, streamSeqno);
     EXPECT_EQ(9, vb->getHighSeqno());
@@ -548,7 +558,7 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
-TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
+TEST_P(CollectionsDcpStreamsTest, close_stream_validation1) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -560,7 +570,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
               producer->closeStream(0, vbid, {}));
 }
 
-TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
+TEST_P(CollectionsDcpStreamsTest, close_stream_validation2) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -572,7 +582,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
               producer->closeStream(0, vbid, cb::mcbp::DcpStreamId(99)));
 }
 
-TEST_F(CollectionsDcpStreamsTest, end_stream_for_state_change) {
+TEST_P(CollectionsDcpStreamsTest, end_stream_for_state_change) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -652,24 +662,24 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
     }
 }
 
-TEST_F(CollectionsDcpStreamsTest, close_stream_by_id_with_end_stream) {
+TEST_P(CollectionsDcpStreamsTest, close_stream_by_id_with_end_stream) {
     close_stream_by_id_test(true, false);
 }
 
-TEST_F(CollectionsDcpStreamsTest, close_stream_by_id) {
+TEST_P(CollectionsDcpStreamsTest, close_stream_by_id) {
     close_stream_by_id_test(false, false);
 }
 
-TEST_F(CollectionsDcpStreamsTest,
+TEST_P(CollectionsDcpStreamsTest,
        close_stream_by_id_with_end_stream_and_many_streams) {
     close_stream_by_id_test(true, true);
 }
 
-TEST_F(CollectionsDcpStreamsTest, close_stream_by_id_and_many_streams) {
+TEST_P(CollectionsDcpStreamsTest, close_stream_by_id_and_many_streams) {
     close_stream_by_id_test(false, true);
 }
 
-TEST_F(CollectionsDcpStreamsTest,
+TEST_P(CollectionsDcpStreamsTest,
        close_stream_by_id_any_many_streams_removes_connhandler_for_last) {
     close_stream_by_id_test(false, true);
 
@@ -689,7 +699,7 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_FALSE(connmap.vbConnectionExists(producer.get(), vbid));
 }
 
-TEST_F(CollectionsDcpStreamsTest, two_streams) {
+TEST_P(CollectionsDcpStreamsTest, two_streams) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -775,7 +785,11 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
 }
 
-TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
+TEST_P(CollectionsDcpStreamsTest, two_streams_different) {
+    if (!isPersistent()) {
+        // MB-62963: Enable test for ephemeral.
+        GTEST_SKIP();
+    }
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
@@ -834,8 +848,12 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
  * seqno would be 0 as we've not flushed anything in the collection at the point
  * we've enqueued the collection drop system event.
  */
-TEST_F(CollectionsDcpStreamsTest,
+TEST_P(CollectionsDcpStreamsTest,
        MB_41092_Ensure_compaction_scheduled_dropped_collection) {
+    if (!isPersistent()) {
+        // MB-62963: Enable test for ephemeral.
+        GTEST_SKIP();
+    }
     // set the vbucket to the pending state
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_pending);
     auto vbucketPtr = store->getVBucket(replicaVB);
@@ -946,6 +964,11 @@ TEST_F(CollectionsDcpStreamsTest,
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
 }
 
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpStreamsTests,
+                         CollectionsDcpStreamsTest,
+                         STParameterizedBucketTest::allConfigValuesNoNexus(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 class CollectionsDcpStreamsTestWithDurationZero
     : public CollectionsDcpStreamsTest {
 public:
@@ -955,7 +978,11 @@ public:
     }
 };
 
-TEST_F(CollectionsDcpStreamsTestWithDurationZero, multi_stream_time_limited) {
+TEST_P(CollectionsDcpStreamsTestWithDurationZero, multi_stream_time_limited) {
+    if (!isPersistent()) {
+        // MB-62963: Enable test for ephemeral.
+        GTEST_SKIP();
+    }
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     setCollections(cookie, cm);
@@ -1010,6 +1037,11 @@ TEST_F(CollectionsDcpStreamsTestWithDurationZero, multi_stream_time_limited) {
     EXPECT_EQ(memory2, memory);
 }
 
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpStreamsTestsWithDurationZero,
+                         CollectionsDcpStreamsTestWithDurationZero,
+                         STParameterizedBucketTest::allConfigValuesNoNexus(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 class CollectionsDcpStreamsTestWithHugeDuration
     : public CollectionsDcpStreamsTest {
 public:
@@ -1023,7 +1055,11 @@ public:
 };
 
 // Test all streams are processed in one run (if time allows)
-TEST_F(CollectionsDcpStreamsTestWithHugeDuration, multi_stream) {
+TEST_P(CollectionsDcpStreamsTestWithHugeDuration, multi_stream) {
+    if (!isPersistent()) {
+        // MB-62963: Enable test for ephemeral.
+        GTEST_SKIP();
+    }
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     setCollections(cookie, cm);
@@ -1059,3 +1095,8 @@ TEST_F(CollectionsDcpStreamsTestWithHugeDuration, multi_stream) {
     EXPECT_EQ(0, producer->getCheckpointSnapshotTask()->getStreamsSize());
     EXPECT_EQ(producer->getStreamAggStats().readyQueueMemory, memory);
 }
+
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpStreamsTestsWithHugeDuration,
+                         CollectionsDcpStreamsTestWithHugeDuration,
+                         STParameterizedBucketTest::allConfigValuesNoNexus(),
+                         STParameterizedBucketTest::PrintToStringParamName);

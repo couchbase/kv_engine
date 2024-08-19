@@ -2341,30 +2341,15 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
     ScopeTimer1<TracerStopwatch> timer(
             *getCookie(), Code::StreamGetCollectionHighSeq, true);
 
-    if (filter.isPassThroughFilter()) {
-        return std::nullopt;
+    auto collHighSeqno = vbucket.getHighSeqnoOfCollections(filter);
+    if (!collHighSeqno) {
+        logger->warn(
+                "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
+                "to find match for {} in the manifest",
+                vbucket.getId(),
+                filter);
     }
-
-    uint64_t maxHighSeqno = 0;
-    for (auto& coll : filter) {
-        auto handle = vbucket.getManifest().lock(coll.first);
-        if (!handle.valid()) {
-            logger->warn(
-                    "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
-                    "to find collectionID:{}, scopeID:{}, in the manifest",
-                    vbucket.getId(),
-                    coll.first,
-                    coll.second.scopeId);
-            // return std::nullopt as we don't want our caller to use rollback
-            // optimisation for collections streams as we weren't able to find
-            // the collections for the stream in the manifest.
-            return std::nullopt;
-        }
-        auto collHighSeqno = handle.getHighSeqno();
-        maxHighSeqno = std::max(maxHighSeqno, collHighSeqno);
-    }
-
-    return {maxHighSeqno};
+    return collHighSeqno;
 }
 
 void DcpProducer::setBackfillByteLimit(size_t bytes) {
