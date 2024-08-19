@@ -411,7 +411,7 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    auto highSeqno = vb->getHighSeqno();
+    auto highSeqno = gsl::narrow<uint64_t>(vb->getHighSeqno());
     if (flags & DCP_ADD_STREAM_FLAG_FROM_LATEST) {
         start_seqno = snap_start_seqno = snap_end_seqno = highSeqno;
         if (vbucket_uuid == 0) {
@@ -578,7 +578,7 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::out_of_range;
     }
 
-    if (start_seqno > static_cast<uint64_t>(highSeqno)) {
+    if (start_seqno > highSeqno) {
         EP_LOG_WARN(
                 "{} ({}) Stream request failed because "
                 "the start seqno ({}) is larger than the vb highSeqno "
@@ -602,6 +602,41 @@ cb::engine_errc DcpProducer::streamRequest(
                 "memory usage is above quota",
                 vbucket);
         return cb::engine_errc::no_memory;
+    }
+
+    // The last snapshot marker the client saw might extend past the highSeqno.
+    // This could be due to data loss after failover (client saw just a snapshot
+    // marker before persistence). We do not rollback in this case (and this is
+    // covered by an equivalent check in the rollback logic), but we will ignore
+    // this "invalid" snapEndSeqno as the ActiveStream should not be created
+    // with seqnos past the vBucket high seqno.
+    if (start_seqno == snap_start_seqno && snap_end_seqno > highSeqno) {
+        if (isSeqnoAdvancedEnabled()) {
+            logger->info(
+                    "({}) Stream request start seqno ({}) is at the beginning "
+                    "of a "
+                    "snapshot {{{}, {}}} which extends past the vb highSeqno "
+                    "({}); avoiding rollback and setting snapEndSeqno = {}",
+                    vbucket,
+                    start_seqno,
+                    snap_start_seqno,
+                    snap_end_seqno,
+                    highSeqno,
+                    snap_start_seqno);
+            snap_end_seqno = snap_start_seqno;
+        } else {
+            logger->info(
+                    "({}) Stream request start seqno ({}) is at the beginning "
+                    "of a "
+                    "snapshot {{{}, {}}} which extends past the vb highSeqno "
+                    "({}); allowing to continue",
+                    vbucket,
+                    start_seqno,
+                    snap_start_seqno,
+                    snap_end_seqno,
+                    highSeqno,
+                    snap_start_seqno);
+        }
     }
 
     // Take copy of Filter's streamID, given it will be moved-from when
@@ -2306,30 +2341,15 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
     ScopeTimer1<TracerStopwatch> timer(
             *getCookie(), Code::StreamGetCollectionHighSeq, true);
 
-    if (filter.isPassThroughFilter()) {
-        return std::nullopt;
+    auto collHighSeqno = vbucket.getHighSeqnoOfCollections(filter);
+    if (!collHighSeqno) {
+        logger->warn(
+                "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
+                "to find match for {} in the manifest",
+                vbucket.getId(),
+                filter);
     }
-
-    uint64_t maxHighSeqno = 0;
-    for (auto& coll : filter) {
-        auto handle = vbucket.getManifest().lock(coll.first);
-        if (!handle.valid()) {
-            logger->warn(
-                    "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
-                    "to find collectionID:{}, scopeID:{}, in the manifest",
-                    vbucket.getId(),
-                    coll.first,
-                    coll.second.scopeId);
-            // return std::nullopt as we don't want our caller to use rollback
-            // optimisation for collections streams as we weren't able to find
-            // the collections for the stream in the manifest.
-            return std::nullopt;
-        }
-        auto collHighSeqno = handle.getHighSeqno();
-        maxHighSeqno = std::max(maxHighSeqno, collHighSeqno);
-    }
-
-    return {maxHighSeqno};
+    return collHighSeqno;
 }
 
 void DcpProducer::setBackfillByteLimit(size_t bytes) {

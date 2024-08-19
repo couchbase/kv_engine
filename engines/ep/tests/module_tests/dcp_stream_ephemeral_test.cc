@@ -53,6 +53,12 @@ TEST_P(EphemeralStreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
     // deleting items
     evb->setPurgeSeqno(3);
 
+    // Store some items in default collection above the purgeSeqno
+    store_item(vbid, "key", "value1");
+    store_item(vbid, "key", "value2");
+    store_item(vbid, "key", "value2");
+    store_item(vbid, "key", "value2");
+
     // Backfill with start != 1 and start != end and start < purge
     DCPBackfillMemoryBuffered dcpbfm(evb, stream, 2, 4);
     dcpbfm.run();

@@ -14,6 +14,7 @@
 #include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
@@ -334,6 +335,25 @@ int64_t VBucket::getHighCompletedSeqno() const {
         return -1;
     }
     return durabilityMonitor->getHighCompletedSeqno();
+}
+
+std::optional<uint64_t> VBucket::getHighSeqnoOfCollections(
+        const Collections::VB::Filter& filter) const {
+    if (filter.isPassThroughFilter()) {
+        return {};
+    }
+
+    uint64_t maxHighSeqno = 0;
+    for (auto& coll : filter) {
+        auto handle = getManifest().lock(coll.first);
+        if (!handle.valid()) {
+            return {};
+        }
+        auto collHighSeqno = handle.getHighSeqno();
+        maxHighSeqno = std::max(maxHighSeqno, collHighSeqno);
+    }
+
+    return {maxHighSeqno};
 }
 
 size_t VBucket::getChkMgrMemUsage() const {

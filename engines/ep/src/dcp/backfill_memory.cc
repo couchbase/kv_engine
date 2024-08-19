@@ -102,9 +102,19 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         return backfill_snooze;
     }
 
+    bool allowNonRollBackStream = false;
+    // Skip rollback due to purgeSeqno if the client has seen all changes
+    // in the collections it filters by.
+    auto collHigh = evb->getHighSeqnoOfCollections(stream->getFilter());
+    if (collHigh.has_value()) {
+        allowNonRollBackStream =
+                stream->getStartSeqno() < evb->getPurgeSeqno() &&
+                stream->getStartSeqno() >= collHigh.value() &&
+                collHigh.value() <= evb->getPurgeSeqno();
+    }
+
     // We permit rollback to be skipped if the Stream explicitly asked
     // to ignore purged tombstones.
-    bool allowNonRollBackStream = false;
     if (stream->isIgnoringPurgedTombstones()) {
         allowNonRollBackStream = true;
     }
