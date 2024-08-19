@@ -4411,6 +4411,8 @@ TEST_P(SingleThreadedActiveStreamTest, SnapshotForCheckpointWithExpelledItems) {
                                                vb.failovers->getLatestUUID(),
                                                3 /*snap_start_seqno*/,
                                                3 /*snap_end_seqno*/);
+    EXPECT_EQ(3, stream->getItemsRemaining());
+
     auto outstandingItems = stream->public_getOutstandingItems(vb);
     stream->public_processItems(outstandingItems);
 

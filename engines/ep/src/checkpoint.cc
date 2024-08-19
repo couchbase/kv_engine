@@ -567,6 +567,11 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
         }
     }
 
+    // For all items expelled, adjust the item-line position. New cursors that
+    // land in this checkpoint will be relative to this value and must not
+    // account those items which were expelled.
+    positionOnItemLine += distance;
+
     // 'distance' is === expelledItems.size()
     // I avoid to make the size() call as it's O(N). See CheckpointQueue type
     // for details.
