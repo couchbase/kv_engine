@@ -22,7 +22,7 @@ TEST(WeakPtrBagTest, BagReferencesWeakly) {
 
     bag.push(n1);
 
-    ASSERT_TRUE(n1.unique());
+    ASSERT_EQ(1, n1.use_count());
     ASSERT_EQ(1, bag.getNonExpired().size());
 }
 
