@@ -390,20 +390,20 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                     OptionalSeqno{/*no-seqno*/});
     }
 
-    auto finaleBegin = applyBeginCollection(
+    auto finalBegin = applyBeginCollection(
             vbStateLock, wHandle, vb, changeset.collectionsToCreate);
 
-    if (finaleBegin) {
+    if (finalBegin) {
         beginCollection(vbStateLock,
                         wHandle,
                         vb,
                         changeset.getUidForChange(manifestUid),
-                        finaleBegin.value().identifiers,
-                        finaleBegin.value().name,
-                        finaleBegin.value().maxTtl,
-                        finaleBegin.value().metered,
-                        finaleBegin.value().canDeduplicate,
-                        finaleBegin.value().flushUid,
+                        finalBegin.value().identifiers,
+                        finalBegin.value().name,
+                        finalBegin.value().maxTtl,
+                        finalBegin.value().metered,
+                        finalBegin.value().canDeduplicate,
+                        finalBegin.value().flushUid,
                         OptionalSeqno{/*no-seqno*/});
     }
 
