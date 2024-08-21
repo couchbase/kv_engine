@@ -84,9 +84,6 @@ public:
             case more_to_process:
                 sleepFor = 0.0;
                 break;
-            case cannot_process:
-                sleepFor = 5.0;
-                break;
             case stop_processing:
                 return false;
         }
@@ -1318,7 +1315,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
         case KVBucket::ReplicationThrottleStatus::Pause:
             backoffs++;
             bufferedVBQueue.pushUnique(stream->getVBucket());
-            return cannot_process;
+            return more_to_process;
 
         case KVBucket::ReplicationThrottleStatus::Disconnect:
             backoffs++;
@@ -1372,15 +1369,6 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
         switch (process_ret) {
         case all_processed:
             return more_to_process;
-        case cannot_process:
-            // If items for current vbucket weren't processed,
-            // re-add current vbucket
-            if (bufferedVBQueue.size() > 0) {
-                // If there are more vbuckets in queue, sleep(0).
-                process_ret = more_to_process;
-            }
-            bufferedVBQueue.pushUnique(vbucket);
-            return process_ret;
         case more_to_process:
             return process_ret;
         case stop_processing:
@@ -1412,13 +1400,10 @@ std::string DcpConsumer::getProcessorTaskStatusStr() const {
             return "ALL_PROCESSED";
         case more_to_process:
             return "MORE_TO_PROCESS";
-        case cannot_process:
-            return "CANNOT_PROCESS";
         case stop_processing:
             return "STOP_PROCESSING";
     }
-
-    return "UNKNOWN";
+    folly::assume_unreachable();
 }
 
 std::unique_ptr<DcpResponse> DcpConsumer::getNextItem() {

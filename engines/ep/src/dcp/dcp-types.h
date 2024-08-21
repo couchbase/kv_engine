@@ -42,7 +42,6 @@ class ConnHandler;
 enum ProcessUnackedBytesResult {
     all_processed,
     more_to_process,
-    cannot_process,
     stop_processing
 };
 
