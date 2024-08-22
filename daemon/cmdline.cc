@@ -28,18 +28,42 @@ static void usage() {
 )";
 }
 
+static std::string read_command() {
+    std::vector<char> buffer(4096);
+#ifdef WIN32
+    // Windows call a blocking call to fgets() in stdin_check so we
+    // can might as well use the portable fgets() and not have to
+    // deal with any problems with read and STDIN_FILENO etc
+    if (!fgets(buffer.data(), static_cast<int>(buffer.size()), stdin)) {
+        std::cerr << "Fatal error: fgets() returned NULL" << std::endl;
+        std::_Exit(EXIT_FAILURE);
+    }
+#else
+    std::size_t ii;
+    for (ii = 0; ii < buffer.size() - 1; ii++) {
+        if (read(STDIN_FILENO, buffer.data() + ii, 1) != 1) {
+            std::cerr << "Fatal error: read() returned != 1" << std::endl;
+            std::_Exit(EXIT_FAILURE);
+        }
+        if (buffer[ii] == '\n') {
+            break;
+        }
+    }
+    if (ii == buffer.size() - 1) {
+        std::cerr << "Fatal error: command too long" << std::endl;
+        std::_Exit(EXIT_FAILURE);
+    }
+#endif
+    return buffer.data();
+}
+
 static void read_kv_settings_from_stdin() {
     using namespace std::string_view_literals;
 
-    std::vector<char> buffer(4096);
-
     std::string_view cmd;
     do {
-        if (!fgets(buffer.data(), static_cast<int>(buffer.size()), stdin)) {
-            std::cerr << "Fatal error: fgets() returned NULL" << std::endl;
-            std::_Exit(EXIT_FAILURE);
-        }
-        cmd = buffer.data();
+        const auto line = read_command();
+        cmd = line;
         while (!cmd.empty() && (cmd.back() == '\n' || cmd.back() == '\r')) {
             cmd.remove_suffix(1);
         }
