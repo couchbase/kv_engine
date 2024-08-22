@@ -621,6 +621,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::SetActiveEncryptionKeys:
     case ClientOpcode::RangeScanCreate:
     case ClientOpcode::GetClusterConfig:
+    case ClientOpcode::GetAllVbSeqnos:
         return true;
 
     case ClientOpcode::Getq:
@@ -677,7 +678,6 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::TapVbucketSet_Unsupported:
     case ClientOpcode::TapCheckpointStart_Unsupported:
     case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
     case ClientOpcode::DcpOpen:
     case ClientOpcode::DcpAddStream:
     case ClientOpcode::DcpCloseStream:

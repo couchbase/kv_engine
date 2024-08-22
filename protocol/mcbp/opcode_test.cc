@@ -346,7 +346,8 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::SetNodeThrottleProperties,
                      ClientOpcode::SetActiveEncryptionKeys,
                      ClientOpcode::RangeScanCreate,
-                     ClientOpcode::GetClusterConfig}},
+                     ClientOpcode::GetClusterConfig,
+                     ClientOpcode::GetAllVbSeqnos}},
                    "reorder");
 }
 

@@ -93,5 +93,6 @@ limitations etc.
 * SubdocMultiMutation
 * SubdocGetCount
 * SubdocReplaceBodyWithXattr
+* GetAllVbSeqnos
 
 (Reference: `cb::mcbp::is_reorder_supported()`)
