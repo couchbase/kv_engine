@@ -41,11 +41,9 @@ public:
         : threadFactory(std::move(threadFactory)) {
     }
 
-#ifdef WIN32
     const std::string& getNamePrefix() const override {
         return threadFactory->getNamePrefix();
     }
-#endif
 
     std::thread newThread(folly::Func&& func) override {
         return threadFactory->newThread([func = std::move(func)]() mutable {
@@ -75,11 +73,9 @@ public:
                   priority) {
     }
 
-#ifdef WIN32
     const std::string& getNamePrefix() const override {
         return priorityThreadFactory.getNamePrefix();
     }
-#endif
 
     std::thread newThread(folly::Func&& func) override {
         return priorityThreadFactory.newThread(std::move(func));
