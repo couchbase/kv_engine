@@ -2916,19 +2916,18 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
         return {};
     }
 
-    if (maybeKeyExistsInFilter(cHandle.getKey())) {
-        cb::engine_errc ec = cb::engine_errc::would_block;
-        if (bgFetchRequired) { // Full eviction and need a bg fetch.
-            ec = addTempItemAndBGFetch(std::move(res.lock),
-                                       cHandle.getKey(),
-                                       cookie,
-                                       engine,
-                                       metadataOnly);
-        }
+    // Full eviction and need a bg fetch.
+    if (bgFetchRequired && maybeKeyExistsInFilter(cHandle.getKey())) {
+        auto ec = addTempItemAndBGFetch(std::move(res.lock),
+                                        cHandle.getKey(),
+                                        cookie,
+                                        engine,
+                                        metadataOnly);
         return GetValue(nullptr, ec, -1, true);
     }
-    // As bloomfilter predicted that item surely doesn't exist
-    // on disk, return ENOENT, for getInternal().
+
+    // If a bgfetch wasn't requested or a bloomfilter predicted that item surely
+    // doesn't exist on disk, return ENOENT, for getInternal().
     return {};
 }
 
