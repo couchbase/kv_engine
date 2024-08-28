@@ -2665,6 +2665,7 @@ std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(
                 status.ErrorCode(),
                 "MagmaKVStore::readLocalDoc " + vbid.to_string() +
                         " key:" + keySlice.ToString() + " " + status.String());
+        logger->warn("{}", retStatus.Message());
     } else {
         if (status.IsOkDocNotFound()) {
             retStatus = magma::Status(
