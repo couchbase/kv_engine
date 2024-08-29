@@ -41,9 +41,30 @@ Flags are specified as a bitmask in network byte order with the following bits d
 * 0x100: __Include deleted user xattrs__. Requests that the server includes the document
   User Xattrs within deletion values.
 
-When setting the Producer or Consumer flag the sender is telling the server what type of connection will be created. For example, if the Producer type is set then the sender of the Open Connection message will be a Consumer.
+When setting the Producer or Consumer flag the sender is telling the server what
+type of connection will be created. For example, if the Producer type is set
+then the sender of the Open Connection message will be a Consumer.
 
-The connection name is specified using the key field. When selecting a name the only requirement is that the name take up no more space than 256 bytes. It is recommended that the name uses that ASCII character set and uses alpha-numeric characters. It is highly advantageous for improved supportability Couchbase Server that the connection names embed as much contextual information as possible from the client.
+The connection name is specified using the key field. When selecting a name the
+only hard requirement is that the name take up no more space than 200 bytes.
+It is then recommended that the name uses only printable ASCII characters.
+It is also recommended for improved supportability that the name uses the
+following format (all internal Couchbase services using DCP are expected to
+co-operate and follow this recommendation):
+
+    service-name:unique-information
+
+* All connections from a particular service should use the same `service-name`,
+  allowing Couchbase Server to produce aggregated service statistics.
+* Each connection requires a unique name, but clients should also consider
+  ensuring that the `unique-information` for example enables post-mortem
+  analysis, linking server and client logs. For example, include some monotonic
+  counter/time, so that all connections are globally unique.
+
+As a workaround to connectors that don't follow this format, KV-Engine will
+parse the user agent name from the following format:
+
+    "i":"unique-information","a":"user-agent"
 
 As of version 6.5, the _value_ can be used to specify additional information
 about the connection to be opened. If non-empty, the value must be a JSON
