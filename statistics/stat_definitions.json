@@ -4058,33 +4058,33 @@
     {
         "key": "collection_mem_used",
         "unit": "bytes",
-        "description": "Per-collection memory usage",
+        "description": "Per-collection memory usage for active vbuckets only",
         "cbstat": "collections_mem_used",
         "added": "7.0.0"
     },
     {
         "key": "collection_item_count",
         "unit": "none",
-        "description": "Per-collection item count",
+        "description": "Per-collection item count for active vbuckets only",
         "cbstat": "items",
         "added": "7.0.0"
     },
     {
         "key": "collection_data_size",
         "unit": "bytes",
-        "description": "Per-collection data size on disk",
+        "description": "Per-collection data size on disk for active vbuckets only",
         "cbstat": "data_size",
         "added": "7.0.0"
     },
     {
         "family": "collection_ops",
         "unit": "none",
-        "description": "Per-collection counters of sets/gets/deletes"
+        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only"
     },
     {
         "key": "collection_ops_store",
         "unit": "none",
-        "description": "Per-collection counters of sets/gets/deletes",
+        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only",
         "type": "counter",
         "cbstat": "ops_store",
         "prometheus": {
@@ -4105,14 +4105,14 @@
                 "op": "delete"
             }
         },
-        "description": "Per-collection counters of sets/gets/deletes",
+        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "collection_ops_get",
         "unit": "none",
-        "description": "Per-collection counters of sets/gets/deletes",
+        "description": "Per-collection counters of sets/gets/deletes for active vbuckets only",
         "type": "counter",
         "cbstat": "ops_get",
         "prometheus": {
