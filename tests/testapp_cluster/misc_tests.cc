@@ -13,23 +13,62 @@
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
-#include <cluster_framework/dcp_replicator.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <tests/testapp/testapp_subdoc_common.h>
+
 #include <string>
+
+using cb::mcbp::ClientOpcode;
+using cb::mcbp::Status;
+using cb::mcbp::subdoc::DocFlag;
+using cb::mcbp::subdoc::PathFlag;
 
 class BasicClusterTest : public cb::test::ClusterTest {
 protected:
-    void waitForReplication(MemcachedConnection& conn, std::string key) {
-        BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetReplica,
-                                  std::move(key));
+    /**
+     * Wait until we can fetch a named document via "SubdocExists" on a
+     * a given connection. You may ask yourself why we need this command
+     * when we store with durability options, but the document may have been
+     * replicated to enough replicas to satisfy the durability spec; just not
+     * the one we're trying to connect to. (We're using durability spec to
+     * hopefully reduce the number of "polling requests" to check if the
+     * value is replicated.
+     *
+     * We can't use the simpler GetReplica as that won't support getting
+     * deleted documents, but we can use SubdocExists to check for a path.
+     * It'll return KeyEnoent until the document is available on the node,
+     * and then:
+     *
+     *    Success[Deleted] - if the path exists
+     *    SubdocPathEnoent - if the path don't exist
+     *    SubdocDocNotJson - if the document isn't JSON
+     *
+     * These return values indicates that the document is replicated to the
+     * node
+     *
+     * @param conn The connection to the node where we want to read the replica
+     * @param key The document identiier
+     */
+    static void waitForReplication(MemcachedConnection& conn, std::string key) {
+        BinprotSubdocCommand cmd{ClientOpcode::SubdocExists,
+                                 std::move(key),
+                                 "WaitForReplication"};
+        cmd.addDocFlags(DocFlag::ReplicaRead);
+        cmd.addDocFlags(DocFlag::AccessDeleted);
+
         auto rsp = conn.execute(cmd);
-        while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent) {
+        while (rsp.getStatus() == Status::KeyEnoent) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             rsp = conn.execute(cmd);
         }
+
+        ASSERT_TRUE(rsp.isSuccess() ||
+                    rsp.getStatus() == Status::SubdocPathEnoent ||
+                    rsp.getStatus() == Status::SubdocDocNotJson)
+                << rsp.getStatus() << " - " << rsp.getDataView();
     }
 
     template <typename T>
@@ -63,22 +102,22 @@ protected:
         // We should not be able to fetch it from the replica unless asking for
         // it
         rsp = replica->execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+        EXPECT_EQ(Status::NotMyVbucket, rsp.getStatus());
 
         // Add ReplicaRead, and we should get it!
-        cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::ReplicaRead);
+        cmd.addDocFlags(DocFlag::ReplicaRead);
         rsp = replica->execute(cmd);
-        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+        EXPECT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+
+        // Verify that we can mix with AccessDeleted (note that the document
+        // isn't deleted)
+        cmd.addDocFlags(DocFlag::AccessDeleted);
+        rsp = replica->execute(cmd);
+        EXPECT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
 
         // It should fail on the active vbucket
         rsp = conn->execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
-
-        // But we can't mix that with access deleted
-        cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
-        rsp = replica->execute(cmd);
-        EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus())
-                << rsp.getDataView();
+        EXPECT_EQ(Status::NotMyVbucket, rsp.getStatus()) << rsp.getDataView();
     }
 
     void testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode opcode) {
@@ -108,12 +147,12 @@ TEST_F(BasicClusterTest, GetReplica) {
 
         BinprotResponse rsp;
         do {
-            BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::GetReplica);
+            BinprotGenericCommand cmd(ClientOpcode::GetReplica);
             cmd.setVBucket(Vbid(0));
             cmd.setKey("foo");
 
             rsp = conn->execute(cmd);
-        } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
+        } while (rsp.getStatus() == Status::KeyEnoent);
         EXPECT_TRUE(rsp.isSuccess());
     }
 }
@@ -126,7 +165,7 @@ TEST_F(BasicClusterTest, MultiGet) {
 
     std::vector<std::pair<const std::string, Vbid>> keys;
     for (int ii = 0; ii < 10; ++ii) {
-        keys.emplace_back(std::make_pair("key_" + std::to_string(ii), Vbid(0)));
+        keys.emplace_back("key_" + std::to_string(ii), Vbid(0));
         if ((ii & 1) == 1) {
             conn->store(keys.back().first,
                         keys.back().second,
@@ -136,7 +175,7 @@ TEST_F(BasicClusterTest, MultiGet) {
     }
 
     // and I want a not my vbucket!
-    keys.emplace_back(std::make_pair("NotMyVbucket", Vbid(1)));
+    keys.emplace_back("NotMyVbucket", Vbid(1));
     bool nmvb = false;
     int nfound = 0;
     conn->mget(
@@ -145,7 +184,7 @@ TEST_F(BasicClusterTest, MultiGet) {
             [&nmvb](const std::string& key,
                     const cb::mcbp::Response& rsp) -> void {
                 EXPECT_EQ("NotMyVbucket", key);
-                EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+                EXPECT_EQ(Status::NotMyVbucket, rsp.getStatus());
                 nmvb = true;
             });
 
@@ -302,12 +341,12 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
         conn->recvFrame(frame);
         const auto* header = frame.getHeader();
         if (header->isResponse() && header->getResponse().getClientOpcode() ==
-                                            cb::mcbp::ClientOpcode::CompactDb) {
+                                            ClientOpcode::CompactDb) {
             found = true;
         }
     } while (!found);
 
-    ASSERT_EQ(cb::mcbp::Status::Success, frame.getResponse()->getStatus());
+    ASSERT_EQ(Status::Success, frame.getResponse()->getStatus());
 
     // Store an item
 
@@ -324,19 +363,19 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
         frame.reset();
         conn->recvFrame(frame);
         const auto* header = frame.getHeader();
-        if (header->isResponse() && header->getResponse().getClientOpcode() ==
-                                            cb::mcbp::ClientOpcode::Set) {
+        if (header->isResponse() &&
+            header->getResponse().getClientOpcode() == ClientOpcode::Set) {
             found = true;
         } else if (header->isRequest() &&
                    header->getRequest().getClientOpcode() ==
-                           cb::mcbp::ClientOpcode::DcpMutation) {
+                           ClientOpcode::DcpMutation) {
             const auto key = header->getRequest().getKeyString();
             if (key == "foo") {
                 dcp_mutation = true;
             }
         }
     } while (!found);
-    ASSERT_EQ(cb::mcbp::Status::Success, frame.getResponse()->getStatus());
+    ASSERT_EQ(Status::Success, frame.getResponse()->getStatus());
 
     if (!dcp_mutation) {
         // Wait for the mutation to arrive
@@ -345,9 +384,8 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
             frame.reset();
             conn->recvFrame(frame);
             const auto* header = frame.getHeader();
-            if (header->isRequest() &&
-                header->getRequest().getClientOpcode() ==
-                        cb::mcbp::ClientOpcode::DcpMutation) {
+            if (header->isRequest() && header->getRequest().getClientOpcode() ==
+                                               ClientOpcode::DcpMutation) {
                 const auto key = header->getRequest().getKeyString();
                 if (key == "foo") {
                     found = true;
@@ -362,11 +400,10 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
 TEST_F(BasicClusterTest, MB_47216) {
     auto bucket = cluster->getBucket("default");
     auto conn = bucket->getConnection(Vbid(0));
-    auto rsp =
-            conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+    auto rsp = conn->execute(BinprotGenericCommand{ClientOpcode::Noop});
+    EXPECT_EQ(Status::Eaccess, rsp.getStatus());
     conn->authenticate("@admin");
-    rsp = conn->execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Noop});
+    rsp = conn->execute(BinprotGenericCommand{ClientOpcode::Noop});
     EXPECT_TRUE(rsp.isSuccess());
 }
 
@@ -443,15 +480,15 @@ TEST_F(BasicClusterTest, AllStatGroups) {
 }
 
 TEST_F(BasicClusterTest, SubdocReplicaRead) {
-    testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode::SubdocGet);
+    testSingleSubdocReplicaCommand(ClientOpcode::SubdocGet);
 }
 
 TEST_F(BasicClusterTest, SubdocReplicaExists) {
-    testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode::SubdocExists);
+    testSingleSubdocReplicaCommand(ClientOpcode::SubdocExists);
 }
 
 TEST_F(BasicClusterTest, SubdocReplicaGetCount) {
-    testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode::SubdocGetCount);
+    testSingleSubdocReplicaCommand(ClientOpcode::SubdocGetCount);
 }
 
 TEST_F(BasicClusterTest, SubdocReplicaMulti) {
@@ -485,10 +522,8 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     cmd.setKey("SubdocReplicaGetWholedoc");
     cmd.setVBucket(Vbid{0});
 
-    cmd.addLookup("$document",
-                  cb::mcbp::ClientOpcode::SubdocGet,
-                  cb::mcbp::subdoc::PathFlag::XattrPath);
-    cmd.addLookup("", cb::mcbp::ClientOpcode::Get);
+    cmd.addLookup("$document", ClientOpcode::SubdocGet, PathFlag::XattrPath);
+    cmd.addLookup("", ClientOpcode::Get);
 
     // We can read it from the active vbucket
     auto rsp = conn->execute(cmd);
@@ -505,22 +540,90 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     // We should not be able to fetch it from the replica unless asking for
     // it
     rsp = replica->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+    EXPECT_EQ(Status::NotMyVbucket, rsp.getStatus());
 
     // Add ReplicaRead, and we should get it!
-    cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::ReplicaRead);
+    cmd.addDocFlags(DocFlag::ReplicaRead);
     rsp = replica->execute(cmd);
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    const auto [replica_meta, replica_value] = getResultPair(rsp);
-    EXPECT_EQ(active_meta, replica_meta);
-    EXPECT_EQ(active_value, replica_value);
+    EXPECT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+    {
+        const auto [replica_meta, replica_value] = getResultPair(rsp);
+        EXPECT_EQ(active_meta, replica_meta);
+        EXPECT_EQ(active_value, replica_value);
+    }
+
+    // mix that with access deleted (the document isn't deleted)
+    cmd.addDocFlags(DocFlag::AccessDeleted);
+    rsp = replica->execute(cmd);
+    EXPECT_EQ(Status::Success, rsp.getStatus()) << rsp.getDataView();
+    {
+        const auto [replica_meta, replica_value] = getResultPair(rsp);
+        EXPECT_EQ(active_meta, replica_meta);
+        EXPECT_EQ(active_value, replica_value);
+    }
 
     // It should fail on the active vbucket
     rsp = conn->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+    EXPECT_EQ(Status::NotMyVbucket, rsp.getStatus());
+}
 
-    // But we can't mix that with access deleted
-    cmd.addDocFlags(cb::mcbp::subdoc::DocFlag::AccessDeleted);
-    rsp = replica->execute(cmd);
-    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus()) << rsp.getDataView();
+TEST_F(BasicClusterTest, SubdocReplicaReadDeletedDocument) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getAuthedConnection(Vbid(0));
+    auto replica = bucket->getAuthedConnection(Vbid(0), vbucket_state_replica);
+
+    {
+        BinprotSubdocCommand cmd;
+        cmd.setOp(ClientOpcode::SubdocDictAdd);
+        cmd.setKey("SubdocReplicaReadDeletedDocument");
+        cmd.setPath("txn.deleted");
+        cmd.setValue("true");
+        cmd.addPathFlags(PathFlag::Mkdir_p | PathFlag::XattrPath);
+        cmd.addDocFlags(DocFlag::Mkdoc | DocFlag::CreateAsDeleted);
+        cb::mcbp::request::DurabilityFrameInfo fi(
+                cb::durability::Level::Majority);
+        cmd.addFrameInfo(fi);
+        auto rsp = conn->execute(cmd);
+
+        EXPECT_EQ(Status::SubdocSuccessDeleted, rsp.getStatus());
+    }
+
+    // This issues a SubdocExists on a deleted document to wait, so if it
+    // succeeds it actually verifies that we can use Subdoc on deleted
+    // documents on a replica ;)
+    waitForReplication(*replica, "SubdocReplicaReadDeletedDocument");
+
+    // Issue a SubdocMulti to verify that it works ;)
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey("SubdocReplicaReadDeletedDocument");
+    cmd.setVBucket(Vbid{0});
+
+    cmd.addLookup(
+            "$document.flags", ClientOpcode::SubdocGet, PathFlag::XattrPath);
+    cmd.addLookup("txn.deleted", ClientOpcode::SubdocGet, PathFlag::XattrPath);
+
+    // Document is deleted so we can't fetch it from the replica
+    cmd.addDocFlags(DocFlag::ReplicaRead);
+    auto rsp = BinprotSubdocMultiLookupResponse{replica->execute(cmd)};
+    EXPECT_EQ(Status::KeyEnoent, rsp.getStatus()) << rsp.getDataView();
+
+    cmd.addDocFlags(DocFlag::AccessDeleted);
+    rsp = BinprotSubdocMultiLookupResponse{replica->execute(cmd)};
+    ASSERT_EQ(Status::SubdocSuccessDeleted, rsp.getStatus())
+            << rsp.getDataView();
+    EXPECT_EQ(Status::Success, rsp.getResults()[0].status);
+    EXPECT_EQ("0", rsp.getResults()[0].value);
+    EXPECT_EQ(Status::Success, rsp.getResults()[1].status);
+    EXPECT_EQ("true", rsp.getResults()[1].value);
+
+    cmd.addLookup("txn.foo", ClientOpcode::SubdocGet, PathFlag::XattrPath);
+    rsp = BinprotSubdocMultiLookupResponse{replica->execute(cmd)};
+    EXPECT_EQ(Status::SubdocMultiPathFailureDeleted, rsp.getStatus())
+            << rsp.getDataView();
+    EXPECT_EQ(Status::Success, rsp.getResults()[0].status);
+    EXPECT_EQ("0", rsp.getResults()[0].value);
+    EXPECT_EQ(Status::Success, rsp.getResults()[1].status);
+    EXPECT_EQ("true", rsp.getResults()[1].value);
+    EXPECT_EQ(Status::SubdocPathEnoent, rsp.getResults()[2].status);
 }

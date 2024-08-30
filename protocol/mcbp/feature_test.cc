@@ -54,7 +54,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
           "SubdocAllowsAccessOnMultipleXattrKeys"},
          {cb::mcbp::Feature::SubdocBinaryXattr, "SubdocBinaryXattr"},
-         {cb::mcbp::Feature::RangeScanIncludeXattr, "RangeScanIncludeXattr"}}};
+         {cb::mcbp::Feature::RangeScanIncludeXattr, "RangeScanIncludeXattr"},
+         {cb::mcbp::Feature::SubdocAllowReplicaReadOnDeletedDocs,
+          "SubdocAllowReplicaReadOnDeletedDocs"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& [feature, name] : featureBlueprint) {

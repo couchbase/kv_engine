@@ -308,8 +308,12 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_replica(
-        CookieIface& cookie, const DocKeyView& key, Vbid vbucket) {
-    return acquireEngine(this)->getReplicaInner(cookie, key, vbucket);
+        CookieIface& cookie,
+        const DocKeyView& key,
+        Vbid vbucket,
+        const DocStateFilter documentStateFilter) {
+    return acquireEngine(this)->getReplicaInner(
+            cookie, key, vbucket, documentStateFilter);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_random_document(
@@ -1184,12 +1188,19 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getReplicaInner(
-        CookieIface& cookie, const DocKeyView& key, Vbid vbucket) {
-    auto options = static_cast<get_options_t>(
-            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
-            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+        CookieIface& cookie,
+        const DocKeyView& key,
+        Vbid vbucket,
+        const DocStateFilter documentStateFilter) {
+    auto options = QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE |
+                   DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS;
 
-    GetValue rv(getKVBucket()->getReplica(key, vbucket, &cookie, options));
+    if (documentStateFilter == DocStateFilter::AliveOrDeleted) {
+        options |= GET_DELETED_VALUE;
+    }
+
+    GetValue rv(getKVBucket()->getReplica(
+            key, vbucket, &cookie, static_cast<get_options_t>(options)));
     auto error_code = rv.getStatus();
     if (error_code != cb::engine_errc::would_block) {
         ++(getEpStats().numOpsGet);

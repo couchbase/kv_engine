@@ -221,11 +221,14 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
     return ret;
 }
 
-cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
-                                           const DocKeyView& key,
-                                           Vbid vbucket) {
+cb::EngineErrorItemPair bucket_get_replica(
+        Cookie& cookie,
+        const DocKeyView& key,
+        Vbid vbucket,
+        const DocStateFilter documentStateFilter) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().get_replica(cookie, key, vbucket);
+    auto ret = c.getBucketEngine().get_replica(
+            cookie, key, vbucket, documentStateFilter);
     if (ret.first == cb::engine_errc::success) {
         cookie.addDocumentReadBytes(ret.second->getValueView().size() +
                                     ret.second->getDocKey().size());

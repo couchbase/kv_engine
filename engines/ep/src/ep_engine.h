@@ -177,9 +177,11 @@ public:
                                 const DocKeyView& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
-    cb::EngineErrorItemPair get_replica(CookieIface& cookie,
-                                        const DocKeyView& key,
-                                        Vbid vbucket) override;
+    cb::EngineErrorItemPair get_replica(
+            CookieIface& cookie,
+            const DocKeyView& key,
+            Vbid vbucket,
+            DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
                                                 CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
@@ -488,7 +490,8 @@ public:
                                      get_options_t options);
     cb::EngineErrorItemPair getReplicaInner(CookieIface& cookie,
                                             const DocKeyView& key,
-                                            Vbid vbucket);
+                                            Vbid vbucket,
+                                            DocStateFilter documentStateFilter);
     cb::EngineErrorItemPair getRandomDocument(CookieIface& cookie,
                                               CollectionID cid);
 

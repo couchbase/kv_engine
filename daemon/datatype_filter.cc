@@ -55,6 +55,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
     case cb::mcbp::Feature::SubdocBinaryXattr:
     case cb::mcbp::Feature::RangeScanIncludeXattr:
+    case cb::mcbp::Feature::SubdocAllowReplicaReadOnDeletedDocs:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

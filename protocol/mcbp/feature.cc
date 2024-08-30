@@ -81,8 +81,10 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "SubdocAllowsAccessOnMultipleXattrKeys";
     case Feature::SubdocBinaryXattr:
         return "SubdocBinaryXattr";
-    case cb::mcbp::Feature::RangeScanIncludeXattr:
+    case Feature::RangeScanIncludeXattr:
         return "RangeScanIncludeXattr";
+    case Feature::SubdocAllowReplicaReadOnDeletedDocs:
+        return "SubdocAllowReplicaReadOnDeletedDocs";
     }
 
     return fmt::format("unknown_{:#x}", static_cast<uint16_t>(feature));

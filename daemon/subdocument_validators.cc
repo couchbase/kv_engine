@@ -231,12 +231,6 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
         }
     }
 
-    if (cb::mcbp::subdoc::hasReplicaRead(doc_flags) &&
-        cb::mcbp::subdoc::hasAccessDeleted(doc_flags)) {
-        cookie.setErrorContext("Can't access deleted documents on replicas");
-        return cb::mcbp::Status::Einval;
-    }
-
     // If the Add flag is set, check the cas is 0
     if (hasAdd(doc_flags) && request.getCas() != 0) {
         cookie.setErrorContext("Request with add flag must have CAS 0");
@@ -550,12 +544,6 @@ static cb::mcbp::Status subdoc_multi_validator(
                     "ReviveDocument can't be used with CreateAsDeleted");
             return cb::mcbp::Status::Einval;
         }
-    }
-
-    if (cb::mcbp::subdoc::hasReplicaRead(doc_flags) &&
-        cb::mcbp::subdoc::hasAccessDeleted(doc_flags)) {
-        cookie.setErrorContext("Can't access deleted documents on replicas");
-        return cb::mcbp::Status::Einval;
     }
 
     // 2. Check that the lookup operation specs are valid.

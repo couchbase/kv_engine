@@ -457,10 +457,14 @@ cb::engine_errc SubdocCommandContext::fetch_input_document(
         cb::engine_errc ret) {
     auto& ctx = *execution_context;
     if (ret == cb::engine_errc::success) {
+        const auto document_state = ctx.do_allow_deleted_docs
+                                            ? DocStateFilter::AliveOrDeleted
+                                            : DocStateFilter::Alive;
         if (ctx.do_read_replica) {
-            // we can't read deleted items from here...
-            auto [status, item] = bucket_get_replica(
-                    cookie, cookie.getRequestKey(), ctx.vbucket);
+            auto [status, item] = bucket_get_replica(cookie,
+                                                     cookie.getRequestKey(),
+                                                     ctx.vbucket,
+                                                     document_state);
             if (status == cb::engine_errc::success) {
                 ctx.fetchedItem = std::move(item);
                 ret = cb::engine_errc::success;
@@ -468,12 +472,10 @@ cb::engine_errc SubdocCommandContext::fetch_input_document(
                 ret = ctx.connection.remapErrorCode(status);
             }
         } else {
-            auto [status, item] = bucket_get(
-                    cookie,
-                    cookie.getRequestKey(),
-                    ctx.vbucket,
-                    ctx.do_allow_deleted_docs ? DocStateFilter::AliveOrDeleted
-                                              : DocStateFilter::Alive);
+            auto [status, item] = bucket_get(cookie,
+                                             cookie.getRequestKey(),
+                                             ctx.vbucket,
+                                             document_state);
             if (status == cb::engine_errc::success) {
                 ctx.fetchedItem = std::move(item);
                 ret = cb::engine_errc::success;

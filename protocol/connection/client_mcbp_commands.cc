@@ -220,7 +220,7 @@ void BinprotGenericCommand::clear() {
 
 BinprotSubdocCommand::BinprotSubdocCommand(
         cb::mcbp::ClientOpcode cmd_,
-        const std::string& key_,
+        std::string key_,
         const std::string& path_,
         const std::string& value_,
         cb::mcbp::subdoc::PathFlag pathFlags_,
@@ -228,7 +228,7 @@ BinprotSubdocCommand::BinprotSubdocCommand(
         uint64_t cas_)
     : BinprotCommand() {
     setOp(cmd_);
-    setKey(key_);
+    setKey(std::move(key_));
     setPath(path_);
     setValue(value_);
     addPathFlags(pathFlags_);
@@ -300,10 +300,10 @@ BinprotSubdocCommand::BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_) {
     setOp(cmd_);
 }
 BinprotSubdocCommand::BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_,
-                                           const std::string& key_,
+                                           std::string key_,
                                            const std::string& path_)
     : BinprotSubdocCommand(cmd_,
-                           key_,
+                           std::move(key_),
                            path_,
                            "",
                            cb::mcbp::subdoc::PathFlag::None,

@@ -1299,7 +1299,8 @@ static enum test_result test_get_replica_active_state(EngineIface* h) {
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
                            DocKeyView("k0", DocKeyEncodesCollectionId::No),
-                           Vbid{0})
+                           Vbid{0},
+                           DocStateFilter::Alive)
                     .first,
             "Get Replica Failed");
     return SUCCESS;
@@ -1323,7 +1324,8 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
                            DocKeyView("k0", DocKeyEncodesCollectionId::No),
-                           Vbid{0})
+                           Vbid{0},
+                           DocStateFilter::Alive)
                     .first,
             "Should have returned NOT_MY_VBUCKET for pending state");
     checkeq(1, get_int_stat(h, "ep_num_not_my_vbuckets"), "Expected 1 get");
@@ -1348,7 +1350,8 @@ static enum test_result test_get_replica_dead_state(EngineIface* h) {
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
                            DocKeyView("k0", DocKeyEncodesCollectionId::No),
-                           Vbid{0})
+                           Vbid{0},
+                           DocStateFilter::Alive)
                     .first,
             "Get Replica Failed");
     return SUCCESS;
@@ -1369,8 +1372,11 @@ static enum test_result test_get_replica(EngineIface* h) {
     check(set_vbucket_state(h, Vbid{0}, vbucket_state_replica),
           "Failed to set vbucket replica state");
 
-    auto [status, item] = h->get_replica(
-            *cookie, DocKeyView("k0", DocKeyEncodesCollectionId::No), Vbid{0});
+    auto [status, item] =
+            h->get_replica(*cookie,
+                           DocKeyView("k0", DocKeyEncodesCollectionId::No),
+                           Vbid{0},
+                           DocStateFilter::Alive);
     checkeq(cb::engine_errc::success, status, "Get Replica Failed");
     checkeq("replicadata"sv,
             item->getValueView(),
@@ -1395,7 +1401,8 @@ static enum test_result test_get_replica_non_resident(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             h->get_replica(*cookie,
                            DocKeyView("key", DocKeyEncodesCollectionId::No),
-                           Vbid{0})
+                           Vbid{0},
+                           DocStateFilter::Alive)
                     .first,
             "Get Replica Failed");
 
@@ -1409,7 +1416,8 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h) {
     checkeq(cb::engine_errc::not_my_vbucket,
             h->get_replica(*cookie,
                            DocKeyView("k0", DocKeyEncodesCollectionId::No),
-                           Vbid{0})
+                           Vbid{0},
+                           DocStateFilter::Alive)
                     .first,
             "Get Replica Failed");
     return SUCCESS;

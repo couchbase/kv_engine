@@ -85,7 +85,8 @@ cb::EngineErrorItemPair bucket_get(
 
 cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
                                            const DocKeyView& key,
-                                           Vbid vbucket);
+                                           Vbid vbucket,
+                                           DocStateFilter documentStateFilter);
 
 cb::EngineErrorItemPair bucket_get_random_document(Cookie& cookie,
                                                    CollectionID cid);

@@ -91,6 +91,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         case Feature::SubdocBinaryXattr:
         case Feature::RangeScanIncludeXattr:
+        case Feature::SubdocAllowReplicaReadOnDeletedDocs:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -135,6 +136,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::SubdocBinaryXattr:
         case Feature::TCPNODELAY_Unsupported:
         case Feature::TCPDELAY_Unsupported:
+        case Feature::SubdocAllowReplicaReadOnDeletedDocs:
             // No other dependency
             break;
 
@@ -370,6 +372,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::AltRequestSupport:
         case Feature::SyncReplication:
         case Feature::RangeScanIncludeXattr:
+        case Feature::SubdocAllowReplicaReadOnDeletedDocs:
             // Informative features don't need special handling
             added = true;
             break;

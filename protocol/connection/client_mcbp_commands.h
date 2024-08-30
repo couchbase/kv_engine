@@ -295,11 +295,11 @@ public:
 
     // Old-style constructors. These are all used by testapp_subdoc.
     BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd_,
-                         const std::string& key_,
+                         std::string key_,
                          const std::string& path_);
 
     BinprotSubdocCommand(cb::mcbp::ClientOpcode cmd,
-                         const std::string& key,
+                         std::string key,
                          const std::string& path,
                          const std::string& value,
                          cb::mcbp::subdoc::PathFlag flags = {},

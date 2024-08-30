@@ -348,10 +348,12 @@ struct EngineIface {
             Vbid vbucket,
             DocStateFilter documentStateFilter) = 0;
 
-    /// Same as get, except that it only allows alive documents
-    /// from a _REPLICA_ vbucket
+    /// Same as get, except that it reads from a _REPLICA_ vbucket
     [[nodiscard]] virtual cb::EngineErrorItemPair get_replica(
-            CookieIface& cookie, const DocKeyView& key, Vbid vbucket);
+            CookieIface& cookie,
+            const DocKeyView& key,
+            Vbid vbucket,
+            DocStateFilter documentStateFilter);
 
     /// Get a random document from the provided collection
     [[nodiscard]] virtual cb::EngineErrorItemPair get_random_document(

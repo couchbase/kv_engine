@@ -29,7 +29,8 @@ cb::engine_errc GetCommandContext::getItem() {
     const auto opcode = req.getClientOpcode();
     cb::EngineErrorItemPair ret;
     if (opcode == cb::mcbp::ClientOpcode::GetReplica) {
-        ret = bucket_get_replica(cookie, cookie.getRequestKey(), vbucket);
+        ret = bucket_get_replica(
+                cookie, cookie.getRequestKey(), vbucket, DocStateFilter::Alive);
     } else if (opcode == cb::mcbp::ClientOpcode::GetRandomKey) {
         CollectionID cid{CollectionID::Default};
         if (req.getExtlen()) {

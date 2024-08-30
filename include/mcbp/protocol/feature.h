@@ -160,6 +160,10 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// supports returning xattrs along with documents for
     /// RANGE_SCAN operations.
     RangeScanIncludeXattr = 0x22,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// allows replica read on deleted documents via subdoc
+    SubdocAllowReplicaReadOnDeletedDocs = 0x23,
 };
 
 [[nodiscard]] std::string format_as(Feature feature);
