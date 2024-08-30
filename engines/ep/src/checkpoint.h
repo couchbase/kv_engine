@@ -685,8 +685,9 @@ private:
     /// The maximum visible snapshot end (hides prepare/abort), this could be
     /// a WeaklyMonotonic, but many unit tests will violate that.
     uint64_t visibleSnapEndSeqno = 0;
-    /// The seqno of the highest expelled item.
-    Monotonic<int64_t> highestExpelledSeqno{0};
+    /// The seqno of the highest expelled item. Weak monotonic as expel of
+    /// set-vb-state can result in same value
+    WeaklyMonotonic<int64_t> highestExpelledSeqno{0};
     Vbid vbucketId;
     rel_time_t                     creationTime;
     folly::Synchronized<checkpoint_state> checkpointState;

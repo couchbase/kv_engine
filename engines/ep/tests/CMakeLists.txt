@@ -31,6 +31,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/bucket_logger_engine_test.cc
         module_tests/bucket_logger_test.cc
         module_tests/checkpoint_durability_test.cc
+        module_tests/checkpoint_expel.cc
         module_tests/checkpoint_iterator_test.cc
         module_tests/checkpoint_remover_test.h
         module_tests/checkpoint_remover_test.cc

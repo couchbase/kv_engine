@@ -57,3 +57,14 @@ std::optional<uint32_t> MockDcpConsumer::getStreamOpaque(uint32_t opaque) {
     }
     return {};
 }
+
+cb::engine_errc MockDcpConsumer::public_processMutationOrPrepare(
+        Vbid vbid,
+        uint32_t opaque,
+        const DocKey& key,
+        queued_item item,
+        cb::const_byte_buffer meta,
+        size_t msgBytes) {
+    return processMutationOrPrepare(
+            vbid, opaque, key, std::move(item), meta, msgBytes);
+}

@@ -273,8 +273,10 @@ public:
 
     /*
      * Queue writing of the VBucket's state to persistent layer.
+     *
+     * @return item->size() from the queued Item
      */
-    void queueSetVBState();
+    size_t queueSetVBState();
 
     /**
      * Add all outstanding items for the given cursor name to the vector. Only

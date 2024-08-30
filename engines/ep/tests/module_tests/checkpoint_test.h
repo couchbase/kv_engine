@@ -41,7 +41,7 @@ protected:
     // checkpoint manager.
     bool queueReplicatedItem(const std::string& key, int64_t seqno);
 
-    void createManager(int64_t lastSeqno = 1000);
+    void createManager(int64_t lastSeqno = 1000, bool addCursor = true);
 
     void resetManager();
 
