@@ -71,6 +71,7 @@ class Manifest;
 
 namespace Collections::VB {
 class CachingReadHandle;
+class Filter;
 class Manifest;
 class ManifestEntry;
 class ReadHandle;
@@ -227,6 +228,17 @@ public:
      * 3) And (in either cases) all earlier SyncWrites have been completed.
      */
     int64_t getHighCompletedSeqno() const;
+
+    /**
+     * Returns the maximum of all the high-seqnos of the collections in the
+     * filter. std::nullopt is returned for passthrough streams or when any
+     * collection cannot be found.
+     *
+     * @param filter that states which collections are considered
+     * @return high seqno of all the collection in the filter
+     */
+    std::optional<uint64_t> getHighSeqnoOfCollections(
+            const Collections::VB::Filter& filter) const;
 
     size_t getChkMgrMemUsage() const;
 
