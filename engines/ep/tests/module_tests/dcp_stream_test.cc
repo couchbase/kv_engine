@@ -5170,16 +5170,15 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     flushVBucket(vbid);
 
     {
+        // MB-63341: SetVBState is expellable.
         const auto res = manager.expelUnreferencedCheckpointItems();
-        // Nothing expelled, ItemExpel doesn't touch checkpoints that store only
-        // meta items.
-        EXPECT_EQ(0, res.count); // vbs
-        EXPECT_FALSE(list.back()->modifiedByExpel());
+        EXPECT_EQ(1, res.count); // vbs gone
+        EXPECT_TRUE(list.back()->modifiedByExpel());
     }
 
     snapInfo = manager.getSnapshotInfo();
-    EXPECT_EQ(2, snapInfo.start);
-    EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
+    EXPECT_EQ(2, snapInfo.start); // lastBySeqno is still 2, only marker 3,4 rx
+    EXPECT_EQ(snapshot_range_t(3, 4), snapInfo.range);
 }
 
 // Note: At the moment this test's purpose is to show how outbound DCP behaves

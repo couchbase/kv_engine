@@ -1013,9 +1013,10 @@ bool CheckpointManager::queueDirty(
     folly::assume_unreachable();
 }
 
-void CheckpointManager::queueSetVBState() {
+size_t CheckpointManager::queueSetVBState() {
     // Grab the vbstate before the queueLock (avoid a lock inversion)
     auto vbstate = vb.getTransitionState();
+    size_t rval = 0;
 
     {
         // Take lock to serialize use of {lastBySeqno} and to queue op.
@@ -1041,7 +1042,7 @@ void CheckpointManager::queueSetVBState() {
 
         auto& openCkpt = getOpenCheckpoint(lh);
         const auto result = openCkpt.queueDirty(item);
-
+        rval = item->size();
         if (result.status == QueueDirtyStatus::SuccessNewItem) {
             ++numItems;
             ++totalItems;
@@ -1069,6 +1070,7 @@ void CheckpointManager::queueSetVBState() {
     //   Producers: they are in their step() loop anyway, so any attempt of
     //   notification is actually a NOP.
     vb.notifyReplication();
+    return rval;
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForDcp(
@@ -2003,8 +2005,8 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         return {};
     }
 
-    if (!oldestCheckpoint->hasNonMetaItems()) {
-        // There are no mutation items in the checkpoint to expel.
+    if (oldestCheckpoint->getNumItems() == 1) {
+        // Items is 1 (checkpoint_start only), so nothing to expel
         return {};
     }
 
@@ -2057,26 +2059,10 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     // Note: If reached here iterator points to some position > begin()
     Expects(distance > 0);
 
-    /*
-     * Walk backwards over the checkpoint if not yet reached the dummy item,
-     * and pointing to an item that either:
-     * 1. has a subsequent entry with the same seqno (i.e. we don't want
-     *    to expel some items but not others with the same seqno), or
-     * 2. is pointing to a metadata item.
-     */
-    while ((iterator != oldestCheckpoint->begin()) &&
-           ((std::next(iterator) != oldestCheckpoint->end() &&
-             (*iterator)->getBySeqno() ==
-                     (*std::next(iterator))->getBySeqno()) ||
-            ((*iterator)->isCheckPointMetaItem()))) {
-        --iterator;
-        Expects(distance > 0);
-        --distance;
-    }
-
     // If pointing to the dummy item then cannot expel anything and so just
     // return.
-    if (iterator == oldestCheckpoint->begin()) {
+    // If distance is < 2  nothing can be expelled
+    if (iterator == oldestCheckpoint->begin() || distance < 2) {
         return {};
     }
 

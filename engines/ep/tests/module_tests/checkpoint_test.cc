@@ -48,7 +48,7 @@ void CheckpointTest::TearDown() {
     VBucketTest::TearDown();
 }
 
-void CheckpointTest::createManager(int64_t lastSeqno) {
+void CheckpointTest::createManager(int64_t lastSeqno, bool addCursor) {
     ASSERT_TRUE(vbucket);
     ASSERT_TRUE(checkpoint_config);
     range = {static_cast<uint64_t>(lastSeqno),
@@ -69,6 +69,13 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
             vbucket->checkpointManager.get());
     ASSERT_TRUE(manager);
 
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+
+    if (!addCursor) {
+        return;
+    }
+
     // Set the proper test cursor
     if (persistent()) {
         cursor = manager->getPersistenceCursor();
@@ -84,8 +91,6 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
     ASSERT_TRUE(cursor);
 
     ASSERT_EQ(1, manager->getNumOfCursors());
-    ASSERT_EQ(1, manager->getNumOpenChkItems());
-    ASSERT_EQ(1, manager->getNumCheckpoints());
     ASSERT_EQ(1, manager->getNumItemsForCursor(*cursor));
 }
 
