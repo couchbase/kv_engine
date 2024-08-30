@@ -30,10 +30,17 @@ protected:
                 {{" mik epw "}, {"second_password"}},
                 [](cb::crypto::Algorithm) { return true; },
                 "pbkdf2-hmac-sha512"));
+        passwordDatabase->upsert(UserFactory::create(
+                "expired",
+                "expired",
+                [](cb::crypto::Algorithm) { return true; },
+                "pbkdf2-hmac-sha512",
+                1024UL));
         swap_password_database(std::move(passwordDatabase));
     }
 
-    void test_auth(const std::string& mech, std::string_view password) {
+    static void test_successful_auth(const std::string& mech,
+                                     std::string_view password) {
         cb::sasl::client::ClientContext client(
                 []() -> std::string { return std::string{"mikewied"}; },
                 [&password]() -> std::string { return std::string{password}; },
@@ -64,44 +71,90 @@ protected:
         client_data = client.step(server_data.second);
         EXPECT_EQ(cb::sasl::Error::OK, client_data.first);
     }
+
+    static void test_password_expired(const std::string& mech) {
+        cb::sasl::client::ClientContext client(
+                []() -> std::string { return "expired"; },
+                []() -> std::string { return "expired"; },
+                mech);
+
+        auto client_data = client.start();
+        ASSERT_EQ(cb::sasl::Error::OK, client_data.first);
+
+        cb::sasl::server::ServerContext server;
+
+        auto server_data = server.start(client.getName(),
+                                        cb::sasl::server::listmech(),
+                                        client_data.second);
+
+        if (mech == "PLAIN") {
+            EXPECT_EQ(cb::sasl::Error::PASSWORD_EXPIRED, server_data.first);
+            return;
+        }
+        ASSERT_EQ(cb::sasl::Error::CONTINUE, server_data.first);
+
+        do {
+            client_data = client.step(server_data.second);
+            ASSERT_EQ(cb::sasl::Error::CONTINUE, client_data.first);
+            server_data = server.step(client_data.second);
+        } while (server_data.first == cb::sasl::Error::CONTINUE);
+
+        ASSERT_EQ(cb::sasl::Error::PASSWORD_EXPIRED, server_data.first);
+    }
 };
 
 TEST_F(SaslClientServerTest, PLAIN) {
-    test_auth("PLAIN", " mik epw "sv);
+    test_successful_auth("PLAIN", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
-    test_auth("SCRAM-SHA1", " mik epw "sv);
+    test_successful_auth("SCRAM-SHA1", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA256) {
-    test_auth("SCRAM-SHA256", " mik epw "sv);
+    test_successful_auth("SCRAM-SHA256", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA512) {
-    test_auth("SCRAM-SHA512", " mik epw "sv);
+    test_successful_auth("SCRAM-SHA512", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, AutoSelectMechamism) {
-    test_auth(cb::sasl::server::listmech(), " mik epw "sv);
+    test_successful_auth(cb::sasl::server::listmech(), " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, PLAIN_AlternativePassword) {
-    test_auth("PLAIN", "second_password"sv);
+    test_successful_auth("PLAIN", "second_password"sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA1_AlternativePassword) {
-    test_auth("SCRAM-SHA1", "second_password"sv);
+    test_successful_auth("SCRAM-SHA1", "second_password"sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA256_AlternativePassword) {
-    test_auth("SCRAM-SHA256", "second_password"sv);
+    test_successful_auth("SCRAM-SHA256", "second_password"sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA512_AlternativePassword) {
-    test_auth("SCRAM-SHA512", "second_password"sv);
+    test_successful_auth("SCRAM-SHA512", "second_password"sv);
 }
 
 TEST_F(SaslClientServerTest, AutoSelectMechamism_AlternativePassword) {
-    test_auth(cb::sasl::server::listmech(), "second_password"sv);
+    test_successful_auth(cb::sasl::server::listmech(), "second_password"sv);
+}
+
+TEST_F(SaslClientServerTest, PLAIN_PasswordExpired) {
+    test_password_expired("PLAIN");
+}
+
+TEST_F(SaslClientServerTest, SCRAM_SHA1_PasswordExpired) {
+    test_password_expired("SCRAM-SHA1");
+}
+
+TEST_F(SaslClientServerTest, SCRAM_SHA256_PasswordExpired) {
+    test_password_expired("SCRAM-SHA256");
+}
+
+TEST_F(SaslClientServerTest, SCRAM_SHA512_PasswordExpired) {
+    test_password_expired("SCRAM-SHA512");
 }

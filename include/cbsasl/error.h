@@ -27,7 +27,8 @@ enum class [[nodiscard]] Error {
     NO_USER,
     PASSWORD_ERROR,
     NO_RBAC_PROFILE,
-    AUTH_PROVIDER_DIED
+    AUTH_PROVIDER_DIED,
+    PASSWORD_EXPIRED
 };
 
 [[nodiscard]] std::string format_as(Error error);

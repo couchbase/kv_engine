@@ -202,6 +202,12 @@ std::pair<Error, std::string> ServerBackend::step(std::string_view input) {
     }
 
     if (success) {
+        auto expiry = user.getExpiryTime();
+        if (expiry) {
+            if (std::chrono::system_clock::now() > expiry) {
+                return {Error::PASSWORD_EXPIRED, server_final_message};
+            }
+        }
         return {Error::OK, server_final_message};
     }
 

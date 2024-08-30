@@ -292,6 +292,7 @@ following reasons codes should be used:
     KeyEExists   If the user exists, but the password is incorrect
     AuthError    If the username and password combination is correct
                  but the user doesn't have access to the system
+    AuthStale    If the password has expired
 
 (These response codes don't need the above payload)
 

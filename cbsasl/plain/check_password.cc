@@ -50,7 +50,17 @@ Error check_password(const cb::sasl::pwdb::User& user,
         }
     }
 
-    return success ? Error::OK : Error::PASSWORD_ERROR;
+    if (success) {
+        auto expiry = user.getExpiryTime();
+        if (expiry) {
+            if (std::chrono::system_clock::now() > expiry) {
+                return Error::PASSWORD_EXPIRED;
+            }
+        }
+        return Error::OK;
+    }
+
+    return Error::PASSWORD_ERROR;
 }
 
 } // namespace cb::sasl::plain

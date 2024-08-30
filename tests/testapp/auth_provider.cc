@@ -33,8 +33,8 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::process(
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::processAuthzRequest(
         const std::string& user) {
-    auto ret = getUserEntry(user);
-    switch (ret.first) {
+    auto [status, json] = getUserEntry(user);
+    switch (status) {
     case cb::sasl::Error::OK:
         break;
     case cb::sasl::Error::CONTINUE:
@@ -45,19 +45,18 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::processAuthzRequest(
     case cb::sasl::Error::AUTH_PROVIDER_DIED:
     case cb::sasl::Error::NO_USER:
     case cb::sasl::Error::PASSWORD_ERROR:
+    case cb::sasl::Error::PASSWORD_EXPIRED:
         throw std::runtime_error(
                 "AuthProvider::processAuthzRequest: Invalid return value from "
                 "getUserEntry");
 
     case cb::sasl::Error::NO_RBAC_PROFILE:
-        return std::make_pair<cb::mcbp::Status, std::string>(
-                cb::mcbp::Status::AuthError, {});
+        return {cb::mcbp::Status::AuthError, {}};
     }
 
     nlohmann::json payload;
-    payload["rbac"] = ret.second;
-    return std::pair<cb::mcbp::Status, std::string>(cb::mcbp::Status::Success,
-                                                    payload.dump());
+    payload["rbac"] = json;
+    return {cb::mcbp::Status::Success, payload.dump()};
 }
 
 std::pair<cb::mcbp::Status, std::string> AuthProvider::processAuthnRequest(
@@ -126,8 +125,8 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::plain_auth(
         password = std::string{ptr, pwlen};
     }
 
-    const auto ret = validatePassword(username, password);
-    switch (ret.first) {
+    const auto [status, json] = validatePassword(username, password);
+    switch (status) {
     case cb::sasl::Error::OK:
         break;
     case cb::sasl::Error::CONTINUE:
@@ -145,21 +144,19 @@ std::pair<cb::mcbp::Status, std::string> AuthProvider::plain_auth(
                 "validator");
 
     case cb::sasl::Error::NO_RBAC_PROFILE:
-        return std::make_pair<cb::mcbp::Status, std::string>(
-                cb::mcbp::Status::AuthError, {});
+        return {cb::mcbp::Status::AuthError, {}};
     case cb::sasl::Error::NO_USER:
-        return std::make_pair<cb::mcbp::Status, std::string>(
-                cb::mcbp::Status::KeyEnoent, {});
+        return {cb::mcbp::Status::KeyEnoent, {}};
+    case cb::sasl::Error::PASSWORD_EXPIRED:
+        return {cb::mcbp::Status::AuthStale, {}};
     case cb::sasl::Error::PASSWORD_ERROR:
-        return std::make_pair<cb::mcbp::Status, std::string>(
-                cb::mcbp::Status::KeyEexists, {});
+        return {cb::mcbp::Status::KeyEexists, {}};
     }
 
     nlohmann::json payload;
     if (!authOnly) {
-        payload["rbac"] = ret.second;
+        payload["rbac"] = json;
     }
 
-    return std::pair<cb::mcbp::Status, std::string>(cb::mcbp::Status::Success,
-                                                    payload.dump());
+    return {cb::mcbp::Status::Success, payload.dump()};
 }

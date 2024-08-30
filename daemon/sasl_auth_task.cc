@@ -107,6 +107,8 @@ void SaslAuthTask::unsuccessfull_external_auth(Status status,
     // The payload should contain an error message
     if (status == Status::AuthError) {
         error = Error::NO_RBAC_PROFILE;
+    } else if (status == Status::AuthStale) {
+        error = Error::PASSWORD_EXPIRED;
     } else if (status == Status::KeyEnoent) {
         error = Error::NO_USER;
     } else if (status == Status::KeyEexists) {

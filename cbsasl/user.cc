@@ -17,6 +17,7 @@
 #include <platform/random.h>
 #include <sodium.h>
 #include <atomic>
+#include <charconv>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -50,6 +51,28 @@ User::User(const nlohmann::json& json, UserData unm)
             scram_sha_256 = ScramPasswordMetaData(it.value());
         } else if (label == "scram-sha-1") {
             scram_sha_1 = ScramPasswordMetaData(it.value());
+        } else if (label == "expiry") {
+            time_t value;
+            if (it.value().is_string()) {
+                auto str = it.value().get<std::string>();
+                auto [ptr, ec] = std::from_chars(
+                        str.data(), str.data() + str.size(), value);
+                if (ec != std::errc()) {
+                    throw std::system_error(
+                            std::make_error_code(ec),
+                            fmt::format("User({}): Failed to parse expiry time",
+                                        username.getSanitizedValue()));
+                }
+                (void)ptr;
+            } else if (it.value().is_number()) {
+                value = it.value().get<time_t>();
+            } else {
+                throw std::runtime_error(
+                        fmt::format("User({}): expiry must be string or number",
+                                    username.getSanitizedValue()));
+            }
+            password_expiry_time =
+                    std::chrono::system_clock::from_time_t(value);
         } else {
             throw std::runtime_error("User(\"" + username.getSanitizedValue() +
                                      "\"): Invalid attribute \"" + label +
@@ -110,9 +133,13 @@ ScamShaFallbackSalt::ScamShaFallbackSalt() {
 User UserFactory::create(const std::string& name,
                          const std::vector<std::string>& passwords,
                          std::function<bool(crypto::Algorithm)> callback,
-                         std::string_view password_hash_type) {
+                         std::string_view password_hash_type,
+                         std::optional<time_t> password_expiry_time) {
     using namespace std::string_view_literals;
     User ret{name, false};
+    if (password_expiry_time) {
+        ret.setExpiryTime(*password_expiry_time);
+    }
 
     // The format of the plain password encoding is that we're appending the
     // generated hmac to the salt (which should be 16 bytes). This makes
@@ -149,11 +176,13 @@ User UserFactory::create(const std::string& name,
 User UserFactory::create(const std::string& unm,
                          const std::string& passwd,
                          const std::function<bool(Algorithm)>& callback,
-                         const std::string_view password_hash_type) {
+                         const std::string_view password_hash_type,
+                         std::optional<time_t> password_expiry_time) {
     return create(unm,
                   std::vector<std::string>{{passwd}},
                   callback,
-                  password_hash_type);
+                  password_hash_type,
+                  password_expiry_time);
 }
 
 User UserFactory::createDummy(const std::string& unm, Algorithm algorithm) {
@@ -530,7 +559,10 @@ nlohmann::json User::to_json() const {
     if (scram_sha_1) {
         ret["scram-sha-1"] = *scram_sha_1;
     }
-
+    if (password_expiry_time) {
+        ret["expiry"] = std::to_string(
+                std::chrono::system_clock::to_time_t(*password_expiry_time));
+    }
     return ret;
 }
 

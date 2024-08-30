@@ -77,6 +77,17 @@ protected:
         testIllegalLogin("@admin", mech);
     }
 
+    void testPasswordExpired(const std::string& mech) {
+        MemcachedConnection& conn = getConnection();
+        try {
+            conn.authenticate("expired", "expired", mech);
+            FAIL() << "Authentication should fail!!!";
+        } catch (const ConnectionError& e) {
+            EXPECT_TRUE(e.isAuthError()) << e.what();
+            EXPECT_EQ("Password expired", e.getErrorContext());
+        }
+    }
+
     /**
      * Update the list of supported authentication mechanisms
      *
@@ -277,4 +288,20 @@ TEST_P(SaslTest, IterationCountMayBeChanged) {
     tryFailedAuth("SCRAM-SHA512", 10);
     tryFailedAuth("SCRAM-SHA256", 10);
     tryFailedAuth("SCRAM-SHA1", 10);
+}
+
+TEST_P(SaslTest, ExpiredPLAIN) {
+    testPasswordExpired("PLAIN");
+}
+
+TEST_P(SaslTest, ExpiredSCRAM_SHA1) {
+    testPasswordExpired("SCRAM-SHA1");
+}
+
+TEST_P(SaslTest, ExpiredSCRAM_SHA256) {
+    testPasswordExpired("SCRAM-SHA256");
+}
+
+TEST_P(SaslTest, ExpiredSCRAM_SHA512) {
+    testPasswordExpired("SCRAM-SHA512");
 }

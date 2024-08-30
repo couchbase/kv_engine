@@ -139,6 +139,19 @@ public:
      */
     nlohmann::json to_json() const;
 
+    [[nodiscard]] std::optional<std::chrono::system_clock::time_point>
+    getExpiryTime() const {
+        return password_expiry_time;
+    }
+
+    void setExpiryTime(std::chrono::system_clock::time_point expiry_time) {
+        password_expiry_time = expiry_time;
+    }
+
+    void setExpiryTime(time_t expiry_time) {
+        setExpiryTime(std::chrono::system_clock::from_time_t(expiry_time));
+    }
+
 protected:
     friend class UserFactory;
 
@@ -151,6 +164,7 @@ protected:
     std::optional<ScramPasswordMetaData> scram_sha_256;
     std::optional<ScramPasswordMetaData> scram_sha_1;
     std::optional<PasswordMetaData> password_hash;
+    std::optional<std::chrono::system_clock::time_point> password_expiry_time;
 
     UserData username;
 
@@ -180,6 +194,7 @@ public:
      *                 algorithm should be created
      * @param password_hash_type the name of the plain password hash to
      *                           use (may be used generate an entry with
+     * @param password_expiry_time an optional password expiration
      *                           .
      *
      * @return a newly created dummy object
@@ -188,12 +203,14 @@ public:
             const std::string& name,
             const std::string& pw,
             const std::function<bool(crypto::Algorithm)>& callback = {},
-            std::string_view password_hash_type = {});
+            std::string_view password_hash_type = {},
+            std::optional<time_t> password_expiry_time = {});
 
     static User create(const std::string& name,
                        const std::vector<std::string>& passwords,
                        std::function<bool(crypto::Algorithm)> callback = {},
-                       std::string_view password_hash_type = {});
+                       std::string_view password_hash_type = {},
+                       std::optional<time_t> password_expiry_time = {});
 
     /**
      * Construct a dummy user object that may be used in authentication

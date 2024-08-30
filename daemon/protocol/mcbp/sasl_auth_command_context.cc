@@ -173,6 +173,14 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
 
         return authFailure(error);
 
+    case cb::sasl::Error::PASSWORD_EXPIRED:
+        audit_auth_failure(connection,
+                           serverContext.getUser(),
+                           "Password expired",
+                           &cookie);
+        cookie.setErrorContext("Password expired");
+        return authFailure(error);
+
     case cb::sasl::Error::NO_RBAC_PROFILE:
         LOG_WARNING(
                 "{}: User [{}] is not defined as a user in Couchbase. "

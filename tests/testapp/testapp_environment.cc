@@ -294,6 +294,10 @@ void McdEnvironment::setupPasswordDatabase() {
         passwordDatabase.upsert(UserFactory::create(u, p));
     }
 
+    // Create a user with an expired password
+    passwordDatabase.upsert(
+            UserFactory::create("expired", "expired", {}, {}, 1024L));
+
     std::ofstream cbsasldb(isasl_file_name.generic_string());
     cbsasldb << nlohmann::json(passwordDatabase) << std::endl;
 }

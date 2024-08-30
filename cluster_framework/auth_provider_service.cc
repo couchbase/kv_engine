@@ -310,9 +310,15 @@ void AuthProviderService::handleSaslResponse(
     case Error::NO_USER:
         sendResponse(bev, req, Status::KeyEnoent, {});
         return;
+
+    case Error::PASSWORD_EXPIRED:
+        sendResponse(bev, req, Status::AuthStale, {});
+        return;
+
     case Error::PASSWORD_ERROR:
         sendResponse(bev, req, Status::KeyEexists, {});
         return;
+
     case Error::OK:
         if (!authentication_only) {
             success_payload["rbac"][server_ctx->getUsername()] =

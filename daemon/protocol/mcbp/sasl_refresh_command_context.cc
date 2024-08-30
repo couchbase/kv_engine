@@ -38,6 +38,7 @@ cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
         case Error::NO_MECH:
         case Error::NO_USER:
         case Error::PASSWORD_ERROR:
+        case Error::PASSWORD_EXPIRED:
         case Error::NO_RBAC_PROFILE:
         case Error::AUTH_PROVIDER_DIED:
             break;

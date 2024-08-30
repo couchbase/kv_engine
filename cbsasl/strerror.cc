@@ -34,6 +34,8 @@ std::string cb::sasl::format_as(Error error) {
         return "User not defined in Couchbase"s;
     case Error::AUTH_PROVIDER_DIED:
         return "Auth provider died"s;
+    case Error::PASSWORD_EXPIRED:
+        return "Password expired"s;
     }
 
     return fmt::format("format_as(Error): Unknown error: {}",
