@@ -772,6 +772,7 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
         os << "\t{" << e->getBySeqno() << "," << to_string(e->getOperation());
         e->isDeleted() ? os << "[d]," : os << ",";
         os << e->getKey() << "," << e->size();
+        os << "," << e->getCas();
         e->isCheckPointMetaItem() ? os << ",[m]" : os << "";
         if (e->getOperation() == queue_op::set_vbucket_state) {
             os << ",value:" << e->getValueView();
