@@ -155,6 +155,11 @@ enum class [[nodiscard]] Feature : uint16_t {
     /// allows the client store binary values in XATTRs specified with
     /// SUBDOC_FLAG_BINARY_VALUE
     SubdocBinaryXattr = 0x21,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports returning xattrs along with documents for
+    /// RANGE_SCAN operations.
+    RangeScanIncludeXattr = 0x22,
 };
 
 [[nodiscard]] std::string format_as(Feature feature);

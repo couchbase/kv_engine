@@ -33,6 +33,7 @@ RangeScanCreateTask::RangeScanCreateTask(
       handler(std::move(handler)),
       cookie(cookie),
       keyOnly(params.keyOnly),
+      includeXattrs(params.includeXattrs),
       snapshotReqs(params.snapshotReqs),
       samplingConfig(params.samplingConfig),
       scanData(std::move(scanData)),
@@ -81,6 +82,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create() {
                                             std::move(handler),
                                             cookie,
                                             keyOnly,
+                                            includeXattrs,
                                             snapshotReqs,
                                             samplingConfig,
                                             std::move(name));

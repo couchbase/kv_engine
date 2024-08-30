@@ -2229,6 +2229,7 @@ static enum test_result test_range_scan_no_cancel(EngineIface* h) {
                                        {"z"},
                                        cb::rangescan::KeyOnly::Yes,
                                        {},
+                                       {},
                                        {}})
                     .first,
             "createRangeScan failed");

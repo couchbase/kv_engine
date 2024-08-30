@@ -216,13 +216,14 @@ public:
     /**
      * Check if the caller can progress the scan with the given id by doing
      * a privilege check.
+     * Also updates if the caller has access to system xattrs for the scan.
      *
      * @param id The id of the scan to check
      * @param cookie The cookie of the connection
      * @param engine required to call checkPrivilege
      * @return success if privileged
      */
-    cb::engine_errc hasPrivilege(
+    cb::engine_errc checkPrivileges(
             cb::rangescan::Id id,
             CookieIface& cookie,
             const EventuallyPersistentEngine& engine) const;

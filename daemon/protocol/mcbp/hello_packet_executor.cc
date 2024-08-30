@@ -90,6 +90,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::ClustermapChangeNotificationBrief:
         case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         case Feature::SubdocBinaryXattr:
+        case Feature::RangeScanIncludeXattr:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -147,6 +148,7 @@ void buildRequestVector(FeatureSet& requested,
             break;
         case Feature::SubdocDocumentMacroSupport:
         case Feature::VAttr:
+        case Feature::RangeScanIncludeXattr:
             // Needs XATTR
             if (!containsFeature(requested, Feature::XATTR)) {
                 throw std::invalid_argument(
@@ -367,6 +369,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::SELECT_BUCKET:
         case Feature::AltRequestSupport:
         case Feature::SyncReplication:
+        case Feature::RangeScanIncludeXattr:
             // Informative features don't need special handling
             added = true;
             break;

@@ -109,7 +109,9 @@ Options:
   --end                          Enable a range scan and use this as the end
                                  (required if --start)
   -d or --document-scan          Return key+meta+value (default mode is a key
-                                 scan)
+                                 scan, required if -x)
+  -x or --include-xattr          Return xattr with each document (default
+                                 is to exclude xattr)
   -c or --collection             Scan in this collection (default setting is to
                                  scan the default collection)
   --continue-item-limit          How many items each continue can return,
@@ -133,11 +135,13 @@ public:
                         std::vector<uint16_t> v,
                         std::shared_ptr<folly::EventBase> eb,
                         bool keyOnly,
+                        bool includeXattr,
                         size_t continueItemLimit,
                         std::chrono::milliseconds continueTimeLimit,
                         size_t continueByteLimit)
         : vbuckets(std::move(v)),
           keyOnly(keyOnly),
+          includeXattrs(includeXattr),
           continueItemLimit(continueItemLimit),
           continueTimeLimit(continueTimeLimit),
           continueByteLimit(continueByteLimit) {
@@ -398,6 +402,7 @@ protected:
     size_t max_vbuckets = 0;
     size_t totalScans = 0;
     bool keyOnly{false};
+    bool includeXattrs{false};
     size_t continueItemLimit{0};
     std::chrono::milliseconds continueTimeLimit{0};
     size_t continueByteLimit{0};
@@ -522,6 +527,7 @@ int main(int argc, char** argv) {
     std::string rStart, rEnd;
     std::string cid;
     bool value{false}; // default to key-scan
+    bool includeXattr{false}; // default to not include xattr
 
     // snapshot requirements
     bool snapshotRequirements{false};
@@ -572,6 +578,7 @@ int main(int argc, char** argv) {
             {"end", required_argument, nullptr, endOptionId},
             {"num-connections", required_argument, nullptr, 'n'},
             {"document-scan", no_argument, nullptr, 'd'},
+            {"include-xattr", no_argument, nullptr, 'x'},
             {"collection", required_argument, nullptr, 'c'},
             {"continue-item-limit",
              required_argument,
@@ -590,7 +597,7 @@ int main(int argc, char** argv) {
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "vX46dh:p:u:b:t:P:S:T:n:c:",
+                              "vXx46dh:p:u:b:t:P:S:T:n:c:",
                               long_options.data(),
                               nullptr)) != EOF) {
         switch (cmd) {
@@ -659,6 +666,9 @@ int main(int argc, char** argv) {
             break;
         case 'd':
             value = true;
+            break;
+        case 'x':
+            includeXattr = true;
             break;
         case 'c':
             cid.assign(optarg);
@@ -731,6 +741,10 @@ int main(int argc, char** argv) {
 
     if (!value) {
         jsonConfig["key_only"] = true;
+    }
+
+    if (includeXattr) {
+        jsonConfig["include_xattrs"] = true;
     }
 
     if (!cid.empty()) {
@@ -824,6 +838,7 @@ int main(int argc, char** argv) {
                         vbuckets,
                         event_base,
                         !value,
+                        includeXattr,
                         continueItemLimit,
                         continueTimeLimit,
                         continueByteLimit));

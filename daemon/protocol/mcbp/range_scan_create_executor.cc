@@ -11,6 +11,7 @@
 
 #include "engine_wrapper.h"
 #include "executors.h"
+#include "memcached/engine_error.h"
 
 #include <daemon/cookie.h>
 #include <daemon/memcached.h>
@@ -32,6 +33,26 @@ static cb::rangescan::KeyOnly getKeyOnly(const nlohmann::json& jsonObject) {
                                          : cb::rangescan::KeyOnly::No;
     }
     return rv;
+}
+
+static std::pair<cb::engine_errc, cb::rangescan::IncludeXattrs>
+getIncludeXattrs(Cookie& cookie, const nlohmann::json& jsonObject) {
+    auto rv = cb::rangescan::IncludeXattrs::No;
+
+    auto includeXattrs = cb::getOptionalJsonObject(
+            jsonObject, "include_xattrs", nlohmann::json::value_t::boolean);
+    if (includeXattrs) {
+        if (!cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_XATTR)) {
+            cookie.setErrorContext("Client does not support XATTRs");
+            return {cb::engine_errc::not_supported, {}};
+        }
+
+        rv = includeXattrs.value().get<bool>()
+                     ? cb::rangescan::IncludeXattrs::Yes
+                     : cb::rangescan::IncludeXattrs::No;
+    }
+
+    return {cb::engine_errc::success, rv};
 }
 
 static CollectionID getCollectionID(const nlohmann::json& jsonObject) {
@@ -207,13 +228,27 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             return {cb::engine_errc::invalid_arguments, {}};
         }
     }
+
+    auto keyOnly = getKeyOnly(parsed);
+    auto [err, includeXattrs] = getIncludeXattrs(cookie, parsed);
+    if (err != cb::engine_errc::success) {
+        return {err, {}};
+    }
+    if (includeXattrs == cb::rangescan::IncludeXattrs::Yes &&
+        keyOnly == cb::rangescan::KeyOnly::Yes) {
+        cookie.setErrorContext(
+                "cannot set key_only:true and include_xattrs:true");
+        return {cb::engine_errc::invalid_arguments, {}};
+    }
+
     return createRangeScan(cookie,
                            cb::rangescan::CreateParameters{
                                    req.getVBucket(),
                                    getCollectionID(parsed),
                                    cb::rangescan::KeyView{start, startType},
                                    cb::rangescan::KeyView{end, endType},
-                                   getKeyOnly(parsed),
+                                   keyOnly,
+                                   includeXattrs,
                                    snapshotReqs,
                                    samplingConfig,
                                    name});
