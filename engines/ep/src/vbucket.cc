@@ -347,6 +347,11 @@ std::optional<uint64_t> VBucket::getHighSeqnoOfCollections(
     for (auto& coll : filter) {
         auto handle = getManifest().lock(coll.first);
         if (!handle.valid()) {
+            EP_LOG_WARN(
+                    "VBucket::getHighSeqnoOfCollections {} could not lock "
+                    "manifest for {}",
+                    id,
+                    coll.first);
             return {};
         }
         auto collHighSeqno = handle.getHighSeqno();
