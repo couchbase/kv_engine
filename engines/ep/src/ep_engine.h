@@ -1169,6 +1169,8 @@ protected:
                                    const char* stat_key,
                                    int nkey,
                                    VBucketStatsDetailLevel detail);
+    cb::engine_errc doEncryptionKeyIdsStats(CookieIface& cookie,
+                                            const AddStatFn& add_stat);
     cb::engine_errc doHashStats(CookieIface& cookie, const AddStatFn& add_stat);
     cb::engine_errc doHashDump(CookieIface& cookie,
                                const AddStatFn& addStat,

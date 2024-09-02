@@ -450,8 +450,25 @@ static cb::engine_errc stat_bucket_stats(const std::string&, Cookie& cookie) {
     auto key = cookie.getRequest().getKeyString();
     auto value = cookie.getRequest().getValueString();
 
+    std::shared_ptr<StatsTask> task =
+            std::make_shared<StatsTaskBucketStats>(TaskId::Core_StatsBucketTask,
+                                                   cookie,
+                                                   std::string(key),
+                                                   std::string(value));
+    cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
+    ExecutorPool::get()->schedule(task);
+    return cb::engine_errc::would_block;
+}
+
+static cb::engine_errc stat_encryption_key_ids_executor(const std::string&,
+                                                        Cookie& cookie) {
+    auto key = cookie.getRequest().getKeyString();
+    auto value = cookie.getRequest().getValueString();
     std::shared_ptr<StatsTask> task = std::make_shared<StatsTaskBucketStats>(
-            cookie, std::string(key), std::string(value));
+            TaskId::Core_StatsBucketAuxIoTask,
+            cookie,
+            std::string(key),
+            std::string(value));
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
@@ -718,6 +735,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                 {StatGroupId::TasksAll, {true, stat_tasks_all_executor}},
                 {StatGroupId::ExternalAuthTimings,
                  {true, stat_external_auth_timings_executor}},
+                {StatGroupId::EncryptionKeyIds,
+                 {true, stat_encryption_key_ids_executor}},
                 {StatGroupId::Runtimes, {true, stat_runtimes_executor}},
                 {StatGroupId::Scheduler, {true, stat_scheduler_executor}}};
 

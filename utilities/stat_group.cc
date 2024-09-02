@@ -128,6 +128,12 @@ StatsGroupManager::StatsGroupManager()
                 false,
                 true},
                {StatGroupId::Dcp, "dcp", "Get DCP related stats", false, true},
+               {StatGroupId::EncryptionKeyIds,
+                "encryption-key-ids",
+                "Get the encryption key identifiers in use for the various "
+                "vbuckets",
+                true,
+                true},
                {StatGroupId::Eviction,
                 "eviction",
                 "Get eviction related stats",

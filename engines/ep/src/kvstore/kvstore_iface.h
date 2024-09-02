@@ -169,6 +169,12 @@ public:
     virtual void addStats(const AddStatFn& add_stat,
                           CookieIface& cookie) const = 0;
 
+    /// Get the Encryption Key Identifiers used by the provided VBucket
+    virtual std::pair<cb::engine_errc, nlohmann::json>
+    getVbucketEncryptionKeyIds(Vbid vb) const {
+        return {cb::engine_errc::not_supported, {}};
+    }
+
     /**
      * Request the specified statistic name from the kvstore.
      *

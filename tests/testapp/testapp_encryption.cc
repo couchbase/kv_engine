@@ -74,3 +74,32 @@ TEST_P(EncryptionTest, RotateEncryptionKeys) {
             cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 }
+
+TEST_P(EncryptionTest, TestEncryptionKeyIds) {
+    const auto magma = mcd_env->getTestBucket().getExtraConfig().find(
+                               "magma") != std::string_view::npos;
+    if (magma) {
+        // Not implemented yet
+        GTEST_SKIP();
+    }
+
+    nlohmann::json stats;
+    adminConnection->executeInBucket(bucketName, [&stats](auto& conn) {
+        conn.stats([&stats](auto& k,
+                            auto& v) { stats = nlohmann::json::parse(v); },
+                   "encryption-key-ids");
+    });
+
+    // The returned stats is something like:
+    //     {
+    //         "38f04f51-0f76-47a4-b1aa-23f6e9f909f4" : [0],
+    //         "0c7a52b5-7de1-4e96-883e-0d42393ce4c4" : [0, 1]
+    //     }
+    // but we only have a single vbucket in memcached testapp which means
+    // we get an array of a single element containing '0'
+    EXPECT_FALSE(stats.empty());
+    for (const auto& key : stats) {
+        ASSERT_TRUE(key.is_array()) << stats.dump();
+        EXPECT_EQ(0, key.front().get<int>()) << stats.dump();
+    }
+}

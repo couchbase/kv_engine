@@ -100,7 +100,10 @@ private:
  */
 class StatsTaskBucketStats : public StatsTask {
 public:
-    StatsTaskBucketStats(Cookie& cookie, std::string key, std::string value);
+    StatsTaskBucketStats(TaskId taskId,
+                         Cookie& cookie,
+                         std::string key,
+                         std::string value);
     std::string getDescription() const override;
     std::chrono::microseconds maxExpectedDuration() const override;
 

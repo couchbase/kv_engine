@@ -42,6 +42,7 @@ enum class StatGroupId {
     // ep engine
     Dcpagg,
     Dcp,
+    EncryptionKeyIds,
     Eviction,
     Hash,
     Vbucket,

@@ -2043,6 +2043,29 @@ StorageProperties CouchKVStore::getStorageProperties() const {
     return rv;
 }
 
+std::pair<cb::engine_errc, nlohmann::json>
+CouchKVStore::getVbucketEncryptionKeyIds(Vbid vb) const {
+    DbHolder db(*this);
+    couchstore_error_t err = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (err != COUCHSTORE_SUCCESS) {
+        logOpenError(__func__,
+                     spdlog::level::level_enum::warn,
+                     err,
+                     vb,
+                     db.getFilename(),
+                     COUCHSTORE_OPEN_FLAG_RDONLY);
+        return {cb::engine_errc::failed, {}};
+    }
+
+    if (cb::couchstore::isEncrypted(*db)) {
+        return {cb::engine_errc::success,
+                cb::couchstore::getEncryptionKeyId(*db)};
+    }
+
+    // Not encrypted
+    return {cb::engine_errc::success, {}};
+}
+
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
     using namespace std::string_view_literals;
     if (name == "failure_get"sv) {

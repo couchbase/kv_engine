@@ -298,6 +298,9 @@ public:
      */
     void pendingTasks() override;
 
+    std::pair<cb::engine_errc, nlohmann::json> getVbucketEncryptionKeyIds(
+            Vbid vb) const override;
+
     bool getStat(std::string_view name, size_t& value) const override;
 
     couchstore_error_t fetchDoc(Db* db,

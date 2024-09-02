@@ -139,6 +139,11 @@ public:
                          const std::string& paramValue,
                          cb::mcbp::request::SetParamPayload::Type paramType);
 
+    /// Get the extra config provided to the test bcuket
+    std::string_view getExtraConfig() const {
+        return extraConfig;
+    }
+
 protected:
     static void createEwbBucket(const std::string& name,
                                 BucketType type,

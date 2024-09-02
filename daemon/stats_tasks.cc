@@ -132,12 +132,11 @@ bool StatsTask::run() {
     return false;
 }
 
-StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
+StatsTaskBucketStats::StatsTaskBucketStats(TaskId taskId,
+                                           Cookie& cookie,
                                            std::string key,
                                            std::string value)
-    : StatsTask(TaskId::Core_StatsBucketTask, cookie),
-      key(std::move(key)),
-      value(std::move(value)) {
+    : StatsTask(taskId, cookie), key(std::move(key)), value(std::move(value)) {
 }
 
 void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
