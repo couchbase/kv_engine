@@ -87,39 +87,10 @@ static void external_append_stats(std::string_view key,
 // thread.
 static AddStatFn appendStatsFn = external_append_stats;
 
-/**
- * Handler for the <code>stats reset</code> command.
- *
- * Clear the global and the connected buckets stats.
- *
- * It is possible to clear a subset of the stats by using its submodule.
- * The following submodules exists:
- * <ul>
- *    <li>timings</li>
- * </ul>
- *
- * @todo I would have assumed that we wanted to clear the stats from
- *       <b>all</b> of the buckets?
- *
- * @param arg - should be empty
- * @param cookie the command context
- */
-static cb::engine_errc stat_reset_executor(const std::string& arg,
-                                           Cookie& cookie) {
-    if (arg.empty()) {
-        stats_reset(cookie);
-        stats.auth_cmds = 0;
-        stats.auth_errors = 0;
-        bucket_reset_stats(cookie);
-        all_buckets[0].timings.reset();
-        BucketManager::instance().aggregatedTimings.reset();
-        cookie.getConnection().getBucket().timings.reset();
-        return cb::engine_errc::success;
-    }
-    if (arg == "timings") {
-        // Nuke the command timings section for the connected bucket
-        cookie.getConnection().getBucket().timings.reset();
-        return cb::engine_errc::success;
+/// Handler for the <code>stats reset</code> command - no longer supported
+static cb::engine_errc stat_reset_executor(const std::string& arg, Cookie&) {
+    if (arg.empty() || arg == "timings") {
+        return cb::engine_errc::not_supported;
     }
     return cb::engine_errc::invalid_arguments;
 }

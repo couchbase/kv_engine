@@ -2136,15 +2136,6 @@
         "added": "7.0.0"
     },
     {
-        "key": "stat_reset",
-        "description": "Timestamp when the stats was reset",
-        "unit": "none",
-        "added": "7.0.0"
-    },
-/* TODO: String indicating when stats were reset. Change
- *  to a numeric stat for Prometheus?
- */
-    {
         "key": "time",
         "description" : "The servers current time (seconds since January 1st, 1970 at 00:00:00 UTC)",
         "unit": "seconds",
@@ -2252,7 +2243,7 @@
     },
     {
         "key": "total_connections",
-        "description": "The total number of connections to this system since the process started (or reset)",
+        "description": "The total number of connections to this system since the process started",
         "unit": "none",
         "type": "counter",
         "added": "7.0.0"

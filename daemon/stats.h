@@ -154,18 +154,18 @@ struct thread_stats {
 };
 
 /**
- * Global stats.
+ * Stats used by the memcached core
  */
-struct stats {
+struct CoreStats {
     /** The current number of connections to the server */
-    cb::RelaxedAtomic<unsigned int> curr_conns;
+    cb::RelaxedAtomic<unsigned int> curr_conns{0};
 
     size_t getCurrConnections() const {
         return curr_conns.load();
     }
 
     /// The number of system connections
-    cb::RelaxedAtomic<unsigned int> system_conns;
+    cb::RelaxedAtomic<unsigned int> system_conns{0};
 
     size_t getSystemConnections() const {
         return system_conns.load();
@@ -176,18 +176,18 @@ struct stats {
     }
 
     /** The total number of connections to the server since start (or reset) */
-    cb::RelaxedAtomic<unsigned int> total_conns;
+    cb::RelaxedAtomic<unsigned int> total_conns{0};
 
     /** The current number of allocated connection objects */
-    cb::RelaxedAtomic<unsigned int> conn_structs;
+    cb::RelaxedAtomic<unsigned int> conn_structs{0};
 
     /** The number of times I reject a client */
-    cb::RelaxedAtomic<uint64_t> rejected_conns;
+    cb::RelaxedAtomic<uint64_t> rejected_conns{0};
 
     /** The number of auth commands sent */
-    cb::RelaxedAtomic<uint64_t> auth_cmds;
+    cb::RelaxedAtomic<uint64_t> auth_cmds{0};
     /** The number of authentication errors */
-    cb::RelaxedAtomic<uint64_t> auth_errors;
+    cb::RelaxedAtomic<uint64_t> auth_errors{0};
 
     // ! Histograms of various task wait times, one per Task.
     std::array<Hdr1sfMicroSecHistogram, static_cast<int>(TaskId::TASK_COUNT)>
@@ -198,7 +198,7 @@ struct stats {
             taskRuntimeHistogram;
 };
 
-extern stats stats;
+extern CoreStats stats;
 
 class Connection;
 struct thread_stats* get_thread_stats(Connection* c);
@@ -307,7 +307,4 @@ cb::engine_errc server_prometheus_metering(
 #define STATS_MISS(conn, op) \
     STATS_TWO(conn, op##_misses, cmd_##op)
 
-std::string getStatsResetTime();
-
 class Cookie;
-void stats_reset(Cookie& cookie);
