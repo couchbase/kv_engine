@@ -583,13 +583,11 @@ struct EngineIface {
             const AddStatFn& add_stat,
             const CheckYieldFn& check_yield) = 0;
 
-    /**
-     * Get statistics from the engine (overload with no yielding support).
-     */
-    [[nodiscard]] virtual cb::engine_errc get_stats(CookieIface& cookie,
-                                                    std::string_view key,
-                                                    std::string_view value,
-                                                    const AddStatFn& add_stat);
+    /// Get statistics from the engine (overload with no yielding support).
+    [[nodiscard]] cb::engine_errc get_stats(CookieIface& cookie,
+                                            std::string_view key,
+                                            std::string_view value,
+                                            const AddStatFn& add_stat);
 
     /**
      * Get statistics for Prometheus exposition from the engine.
