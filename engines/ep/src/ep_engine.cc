@@ -4308,7 +4308,7 @@ struct ConnAggStatBuilder {
      * If the connection name does not follow this pattern,
      * returns nullptr.
      *
-     * @param tc connection
+     * @param name connection name
      * @return counter for the given connection, or nullptr
      */
     ConnCounter* getCounterForConnType(std::string_view name) {
@@ -4317,6 +4317,21 @@ struct ConnAggStatBuilder {
         size_t pos1 = name.find(':');
         if (pos1 == std::string_view::npos) {
             return nullptr;
+        }
+
+        // Some connectors use the format:
+        // `"i":"unique-information","a":"user-agent"`
+        // user-agent starts with the connector name followed by a slash,
+        // version number, and other details.
+        if (pos1 + 1 < name.size() && name[pos1 + 1] == '"') {
+            auto posKey = name.find(R"("a":")");
+            if (posKey != std::string_view::npos) {
+                auto userAgent = name.substr(posKey + 5);
+                // Cut before the slash or double-quote.
+                // If not found the whole will be used.
+                userAgent = userAgent.substr(0, userAgent.find_first_of("\"/"));
+                return &counters[std::string(userAgent)];
+            }
         }
 
         name.remove_prefix(pos1 + 1);
