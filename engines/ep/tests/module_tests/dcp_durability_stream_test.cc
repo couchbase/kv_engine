@@ -4433,7 +4433,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
     engine->getEpStats().setMaxDataSize(size);
 
     // And process the unacked bytes
-    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Marker and Commit acked
@@ -4524,7 +4523,6 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
     engine->getEpStats().setMaxDataSize(size);
 
     // And process unacked bytes
-    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Marker and Commit bytes acked

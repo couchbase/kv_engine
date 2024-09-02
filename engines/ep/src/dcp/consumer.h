@@ -419,15 +419,6 @@ protected:
     void notifyVbucketReady(Vbid vbucket);
 
     /**
-     * Observes the memory state of the node and triggers buffer-ack of unacked
-     * DCP bytes for the given stream when the system recovers from OOM.
-     *
-     * @return ProcessUnackedBytesResult, see struct definition for details
-     */
-    ProcessUnackedBytesResult processUnackedBytes(
-            std::shared_ptr<PassiveStream> stream);
-
-    /**
      * This function is called when an addStream command gets a rollback
      * error from the producer.
      *

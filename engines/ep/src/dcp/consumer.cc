@@ -1302,8 +1302,16 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueBackoff += backoffs;
 }
 
-ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
-        std::shared_ptr<PassiveStream> stream) {
+ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
+    std::shared_ptr<PassiveStream> stream;
+    Vbid vbid;
+    while (bufferedVBQueue.popFront(vbid) && !stream) {
+        stream = findStream(vbid);
+    }
+    if (!stream) {
+        return all_processed;
+    }
+
     ProcessUnackedBytesResult rval = all_processed;
     uint32_t bytesProcessed = 0;
     do {
@@ -1312,7 +1320,6 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
             backoffs++;
             bufferedVBQueue.pushUnique(stream->getVBucket());
             return more_to_process;
-
         case KVBucket::ReplicationThrottleStatus::Disconnect:
             backoffs++;
             bufferedVBQueue.pushUnique(stream->getVBucket());
@@ -1320,6 +1327,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
                     "{} Processor task indicating disconnection "
                     "as there is no memory to complete replication",
                     stream->getVBucket());
+            setDisconnect();
             return stop_processing;
 
         case KVBucket::ReplicationThrottleStatus::Process:
@@ -1343,31 +1351,6 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes(
     }
 
     return rval;
-}
-
-ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
-    ProcessUnackedBytesResult process_ret = all_processed;
-    Vbid vbucket = Vbid(0);
-    while (bufferedVBQueue.popFront(vbucket)) {
-        auto stream = findStream(vbucket);
-
-        if (!stream) {
-            continue;
-        }
-
-        process_ret = processUnackedBytes(stream);
-
-        switch (process_ret) {
-        case all_processed:
-            return more_to_process;
-        case more_to_process:
-            return process_ret;
-        case stop_processing:
-            setDisconnect();
-            return process_ret;
-        }
-    }
-    return process_ret;
 }
 
 void DcpConsumer::notifyVbucketReady(Vbid vbucket) {

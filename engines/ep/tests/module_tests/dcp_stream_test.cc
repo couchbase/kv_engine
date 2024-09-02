@@ -7890,8 +7890,8 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
 
     // System recovers from OOM
     engine->getConfiguration().setMutationMemRatio(1);
-    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
-    // All uncaked bytes already processed at stream close, we shouldn't be
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
+    // All unacked bytes already processed at stream close, we shouldn't be
     // seeing any variation on counters.
     // Note: Before the fix this fails as (freedBytes = 2 * messageBytes)
     EXPECT_EQ(messageBytes, control.getFreedBytes());
