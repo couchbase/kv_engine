@@ -71,7 +71,7 @@ protected:
     // Test that if we want to evict items from seqno X, but have a meta-data
     // item also with seqno X, and a cursor is pointing to this meta data item,
     // we do not evict.
-    void testDontExpelIfCursorAtMetadataItemWithSameSeqno();
+    void testDontExpelIfCursorAtMetadataItemWithSameSeqno(bool diskCheckpoint);
 
     // Test that if we have a item after a mutation with the same seqno then we
     // will move the expel point backwards to the mutation (and possibly

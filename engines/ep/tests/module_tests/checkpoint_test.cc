@@ -2894,19 +2894,24 @@ TEST_P(ReplicaCheckpointTest, ExpelCursorPointingToChkptStartDisk) {
 // Test that if we want to evict items from seqno X, but have a meta-data item
 // also with seqno X, and a cursor is pointing to this meta data item, we do not
 // evict.
-void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
+void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno(
+        bool diskCheckpoint) {
     const int itemCount{2};
 
     for (auto ii = 0; ii < itemCount; ++ii) {
         EXPECT_TRUE(this->queueNewItem("key" + std::to_string(ii)));
     }
+    ASSERT_EQ(1002, this->manager->getHighSeqno());
 
-    // Move the persistence cursor to the end to get it of the way.
+    // Move the cursor to the end to get it of the way. This is persistence
+    // cursor or cursor added only on ephemeral.
     bool isLastMutationItem{true};
-    for (auto ii = 0; ii < 3; ++ii) {
-        auto item = this->manager->nextItem(
-                this->manager->getPersistenceCursor(), isLastMutationItem);
+    for (auto ii = 0; ii < (diskCheckpoint ? 4 : 2); ++ii) {
+        this->manager->nextItem(cursor, isLastMutationItem);
     }
+    ASSERT_EQ(
+            1002,
+            this->manager->nextItem(cursor, isLastMutationItem)->getBySeqno());
 
     // Add a cursor pointing to the dummy
     std::string dcpCursor1(DCP_CURSOR_PREFIX + std::to_string(1));
@@ -2943,12 +2948,12 @@ void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
 }
 
 TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoMemory) {
-    testDontExpelIfCursorAtMetadataItemWithSameSeqno();
+    testDontExpelIfCursorAtMetadataItemWithSameSeqno(false);
 }
 
 TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
     manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
-    testDontExpelIfCursorAtMetadataItemWithSameSeqno();
+    testDontExpelIfCursorAtMetadataItemWithSameSeqno(true);
 }
 
 // Test estimate for the amount of memory recovered by expelling is correct.
