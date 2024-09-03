@@ -136,6 +136,34 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
     }
 }
 
+void BucketLogger::traceWithContext(std::string_view msg,
+                                    cb::logger::Json ctx) {
+    logWithContext(spdlog::level::trace, msg, std::move(ctx));
+}
+
+void BucketLogger::debugWithContext(std::string_view msg,
+                                    cb::logger::Json ctx) {
+    logWithContext(spdlog::level::debug, msg, std::move(ctx));
+}
+
+void BucketLogger::infoWithContext(std::string_view msg, cb::logger::Json ctx) {
+    logWithContext(spdlog::level::info, msg, std::move(ctx));
+}
+
+void BucketLogger::warnWithContext(std::string_view msg, cb::logger::Json ctx) {
+    logWithContext(spdlog::level::warn, msg, std::move(ctx));
+}
+
+void BucketLogger::errorWithContext(std::string_view msg,
+                                    cb::logger::Json ctx) {
+    logWithContext(spdlog::level::err, msg, std::move(ctx));
+}
+
+void BucketLogger::criticalWithContext(std::string_view msg,
+                                       cb::logger::Json ctx) {
+    logWithContext(spdlog::level::critical, msg, std::move(ctx));
+}
+
 std::shared_ptr<BucketLogger> BucketLogger::createBucketLogger(
         const std::string& name, const std::string& p) {
     // Create a unique name using the engine name if available

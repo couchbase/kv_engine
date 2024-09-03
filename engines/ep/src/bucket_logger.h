@@ -162,6 +162,18 @@ public:
     template <typename T>
     void critical(const T& msg);
 
+    void traceWithContext(std::string_view msg, cb::logger::Json ctx);
+
+    void debugWithContext(std::string_view msg, cb::logger::Json ctx);
+
+    void infoWithContext(std::string_view msg, cb::logger::Json ctx);
+
+    void warnWithContext(std::string_view msg, cb::logger::Json ctx);
+
+    void errorWithContext(std::string_view msg, cb::logger::Json ctx);
+
+    void criticalWithContext(std::string_view msg, cb::logger::Json ctx);
+
     /**
      * Creates a BucketLogger with the given name and then register it in the
      * spdlog registry within the logging library.
