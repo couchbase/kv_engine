@@ -44,6 +44,7 @@ protected:
      *
      * @param stream The stream associated with the scan
      * @param bytesRead how many bytes read in the scan
+     * @param keysScanned how many keys scanned in the scan
      * @param startSeqno start of the scan range (used for logging)
      * @param endSeqno end of the scan range (used for logging)
      * @param maxSeqno This is the highest seqno seen by KVStore when performing
@@ -55,6 +56,7 @@ protected:
      */
     void seqnoScanComplete(ActiveStream& stream,
                            size_t bytesRead,
+                           size_t keysScanned,
                            uint64_t startSeqno,
                            uint64_t endSeqno,
                            uint64_t maxSeqno);

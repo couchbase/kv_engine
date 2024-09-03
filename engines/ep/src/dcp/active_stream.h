@@ -266,10 +266,12 @@ public:
      *        for this backfill)
      * @param diskBytesRead The total number of bytes read from disk during
      *        this backfill.
+     * @param keysScanned The total number of keys scanned during this backfill.
      */
     void completeBackfill(uint64_t maxScanSeqno,
                           std::chrono::steady_clock::duration runtime,
-                          size_t diskBytesRead);
+                          size_t diskBytesRead,
+                          size_t keysScanned);
 
     /**
      * Queues a single "Out of Seqno Order" marker with the 'end' flag
@@ -283,10 +285,12 @@ public:
      *        for this backfill).
      * @param diskBytesRead The total number of bytes read from disk during
      *        this backfill.
+     * @param keysScanned The total number of keys scanned during this backfill.
      */
     void completeOSOBackfill(uint64_t maxScanSeqno,
                              std::chrono::steady_clock::duration runtime,
-                             size_t diskBytesRead);
+                             size_t diskBytesRead,
+                             size_t keysScanned);
 
     bool isCompressionEnabled() const;
 
@@ -646,7 +650,8 @@ protected:
     void completeBackfillInner(BackfillType backfillType,
                                uint64_t maxSeqno,
                                std::chrono::steady_clock::duration runtime,
-                               size_t diskBytesRead);
+                               size_t diskBytesRead,
+                               size_t keysScanned);
 
     // The current state the stream is in.
     // Atomic to allow reads without having to acquire the streamMutex.

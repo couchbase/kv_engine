@@ -2774,6 +2774,7 @@ static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
                 std::to_string(UINT16_MAX));
     }
 
+    sctx->keysScanned++;
     sctx->diskBytesRead += docinfo->id.size + docinfo->rev_meta.size;
 
     // Whilst couchstore supports a NO_DELETES option which would not even

@@ -656,19 +656,25 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
 
 void ActiveStream::completeBackfill(uint64_t maxScanSeqno,
                                     std::chrono::steady_clock::duration runtime,
-                                    size_t diskBytesRead) {
-    completeBackfillInner(
-            BackfillType::InOrder, maxScanSeqno, runtime, diskBytesRead);
+                                    size_t diskBytesRead,
+                                    size_t keysScanned) {
+    completeBackfillInner(BackfillType::InOrder,
+                          maxScanSeqno,
+                          runtime,
+                          diskBytesRead,
+                          keysScanned);
 }
 
 void ActiveStream::completeOSOBackfill(
         uint64_t maxScanSeqno,
         std::chrono::steady_clock::duration runtime,
-        size_t diskBytesRead) {
+        size_t diskBytesRead,
+        size_t keysScanned) {
     completeBackfillInner(BackfillType::OutOfSequenceOrder,
                           maxScanSeqno,
                           runtime,
-                          diskBytesRead);
+                          diskBytesRead,
+                          keysScanned);
     firstMarkerSent = true;
 }
 
@@ -2190,7 +2196,8 @@ void ActiveStream::completeBackfillInner(
         BackfillType backfillType,
         uint64_t maxScanSeqno,
         std::chrono::steady_clock::duration runtime,
-        size_t diskBytesRead) {
+        size_t diskBytesRead,
+        size_t keysScanned) {
     {
         std::lock_guard<std::mutex> lh(streamMutex);
 
@@ -2252,17 +2259,18 @@ void ActiveStream::completeBackfillInner(
             const auto runtimeSecs =
                     std::chrono::duration<double>(runtime).count();
             log(spdlog::level::level_enum::info,
-                "{} {}Backfill complete. {} items consisting of {} bytes read "
-                "from disk, "
-                "{} items from memory, lastReadSeqno:{}, "
+                "{} {}Backfill complete. Per-backfill: {} keys scanned "
+                "consisting of {} bytes read from disk, "
+                "Active Stream: {} items backfilled from disk, "
+                "{} items backfilled from memory, lastReadSeqno:{}, "
                 "lastSentSeqnoAdvance:{}, lastSentSnapStartSeqno:{}, "
                 "lastSentSnapEndSeqno:{}, pendingBackfill:{}, "
-                "numBackfillPauses:{}. Total runtime {} "
-                "({:.0f} item/s, {})",
+                "numBackfillPauses:{}. Total runtime {} ({:.0f} item/s, {})",
                 logPrefix,
                 backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
-                diskItemsRead,
+                keysScanned,
                 diskBytesRead,
+                diskItemsRead,
                 backfillItems.memory.load(),
                 lastReadSeqno.load(),
                 lastSentSeqnoAdvance.load(),

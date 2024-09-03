@@ -2321,6 +2321,7 @@ ScanStatus MagmaKVStore::scanOne(
                 std::to_string(std::numeric_limits<uint16_t>::max()));
     }
 
+    ctx.keysScanned++;
     ctx.diskBytesRead += keySlice.Len() + metaSlice.Len() + valSlice.Len();
 
     CacheLookup lookup(makeDiskDocKey(keySlice), seqno, ctx.vbid);

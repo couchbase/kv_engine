@@ -235,6 +235,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
 void DCPBackfillBySeqnoDisk::complete(ActiveStream& stream) {
     seqnoScanComplete(stream,
                       scanCtx ? scanCtx->diskBytesRead : 0,
+                      scanCtx ? scanCtx->keysScanned : 0,
                       startSeqno,
                       endSeqno,
                       scanCtx ? static_cast<BySeqnoScanContext*>(scanCtx.get())

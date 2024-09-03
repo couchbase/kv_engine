@@ -259,6 +259,7 @@ void DCPBackfillDiskToStream::historyScanComplete(ActiveStream& stream) {
     auto& historyScanCtx = *historyScan;
     seqnoScanComplete(stream,
                       historyScanCtx.scanCtx->diskBytesRead,
+                      historyScanCtx.scanCtx->keysScanned,
                       historyScanCtx.snapshotInfo.range.getStart(),
                       historyScanCtx.snapshotInfo.range.getEnd(),
                       historyScanCtx.scanCtx->lastReadSeqno);
@@ -266,11 +267,12 @@ void DCPBackfillDiskToStream::historyScanComplete(ActiveStream& stream) {
 
 void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
                                                 size_t bytesRead,
+                                                size_t keysScanned,
                                                 uint64_t startSeqno,
                                                 uint64_t endSeqno,
                                                 uint64_t maxSeqno) {
     runtime += (std::chrono::steady_clock::now() - runStart);
-    stream.completeBackfill(maxSeqno, runtime, bytesRead);
+    stream.completeBackfill(maxSeqno, runtime, bytesRead, keysScanned);
     stream.log(spdlog::level::level_enum::debug,
                "({}) Backfill task ({} to {}) complete",
                vbid,

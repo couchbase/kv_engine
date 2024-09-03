@@ -457,6 +457,10 @@ public:
      */
     size_t diskBytesRead{0};
 
+    // The number of keys read from disk during this scan.
+    // System events and deleted items are also included.
+    size_t keysScanned{0};
+
     std::unique_ptr<StatusCallback<GetValue>> callback;
     std::unique_ptr<StatusCallback<CacheLookup>> lookup;
 };
