@@ -7661,6 +7661,13 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                  0));
 }
 
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         CDCPassiveStreamTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+#endif /*EP_USE_MAGMA*/
+
 void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
         DcpResponse::Event event, bool hasValue, OOMLevel oomLevel) {
     auto& vb = *store->getVBucket(vbid);
@@ -7945,10 +7952,3 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
     notifyAndStepToCheckpoint(*producer, producers, ClientOpcode::DcpMutation);
     destroy_mock_cookie(cookie);
 }
-
-INSTANTIATE_TEST_SUITE_P(Persistent,
-                         CDCPassiveStreamTest,
-                         STParameterizedBucketTest::magmaConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
-
-#endif /*EP_USE_MAGMA*/
