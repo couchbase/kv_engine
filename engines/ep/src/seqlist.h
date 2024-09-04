@@ -115,6 +115,8 @@ protected:
         virtual uint64_t getMaxVisibleSeqno() const = 0;
 
         virtual uint64_t getHighCompletedSeqno() const = 0;
+
+        virtual uint64_t getHighestPurgedDeletedSeqno() const = 0;
     };
 
 public:
@@ -210,6 +212,8 @@ public:
         uint64_t getMaxVisibleSeqno() const;
 
         uint64_t getHighCompletedSeqno() const;
+
+        uint64_t getHighestPurgedDeletedSeqno() const;
 
     private:
         /* Pointer to the abstract class of range iterator implementation */

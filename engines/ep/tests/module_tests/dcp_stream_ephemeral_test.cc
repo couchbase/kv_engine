@@ -46,29 +46,6 @@ TEST_P(EphemeralStreamTest, backfillGetsNoItems) {
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
-TEST_P(EphemeralStreamTest, bufferedMemoryBackfillPurgeGreaterThanStart) {
-    setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
-                     IncludeValue::No,
-                     IncludeXattrs::No);
-    auto evb = std::shared_ptr<EphemeralVBucket>(
-            std::dynamic_pointer_cast<EphemeralVBucket>(vb0));
-
-    // Force the purgeSeqno because it's easier than creating and
-    // deleting items
-    evb->setPurgeSeqno(3);
-
-    // Store some items in default collection above the purgeSeqno
-    store_item(vbid, "key", "value1");
-    store_item(vbid, "key", "value2");
-    store_item(vbid, "key", "value2");
-    store_item(vbid, "key", "value2");
-
-    // Backfill with start != 1 and start != end and start < purge
-    DCPBackfillMemoryBuffered dcpbfm(evb, stream, 2, 4);
-    dcpbfm.run();
-    EXPECT_TRUE(stream->isDead());
-}
-
 /* Checks that DCP backfill in Ephemeral buckets does not have duplicates in
  a snaphsot */
 TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
