@@ -2341,15 +2341,7 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
     ScopeTimer1<TracerStopwatch> timer(
             *getCookie(), Code::StreamGetCollectionHighSeq, true);
 
-    auto collHighSeqno = vbucket.getHighSeqnoOfCollections(filter);
-    if (!collHighSeqno) {
-        logger->warn(
-                "({}) DcpProducer::getHighSeqnoOfCollections(): failed "
-                "to find match for {} in the manifest",
-                vbucket.getId(),
-                filter);
-    }
-    return collHighSeqno;
+    return vbucket.getHighSeqnoOfCollections(filter);
 }
 
 void DcpProducer::setBackfillByteLimit(size_t bytes) {

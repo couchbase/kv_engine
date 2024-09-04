@@ -53,3 +53,7 @@ uint64_t SequenceList::RangeIterator::getMaxVisibleSeqno() const {
 uint64_t SequenceList::RangeIterator::getHighCompletedSeqno() const {
     return rangeIterImpl->getHighCompletedSeqno();
 }
+
+uint64_t SequenceList::RangeIterator::getHighestPurgedDeletedSeqno() const {
+    return rangeIterImpl->getHighestPurgedDeletedSeqno();
+}

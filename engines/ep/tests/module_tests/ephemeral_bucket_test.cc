@@ -16,6 +16,7 @@
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/backfill-manager.h"
+#include "dcp/backfill_memory.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "ephemeral_bucket.h"
@@ -721,6 +722,13 @@ protected:
                 {{"topology", nlohmann::json::array({{"active", "replica"}})}});
     }
 
+    void TearDown() override {
+        // Destroy before engine.
+        stream.reset();
+        producer.reset();
+        SingleThreadedKVBucketTest::TearDown();
+    }
+
     bool checkAllPurged(uint64_t expPurgeUpto) {
         for (int vbid = 0; vbid < numVbs; ++vbid) {
             if (store->getVBucket(Vbid(vbid))->getPurgeSeqno() < expPurgeUpto) {
@@ -729,7 +737,38 @@ protected:
         }
         return true;
     }
+
+    EphemeralVBucket& getVBucket(Vbid vbid) {
+        return dynamic_cast<EphemeralVBucket&>(*store->getVBucket(vbid));
+    }
+
+    std::shared_ptr<MockActiveStream> createStream(Vbid vbid) {
+        if (!producer) {
+            /// Create producer, stream, backfill.
+            producer = std::make_shared<MockDcpProducer>(*engine,
+                                                         cookie,
+                                                         "test_producer",
+                                                         /*flags*/ 0,
+                                                         /*startTask*/ false);
+        }
+        stream = std::make_shared<MockActiveStream>(engine.get(),
+                                                    producer,
+                                                    /*flags*/ 0,
+                                                    /*opaque*/ 0,
+                                                    getVBucket(vbid),
+                                                    /*st_seqno*/ 0,
+                                                    /*en_seqno*/ ~0,
+                                                    /*vb_uuid*/ 0xabcd,
+                                                    /*snap_start_seqno*/ 0,
+                                                    /*snap_end_seqno*/ ~0,
+                                                    IncludeValue::No,
+                                                    IncludeXattrs::No);
+        return stream;
+    }
+
     const int numVbs = 4;
+    std::shared_ptr<MockDcpProducer> producer;
+    std::shared_ptr<MockActiveStream> stream;
 };
 
 TEST_F(SingleThreadedEphemeralPurgerTest, PurgeAcrossAllVbuckets) {
@@ -944,4 +983,124 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
     EXPECT_EQ(3, vb.getHighSeqno());
     EXPECT_EQ(1, vb.getSeqListNumItems());
     EXPECT_EQ(0, vb.getSeqListNumDeletedItems());
+}
+
+// Verify that the backfill create uses the LinkedList purgeSeqno when the
+// ReadRange is created. The purgeSeqno returned by VBucket::getPurgeSeqno is
+// backed by a separate field which may be out of date.
+TEST_F(SingleThreadedEphemeralPurgerTest,
+       bufferedMemoryBackfillPurgeGreaterThanStart) {
+    auto& vb = getVBucket(vbid);
+
+    {
+        store_item(vbid, makeStoredDocKey("key1"), ""); // seqno 1
+        auto item2 = store_item(vbid, makeStoredDocKey("key2"), ""); // seqno 2
+
+        // Need range lock for the tombstone to be created.
+        auto itr = vb.makeRangeIterator(/*isBackfill*/ true);
+        ASSERT_TRUE(itr);
+
+        uint64_t cas = 0;
+        mutation_descr_t mutation_descr;
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->getKVBucket()->deleteItem(item2.getDocKey(),
+                                                    cas,
+                                                    vbid,
+                                                    cookie,
+                                                    {},
+                                                    /*itemMeta*/ nullptr,
+                                                    mutation_descr));
+
+        store_item(vbid, makeStoredDocKey("key3"), ""); // seqno 4
+        store_item(vbid, makeStoredDocKey("key4"), ""); // seqno 5
+    }
+
+    // Purge deletes.
+    runEphemeralHTCleaner();
+
+    ASSERT_EQ(5, vb.getHighSeqno());
+    ASSERT_EQ(3, vb.getPurgeSeqno());
+
+    /// Create producer, stream, backfill.
+    auto stream = createStream(vbid);
+    DCPBackfillMemoryBuffered dcpbfm(
+            std::dynamic_pointer_cast<EphemeralVBucket>(
+                    store->getVBucket(vbid)),
+            stream,
+            2, // purgeTombstones() has just purged seqno 3
+            ~0);
+
+    dcpbfm.run();
+
+    EXPECT_TRUE(stream->isDead()) << "Expected to have set the stream to "
+                                     "dead as we need to rollback";
+}
+
+// Verify that the backfill create uses the LinkedList purgeSeqno when the
+// ReadRange is created. The purgeSeqno returned by VBucket::getPurgeSeqno is
+// backed by a separate field which may be out of date.
+TEST_F(SingleThreadedEphemeralPurgerTest,
+       bufferedMemoryBackfillCreateDuringPurgeRace) {
+    auto& vb = getVBucket(vbid);
+
+    {
+        store_item(vbid, makeStoredDocKey("key1"), ""); // seqno 1
+        auto item2 = store_item(vbid, makeStoredDocKey("key2"), ""); // seqno 2
+
+        // Need range lock for the tombstone to be created.
+        auto itr = vb.makeRangeIterator(/*isBackfill*/ true);
+        ASSERT_TRUE(itr);
+
+        uint64_t cas = 0;
+        mutation_descr_t mutation_descr;
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->getKVBucket()->deleteItem(item2.getDocKey(),
+                                                    cas,
+                                                    vbid,
+                                                    cookie,
+                                                    {},
+                                                    /*itemMeta*/ nullptr,
+                                                    mutation_descr));
+
+        store_item(vbid, makeStoredDocKey("key3"), ""); // seqno 4
+        store_item(vbid, makeStoredDocKey("key4"), ""); // seqno 5
+    }
+
+    ASSERT_EQ(5, vb.getHighSeqno());
+    ASSERT_EQ(5, vb.getSeqListNumItems());
+    ASSERT_EQ(1, vb.getSeqListNumDeletedItems())
+            << "Expected to have 1 deleted item in the SeqList";
+    ASSERT_EQ(0, vb.getPurgeSeqno());
+
+    bool purgeHookRan = false;
+    // Use the postPurgeTombstonesHook which runs after purgeTombstones() but
+    // before we've updated the VBucket::setPurgeSeqno.
+    vb.postPurgeTombstonesHook = [&]() {
+        auto stream = createStream(vbid);
+        DCPBackfillMemoryBuffered dcpbfm(
+                std::dynamic_pointer_cast<EphemeralVBucket>(
+                        store->getVBucket(vbid)),
+                stream,
+                2, // purgeTombstones() has just purged seqno 3
+                ~0);
+
+        // Run the backfill - it should request rollback.
+        dcpbfm.run();
+
+        ASSERT_EQ(0, vb.getSeqListNumDeletedItems())
+                << "Expected to have purged the deleted item";
+        ASSERT_EQ(0, vb.getPurgeSeqno())
+                << "Did not expect the vBucket stat to be updated yet";
+
+        EXPECT_TRUE(stream->isDead()) << "Expected to have set the stream to "
+                                         "dead as we need to rollback";
+
+        purgeHookRan = true;
+    };
+
+    // Purge deletes.
+    runEphemeralHTCleaner();
+
+    ASSERT_EQ(3, vb.getPurgeSeqno());
+    ASSERT_TRUE(purgeHookRan);
 }

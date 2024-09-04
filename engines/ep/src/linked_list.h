@@ -347,6 +347,10 @@ private:
             return highCompletedSeqno;
         }
 
+        uint64_t getHighestPurgedDeletedSeqno() const override {
+            return list.getHighestPurgedDeletedSeqno();
+        }
+
     private:
         /**
          * We have a private constructor because we want to create the iterator
