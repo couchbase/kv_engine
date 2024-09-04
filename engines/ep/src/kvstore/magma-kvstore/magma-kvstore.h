@@ -618,6 +618,10 @@ public:
         // TODO
     }
 
+    /// Overload for testing.
+    std::pair<magma::Status, std::string> onContinuousBackupCallback(
+            const KVFileHandle& kvFileHandle);
+
     void setFusionCacheSize(size_t bytes);
     void setFusionCheckpointing(Vbid vbid, bool value);
     bool isFusionCheckpointingEnabled(Vbid vbid) const;
@@ -834,6 +838,18 @@ protected:
             const magma::Slice& metaSlice,
             const magma::Slice& valSlice,
             std::function<magma::Status(magma::Slice&)> valueRead) const;
+
+    /**
+     * Continuous backup callback called from Magma.
+     * This callback serialises some of the state of the vBucket into a
+     * flatbuffer, to be stored in the backup file as additional metadata.
+     *
+     * @param vbid the vBucket
+     * @param snapshot Magma snapshot from which to read the vBucket state
+     * @return status code and the serialized metadata
+     */
+    virtual std::pair<magma::Status, std::string> onContinuousBackupCallback(
+            Vbid vbid, magma::Magma::Snapshot& snapshot);
 
     /**
      * If the provided @p op does not already have datatype Snappy, attempt

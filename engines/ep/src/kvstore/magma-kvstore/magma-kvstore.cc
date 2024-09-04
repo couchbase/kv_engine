@@ -4260,6 +4260,53 @@ std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {
     return magma->GetOldestHistorySeqno(vbid.get());
 }
 
+std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
+        Vbid vbid, magma::Magma::Snapshot& snapshot) {
+    auto [magmaStatus, vbstateString] =
+            readLocalDoc(vbid, snapshot, LocalDocKey::vbstate);
+
+    if (!magmaStatus.IsOkDocFound()) {
+        logger->warnWithContext(
+                "MagmaKVStore::continuousBackupCallback failed to read vbstate "
+                "from disk",
+                {{"vb", vbid}, {"error", magmaStatus.String()}});
+        // Return value allocated against Magma (magma::Status ctor allocates).
+        cb::UseArenaMallocSecondaryDomain returnGuard;
+        return {magmaStatus, {}};
+    }
+
+    vbucket_state vbstate;
+    try {
+        vbstate = nlohmann::json::parse(vbstateString);
+    } catch (const nlohmann::json::exception& e) {
+        logger->warnWithContext(
+                "MagmaKVStore::continuousBackupCallback failed to parse the "
+                "vbstate",
+                {{"vb", vbid}, {"error", e.what()}});
+        // Return value allocated against Magma (magma::Status ctor allocates).
+        cb::UseArenaMallocSecondaryDomain returnGuard;
+        return {Status(Status::Internal, e.what()), {}};
+    }
+
+    // TODO: This should be flatbuffers
+    auto data = nlohmann::json{
+            {"max_cas", vbstate.maxCas},
+            {"failovers", vbstate.transition.failovers},
+    };
+
+    // The return value, including the metadata, is accounted against Magma.
+    cb::UseArenaMallocSecondaryDomain returnGuard;
+    return {Status::OK(), data.dump()};
+}
+
+std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
+        const KVFileHandle& kvFileHandle) {
+    auto& magmaFileHandle =
+            dynamic_cast<const MagmaKVFileHandle&>(kvFileHandle);
+    return onContinuousBackupCallback(magmaFileHandle.vbid,
+                                      *magmaFileHandle.snapshot.get());
+}
+
 void MagmaKVStore::setFusionCacheSize(size_t bytes) {
     magma->SetFusionCacheSize(bytes);
 }

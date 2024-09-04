@@ -26,6 +26,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/storeddockey_fwd.h>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
 
 class CollectionsManifest;
 struct DcpMessageProducersIface;
@@ -257,6 +258,11 @@ public:
      * @param expiryFunc The logic that attempts docs expiration
      */
     void testExpiryObservesCMQuota(std::function<void()> expiryFunc);
+
+    /**
+     * Return the memory usage for the specified memory domain.
+     */
+    size_t getDomainMemoryAllocated(cb::MemoryDomain domain);
 
 protected:
     void SetUp() override;

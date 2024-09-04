@@ -10,6 +10,12 @@
 
 #include "tests/mock/mock_magma_kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
+#include "tests/module_tests/test_helpers.h"
+#include "vbucket.h"
+#include <nlohmann/json_fwd.hpp>
+#include <platform/cb_arena_malloc.h>
+#include <platform/cb_arena_malloc_client.h>
+#include <cstdint>
 
 class ContinousBackupTest : public STParameterizedBucketTest {
 public:
@@ -19,13 +25,53 @@ public:
                 "continuous_backup_interval=1000";
 
         STParameterizedBucketTest::SetUp();
-        // To allow tests to set where history begins, use MockMagmaKVStore
         replaceMagmaKVStore();
+
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     }
 
     MockMagmaKVStore& getMockKVStore(Vbid vbid) {
         auto* kvstore = store->getRWUnderlying(vbid);
         return dynamic_cast<MockMagmaKVStore&>(*kvstore);
+    }
+
+    std::string runContinuousBackupCallback(Vbid vbid,
+                                            const KVFileHandle& kvFileHandle) {
+        auto& store = getMockKVStore(vbid);
+
+        auto primaryMemory =
+                getDomainMemoryAllocated(cb::MemoryDomain::Primary);
+        auto secondaryMemory =
+                getDomainMemoryAllocated(cb::MemoryDomain::Secondary);
+
+        magma::Status status;
+        std::string metadata;
+        {
+            cb::UseArenaMallocSecondaryDomain guard;
+            std::tie(status, metadata) =
+                    store.onContinuousBackupCallback(kvFileHandle);
+        }
+
+        if (engine->getEpStats().isMemoryTrackingEnabled()) {
+            // The callback logic in KV should be in the KV memory domain. For
+            // efficiency, the result makes sense to be in the Magma memory
+            // domain. We verify that is the case here.
+            EXPECT_EQ(primaryMemory,
+                      getDomainMemoryAllocated(cb::MemoryDomain::Primary));
+            EXPECT_LT(secondaryMemory,
+                      getDomainMemoryAllocated(cb::MemoryDomain::Secondary));
+        }
+
+        if (!status.IsOK()) {
+            throw std::runtime_error(status.String());
+        }
+
+        return metadata;
+    }
+
+    static nlohmann::json deserializeToJson(const std::string& state) {
+        // TODO: In the future, the input will be flatbuffers.
+        return nlohmann::json::parse(state);
     }
 };
 
@@ -41,6 +87,21 @@ TEST_P(ContinousBackupTest, Config) {
 
     EXPECT_EQ(store.isContinuousBackupEnabled(), false);
     EXPECT_EQ(store.getContinuousBackupInterval(), 123s);
+}
+
+TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {
+    auto& store = getMockKVStore(vbid);
+    const auto maxCas = engine->getKVBucket()->getVBucket(vbid)->getMaxCas();
+
+    auto initialSnapshot = store.makeFileHandle(vbid);
+    ASSERT_TRUE(initialSnapshot.get());
+
+    auto metadataString = runContinuousBackupCallback(vbid, *initialSnapshot);
+
+    auto metadata = deserializeToJson(metadataString);
+    EXPECT_EQ(maxCas, metadata["max_cas"].template get<uint64_t>());
+    EXPECT_TRUE(metadata["failovers"].is_array());
+    EXPECT_EQ(1, metadata["failovers"].size());
 }
 
 INSTANTIATE_TEST_SUITE_P(ContinousBackupTests,

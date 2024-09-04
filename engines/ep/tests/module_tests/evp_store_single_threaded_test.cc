@@ -63,6 +63,7 @@
 #include <executor/task_type.h>
 #include <folly/synchronization/Baton.h>
 #include <platform/cb_arena_malloc.h>
+#include <platform/cb_arena_malloc_client.h>
 #include <platform/dirutils.h>
 #include <platform/semaphore.h>
 #include <utilities/string_utilities.h>
@@ -5465,6 +5466,17 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     // Now we can expire docs
     expiryFunc();
     EXPECT_EQ(1, vb->numExpiredItems);
+}
+
+size_t SingleThreadedKVBucketTest::getDomainMemoryAllocated(
+        cb::MemoryDomain domain) {
+    const auto& stats = engine->getEpStats();
+    if (!stats.isMemoryTrackingEnabled()) {
+        return 0;
+    }
+
+    return cb::ArenaMalloc::getPreciseAllocated(engine->getArenaMallocClient(),
+                                                domain);
 }
 
 TEST_P(STParamPersistentBucketTest,
