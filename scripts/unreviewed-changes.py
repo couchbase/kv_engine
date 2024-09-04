@@ -16,10 +16,11 @@ import argparse
 import json
 import os
 import ssl
+from typing import Optional
 from urllib.request import Request, urlopen
 from urllib.parse import quote_plus
-from datetime import datetime, timedelta, UTC
-from functools import cache
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 
 parser = argparse.ArgumentParser(
     prog=os.path.basename(__file__),
@@ -51,7 +52,7 @@ ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
 
 
-@cache
+@lru_cache
 def gerrit_request(*args, **kwargs):
     with urlopen(*args, **kwargs, context=ssl_context) as res:
         res.read(4)
@@ -87,7 +88,7 @@ def parse_gerrit_datetime(timestamp: str) -> datetime:
     return datetime.strptime(
         timestamp.rsplit('.')[0],
         '%Y-%m-%d %H:%M:%S').replace(
-        tzinfo=UTC)
+        tzinfo=timezone.utc)
 
 
 def count_weekend_days(start: datetime, end: datetime) -> int:
@@ -104,7 +105,7 @@ def count_weekend_days(start: datetime, end: datetime) -> int:
 
 
 def find_stale_ready_for_review_changes(threshold: timedelta):
-    reference_time = datetime.now(UTC)
+    reference_time = datetime.now(timezone.utc)
     changes = query_changes(
         query_reviewers, query_projects, query_ready_to_review)
 
@@ -117,7 +118,7 @@ def find_stale_ready_for_review_changes(threshold: timedelta):
             yield elapsed_time, change
 
 
-def main(webhook: str | None, threshold_stale: int):
+def main(webhook: Optional[str], threshold_stale: int):
     message_text = ''
     for wait_time, change in find_stale_ready_for_review_changes(
             timedelta(days=threshold_stale)):
