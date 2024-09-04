@@ -42,48 +42,51 @@ cb::engine_errc SetActiveEncryptionKeysContext::scheduleTask() {
     auto& semaphore =
             ConcurrencySemaphores::instance().set_active_encryption_keys;
 
-    ExecutorPool::get()->schedule(std::make_shared<
-                                  OneShotLimitedConcurrencyTask>(
-            TaskId::Core_SetActiveEncryptionKeys,
-            "SetActiveEncryptionKeys",
-            [this]() {
-                try {
-                    if (entity.front() == '@') {
-                        using namespace std::string_view_literals;
-                        try {
-                            cb::dek::Manager::instance().setActive(
-                                    cb::dek::to_entity(entity), json);
-                            status = cb::engine_errc::success;
-                        } catch (const std::invalid_argument&) {
-                            status = cb::engine_errc::no_such_key;
-                        }
-                    } else {
-                        status = cb::engine_errc::no_such_key;
-                        BucketManager::instance().forEach([this](auto& bucket)
-                                                                  -> bool {
-                            if (bucket.name == entity) {
-                                status = bucket.getEngine()
-                                                 .set_active_encryption_keys(
-                                                         json);
-                                return false;
-                            }
-                            return true;
-                        });
-                    }
-                } catch (const std::exception& e) {
-                    LOG_ERROR_CTX(
-                            "Exception occurred while setting active "
-                            "encryption key",
-                            {"error", e.what()});
-                    status = cb::engine_errc::disconnect;
-                }
-
-                cookie.notifyIoComplete(cb::engine_errc::success);
-            },
-            semaphore));
+    ExecutorPool::get()->schedule(
+            std::make_shared<OneShotLimitedConcurrencyTask>(
+                    TaskId::Core_SetActiveEncryptionKeys,
+                    "SetActiveEncryptionKeys",
+                    [this]() {
+                        execute();
+                        cookie.notifyIoComplete(cb::engine_errc::success);
+                    },
+                    semaphore));
 
     state = State::Done;
     return cb::engine_errc::would_block;
+}
+
+void SetActiveEncryptionKeysContext::execute() {
+    try {
+        if (entity.front() == '@') {
+            using namespace std::string_view_literals;
+            try {
+                cb::dek::Manager::instance().setActive(
+                        cb::dek::to_entity(entity), json);
+                status = cb::engine_errc::success;
+            } catch (const std::invalid_argument&) {
+                status = cb::engine_errc::no_such_key;
+            }
+        } else {
+            status = cb::engine_errc::no_such_key;
+            BucketManager::instance().forEach([this](auto& bucket) -> bool {
+                if (bucket.name == entity) {
+                    if (bucket.type == BucketType::ClusterConfigOnly) {
+                        status = cb::engine_errc::not_supported;
+                    } else {
+                        status = bucket.getEngine().set_active_encryption_keys(
+                                json);
+                    }
+                    return false;
+                }
+                return true;
+            });
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR_CTX("Exception occurred while setting active encryption key",
+                      {"error", e.what()});
+        status = cb::engine_errc::disconnect;
+    }
 }
 
 cb::engine_errc SetActiveEncryptionKeysContext::done() const {

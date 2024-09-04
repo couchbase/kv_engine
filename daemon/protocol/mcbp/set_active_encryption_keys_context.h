@@ -28,6 +28,9 @@ public:
     explicit SetActiveEncryptionKeysContext(Cookie& cookie);
 
 protected:
+    // Execute the operation when running on the executor
+    void execute();
+
     cb::engine_errc step() override;
     cb::engine_errc scheduleTask();
     cb::engine_errc done() const;
