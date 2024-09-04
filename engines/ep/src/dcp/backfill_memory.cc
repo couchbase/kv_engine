@@ -102,15 +102,16 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         return backfill_snooze;
     }
 
+    const auto purgeSeqno = rangeItr.getHighestPurgedDeletedSeqno();
+
     bool allowNonRollBackStream = false;
     // Skip rollback due to purgeSeqno if the client has seen all changes
     // in the collections it filters by.
     auto collHigh = evb->getHighSeqnoOfCollections(stream->getFilter());
     if (collHigh.has_value()) {
-        allowNonRollBackStream =
-                stream->getStartSeqno() < evb->getPurgeSeqno() &&
-                stream->getStartSeqno() >= collHigh.value() &&
-                collHigh.value() <= evb->getPurgeSeqno();
+        allowNonRollBackStream = stream->getStartSeqno() < purgeSeqno &&
+                                 stream->getStartSeqno() >= collHigh.value() &&
+                                 collHigh.value() <= purgeSeqno;
     }
 
     // We permit rollback to be skipped if the Stream explicitly asked
@@ -119,10 +120,10 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         allowNonRollBackStream = true;
     }
 
-    /* Check startSeqno against the purge-seqno of the vb.
+    /* Check startSeqno against the purge-seqno of the seqList.
      * If the startSeqno != 1 (a 0 to n request) then startSeqno must be
      * greater than purgeSeqno. */
-    if ((startSeqno != 1 && (startSeqno <= evb->getPurgeSeqno())) &&
+    if ((startSeqno != 1 && (startSeqno <= purgeSeqno)) &&
         !allowNonRollBackStream) {
         EP_LOG_WARN(
                 "DCPBackfillMemoryBuffered::create(): "
@@ -130,7 +131,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                 "purgeSeqno:{}",
                 getVBucketId(),
                 startSeqno,
-                evb->getPurgeSeqno());
+                purgeSeqno);
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
         return backfill_finished;
     }

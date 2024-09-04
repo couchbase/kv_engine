@@ -384,6 +384,8 @@ size_t EphemeralVBucket::purgeStaleItems(std::function<bool()> shouldPauseCbk) {
             droppedCollectionCallback,
             shouldPauseCbk);
 
+    postPurgeTombstonesHook();
+
     // Update stats and return.
     seqListPurgeCount += seqListPurged;
     setPurgeSeqno(seqList->getHighestPurgedDeletedSeqno());
