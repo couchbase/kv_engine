@@ -317,6 +317,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     uint64_t endSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
                                     uint64_t maxVisibleSeqno,
+                                    uint64_t purgeSeqno,
                                     SnapshotType snapshotType) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
@@ -402,6 +403,9 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
+        auto psToSend = includePurgeSeqno == IncludePurgeSeqno::Yes
+                                ? std::make_optional(purgeSeqno)
+                                : std::nullopt;
 
         auto flags =
                 DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint;
@@ -423,7 +427,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                                  flags,
                                                                  hcsToSend,
                                                                  mvsToSend,
-                                                                 std::nullopt,
+                                                                 psToSend,
                                                                  sid);
         } else {
             log(spdlog::level::level_enum::info,
@@ -449,7 +453,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                           flags,
                                                           hcsToSend,
                                                           mvsToSend,
-                                                          std::nullopt,
+                                                          psToSend,
                                                           sid));
             // Update the last start seqno seen but handle base case as
             // lastSentSnapStartSeqno is initial zero
@@ -1666,6 +1670,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
 
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
+        uint64_t purgeSeqno = vb->getPurgeSeqno();
 
         // MB-50333: Pin the snapshot start seqno to the start seqno of the
         // checkpoint that the items we are processing belong to.
@@ -1732,6 +1737,10 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                        ? std::make_optional(maxVisibleSeqno)
                                        : std::nullopt;
 
+        const auto psToSend = includePurgeSeqno == IncludePurgeSeqno::Yes
+                                      ? std::make_optional(purgeSeqno)
+                                      : std::nullopt;
+
         pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                       vb_,
                                                       snapStart,
@@ -1739,7 +1748,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                                       flags,
                                                       hcsToSend,
                                                       mvsToSend,
-                                                      std::nullopt,
+                                                      psToSend,
                                                       sid));
         // Update the last start seqno seen but handle base case as
         // lastSentSnapStartSeqno is initial zero
@@ -2794,6 +2803,11 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
 
     start = adjustStartIfFirstSnapshot(start, true);
     const auto flags = getMarkerFlags(meta);
+    const auto vb = engine->getVBucket(vb_);
+    const auto psToSend = includePurgeSeqno == IncludePurgeSeqno::Yes
+                                  ? std::make_optional(vb->getPurgeSeqno())
+                                  : std::nullopt;
+
     pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                   vb_,
                                                   start,
@@ -2801,7 +2815,7 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
                                                   flags,
                                                   std::nullopt,
                                                   std::nullopt,
-                                                  std::nullopt,
+                                                  psToSend,
                                                   sid));
     // Update the last start seqno seen but handle base case as
     // lastSentSnapStartSeqno is initial zero

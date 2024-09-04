@@ -149,6 +149,7 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                                              endSeqno,
                                              rangeItr.getHighCompletedSeqno(),
                                              rangeItr.getMaxVisibleSeqno(),
+                                             evb->getPurgeSeqno(),
                                              SnapshotType::NoHistory);
 
             if (markerSent) {

@@ -221,6 +221,7 @@ public:
      * range
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
+     * @param purgeSeqno current purgeSeqno of the vbucket.
      * @param snapshotType see enum definition
      * @return If the stream has queued a snapshot marker. If this is false, the
      *         stream determined none of the items in the backfill would be sent
@@ -229,6 +230,7 @@ public:
                           uint64_t endSeqno,
                           std::optional<uint64_t> highCompletedSeqno,
                           uint64_t maxVisibleSeqno,
+                          uint64_t purgeSeqno,
                           SnapshotType snapshotType);
 
     /**
