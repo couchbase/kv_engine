@@ -24,6 +24,10 @@ namespace cb::mcbp {
 enum class DcpAddStreamFlag : uint32_t;
 }
 
+namespace cb::logger {
+class Json;
+}
+
 class AbortSyncWriteConsumer;
 class BucketLogger;
 class CommitSyncWriteConsumer;
@@ -285,6 +289,10 @@ protected:
     void log(spdlog::level::level_enum severity,
              const char* fmt,
              Args... args) const;
+
+    void logWithContext(spdlog::level::level_enum severity,
+                        std::string_view msg,
+                        cb::logger::Json ctx) const;
 
     /**
      * Log when the stream backs off or resumes processing items.

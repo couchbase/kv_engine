@@ -26,6 +26,7 @@
 #include <collections/vbucket_manifest_handles.h>
 #include <fmt/chrono.h>
 #include <memcached/protocol_binary.h>
+#include <platform/json_log_conversions.h>
 #include <platform/optional.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
@@ -98,9 +99,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       filter(std::move(f)),
       sid(filter.getStreamId()),
       changeStreamsEnabled(p->areChangeStreamsEnabled()) {
-    const char* type = "";
     if (isTakeoverStream()) {
-        type = "takeover ";
         end_seqno_ = dcpMaxSeqno;
     }
 
@@ -119,20 +118,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         logPrefix += " (" + sid.to_string() + ")";
     }
 
-    log(spdlog::level::info,
-        "{} Creating {}stream with start seqno {} and end seqno {}; "
-        "requested end seqno was {}, flags:{}, snapshot:{{{},{}}} "
-        "{}, {}",
-        logPrefix,
-        type,
-        st_seqno,
-        end_seqno_,
-        en_seqno,
-        flags,
-        snap_start_seqno,
-        snap_end_seqno,
-        filter.summary(),
-        sid);
+    logWithContext(spdlog::level::info,
+                   "Creating stream",
+                   {{"takeover", isTakeoverStream()},
+                    {"start_seqno", st_seqno},
+                    {"end_seqno", end_seqno_},
+                    {"requested_end_seqno", en_seqno},
+                    {"flags", flags},
+                    {"snapshot", {snap_start_seqno, snap_end_seqno}},
+                    {"filter", filter.summary()}});
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;
@@ -3050,5 +3044,29 @@ void ActiveStream::removeBackfill(BackfillManager& bfm) {
 
     if (removeThis) {
         bfm.removeBackfill(removeThis);
+    }
+}
+
+void ActiveStream::logWithContext(spdlog::level::level_enum severity,
+                                  std::string_view msg,
+                                  cb::logger::Json ctx) const {
+    // Format: {"dcp":"producer", "stream": "name", vb:"vb:X", "sid":
+    // "sid:none", ...}
+    auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
+    if (sid) {
+        object.insert(object.begin(), {"sid", sid.to_string()});
+    }
+    object.insert(object.begin(), {"vb", getVBucket()});
+    object.insert(object.begin(), {"stream", getName()});
+    object.insert(object.begin(), {"dcp", "producer"});
+
+    auto producer = producerPtr.lock();
+    if (producer) {
+        producer->getLogger().logWithContext(severity, msg, std::move(ctx));
+    } else {
+        if (getGlobalBucketLogger()->should_log(severity)) {
+            getGlobalBucketLogger()->logWithContext(
+                    severity, msg, std::move(ctx));
+        }
     }
 }

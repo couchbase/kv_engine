@@ -24,6 +24,10 @@ namespace cb::mcbp::request {
 enum class DcpSnapshotMarkerFlag : uint32_t;
 }
 
+namespace cb::logger {
+class Json;
+}
+
 class BackfillManager;
 class Configuration;
 class CheckpointManager;
@@ -330,6 +334,10 @@ public:
     void log(spdlog::level::level_enum severity,
              const char* fmt,
              Args... args) const;
+
+    void logWithContext(spdlog::level::level_enum severity,
+                        std::string_view msg,
+                        cb::logger::Json ctx) const;
 
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();

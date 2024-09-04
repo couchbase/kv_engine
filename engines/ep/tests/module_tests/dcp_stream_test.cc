@@ -49,6 +49,7 @@
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
 #include <memcached/dcp_stream_id.h>
+#include <platform/json_log.h>
 #include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>

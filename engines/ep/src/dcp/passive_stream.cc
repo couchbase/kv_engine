@@ -25,6 +25,7 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
+#include <platform/json_log_conversions.h>
 #include <platform/optional.h>
 #include <statistics/cbstat_collector.h>
 
@@ -104,25 +105,21 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                                                  snap_end_seqno_,
                                                  stream_req_value));
 
-    const char* type = isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::TakeOver)
-                               ? "takeover stream"
-                               : "stream";
+    const bool isTakeover =
+            isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::TakeOver);
 
-    log(spdlog::level::level_enum::info,
-        "({}) Attempting to add {}: opaque_:{}, start_seqno_:{}, "
-        "end_seqno_:{}, vb_uuid:{}, snap_start_seqno_:{}, snap_end_seqno_:{}, "
-        "last_seqno:{}, stream_req_value:{}, flags:{}",
-        vb_,
-        type,
-        opaque_,
-        start_seqno_,
-        end_seqno_,
-        vb_uuid,
-        snap_start_seqno_,
-        snap_end_seqno_,
-        last_seqno.load(),
-        stream_req_value.empty() ? "none" : stream_req_value,
-        flags_);
+    logWithContext(spdlog::level::level_enum::info,
+                   "Attempting to add stream",
+                   {{"takeover", isTakeover},
+                    {"opaque", opaque_},
+                    {"start_seqno", start_seqno_},
+                    {"end_seqno", end_seqno_},
+                    {"vb_uuid", vb_uuid},
+                    {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
+                    {"last_seqno", last_seqno.load()},
+                    {"stream_req_value",
+                     stream_req_value.empty() ? "none" : stream_req_value},
+                    {"flags", flags_}});
 }
 
 uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
@@ -1226,6 +1223,26 @@ void PassiveStream::log(spdlog::level::level_enum severity,
                     severity,
                     std::string{passiveStreamLoggingPrefix}.append(fmt).data(),
                     args...);
+        }
+    }
+}
+
+void PassiveStream::logWithContext(spdlog::level::level_enum severity,
+                                   std::string_view msg,
+                                   cb::logger::Json ctx) const {
+    // Format: {"dcp":"consumer", "stream": "name", vb:"vb:X", ...}
+    auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
+    object.insert(object.begin(), {"vb", getVBucket()});
+    object.insert(object.begin(), {"stream", getName()});
+    object.insert(object.begin(), {"dcp", "consumer"});
+
+    auto consumer = consumerPtr.lock();
+    if (consumer) {
+        consumer->getLogger().logWithContext(severity, msg, std::move(ctx));
+    } else {
+        if (getGlobalBucketLogger()->should_log(severity)) {
+            getGlobalBucketLogger()->logWithContext(
+                    severity, msg, std::move(ctx));
         }
     }
 }
