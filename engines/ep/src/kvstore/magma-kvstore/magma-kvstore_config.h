@@ -247,6 +247,16 @@ public:
         perDocumentCompressionEnabled = value;
     }
 
+    bool isContinousBackupEnabled() const {
+        return continuousBackupEnabled;
+    }
+    void setContinousBackupEnabled(bool enabled);
+
+    std::chrono::seconds getContinousBackupInterval() const {
+        return continuousBackupInterval;
+    }
+    void setContinousBackupInterval(std::chrono::seconds interval);
+
     size_t getHistoryRetentionSize() const {
         return historyRetentionSize;
     }
@@ -530,6 +540,10 @@ private:
      * Does not affect _block-level_ compression, just per-document compression
      */
     std::atomic<bool> perDocumentCompressionEnabled;
+
+    std::atomic<bool> continuousBackupEnabled{false};
+    std::atomic<std::chrono::seconds> continuousBackupInterval{
+            std::chrono::seconds(120)};
 
     /**
      * The method in which errors are handled should the key - vBucket mapping

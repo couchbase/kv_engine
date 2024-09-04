@@ -605,6 +605,16 @@ public:
     void setHistoryRetentionSeconds(std::chrono::seconds secs) override;
     std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override;
 
+    virtual void setContinuousBackupEnabled(bool enabled) {
+        continuousBackupEnabled = enabled;
+        // TODO
+    }
+
+    virtual void setContinuousBackupInterval(std::chrono::seconds interval) {
+        continuousBackupInterval = interval;
+        // TODO
+    }
+
     void setFusionCacheSize(size_t bytes);
     void setFusionCheckpointing(Vbid vbid, bool value);
     bool isFusionCheckpointingEnabled(Vbid vbid) const;
@@ -891,6 +901,10 @@ protected:
 
     folly::Synchronized<std::queue<std::tuple<Vbid, uint64_t>>>
             pendingVbucketDeletions;
+
+    std::atomic<bool> continuousBackupEnabled{false};
+    std::atomic<std::chrono::seconds> continuousBackupInterval{
+            std::chrono::seconds(120)};
 
     /**
      * Testing hook called with the result of CompactKVStore when dropping

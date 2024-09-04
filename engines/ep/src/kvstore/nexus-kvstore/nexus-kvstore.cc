@@ -572,7 +572,8 @@ StorageProperties NexusKVStore::getStorageProperties() const {
                              autoDedupe,
                              prepareCounting,
                              compactionStaleItemCallbacks,
-                             canRetainHistory);
+                             canRetainHistory,
+                             StorageProperties::ContinuousBackupAvailable::No);
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

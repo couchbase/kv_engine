@@ -18,7 +18,8 @@ MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config)
                         StorageProperties::AutomaticDeduplication::No,
                         StorageProperties::PrepareCounting::No,
                         StorageProperties::CompactionStaleItemCallbacks::Yes,
-                        StorageProperties::HistoryRetentionAvailable::Yes) {
+                        StorageProperties::HistoryRetentionAvailable::Yes,
+                        StorageProperties::ContinuousBackupAvailable::Yes) {
 }
 
 KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(

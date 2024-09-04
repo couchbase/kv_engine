@@ -61,6 +61,14 @@ public:
 
     bool snapshotVBucket(Vbid vbid, const VB::Commit& meta) override;
 
+    bool isContinuousBackupEnabled() {
+        return continuousBackupEnabled;
+    }
+
+    std::chrono::seconds getContinuousBackupInterval() {
+        return continuousBackupInterval;
+    }
+
     magma::Status addLocalDoc(Vbid vbid,
                               std::string_view key,
                               std::string value);

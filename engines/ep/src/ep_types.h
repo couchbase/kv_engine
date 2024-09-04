@@ -378,16 +378,23 @@ public:
      */
     enum class HistoryRetentionAvailable : bool { Yes, No };
 
+    /**
+     * Does the KVStore support continuous backup?
+     */
+    enum class ContinuousBackupAvailable : bool { Yes, No };
+
     StorageProperties(ByIdScan byIdScan,
                       AutomaticDeduplication automaticDeduplication,
                       PrepareCounting prepareCounting,
                       CompactionStaleItemCallbacks compactionStaleItemCallbacks,
-                      HistoryRetentionAvailable historyRetentionAvailable)
+                      HistoryRetentionAvailable historyRetentionAvailable,
+                      ContinuousBackupAvailable continuousBackupAvailable)
         : byIdScan(byIdScan),
           automaticDeduplication(automaticDeduplication),
           prepareCounting(prepareCounting),
           compactionStaleItemCallbacks(compactionStaleItemCallbacks),
-          historyRetentionAvailable(historyRetentionAvailable) {
+          historyRetentionAvailable(historyRetentionAvailable),
+          continuousBackupAvailable(continuousBackupAvailable) {
     }
 
     bool hasByIdScan() const {
@@ -411,12 +418,17 @@ public:
         return historyRetentionAvailable == HistoryRetentionAvailable::Yes;
     }
 
+    bool hasContinuousBackup() const {
+        return continuousBackupAvailable == ContinuousBackupAvailable::Yes;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
     PrepareCounting prepareCounting;
     CompactionStaleItemCallbacks compactionStaleItemCallbacks;
     HistoryRetentionAvailable historyRetentionAvailable;
+    ContinuousBackupAvailable continuousBackupAvailable;
 };
 
 // The type of the snapshot

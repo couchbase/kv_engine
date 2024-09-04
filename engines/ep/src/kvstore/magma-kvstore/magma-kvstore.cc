@@ -820,6 +820,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
     setHistoryRetentionBytes(configuration.getHistoryRetentionSize(),
                              configuration.getMaxVBuckets());
 
+    setContinuousBackupInterval(configuration.getContinousBackupInterval());
+    setContinuousBackupEnabled(configuration.isContinousBackupEnabled());
+
     // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
 
@@ -1039,7 +1042,8 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
                          StorageProperties::AutomaticDeduplication::No,
                          StorageProperties::PrepareCounting::No,
                          StorageProperties::CompactionStaleItemCallbacks::Yes,
-                         StorageProperties::HistoryRetentionAvailable::Yes);
+                         StorageProperties::HistoryRetentionAvailable::Yes,
+                         StorageProperties::ContinuousBackupAvailable::Yes);
     return rv;
 }
 

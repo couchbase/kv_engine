@@ -42,6 +42,8 @@ public:
             config.setMagmaKeyTreeIndexBlockSize(value);
         } else if (key == "magma_fusion_cache_size") {
             config.setMagmaFusionCacheSize(value);
+        } else if (key == "continuous_backup_interval") {
+            config.setContinousBackupInterval(std::chrono::seconds(value));
         }
     }
 
@@ -65,6 +67,8 @@ public:
             config.setMagmaEnableBlockCache(b);
         } else if (key == "magma_per_document_compression_enabled") {
             config.setPerDocumentCompressionEnabled(b);
+        } else if (key == "continuous_backup_enabled") {
+            config.setContinousBackupEnabled(b);
         }
     }
 
@@ -178,6 +182,16 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "magma_per_document_compression_enabled",
             std::make_unique<ConfigChangeListener>(*this));
 
+    continuousBackupEnabled = config.isContinuousBackupEnabled();
+    continuousBackupInterval =
+            std::chrono::seconds(config.getContinuousBackupInterval());
+    config.addValueChangedListener(
+            "continuous_backup_enabled",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "continuous_backup_interval",
+            std::make_unique<ConfigChangeListener>(*this));
+
     historyRetentionTime =
             std::chrono::seconds(config.getHistoryRetentionSeconds());
     historyRetentionSize = config.getHistoryRetentionBytes();
@@ -264,6 +278,21 @@ void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
     magmaKeyTreeIndexBlockSize.store(value);
     if (store) {
         store->setMagmaKeyTreeIndexBlockSize(value);
+    }
+}
+
+void MagmaKVStoreConfig::setContinousBackupEnabled(bool enabled) {
+    continuousBackupEnabled = enabled;
+    if (store) {
+        store->setContinuousBackupEnabled(enabled);
+    }
+}
+
+void MagmaKVStoreConfig::setContinousBackupInterval(
+        std::chrono::seconds interval) {
+    continuousBackupInterval = interval;
+    if (store) {
+        store->setContinuousBackupInterval(interval);
     }
 }
 
