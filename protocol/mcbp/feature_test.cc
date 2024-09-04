@@ -54,6 +54,8 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
           "SubdocAllowsAccessOnMultipleXattrKeys"},
          {cb::mcbp::Feature::SubdocBinaryXattr, "SubdocBinaryXattr"},
+         {cb::mcbp::Feature::GetRandomKeyIncludeXattr,
+          "GetRandomKeyIncludeXattr"},
          {cb::mcbp::Feature::RangeScanIncludeXattr, "RangeScanIncludeXattr"}}};
 
 TEST(to_string, LegalValues) {

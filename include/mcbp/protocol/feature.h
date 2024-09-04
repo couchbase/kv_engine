@@ -161,6 +161,12 @@ enum class Feature : uint16_t {
     /// supports returning xattrs along with documents for
     /// RANGE_SCAN operations.
     RangeScanIncludeXattr = 0x22,
+    // Morpheus added  SubdocAllowReplicaReadOnDeletedDocs = 0x23,
+
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports returning xattrs along with documents for GetRandomKey
+    GetRandomKeyIncludeXattr = 0x24,
 };
 
 } // namespace cb::mcbp

@@ -2068,18 +2068,35 @@ static Status scrub_validator(Cookie& cookie) {
 }
 
 static Status get_random_key_validator(Cookie& cookie) {
-    uint8_t extras = 0;
-    // client is required to send the collection-id
-    if (cookie.getConnection().isCollectionsSupported()) {
-        extras = sizeof(CollectionIDType);
+    const auto extdata = cookie.getRequest().getExtdata();
+    const auto status = McbpValidator::verify_header(cookie,
+                                                     extdata.size(),
+                                                     ExpectedKeyLen::Zero,
+                                                     ExpectedValueLen::Zero,
+                                                     ExpectedCas::NotSet,
+                                                     GeneratesDocKey::No,
+                                                     PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
     }
-    return McbpValidator::verify_header(cookie,
-                                        extras,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        GeneratesDocKey::No,
-                                        PROTOCOL_BINARY_RAW_BYTES);
+
+    if (cookie.getConnection().isCollectionsSupported()) {
+        if (extdata.size() != sizeof(cb::mcbp::request::GetRandomKeyPayload) &&
+            extdata.size() !=
+                    sizeof(cb::mcbp::request::GetRandomKeyPayloadV2)) {
+            cookie.setErrorContext(
+                    "Extras should contain collection id (and optionally flag "
+                    "to request xattrs)");
+            return Status::Einval;
+        }
+    } else if (!extdata.empty()) {
+        cookie.setErrorContext(
+                "Extras should be empty for clients without collections "
+                "support");
+        return Status::Einval;
+    }
+
+    return status;
 }
 
 /**

@@ -5454,7 +5454,8 @@ cb::engine_errc EventuallyPersistentEngine::checkCollectionAccess(
         std::optional<Vbid> vbid,
         std::optional<cb::rbac::Privilege> systemCollectionPrivilege,
         cb::rbac::Privilege priv,
-        CollectionID cid) const {
+        CollectionID cid,
+        bool logIfPrivilegeMissing) const {
     ScopeID sid{ScopeID::Default};
     uint64_t manifestUid{0};
     cb::engine_errc status = cb::engine_errc::success;
@@ -5487,13 +5488,21 @@ cb::engine_errc EventuallyPersistentEngine::checkCollectionAccess(
         }
 
         if (systemCollectionPrivilege && visibility == Visibility::System) {
-            status = checkPrivilege(
-                    cookie, *systemCollectionPrivilege, sid, cid);
+            status = logIfPrivilegeMissing
+                             ? checkPrivilege(cookie,
+                                              *systemCollectionPrivilege,
+                                              sid,
+                                              cid)
+                             : testPrivilege(cookie,
+                                             *systemCollectionPrivilege,
+                                             sid,
+                                             cid);
         }
     }
 
     if (status == cb::engine_errc::success) {
-        status = checkPrivilege(cookie, priv, sid, cid);
+        status = logIfPrivilegeMissing ? checkPrivilege(cookie, priv, sid, cid)
+                                       : testPrivilege(cookie, priv, sid, cid);
     }
 
     switch (status) {
@@ -6771,6 +6780,20 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getRandomDocument(
     GetValue gv(kvBucket->getRandomKey(cid, cookie));
     cb::engine_errc ret = gv.getStatus();
     if (ret == cb::engine_errc::success) {
+        if (cb::mcbp::datatype::is_xattr(gv.item->getDataType())) {
+            // The document has xattrs. Strip them off if the caller don't
+            // have access to them.
+            if (checkCollectionAccess(
+                        cookie,
+                        {},
+                        cb::rbac::Privilege::SystemCollectionLookup,
+                        cb::rbac::Privilege::SystemXattrRead,
+                        cid,
+                        false) != cb::engine_errc::success) {
+                gv.item->removeSystemXattrs();
+            }
+        }
+
         return cb::makeEngineErrorItemPair(
                 cb::engine_errc::success, gv.item.release(), this);
     }

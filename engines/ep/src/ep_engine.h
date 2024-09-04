@@ -963,7 +963,8 @@ public:
             std::optional<Vbid> vbid,
             std::optional<cb::rbac::Privilege> systemCollectionPrivilege,
             cb::rbac::Privilege priv,
-            CollectionID cid) const;
+            CollectionID cid,
+            bool logIfPrivilegeMissing = true) const;
 
     /**
      * Check if the cookie holds the privilege for the requested scope

@@ -81,6 +81,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SubdocAllowsAccessOnMultipleXattrKeys";
     case cb::mcbp::Feature::SubdocBinaryXattr:
         return "SubdocBinaryXattr";
+    case cb::mcbp::Feature::GetRandomKeyIncludeXattr:
+        return "GetRandomKeyIncludeXattr";
     case cb::mcbp::Feature::RangeScanIncludeXattr:
         return "RangeScanIncludeXattr";
     }

@@ -2745,6 +2745,22 @@ enabled collection using [HELO](#0x1f-helo).
         +---------------+---------------+---------------+---------------+
         Total 4 bytes
 
+It is possible to request extended attributes to be returned, and in order
+to do so the command contains an extra section it must encode a collection-ID
+as a 4 byte network order integer followed by a single byte set to a value != 0.
+
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| collection-id in network byte order                           |
+        +---------------+---------------+---------------+---------------+
+       4|     0xff      |
+        +---------------+
+        Total 5 bytes
+
+
 Response:
 
 If successful the command responds with the randomly found key and value.

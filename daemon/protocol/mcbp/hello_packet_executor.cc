@@ -90,6 +90,7 @@ void buildRequestVector(FeatureSet& requested,
         case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
         case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         case cb::mcbp::Feature::SubdocBinaryXattr:
+        case cb::mcbp::Feature::GetRandomKeyIncludeXattr:
         case cb::mcbp::Feature::RangeScanIncludeXattr:
 
             // This isn't very optimal, but we've only got a handfull of
@@ -165,6 +166,17 @@ void buildRequestVector(FeatureSet& requested,
             if (!containsFeature(requested, cb::mcbp::Feature::XATTR)) {
                 throw std::invalid_argument(to_string(feature) +
                                             " needs XATTR");
+            }
+            break;
+        case cb::mcbp::Feature::GetRandomKeyIncludeXattr:
+            // Needs XATTR and JSON and SnappyEverywhere
+            if (!containsFeature(requested, cb::mcbp::Feature::XATTR) ||
+                !containsFeature(requested, cb::mcbp::Feature::JSON) ||
+                !containsFeature(requested,
+                                 cb::mcbp::Feature::SnappyEverywhere)) {
+                throw std::invalid_argument(
+                        to_string(feature) +
+                        " needs XATTR, JSON and SnappyEverywhere");
             }
             break;
         }
@@ -397,6 +409,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::SELECT_BUCKET:
         case cb::mcbp::Feature::AltRequestSupport:
         case cb::mcbp::Feature::SyncReplication:
+        case cb::mcbp::Feature::GetRandomKeyIncludeXattr:
         case cb::mcbp::Feature::RangeScanIncludeXattr:
             // Informative features don't need special handling
             added = true;
