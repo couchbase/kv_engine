@@ -41,6 +41,7 @@ parser.parse_args()
 
 SEPARATOR = '=' * 78 + '\n'
 RELEASES_INDEX = 'https://releases.service.couchbase.com/builds/releases/'
+LATESTBUILDS_INDEX = 'https://latestbuilds.service.couchbase.com/builds/latestbuilds/couchbase-server/'
 
 
 def dbg(*args, **kwargs):
@@ -263,6 +264,15 @@ def fetch_package_lists(release_version):
     return set(pkg[1:-1] for pkg in packages), build_number
 
 
+def fetch_latestbuilds_lists(release_name, build_number):
+    package_base_url = f'{LATESTBUILDS_INDEX}/{release_name}/{build_number}/'
+    index_html = fetch(package_base_url)
+    packages = re.findall(
+        r'("couchbase-server-[\w\.\-_]*\.(?:deb|rpm)?")', index_html)
+
+    return package_base_url, set(pkg[1:-1] for pkg in packages)
+
+
 def main(logfile):
     # Search the log file for matching blocks.
     interesting_blocks = {
@@ -287,6 +297,8 @@ def main(logfile):
         r'<annotation name="VERSION" value="([\d\.]+)" />', manifest)[0]
     cb_build_number = re.findall(
         r'<annotation name="BLD_NUM" value="(\d+)" />', manifest)[0]
+    cb_release = re.findall(
+        r'<annotation name="RELEASE" value="([^"]+)" />', manifest)[0]
 
     dbg(f'Detected Couchbase Server: {cb_version}-{cb_build_number}')
 
@@ -319,7 +331,15 @@ def main(logfile):
             package_base_url = f'{RELEASES_INDEX}{candidate}'
             break
 
-    dbg(f'Build number resolves to {package_base_url}')
+    if package_base_url is not None:
+        dbg(f'Build number resolves to {package_base_url}')
+    else:
+        dbg(
+            f'Packages not found on the release mirror. '
+            f'Trying latestbuilds...')
+        package_base_url, available_pkgs = fetch_latestbuilds_lists(
+            cb_release,
+            cb_build_number)
 
     platform_alts = get_platform_alternative_names(platform)
     # Filter packages to ones matching the target platform (x86-64/AArch64).
@@ -331,7 +351,8 @@ def main(logfile):
         if pkg.endswith(get_pkg_manager_ext(pkg_manager)))
     # Try to find a generic package that we can run.
     available_pkgs = list(pkg for pkg in pkg_manager_compat_pkgs
-                          if '-linux' in pkg and '-enterprise' in pkg)
+                          if '-linux' in pkg and '-enterprise' in pkg
+                          and 'asan' not in pkg)
 
     try:
         server_pkg_name = next(pkg for pkg in available_pkgs
