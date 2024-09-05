@@ -286,7 +286,7 @@ enum class QueueBgFetch {Yes, No};
 enum class ForGetReplicaOp { No, Yes };
 
 /// Allow for methods to optionally accept a seqno
-using OptionalSeqno = std::optional<int64_t>;
+using OptionalSeqno = std::optional<uint64_t>;
 
 /// Determine the GenerateBySeqno value from an OptionalSeqno
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno);
