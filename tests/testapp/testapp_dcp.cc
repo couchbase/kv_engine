@@ -229,10 +229,12 @@ TEST_P(DcpTest, MB60706) {
                     return false;
                 }
             } else {
-                if (line.find(fmt::format(
-                            R"(INFO {}: HELO [{{"a":"MB60706/McbpSsl"}}])",
-                            id)) != std::string_view::npos) {
-                    found_hello = true;
+                auto idx = line.find("HELO");
+                if (idx != std::string_view::npos) {
+                    auto ctx =
+                            nlohmann::json::parse(line.substr(line.find('{')));
+                    found_hello = ctx["conn_id"] == id &&
+                                  ctx["client"]["a"] == "MB60706/McbpSsl";
                 }
             }
             return true;

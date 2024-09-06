@@ -9,6 +9,7 @@
  */
 
 #include "executors.h"
+#include "platform/json_log.h"
 
 #include <daemon/cookie.h>
 #include <daemon/settings.h>
@@ -181,9 +182,6 @@ void buildRequestVector(FeatureSet& requested,
 void process_hello_packet_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     auto& req = cookie.getRequest();
-    std::string log_buffer;
-    log_buffer.reserve(512);
-    log_buffer.append("HELO ");
 
     std::string_view key = req.getKeyString();
     auto valuebuf = req.getValue();
@@ -195,11 +193,11 @@ void process_hello_packet_executor(Cookie& cookie) {
 
     // We can't switch bucket if we've got multiple commands in flight
     if (connection.getNumberOfCookies() > 1) {
-        LOG_INFO(
-                "{}: {} Changing options via HELO is not possible with "
-                "multiple commands in flight",
-                connection.getId(),
-                connection.getDescription().dump());
+        LOG_INFO_CTX(
+                "Changing options via HELO is not possible with multiple "
+                "commands in flight",
+                {"conn_id", connection.getId()},
+                {"description", connection.getDescription()});
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }
@@ -208,10 +206,10 @@ void process_hello_packet_executor(Cookie& cookie) {
     try {
         buildRequestVector(requested, input);
     } catch (const std::invalid_argument& e) {
-        LOG_INFO("{}: {} Invalid combination of options: {}",
-                 connection.getId(),
-                 connection.getDescription().dump(),
-                 e.what());
+        LOG_INFO_CTX("Invalid combination of options",
+                     {"conn_id", connection.getId()},
+                     {"description", connection.getDescription()},
+                     {"error", e.what()});
         cookie.setErrorContext(e.what());
         cookie.sendResponse(cb::mcbp::Status::Einval);
         return;
@@ -235,38 +233,39 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setDedupeNmvbMaps(false);
     connection.setSupportsSnappyEverywhere(false);
 
+    // The connection key as a JSON object.
+    cb::logger::BasicJsonType client;
     if (!key.empty()) {
         if (key.front() == '{') {
             // This may be JSON
-            nlohmann::json json;
             try {
-                json = nlohmann::json::parse(key);
-                auto obj = json.find("i");
-                if (obj != json.end() && (*obj).is_string()) {
+                client = cb::logger::BasicJsonType::parse(key);
+                auto obj = client.find("i");
+                if (obj != client.end() && (*obj).is_string()) {
                     try {
                         connection.setConnectionId(obj->get<std::string>());
                     } catch (const std::exception& exception) {
-                        LOG_INFO("{}: Failed to parse connection uuid: {}",
-                                 connection.getId(),
-                                 exception.what());
+                        LOG_INFO_CTX("Failed to parse connection uuid",
+                                     {"conn_id", connection.getId()},
+                                     {"error", exception.what()});
                     }
                 }
-                obj = json.find("a");
-                if (obj != json.end() && obj->is_string()) {
+                obj = client.find("a");
+                if (obj != client.end() && obj->is_string()) {
                     connection.setAgentName(obj->get<std::string>());
                 }
             } catch (const nlohmann::json::exception&) {
+                client = {{"a", key}};
                 connection.setAgentName(key);
             }
         } else {
+            client = {{"a", key}};
             connection.setAgentName(key);
         }
-
-        log_buffer.append("[");
-        log_buffer.append(key.data(), key.size());
-        log_buffer.append("] ");
     }
 
+    // JSON array of enabled features.
+    cb::logger::BasicJsonType features = cb::logger::BasicJsonType::array();
     for (const auto& feature : requested) {
         bool added = false;
 
@@ -341,11 +340,11 @@ void process_hello_packet_executor(Cookie& cookie) {
             break;
         case Feature::UnorderedExecution:
             if (connection.isDCP()) {
-                LOG_INFO(
-                        "{}: {} Unordered execution is not supported for "
-                        "DCP connections",
-                        connection.getId(),
-                        connection.getDescription().dump());
+                LOG_INFO_CTX(
+                        "Unordered execution is not supported for DCP "
+                        "connections",
+                        {"conn_id", connection.getId()},
+                        {"description", connection.getDescription()});
             } else {
                 connection.setAllowUnorderedExecution(true);
                 added = true;
@@ -391,8 +390,7 @@ void process_hello_packet_executor(Cookie& cookie) {
 
         if (added) {
             out.push_back(htons(uint16_t(feature)));
-            log_buffer.append(format_as(feature));
-            log_buffer.append(", ");
+            features.push_back(format_as(feature));
         }
     }
 
@@ -404,14 +402,9 @@ void process_hello_packet_executor(Cookie& cookie) {
             cb::mcbp::Datatype::Raw,
             0);
 
-    // Trim off the trailing whitespace (and potentially comma)
-    log_buffer.resize(log_buffer.size() - 1);
-    if (log_buffer.back() == ',') {
-        log_buffer.resize(log_buffer.size() - 1);
-    }
-
-    LOG_INFO("{}: {} {}",
-             connection.getId(),
-             log_buffer,
-             connection.getDescription().dump());
+    LOG_INFO_CTX("HELO",
+                 {"conn_id", connection.getId()},
+                 {"client", std::move(client)},
+                 {"features", std::move(features)},
+                 {"description", connection.getDescription()});
 }
