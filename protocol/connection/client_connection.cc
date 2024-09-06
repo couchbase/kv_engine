@@ -364,6 +364,21 @@ void Document::compress() {
                                        uint8_t(cb::mcbp::Datatype::Snappy));
 }
 
+void Document::uncompress() {
+    if (!cb::mcbp::datatype::is_snappy(
+                protocol_binary_datatype_t(info.datatype))) {
+        return;
+    }
+
+    cb::compression::Buffer buf;
+    cb::compression::inflateSnappy(value, buf);
+    value = {buf.data(), buf.size()};
+
+    auto in_datatype = static_cast<uint8_t>(info.datatype);
+    in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+    info.datatype = cb::mcbp::Datatype(in_datatype);
+}
+
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedConnection class
 /////////////////////////////////////////////////////////////////////////
@@ -1930,7 +1945,10 @@ std::pair<cb::mcbp::Status, GetMetaResponse> MemcachedConnection::getMeta(
 
 Document MemcachedConnection::getRandomKey(Vbid vbucket) {
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetRandomKey};
-    if (hasFeature(cb::mcbp::Feature::Collections)) {
+    if (hasFeature(cb::mcbp::Feature::GetRandomKeyIncludeXattr)) {
+        cb::mcbp::request::GetRandomKeyPayloadV2 randomKey(0, true);
+        cmd.setExtras(randomKey.getBuffer());
+    } else if (hasFeature(cb::mcbp::Feature::Collections)) {
         // Currently just request random default collection key
         cb::mcbp::request::GetRandomKeyPayload randomKey;
         cmd.setExtras(randomKey.getBuffer());

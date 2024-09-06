@@ -21,6 +21,7 @@
 GetCommandContext::GetCommandContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
       vbucket(cookie.getRequest().getVBucket()),
+      opcode(cookie.getRequest().getClientOpcode()),
       state(State::GetItem) {
 }
 
@@ -54,7 +55,7 @@ cb::engine_errc GetCommandContext::getItem() {
     return ret.first;
 }
 
-cb::engine_errc GetCommandContext::sendResponse() {
+void GetCommandContext::sendResponse() {
     const auto datatype =
             connection.getEnabledDatatypes(item_dissector->getDatatype());
 
@@ -94,9 +95,38 @@ cb::engine_errc GetCommandContext::sendResponse() {
                     : std::unique_ptr<SendBuffer>{});
 
     STATS_HIT(&connection, get);
+}
 
-    state = State::Done;
-    return cb::engine_errc::success;
+void GetCommandContext::sendGetRandomKeyResponse() {
+    const auto& req = cookie.getRequest();
+    if (item_dissector->getExtendedAttributes().empty() ||
+        req.getExtlen() < sizeof(cb::mcbp::request::GetRandomKeyPayloadV2) ||
+        !req.getCommandSpecifics<cb::mcbp::request::GetRandomKeyPayloadV2>()
+                 .isIncludeXattr()) {
+        // No xattrs or
+        // The request don't include GetRandomKeyPayloadV2, or
+        // The client didn't request xattrs to be included
+        sendResponse();
+        return;
+    }
+
+    const auto& document = item_dissector->getItem();
+    const auto key = document.getDocKey();
+    // Set the CAS to add into the header
+    cookie.setCas(document.getCas());
+    const auto flags = document.getFlags();
+    connection.sendResponse(
+            cookie,
+            cb::mcbp::Status::Success,
+            {reinterpret_cast<const char*>(&flags), sizeof(flags)},
+            {reinterpret_cast<const char*>(key.data()), key.size()},
+            document.getValueView(),
+            document.getDataType(),
+            {});
+
+    cb::audit::document::add(
+            cookie, cb::audit::document::Operation::Read, document.getDocKey());
+    STATS_HIT(&connection, get);
 }
 
 cb::engine_errc GetCommandContext::noSuchItem() {
@@ -135,7 +165,13 @@ cb::engine_errc GetCommandContext::step() {
             ret = noSuchItem();
             break;
         case State::SendResponse:
-            ret = sendResponse();
+            if (opcode == cb::mcbp::ClientOpcode::GetRandomKey) {
+                sendGetRandomKeyResponse();
+            } else {
+                sendResponse();
+            }
+            state = State::Done;
+            ret = cb::engine_errc::success;
             break;
         case State::Done:
             return cb::engine_errc::success;

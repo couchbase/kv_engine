@@ -46,6 +46,7 @@ set(memcached_testapp_SOURCES
     testapp_errmap.cc
     testapp_external_auth.cc
     testapp_getset.cc
+    testapp_get_random_key.cc
     testapp_hello.cc
     testapp_interfaces.cc
     testapp_ioctl.cc

@@ -92,6 +92,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::SubdocBinaryXattr:
         case Feature::RangeScanIncludeXattr:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
+        case Feature::GetRandomKeyIncludeXattr:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -155,6 +156,15 @@ void buildRequestVector(FeatureSet& requested,
             if (!containsFeature(requested, Feature::XATTR)) {
                 throw std::invalid_argument(
                         fmt::format("{} needs {}", feature, Feature::XATTR));
+            }
+            break;
+        case Feature::GetRandomKeyIncludeXattr:
+            // Needs XATTR and JSON and SnappyEverywhere
+            if (!containsFeature(requested, Feature::XATTR) ||
+                !containsFeature(requested, Feature::JSON) ||
+                !containsFeature(requested, Feature::SnappyEverywhere)) {
+                throw std::invalid_argument(fmt::format(
+                        "{} needs XATTR, JSON and SnappyEverywhere", feature));
             }
             break;
         }
@@ -373,6 +383,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case Feature::SyncReplication:
         case Feature::RangeScanIncludeXattr:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
+        case Feature::GetRandomKeyIncludeXattr:
             // Informative features don't need special handling
             added = true;
             break;

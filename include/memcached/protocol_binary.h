@@ -2128,6 +2128,28 @@ protected:
 };
 static_assert(sizeof(GetRandomKeyPayload) == 4, "Incorrect compiler padding");
 
+static_assert(sizeof(GetRandomKeyPayload) == 4, "Incorrect compiler padding");
+
+class GetRandomKeyPayloadV2 : public GetRandomKeyPayload {
+public:
+    GetRandomKeyPayloadV2() = default;
+    explicit GetRandomKeyPayloadV2(uint32_t collectionId, bool includeXattr)
+        : GetRandomKeyPayload(collectionId), includeXattr(includeXattr) {
+    }
+
+    bool isIncludeXattr() const {
+        return includeXattr;
+    }
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+protected:
+    bool includeXattr{false};
+};
+static_assert(sizeof(GetRandomKeyPayloadV2) == 5, "Incorrect compiler padding");
+
 // Payload for range_scan_continue opcode 0xdb, data in network byte order
 class RangeScanContinuePayload {
 public:
