@@ -174,6 +174,7 @@ function(kv_enable_pch target)
 endfunction()
 
 add_subdirectory(json)
+add_subdirectory(json_web_token)
 add_subdirectory(etc)
 add_subdirectory(auditd)
 add_subdirectory(cbsasl)
