@@ -424,6 +424,12 @@ bool FrontEndThread::isXattrBlobValid(std::string_view view) {
 
 /******************************* GLOBAL STATS ******************************/
 
+void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats) {
+    for (auto& ii : thread_stats) {
+        ii.reset();
+    }
+}
+
 void worker_threads_init() {
     const auto nthr = Settings::instance().getNumWorkerThreads();
 

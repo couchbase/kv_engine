@@ -73,11 +73,9 @@
 
 using namespace std::chrono_literals;
 
-CoreStats stats;
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> sigint;
 std::atomic<bool> sigterm;
-static std::unique_ptr<folly::EventBase> main_base;
 
 bool is_memcached_shutting_down() {
     return memcached_shutdown;
@@ -87,10 +85,54 @@ void shutdown_server() {
     memcached_shutdown = true;
 }
 
+/*
+ * forward declarations
+ */
+
+/* stats */
+static void stats_init();
+
+/* defaults */
+static void settings_init();
+
+/** exported globals **/
+struct stats stats;
+
+/** file scope variables **/
+
+std::unique_ptr<folly::EventBase> main_base;
+
 void stop_memcached_main_base() {
     if (main_base) {
         main_base->terminateLoopSoon();
     }
+}
+
+static folly::Synchronized<std::string, std::mutex> reset_stats_time;
+/**
+ * MB-12470 requests an easy way to see when (some of) the statistics
+ * counters were reset. This functions grabs the current time and tries
+ * to format it to the current timezone by using ctime_r/s (which adds
+ * a newline at the end for some obscure reason which we'll need to
+ * strip off).
+ */
+static void setStatsResetTime() {
+    time_t now = time(nullptr);
+    std::array<char, 80> reset_time;
+#ifdef WIN32
+    ctime_s(reset_time.data(), reset_time.size(), &now);
+#else
+    ctime_r(&now, reset_time.data());
+#endif
+    char* ptr = strchr(reset_time.data(), '\n');
+    if (ptr) {
+        *ptr = '\0';
+    }
+    reset_stats_time.lock()->assign(reset_time.data());
+}
+
+std::string getStatsResetTime() {
+    return *reset_stats_time.lock();
 }
 
 void disconnect_bucket(Bucket& bucket, Cookie* cookie) {
@@ -186,6 +228,14 @@ static void populate_log_level() {
     cb::logger::setLogLevels(val);
 }
 
+static void stats_init() {
+    setStatsResetTime();
+    stats.conn_structs.reset();
+    stats.total_conns.reset();
+    stats.rejected_conns.reset();
+    stats.curr_conns = 0;
+}
+
 static bool prometheus_auth_callback(const std::string& user,
                                      const std::string& password) {
     if (cb::sasl::mechanism::plain::authenticate(user, password) !=
@@ -208,6 +258,14 @@ static bool prometheus_auth_callback(const std::string& user,
 struct thread_stats* get_thread_stats(Connection* c) {
     auto& independent_stats = c->getBucket().stats;
     return &independent_stats.at(c->getThread().index);
+}
+
+void stats_reset(Cookie& cookie) {
+    setStatsResetTime();
+    stats.total_conns.reset();
+    stats.rejected_conns.reset();
+    threadlocal_stats_reset(cookie.getConnection().getBucket().stats);
+    bucket_reset_stats(cookie);
 }
 
 static size_t get_number_of_worker_threads() {
@@ -976,6 +1034,7 @@ int memcached_main(int argc, char** argv) {
     }
 
     /* initialize other stuff */
+    stats_init();
 
 #ifndef WIN32
     // ignore SIGPIPE signals

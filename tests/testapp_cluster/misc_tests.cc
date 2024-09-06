@@ -470,17 +470,6 @@ TEST_F(BasicClusterTest, AllStatGroups) {
         case StatGroupId::Scrub:
             // These are all specific to default engine.
             break;
-
-        case StatGroupId::Reset:
-            // This is no longer supported!
-            try {
-                conn->stats(key);
-                FAIL() << "reset should return not supported";
-            } catch (const ConnectionError& e) {
-                ASSERT_TRUE(e.isNotSupported()) << e.what();
-            }
-            break;
-
         default:
             // Use adminConnection as some stats are privileged.
             // stats() throws if the request is not successful (and

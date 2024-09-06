@@ -219,6 +219,34 @@ TEST_P(StatsTest, TestGetMeta) {
     EXPECT_EQ(0, get_hits);
 }
 
+TEST_P(StatsTest, TestReset) {
+    const auto before = get_cmd_counter("cmd_get");
+    for (int ii = 0; ii < 10; ++ii) {
+        EXPECT_THROW(userConnection->get("foo", Vbid(0)), ConnectionError);
+    }
+    EXPECT_EQ(before + 10, get_cmd_counter("cmd_get"));
+
+    // The cmd_get counter work. Verify that reset set it to 0
+    adminConnection->executeInBucket(
+            bucketName, [](auto& connection) { connection.stats("reset"); });
+
+    EXPECT_EQ(0, get_cmd_counter("cmd_get"));
+
+    // Just ensure that the "reset timings" is detected
+    // @todo add a separate test case for cmd timings stats
+    adminConnection->executeInBucket(bucketName, [](auto& connection) {
+        connection.stats("reset timings");
+        // Just ensure that the "reset bogus" is detected...
+        try {
+            connection.stats("reset bogus");
+            FAIL() << "stats reset bogus should throw an exception (non a "
+                      "valid cmd)";
+        } catch (ConnectionError& error) {
+            EXPECT_TRUE(error.isInvalidArguments()) << error.what();
+        }
+    });
+}
+
 /**
  * MB-17815: The cmd_set stat is incremented multiple times if the underlying
  * engine returns EWOULDBLOCK (which would happen for all operations when

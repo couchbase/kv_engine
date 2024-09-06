@@ -37,6 +37,7 @@ static void server_global_stats(const StatCollector& collector) {
 
     using namespace cb::stats;
     collector.addStat(Key::uptime, now);
+    collector.addStat(Key::stat_reset, getStatsResetTime());
     collector.addStat(Key::time, mc_time_convert_to_abs_time(now));
 
     collector.addStat(Key::version, get_server_version());
