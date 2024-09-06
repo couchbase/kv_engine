@@ -36,8 +36,9 @@ parser.add_argument('--webhook', help='URL to post the output')
 # Gerrit instance
 base_url = 'https://review.couchbase.com'
 # Changes which have multiple members of KV-Engine as reviewers
-query_reviewers = ('reviewer:jim@couchbase.com '
-                   'reviewer:trond.norbye@couchbase.com')
+query_reviewers = ' '.join(
+    f'(reviewer:{user} or owner:{user})'
+    for user in ('jim@couchbase.com', 'trond.norbye@couchbase.com'))
 # Relevant projects
 query_projects = ('(project:kv_engine or project:platform or '
                   'project:couchstore or project:tlm or '
