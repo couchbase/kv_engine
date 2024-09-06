@@ -11,6 +11,8 @@
 #include "cbsasl/scram-sha/scram-sha.h"
 #include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/util.h"
+
+#include <cbsasl/username_util.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <platform/base64.h>
@@ -110,7 +112,7 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
     }
 
     try {
-        username = decodeUsername(username);
+        username = username::decode(username);
     } catch (std::runtime_error&) {
         LOG_DEBUG("UUID:[{}]: Invalid character in username detected",
                   context.getUuid());

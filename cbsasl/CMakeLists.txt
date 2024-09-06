@@ -21,6 +21,8 @@ add_library(cbsasl STATIC
             strcmp.cc
             strerror.cc
             user.cc
+            username_util.cc
+            username_util.h
             util.h)
 kv_enable_pch(cbsasl)
 cb_enable_unity_build(cbsasl)
@@ -47,7 +49,8 @@ cb_add_test_executable(cbsasl_unit_test
                        scram-sha/saslprep_test.cc
                        scram-sha/scram-sha_test.cc
                        strcmp_test.cc
-                       user_test.cc)
+                       user_test.cc
+                       username_util_test.cc)
 cb_enable_unity_build(cbsasl_unit_test)
 kv_enable_pch(cbsasl_unit_test)
 target_link_libraries(cbsasl_unit_test

@@ -24,24 +24,3 @@
  * @throws std::runtime_error if we encounter a multibyte character
  */
 std::string SASLPrep(const std::string& string);
-
-/**
- * According to https://www.ietf.org/rfc/rfc5802.txt all occurrences
- * of ',' and '=' needs to be transferred as =2C and =3D.
- *
- * @param username the username to encode
- * @return the escaped string
- */
-std::string encodeUsername(const std::string& username);
-
-/**
- * According to https://www.ietf.org/rfc/rfc5802.txt all occurrences
- * of ',' and '=' needs to be transferred as =2C and =3D. This method
- * decodes that encoding
- *
- * @param username the username to decode
- * @return the decoded username
- * @throws std::runtime_error if the username contains an illegal
- *         sequence of characters.
- */
-std::string decodeUsername(const std::string& username);

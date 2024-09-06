@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,35 +9,6 @@
  */
 #include <cbsasl/scram-sha/stringutils.h>
 #include <folly/portability/GTest.h>
-
-TEST(Authname, SingleComma) {
-    EXPECT_EQ(",", decodeUsername("=2C"));
-}
-
-TEST(Authname, SingleEqual) {
-    EXPECT_EQ("=", decodeUsername("=3D"));
-}
-
-TEST(Authname, DoubleEqual) {
-    EXPECT_EQ("==", decodeUsername("=3D=3D"));
-}
-
-TEST(Authname, InvalidEqualSequence) {
-    EXPECT_THROW(decodeUsername("=3F"), std::runtime_error);
-}
-
-TEST(Authname, InvalidEqualSequenceStringTooShort) {
-    EXPECT_THROW(decodeUsername("=3"), std::runtime_error);
-}
-
-TEST(Authname, StringContainingAMix) {
-    EXPECT_EQ("This,=Where I=use,",
-              decodeUsername("This=2C=3DWhere I=3Duse=2C"));
-}
-
-TEST(Authname, EncodeUsername) {
-    EXPECT_EQ("Hi=2CI'm=3D", encodeUsername("Hi,I'm="));
-}
 
 TEST(SASLPrep, SASLPrepPlainAscii) {
     // We should allow all "printable" ascii characters, and no

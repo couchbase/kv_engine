@@ -12,6 +12,8 @@
 #include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/util.h"
+
+#include <cbsasl/username_util.h>
 #include <logger/logger.h>
 #include <platform/base64.h>
 #include <map>
@@ -103,7 +105,7 @@ void ScramShaBackend::addAttribute(std::ostream& out,
 
     switch (key) {
     case 'n': // username ..
-        out << encodeUsername(SASLPrep(value));
+        out << username::encode(SASLPrep(value));
         break;
 
     case 'r': // client nonce.. printable characters
