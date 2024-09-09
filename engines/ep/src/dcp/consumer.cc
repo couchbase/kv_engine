@@ -1336,6 +1336,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
             rval = stream->processUnackedBytes(bytesProcessed);
             if (rval == more_to_process) {
                 backoffs++;
+                bufferedVBQueue.pushUnique(stream->getVBucket());
             }
             flowControl.incrFreedBytes(bytesProcessed);
 
@@ -1344,12 +1345,6 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
             break;
         }
     } while (bytesProcessed > 0 && rval == all_processed);
-
-    // The stream may not be done yet so must go back in the ready queue
-    if (bytesProcessed > 0) {
-        bufferedVBQueue.pushUnique(stream->getVBucket());
-        rval = more_to_process; // Return more_to_process to force a snooze(0.0)
-    }
 
     return rval;
 }

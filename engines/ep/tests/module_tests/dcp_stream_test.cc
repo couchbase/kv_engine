@@ -8468,6 +8468,82 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     EXPECT_EQ(messageBytes, control.getFreedBytes());
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    removeCheckpoint(vb);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+
+    // Force OOM
+    engine->getConfiguration().setMutationMemRatio(0);
+
+    const uint32_t opaque = 1;
+    const size_t seqno = 1;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  seqno,
+                                  seqno,
+                                  DcpSnapshotMarkerFlag::Memory,
+                                  std::optional<uint64_t>(0),
+                                  {},
+                                  {});
+    stream->processMarker(&snapshotMarker);
+
+    const std::string key = "key";
+    const auto value = std::string(1024 * 1024, 'v');
+    const auto messageBytes =
+            MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
+
+    ASSERT_EQ(0, stream->getUnackedBytes());
+
+    queued_item qi(makeCommittedItem(makeStoredDocKey(key), value));
+    qi->setBySeqno(seqno);
+    const auto docKey = qi->getDocKey();
+    const auto res = consumer->public_processMutationOrPrepare(
+            vbid, opaque, docKey, std::move(qi), {}, messageBytes);
+
+    // Note: PassiveStream returns temporary_failure but DcpConsumer turns it
+    // into success.
+    EXPECT_EQ(cb::engine_errc::success, res);
+    EXPECT_EQ(vb.getHighSeqno(), 1);
+    // Evidence of executing the OOM path is given by counters though
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+
+    auto& control = consumer->getFlowControl();
+    ASSERT_EQ(0, control.getFreedBytes());
+
+    // Still OOM, DcpConsumerTask can't process unacked bytes
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(0, control.getFreedBytes());
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+
+    // System recovers from OOM..
+    engine->getConfiguration().setMutationMemRatio(1);
+    // .. but re-enters a OOM phase during the unacked bytes processing
+    std::function<void()> hook = [this, &control, messageBytes]() {
+        engine->getConfiguration().setMutationMemRatio(0);
+    };
+    stream->setProcessUnackedBytes_TestHook(hook);
+
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+    EXPECT_EQ(0, control.getFreedBytes());
+
+    // Finally the system recovers from OOM
+    engine->getConfiguration().setMutationMemRatio(1);
+    stream->setProcessUnackedBytes_TestHook({});
+
+    // Before the fix for MB-63439, in the previous call into
+    // processUnackedBytes() the Consumer has missed to add the vbid back into
+    // the Consumer::bufferedVBQueue, so at the next call the Consumer doesn't
+    // find any vb to process.
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
+    EXPECT_EQ(0, stream->getUnackedBytes());
+    EXPECT_EQ(messageBytes, control.getFreedBytes());
+}
+
 // MB-62847
 TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
     // Begin with an active vbucket and do some work to ensure that DCP will
