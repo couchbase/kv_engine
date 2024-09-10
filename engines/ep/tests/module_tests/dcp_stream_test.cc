@@ -8488,6 +8488,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
                                   {},
+                                  {},
                                   {});
     stream->processMarker(&snapshotMarker);
 
