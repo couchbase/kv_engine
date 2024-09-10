@@ -240,10 +240,25 @@ Commenting
 ^^^^^^^^^^
 
 Comments are one critical part of readability and maintainability.  Everyone
-knows they should comment their code, and so should you.  When writing comments,
+knows they should comment their code, and so should you. When writing comments,
 write them as English prose, which means they should use proper capitalization,
-punctuation, etc.  Aim to describe what the code is trying to do and why, not
-*how* it does it at a micro level. Here are a few critical things to document:
+punctuation, etc. Aim to describe what the code is trying to do and why, not
+*how* it does it at a micro level. A comment *must* add value to the reader,
+which means that you shouldn't add "boilerplate" comments like:
+
+.. code-block:: c++
+
+  /// Enum to represent colors
+  enum class Color { Red, Blue };
+
+  /// Get the username
+  std::string getUsername()
+
+All comments are part of the codebase and must be maintained, and adding
+comments which don't add any value just means adding things we need to maintain
+(and an incorrect comment is worse than no comment).
+
+Here are a few critical things to document:
 
 .. _header file comment:
 
@@ -255,9 +270,8 @@ the file.  The standard header looks like this:
 
 .. code-block:: c++
 
-  /* -*- MODE: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
   /*
-   *     Copyright 2017-Present Couchbase, Inc.
+   *     Copyright 2024-Present Couchbase, Inc.
    *
    *   Use of this software is governed by the Business Source License
    *   included in the file licenses/BSL-Couchbase.txt.  As of the Change
