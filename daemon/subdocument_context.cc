@@ -1064,8 +1064,10 @@ cb::engine_errc SubdocExecutionContext::validate_xattr_privilege() {
             // the system xattr privilege. Use testPrivilege instead of
             // checkPrivilege as we don't want the system to log that
             // you don't have access (we just return the user attrs)
-            if (op.path.rfind(cb::xattr::vattrs::XTOC, 0) == 0 &&
-                cookie.testPrivilege(cb::rbac::Privilege::SystemXattrRead)
+            if (const auto [sid, cid] = cookie.getScopeAndCollection();
+                op.path.rfind(cb::xattr::vattrs::XTOC, 0) == 0 &&
+                cookie.testPrivilege(
+                              cb::rbac::Privilege::SystemXattrRead, sid, cid)
                         .success()) {
                 xtocSemantics = XtocSemantics::All;
             }
