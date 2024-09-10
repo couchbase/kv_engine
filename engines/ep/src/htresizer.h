@@ -35,8 +35,9 @@ public:
         // [per Bucket Task] This task doesn't do very much (most of the actual
         // work to check and resize HashTables is delegated to the per-vBucket
         // 'ResizingVisitor' tasks). As such we don't expect to execute for
-        // very long.
-        return std::chrono::milliseconds(10);
+        // very long. 15ms set from real runtime histogram from Morpheus builds
+        // running on perf clusters where 99.9 is at 12ms
+        return std::chrono::milliseconds(15);
     }
 
 private:
