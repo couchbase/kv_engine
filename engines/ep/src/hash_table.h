@@ -378,6 +378,8 @@ public:
 
         size_t getNumTempItems() const;
 
+        size_t getNumTempItemsAllowed() const;
+
         size_t getNumSystemItems() const;
 
         size_t getNumPreparedSyncWrites() const;
@@ -553,12 +555,15 @@ public:
      *        should be used for newly added items
      * @param shouldTrackMfuCallback callback used to check if a value can be
      *        evicted from the HashTable safely.
+     * @param defaultTempItemsAllowedPercent default temp items allowed as a
+     * percentange of the hash table size.
      */
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
               size_t initialSize,
               size_t locks,
               double freqCounterIncFactor,
+              size_t defaultTempItemsAllowedPercent,
               GetInitialMFUCallback getInitialMFU = defaultGetInitialMFU,
               ShouldTrackMFUCallback shouldTrackMfuCallback =
                       defaultShouldTrackMFUCallback);
@@ -714,6 +719,19 @@ public:
      */
     size_t getNumTempItems() const {
         return valueStats.getNumTempItems();
+    }
+
+    /**
+     * Get the number of temp items allowed in the hash table as a percentage
+     * of the HT size.
+     */
+    size_t getNumTempItemsAllowed() const {
+        return numTempItemsAllowed;
+    }
+
+    void updateNumTempItemsAllowed() {
+        const auto newValue = getSize() * tempItemsAllowedPercent() / 100;
+        numTempItemsAllowed.store(newValue);
     }
 
     DatatypeCombo getDatatypeCounts() const {
@@ -1479,6 +1497,13 @@ public:
      */
     std::function<size_t()> minimumSize;
 
+    /**
+     * Function which returns the percentage of temp items allowed in the HT.
+     * The percentage is calculated based off the HT size. This is not a
+     * strict invariant - see MB-54274 for more details.
+     */
+    std::function<size_t()> tempItemsAllowedPercent;
+
 protected:
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
@@ -1574,6 +1599,9 @@ protected:
     // The size of the hash table (number of buckets) - i.e. number of elements
     // in `values`
     std::atomic<size_t> size;
+
+    cb::RelaxedAtomic<size_t> numTempItemsAllowed;
+
     table_type values;
     // Mutable so that we can make dumpStoredValuesAsJson const
     mutable std::vector<std::mutex> mutexes;

@@ -5693,11 +5693,23 @@ static enum test_result test_non_existent_get_and_delete(EngineIface* h) {
     checkeq(cb::engine_errc::no_such_key,
             get(h, nullptr, "key1", Vbid(0)).first,
             "Unexpected return status");
-    checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
+    // Test needed to be fixed when backporting MB-54274 to trinity, as the temp
+    // item isn't immediately removed at GET.
+    // Reason for different behaviour couchstore/magma is that couchstore's
+    // bloomfilter prevents any BGFetch, so that scenario doesn't create any
+    // temp StoredValue in the HT. In morpheus couchstore/magma behave the same
+    // with regard to that (see MB-48834), so we didn't hit this issue in the
+    // original morpheus patch.
+    const auto expected = isMagmaBucket(h) ? 1 : 0;
+    checkeq(expected,
+            get_int_stat(h, "curr_temp_items"),
+            "Unexpected temp item");
     checkeq(cb::engine_errc::no_such_key,
             del(h, "key3", 0, Vbid(0)),
             "Unexpected return status");
-    checkeq(0, get_int_stat(h, "curr_temp_items"), "Unexpected temp item");
+    checkeq(expected,
+            get_int_stat(h, "curr_temp_items"),
+            "Unexpected temp item");
     return SUCCESS;
 }
 
@@ -6600,6 +6612,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_ht_locks",
               "ep_ht_resize_interval",
               "ep_ht_size",
+              "ep_ht_temp_items_allowed_percent",
               "ep_item_compressor_chunk_duration",
               "ep_item_compressor_interval",
               "ep_item_eviction_age_percentage",
@@ -6874,6 +6887,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_ht_locks",
               "ep_ht_resize_interval",
               "ep_ht_size",
+              "ep_ht_temp_items_allowed_percent",
               "ep_io_bg_fetch_read_count",
               "ep_io_compaction_read_bytes",
               "ep_io_compaction_write_bytes",

@@ -26,7 +26,12 @@ class HashTablePerspectiveTest : public HashTableTest,
                                  public ::testing::WithParamInterface<bool> {
 public:
     HashTablePerspectiveTest()
-        : ht(global_stats, makeFactory(GetParam()), 5, 1, 0),
+        : ht(global_stats,
+             makeFactory(GetParam()),
+             5,
+             1,
+             0,
+             HashTableTest::defaultHtTempItemsAllowedPercent),
           key("key", CollectionID::Default) {
     }
 

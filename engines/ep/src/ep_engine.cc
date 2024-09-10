@@ -283,8 +283,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
     auto options = static_cast<get_options_t>(
-            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
-            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | HIDE_LOCKED_CAS |
+            TRACK_STATISTICS);
 
     switch (documentStateFilter) {
     case DocStateFilter::Alive:
@@ -695,6 +695,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setHtResizeInterval(std::stoull(val));
         } else if (key == "ht_size") {
             configuration.setHtSize(std::stoull(val));
+        } else if (key == "ht_temp_items_allowed_percent") {
+            configuration.setHtTempItemsAllowedPercent(std::stoull(val));
         } else if (key == "max_item_privileged_bytes") {
             configuration.setMaxItemPrivilegedBytes(std::stoull(val));
         } else if (key == "max_item_size") {
@@ -1160,9 +1162,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getReplicaInner(
         CookieIface& cookie, const DocKey& key, Vbid vbucket) {
-    auto options = static_cast<get_options_t>(
-            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
-            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    const auto options = static_cast<get_options_t>(QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
     GetValue rv(getKVBucket()->getReplica(key, vbucket, &cookie, options));
     auto error_code = rv.getStatus();
@@ -2635,9 +2635,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
     // isn't resident we run another iteration in the loop and retries the
     // action but this time we _do_ schedule a bg-fetch.
     for (int ii = 0; ii < 2; ++ii) {
-        auto options = static_cast<get_options_t>(HONOR_STATES |
-                                                  DELETE_TEMP |
-                                                  HIDE_LOCKED_CAS);
+        auto options =
+                static_cast<get_options_t>(HONOR_STATES | HIDE_LOCKED_CAS);
 
         // For the first pass, if we need to do a BGfetch, only fetch metadata
         // (no point in fetching the whole document if the filter doesn't want

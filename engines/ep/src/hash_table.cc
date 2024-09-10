@@ -121,9 +121,13 @@ HashTable::HashTable(EPStats& st,
                      size_t initialSize,
                      size_t locks,
                      double freqCounterIncFactor,
+                     size_t defaultTempItemsAllowedPercent,
                      std::function<uint8_t()> getInitialMFU,
                      ShouldTrackMFUCallback shouldTrackMfuCallback)
     : minimumSize([initialSize]() { return initialSize; }),
+      tempItemsAllowedPercent([defaultTempItemsAllowedPercent]() {
+          return defaultTempItemsAllowedPercent;
+      }),
       size(initialSize),
       mutexes(locks),
       stats(st),
@@ -268,6 +272,11 @@ void HashTable::resize(size_t newSize) {
     if (newSize > static_cast<size_t>(std::numeric_limits<int>::max())) {
         return;
     }
+
+    // ht_temp_items_allowed_percent could have changed & we would want that
+    // to take effect always even if the size hasn't changed.
+    auto updateTempItemsAllowedOnExit =
+            folly::makeGuard([this]() { updateNumTempItemsAllowed(); });
 
     // Don't resize to the same size, either.
     if (newSize == size) {

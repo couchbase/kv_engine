@@ -2680,6 +2680,37 @@ TEST_P(KVBucketParamTest, HashTableMinimumSize) {
     EXPECT_EQ(47, ht.getSize());
 }
 
+TEST_P(KVBucketParamTest, HashTableTempItemAllowed) {
+    auto& config = engine->getConfiguration();
+    auto& ht = store->getVBucket(vbid)->ht;
+
+    // Expect to be configured with the default value first -
+    // ht_temp_items_allowed_percent=10.
+    EXPECT_EQ(10, config.getHtTempItemsAllowedPercent());
+    // Expect to be configured with the default value first -
+    // ht_size=47.
+    EXPECT_EQ(47, ht.getSize());
+    EXPECT_EQ(4, ht.getNumTempItemsAllowed());
+
+    config.setHtTempItemsAllowedPercent(15);
+    EXPECT_EQ(15, config.getHtTempItemsAllowedPercent());
+
+    // resize hasn't been run - numTempItemsAllowed shouldn't have been updated.
+    EXPECT_EQ(4, ht.getNumTempItemsAllowed());
+    ht.resize();
+    EXPECT_EQ(7, ht.getNumTempItemsAllowed());
+
+    config.setHtSize(3);
+    ht.resize();
+    EXPECT_EQ(3, ht.getSize());
+    EXPECT_EQ(0, ht.getNumTempItemsAllowed());
+
+    config.setHtTempItemsAllowedPercent(40);
+    EXPECT_EQ(40, config.getHtTempItemsAllowedPercent());
+    ht.resize();
+    EXPECT_EQ(1, ht.getNumTempItemsAllowed());
+}
+
 // Test cases which run for EP (Full and Value eviction) and Ephemeral
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          KVBucketParamTest,

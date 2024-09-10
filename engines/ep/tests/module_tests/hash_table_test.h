@@ -37,4 +37,5 @@ protected:
             bool isOrdered = false);
 
     const size_t defaultHtSize;
+    const size_t defaultHtTempItemsAllowedPercent;
 };

@@ -36,7 +36,8 @@ public:
              std::make_unique<Factory>(),
              /*size*/ 47,
              /*locks*/ 1,
-             /*freqCounterIncFactor*/ 0.012),
+             /*freqCounterIncFactor*/ 0.012,
+             10),
           item(make_item(Vbid(0), makeStoredDocKey("key"), "value")) {
     }
 

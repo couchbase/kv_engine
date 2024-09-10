@@ -240,7 +240,11 @@ enum get_options_t {
     HONOR_STATES = 0x0004, // whether a retrieval should depend on the state
     // of the vbucket
     TRACK_REFERENCE = 0x0008, // whether NRU bit needs to be set for the item
-    DELETE_TEMP = 0x0010, // whether temporary items need to be deleted
+    DELETE_TEMP = 0x0010, // whether temporary items need to be deleted. Note,
+                          // temp-items may also be deleted, if the number of
+                          // temp items as a percentage of hashtable size is
+                          // greater than ht_temp_items_allowed_percent. See
+                          // MB-54274 for more details.
     HIDE_LOCKED_CAS = 0x0020, // whether locked items should have their CAS
     // hidden (return -1).
     GET_DELETED_VALUE = 0x0040, // whether to retrieve value of a deleted item

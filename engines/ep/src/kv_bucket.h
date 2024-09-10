@@ -343,6 +343,14 @@ public:
         minimumHashTableSize = size;
     }
 
+    void setHtTempItemsAllowedPercent(size_t percent) {
+        htTempItemsAllowedPercent = percent;
+    }
+
+    size_t getHtTempItemsAllowedPercent() const {
+        return htTempItemsAllowedPercent;
+    }
+
     void visit(VBucketVisitor &visitor) override;
 
     /**
@@ -1377,6 +1385,8 @@ protected:
     /// Error code to return when attempting to unlock
     /// an item that is not locked
     cb::RelaxedAtomic<cb::engine_errc> notLockedError;
+
+    cb::RelaxedAtomic<size_t> htTempItemsAllowedPercent;
 
     /**
      * Status of XATTR support for this bucket - this is set from the
