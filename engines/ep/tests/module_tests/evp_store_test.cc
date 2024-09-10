@@ -49,6 +49,7 @@
 #include <folly/synchronization/Baton.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <utilities/math_utilities.h>
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -721,26 +722,25 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     gv = store->get(key0, vbid, cookie1, options);
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
 
-    // set bucket quota to current memory usage + 3MiB such that the first
-    // bgfetch will pass and the second one will fail:
-    // couchstore fetches value + addition overhead = ~1.3MiB
-    // We want an additional 1MiB for fetching the first item successfully
-    // Magma requires an addition 1MiB overhead than couchstore.
-    // This test was failing intermittently on CV for
-    // magma_persistent_full_eviction. The additional 0.3MiB is to ensure that
-    // the test passes consistently as full eviction requires greater overhead
-    // to include metadata.
-    if (engine->getConfiguration().getBackendString() == "magma") {
-        engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
-                               (4.3 * valueSize));
-    } else {
-        engine->setMaxDataSize(stats.getPreciseTotalMemoryUsed() +
-                               (3 * valueSize));
-    }
-
     int callbackCounter = 0;
     int numSucess = 0;
     int numFailure = 0;
+    int hookRun = 0;
+    bool engineMaxDataSizeUpdated = false;
+
+    // On the second run of this hook, set the mutation watermark equal to
+    // current memory usage. This will make sure the second item will fail
+    // to be BgFetched.
+    engine->preCreateItemHook = [&]() {
+        if (hookRun == 1) {
+            engine->setMaxDataSize(cb::fractionOf(
+                    stats.getPreciseTotalMemoryUsed(),
+                    engine->getConfiguration().getMutationMemRatio()));
+            engineMaxDataSizeUpdated = true;
+        }
+        hookRun++;
+    };
+
     cookie1->setUserNotifyIoComplete([&callbackCounter,
                                       &numSucess,
                                       &numFailure](cb::engine_errc status) {
@@ -765,13 +765,15 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     // run bgFetch
     runBGFetcherTask();
 
-    // BGFetch should fail to allocate memory above bucekt quota
+    // BGFetch should fail to allocate memory above the mutation watermark
     auto vb = store->getVBucket(vbid);
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
     EXPECT_LE(stats.getPreciseTotalMemoryUsed(), stats.getMaxDataSize());
     EXPECT_EQ(1, numSucess);
     EXPECT_EQ(1, numFailure);
     EXPECT_EQ(2, callbackCounter);
+    EXPECT_EQ(2, hookRun);
+    EXPECT_TRUE(engineMaxDataSizeUpdated);
 
     destroy_mock_cookie(cookie1);
     destroy_mock_cookie(cookie2);

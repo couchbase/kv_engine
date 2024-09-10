@@ -168,6 +168,30 @@ void SynchronousEPEngine::destroy(bool force) {
     EventuallyPersistentEngine::destroy(force);
 }
 
+std::pair<cb::engine_errc, std::unique_ptr<Item>>
+SynchronousEPEngine::createItem(const DocKeyView& key,
+                                size_t nbytes,
+                                uint32_t flags,
+                                rel_time_t exptime,
+                                const value_t& body,
+                                uint8_t datatype,
+                                uint64_t theCas,
+                                int64_t bySeq,
+                                Vbid vbid,
+                                int64_t revSeq) {
+    preCreateItemHook();
+    return EventuallyPersistentEngine::createItem(key,
+                                                  nbytes,
+                                                  flags,
+                                                  exptime,
+                                                  body,
+                                                  datatype,
+                                                  theCas,
+                                                  bySeq,
+                                                  vbid,
+                                                  revSeq);
+}
+
 QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
     struct QuotaSharingManagerImpl : public QuotaSharingManager {
         QuotaSharingManagerImpl(SynchronousEPEngine& engine)

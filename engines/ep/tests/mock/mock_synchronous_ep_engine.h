@@ -69,6 +69,22 @@ public:
      */
     void destroy(bool force) override;
 
+    /**
+     * Constructs a SynchronousEPEngine instance that begins with a testing
+     * hook before calling EPEngine::createItem().
+     */
+    std::pair<cb::engine_errc, std::unique_ptr<Item>> createItem(
+            const DocKeyView& key,
+            size_t nbytes,
+            uint32_t flags,
+            rel_time_t exptime,
+            const value_t& body,
+            uint8_t datatype,
+            uint64_t theCas,
+            int64_t bySeq,
+            Vbid vbid,
+            int64_t revSeq) override;
+
     /** Construct independent managers, even for quota sharing configs. */
     QuotaSharingManager& getQuotaSharingManager() override;
 
@@ -116,6 +132,9 @@ public:
     using EventuallyPersistentEngine::doConnAggStats;
     using EventuallyPersistentEngine::doEngineStats;
     using EventuallyPersistentEngine::fileOpsTracker;
+
+    // Test hook called before creating an item that is BgFetched
+    TestingHook<> preCreateItemHook;
 
 private:
     std::unique_ptr<QuotaSharingManager> quotaSharingManager;

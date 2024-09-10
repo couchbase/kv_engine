@@ -911,7 +911,7 @@ public:
      * @return A pair containing an engine error code and a unique pointer to
      * the created item.
      */
-    std::pair<cb::engine_errc, std::unique_ptr<Item>> createItem(
+    virtual std::pair<cb::engine_errc, std::unique_ptr<Item>> createItem(
             const DocKeyView& key,
             size_t nbytes,
             uint32_t flags,
