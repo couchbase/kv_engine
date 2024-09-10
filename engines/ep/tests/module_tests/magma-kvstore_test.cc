@@ -15,9 +15,11 @@
 #include "file_ops_tracker.h"
 #include "kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/magma-kvstore/magma-kvstore_fs.h"
 #include "kvstore/magma-kvstore/magma-kvstore_iorequest.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "kvstore_test.h"
+#include "libmagma/file.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
 #include "thread_gate.h"
@@ -1021,6 +1023,22 @@ TEST_F(MagmaKVStoreFileOpsTest, usesFileOpsTracker) {
     EXPECT_CALL(cb, Call(FileOpTypeMatcher(FileOp::Type::Sync)));
 
     doWrite(1, true /*success*/);
+}
+
+// Verify that the tracking FileSystem implementation defines all the functions
+// that are in the base filesystem.
+TEST_F(MagmaKVStoreFileOpsTest, trackingFileSystemPassthrough) {
+    initialize_kv_store(kvstore.get(), vbid);
+    ASSERT_NE(nullptr, kvstoreConfig->magmaCfg.FSHook);
+
+    magma::DefaultFileSystem def;
+    kvstoreConfig->magmaCfg.FSHook(def);
+
+    EXPECT_NE(nullptr, def.MakeFile);
+    EXPECT_NE(nullptr, def.MakeDirectory);
+    EXPECT_NE(nullptr, def.Rename);
+    EXPECT_NE(nullptr, def.Link);
+    EXPECT_NE(nullptr, def.RemoveAllWithCallback);
 }
 
 class MagmaKVStoreHistoryTest : public MagmaKVStoreTest {

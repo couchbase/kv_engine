@@ -205,7 +205,7 @@ magma::FileSystem getMagmaTrackingFileSystem(FileOpsTracker& tracker,
 
     // The following members may not be initialised for a read-only FileSystem.
 
-    if (fs.Link) {
+    if (baseFs.Link) {
         fs.Link = [&tracker, wrapped = baseFs.Link](
                           const auto& src, const auto& dst) -> magma::Status {
             auto g = tracker.startWithScopeGuard(FileOp::write(0));
