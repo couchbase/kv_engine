@@ -1313,40 +1313,36 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
         return all_processed;
     }
 
-    ProcessUnackedBytesResult rval = all_processed;
-    uint32_t bytesProcessed = 0;
-    do {
-        switch (engine_.getKVBucket()->getReplicationThrottleStatus()) {
-        case KVBucket::ReplicationThrottleStatus::Pause:
+    switch (engine_.getKVBucket()->getReplicationThrottleStatus()) {
+    case KVBucket::ReplicationThrottleStatus::Pause:
+        backoffs++;
+        bufferedVBQueue.pushUnique(stream->getVBucket());
+        return more_to_process;
+    case KVBucket::ReplicationThrottleStatus::Disconnect:
+        backoffs++;
+        bufferedVBQueue.pushUnique(stream->getVBucket());
+        logger->warn(
+                "{} Processor task indicating disconnection "
+                "as there is no memory to complete replication",
+                stream->getVBucket());
+        setDisconnect();
+        return stop_processing;
+    case KVBucket::ReplicationThrottleStatus::Process:
+        uint32_t bytesProcessed = 0;
+        const auto res = stream->processUnackedBytes(bytesProcessed);
+        if (res == more_to_process) {
             backoffs++;
             bufferedVBQueue.pushUnique(stream->getVBucket());
-            return more_to_process;
-        case KVBucket::ReplicationThrottleStatus::Disconnect:
-            backoffs++;
-            bufferedVBQueue.pushUnique(stream->getVBucket());
-            logger->warn(
-                    "{} Processor task indicating disconnection "
-                    "as there is no memory to complete replication",
-                    stream->getVBucket());
-            setDisconnect();
-            return stop_processing;
-
-        case KVBucket::ReplicationThrottleStatus::Process:
-            bytesProcessed = 0;
-            rval = stream->processUnackedBytes(bytesProcessed);
-            if (rval == more_to_process) {
-                backoffs++;
-                bufferedVBQueue.pushUnique(stream->getVBucket());
-            }
-            flowControl.incrFreedBytes(bytesProcessed);
-
-            // Notifying memcached on clearing items for flow control
-            scheduleNotifyIfNecessary();
-            break;
         }
-    } while (bytesProcessed > 0 && rval == all_processed);
 
-    return rval;
+        // Notifying memcached on clearing items for flow control
+        flowControl.incrFreedBytes(bytesProcessed);
+        scheduleNotifyIfNecessary();
+
+        return res;
+    }
+
+    folly::assume_unreachable();
 }
 
 void DcpConsumer::notifyVbucketReady(Vbid vbucket) {
