@@ -1305,7 +1305,7 @@
             }
         },
         "magma_per_document_compression_enabled": {
-            "default": "false",
+            "default": "true",
             "dynamic": true,
             "descr": "Apply Snappy compression to each document when persisted (magma only)",
             "type": "bool"

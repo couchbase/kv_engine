@@ -13,6 +13,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "configuration.h"
 #include "file_ops_tracker.h"
+#include "kvstore/kvstore_iface.h"
 #include "kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "kvstore/magma-kvstore/magma-kvstore_fs.h"
@@ -62,8 +63,6 @@ protected:
         return std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
     }
 
-    std::unique_ptr<MagmaKVStoreConfig> kvstoreConfig;
-    std::unique_ptr<MockMagmaKVStore> kvstore;
     void SetRollbackTest() {
         rollbackTest = true;
     }
@@ -91,6 +90,9 @@ protected:
         setAndCommit(qi, expected);
         return qi;
     }
+
+    std::unique_ptr<MagmaKVStoreConfig> kvstoreConfig;
+    std::unique_ptr<MockMagmaKVStore> kvstore;
 
     std::string configStr;
     bool rollbackTest{false};
@@ -1087,7 +1089,7 @@ TEST_F(MagmaKVStoreHistoryTest, scanAllVersions1) {
             vbid,
             1,
             DocumentFilter::ALL_ITEMS,
-            ValueFilter::VALUES_COMPRESSED,
+            ValueFilter::VALUES_DECOMPRESSED,
             SnapshotSource::Head);
     ASSERT_TRUE(bySeq);
     EXPECT_EQ(1, bySeq->historyStartSeqno);
@@ -1223,7 +1225,7 @@ TEST_F(MagmaKVStoreHistoryTest, scanAllVersions2) {
             vbid,
             1,
             DocumentFilter::ALL_ITEMS,
-            ValueFilter::VALUES_COMPRESSED,
+            ValueFilter::VALUES_DECOMPRESSED,
             SnapshotSource::Head);
     ASSERT_TRUE(bySeq);
     EXPECT_EQ(1, bySeq->historyStartSeqno);

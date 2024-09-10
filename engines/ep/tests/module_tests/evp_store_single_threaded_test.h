@@ -554,7 +554,8 @@ public:
 
 #ifdef EP_USE_MAGMA
     static config::Config magmaConfigValues() {
-        return magmaBucket() * itemEvictionPolicy();
+        return magmaBucket() * itemEvictionPolicy() *
+               magmaPerDocumentCompressionConfigValues();
     }
 
     static auto nexusCouchstoreMagma() {
@@ -582,7 +583,7 @@ public:
                itemEvictionPolicy();
     }
 
-    static auto magmaPerDocumentCompressionConfigValues() {
+    static config::Config magmaPerDocumentCompressionConfigValues() {
         return config::Config{
                 { "magma_per_document_compression_enabled",
                   { "true",

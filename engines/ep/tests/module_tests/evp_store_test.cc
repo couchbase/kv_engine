@@ -1734,21 +1734,18 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
     };
 
     // Test 1: perform a get when snappy is supported.
-    // Check the item is returned compressed (if supported by KVStore)
+    // Check the item is returned compressed
     const auto Json = PROTOCOL_BINARY_DATATYPE_JSON;
     const auto JsonSnappy = Json | PROTOCOL_BINARY_DATATYPE_SNAPPY;
     cookie_to_mock_cookie(cookie)->setDatatypeSupport(JsonSnappy);
 
     auto item = doGet();
+    auto& config = engine->getConfiguration();
 
-    // TODO: MB-54829 magma per-document compression is temporarily
-    // disabled; magma still supports _fetching_ as Snappy, but will not
-    // have compressed the value. Check if compression is enabled here,
-    // and update the test once compression issues are resolved.
-    if (!isMagma()) {
-        EXPECT_EQ(JsonSnappy, item->getDataType());
-    } else {
+    if (isMagma() && !config.isMagmaPerDocumentCompressionEnabled()) {
         EXPECT_EQ(Json, item->getDataType());
+    } else {
+        EXPECT_EQ(JsonSnappy, item->getDataType());
     }
 
     // Test 2: perform a get when snappy is not supported.

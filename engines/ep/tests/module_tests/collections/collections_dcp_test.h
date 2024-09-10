@@ -183,28 +183,12 @@ public:
     }
 
     static auto allConfigValues() {
-        // MB-54829 - collections stats tests are likely to be affected by
-        // whether magma compresses documents at persistence or not.
-        // Parameterise over having compression enabled and disabled
-        // to ensure both paths are guarded.
         auto configs = STParameterizedBucketTest::allConfigValues();
-#ifdef EP_USE_MAGMA
-        configs *= STParameterizedBucketTest::
-                magmaPerDocumentCompressionConfigValues();
-#endif
         return configs;
     };
 
     static auto persistentConfigValues() {
-        // MB-54829 - collections stats tests are likely to be affected by
-        // whether magma compresses documents at persistence or not.
-        // Parameterise over having compression enabled and disabled
-        // to ensure both paths are guarded.
         auto configs = STParameterizedBucketTest::persistentConfigValues();
-#ifdef EP_USE_MAGMA
-        configs *= STParameterizedBucketTest::
-                magmaPerDocumentCompressionConfigValues();
-#endif
         return configs;
     };
 

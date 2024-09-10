@@ -27,6 +27,7 @@
 #include "kvstore/nexus-kvstore/nexus-kvstore-config.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore.h"
 #include "kvstore_config.h"
+#include "mcbp/protocol/datatype.h"
 #include "persistence_callback.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
@@ -682,7 +683,9 @@ bool KVStore::isDocumentPotentiallyCorruptedByMB52793(
     // To be able to fixup such documents we need to know more than just the
     // metadata, as the value size is stored as part of the value. As such;
     // return true if it meets all the criteria which metadata informs us of.
-    return deleted && datatype == PROTOCOL_BINARY_DATATYPE_XATTR;
+    // Handle case where datatype is xattr and snappy since Magma per-doc
+    // compression adds snappy datatype.
+    return deleted && cb::mcbp::datatype::is_xattr(datatype);
 }
 
 // MB-51373: Fix the datatype of invalid documents. Currently checks for

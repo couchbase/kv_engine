@@ -334,10 +334,7 @@ TEST_P(KVStoreParamTest, GetModes) {
             DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
     // Magma and couchstore compresses documents individually, hence will return
     // compressed documents when requested.
-    // TODO: MB-54829 once per-document compression is re-enabled for magma,
-    // this check should be updated (and the test possibly parameterised
-    // over magma_per_document_compression_enabled)
-    const auto expectCompressed = supportsFetchingAsSnappy() && !isMagma();
+    const auto expectCompressed = supportsFetchingAsSnappy();
     checkGetValue(gv, cb::engine_errc::success, expectCompressed);
 
     gv = kvstore->get(DiskDocKey{key}, Vbid(0), ValueFilter::KEYS_ONLY);
@@ -512,10 +509,7 @@ void KVStoreParamTest::checkBGFetchResult(
         EXPECT_FALSE(fetchedBlob);
         break;
     case ValueFilter::VALUES_COMPRESSED:
-        // TODO: MB-54829 once per-document compression is re-enabled for magma,
-        // this check should be updated (and the test possibly parameterised
-        // over magma_per_document_compression_enabled)
-        if (supportsFetchingAsSnappy() && !isMagma()) {
+        if (supportsFetchingAsSnappy()) {
             EXPECT_TRUE(
                     cb::mcbp::datatype::is_snappy(fetchedItem->getDataType()));
             EXPECT_GT(testDoc.getValue()->valueSize(),
@@ -1110,11 +1104,7 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
             // magma may return snappy datatype if that is the datatype
             // of the document on disk, even if KEYS_ONLY is requested.
         } else {
-            if (!isMagma()) {
-                // TODO: MB-54829 re-enable this for magma once
-                // per-document compression is restored.
-                EXPECT_EQ(expectedDatatype, item.getDataType());
-            }
+            EXPECT_EQ(expectedDatatype, item.getDataType());
             item.decompressValue();
             EXPECT_EQ(expectedValue, item.getValue()->to_string_view());
         }
@@ -1394,10 +1384,10 @@ TEST_P(KVStoreParamTest, GetAllKeysSanity) {
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
     int keys = 20;
-    for (int i = 0; i < keys; i++) {
+    for (int i = 1; i <= keys; i++) {
         std::string key("key" + std::to_string(i));
         auto qi = makeCommittedItem(makeStoredDocKey(key), "value");
-        qi->setBySeqno(5);
+        qi->setBySeqno(i);
         kvstore->set(*ctx, qi);
     }
 
@@ -1804,8 +1794,7 @@ void KVStoreParamTest::testPerDocumentCompression(bool useJson) {
     EXPECT_EQ(value, gv.item->getValue()->to_string_view());
 }
 
-// TODO: MB-54829 re-enable once per-doc compression is functional
-TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Binary) {
+TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Binary) {
     // check that an item written without snappy compression will be compressed
     // by magma
     if (config.getBackendString() != "magma") {
@@ -1817,8 +1806,7 @@ TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Binary) {
     testPerDocumentCompression(false /* useJson */);
 }
 
-// TODO: MB-54829 re-enable once per-doc compression is functional
-TEST_P(KVStoreParamTest, DISABLED_PerDocumentCompressionTest_Json) {
+TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Json) {
     // check that a json item written without snappy compression will be
     // compressed by magma
     if (config.getBackendString() != "magma") {
@@ -1906,7 +1894,7 @@ TEST_P(KVStoreParamTest, GetBySeqno) {
     }
 
     // Check compressed
-    if (supportsFetchingAsSnappy() && isSnappyCompressedAtPersistence()) {
+    if (isSnappyCompressedAtPersistence()) {
         auto gv = kvstore->getBySeqno(
                 *handle, Vbid(0), nItems, ValueFilter::VALUES_COMPRESSED);
         EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
