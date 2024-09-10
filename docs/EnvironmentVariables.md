@@ -67,6 +67,10 @@ The NUMA memory to use.
 
 Set to indicate that we're running unit tests
 
+## `MEMCACHED_DEBUG_STOP`
+
+Set to request memcached to stop (via SIGSTOP) at startup.
+
 ## `RUN_UNDER_VALGRIND`
 
 Set to indicate that we're running under valgrind

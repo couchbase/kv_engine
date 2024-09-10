@@ -782,6 +782,13 @@ static void initialize_serverless_config() {
 }
 
 int memcached_main(int argc, char** argv) {
+    // Pause the process on startup (makes attaching debugger easier).
+#ifndef WIN32
+    if (getenv("MEMCACHED_DEBUG_STOP")) {
+        raise(SIGSTOP);
+    }
+#endif
+
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
     _set_FMA3_enable (0);
