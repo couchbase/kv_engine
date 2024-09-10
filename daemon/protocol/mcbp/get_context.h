@@ -90,14 +90,18 @@ protected:
      * we don't need to copy the data into temporary buffers, but can point
      * directly into the actual item (or the temporary allocated inflated
      * buffer).
-     *
-     * @return cb::engine_errc::disconnect or cb::engine_errc::success
      */
-    cb::engine_errc sendResponse();
+    void sendResponse();
 
-private:
+    /// Send the respose packet for a getRandomKey command. If the client
+    /// didn't request extended attributes (or there isn't any) it'll
+    /// simply wrap into sendRespnse()
+    void sendGetRandomKeyResponse();
+
     /// The VBucket where the document should be located in
     const Vbid vbucket;
+    /// The opcode for the command being run
+    const cb::mcbp::ClientOpcode opcode;
     /// The actual item (looked up in getItem, and valid in sendResponse)
     std::unique_ptr<ItemDissector> item_dissector;
     /// The current state in the state machine

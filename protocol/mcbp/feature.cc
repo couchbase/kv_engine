@@ -83,6 +83,8 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "SubdocBinaryXattr";
     case Feature::RangeScanIncludeXattr:
         return "RangeScanIncludeXattr";
+    case Feature::GetRandomKeyIncludeXattr:
+        return "GetRandomKeyIncludeXattr";
     case Feature::SubdocAllowReplicaReadOnDeletedDocs:
         return "SubdocAllowReplicaReadOnDeletedDocs";
     }

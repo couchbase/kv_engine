@@ -119,6 +119,7 @@ public:
      * version, adds Snappy to the set of datatypes.
      */
     void compress();
+    void uncompress();
 
     DocumentInfo info;
     std::string value;
