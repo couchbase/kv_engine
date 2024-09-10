@@ -1,25 +1,41 @@
-# Install the individual commands
 SET (KV_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/../../..")
+
+# Python scripts necessary for running cbstats - other tools may require
+# these as well, that's fine
+SET (cbstats_files
+  cbstats.py
+  clitool.py
+  cli_auth_utils.py
+  mc_bin_client.py
+  memcacheConstants.py
+)
+
+# Python script for other tools
+SET (py_files
+  mc_bin_server.py
+)
+
+# Install cbstats, including adding to admin_tools package
 PyWrapper(
-    BUILD_DIR "${KV_BINARY_DIR}"
-    SCRIPTS
-    cbepctl
+  BUILD_DIR "${KV_BINARY_DIR}"
+  ADD_TO_STANDALONE_PACKAGE admin_tools
+  SCRIPTS
     cbstats
+  EXTRA_SCRIPTS ${cbstats_files}
+)
+
+# Install the other commands, including any additional scripts
+PyWrapper(
+  BUILD_DIR "${KV_BINARY_DIR}"
+  SCRIPTS
+    cbepctl
     cbcompact
     cbvdiff
     cbvbucketctl
     kv_trace_dump
-    kv_slow_ops_2_gtrace)
-
-# Install supporting python files
-INSTALL(FILES
-        cbstats.py
-        clitool.py
-        cli_auth_utils.py
-        mc_bin_client.py
-        mc_bin_server.py
-        memcacheConstants.py
-        DESTINATION lib/python)
+    kv_slow_ops_2_gtrace
+  EXTRA_SCRIPTS ${py_files}
+)
 
 find_package(Python3 COMPONENTS Interpreter)
 ADD_TEST(NAME cbstats_py_test
