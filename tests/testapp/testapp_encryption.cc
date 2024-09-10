@@ -76,13 +76,6 @@ TEST_P(EncryptionTest, RotateEncryptionKeys) {
 }
 
 TEST_P(EncryptionTest, TestEncryptionKeyIds) {
-    const auto magma = mcd_env->getTestBucket().getExtraConfig().find(
-                               "magma") != std::string_view::npos;
-    if (magma) {
-        // Not implemented yet
-        GTEST_SKIP();
-    }
-
     nlohmann::json stats;
     adminConnection->executeInBucket(bucketName, [&stats](auto& conn) {
         conn.stats([&stats](auto& k,

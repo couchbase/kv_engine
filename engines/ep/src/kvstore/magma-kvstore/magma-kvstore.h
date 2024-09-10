@@ -117,6 +117,9 @@ public:
 
     void setMaxDataSize(size_t size) override;
 
+    std::pair<cb::engine_errc, nlohmann::json> getVbucketEncryptionKeyIds(
+            Vbid vb) const override;
+
     /**
      * Get magma stats
      *

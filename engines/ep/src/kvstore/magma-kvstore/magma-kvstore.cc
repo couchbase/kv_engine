@@ -1054,6 +1054,12 @@ void MagmaKVStore::setMaxDataSize(size_t size) {
     magma->SetMemoryQuota(memoryQuota);
 }
 
+std::pair<cb::engine_errc, nlohmann::json>
+MagmaKVStore::getVbucketEncryptionKeyIds(Vbid vb) const {
+    return {cb::engine_errc::success,
+            magma->getVbucketEncryptionKeyIds(vb.get())};
+}
+
 // Note: This routine is only called during warmup. The caller
 // can not make changes to the vbstate or it would cause race conditions.
 std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {

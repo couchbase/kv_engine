@@ -652,3 +652,12 @@ void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
         magma->SetCurrentEncryptionKey(*active);
     }
 }
+
+nlohmann::json MagmaMemoryTrackingProxy::getVbucketEncryptionKeyIds(
+        magma::Magma::KVStoreID kvId) const {
+    // this is a const method in magma so it'll only allocate memory in this
+    // domain (and not cause any allocation / free in magmas domain) so we
+    // can just return the allocated memory as it'll be freed in the same
+    // domain
+    return magma->GetActiveEncryptionKeyIDs(kvId);
+}
