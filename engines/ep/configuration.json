@@ -689,6 +689,18 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "ht_temp_items_allowed_percent" : {
+            "default": "10",
+            "description": "Number of temp items (as percentage of current hashtable size) to be kept in the hashtable. Used to determine if a temp item (for items not resident in memory or deleted items) should be delete immediately or can be left around until pager (expiry or item) cleans it up.",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 100
+                }
+            }
+        },
         "item_compressor_interval": {
             "default": "250",
             "descr": "How often the item compressor task should run (in milliseconds)",

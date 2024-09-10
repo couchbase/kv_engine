@@ -2555,6 +2555,124 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, MB_52067_cas_mismatch) {
     MB_52067(true);
 }
 
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, CapTempItems) {
+    // Limit the number of temp items added to hashtable. By default
+    // we limit the number of temp-items in a hash-table to 10% of the
+    // total items.
+
+    // 1. perform GETs on 2 other non-existent items - 2 BgFetches will be
+    //    scheduled. But drop the BGFetches from running. This will leave 2
+    //    temp-initial items in the hash-table.
+    // 2. perform GETs on 1 non-existent items - 1 BgFetch will
+    //    be scheduled. Run the BGFetcher task. This will leave 1
+    //    temp-non-existent items in the hash-table.
+
+    // If the flush is not performed the vbucket file is not created & bg-fetch
+    // later aborts at a later point of time.
+    flush_vbucket_to_disk(vbid, 0);
+
+    const auto tempItemsAllowedPercent =
+            engine->getConfiguration().getHtTempItemsAllowedPercent();
+    // default ht_temp_items_allowed_percent=10.
+    ASSERT_EQ(10, tempItemsAllowedPercent);
+
+    auto vb = store->getVBucket(vbid);
+    const auto htSize = vb->ht.getSize();
+    // We haven't run the ht resizer here - so it should still be just the
+    // default ht_size=47.
+    ASSERT_EQ(47, htSize);
+
+    const auto numTempItemsAllowed = (tempItemsAllowedPercent * htSize) / 100;
+    // Check the configuration is correctly applied ..
+    ASSERT_EQ(numTempItemsAllowed, vb->ht.getNumTempItemsAllowed());
+    ASSERT_EQ(4, numTempItemsAllowed);
+
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | HIDE_LOCKED_CAS |
+            TRACK_STATISTICS | GET_DELETED_VALUE);
+
+    // Add 2 temp initial items.
+    for (int i = 0; i < 2; i++) {
+        std::string key = "key-temp-init-" + std::to_string(i);
+        const DocKeyView dockey(key, DocKeyEncodesCollectionId::No);
+        auto gv = store->get(dockey, vbid, cookie, options);
+        ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    }
+
+    ASSERT_EQ(2, vb->ht.getNumTempItems());
+
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    // Drop all the current bgfetch items. Leaves the above items as temp
+    // initials.
+    ASSERT_EQ(2, vb->getBGFetchItems().size());
+    ASSERT_FALSE(vb->hasPendingBGFetchItems());
+
+    // Add 1 temp non-existent items.
+    std::string key = "key-temp-non-existent-3";
+    const DocKeyView dockey(key, DocKeyEncodesCollectionId::No);
+    auto gv = store->get(dockey, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+
+    ASSERT_EQ(3, vb->ht.getNumTempItems());
+
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    runBGFetcherTask();
+    ASSERT_FALSE(vb->hasPendingBGFetchItems());
+
+    // BG Fetching non-existent items should convert the temp-initial items to
+    // temp-non-existent items. The total temp count doesn't therefore change.
+    ASSERT_EQ(3, vb->ht.getNumTempItems());
+
+    // Test that a temp item is deleted once it breaches the numTempItems
+    // allowed watermark.
+    // Perform a GET - this would create a temp-item & BGFetch item.
+    const DocKeyView dockey4("key-non-existent-4",
+                             DocKeyEncodesCollectionId::No);
+
+    gv = store->get(dockey4, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    ASSERT_EQ(4, vb->ht.getNumTempItems());
+
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    runBGFetcherTask();
+    ASSERT_FALSE(vb->hasPendingBGFetchItems());
+
+    ASSERT_EQ(4, vb->ht.getNumTempItems());
+
+    // Note: DELETE_TEMP flag is not included in the options - the temp item
+    // therefore will not be deleted because the allowed number of temp items <=
+    // 10%.
+    gv = store->get(dockey4, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    ASSERT_EQ(4, vb->ht.getNumTempItems());
+
+    // Test the a temp item is deleted once it breaches the numTempItems
+    // allowed watermark.
+
+    // Perform a GET - this would create a temp-item & BGFetch task.
+    const DocKeyView dockey5("key-non-existent-5",
+                             DocKeyEncodesCollectionId::No);
+
+    gv = store->get(dockey5, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    ASSERT_EQ(5, vb->ht.getNumTempItems());
+
+    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    runBGFetcherTask();
+    ASSERT_FALSE(vb->hasPendingBGFetchItems());
+
+    ASSERT_EQ(5, vb->ht.getNumTempItems());
+
+    // Note: DELETE_TEMP flag is not included in the options - the temp item
+    // will be deleted because the allowed number of temp items is already at
+    // 10%.
+    gv = store->get(dockey5, vbid, cookie, options);
+    ASSERT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
+
+    ASSERT_EQ(4, vb->ht.getNumTempItems());
+}
+
 // Test that scheduling compaction means the current task gets the new config
 TEST_P(EPBucketTest, ScheduleCompactionWithNewConfig) {
     // Store something so the compaction will be success when ran

@@ -125,7 +125,10 @@ static std::vector<StoredDocKey> generateKeys(int num, int start=0) {
     return rv;
 }
 
-HashTableTest::HashTableTest() : defaultHtSize(Configuration().getHtSize()) {
+HashTableTest::HashTableTest()
+    : defaultHtSize(Configuration().getHtSize()),
+      defaultHtTempItemsAllowedPercent(
+              Configuration().getHtTempItemsAllowedPercent()) {
     // Need mock time functions to be able to time travel
     initialize_time_functions(get_mock_server_api()->core);
 }
@@ -156,7 +159,8 @@ TEST_F(HashTableTest, Size) {
                 makeFactory(),
                 defaultHtSize,
                 /*locks*/ 1,
-                0);
+                0,
+                defaultHtTempItemsAllowedPercent);
     ASSERT_EQ(0, count(h));
 
     store(h, makeStoredDocKey("testkey"));
@@ -169,7 +173,8 @@ TEST_F(HashTableTest, SizeTwo) {
                 makeFactory(),
                 defaultHtSize,
                 /*locks*/ 1,
-                0);
+                0,
+                defaultHtTempItemsAllowedPercent);
     ASSERT_EQ(0, count(h));
 
     auto keys = generateKeys(5);
@@ -182,7 +187,12 @@ TEST_F(HashTableTest, SizeTwo) {
 
 TEST_F(HashTableTest, ReverseDeletions) {
     size_t initialSize = global_stats.getCurrentSize();
-    HashTable h(global_stats, makeFactory(), 5, 1, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                1,
+                0,
+                defaultHtTempItemsAllowedPercent);
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
 
@@ -202,7 +212,12 @@ TEST_F(HashTableTest, ReverseDeletions) {
 
 TEST_F(HashTableTest, ForwardDeletions) {
     size_t initialSize = global_stats.getCurrentSize();
-    HashTable h(global_stats, makeFactory(), 5, 1, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                1,
+                0,
+                defaultHtTempItemsAllowedPercent);
     ASSERT_EQ(5, h.getSize());
     ASSERT_EQ(1, h.getNumLocks());
     ASSERT_EQ(0, count(h));
@@ -238,12 +253,22 @@ static void testFind(HashTable &h) {
 }
 
 TEST_F(HashTableTest, Find) {
-    HashTable h(global_stats, makeFactory(), 5, 1, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                1,
+                0,
+                defaultHtTempItemsAllowedPercent);
     testFind(h);
 }
 
 TEST_F(HashTableTest, Resize) {
-    HashTable h(global_stats, makeFactory(), 5, 3, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                3,
+                0,
+                defaultHtTempItemsAllowedPercent);
 
     auto keys = generateKeys(1000);
     storeMany(h, keys);
@@ -274,7 +299,12 @@ TEST_F(HashTableTest, Resize) {
 /// frequently, paying a large resize cost.
 TEST_F(HashTableTest, ResizeStablity) {
     // Start with a hashTable sized as configuration - 47 slots
-    HashTable h(global_stats, makeFactory(), 47, 3, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                47,
+                3,
+                0,
+                defaultHtTempItemsAllowedPercent);
     ASSERT_EQ(h.getSize(), 47);
     ASSERT_EQ(h.getNumResizes(), 0);
 
@@ -327,7 +357,12 @@ TEST_F(HashTableTest, ResizeStablity) {
 // reducing the number of reallocations required.
 TEST_F(HashTableTest, ResizeDecreaseDelay) {
     // Set initial size to 7 - prime number
-    MockHashTable ht(global_stats, makeFactory(), 7, 3, 0);
+    MockHashTable ht(global_stats,
+                     makeFactory(),
+                     7,
+                     3,
+                     0,
+                     defaultHtTempItemsAllowedPercent);
     ASSERT_EQ(7, ht.getSize());
     ASSERT_EQ(7, ht.getPreferredSize());
     ASSERT_EQ(0, ht.getNumResizes());
@@ -379,7 +414,12 @@ TEST_F(HashTableTest, ResizeDeferredByVisitor) {
         HashTable& ht;
     };
 
-    HashTable ht(global_stats, makeFactory(), 1, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 1,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
     auto keys = generateKeys(8);
     storeMany(ht, keys);
 
@@ -397,7 +437,12 @@ TEST_F(HashTableTest, ResizeDeferredByVisitor) {
 }
 
 TEST_F(HashTableTest, IncrementalResize) {
-    HashTable ht(global_stats, makeFactory(), 7, 3, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 7,
+                 3,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     auto keys1 = generateKeys(16);
     storeMany(ht, keys1);
@@ -490,7 +535,12 @@ TEST_F(HashTableTest, IncrementalResize) {
 }
 
 TEST_F(HashTableTest, ClearRemovesFromBothTables) {
-    HashTable ht(global_stats, makeFactory(), 7, 2, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 7,
+                 2,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
     auto keys = generateKeys(16);
     storeMany(ht, keys);
     EXPECT_EQ(NeedsRevisit::YesNow, ht.beginIncrementalResize(13));
@@ -537,7 +587,12 @@ private:
 };
 
 TEST_F(HashTableTest, ConcurrentAccessResize) {
-    HashTable h(global_stats, makeFactory(), 5, 3, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                3,
+                0,
+                defaultHtTempItemsAllowedPercent);
 
     auto keys = generateKeys(2000);
     EXPECT_EQ(NeedsRevisit::No, h.resizeInOneStep(keys.size()));
@@ -551,7 +606,12 @@ TEST_F(HashTableTest, ConcurrentAccessResize) {
 }
 
 TEST_F(HashTableTest, AutoResize) {
-    HashTable h(global_stats, makeFactory(), 5, 3, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                3,
+                0,
+                defaultHtTempItemsAllowedPercent);
 
     ASSERT_EQ(5, h.getSize());
 
@@ -575,7 +635,7 @@ static void incrementallyResizeHT(HashTable& ht, size_t to) {
 }
 
 static void testConcurrentAccessIncrementalResize(bool doDel) {
-    HashTable ht(global_stats, HashTableTest::makeFactory(), 1531, 17, 0);
+    HashTable ht(global_stats, HashTableTest::makeFactory(), 1531, 17, 0, 10);
     auto keys = generateKeys(2000);
     std::shuffle(keys.begin(), keys.end(), std::mt19937{});
     storeMany(ht, keys);
@@ -635,7 +695,12 @@ TEST_F(HashTableTest, CoreLocalMemoryOverhead) {
     const auto getOverhead = []() { return global_stats.getMemOverhead(); };
     const auto initialOverhead = getOverhead();
     {
-        HashTable ht(global_stats, makeFactory(), 7, 3, 0);
+        HashTable ht(global_stats,
+                     makeFactory(),
+                     7,
+                     3,
+                     0,
+                     defaultHtTempItemsAllowedPercent);
         EXPECT_EQ(initialOverhead + ht.getMemoryOverhead(), getOverhead());
 
         EXPECT_EQ(NeedsRevisit::No, ht.resizeInOneStep(13));
@@ -652,7 +717,12 @@ TEST_F(HashTableTest, CoreLocalMemoryOverhead) {
 }
 
 TEST_F(HashTableTest, DepthCounting) {
-    HashTable h(global_stats, makeFactory(), 5, 1, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                1,
+                0,
+                defaultHtTempItemsAllowedPercent);
     const int nkeys = 5000;
 
     auto keys = generateKeys(nkeys);
@@ -665,7 +735,12 @@ TEST_F(HashTableTest, DepthCounting) {
 }
 
 TEST_F(HashTableTest, PoisonKey) {
-    HashTable h(global_stats, makeFactory(), 5, 1, 0);
+    HashTable h(global_stats,
+                makeFactory(),
+                5,
+                1,
+                0,
+                defaultHtTempItemsAllowedPercent);
 
     store(h, makeStoredDocKey("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP"));
     EXPECT_EQ(1, count(h));
@@ -677,7 +752,7 @@ class HashTableStatsTest
       public ::testing::WithParamInterface<std::tuple<EvictionPolicy, bool>> {
 protected:
     HashTableStatsTest()
-        : ht(stats, makeFactory(), 5, 1, 0),
+        : ht(stats, makeFactory(), 5, 1, 0, defaultHtTempItemsAllowedPercent),
           key(makeStoredDocKey("somekey")),
           itemSize(16 * 1024),
           item(key, 0, 0, std::string(itemSize, 'x').data(), itemSize),
@@ -1213,7 +1288,12 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 5,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
@@ -1246,7 +1326,12 @@ TEST_F(HashTableTest, ItemAge) {
 /* Test release from HT (but not deletion) of an (HT) element */
 TEST_F(HashTableTest, ReleaseItem) {
     /* Setup with 2 hash buckets and 1 lock */
-    HashTable ht(global_stats, makeFactory(), 2, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 2,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     /* Write 5 items (there are 2 hash buckets, we want to test removing a head
        element and a non-head element) */
@@ -1308,7 +1393,12 @@ TEST_F(HashTableTest, CopyItem) {
     /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
        OrderedStoredValues and hence hash table must have
        OrderedStoredValueFactory */
-    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(true),
+                 2,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     /* Write 3 items */
     const int numItems = 3;
@@ -1348,7 +1438,12 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
        OrderedStoredValues and hence hash table must have
        OrderedStoredValueFactory */
-    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(true),
+                 2,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     /* Write 3 items */
     const int numItems = 3;
@@ -1398,7 +1493,12 @@ TEST_F(HashTableTest, CopyDeletedItem) {
 // deleted time).
 TEST_F(HashTableTest, LockAfterDelete) {
     /* Setup OSVFactory with 2 hash buckets and 1 lock. */
-    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(true),
+                 2,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     // Delete a key, giving it a non-zero delete time.
     auto key = makeStoredDocKey("key");
@@ -1431,7 +1531,12 @@ TEST_F(HashTableTest, LockAfterDelete) {
 // Check that pauseResumeVisit calls with the correct Hash bucket.
 TEST_F(HashTableTest, PauseResumeHashBucket) {
     // Two buckets, one lock.
-    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(true),
+                 2,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     // Store keys to both hash buckets - need keys which hash to bucket 0 and 1.
     StoredDocKey key0("c", CollectionID::Default);
@@ -1471,7 +1576,12 @@ TEST_F(HashTableTest, PauseResumeHashBucket) {
 // then visit each document and decay it by 50%.  The test checks that the
 // frequency count of each document has been decayed by 50%.
 TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
-    HashTable ht(global_stats, makeFactory(true), 128, 1, 0.012);
+    HashTable ht(global_stats,
+                 makeFactory(true),
+                 128,
+                 1,
+                 0.012,
+                 defaultHtTempItemsAllowedPercent);
     auto keys = generateKeys(256);
     // Add 256 documents to the hash table
     storeMany(ht, keys);
@@ -1512,9 +1622,24 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
 // Check it can reallocate and also ignores bogus input
 TEST_F(HashTableTest, reallocateStoredValue) {
     // 3 hash-tables, 2 will be filled, the other left empty
-    HashTable ht1(global_stats, makeFactory(true), 1, 1, 0);
-    HashTable ht2(global_stats, makeFactory(true), 2, 2, 0);
-    HashTable ht3(global_stats, makeFactory(true), 2, 2, 0);
+    HashTable ht1(global_stats,
+                  makeFactory(true),
+                  1,
+                  1,
+                  0,
+                  defaultHtTempItemsAllowedPercent);
+    HashTable ht2(global_stats,
+                  makeFactory(true),
+                  2,
+                  2,
+                  0,
+                  defaultHtTempItemsAllowedPercent);
+    HashTable ht3(global_stats,
+                  makeFactory(true),
+                  2,
+                  2,
+                  0,
+                  defaultHtTempItemsAllowedPercent);
 
     // Fill 1 and 2
     auto keys = generateKeys(10);
@@ -1553,7 +1678,12 @@ TEST_F(HashTableTest, reallocateStoredValue) {
 // loaded it).
 TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
     // Setup - store a key into HashTable.
-    HashTable ht(global_stats, makeFactory(), 5, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 5,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
     auto key = makeStoredDocKey("key");
     auto item = store(ht, key);
     {
@@ -1572,7 +1702,12 @@ TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
 }
 
 TEST_F(HashTableTest, ReplaceValueAndDatatype) {
-    HashTable ht(global_stats, makeFactory(), 1, 1, 0);
+    HashTable ht(global_stats,
+                 makeFactory(),
+                 1,
+                 1,
+                 0,
+                 defaultHtTempItemsAllowedPercent);
 
     // Store a deleted item
     StoredDocKey key = makeStoredDocKey("key");
@@ -1625,12 +1760,14 @@ public:
                        std::unique_ptr<AbstractStoredValueFactory> svFactory,
                        size_t initialSize,
                        size_t locks,
-                       double freqCounterIncFactor)
+                       double freqCounterIncFactor,
+                       size_t tempItemsAllowedPercent)
         : HashTable(st,
                     std::move(svFactory),
                     initialSize,
                     locks,
-                    freqCounterIncFactor) {
+                    freqCounterIncFactor,
+                    tempItemsAllowedPercent) {
     }
 
     void testIntialiseVisitor(size_t size, int random) {
@@ -1728,7 +1865,12 @@ public:
 
 class GetRandomHashTableTest : public HashTableTest {
 public:
-    GetRandomHashTable h{global_stats, makeFactory(), 1, 1, 0};
+    GetRandomHashTable h{global_stats,
+                         makeFactory(),
+                         1,
+                         1,
+                         0,
+                         HashTableTest::defaultHtTempItemsAllowedPercent};
 };
 
 TEST_F(GetRandomHashTableTest, TestInitRandomKeyVisitor) {

@@ -213,6 +213,7 @@ VBucket::VBucket(Vbid i,
               config.getHtSize(),
               config.getHtLocks(),
               config.getFreqCounterIncrementFactor(),
+              config.getHtTempItemsAllowedPercent(),
               [this] {
                   return this->bucket ? this->bucket->getInitialMFU()
                                       : HashTable::defaultGetInitialMFU();
@@ -276,6 +277,14 @@ VBucket::VBucket(Vbid i,
       seqnoAckCb(std::move(seqnoAckCb)),
       mayContainXattrs(mightContainXattrs) {
     ht.minimumSize = [bucket]() { return bucket->getMinimumHashTableSize(); };
+    // There are tests where we just create vbuckets & bucket can be null -
+    // get the value from the KVBucket only when it's not null.
+    if (bucket) {
+        ht.tempItemsAllowedPercent = [bucket]() {
+            return bucket->getHtTempItemsAllowedPercent();
+        };
+    }
+    ht.updateNumTempItemsAllowed();
     if (config.getConflictResolutionTypeString() == "seqno") {
         conflictResolver = std::make_unique<RevisionSeqnoResolution>();
     } else {
@@ -2921,7 +2930,8 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
         // should cleanup the SV (if requested) before returning ENOENT (so we
         // don't keep temp items in HT).
         if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
-            if (options & DELETE_TEMP) {
+            if ((options & DELETE_TEMP) ||
+                ht.getNumTempItems() > ht.getNumTempItemsAllowed()) {
                 deleteStoredValue(res.lock, *v);
             }
             return {};

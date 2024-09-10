@@ -29,7 +29,8 @@ public:
              std::make_unique<StoredValueFactory>(),
              Configuration().getHtSize(),
              Configuration().getHtLocks(),
-             Configuration().getFreqCounterIncrementFactor()) {
+             Configuration().getFreqCounterIncrementFactor(),
+             Configuration().getHtTempItemsAllowedPercent()) {
     }
 
     void SetUp(benchmark::State& state) override {

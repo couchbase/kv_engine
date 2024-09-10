@@ -132,9 +132,13 @@ HashTable::HashTable(EPStats& st,
                      size_t initialSize,
                      size_t locks,
                      double freqCounterIncFactor,
+                     size_t defaultTempItemsAllowedPercent,
                      std::function<uint8_t()> getInitialMFU,
                      ShouldTrackMFUCallback shouldTrackMfuCallback)
     : minimumSize([initialSize]() { return initialSize; }),
+      tempItemsAllowedPercent([defaultTempItemsAllowedPercent]() {
+          return defaultTempItemsAllowedPercent;
+      }),
       valuesSize(initialSize),
       values(initialSize),
       mutexes(locks),
@@ -296,6 +300,11 @@ NeedsRevisit HashTable::resizeInOneStep(size_t newSize) {
                                     std::to_string(newSize));
     }
 
+    // ht_temp_items_allowed_percent could have changed & we would want that
+    // to take effect always even if the size hasn't changed.
+    auto updateTempItemsAllowedOnExit =
+            folly::makeGuard([this]() { updateNumTempItemsAllowed(); });
+
     // Don't resize to the same size, either.
     if (newSize == getSize()) {
         return NeedsRevisit::No;
@@ -373,6 +382,11 @@ NeedsRevisit HashTable::beginIncrementalResize(size_t newSize) {
                 std::to_string(newSize));
     }
 
+    // ht_temp_items_allowed_percent could have changed & we would want that
+    // to take effect always even if the size hasn't changed.
+    auto updateTempItemsAllowedOnExit =
+            folly::makeGuard([this]() { updateNumTempItemsAllowed(); });
+
     // Don't resize to the same size, either.
     if (newSize == getSize()) {
         return NeedsRevisit::No;
@@ -407,7 +421,10 @@ NeedsRevisit HashTable::continueIncrementalResize() {
                 "HashTable::continueResize: Cannot call on a "
                 "non-active object");
     }
-
+    // ht_temp_items_allowed_percent could have changed & we would want that
+    // to take effect always even if the size hasn't changed.
+    auto updateTempItemsAllowedOnExit =
+            folly::makeGuard([this]() { updateNumTempItemsAllowed(); });
     // Declared here to deallocate outside the critical section
     table_type sortedByLock;
 

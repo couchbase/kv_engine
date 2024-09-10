@@ -131,6 +131,8 @@ public:
             store.setMaxTtl(value);
         } else if (key == "ht_size") {
             store.setMinimumHashTableSize(value);
+        } else if (key == "ht_temp_items_allowed_percent") {
+            store.setHtTempItemsAllowedPercent(value);
         } else if (key == "checkpoint_max_size") {
             store.setCheckpointMaxSize(value);
         } else if (key == "checkpoint_destruction_tasks") {
@@ -411,6 +413,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     setMinimumHashTableSize(config.getHtSize());
     config.addValueChangedListener(
             "ht_size", std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setHtTempItemsAllowedPercent(config.getHtTempItemsAllowedPercent());
+    config.addValueChangedListener(
+            "ht_temp_items_allowed_percent",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 
     config.addValueChangedListener(
             "checkpoint_memory_ratio",

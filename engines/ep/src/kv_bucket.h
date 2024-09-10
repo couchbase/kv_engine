@@ -352,6 +352,14 @@ public:
         minimumHashTableSize = size;
     }
 
+    void setHtTempItemsAllowedPercent(size_t percent) {
+        htTempItemsAllowedPercent = percent;
+    }
+
+    size_t getHtTempItemsAllowedPercent() const {
+        return htTempItemsAllowedPercent;
+    }
+
     void visit(VBucketVisitor &visitor) override;
 
     /**
@@ -1432,6 +1440,8 @@ protected:
     const std::shared_ptr<Collections::Manager> collectionsManager;
 
     cb::RelaxedAtomic<size_t> minimumHashTableSize;
+
+    cb::RelaxedAtomic<size_t> htTempItemsAllowedPercent;
 
     /**
      * Status of XATTR support for this bucket - this is set from the

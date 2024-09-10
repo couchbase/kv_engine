@@ -37,4 +37,5 @@ protected:
     HashTableTest();
 
     const size_t defaultHtSize;
+    const size_t defaultHtTempItemsAllowedPercent;
 };
