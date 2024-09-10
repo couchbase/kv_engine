@@ -98,7 +98,8 @@ std::string BackfillManagerTask::getDescription() const {
 std::chrono::microseconds BackfillManagerTask::maxExpectedDuration() const {
     // Empirical evidence suggests this task runs under 300ms 99.999% of
     // the time.
-    return std::chrono::milliseconds(300);
+    // This should also be kept in-line with dcp_backfill_run_duration_limit.
+    return std::chrono::milliseconds(310);
 }
 
 BackfillManager::BackfillManager(KVBucket& kvBucket,

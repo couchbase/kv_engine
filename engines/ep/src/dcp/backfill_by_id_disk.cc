@@ -81,7 +81,12 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
     scanCtx = kvstore->initByIdScanContext(
             std::make_unique<DiskCallback>(stream),
-            std::make_unique<CacheCallback>(bucket, stream),
+            std::make_unique<CacheCallback>(
+                    bucket,
+                    stream,
+                    static_cast<std::chrono::milliseconds>(
+                            bucket.getConfiguration()
+                                    .getDcpBackfillRunDurationLimit())),
             getVBucketId(),
             ranges,
             DocumentFilter::ALL_ITEMS,
@@ -136,6 +141,9 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
     const auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
+    auto& cacheCallback =
+            static_cast<CacheCallback&>(scanCtx->getCacheCallback());
+    cacheCallback.setBackfillStartTime();
     switch (kvstore->scan(static_cast<ByIdScanContext&>(*scanCtx))) {
     case ScanStatus::Success:
     case ScanStatus::Cancelled:

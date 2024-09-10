@@ -1125,6 +1125,12 @@
             "dynamic" : false,
             "type": "std::string"
         },
+        "dcp_backfill_run_duration_limit": {
+            "default": "300",
+            "descr": "Maximum time (in ms) backfill task will run before yielding.",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_backfill_byte_limit": {
             "default": {
                 "on-prem": "20 * 1024 * 1024",

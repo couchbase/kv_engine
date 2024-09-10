@@ -33,6 +33,8 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
       DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
       rangeItr(nullptr),
+      backfillMaxDuration(
+              evb->getConfiguration().getDcpBackfillRunDurationLimit()),
       maxNoProgressDuration(maxNoProgressDuration) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
@@ -212,6 +214,8 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
         return backfill_finished;
     }
 
+    auto startTime = std::chrono::steady_clock::now();
+
     /* Read items */
     UniqueItemPtr item;
     while (static_cast<uint64_t>(rangeItr.curr()) <= endSeqno) {
@@ -313,6 +317,12 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                         "as scan buffer or backfill buffer is full",
                         getVBucketId(),
                         seqnoDbg);
+            return backfill_success;
+        }
+
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - startTime);
+        if (duration >= getBackfillMaxDuration()) {
             return backfill_success;
         }
     }

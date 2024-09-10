@@ -1491,8 +1491,11 @@ protected:
  * cb::engine_errc::key_already_exists.
  */
 TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
-    CacheCallback callback(*engine->getKVBucket(), stream);
-
+    CacheCallback callback(*engine->getKVBucket(),
+                           stream,
+                           static_cast<std::chrono::milliseconds>(
+                                   engine->getConfiguration()
+                                           .getDcpBackfillRunDurationLimit()));
     stream->transitionStateToBackfilling();
     CacheLookup lookup(diskKey, /*BySeqno*/ 1, vbid);
     callback.callback(lookup);
@@ -1516,7 +1519,11 @@ TEST_P(CacheCallbackTest, CacheCallback_key_eexists) {
  * cb::engine_errc::success.
  */
 TEST_P(CacheCallbackTest, CacheCallback_engine_success) {
-    CacheCallback callback(*engine->getKVBucket(), stream);
+    CacheCallback callback(*engine->getKVBucket(),
+                           stream,
+                           static_cast<std::chrono::milliseconds>(
+                                   engine->getConfiguration()
+                                           .getDcpBackfillRunDurationLimit()));
 
     stream->transitionStateToBackfilling();
     // Passing in wrong BySeqno - should be 1, but passing in 0
@@ -1548,7 +1555,11 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_success_not_resident) {
          */
         return;
     }
-    CacheCallback callback(*engine->getKVBucket(), stream);
+    CacheCallback callback(*engine->getKVBucket(),
+                           stream,
+                           static_cast<std::chrono::milliseconds>(
+                                   engine->getConfiguration()
+                                           .getDcpBackfillRunDurationLimit()));
 
     stream->transitionStateToBackfilling();
     CacheLookup lookup(diskKey, /*BySeqno*/ 1, vbid);
@@ -1585,7 +1596,11 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     producer->setBackfillBufferSize(0);
     producer->setBackfillBufferBytesRead(1);
 
-    CacheCallback callback(*engine->getKVBucket(), stream);
+    CacheCallback callback(*engine->getKVBucket(),
+                           stream,
+                           static_cast<std::chrono::milliseconds>(
+                                   engine->getConfiguration()
+                                           .getDcpBackfillRunDurationLimit()));
 
     stream->transitionStateToBackfilling();
     CacheLookup lookup(diskKey, /*BySeqno*/ 1, vbid);
@@ -6719,6 +6734,70 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, backfillYieldsAfterDurationLimit) {
+    auto vb = engine->getVBucket(vbid);
+    // Remove the initial stream, we want to force it to backfill.
+    stream.reset();
+    store_item(vbid, makeStoredDocKey("k0"), "v");
+    store_item(vbid, makeStoredDocKey("k1"), "v");
+    // Ensure mutation is on disk; no longer present in CheckpointManager.
+    vb->checkpointManager->createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    engine->getConfiguration().setDcpBackfillRunDurationLimit(0);
+    recreateStream(*vb);
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, engine->getConfiguration().getDcpBackfillRunDurationLimit());
+
+    auto& bfm = producer->getBFM();
+
+    // first run will backfill the first item then yield
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_EQ(1, stream->getNumBackfillItems());
+    EXPECT_EQ(2, stream->public_readyQ().size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+    // TODO: MB-63555 NumBackfillPauses is not incremented correctly for
+    // in-memory streams.
+    if (!ephemeral()) {
+        EXPECT_EQ(1, stream->getNumBackfillPauses());
+    }
+}
+
+TEST_P(SingleThreadedActiveStreamTest, backfillCompletesWithoutYielding) {
+    auto vb = engine->getVBucket(vbid);
+    // Remove the initial stream, we want to force it to backfill.
+    stream.reset();
+    store_item(vbid, makeStoredDocKey("k0"), "v");
+    store_item(vbid, makeStoredDocKey("k1"), "v");
+    // Ensure mutation is on disk; no longer present in CheckpointManager.
+    vb->checkpointManager->createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    std::chrono::milliseconds maxDuration = std::chrono::milliseconds::max();
+    engine->getConfiguration().setDcpBackfillRunDurationLimit(
+            maxDuration.count());
+    recreateStream(*vb);
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(maxDuration.count(),
+              engine->getConfiguration().getDcpBackfillRunDurationLimit());
+
+    auto& bfm = producer->getBFM();
+
+    // first run will backfill both items without yielding
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_EQ(2, stream->getNumBackfillItems());
+    EXPECT_EQ(3, stream->public_readyQ().size());
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+    EXPECT_EQ(DcpResponse::Event::Mutation,
+              stream->public_nextQueuedItem(*producer)->getEvent());
+    EXPECT_EQ(0, stream->getNumBackfillPauses());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

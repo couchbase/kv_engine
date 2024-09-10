@@ -64,7 +64,12 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
 
     auto scanCtx = kvstore->initBySeqnoScanContext(
             std::make_unique<BySeqnoDiskCallback>(stream),
-            std::make_unique<CacheCallback>(bucket, stream),
+            std::make_unique<CacheCallback>(
+                    bucket,
+                    stream,
+                    static_cast<std::chrono::milliseconds>(
+                            bucket.getConfiguration()
+                                    .getDcpBackfillRunDurationLimit())),
             getVBucketId(),
             startSeqno,
             DocumentFilter::ALL_ITEMS,
@@ -200,6 +205,9 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     Expects(kvstore);
 
     auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);
+    auto& cacheCallback =
+            static_cast<CacheCallback&>(bySeqnoCtx.getCacheCallback());
+    cacheCallback.setBackfillStartTime();
     switch (kvstore->scan(bySeqnoCtx)) {
     case ScanStatus::Success:
         if (!historyScan) {

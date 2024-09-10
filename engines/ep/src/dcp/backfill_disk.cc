@@ -19,8 +19,10 @@
 #include "vbucket.h"
 #include <fmt/ostream.h>
 
-CacheCallback::CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s)
-    : bucket(bucket), streamPtr(s) {
+CacheCallback::CacheCallback(KVBucket& bucket,
+                             std::shared_ptr<ActiveStream> s,
+                             std::chrono::milliseconds backfillMaxDuration)
+    : bucket(bucket), streamPtr(s), backfillMaxDuration(backfillMaxDuration) {
     if (s == nullptr) {
         throw std::invalid_argument("CacheCallback(): stream is NULL");
     }
@@ -112,7 +114,18 @@ void CacheCallback::callback(CacheLookup& lookup) {
         setStatus(cb::engine_errc::key_already_exists);
     } else {
         yield();
+        return;
     }
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - backfillStartTime);
+    if (duration >= getBackfillMaxDuration()) {
+        yield();
+    }
+}
+
+void CacheCallback::setBackfillStartTime() {
+    backfillStartTime = std::chrono::steady_clock::now();
 }
 
 DiskCallback::DiskCallback(std::shared_ptr<ActiveStream> s) : streamPtr(s) {

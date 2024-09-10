@@ -80,7 +80,9 @@ void EventuallyPersistentEngineTest::initializeEngine() {
 
     // Setup vBucket and Shard count
     config += ";max_vbuckets=" + std::to_string(numVbuckets) +
-              ";max_num_shards=" + std::to_string(numShards);
+              ";max_num_shards=" + std::to_string(numShards) +
+              ";dcp_backfill_run_duration_limit=" +
+              std::to_string(std::chrono::milliseconds::max().count());
 
     if (bucketType == "persistent_magma") {
         config += ";" + magmaConfig;

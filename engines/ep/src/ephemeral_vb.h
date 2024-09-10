@@ -275,6 +275,10 @@ public:
         return seqList->getNumStaleItems();
     }
 
+    Configuration& getConfiguration() const {
+        return configuration;
+    }
+
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             CookieIface&,
             std::unique_ptr<RangeScanDataHandlerIFace>,
@@ -292,6 +296,8 @@ public:
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;
+
+    Configuration& configuration;
 
 private:
     std::tuple<StoredValue*, MutationStatus, VBNotifyCtx> updateStoredValue(

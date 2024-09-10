@@ -32,6 +32,10 @@ public:
                               uint64_t endSeqno,
                               std::chrono::seconds maxNoProgressDuration);
 
+    std::chrono::milliseconds getBackfillMaxDuration() const {
+        return backfillMaxDuration;
+    }
+
     ~DCPBackfillMemoryBuffered() override;
 
     bool isSlow(const ActiveStream&) override;
@@ -70,6 +74,9 @@ private:
      * Range iterator (on the vbucket) created for the backfill
      */
     SequenceList::RangeIterator rangeItr;
+
+    // Maximum duration for backfill to run before yielding
+    std::chrono::milliseconds backfillMaxDuration;
 
     // For MB-62703 track the seqno of the scan and see if it changes over time
     std::optional<seqno_t> trackedPosition;

@@ -79,7 +79,8 @@ EphemeralVBucket::EphemeralVBucket(
               0, // Every item in ephemeral has a HLC cas
               mightContainXattrs,
               replicationTopology),
-      seqList(std::make_unique<BasicLinkedList>(i, st)) {
+      seqList(std::make_unique<BasicLinkedList>(i, st)),
+      configuration(config) {
 }
 
 size_t EphemeralVBucket::getNumItems() const {

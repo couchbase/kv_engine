@@ -110,6 +110,8 @@ void SingleThreadedKVBucketTest::SetUp() {
     }
     config_string += "warmup=false";
     config_string += ";couchstore_midpoint_rollback_optimisation=false";
+    config_string += ";dcp_backfill_run_duration_limit=" +
+                     std::to_string(std::chrono::milliseconds::max().count());
 
     KVBucketTest::SetUp();
 

@@ -13,6 +13,7 @@
 
 #include "callbacks.h"
 
+#include <chrono>
 #include <memory>
 
 class ActiveStream;
@@ -22,7 +23,9 @@ class VBucket;
 /* Callback to get the items that are found to be in the cache */
 class CacheCallback : public StatusCallback<CacheLookup> {
 public:
-    CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
+    CacheCallback(KVBucket& bucket,
+                  std::shared_ptr<ActiveStream> s,
+                  std::chrono::milliseconds backfillMaxDuration);
     /**
      * Function called for each key during stream backfill. Informs the caller
      * if the information required to populate the DCP stream for the item is
@@ -42,6 +45,17 @@ public:
      */
     void callback(CacheLookup& lookup) override;
 
+    void setBackfillStartTime();
+
+    std::chrono::time_point<std::chrono::steady_clock> getBackfillStartTime()
+            const {
+        return backfillStartTime;
+    }
+
+    std::chrono::milliseconds getBackfillMaxDuration() const {
+        return backfillMaxDuration;
+    }
+
 private:
     /**
      * Attempt to perform the get of lookup
@@ -52,6 +66,14 @@ private:
 
     KVBucket& bucket;
     std::weak_ptr<ActiveStream> streamPtr;
+
+    /**
+     * Record the time backfill begins to scan
+     */
+    std::chrono::time_point<std::chrono::steady_clock> backfillStartTime{};
+
+    // Maximum duration for backfill to run before yielding
+    std::chrono::milliseconds backfillMaxDuration;
 };
 
 /* Callback to get the items that are found to be in the disk */

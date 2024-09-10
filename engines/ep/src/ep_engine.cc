@@ -1025,6 +1025,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
         } else if (key == "dcp_oso_max_collections_per_backfill") {
             getConfiguration().setDcpOsoMaxCollectionsPerBackfill(
                     std::stoull(val));
+        } else if (key == "dcp_backfill_run_duration_limit") {
+            getConfiguration().setDcpBackfillRunDurationLimit(std::stoull(val));
         } else if (key == "dcp_backfill_idle_limit_seconds") {
             getConfiguration().setDcpBackfillIdleLimitSeconds(std::stoull(val));
         } else {
