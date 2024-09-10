@@ -34,6 +34,7 @@ IF (EP_USE_MAGMA)
     SET(MAGMA_KVSTORE_SOURCE
             src/kvstore/magma-kvstore/magma-kvstore.cc
             src/kvstore/magma-kvstore/magma-kvstore_config.cc
+            src/kvstore/magma-kvstore/magma-kvstore_fs.cc
             src/kvstore/magma-kvstore/magma-memory-tracking-proxy.cc)
     ADD_DEFINITIONS(-DEP_USE_MAGMA=1)
     MESSAGE(STATUS "ep-engine: Building magma-kvstore")
@@ -339,6 +340,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ext_meta_parser.cc
             src/event_driven_timeout_task.cc
             src/failover-table.cc
+            src/file_ops_tracker.cc
             src/flusher.cc
             src/getkeys.cc
             src/hash_table.cc

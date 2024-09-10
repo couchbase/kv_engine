@@ -71,6 +71,7 @@ enum class StatGroupId {
     Failovers,
     Diskinfo,
     DiskFailures,
+    DiskSlowness,
     _CheckpointDump,
     _HashDump,
     _DurabilityDump,

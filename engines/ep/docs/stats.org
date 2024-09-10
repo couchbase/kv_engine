@@ -1220,6 +1220,23 @@ also presented
 | LowPrioQ_NonIO:InQsize   | count low priority bucket nonio  tasks waiting   |
 | LowPrioQ_NonIO:OutQsize  | count low priority bucket nonio  tasks runnable  |
 
+** Disk Slowness Stats
+The `disk-slowness <threshold:seconds>` group provides an information about the
+pending disk requests as well as the currently longest-running request (the
+pending request that has been blocked the longest). Note that only the reader
+and writer threads are considered.
+
+The threshold argument is required and controls the slowness threshold used for
+determining the values of stats containing "_slow_".
+
+| pending_disk_read_num       | current number of pending disk read requests                      |
+| pending_disk_read_slow_num  | current number of pending disk read requests above the threshold  |
+| pending_disk_write_num      | current number of pending disk write requests                     |
+| pending_disk_write_slow_num | current number of pending disk write requests above the threshold |
+
+For pending disk requests that are larger than the configured maximum document
+size, we scale the threshold by the multiple of the document size.
+
 ** Dispatcher Stats/JobLogs
 
 This provides the stats from AUX dispatcher and non-IO dispatcher, and

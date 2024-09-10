@@ -9,14 +9,17 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "file_ops_tracker.h"
 #include "kvstore/couch-kvstore/couch-fs-stats.h"
 #include "kvstore/kvstore.h"
+#include "programs/engine_testapp/mock_server.h"
 #include "tests/wrapped_fileops_test.h"
+#include <gtest/gtest.h>
 
 class TestStatsOps : public StatsOps {
 public:
     explicit TestStatsOps(FileOpsInterface* ops)
-        : StatsOps(_stats, *ops), wrapped_ops(ops) {
+        : StatsOps(_stats, FileOpsTracker::instance(), *ops), wrapped_ops(ops) {
     }
 
     couch_file_handle constructor(couchstore_error_info_t *errinfo) override {
@@ -30,6 +33,11 @@ protected:
     FileStats _stats;
     std::unique_ptr<FileOpsInterface> wrapped_ops;
 };
+
+int main() {
+    initialize_time_functions(get_mock_server_api()->core);
+    return RUN_ALL_TESTS();
+}
 
 typedef testing::Types<TestStatsOps>
     WrappedOpsImplementation;

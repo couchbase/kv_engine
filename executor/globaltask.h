@@ -239,6 +239,10 @@ public:
     /// Return a string in the format: TaskName[ThreadPool]
     static std::string getTaskIdString(TaskId id);
 
+    /// Returns the type of task that is currently executing in the calling
+    /// thread.
+    static task_type_t getCurrentTaskType();
+
 protected:
     /**
      * The invoked function when the task is executed.
@@ -278,9 +282,11 @@ protected:
     std::atomic<task_state_t> state;
     const size_t uid;
     const TaskId taskId;
+    const task_type_t taskType;
     TaskPriority priority;
     Taskable& taskable;
 
+    static thread_local task_type_t currentTaskType;
     static std::atomic<size_t> task_id_counter;
     static size_t nextTaskId() {
         return task_id_counter.fetch_add(1);

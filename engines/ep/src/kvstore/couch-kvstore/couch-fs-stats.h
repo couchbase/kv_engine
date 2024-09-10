@@ -17,13 +17,14 @@
 #include <libcouchstore/couch_db.h>
 
 struct FileStats;
+class FileOpsTracker;
 
 /**
  * Returns an instance of StatsOps from a FileStats reference and
  * a reference to a base FileOps implementation to wrap
  */
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
-    FileStats& stats, FileOpsInterface& base_ops);
+        FileStats& stats, FileOpsTracker& tracker, FileOpsInterface& baseOps);
 
 /**
  * FileOpsInterface implementation which records various statistics
@@ -31,9 +32,9 @@ std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
  */
 class StatsOps : public FileOpsInterface {
 public:
-    StatsOps(FileStats& _stats, FileOpsInterface& ops)
-        : stats(_stats),
-          wrapped_ops(ops) {}
+    StatsOps(FileStats& _stats, FileOpsTracker& tracker, FileOpsInterface& ops)
+        : stats(_stats), tracker(tracker), wrapped_ops(ops) {
+    }
 
     couch_file_handle constructor(couchstore_error_info_t* errinfo) override ;
     couchstore_error_t open(couchstore_error_info_t* errinfo,
@@ -67,6 +68,7 @@ public:
 
 protected:
     FileStats& stats;
+    FileOpsTracker& tracker;
     FileOpsInterface& wrapped_ops;
 
     struct StatFile : public FileOpsInterface::FHStats {

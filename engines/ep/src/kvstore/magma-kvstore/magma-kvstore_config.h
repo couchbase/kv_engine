@@ -23,6 +23,7 @@
 using namespace std::chrono_literals;
 
 class Configuration;
+class FileOpsTracker;
 class MagmaKVStore;
 
 // This class represents the MagmaKVStore specific configuration.
@@ -36,6 +37,11 @@ public:
                        uint16_t shardid);
 
     void setStore(MagmaKVStore* store);
+
+    /// The FileOpsTracker the created MagmaKVStore will use.
+    void setFileOpsTracker(FileOpsTracker& instance) {
+        fileOpsTracker = &instance;
+    }
 
     size_t getBucketQuota() const {
         return bucketQuota;
@@ -212,14 +218,9 @@ public:
 
     void setMagmaEnableBlockCache(bool enable);
 
-    void setMakeDirectoryFn(magma::DirectoryConstructor fn) {
-        magmaCfg.FS.MakeDirectory = fn;
-    }
+    void setMakeDirectoryFn(magma::DirectoryConstructor fn);
 
-    void setReadOnly(bool readOnly) {
-        setReadOnlyHook();
-        magmaCfg.ReadOnly = readOnly;
-    }
+    void setReadOnly(bool readOnly);
 
     bool isReadOnly() const {
         return magmaCfg.ReadOnly;
@@ -266,6 +267,9 @@ private:
     class ConfigChangeListener;
 
     MagmaKVStore* store;
+
+    /// The tracker that the created Magma KVStore will use.
+    FileOpsTracker* fileOpsTracker{nullptr};
 
     // Bucket RAM Quota
     std::atomic<size_t> bucketQuota;

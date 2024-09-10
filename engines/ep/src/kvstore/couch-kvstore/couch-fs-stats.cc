@@ -11,12 +11,13 @@
 
 #include "couch-fs-stats.h"
 
+#include "file_ops_tracker.h"
 #include "kvstore/kvstore.h"
 #include <platform/histogram.h>
 
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
-    FileStats& stats, FileOpsInterface& base_ops) {
-    return std::unique_ptr<FileOpsInterface>(new StatsOps(stats, base_ops));
+        FileStats& stats, FileOpsTracker& tracker, FileOpsInterface& baseOps) {
+    return std::make_unique<StatsOps>(stats, tracker, baseOps);
 }
 
 StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
@@ -54,6 +55,7 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
                                   couch_file_handle* h,
                                   const char* path,
                                   int flags) {
+    auto g = tracker.startWithScopeGuard(FileOp::open());
     auto* sf = reinterpret_cast<StatFile*>(*h);
     sf->read_count_since_open = 0;
     sf->write_count_since_open = 0;
@@ -63,6 +65,7 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
 
 couchstore_error_t StatsOps::close(couchstore_error_info_t* errinfo,
                                    couch_file_handle h) {
+    auto g = tracker.startWithScopeGuard(FileOp::close());
     auto* sf = reinterpret_cast<StatFile*>(h);
     // Add to histograms - we can have zero read (open, goto_eof and close for
     // size; or on error); or zero write (read-only activity) - so only added if
@@ -101,6 +104,7 @@ ssize_t StatsOps::pread(couchstore_error_info_t* errinfo,
                         void* buf,
                         size_t sz,
                         cs_off_t off) {
+    auto g = tracker.startWithScopeGuard(FileOp::read(sz));
     auto* sf = reinterpret_cast<StatFile*>(h);
     stats.readSizeHisto.add(sz);
     if(sf->last_offs) {
@@ -122,6 +126,7 @@ ssize_t StatsOps::pwrite(couchstore_error_info_t*errinfo,
                          const void* buf,
                          size_t sz,
                          cs_off_t off) {
+    auto g = tracker.startWithScopeGuard(FileOp::write(sz));
     auto* sf = reinterpret_cast<StatFile*>(h);
     stats.writeSizeHisto.add(sz);
     HdrMicroSecBlockTimer bt(&stats.writeTimeHisto);
@@ -137,12 +142,14 @@ ssize_t StatsOps::pwrite(couchstore_error_info_t*errinfo,
 
 cs_off_t StatsOps::goto_eof(couchstore_error_info_t* errinfo,
                             couch_file_handle h) {
+    auto g = tracker.startWithScopeGuard(FileOp::read(0));
     auto* sf = reinterpret_cast<StatFile*>(h);
     return sf->orig_ops->goto_eof(errinfo, sf->orig_handle);
 }
 
 couchstore_error_t StatsOps::sync(couchstore_error_info_t* errinfo,
                                   couch_file_handle h) {
+    auto g = tracker.startWithScopeGuard(FileOp::sync());
     auto* sf = reinterpret_cast<StatFile*>(h);
     HdrMicroSecBlockTimer bt(&stats.syncTimeHisto);
     return sf->orig_ops->sync(errinfo, sf->orig_handle);

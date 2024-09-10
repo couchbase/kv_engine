@@ -34,6 +34,7 @@
 #include "error_handler.h"
 #include "ext_meta_parser.h"
 #include "failover-table.h"
+#include "file_ops_tracker.h"
 #include "flusher.h"
 #include "getkeys.h"
 #include "hash_table_stat_visitor.h"
@@ -1954,6 +1955,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     getEpStats().arena = arena;
 
     serverApi = getServerApiFunc();
+    fileOpsTracker = &FileOpsTracker::instance();
 
     // Switch back to "no-bucket" engine (same as before ctor was invoked),
     // so caller doesn't see an unexpected change in current engine. (Note
@@ -5229,6 +5231,66 @@ void EventuallyPersistentEngine::doDiskFailureStats(
     }
 }
 
+cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
+        CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
+    using namespace cb::stats;
+    using std::to_string;
+
+    if (!cb_isPrefix(key, "disk-slowness ")) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    auto arg = key.substr(key.find(' ') + 1);
+    uint32_t thresholdSeconds;
+    if (!safe_strtoul(arg, thresholdSeconds)) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    struct OpCounts {
+        int numTotal = 0;
+        int numSlow = 0;
+    };
+    OpCounts readCounts;
+    OpCounts writeCounts;
+
+    // Current point in time.
+    auto now = ep_uptime_now();
+    std::chrono::seconds threshold(thresholdSeconds);
+    // Visit all threads performing IO and record any file ops taking longer
+    // than the threshold.
+    fileOpsTracker->visitThreads(
+            [this, now, threshold, &readCounts, &writeCounts](
+                    auto type, auto thread, const auto& op) {
+                if (type != READER_TASK_IDX && type != WRITER_TASK_IDX) {
+                    return;
+                }
+                auto elapsed = now - op.startTime;
+
+                // For large operations, scale the threshold by a factor based
+                // on the maximum item size, to handle cases where we're writing
+                // more than 20 MiB in one operation.
+                double thresholdScalingFactor = std::max(
+                        1.0, static_cast<double>(op.nbytes) / maxItemSize);
+                auto effectiveThreshold = threshold * thresholdScalingFactor;
+
+                auto& c = op.isDataWrite() ? writeCounts : readCounts;
+                ++c.numTotal;
+                if (elapsed >= effectiveThreshold) {
+                    ++c.numSlow;
+                }
+            });
+
+    add_stat("pending_disk_read_num", to_string(readCounts.numTotal), cookie);
+    add_stat("pending_disk_read_slow_num",
+             to_string(readCounts.numSlow),
+             cookie);
+    add_stat("pending_disk_write_num", to_string(writeCounts.numTotal), cookie);
+    add_stat("pending_disk_write_slow_num",
+             to_string(writeCounts.numSlow),
+             cookie);
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
         CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
@@ -5424,6 +5486,10 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (cb_isPrefix(key, "disk-failures")) {
         doDiskFailureStats(bucketCollector);
         return cb::engine_errc::success;
+    }
+    if (cb_isPrefix(key, "disk-slowness")) {
+        return doDiskSlownessStats(
+                c, add_stat, std::string(key.data(), key.size()));
     }
     if (key[0] == '_') {
         return doPrivilegedStats(c, add_stat, key);
