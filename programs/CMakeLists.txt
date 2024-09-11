@@ -1,5 +1,4 @@
 add_library(mc_program_utils OBJECT
-        getpass.cc getpass.h
         hostname_utils.cc hostname_utils.h
         parse_tls_option.cc parse_tls_option.h
         mc_program_getopt.cc

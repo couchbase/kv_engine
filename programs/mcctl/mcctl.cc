@@ -15,7 +15,6 @@
 #include <memcached/protocol_binary.h>
 #include <platform/terminal_color.h>
 #include <platform/terminal_size.h>
-#include <programs/getpass.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>

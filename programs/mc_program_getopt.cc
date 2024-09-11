@@ -10,13 +10,12 @@
 
 #include "mc_program_getopt.h"
 #include <cbsasl/mechanism.h>
+#include <platform/getpass.h>
 #include <platform/terminal_color.h>
-#include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <programs/parse_tls_option.h>
 #include <protocol/connection/client_connection.h>
 #include <utilities/terminate_handler.h>
-#include <unordered_map>
 
 using cb::getopt::Argument;
 using cb::getopt::Option;
@@ -113,7 +112,7 @@ void McProgramGetopt::assemble() {
 
     // try to build up the client
     if (password == "-") {
-        password.assign(getpass());
+        password.assign(cb::getpass());
     } else if (password.empty()) {
         const char* env_password = std::getenv("CB_PASSWORD");
         if (env_password) {

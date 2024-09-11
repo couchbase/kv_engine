@@ -18,7 +18,6 @@
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
-#include <programs/getpass.h>
 #include <utilities/string_utilities.h>
 #include <utilities/terminate_handler.h>
 #include <cstdlib>

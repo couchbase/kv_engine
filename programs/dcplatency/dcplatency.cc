@@ -20,12 +20,9 @@
 #include <getopt.h>
 #include <libevent/utilities.h>
 #include <platform/socket.h>
-#include <programs/getpass.h>
-#include <programs/hostname_utils.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/terminate_handler.h>
 #include <cstdlib>
 #include <iostream>
 

@@ -10,8 +10,8 @@
 
 #include <folly/portability/Unistd.h>
 #include <getopt.h>
+#include <platform/getpass.h>
 #include <platform/terminal_color.h>
-#include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <utilities/string_utilities.h>
@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
     }
 
     if (password == "-") {
-        password.assign(getpass());
+        password.assign(cb::getpass());
     } else if (password.empty()) {
         const char* env_password = std::getenv("CB_PASSWORD");
         if (env_password) {
