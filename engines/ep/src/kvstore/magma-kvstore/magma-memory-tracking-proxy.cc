@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2021-Present Couchbase, Inc.
  *
@@ -13,6 +12,7 @@
 
 #include "kvstore/kvstore.h"
 
+#include <cbcrypto/key_store.h>
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
@@ -626,4 +626,16 @@ bool MagmaMemoryTrackingProxy::IsFusionCheckpointingEnabled(
                 status.String());
     }
     return enabled;
+}
+
+void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
+        const cb::crypto::KeyStore& keyStore) {
+    // magma only cares about the current key
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    auto active = keyStore.getActiveKey();
+    if (!active) {
+        magma->SetCurrentEncryptionKey({});
+    } else {
+        magma->SetCurrentEncryptionKey(*active);
+    }
 }

@@ -684,7 +684,30 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
     };
     configuration.magmaCfg.GetHistoryModeFromMeta =
             magmakv::getHistoryModeFromMeta;
+    configuration.magmaCfg.GetEncryptionKey =
+            [encryptionKeyProvider](
+                    auto id) -> std::optional<cb::crypto::DataEncryptionKey> {
+        if (!encryptionKeyProvider) {
+            cb::UseArenaMallocSecondaryDomain domainGuard;
+            if (id.empty()) {
+                return cb::crypto::DataEncryptionKey{};
+            }
+            return {};
+        }
 
+        cb::UseArenaMallocPrimaryDomain primaryDomainGuard;
+        auto key = encryptionKeyProvider->lookup(id);
+        {
+            cb::UseArenaMallocSecondaryDomain secondaryDomainGuard;
+            if (key) {
+                return *key;
+            }
+            if (id.empty()) {
+                return cb::crypto::DataEncryptionKey{};
+            }
+            return {};
+        }
+    };
     configuration.magmaCfg.EnableDirectIO =
             configuration.getMagmaEnableDirectIo();
     configuration.magmaCfg.EnableBlockCache =
@@ -850,6 +873,11 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
                     }
                 }
             });
+
+    if (encryptionKeyProvider) {
+        encryptionKeyProvider->addListener(
+                [this](const auto& ks) { magma->setActiveEncryptionKeys(ks); });
+    }
 }
 
 MagmaKVStore::~MagmaKVStore() {

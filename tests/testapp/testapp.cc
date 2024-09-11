@@ -1280,7 +1280,10 @@ int main(int argc, char** argv) {
             memcached_verbose++;
             break;
         case 'c':
-            engine_config = optarg;
+            if (!engine_config.empty()) {
+                engine_config.push_back(';');
+            }
+            engine_config.append(optarg);
             break;
         case 'e':
             embedded_memcached_server = true;

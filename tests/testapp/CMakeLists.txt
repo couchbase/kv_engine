@@ -161,7 +161,7 @@ gtest_discover_tests(memcached_testapp
 
 if (BUILD_ENTERPRISE)
     gtest_discover_tests(memcached_testapp
-            EXTRA_ARGS -c backend=magma ${VERBOSE_EXTRA_ARG}
+            EXTRA_ARGS -c backend=magma -c max_size=209715200 ${VERBOSE_EXTRA_ARG}
             WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
             TEST_PREFIX memcached_testapp.magma.
             ONE_CTEST_PER_SUITE

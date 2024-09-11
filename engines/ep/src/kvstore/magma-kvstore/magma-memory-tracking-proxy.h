@@ -22,6 +22,10 @@
 
 #include "libmagma/magma.h"
 
+namespace cb::crypto {
+class KeyStore;
+}
+
 /**
  * DomainAwareFetchBuffer is a supporting class that allocates and frees in
  * MemoryDomain::Secondary
@@ -247,6 +251,8 @@ public:
     void SetFusionCacheSize(size_t bytes);
     void setFusionCheckpointing(magma::Magma::KVStoreID kvID, bool value);
     bool IsFusionCheckpointingEnabled(magma::Magma::KVStoreID kvID) const;
+
+    void setActiveEncryptionKeys(const cb::crypto::KeyStore& keyStore);
 
 private:
     std::unique_ptr<magma::Magma> magma;
