@@ -594,6 +594,8 @@ TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
 TEST_P(StatsTest, TestPrivilegedConnections) {
     adminConnection->setAgentName("TestPrivilegedConnections 1.0");
     adminConnection->setFeature(cb::mcbp::Feature::XERROR, true);
+    adminConnection->setUserValidateReceivedFrameCallback({});
+
     auto stats = adminConnection->stats("connections");
     // We have at _least_ 2 connections
     ASSERT_LE(2, stats.size());
