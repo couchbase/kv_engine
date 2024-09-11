@@ -728,14 +728,14 @@ TEST_P(EPBucketFullEvictionTest, BgfetchSucceedsUntilMutationWatermark) {
     int hookRun = 0;
     bool engineMaxDataSizeUpdated = false;
 
-    // On the second run of this hook, set the mutation watermark equal to
-    // current memory usage. This will make sure the second item will fail
-    // to be BgFetched.
+    // On the second run of this hook, set the bucket quota so that
+    // the mutation watermark is equal to the current memory usage.
+    // This will make sure the second item will fail to be BgFetched.
     engine->preCreateItemHook = [&]() {
         if (hookRun == 1) {
-            engine->setMaxDataSize(cb::fractionOf(
-                    stats.getPreciseTotalMemoryUsed(),
-                    engine->getConfiguration().getMutationMemRatio()));
+            engine->setMaxDataSize(
+                    stats.getPreciseTotalMemoryUsed() /
+                    engine->getConfiguration().getMutationMemRatio());
             engineMaxDataSizeUpdated = true;
         }
         hookRun++;
