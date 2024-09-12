@@ -2263,6 +2263,12 @@
         "unit": "none",
         "added": "7.0.0"
     },
+    {
+        "key": "curr_connections_closing",
+        "description": "The current number of connections currently closing down",
+        "unit": "none",
+        "added": "8.0.0"
+    },
 /* Amount of memory allocated by the daemon. */
     {
         "key": "daemon_memory_allocated",

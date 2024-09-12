@@ -184,6 +184,9 @@ struct stats {
     /** The number of times I reject a client */
     cb::RelaxedAtomic<uint64_t> rejected_conns;
 
+    /// Number of connections currently closing
+    cb::RelaxedAtomic<uint64_t> curr_conn_closing;
+
     /** The number of auth commands sent */
     cb::RelaxedAtomic<uint64_t> auth_cmds;
     /** The number of authentication errors */

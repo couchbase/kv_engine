@@ -234,6 +234,7 @@ static void stats_init() {
     stats.total_conns.reset();
     stats.rejected_conns.reset();
     stats.curr_conns = 0;
+    stats.curr_conn_closing = 0;
 }
 
 static bool prometheus_auth_callback(const std::string& user,

@@ -169,14 +169,14 @@ void FrontEndThread::onConnectionCreate(Connection& connection) {
     }
 }
 
-static bool eraseConnection(std::deque<std::reference_wrapper<Connection>>&
-                                    unauthenticatedConnections,
-                            const Connection& connection) {
-    for (auto iter = unauthenticatedConnections.begin();
-         iter != unauthenticatedConnections.end();
-         ++iter) {
+/// Erase a connection from a list and return true if it was found or false
+/// otherwise
+static bool eraseConnection(
+        std::deque<std::reference_wrapper<Connection>>& list,
+        const Connection& connection) {
+    for (auto iter = list.begin(); iter != list.end(); ++iter) {
         if (&iter->get() == &connection) {
-            unauthenticatedConnections.erase(iter);
+            list.erase(iter);
             return true;
         }
     }
@@ -190,6 +190,8 @@ void FrontEndThread::onConnectionDestroy(const Connection& connection) {
             iter->second.onDisconnect();
         }
     }
+
+    eraseConnection(connectionsInitiatedShutdown, connection);
 
     // unauthenticatedConnections should only contain the connection if
     // it hasn't been authenticated, so we don't need to search the list
@@ -224,6 +226,10 @@ void FrontEndThread::onConnectionForcedDisconnect(
 
 void FrontEndThread::onConnectionAuthenticated(Connection& connection) {
     eraseConnection(unauthenticatedConnections, connection);
+}
+
+void FrontEndThread::onInitiateShutdown(Connection& connection) {
+    connectionsInitiatedShutdown.emplace_back(connection);
 }
 
 bool FrontEndThread::maybeTrimClientConnectionMap() {
@@ -295,6 +301,13 @@ static void worker_libevent(void* arg) {
 
 void FrontEndThread::dispatch_new_connections() {
     tryDisconnectUnauthenticatedConnections();
+
+    if (!connectionsInitiatedShutdown.empty()) {
+        const auto now = std::chrono::steady_clock::now();
+        for (const auto& c : connectionsInitiatedShutdown) {
+            c.get().reportIfStuckInShutdown(now);
+        }
+    }
 
     std::vector<ConnectionQueue::Entry> accept_connections;
     new_conn_queue.swap(accept_connections);

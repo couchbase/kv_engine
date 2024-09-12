@@ -61,6 +61,8 @@ static void server_global_stats(const StatCollector& collector) {
                           Settings::instance().getSystemConnections());
         collector.addStat(Key::total_connections, stats.total_conns);
         collector.addStat(Key::connection_structures, stats.conn_structs);
+        collector.addStat(Key::curr_connections_closing,
+                          stats.curr_conn_closing);
 
         std::unordered_map<std::string, size_t> allocStats;
         cb::ArenaMalloc::getGlobalStats(allocStats);

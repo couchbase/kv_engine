@@ -129,6 +129,8 @@ struct FrontEndThread {
     void onConnectionForcedDisconnect(const Connection& connection);
     /// Notify the thread that the connection authenticated
     void onConnectionAuthenticated(Connection& connection);
+    /// Notify the thread once a connection tries to initiate shutdown
+    void onInitiateShutdown(Connection& connection);
 
     /// Get the (aggregated from all threads) map of client connection details
     static std::unordered_map<std::string, ClientConnectionDetails>
@@ -277,6 +279,12 @@ protected:
     /// Try to disconnect connections which hasn't successfully authenticated
     /// within a certain amount of time
     void tryDisconnectUnauthenticatedConnections();
+
+    /// All connections currently in "closing", "pending_close" or
+    /// "immediate_close" state. Connections are put in this list to avoid
+    /// having to traverse the entire list of connections in order to detect
+    /// if we've got connections stuck in shutdown
+    std::deque<std::reference_wrapper<Connection>> connectionsInitiatedShutdown;
 };
 
 class Hdr1sfMicroSecHistogram;

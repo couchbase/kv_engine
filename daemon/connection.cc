@@ -58,7 +58,19 @@
 #endif
 
 void Connection::shutdown() {
-    state = State::closing;
+    // Shutdown may be called in various contexts but the legal
+    // state transitions are:
+    //   running -> closing
+    //   closing -> pending_close
+    //   closing -> immediate_close
+    //   pending_close -> immediate_close
+    if (state == State::running) {
+        ++stats.curr_conn_closing;
+        shutdown_initiated = std::chrono::steady_clock::now();
+        pending_close_next_log = *shutdown_initiated + std::chrono::seconds(10);
+        thread.onInitiateShutdown(*this);
+        state = State::closing;
+    }
 }
 
 bool Connection::isConnectedToSystemPort() const {
@@ -1025,6 +1037,17 @@ bool Connection::executeCommandsCallback() {
                 thread.removeThrottleableDcpConnection(*this);
             }
             disassociate_bucket(*this);
+
+            --stats.curr_conn_closing;
+            using namespace std::chrono;
+            const auto now = steady_clock::now();
+            // Only log if shutdown took more than 10 seconds
+            if ((now - *shutdown_initiated) > seconds(10)) {
+                LOG_INFO_CTX("Slow client disconnect",
+                             {"conn_id", getId()},
+                             {"duration", now - *shutdown_initiated});
+            }
+
             // delete the object
             return false;
         }
@@ -1237,6 +1260,21 @@ bool Connection::maybeInitiateShutdown(const std::string_view reason) {
     shutdown();
     triggerCallback();
     return true;
+}
+
+void Connection::reportIfStuckInShutdown(
+        const std::chrono::steady_clock::time_point& tp) {
+    Expects(state == State::closing || state == State::pending_close ||
+            state == State::immediate_close);
+
+    using namespace std::chrono_literals;
+    if (pending_close_next_log <= tp) {
+        LOG_WARNING_CTX("Stuck in shutdown",
+                        {"conn_id", getId()},
+                        {"duration", tp - *shutdown_initiated},
+                        {"details", to_json()});
+        pending_close_next_log = tp + 10s;
+    }
 }
 
 Connection::~Connection() {

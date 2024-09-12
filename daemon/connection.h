@@ -849,6 +849,10 @@ public:
      */
     bool maybeInitiateShutdown(std::string_view reason);
 
+    /// Log if this connection have been stuck in shutdown state
+    void reportIfStuckInShutdown(
+            const std::chrono::steady_clock::time_point& tp);
+
     /// Do the client deal with cluster map deduplication in NMVB
     bool dedupeNmvbMaps() const {
         return dedupe_nmvb_maps;
@@ -1052,6 +1056,10 @@ protected:
 
     /// Last usage of the connection
     std::chrono::steady_clock::time_point last_used_timestamp{};
+    /// When shutdown was initiated
+    std::optional<std::chrono::steady_clock::time_point> shutdown_initiated{};
+    /// When the next time we should log for a pending close
+    std::chrono::steady_clock::time_point pending_close_next_log{};
 
     /// Pointer to the thread object serving this connection
     FrontEndThread& thread;
