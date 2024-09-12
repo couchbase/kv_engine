@@ -174,7 +174,7 @@ void StatsTaskConnectionStats::getStats(cb::engine_errc& command_error,
         iterate_all_connections(
                 [this, &add_stat_callback](Connection& c) -> void {
                     if (fd == -1 || c.getId() == fd) {
-                        add_stat_callback({}, c.to_json().dump(), cookie);
+                        add_stat_callback(std::to_string(c.getId()), c.to_json().dump(), cookie);
                     }
                 });
     } catch (const std::exception& exception) {
