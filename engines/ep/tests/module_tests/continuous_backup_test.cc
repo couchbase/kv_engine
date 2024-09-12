@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "backup/backup.h"
 #include "tests/mock/mock_magma_kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
@@ -68,11 +69,6 @@ public:
 
         return metadata;
     }
-
-    static nlohmann::json deserializeToJson(const std::string& state) {
-        // TODO: In the future, the input will be flatbuffers.
-        return nlohmann::json::parse(state);
-    }
 };
 
 TEST_P(ContinousBackupTest, Config) {
@@ -98,10 +94,10 @@ TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {
 
     auto metadataString = runContinuousBackupCallback(vbid, *initialSnapshot);
 
-    auto metadata = deserializeToJson(metadataString);
-    EXPECT_EQ(maxCas, metadata["max_cas"].template get<uint64_t>());
+    auto metadata = Backup::decodeBackupMetadata(metadataString);
+    EXPECT_EQ(maxCas, metadata["maxCas"].template get<uint64_t>());
     EXPECT_TRUE(metadata["failovers"].is_array());
-    EXPECT_EQ(1, metadata["failovers"].size());
+    EXPECT_EQ(1, metadata["failovers"].size()) << metadata.dump();
 }
 
 INSTANTIATE_TEST_SUITE_P(ContinousBackupTests,

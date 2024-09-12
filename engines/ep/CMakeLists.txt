@@ -192,6 +192,15 @@ ADD_CUSTOM_COMMAND(OUTPUT
                     src/collections/manifest.fbs
                   COMMENT "Generating flatbuffers - collection manifest")
 
+
+ADD_CUSTOM_COMMAND(OUTPUT
+                     ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
+                  COMMAND
+                     ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/backup/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/backup/backup.fbs
+                  DEPENDS
+                    src/backup/backup.fbs
+                  COMMENT "Generating flatbuffers - backup")
+
 # Custom build target to generate engine specific source files that we normally generate as part
 # of a build.
 add_custom_target(ep_generated_source_files
@@ -202,6 +211,7 @@ add_custom_target(ep_generated_source_files
             src/generated_configuration.h
             src/generated_enums.cc
             src/generated_enums.h
+            ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/kvstore_flatbuffers_schema.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/collections/events_generated.h
@@ -279,6 +289,7 @@ set_source_files_properties(src/crc32.c
 ADD_LIBRARY(ep_objs OBJECT
             src/access_scanner.cc
             src/array_histogram.cc
+            src/backup/backup.cc
             src/bgfetcher.cc
             src/blob.cc
             src/bloomfilter.cc
@@ -421,6 +432,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/vbucketdeletiontask.cc
             src/warmup.cc
             ${OBJECTREGISTRY_SOURCE}
+            ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
             ${CONFIG_SOURCE}
             ${COUCH_KVSTORE_SOURCE}

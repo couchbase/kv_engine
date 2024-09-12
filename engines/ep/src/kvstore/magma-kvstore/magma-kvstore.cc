@@ -11,6 +11,7 @@
 
 #include "magma-kvstore.h"
 
+#include "backup/backup.h"
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
 #include "dockey_validator.h"
@@ -4288,15 +4289,15 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
         return {Status(Status::Internal, e.what()), {}};
     }
 
-    // TODO: This should be flatbuffers
-    auto data = nlohmann::json{
-            {"max_cas", vbstate.maxCas},
-            {"failovers", vbstate.transition.failovers},
-    };
+    std::vector<vbucket_failover_t> failovers;
+    for (const auto& e : vbstate.transition.failovers) {
+        failovers.push_back({e["id"], e["seq"]});
+    }
 
     // The return value, including the metadata, is accounted against Magma.
     cb::UseArenaMallocSecondaryDomain returnGuard;
-    return {Status::OK(), data.dump()};
+    auto metadata = Backup::encodeBackupMetadata(vbstate.maxCas, failovers);
+    return {Status::OK(), std::move(metadata)};
 }
 
 std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
