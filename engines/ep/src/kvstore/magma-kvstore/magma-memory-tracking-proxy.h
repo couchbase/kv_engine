@@ -127,7 +127,8 @@ public:
             const magma::Magma::KVStoreID kvID,
             const magma::Slice& lowKey,
             const magma::Slice& highKey,
-            magma::Magma::CompactionCallbackBuilder makeCallback = nullptr);
+            const magma::Magma::CompactionCallbackBuilder& makeCallback,
+            const std::vector<std::string>& obsoleteKeys);
     magma::Status RunImplicitCompactKVStore(const magma::Magma::KVStoreID kvID);
     magma::Status DeleteKVStore(const magma::Magma::KVStoreID kvID,
                                 const magma::Magma::KVStoreRevision kvsRev = 1);

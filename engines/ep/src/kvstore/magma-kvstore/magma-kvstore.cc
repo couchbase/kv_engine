@@ -2906,7 +2906,7 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         // Compact the entire key range
         Slice nullKey;
         status = magma->CompactKVStore(
-                vbid.get(), nullKey, nullKey, compactionCB);
+                vbid.get(), nullKey, nullKey, compactionCB, ctx->obsolete_keys);
         if (!status) {
             if (status.ErrorCode() == Status::Cancelled) {
                 return CompactDBStatus::Aborted;
@@ -2982,7 +2982,8 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
             status = magma->CompactKVStore(vbid.get(),
                                            keySlice,
                                            keySlice,
-                                           compactionCBAndDecrementItemCount);
+                                           compactionCBAndDecrementItemCount,
+                                           ctx->obsolete_keys);
 
             compactionStatusHook(status);
 
@@ -3042,8 +3043,11 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                 CollectionID::DurabilityPrepare);
         Slice prepareSlice(reinterpret_cast<const char*>(leb128.data()),
                            leb128.size());
-        status = magma->CompactKVStore(
-                vbid.get(), prepareSlice, prepareSlice, compactionCB);
+        status = magma->CompactKVStore(vbid.get(),
+                                       prepareSlice,
+                                       prepareSlice,
+                                       compactionCB,
+                                       ctx->obsolete_keys);
         compactionStatusHook(status);
         if (!status) {
             if (status.ErrorCode() == Status::Cancelled) {
@@ -3067,8 +3071,11 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                 CollectionID::SystemEvent);
         Slice systemSlice(reinterpret_cast<const char*>(sys.data()),
                           sys.size());
-        status = magma->CompactKVStore(
-                vbid.get(), systemSlice, systemSlice, compactionCB);
+        status = magma->CompactKVStore(vbid.get(),
+                                       systemSlice,
+                                       systemSlice,
+                                       compactionCB,
+                                       ctx->obsolete_keys);
         if (!status) {
             if (status.ErrorCode() == Status::Cancelled) {
                 return CompactDBStatus::Aborted;

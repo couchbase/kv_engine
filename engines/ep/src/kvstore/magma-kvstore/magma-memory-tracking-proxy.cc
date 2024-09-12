@@ -197,9 +197,22 @@ magma::Status MagmaMemoryTrackingProxy::CompactKVStore(
         const magma::Magma::KVStoreID kvID,
         const magma::Slice& lowKey,
         const magma::Slice& highKey,
-        magma::Magma::CompactionCallbackBuilder makeCallback) {
+        const magma::Magma::CompactionCallbackBuilder& makeCallback,
+        const std::vector<std::string>& obsoleteKeys) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->CompactKVStore(kvID, lowKey, highKey, makeCallback);
+
+    // WARNING:
+    //    This may be surpring to the caller but *IF* there is a list
+    //    of obsolete keys (keys magma should drop) magma use a different
+    //    API which doesn't really compact the kv-store as *only* considers
+    //    the segments which contains the keys to drop (and ignores the
+    //    other segments).
+    if (obsoleteKeys.empty()) {
+        return magma->CompactKVStore(kvID, lowKey, highKey, makeCallback);
+    }
+
+    return magma->CompactKVStore(
+            kvID, magma::Magma::StoreType::All, makeCallback, obsoleteKeys);
 }
 
 magma::Status MagmaMemoryTrackingProxy::RunImplicitCompactKVStore(
