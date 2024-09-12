@@ -7,6 +7,7 @@ target_link_libraries(mctimings
                 platform)
 add_sanitizers(mctimings)
 install(TARGETS mctimings RUNTIME DESTINATION bin)
+AddToStandalonePackage(TARGETS mctimings PACKAGES admin_tools)
 add_test(NAME mctimings_usage_test
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND mctimings --help)
