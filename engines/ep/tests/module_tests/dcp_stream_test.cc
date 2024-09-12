@@ -6603,7 +6603,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     // The behavior for collection-filtered streams is different for ephemeral
     // buckets & persistent bucket.
-    // TODO: Check if this in indeed intended.
+    // Looks like a known issue: See MB-62963 for more details.
     if (ephemeral()) {
         auto resp = stream->next(*producer);
         EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
