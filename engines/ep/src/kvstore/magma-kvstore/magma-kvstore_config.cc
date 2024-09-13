@@ -192,6 +192,12 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "continuous_backup_interval",
             std::make_unique<ConfigChangeListener>(*this));
 
+    std::filesystem::path dbName = config.getDbname();
+    continuousBackupPath = dbName.parent_path() / "@continuous_backup" /
+                           fmt::format("{}-{}",
+                                       dbName.filename().generic_string(),
+                                       config.getUuid());
+
     historyRetentionTime =
             std::chrono::seconds(config.getHistoryRetentionSeconds());
     historyRetentionSize = config.getHistoryRetentionBytes();

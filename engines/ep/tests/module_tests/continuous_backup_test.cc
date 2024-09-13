@@ -9,10 +9,13 @@
  */
 
 #include "backup/backup.h"
+#include "ep_bucket.h"
+#include "memcached/vbucket.h"
 #include "tests/mock/mock_magma_kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
+#include <gtest/gtest.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cb_arena_malloc_client.h>
@@ -98,6 +101,91 @@ TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {
     EXPECT_EQ(maxCas, metadata["maxCas"].template get<uint64_t>());
     EXPECT_TRUE(metadata["failovers"].is_array());
     EXPECT_EQ(1, metadata["failovers"].size()) << metadata.dump();
+}
+
+TEST_P(ContinousBackupTest, StartBackup) {
+    auto& store = getMockKVStore(vbid);
+    // Started and should remain started.
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+}
+
+TEST_P(ContinousBackupTest, StopBackupOnStateChange) {
+    auto& store = getMockKVStore(vbid);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+
+    // Stop after flush of vbucket_state_replica.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+}
+
+TEST_P(ContinousBackupTest, DoNotStartBackupIfConfigDisabled) {
+    auto& store = getMockKVStore(vbid);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+
+    engine->getConfiguration().setContinuousBackupEnabled(false);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+}
+
+TEST_P(ContinousBackupTest, StartBackupOnConfigEnabled) {
+    auto& store = getMockKVStore(vbid);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+
+    engine->getConfiguration().setContinuousBackupEnabled(false);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+
+    engine->getConfiguration().setContinuousBackupEnabled(true);
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+
+    // TODO: Queue a vbstate automatically when the config changes and update
+    // the test.
+    engine->getKVBucket()->scheduleVBStatePersist(vbid);
+    dynamic_cast<EPBucket&>(*engine->getKVBucket()).flushVBucket(vbid);
+
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+}
+
+TEST_P(ContinousBackupTest, StopBackupOnConfigDisabled) {
+    auto& store = getMockKVStore(vbid);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+
+    engine->getConfiguration().setContinuousBackupEnabled(false);
+    EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+
+    // TODO: Queue a vbstate automatically when the config changes and update
+    // the test.
+    engine->getKVBucket()->scheduleVBStatePersist(vbid);
+    dynamic_cast<EPBucket&>(*engine->getKVBucket()).flushVBucket(vbid);
+
+    EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+}
+
+TEST_P(ContinousBackupTest, StartBackupAfterWarmup) {
+    {
+        auto& store = getMockKVStore(vbid);
+        EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+
+        reinitialise(config_string + ";warmup=true");
+    }
+
+    {
+        replaceMagmaKVStore();
+        auto& store = getMockKVStore(vbid);
+        auto& kvBucket = *static_cast<EPBucket*>(engine->getKVBucket());
+        kvBucket.initializeWarmupTask();
+        kvBucket.startWarmupTask();
+        runReadersUntilWarmedUp();
+
+        EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(ContinousBackupTests,

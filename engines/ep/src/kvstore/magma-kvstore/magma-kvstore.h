@@ -22,6 +22,7 @@
 #include <folly/Synchronized.h>
 #include <platform/non_negative_counter.h>
 
+#include <filesystem>
 #include <map>
 #include <queue>
 #include <shared_mutex>
@@ -840,6 +841,25 @@ protected:
             std::function<magma::Status(magma::Slice&)> valueRead) const;
 
     /**
+     * @returns true if the continuous backup feature has been started
+     */
+    bool isContinuousBackupStarted(Vbid vbid);
+
+    /**
+     * Called after a VBState is flushed to disk.
+     * Updates the in-memory VBState cache and starts/stops continuous backup as
+     * needed.
+     */
+    void postVBStateFlush(Vbid vbid, const vbucket_state& committedState);
+
+    /**
+     * Constructs the continuous backup path for the given vBucket.
+     * @return the continuous backup path
+     */
+    std::filesystem::path getContinuousBackupPath(
+            Vbid vbid, const vbucket_state& committedState);
+
+    /**
      * Continuous backup callback called from Magma.
      * This callback serialises some of the state of the vBucket into a
      * flatbuffer, to be stored in the backup file as additional metadata.
@@ -924,6 +944,20 @@ protected:
     std::atomic<bool> continuousBackupEnabled{false};
     std::atomic<std::chrono::seconds> continuousBackupInterval{
             std::chrono::seconds(120)};
+
+    /// Status of continuous backup.
+    enum class BackupStatus : char {
+        Stopped,
+        Started,
+    };
+
+    /**
+     * Status of cont bk per vBucket. We only have maxVBuckets / maxShards
+     * slots for efficiency. Does not use vector<bool> to avoid the bitset
+     * optimisation, which is not thread-safe for concurrent access to different
+     * elements.
+     */
+    std::vector<BackupStatus> continuousBackupStatus;
 
     /**
      * Testing hook called with the result of CompactKVStore when dropping

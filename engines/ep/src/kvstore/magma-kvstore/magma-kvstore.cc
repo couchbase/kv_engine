@@ -41,6 +41,7 @@
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <utility>
 
@@ -637,6 +638,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
       magmaPath(configuration.getDBName() + "/magma." +
                 std::to_string(configuration.getShardId())),
       scanCounter(0),
+      continuousBackupStatus(getCacheSize(), BackupStatus::Stopped),
       currEngine(ObjectRegistry::getCurrentEngine()) {
     configuration.magmaCfg.Path = magmaPath;
     configuration.magmaCfg.MaxKVStores = configuration.getMaxVBuckets();
@@ -915,6 +917,42 @@ void MagmaKVStore::resume() {
     magma->Resume();
 }
 
+void MagmaKVStore::postVBStateFlush(Vbid vbid,
+                                    const vbucket_state& committedState) {
+    const auto newState = committedState.transition.state;
+    const auto isBackupEnabled = continuousBackupEnabled.load();
+
+    auto& backupStatus = continuousBackupStatus[getCacheSlot(vbid)];
+
+    const auto startBackup = backupStatus == BackupStatus::Stopped &&
+                             newState == vbucket_state_active &&
+                             isBackupEnabled;
+
+    const auto stopBackup =
+            backupStatus == BackupStatus::Started &&
+            (newState != vbucket_state_active || !isBackupEnabled);
+
+    updateCachedVBState(vbid, committedState);
+
+    if (startBackup) {
+        const auto backupPath = getContinuousBackupPath(vbid, committedState);
+        logger->logWithContext(spdlog::level::info,
+                               "Starting continuous backup",
+                               {{"vb", vbid},
+                                {"vb_state", VBucket::toString(newState)},
+                                {"backup_path", backupPath.native()}});
+        // TODO MB-62250: Call into Magma.
+        backupStatus = BackupStatus::Started;
+    } else if (stopBackup) {
+        logger->logWithContext(
+                spdlog::level::info,
+                "Stopping continuous backup",
+                {{"vb", vbid}, {"vb_state", VBucket::toString(newState)}});
+        // TODO MB-62250: Call into Magma.
+        backupStatus = BackupStatus::Stopped;
+    }
+}
+
 bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
                           VB::Commit& commitData) {
     checkIfInTransaction(txnCtx->vbid, "MagmaKVStore::commit");
@@ -946,7 +984,7 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
-        updateCachedVBState(txnCtx->vbid, commitData.proposedVBState);
+        postVBStateFlush(txnCtx->vbid, commitData.proposedVBState);
     }
 
     logger->TRACE("MagmaKVStore::commit success:{}", success);
@@ -1425,7 +1463,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
         return false;
     }
 
-    updateCachedVBState(vbid, meta.proposedVBState);
+    postVBStateFlush(vbid, meta.proposedVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
@@ -4259,6 +4297,24 @@ void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
 
 std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {
     return magma->GetOldestHistorySeqno(vbid.get());
+}
+
+bool MagmaKVStore::isContinuousBackupStarted(Vbid vbid) {
+    return continuousBackupStatus[getCacheSlot(vbid)] == BackupStatus::Started;
+}
+
+std::filesystem::path MagmaKVStore::getContinuousBackupPath(
+        Vbid vbid, const vbucket_state& committedState) {
+    const auto& failovers = committedState.transition.failovers;
+    if (failovers.empty()) {
+        throw std::runtime_error(
+                fmt::format("MagmaKVStore::getContinuousBackupPath: failover "
+                            "table is empty"));
+    }
+
+    auto vbUuid = failovers.front()["id"].template get<size_t>();
+    return configuration.getContinuousBackupPath() /
+           fmt::to_string(vbid.get()) / fmt::to_string(vbUuid);
 }
 
 std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(

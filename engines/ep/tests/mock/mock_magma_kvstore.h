@@ -61,6 +61,8 @@ public:
 
     bool snapshotVBucket(Vbid vbid, const VB::Commit& meta) override;
 
+    using MagmaKVStore::isContinuousBackupStarted;
+
     bool isContinuousBackupEnabled() {
         return continuousBackupEnabled;
     }

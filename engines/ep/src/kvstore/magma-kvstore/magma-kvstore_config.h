@@ -19,6 +19,7 @@
 
 #include <memcached/thread_pool_config.h>
 #include <chrono>
+#include <filesystem>
 
 using namespace std::chrono_literals;
 
@@ -256,6 +257,13 @@ public:
         return continuousBackupInterval;
     }
     void setContinousBackupInterval(std::chrono::seconds interval);
+
+    /**
+     * @returns the path for continuous backup files for the bucket
+     */
+    std::filesystem::path getContinuousBackupPath() const {
+        return continuousBackupPath;
+    }
 
     size_t getHistoryRetentionSize() const {
         return historyRetentionSize;
@@ -544,6 +552,9 @@ private:
     std::atomic<bool> continuousBackupEnabled{false};
     std::atomic<std::chrono::seconds> continuousBackupInterval{
             std::chrono::seconds(120)};
+
+    /// The path for continuous backup files for this bucket.
+    std::filesystem::path continuousBackupPath;
 
     /**
      * The method in which errors are handled should the key - vBucket mapping
