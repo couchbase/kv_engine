@@ -220,19 +220,34 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
+    if (interface->system) {
+        try {
+            LOG_INFO_CTX("Accepting client on system interface",
+                         {"conn_id", client},
+                         {"peer", cb::net::getPeerNameAsJson(client)});
+        } catch (const std::exception& e) {
+            LOG_INFO_CTX("Accepting client on system interface",
+                         {"conn_id", client},
+                         {"error", e.what()});
+        }
+    }
+
     if (interface->tls && !tls_configured) {
         tls_configured = networkInterfaceManager->isTlsConfigured();
         if (!tls_configured) {
             try {
-                LOG_INFO(
-                        "MB-58154: Closing connection from {} to TLS port as "
-                        "TLS isn't configured yet",
-                        cb::net::getpeername(client));
+                LOG_INFO_CTX(
+                        "MB-58154: Closing connection as TLS isn't configured "
+                        "yet",
+                        {"conn_id", client},
+                        {"peer", cb::net::getPeerNameAsJson(client)});
 
-            } catch (const std::exception&) {
-                LOG_INFO_RAW(
-                        "MB-58154: Closing connection to TLS port as TLS isn't "
-                        "configured yet");
+            } catch (const std::exception& e) {
+                LOG_INFO_CTX(
+                        "MB-58154: Closing connection as TLS isn't configured "
+                        "yet",
+                        {"conn_id", client},
+                        {"error", e.what()});
             }
             safe_close(client);
             return;
@@ -252,10 +267,6 @@ void LibeventServerSocketImpl::acceptNewClient() {
         limit = Settings::instance().getMaxUserConnections();
     }
 
-    LOG_DEBUG("Accepting client {} of {}{}",
-              current,
-              limit,
-              interface->system ? " on system port" : "");
     if (current > limit) {
         stats.rejected_conns++;
         LOG_WARNING(

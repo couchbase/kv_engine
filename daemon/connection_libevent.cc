@@ -74,7 +74,12 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
 }
 
 LibeventConnection::~LibeventConnection() {
-    if (isDCP() && getSendQueueSize() > 0) {
+    if (isConnectedToSystemPort()) {
+        LOG_INFO_CTX("Delete connection connected to system port",
+                     {"conn_id", getId()},
+                     {"reason", terminationReason});
+    }
+    if (isDCP() && getSendQueueSizeImpl() > 0) {
         LOG_INFO("{}: Releasing DCP connection: {}",
                  socketDescriptor,
                  to_json_tcp().dump());
@@ -208,34 +213,41 @@ static nlohmann::json BevEvent2Json(short event) {
 }
 
 void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
-    auto& instance = *reinterpret_cast<LibeventConnection*>(ctx);
-    bool term = false;
+    auto& instance = *static_cast<LibeventConnection*>(ctx);
+    std::string details;
 
-    bool conn_reset = (event & BEV_EVENT_EOF) == BEV_EVENT_EOF;
+    auto term = (event & BEV_EVENT_EOF) == BEV_EVENT_EOF;
+    if (term) {
+        details = "EOF,";
+    }
     if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR &&
         EVUTIL_SOCKET_ERROR() == ECONNRESET) {
-        conn_reset = true;
+        details.append("ECONNRESET,");
+        term = true;
     }
 
     std::string ssl_errors;
-    if (instance.isTlsEnabled() && !conn_reset) {
+    if (instance.isTlsEnabled() && !term) {
         auto errors = instance.getOpenSslErrorCodes();
         for (const auto& err : errors) {
             if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
-                conn_reset = true;
+                details.append("TLS unexpected EOF,");
+                term = true;
                 break;
             }
         }
 
-        if (!conn_reset) {
+        if (!term) {
             ssl_errors = instance.formatOpenSslErrorCodes(errors);
         }
     }
 
-    if (conn_reset) {
-        LOG_DEBUG("{}: Socket EOF", instance.getId());
-        instance.setTerminationReason("Client closed connection");
-        term = true;
+    if (term) {
+        if (!details.empty() && details.back() == ',') {
+            details.pop_back();
+        }
+        instance.setTerminationReason(
+                fmt::format("Client closed connection: {}", details));
     } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
         // Note: SSL connections may fail for reasons different than socket
         // error, so we avoid to dump errno:0 (ie, socket operation success).
@@ -501,5 +513,9 @@ void LibeventConnection::enableReadEvent() {
 }
 
 size_t LibeventConnection::getSendQueueSize() const {
+    return getSendQueueSizeImpl();
+}
+
+size_t LibeventConnection::getSendQueueSizeImpl() const {
     return evbuffer_get_length(bufferevent_get_output(bev.get()));
 }

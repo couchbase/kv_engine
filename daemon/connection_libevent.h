@@ -38,6 +38,12 @@ public:
 protected:
     LibeventConnection(FrontEndThread& thr) : Connection(thr) {
     }
+
+    /// Non-virtual method as it is called from the destructor and
+    /// that emits "warnings" in the IDE (as you shouldn't be calling
+    /// virtual methods from the destructor)
+    size_t getSendQueueSizeImpl() const;
+
     /// The bufferevent structure for the object
     cb::libevent::unique_bufferevent_ptr bev;
 
