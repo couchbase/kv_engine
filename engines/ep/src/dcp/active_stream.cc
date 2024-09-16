@@ -25,11 +25,22 @@
 
 #include <collections/vbucket_manifest_handles.h>
 #include <fmt/chrono.h>
+#include <folly/lang/Assume.h>
 #include <memcached/protocol_binary.h>
 #include <platform/json_log_conversions.h>
 #include <platform/optional.h>
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
+
+std::string_view format_as(ActiveStream::BackfillType type) {
+    switch (type) {
+    case ActiveStream::BackfillType::InOrder:
+        return "InOrder";
+    case ActiveStream::BackfillType::OutOfSequenceOrder:
+        return "OSO";
+    }
+    folly::assume_unreachable();
+}
 
 // OutstandingItemsResult ctor and dtor required to be defined out of
 // line to allow us to forward declare CheckpointSnapshotRange
@@ -170,10 +181,9 @@ ActiveStream::~ActiveStream() {
             // the backfill queues when running). Just log as debug as there
             // could be many "safe" reasons why the DCPBackfill object is not
             // removed by this call.
-            log(spdlog::level::debug,
-                "{} ~ActiveStream expected to remove backfillUID:{}",
-                logPrefix,
-                backfillUID);
+            logWithContext(spdlog::level::debug,
+                           "~ActiveStream expected to remove backfill",
+                           {{"backfill_uid", backfillUID}});
         }
     }
 }
@@ -262,23 +272,19 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         cursor = result.takeCursor();
 
         Expects(result.position);
-        log(spdlog::level::level_enum::info,
-            "{} ActiveStream::registerCursor name \"{}\", "
-            "lastProcessedSeqno:{}, pendingBackfill:{}, "
-            "result{{tryBackfill:{}, op:{}, seqno:{}, nextSeqno:{}}}",
-            logPrefix,
-            name_,
-            lastProcessedSeqno,
-            pendingBackfill,
-            result.tryBackfill,
-            ::to_string(result.position->getOperation()),
-            result.position->getBySeqno(),
-            result.nextSeqno);
+        logWithContext(spdlog::level::level_enum::info,
+                       "ActiveStream::registerCursor",
+                       {{"cursor", name_},
+                        {"last_processed_seqno", lastProcessedSeqno},
+                        {"pending_backfill", pendingBackfill},
+                        {"try_backfill", result.tryBackfill},
+                        {"op", ::to_string(result.position->getOperation())},
+                        {"seqno", result.position->getBySeqno()},
+                        {"next_seqno", result.nextSeqno}});
     } catch (std::exception& error) {
-        log(spdlog::level::level_enum::warn,
-            "{} Failed to register cursor: {}",
-            logPrefix,
-            error.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Failed to register cursor",
+                       {{"error", error.what()}});
         endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
     }
 }
@@ -319,11 +325,9 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         const auto originalEndSeqno = endSeqno;
 
         if (!isBackfilling()) {
-            log(spdlog::level::level_enum::warn,
-                "{} ActiveStream::"
-                "markDiskSnapshot: Unexpected state_:{}",
-                logPrefix,
-                to_string(state_.load()));
+            logWithContext(spdlog::level::level_enum::warn,
+                           "ActiveStream::markDiskSnapshot: Unexpected state",
+                           {{"state", to_string(state_.load())}});
             return false;
         }
 
@@ -341,11 +345,10 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             if (endSeqno < startSeqno) {
                 // no visible items in backfill, should not send
                 // a snapshot marker at all (no data will be sent)
-                log(spdlog::level::level_enum::info,
-                    "{} "
-                    "ActiveStream::markDiskSnapshot not sending snapshot "
-                    "because it contains no visible items",
-                    logPrefix);
+                logWithContext(
+                        spdlog::level::level_enum::info,
+                        "ActiveStream::markDiskSnapshot not sending snapshot "
+                        "because it contains no visible items");
                 // reregister cursor at original end seqno
                 notifyEmptyBackfill_UNLOCKED(originalEndSeqno);
                 return false;
@@ -362,11 +365,9 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
 
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
-            log(spdlog::level::level_enum::warn,
-                "{} "
-                "ActiveStream::markDiskSnapshot, vbucket "
-                "does not exist",
-                logPrefix);
+            logWithContext(spdlog::level::level_enum::warn,
+                           "ActiveStream::markDiskSnapshot, vbucket "
+                           "does not exist");
             return false;
         }
         // An atomic read of vbucket state without acquiring the
@@ -376,16 +377,14 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                 /* We possibly have items in the open checkpoint
                    (incomplete snapshot) */
                 snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
-                log(spdlog::level::level_enum::info,
-                    "{} Merging backfill and memory snapshot for a "
-                    "replica vbucket, backfill start seqno {}, "
-                    "backfill end seqno {}, "
-                    "snapshot end seqno after merge s:{} - e:{}",
-                    logPrefix,
-                    startSeqno,
-                    endSeqno,
-                    info.range.getStart(),
-                    info.range.getEnd());
+                logWithContext(
+                        spdlog::level::level_enum::info,
+                        "Merging backfill and memory snapshot for a "
+                        "replica vbucket",
+                        {{"backfill_start_seqno", startSeqno},
+                         {"backfill_end_seqno", endSeqno},
+                         {"new_snapshot_range",
+                          {{info.range.getStart(), info.range.getEnd()}}}});
                 endSeqno = info.range.getEnd();
             }
         }
@@ -424,17 +423,14 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                                  psToSend,
                                                                  sid);
         } else {
-            log(spdlog::level::level_enum::info,
-                "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-                "start:{}, end:{}, flags:{}, hcs:{}, mvs:{}, "
-                "lastBackfilledSeqno:{}",
-                logPrefix,
-                startSeqno,
-                endSeqno,
-                flags,
-                to_string_or_none(hcsToSend),
-                to_string_or_none(mvsToSend),
-                lastBackfilledSeqno);
+            logWithContext(
+                    spdlog::level::level_enum::info,
+                    "ActiveStream::markDiskSnapshot: Sending disk snapshot",
+                    {{"snapshot", {startSeqno, endSeqno}},
+                     {"flags", flags},
+                     {"high_completed_seqno", hcsToSend},
+                     {"max_visible_seqno", mvsToSend},
+                     {"last_backfilled_seqno", lastBackfilledSeqno}});
             // Clear the pending marker, it's no longer needed.
             // Note: Missing to reset the pending marker here would lead to
             // sending it unnecessarily in the case where the stream has an
@@ -517,36 +513,31 @@ bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
         std::unique_lock<std::mutex> lh(streamMutex);
 
         if (!isBackfilling()) {
-            log(spdlog::level::level_enum::warn,
-                "{} ActiveStream::"
-                "markOSODiskSnapshot: Unexpected state_:{}",
-                logPrefix,
-                to_string(state_.load()));
+            logWithContext(
+                    spdlog::level::level_enum::warn,
+                    "ActiveStream::markOSODiskSnapshot: Unexpected state",
+                    {{"state", to_string(state_.load())}});
             return false;
         }
 
         if (!isDiskOnly()) {
             VBucketPtr vb = engine->getVBucket(vb_);
             if (!vb) {
-                log(spdlog::level::level_enum::warn,
-                    "{} "
-                    "ActiveStream::markOSODiskSnapshot, vbucket "
-                    "does not exist",
-                    logPrefix);
+                logWithContext(spdlog::level::level_enum::warn,
+                               "ActiveStream::markOSODiskSnapshot: vbucket "
+                               "does not exist");
                 return false;
             }
             registerCursor(*vb->checkpointManager, endSeqno);
-            log(spdlog::level::level_enum::info,
-                "{} ActiveStream::markOSODiskSnapshot: Sent snapshot "
-                "begin marker, cursor requested:{} curChkSeqno:{}",
-                logPrefix,
-                endSeqno,
-                curChkSeqno.load());
+            logWithContext(spdlog::level::level_enum::info,
+                           "ActiveStream::markOSODiskSnapshot: Sent snapshot "
+                           "begin marker",
+                           {{"cursor_req_seqno", endSeqno},
+                            {"cursor_chk_seqno", curChkSeqno.load()}});
         } else {
-            log(spdlog::level::level_enum::info,
-                "{} ActiveStream::markOSODiskSnapshot: Sent snapshot "
-                "begin marker",
-                logPrefix);
+            logWithContext(spdlog::level::level_enum::info,
+                           "ActiveStream::markOSODiskSnapshot: Sent snapshot "
+                           "begin marker");
         }
         pushToReadyQ(std::make_unique<OSOSnapshot>(opaque_, vb_, sid));
     }
@@ -601,16 +592,19 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         // so they need to be consistent.
         if (pendingDiskMarker) {
             // There is a marker, move it to the readyQ
-            log(spdlog::level::level_enum::info,
-                "{} ActiveStream::backfillReceived(seqno:{}): Sending pending "
-                "disk snapshot with start:{}, end:{}, flags:{}, hcs:{}, mvs:{}",
-                logPrefix,
-                *resp->getBySeqno(),
-                pendingDiskMarker->getStartSeqno(),
-                pendingDiskMarker->getEndSeqno(),
-                pendingDiskMarker->getFlags(),
-                to_string_or_none(pendingDiskMarker->getHighCompletedSeqno()),
-                to_string_or_none(pendingDiskMarker->getMaxVisibleSeqno()));
+            logWithContext(spdlog::level::level_enum::info,
+                           "ActiveStream::backfillReceived: Sending pending "
+                           "disk snapshot with start:{}, end:{}, flags:{}, "
+                           "hcs:{}, mvs:{}",
+                           {{"seqno", *resp->getBySeqno()},
+                            {"snapshot",
+                             {pendingDiskMarker->getStartSeqno(),
+                              pendingDiskMarker->getEndSeqno()}},
+                            {"flags", pendingDiskMarker->getFlags()},
+                            {"high_completed_seqno",
+                             pendingDiskMarker->getHighCompletedSeqno()},
+                            {"max_visible_seqno",
+                             pendingDiskMarker->getMaxVisibleSeqno()}});
 
             // Note: The presence of a pending disk marker means that we were
             // at SnapshotType::NoHistoryPrecedingHistory before this point and
@@ -687,10 +681,9 @@ void ActiveStream::snapshotMarkerAckReceived() {
 void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
-        log(spdlog::level::level_enum::warn,
-            "{} not present during ack for set "
-            "vbucket during takeover",
-            logPrefix);
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Vbucket not present during ack for set vbucket during "
+                       "takeover");
         return;
     }
 
@@ -709,28 +702,23 @@ void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
         {
             std::unique_lock<std::mutex> lh(streamMutex);
             if (!isTakeoverWait()) {
-                log(spdlog::level::level_enum::warn,
-                    "{} Unexpected ack for set vbucket op on "
-                    "stream '{}' state '{}'",
-                    logPrefix,
-                    name_,
-                    to_string(state_.load()));
+                logWithContext(spdlog::level::level_enum::warn,
+                               "Unexpected ack for set vbucket op",
+                               {{"state", to_string(state_.load())}});
                 return;
             }
 
             if (takeoverState == vbucket_state_pending) {
-                log(spdlog::level::level_enum::debug,
-                    "{} Receive ack for set vbucket state to "
-                    "pending message",
-                    logPrefix);
+                logWithContext(spdlog::level::level_enum::debug,
+                               "Receive ack for set vbucket state to "
+                               "pending message");
                 takeoverState = vbucket_state_active;
                 transitionState(StreamState::TakeoverSend);
                 needToSetVbState = true;
             } else {
-                log(spdlog::level::level_enum::info,
-                    "{} Receive ack for set vbucket state to "
-                    "active message",
-                    logPrefix);
+                logWithContext(spdlog::level::level_enum::info,
+                               "Receive ack for set vbucket state to "
+                               "active message");
                 endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             }
         }
@@ -746,12 +734,10 @@ void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
                     false /* notifyDcp */,
                     epVbSetLh,
                     vbStateLh);
-            log(spdlog::level::level_enum::info,
-                "{} Vbucket marked as dead, last sent "
-                "seqno: {}, high seqno: {}",
-                logPrefix,
-                lastSentSeqno.load(),
-                vbucket->getHighSeqno());
+            logWithContext(spdlog::level::level_enum::info,
+                           "Vbucket marked as dead",
+                           {{"last_sent_seqno", lastSentSeqno.load()},
+                            {"high_seqno", vbucket->getHighSeqno()}});
         }
     }
 
@@ -811,11 +797,10 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
                      * if the stream is not sync write aware.
                      * This is an expected situation.
                      */
-                    log(spdlog::level::level_enum::debug,
-                        "{} ActiveStream::completeBackfill: "
-                        "Backfill complete with items remaining:{}",
-                        logPrefix,
-                        *backfillRemaining);
+                    logWithContext(
+                            spdlog::level::level_enum::debug,
+                            "ActiveStream::completeBackfill: Backfill complete",
+                            {{"items_remaining", backfillRemaining->load()}});
 
                     // reset value to zero just in case.
                     setBackfillRemaining_UNLOCKED(0);
@@ -857,11 +842,9 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverSendPhase(
         (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
         vb->setTakeoverBackedUpState(true);
 
-        log(spdlog::level::level_enum::info,
-            "{} ActiveStream::takeoverSend: Entered backup state - "
-            "last_sent_seqno:{}",
-            logPrefix,
-            lastSentSeqno.load());
+        logWithContext(spdlog::level::level_enum::info,
+                       "ActiveStream::takeoverSend: Entered backup state",
+                       {{"last_sent_seqno", lastSentSeqno.load()}});
     }
 
     if (!readyQ.empty()) {
@@ -897,15 +880,11 @@ std::unique_ptr<DcpResponse> ActiveStream::takeoverWaitPhase(
 std::unique_ptr<DcpResponse> ActiveStream::deadPhase(DcpProducer& producer) {
     auto resp = nextQueuedItem(producer);
     if (!resp) {
-        log(spdlog::level::level_enum::info,
-            "{} Stream closed, "
-            "{} items sent from backfill phase, "
-            "{} items sent from memory phase, "
-            "{} was last seqno sent",
-            logPrefix,
-            backfillItems.sent.load(),
-            itemsFromMemoryPhase.load(),
-            lastSentSeqno.load());
+        logWithContext(spdlog::level::level_enum::info,
+                       "Stream closed",
+                       {{"backfill_sent", backfillItems.sent},
+                        {"memory_phase", itemsFromMemoryPhase},
+                        {"last_sent_seqno", lastSentSeqno.load()}});
     }
     return resp;
 }
@@ -946,10 +925,9 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
             addStat("takeover_since", ep_current_time() - takeoverStart);
         }
     } catch (std::exception& error) {
-        log(spdlog::level::level_enum::warn,
-            "{} ActiveStream::addStats: Failed to build stats: {}",
-            logPrefix,
-            error.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "ActiveStream::addStats: Failed to build stats",
+                       {"error", error.what()});
     }
 
     auto addFilterStat = [&add_stat](auto k, auto v, auto& c) {
@@ -965,11 +943,9 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
 
     add_casted_stat("name", name_, add_stat, cookie);
     if (!isActive()) {
-        log(spdlog::level::level_enum::warn,
-            "{} "
-            "ActiveStream::addTakeoverStats: Stream has "
-            "status StreamDead",
-            logPrefix);
+        logWithContext(spdlog::level::level_enum::warn,
+                       "ActiveStream::addTakeoverStats: Stream has "
+                       "status StreamDead");
         add_casted_stat("status", "stream_is_dead", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
@@ -1006,14 +982,11 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
     try {
         del_items = vb.getNumPersistedDeletes();
     } catch (std::runtime_error& e) {
-        log(spdlog::level::level_enum::warn,
-            "{} ActiveStream:addTakeoverStats: exception while getting num "
-            "persisted "
-            "deletes"
-            " - treating as 0 deletes. "
-            "Details: {}",
-            logPrefix,
-            e.what());
+        logWithContext(
+                spdlog::level::level_enum::warn,
+                "ActiveStream:addTakeoverStats: exception while getting num "
+                "persisted deletes - treating as 0 deletes",
+                {{"error", e.what()}});
     }
 
     if (end_seqno_ < curChkSeqno) {
@@ -1129,16 +1102,15 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
 
     if (itemsForCursor.ranges.empty()) {
         Expects(result.items.empty());
-        log(spdlog::level::level_enum::debug,
-            "{} ActiveStream::getOutstandingItems: no data from checkpoints"
-            "- type:{}, {}, ranges:{}, HCS:{}, MVS:{}, items:{}",
-            logPrefix,
-            ::to_string(itemsForCursor.checkpointType),
-            ::to_string(itemsForCursor.historical),
-            itemsForCursor.ranges.size(),
-            ::to_string_or_none(itemsForCursor.highCompletedSeqno),
-            itemsForCursor.visibleSeqno,
-            result.items.size());
+        logWithContext(
+                spdlog::level::level_enum::debug,
+                "ActiveStream::getOutstandingItems: no data from checkpoints",
+                {{"type", ::to_string(itemsForCursor.checkpointType)},
+                 {"historical", ::to_string(itemsForCursor.historical)},
+                 {"ranges", itemsForCursor.ranges.size()},
+                 {"high_completed_seqno", itemsForCursor.highCompletedSeqno},
+                 {"max_visible_seqno", itemsForCursor.visibleSeqno},
+                 {"items", result.items.size()}});
         return result;
     }
 
@@ -1310,10 +1282,9 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                         }
 
                         if (compressionFailed) {
-                            log(spdlog::level::level_enum::warn,
-                                "{} Failed to snappy compress an uncompressed "
-                                "value",
-                                logPrefix);
+                            logWithContext(spdlog::level::level_enum::warn,
+                                           "Failed to snappy compress an "
+                                           "uncompressed value");
                         }
                     }
                 }
@@ -1333,9 +1304,9 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                     (wasInflated == Item::WasValueInflated::No) &&
                     (finalItem->getNBytes() > 0)) {
                     if (!finalItem->decompressValue()) {
-                        log(spdlog::level::level_enum::warn,
-                            "{} Failed to snappy uncompress a compressed value",
-                            logPrefix);
+                        logWithContext(spdlog::level::level_enum::warn,
+                                       "Failed to snappy uncompress a "
+                                       "compressed value");
                     }
                 }
             }
@@ -1547,10 +1518,8 @@ void ActiveStream::processItemsInner(
                 queueSeqnoAdvanced();
             }
         } else {
-            log(spdlog::level::level_enum::warn,
-                "{} processItems() for vbucket which does not "
-                "exist",
-                logPrefix);
+            logWithContext(spdlog::level::level_enum::warn,
+                           "processItems() for vbucket which does not exist");
         }
     } else if (highNonVisibleSeqno &&
                curChkSeqno >= highNonVisibleSeqno.value()) {
@@ -1714,14 +1683,10 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         if (sendHCS) {
             Expects(meta.diskCheckpointState);
             hcsToSend = meta.diskCheckpointState->highCompletedSeqno;
-            log(spdlog::level::level_enum::info,
-                "{} ActiveStream::snapshot: Sending disk snapshot with start "
-                "seqno {}, end seqno {}, and"
-                " high completed seqno {}",
-                logPrefix,
-                snapStart,
-                snapEnd,
-                *hcsToSend);
+            logWithContext(spdlog::level::level_enum::info,
+                           "ActiveStream::snapshot: Sending disk snapshot",
+                           {{"snapshot", {snapStart, snapEnd}},
+                            {"high_completed_seqno", *hcsToSend}});
         }
 
         /* We need to send the requested 'snap_start_seqno_' as the snapshot
@@ -1850,20 +1815,19 @@ void ActiveStream::removeAcksFromDM(
         {
             auto p = producerPtr.lock();
             if (!p) {
-                log(spdlog::level::warn,
-                    "({}) Producer could not be locked when"
-                    "attempting to clear queued seqno acks",
-                    vb_);
+                logWithContext(spdlog::level::warn,
+                               "Producer could not be locked when attempting "
+                               "to clear queued seqno acks");
                 return;
             }
             consumerName = p->getConsumerName();
         }
 
         if (consumerName.empty()) {
-            log(spdlog::level::warn,
-                "({}) Consumer name not found for producer when"
-                "attempting to clear queued seqno acks",
-                vb_);
+            logWithContext(spdlog::level::warn,
+                           "Consumer name not found for producer when "
+                           "attempting to clear "
+                           "queued seqno acks");
             return;
         }
 
@@ -1926,13 +1890,11 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
         case cb::mcbp::DcpStreamEndStatus::Rollback:
             level = spdlog::level::level_enum::warn;
         }
-        log(level,
-            "{} Stream closing, sent until seqno {} remaining items "
-            "{}, reason: {}",
-            logPrefix,
-            lastSentSeqno.load(),
-            readyQ.size(),
-            cb::mcbp::to_string(reason));
+        logWithContext(level,
+                       "Stream closing",
+                       {{"last_sent_seqno", lastSentSeqno.load()},
+                        {"ready_queue_size", readyQ.size()},
+                        {"status", cb::mcbp::to_string(reason)}});
     }
 }
 
@@ -1965,29 +1927,20 @@ std::optional<uint64_t> ActiveStream::getCollectionStreamStart(
 void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
                                              bool reschedule) {
     if (isBackfillTaskRunning) {
-        log(spdlog::level::level_enum::info,
-            "{} Skipping "
-            "scheduleBackfill_UNLOCKED; "
-            "lastReadSeqno {}"
-            ", reschedule flag "
-            ": {}",
-            logPrefix,
-            lastReadSeqno.load(),
-            reschedule ? "True" : "False");
+        logWithContext(spdlog::level::level_enum::info,
+                       "Skipping scheduleBackfill_UNLOCKED",
+                       {{"last_read_seqno", lastReadSeqno.load()},
+                        {"reschedule", reschedule}});
         return;
     }
 
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
-        log(spdlog::level::level_enum::warn,
-            "{} Failed to schedule "
-            "backfill as unable to get vbucket; "
-            "lastReadSeqno : {}"
-            ", "
-            "reschedule : {}",
-            logPrefix,
-            lastReadSeqno.load(),
-            reschedule ? "True" : "False");
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Failed to schedule "
+                       "backfill as unable to get vbucket",
+                       {{"last_read_seqno", lastReadSeqno.load()},
+                        {"reschedule", reschedule}});
         return;
     }
 
@@ -2025,11 +1978,9 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             registerResult = vbucket->checkpointManager->registerCursorBySeqno(
                     name_, inMemoryStart, CheckpointCursor::Droppable::Yes);
         } catch (std::exception& error) {
-            log(spdlog::level::level_enum::warn,
-                "{} Failed to register "
-                "cursor: {}",
-                logPrefix,
-                error.what());
+            logWithContext(spdlog::level::level_enum::warn,
+                           "Failed to register cursor",
+                           {{"error", error.what()}});
             endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
             return;
         }
@@ -2040,17 +1991,18 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         requireBackfill = registerResult.tryBackfill;
         cursor = registerResult.takeCursor();
 
-        log(spdlog::level::level_enum::info,
-            "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
-            "name \"{}\" requested:{}, result{{tryBackfill:{}, op:{}, "
-            "seqno:{}, nextSeqno:{}}}",
-            logPrefix,
-            name_,
-            inMemoryStart,
-            registerResult.tryBackfill,
-            ::to_string(registerResult.position->getOperation()),
-            registerResult.position->getBySeqno(),
-            registerResult.nextSeqno);
+        logWithContext(
+                spdlog::level::level_enum::info,
+                "ActiveStream::scheduleBackfill_UNLOCKED register cursor",
+                {
+                        {"name", name_},
+                        {"cursor_req_seqno", inMemoryStart},
+                        {"try_backfill", registerResult.tryBackfill},
+                        {"op",
+                         ::to_string(registerResult.position->getOperation())},
+                        {"seqno", registerResult.position->getBySeqno()},
+                        {"next_seqno", curChkSeqno.load()},
+                });
 
         if (inMemoryStart > curChkSeqno) {
             // something went wrong registering the cursor - it is too early
@@ -2088,15 +2040,12 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
     // backfill will be needed to catch up to the items in the
     // CheckpointManager
-    log(spdlog::level::level_enum::info,
-        "{} Scheduling backfill "
-        "from {} to {}, uid:{}, reschedule "
-        "flag : {}",
-        logPrefix,
-        backfillStart,
-        backfillEnd,
-        backfillUID,
-        reschedule ? "True" : "False");
+    logWithContext(spdlog::level::level_enum::info,
+                   "Scheduling backfill",
+                   {{"backfill_start_seqno", backfillStart},
+                    {"backfill_end_seqno", backfillEnd},
+                    {"backfill_uid", backfillUID},
+                    {"reschedule", reschedule}});
 
     isBackfillTaskRunning.store(true);
     /// Number of backfill items is unknown until the Backfill task
@@ -2153,15 +2102,16 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
             const auto vbItemCount = vb.getNumItems();
             if (!isOSOPreferredForCollectionBackfill(
                         config, colItemCount, colDiskSize, vbItemCount)) {
-                log(spdlog::level::level_enum::info,
-                    "{} Skipping OSO backfill of size:{} total collection item "
-                    "count ({}) is too large a percentage of the vBucket item "
-                    "count ({}) - ({:.2f}%)",
-                    logPrefix,
-                    filter.size(),
-                    colItemCount,
-                    vbItemCount,
-                    (float(colItemCount) * 100) / vbItemCount);
+                logWithContext(spdlog::level::level_enum::info,
+                               "Skipping OSO backfill",
+                               {{"filter_size", filter.size()},
+                                {"collection_item_count", colItemCount},
+                                {"vbucket_item_count", vbItemCount},
+                                {"percentage",
+                                 (float(colItemCount) * 100) / vbItemCount},
+                                {"error",
+                                 "total collection item count is too large a "
+                                 "percentage of the vBucket item count"}});
                 return false;
             }
         }
@@ -2174,14 +2124,12 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
 
         // backfill will be needed to catch up to the items in the
         // CheckpointManager
-        log(spdlog::level::level_enum::info,
-            "{} Scheduling OSO backfill "
-            "for size:{} diskOnly:{} lastReadSeqno:{} curChkSeqno:{}",
-            logPrefix,
-            filter.size(),
-            isDiskOnly(),
-            lastReadSeqno.load(),
-            curChkSeqno.load());
+        logWithContext(spdlog::level::level_enum::info,
+                       "Scheduling OSO backfill",
+                       {{"filter_size", filter.size()},
+                        {"disk_only", isDiskOnly()},
+                        {"last_read_seqno", lastReadSeqno.load()},
+                        {"cursor_chk_seqno", curChkSeqno.load()}});
 
         isBackfillTaskRunning.store(true);
         /// Number of backfill items is unknown until the Backfill task
@@ -2211,10 +2159,9 @@ void ActiveStream::completeBackfillInner(
         if (backfillType == BackfillType::InOrder) {
             const auto vb = engine->getVBucket(vb_);
             if (!vb) {
-                log(spdlog::level::level_enum::warn,
-                    "{} ActiveStream::completeBackfillInner(): Vbucket "
-                    "does not exist",
-                    logPrefix);
+                logWithContext(spdlog::level::level_enum::warn,
+                               "ActiveStream::completeBackfillInner(): Vbucket "
+                               "does not exist");
                 return;
             }
 
@@ -2258,45 +2205,43 @@ void ActiveStream::completeBackfillInner(
             const auto diskItemsRead = backfillItems.disk.load();
             const auto runtimeSecs =
                     std::chrono::duration<double>(runtime).count();
-            log(spdlog::level::level_enum::info,
-                "{} {}Backfill complete. Per-backfill: {} keys scanned "
-                "consisting of {} bytes read from disk, "
-                "Active Stream: {} items backfilled from disk, "
-                "{} items backfilled from memory, lastReadSeqno:{}, "
-                "lastSentSeqnoAdvance:{}, lastSentSnapStartSeqno:{}, "
-                "lastSentSnapEndSeqno:{}, pendingBackfill:{}, "
-                "numBackfillPauses:{}. Total runtime {} ({:.0f} item/s, {})",
-                logPrefix,
-                backfillType == BackfillType::OutOfSequenceOrder ? "OSO " : "",
-                keysScanned,
-                diskBytesRead,
-                diskItemsRead,
-                backfillItems.memory.load(),
-                lastReadSeqno.load(),
-                lastSentSeqnoAdvance.load(),
-                lastSentSnapStartSeqno.load(),
-                lastSentSnapEndSeqno.load(),
-                pendingBackfill ? "True" : "False",
-                numBackfillPauses.load(),
-                cb::time2text(runtime),
-                diskItemsRead ? (diskItemsRead / runtimeSecs) : 0.0,
-                cb::calculateThroughput(diskBytesRead, runtime));
+            logWithContext(
+                    spdlog::level::level_enum::info,
+                    "Backfill complete",
+                    {{"type", backfillType},
+                     {"keys_scanned", keysScanned},
+                     {"disk_bytes_read", diskBytesRead},
+                     {"stream_stats",
+                      {
+                              {"backfill_disk_items", diskItemsRead},
+                              {"backfill_mem_items", backfillItems.memory},
+                              {"backfill_pauses", numBackfillPauses.load()},
+                      }},
+                     {"last_read_seqno", lastReadSeqno.load()},
+                     {"last_sent_seqno_advance", lastSentSeqnoAdvance.load()},
+                     {"last_sent_snapshot",
+                      {lastSentSnapStartSeqno.load(),
+                       lastSentSnapEndSeqno.load()}},
+                     {"pending_backfill", pendingBackfill},
+                     {"runtime", runtime},
+                     {"items_per_second",
+                      diskItemsRead ? (diskItemsRead / runtimeSecs) : 0.0},
+                     {"throughput",
+                      cb::calculateThroughput(diskBytesRead, runtime)}});
         } else {
-            log(spdlog::level::level_enum::warn,
-                "{} ActiveStream::completeBackfillInner: "
-                "Unexpected state_:{}",
-                logPrefix,
-                to_string(state_.load()));
+            logWithContext(
+                    spdlog::level::level_enum::warn,
+                    "ActiveStream::completeBackfillInner: Unexpected state",
+                    {{"state", to_string(state_.load())}});
         }
 
         if (backfillType == BackfillType::OutOfSequenceOrder) {
             auto producer = producerPtr.lock();
 
             if (!producer) {
-                log(spdlog::level::level_enum::warn,
-                    "{} ActiveStream::completeBackfillInner: producer "
-                    "unavailable",
-                    logPrefix);
+                logWithContext(spdlog::level::level_enum::warn,
+                               "ActiveStream::completeBackfillInner: producer "
+                               "unavailable");
             } else if (
                     producer->isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() &&
                     maxScanSeqno != lastBackfilledSeqno) {
@@ -2355,23 +2300,19 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
                             name_,
                             lastSeenSeqno,
                             CheckpointCursor::Droppable::Yes);
-            log(spdlog::level::level_enum::info,
-                "{} ActiveStream::notifyEmptyBackfill: "
-                "Re-registering dropped cursor with name \"{}\", "
-                "lastSeenSeqno:{}, backfill:{}, nextSeqno:{}",
-                logPrefix,
-                name_,
-                lastSeenSeqno,
-                result.tryBackfill,
-                result.nextSeqno);
+            logWithContext(spdlog::level::level_enum::info,
+                           "ActiveStream::notifyEmptyBackfill: Re-registering "
+                           "dropped cursor",
+                           {{"name", name_},
+                            {"last_seen_seqno", lastSeenSeqno},
+                            {"try_backfill", result.tryBackfill},
+                            {"next_seqno", result.nextSeqno}});
             curChkSeqno = result.nextSeqno;
             cursor = result.takeCursor();
         } catch (std::exception& error) {
-            log(spdlog::level::level_enum::warn,
-                "{} Failed to register "
-                "cursor: {}",
-                logPrefix,
-                error.what());
+            logWithContext(spdlog::level::level_enum::warn,
+                           "Failed to register cursor",
+                           {{"error", error.what()}});
             endStream(cb::mcbp::DcpStreamEndStatus::StateChanged);
         }
     }
@@ -2379,24 +2320,14 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
 
 bool ActiveStream::handleSlowStream() {
     std::lock_guard<std::mutex> lh(streamMutex);
-    log(spdlog::level::level_enum::info,
-        "{} Handling slow stream; "
-        "state_ : {}, "
-        "lastReadSeqno : {}"
-        ", "
-        "lastSentSeqno : {}"
-        ", "
-        "vBucketHighSeqno : {}"
-        ", "
-        "curChkSeqno: {}, "
-        "isBackfillTaskRunning : {}",
-        logPrefix,
-        to_string(state_.load()).c_str(),
-        lastReadSeqno.load(),
-        lastSentSeqno.load(),
-        engine->getVBucket(vb_)->getHighSeqno(),
-        curChkSeqno.load(),
-        isBackfillTaskRunning.load() ? "True" : "False");
+    logWithContext(spdlog::level::level_enum::info,
+                   "Handling slow stream",
+                   {{"state", to_string(state_.load())},
+                    {"last_read_seqno", lastReadSeqno.load()},
+                    {"last_sent_seqno", lastSentSeqno.load()},
+                    {"high_seqno", engine->getVBucket(vb_)->getHighSeqno()},
+                    {"cursor_chk_seqno", curChkSeqno.load()},
+                    {"backfill_task_running", isBackfillTaskRunning}});
 
     bool status = false;
     switch (state_.load()) {
@@ -2493,7 +2424,7 @@ void ActiveStream::transitionState(StreamState newState) {
     StreamState oldState = state_.load();
     state_ = newState;
 
-    std::string extraInfo;
+    cb::logger::Json extraInfo;
 
     switch (newState) {
     case StreamState::Backfilling: {
@@ -2531,9 +2462,8 @@ void ActiveStream::transitionState(StreamState newState) {
     case StreamState::TakeoverSend: {
         const auto vb = engine->getVBucket(vb_);
         Expects(vb);
-        extraInfo = fmt::format(" - vb_state:{}, last_sent_seqno:{}",
-                                vb->toString(vb->getState()),
-                                lastSentSeqno.load());
+        extraInfo = cb::logger::Json{{"vb_state", vb->toString(vb->getState())},
+                                     {"last_sent_seqno", lastSentSeqno.load()}};
 
         takeoverStart = ep_current_time();
 
@@ -2554,22 +2484,19 @@ void ActiveStream::transitionState(StreamState newState) {
     case StreamState::TakeoverWait: {
         const auto vb = engine->getVBucket(vb_);
         Expects(vb);
-        extraInfo = fmt::format(" - vb_state:{}, last_sent_seqno:{}",
-                                vb->toString(vb->getState()),
-                                lastSentSeqno.load());
+        extraInfo = cb::logger::Json{{"vb_state", vb->toString(vb->getState())},
+                                     {"last_sent_seqno", lastSentSeqno.load()}};
     } break;
     case StreamState::Pending:
         break;
     }
 
     auto logLevel = getTransitionStateLogLevel(state_, newState);
-    log(logLevel,
-        "{} ActiveStream::transitionState: "
-        "Transitioning from {} to {}{}",
-        logPrefix,
-        to_string(state_.load()),
-        to_string(newState),
-        extraInfo);
+    logWithContext(logLevel,
+                   "ActiveStream::transitionState: Transitioning",
+                   {{"from", to_string(state_.load())},
+                    {"to", to_string(newState)},
+                    {"details", extraInfo}});
 }
 
 size_t ActiveStream::getItemsRemaining() {
@@ -3066,7 +2993,7 @@ void ActiveStream::logWithContext(spdlog::level::level_enum severity,
     }
     object.insert(object.begin(), {"vb", getVBucket()});
     object.insert(object.begin(), {"stream", getName()});
-    object.insert(object.begin(), {"dcp", "producer"});
+    object.insert(object.begin(), {"dcp", "Producer"});
 
     auto producer = producerPtr.lock();
     if (producer) {
@@ -3077,4 +3004,9 @@ void ActiveStream::logWithContext(spdlog::level::level_enum severity,
                     severity, msg, std::move(ctx));
         }
     }
+}
+
+void ActiveStream::logWithContext(spdlog::level::level_enum severity,
+                                  std::string_view msg) const {
+    logWithContext(severity, msg, cb::logger::Json::object());
 }
