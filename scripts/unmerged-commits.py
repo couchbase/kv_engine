@@ -64,27 +64,34 @@ sequences = {
         [('couchbase/cypher', 'couchbase/master')],
         [('couchbase/trinity', 'couchbase/cypher')],
         [('couchbase/neo', 'couchbase/trinity')],
-        [('couchbase/7.2.4', 'couchbase/neo')],
+
+        # 7.6 release train (trinity)
+        [('couchbase/7.6.2', 'couchbase/7.6.3'),
+         ('couchbase/7.6.3', 'couchbase/trinity')],
+
+        # 7.2 release train (neo) (neo is the confusing release name
+        # used both for 7.1 and 7.2...). Ideally we should have
+        # 7.2.4 -> 7.2.5, but the script reports unmerged changes
+        # and it would be surprising if we suddenly started to
+        # create new 7.2.5 builds with the forward merge at this point
+        [('couchbase/7.2.5', 'couchbase/neo')],
 
         # kv_engine 7.1.x release train; one branch for each
         # maintenance release which required subsequent maintenance
         # patches, finishing in neo branch.
-        [('couchbase/7.1.3',
-          'couchbase/7.1.4'),
-         ('couchbase/7.1.4',
-          'couchbase/7.1.x'),
-         ('couchbase/7.1.x',
-          'couchbase/neo')]
+        [('couchbase/7.1.3', 'couchbase/7.1.4'),
+         ('couchbase/7.1.4', 'couchbase/7.1.x'),
+         ('couchbase/7.1.x', 'couchbase/neo')]
     ],
 
     'platform': [
         # main platform release train
         [('couchbase/trinity', 'couchbase/master')],
-
         [('couchbase/neo', 'couchbase/trinity')],
 
         # platform 7.1.x maintenance train
-        [('couchbase/7.1.4', 'couchbase/neo')],
+        [('couchbase/7.1.4', 'couchbase/7.1.x'),
+         ('couchbase/7.1.4', 'couchbase/neo')]
     ],
 
     'sigar': [
