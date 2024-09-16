@@ -231,7 +231,11 @@ magma::Status MagmaMemoryTrackingProxy::Get(const magma::Magma::KVStoreID kvID,
 bool MagmaMemoryTrackingProxy::KeyMayExist(const magma::Magma::KVStoreID kvID,
                                            const magma::Slice& key) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->KeyMayExist(kvID, key);
+    return magma->KeyMayExist(
+            kvID,
+            key,
+            false // Perform non-blocking version of the bloom-filter check
+    );
 }
 
 magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
