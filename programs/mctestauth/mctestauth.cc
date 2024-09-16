@@ -33,6 +33,7 @@ Options:
   --tls                    Try to use TLS
   --ipv4                   Connect over IPv4
   --ipv6                   Connect over IPv6
+  --version                Print program version
 )"
 #ifndef WIN32
               << "  --no-color               Disable colors\n"
@@ -64,6 +65,7 @@ int main(int argc, char** argv) {
 #ifndef WIN32
             {"no-color", no_argument, nullptr, 'n'},
 #endif
+            {"version", no_argument, nullptr, 1},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
 
@@ -92,6 +94,9 @@ int main(int argc, char** argv) {
         case 'n':
             setTerminalColorSupport(false);
             break;
+        case 1:
+            std::cout << "Couchbase Server " << PRODUCT_VERSION << std::endl;
+            std::exit(EXIT_SUCCESS);
         default:
             usage();
             return EXIT_FAILURE;
