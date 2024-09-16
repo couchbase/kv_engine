@@ -16,6 +16,11 @@
 #include <string>
 
 namespace cb::jwt {
+
+/// Simplified view of a Token as described in
+///   https://datatracker.ietf.org/doc/html/rfc7519
+/// and optionally signed as described in
+///   https://datatracker.ietf.org/doc/html/rfc7515
 class Token final {
 public:
     /**
