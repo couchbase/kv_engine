@@ -21,7 +21,7 @@ information from our CV jobs, but it's likely very specialised to the currently
 observed test failures - i.e. the filtering in filter_failed_builds() will
 likely need enhancing as and when tests change.
 
-Usage: ./jenkins_failures.py <USERNAME> <JENKINS_API_TOKEN> [--mode=MODE]
+Usage: ./jenkins_failures.py [-u <USERNAME>] [-p <JENKINS_API_TOKEN>] [--mode=MODE]
 
 The Jenkins API Token can be setup by logging into cv.jenkins.couchbase.com
 and clicking "Add New Token" from your user page
@@ -88,9 +88,16 @@ def fetch_failed_builds(server_url, username, password, build_limit, branch):
 
     details = dict()
 
-    jobs = ('kv_engine.linux/', 'kv_engine.linux-CE/',
-            'kv_engine.macos/', 'kv_engine.ASan-UBSan/',
-            'kv_engine.threadsanitizer/', 'kv_engine-windows-')
+    jobs = (
+        'kv_engine-windows-',
+        'kv_engine.aarch64-linux/',
+        'kv_engine.ASan-UBSan/',
+        'kv_engine.linux-CE/',
+        'kv_engine.linux-debug/',
+        'kv_engine.linux/',
+        'kv_engine.macos/',
+        'kv_engine.threadsanitizer/',
+    )
 
     with multiprocessing.Pool(os.cpu_count() * 4,
                               initializer=init_worker,
@@ -343,8 +350,12 @@ def filter_failed_builds(details):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('username', help='Username for Jenkins REST API')
-    parser.add_argument('password', help='Password/token for Jenkins REST API')
+    parser.add_argument(
+        '-u', '--username', help='Username for Jenkins REST API',
+        required=False)
+    parser.add_argument('-p', '--password',
+                        help='Password/token for Jenkins REST API',
+                        required=False)
     parser.add_argument(
         '--mode',
         choices=[
@@ -367,6 +378,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.mode != 'parse':
+        if args.username is None or args.password is None:
+            print('Mode requires username and password', file=sys.stderr)
+            parser.print_usage()
+            sys.exit(1)
         raw_builds = fetch_failed_builds(
             'http://cv.jenkins.couchbase.com',
             args.username,
