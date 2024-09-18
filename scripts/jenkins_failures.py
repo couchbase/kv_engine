@@ -28,6 +28,7 @@ and clicking "Add New Token" from your user page
  (e.g. http://cv.jenkins.couchbase.com/user/daverigby/configure)
 """
 
+from urllib.parse import urlparse
 import argparse
 import collections
 import datetime
@@ -50,11 +51,42 @@ logging.basicConfig(level=logging.DEBUG)
 logging.getLogger('urllib3').setLevel(logging.ERROR)
 
 
+class JenkinsWithTreeFilter(jenkins.Jenkins):
+    """
+    Injects a tree filter in the REST API requests.
+    The JSON endpoint supports a tree parameter which contains an encoding of
+    an object tree, and whatever matches is returned. It can significantly
+    reduce the response size. The Jenkins documentation is **brief** and
+    merely mentions it's existense. The Python library does not expose it, so
+    we have to append it to the request URL.
+
+    Set JenkinsWithTreeFilter.tree_filter to the desired tree parameter value.
+
+    Useful links:
+     - https://www.cloudbees.com/blog/taming-jenkins-json-api-depth-and-tree
+     - https://wiki.jenkins-ci.org/display/JENKINS/Remote+access+API
+    """
+
+    def jenkins_request(
+            self, req, add_crumb=True, resolve_auth=True, stream=None):
+
+        # When we've got a JSON API request, simply append the specified
+        # tree_filter to the URL.
+        url = urlparse(req.url)
+        if re.match(r'^/job/.*/api/json$', url.path) \
+           and getattr(self, 'tree_filter', '') != '':
+            req.url += '?' if url.query == '' else '&'
+            req.url += 'tree=' + self.tree_filter
+        return super().jenkins_request(req, add_crumb, resolve_auth, stream)
+
+
 def init_worker(function, url, username, password):
     """Initialise a multiprocessing worker by establishing a connection to
     the Jenkins server at url/username/password"""
-    function.server = jenkins.Jenkins(
+    function.server = JenkinsWithTreeFilter(
         url, username=username, password=password)
+    # We only ever access these fields from these code paths.
+    function.server.tree_filter = 'url,result,timestamp,actions[parameters[*],foundFailureCauses[*]]'
 
 
 def get_build_info(build):
@@ -81,7 +113,8 @@ def fetch_failed_builds(server_url, username, password, build_limit, branch):
     """For the given Jenkins server URL & credentials, fetch details of all
     failed builds.
     Returns a dictionary of job+build_number to build details dictionary."""
-    server = jenkins.Jenkins(server_url, username=username, password=password)
+    server = JenkinsWithTreeFilter(
+        server_url, username=username, password=password)
     user = server.get_whoami()
     version = server.get_version()
     logging.info('Hello {} from Jenkins {}'.format(user['fullName'], version))
@@ -106,6 +139,10 @@ def fetch_failed_builds(server_url, username, password, build_limit, branch):
                                         username,
                                         password)) as pool:
         for job in jobs:
+            # We only want the list of builds. The Python API requires the
+            # firstBuild and fullName to be able to fetch all builds, and
+            # underneath is does some pagination on the results.
+            server.tree_filter = 'firstBuild[number],fullName,builds[number,result]'
             builds = server.get_job_info(
                 job + branch, depth=1, fetch_all_builds=True)['builds']
             for b in builds:
