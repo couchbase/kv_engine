@@ -166,7 +166,7 @@ public:
     /// @Returns true if state_ is TakeoverWait
     bool isTakeoverWait() const;
 
-    uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
+    void setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     /**
      * Ends the stream.

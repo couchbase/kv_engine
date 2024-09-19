@@ -77,7 +77,7 @@ public:
 
     std::unique_ptr<DcpResponse> next();
 
-    uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
+    void setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
     std::string getStreamTypeName() const override;
 

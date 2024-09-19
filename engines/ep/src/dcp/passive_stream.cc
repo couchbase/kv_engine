@@ -126,7 +126,7 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                     {"flags", flags_}});
 }
 
-uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
+void PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     std::lock_guard<std::mutex> slh(streamMutex);
     if (transitionState(StreamState::Dead)) {
         const auto severity =
@@ -141,9 +141,6 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
             unackedBytes,
             cb::mcbp::to_string(status));
     }
-
-    // @todo MB-60438: Ret value not used, just return void
-    return 0;
 }
 
 std::string PassiveStream::getStreamTypeName() const {

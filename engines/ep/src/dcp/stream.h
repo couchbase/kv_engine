@@ -95,7 +95,7 @@ public:
 
     virtual void addStats(const AddStatFn& add_stat, CookieIface& c);
 
-    virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
+    virtual void setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 
     const std::string& getName() const {
         return name_;

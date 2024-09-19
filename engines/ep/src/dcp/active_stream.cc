@@ -1785,10 +1785,9 @@ void ActiveStream::setDeadInner(cb::mcbp::DcpStreamEndStatus status) {
     }
 }
 
-uint32_t ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
+void ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     setDeadInner(status);
     removeAcksFromDM();
-    return 0;
 }
 
 void ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status,
