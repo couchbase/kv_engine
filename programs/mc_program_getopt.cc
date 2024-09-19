@@ -16,6 +16,7 @@
 #include <programs/parse_tls_option.h>
 #include <protocol/connection/client_connection.h>
 #include <utilities/terminate_handler.h>
+#include <iostream>
 
 using cb::getopt::Argument;
 using cb::getopt::Option;
@@ -82,6 +83,13 @@ McProgramGetopt::McProgramGetopt() {
                "no-color",
                "Disable colors"});
 #endif
+    addOption({[this](auto) {
+                   std::cout << "Couchbase Server " << PRODUCT_VERSION
+                             << std::endl;
+                   std::exit(EXIT_SUCCESS);
+               },
+               "version",
+               "Print program version and exit"});
 
     cb::net::initialize();
     install_backtrace_terminate_handler();
