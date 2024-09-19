@@ -337,6 +337,8 @@ public:
      */
     bool isFlowControlEnabled() const;
 
+    void incrFlowControlFreedBytes(uint32_t bytes);
+
 protected:
     /**
      * Records when the consumer last received a message from producer.

@@ -81,6 +81,10 @@ PassiveStream::~PassiveStream() {
             last_seqno.load(),
             unackedBytes);
     }
+
+    if (auto consumer = consumerPtr.lock()) {
+        consumer->incrFlowControlFreedBytes(unackedBytes);
+    }
 }
 
 void PassiveStream::streamRequest(uint64_t vb_uuid) {
@@ -138,11 +142,8 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
             cb::mcbp::to_string(status));
     }
 
-    return moveFlowControlBytes();
-}
-
-uint32_t PassiveStream::moveFlowControlBytes() {
-    return std::exchange(unackedBytes, 0);
+    // @todo MB-60438: Ret value not used, just return void
+    return 0;
 }
 
 std::string PassiveStream::getStreamTypeName() const {

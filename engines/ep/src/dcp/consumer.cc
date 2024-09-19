@@ -373,13 +373,7 @@ cb::engine_errc DcpConsumer::closeStream(uint32_t opaque,
         return getNoStreamFoundErrorCode();
     }
 
-    uint32_t bytesCleared =
-            stream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
-    flowControl.incrFreedBytes(bytesCleared);
-    // Note the stream is not yet removed from the `streams` map; as we need to
-    // handle (but ignore) any in-flight messages from the Producer until
-    // STREAM_END is received.
-    scheduleNotifyIfNecessary();
+    stream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
 
     return cb::engine_errc::success;
 }
@@ -435,13 +429,6 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
         // Stream End message successfully passed to stream. Can now remove
         // the stream from the streams map as it has completed its lifetime.
         removeStream(vbucket);
-
-        // @todo MB-60438: Review and possibly remove
-        // Note we are potentially racing with the consumer buffering task
-        // which may call setDead, so we don't call setDead here (that could be
-        // state transition violation/exception), hence we just move out the
-        // flow control bytes (could be 0) and ensure they are accounted for.
-        flowControl.incrFreedBytes(stream->moveFlowControlBytes());
     }
 
     return res;
@@ -1334,11 +1321,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
             backoffs++;
             bufferedVBQueue.pushUnique(stream->getVBucket());
         }
-
-        // Notifying memcached on clearing items for flow control
-        flowControl.incrFreedBytes(bytesProcessed);
-        scheduleNotifyIfNecessary();
-
+        incrFlowControlFreedBytes(bytesProcessed);
         return res;
     }
 
@@ -1502,10 +1485,7 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
         logger->debug("({}) State changed to {}, closing passive stream!",
                       vbucket,
                       VBucket::toString(state));
-        uint32_t bytesCleared =
-                stream->setDead(cb::mcbp::DcpStreamEndStatus::StateChanged);
-        flowControl.incrFreedBytes(bytesCleared);
-        scheduleNotifyIfNecessary();
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::StateChanged);
     }
 }
 
@@ -2030,6 +2010,11 @@ cb::engine_errc DcpConsumer::getOpaqueMissMatchErrorCode() const {
 
 bool DcpConsumer::isFlowControlEnabled() const {
     return flowControl.isEnabled();
+}
+
+void DcpConsumer::incrFlowControlFreedBytes(uint32_t bytes) {
+    flowControl.incrFreedBytes(bytes);
+    scheduleNotifyIfNecessary();
 }
 
 std::string format_as(DcpConsumer::NoopIntervalNegotiation::State state) {

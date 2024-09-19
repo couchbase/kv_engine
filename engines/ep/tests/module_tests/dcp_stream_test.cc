@@ -8452,19 +8452,22 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
     EXPECT_EQ(messageBytes, stream->getUnackedBytes());
 
     std::function<void()> hook = [this, &control, messageBytes]() {
-        // Close the stream. That processes all unacked bytes and clears
-        // counters
+        // Close the stream. That removes the stream from the Consumer map.
+        // Any unprocessed unacked bytes for that stream isn't added to
+        // FlowControl counters yet
         consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
-        EXPECT_EQ(messageBytes, control.getFreedBytes());
+        EXPECT_EQ(0, control.getFreedBytes());
     };
     stream->setProcessUnackedBytes_TestHook(hook);
 
     // System recovers from OOM
     engine->getConfiguration().setMutationMemRatio(1);
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
-    // All unacked bytes already processed at stream close, we shouldn't be
-    // seeing any variation on counters.
-    // Note: Before the fix this fails as (freedBytes = 2 * messageBytes)
+    // The last call into processUnackedBytes() releases the last reference to
+    // the stream, so the stream is destroyed.
+    EXPECT_FALSE(consumer->public_findStream(vbid));
+    // At stream destruction the pending unacked bytes are notified to the
+    // Consumer's FlowControl.
     EXPECT_EQ(messageBytes, control.getFreedBytes());
 }
 

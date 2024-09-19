@@ -68,3 +68,7 @@ cb::engine_errc MockDcpConsumer::public_processMutationOrPrepare(
     return processMutationOrPrepare(
             vbid, opaque, key, std::move(item), meta, msgBytes);
 }
+
+std::shared_ptr<PassiveStream> MockDcpConsumer::public_findStream(Vbid vbid) {
+    return findStream(vbid);
+}

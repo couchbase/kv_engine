@@ -218,4 +218,9 @@ public:
                                                     queued_item item,
                                                     cb::const_byte_buffer meta,
                                                     size_t msgBytes);
+
+    /**
+     * Proxy to Consumer::findStream()
+     */
+    std::shared_ptr<PassiveStream> public_findStream(Vbid vbid);
 };
