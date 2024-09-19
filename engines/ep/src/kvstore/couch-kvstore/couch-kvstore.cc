@@ -48,7 +48,7 @@
 
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
 static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx);
-static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx);
+static int scanCallback(Db* db, DocInfo* docinfo, void* ctx);
 
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
@@ -2749,15 +2749,14 @@ couchstore_error_t CouchKVStore::fetchDoc(Db* db,
 }
 
 /**
- * The seqnoScanCallback is the method provided to couchstore_changes_since
- * and couchstore_docinfos_by_id.
+ * The scanCallback is the method shared by key and seqno scans.
  *
  * @param db The database handle which the docinfo came from
  * @param docinfo Pointer to the document info
  * @param ctx A pointer to the ScanContext
  * @return See couch_db.h for the legal values
  */
-static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
+static int scanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto* sctx = static_cast<ScanContext*>(ctx);
     auto& cb = sctx->getValueCallback();
     auto& cl = sctx->getCacheCallback();
@@ -2769,7 +2768,7 @@ static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     sized_buf key = docinfo->id;
     if (key.size > UINT16_MAX) {
         throw std::invalid_argument(
-                "seqnoScanCallback: "
+                "scanCallback: "
                 "docinfo->id.size (which is " +
                 std::to_string(key.size) + ") is greater than " +
                 std::to_string(UINT16_MAX));
@@ -2857,7 +2856,7 @@ static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
             }
         } else if (errCode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
             sctx->logger->log(spdlog::level::level_enum::warn,
-                              "seqnoScanCallback: "
+                              "scanCallback: "
                               "couchstore_open_doc_with_docinfo error:{} [{}], "
                               "{}, seqno:{}",
                               couchstore_strerror(errCode),
@@ -2893,16 +2892,18 @@ static int seqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     return COUCHSTORE_SUCCESS;
 }
 
+// callback given to couchstore_changes_since for scanning the seqno index
 static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
-    auto status = couchstore_error_t(seqnoScanCallback(db, docinfo, ctx));
+    auto status = couchstore_error_t(scanCallback(db, docinfo, ctx));
     if (status == COUCHSTORE_ERROR_SCAN_YIELD || status == COUCHSTORE_SUCCESS) {
         static_cast<BySeqnoScanContext*>(ctx)->lastReadSeqno = docinfo->db_seq;
     }
     return int(status);
 }
 
+// callback given to couchstore_docinfos_by_id for scanning the key index
 static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
-    auto status = couchstore_error_t(seqnoScanCallback(db, docinfo, ctx));
+    auto status = couchstore_error_t(scanCallback(db, docinfo, ctx));
     if (status == COUCHSTORE_ERROR_SCAN_YIELD) {
         auto* sctx = static_cast<ByIdScanContext*>(ctx);
         // save the resume point
