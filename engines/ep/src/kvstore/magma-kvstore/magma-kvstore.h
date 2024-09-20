@@ -848,9 +848,11 @@ protected:
     bool isContinuousBackupStarted(Vbid vbid);
 
     /**
-     * Called after a VBState is flushed to disk.
-     * Updates the in-memory VBState cache and starts/stops continuous backup as
-     * needed.
+     * Called after a VBState is flushed to disk. Starts/stops continuous backup
+     * as needed.
+     *
+     * Note: Also called from snapshotVBucket when !needsToBePersisted() and we
+     * skip persistence.
      */
     void postVBStateFlush(Vbid vbid, const vbucket_state& committedState);
 

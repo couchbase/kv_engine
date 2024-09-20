@@ -932,8 +932,6 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
             backupStatus == BackupStatus::Started &&
             (newState != vbucket_state_active || !isBackupEnabled);
 
-    updateCachedVBState(vbid, committedState);
-
     if (startBackup) {
         const auto backupPath = getContinuousBackupPath(vbid, committedState);
         logger->logWithContext(spdlog::level::info,
@@ -984,6 +982,7 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     // This behaviour is to replicate the one in Couchstore.
     // Set `in_transanction = false` only if `commit` is successful.
     if (success) {
+        updateCachedVBState(txnCtx->vbid, commitData.proposedVBState);
         postVBStateFlush(txnCtx->vbid, commitData.proposedVBState);
     }
 
@@ -1454,6 +1453,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
     }
 
     if (!needsToBePersisted(vbid, meta.proposedVBState)) {
+        postVBStateFlush(vbid, meta.proposedVBState);
         return true;
     }
 
@@ -1463,6 +1463,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
         return false;
     }
 
+    updateCachedVBState(vbid, meta.proposedVBState);
     postVBStateFlush(vbid, meta.proposedVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(

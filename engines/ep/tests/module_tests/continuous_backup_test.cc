@@ -145,9 +145,7 @@ TEST_P(ContinousBackupTest, StartBackupOnConfigEnabled) {
     engine->getConfiguration().setContinuousBackupEnabled(true);
     EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
 
-    // TODO: Queue a vbstate automatically when the config changes and update
-    // the test.
-    engine->getKVBucket()->scheduleVBStatePersist(vbid);
+    // Changing the config queues a vbstate flush.
     dynamic_cast<EPBucket&>(*engine->getKVBucket()).flushVBucket(vbid);
 
     EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
@@ -160,9 +158,7 @@ TEST_P(ContinousBackupTest, StopBackupOnConfigDisabled) {
     engine->getConfiguration().setContinuousBackupEnabled(false);
     EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
 
-    // TODO: Queue a vbstate automatically when the config changes and update
-    // the test.
-    engine->getKVBucket()->scheduleVBStatePersist(vbid);
+    // Changing the config queues a vbstate flush.
     dynamic_cast<EPBucket&>(*engine->getKVBucket()).flushVBucket(vbid);
 
     EXPECT_FALSE(store.isContinuousBackupStarted(vbid));

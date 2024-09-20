@@ -169,6 +169,9 @@ public:
             store.setXattrEnabled(value);
         } else if (key.compare("compaction_expiry_fetch_inline") == 0) {
             store.setCompactionExpiryFetchInline(value);
+        } else if (key == "continuous_backup_enabled") {
+            // The new setting will take effect after the vbstate flush.
+            store.scheduleVBStatePersist();
         }
     }
 
@@ -465,6 +468,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     config.addValueChangedListener(
             "checkpoint_destruction_tasks",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    config.addValueChangedListener(
+            "continuous_backup_enabled",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
