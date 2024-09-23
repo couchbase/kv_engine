@@ -10,6 +10,8 @@
 
 // Schema for metadata stored alongside continuous backup files.
 
+include "collections/kvstore.fbs";
+
 namespace Backup.Flatbuffers;
 
 table FailoverEntry {
@@ -20,4 +22,7 @@ table FailoverEntry {
 table Metadata {
     maxCas:ulong;
     failovers:[FailoverEntry];
+    manifest:Collections.KVStore.CommittedManifest;
+    openCollections:Collections.KVStore.OpenCollections;
+    scopes:Collections.KVStore.Scopes;
 }

@@ -14,6 +14,7 @@
 #include "backup/backup.h"
 #include "bucket_logger.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/kvstore.h"
 #include "dockey_validator.h"
 #include "ep_engine.h"
 #include "ep_time.h"
@@ -37,6 +38,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/compress.h>
+#include <platform/sized_buffer.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 #include <algorithm>
@@ -4362,9 +4364,19 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
         failovers.push_back({e["id"], e["seq"]});
     }
 
+    Collections::KVStore::Manifest manifest{
+            Collections::KVStore::Manifest::Empty{}};
+    std::tie(magmaStatus, manifest) = getCollectionsManifest(vbid, snapshot);
+    if (!magmaStatus) {
+        // Return value allocated against Magma (magma::Status ctor allocates).
+        cb::UseArenaMallocSecondaryDomain returnGuard;
+        return {magmaStatus, {}};
+    }
+
     // The return value, including the metadata, is accounted against Magma.
     cb::UseArenaMallocSecondaryDomain returnGuard;
-    auto metadata = Backup::encodeBackupMetadata(vbstate.maxCas, failovers);
+    auto metadata =
+            Backup::encodeBackupMetadata(vbstate.maxCas, failovers, manifest);
     return {Status::OK(), std::move(metadata)};
 }
 

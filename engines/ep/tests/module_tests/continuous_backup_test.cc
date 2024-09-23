@@ -9,6 +9,7 @@
  */
 
 #include "backup/backup.h"
+#include "backup/backup_generated.h"
 #include "ep_bucket.h"
 #include "memcached/vbucket.h"
 #include "tests/mock/mock_magma_kvstore.h"
@@ -97,10 +98,11 @@ TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {
 
     auto metadataString = runContinuousBackupCallback(vbid, *initialSnapshot);
 
-    auto metadata = Backup::decodeBackupMetadata(metadataString);
-    EXPECT_EQ(maxCas, metadata["maxCas"].template get<uint64_t>());
-    EXPECT_TRUE(metadata["failovers"].is_array());
-    EXPECT_EQ(1, metadata["failovers"].size()) << metadata.dump();
+    auto& metadata = Backup::decodeBackupMetadata(metadataString);
+    EXPECT_EQ(maxCas, metadata.maxCas());
+    EXPECT_EQ(1, metadata.failovers()->size());
+    EXPECT_EQ(1, metadata.openCollections()->entries()->size());
+    EXPECT_EQ(1, metadata.scopes()->entries()->size());
 }
 
 TEST_P(ContinousBackupTest, StartBackup) {

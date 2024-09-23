@@ -196,7 +196,7 @@ ADD_CUSTOM_COMMAND(OUTPUT
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${CMAKE_CURRENT_BINARY_DIR}/src/backup/backup_generated.h
                   COMMAND
-                     ${FLATC} -o ${CMAKE_CURRENT_BINARY_DIR}/src/backup/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/backup/backup.fbs
+                     ${FLATC} -I ${CMAKE_CURRENT_SOURCE_DIR}/src --keep-prefix -o ${CMAKE_CURRENT_BINARY_DIR}/src/backup/ --cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/backup/backup.fbs
                   DEPENDS
                     src/backup/backup.fbs
                   COMMENT "Generating flatbuffers - backup")

@@ -13,11 +13,21 @@
 #include "memcached/vbucket.h"
 #include <string_view>
 
+namespace Collections::KVStore {
+struct Manifest;
+} // namespace Collections::KVStore
+
 namespace Backup {
 
-std::string encodeBackupMetadata(
-        uint64_t maxCas, const std::vector<vbucket_failover_t>& failoverTable);
+namespace Flatbuffers {
+struct Metadata;
+} // namespace Flatbuffers
 
-nlohmann::json decodeBackupMetadata(std::string_view data);
+std::string encodeBackupMetadata(
+        uint64_t maxCas,
+        const std::vector<vbucket_failover_t>& failoverTable,
+        const Collections::KVStore::Manifest& manifest);
+
+const Flatbuffers::Metadata& decodeBackupMetadata(std::string_view data);
 
 } // namespace Backup
