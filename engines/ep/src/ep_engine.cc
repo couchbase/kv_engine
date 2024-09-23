@@ -1406,10 +1406,6 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
     //     a regular MCBP connection).
     auto engine = acquireEngine(this);
 
-    if (getKVBucket()->maybeWaitForVBucketWarmup(&cookie)) {
-        return cb::engine_errc::would_block;
-    }
-
     auto* conn = engine->tryGetConnHandler(cookie);
     // Note: (conn != nullptr) only if conn is a DCP connection
     if (conn) {
@@ -1427,6 +1423,13 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
             return cb::engine_errc::disconnect;
         }
     }
+
+    // Only continue to getVBucket if warmup is not running (so we have a more
+    // consistent vbMap)
+    if (getKVBucket()->maybeWaitForVBucketWarmup(&cookie)) {
+        return cb::engine_errc::would_block;
+    }
+
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         EP_LOG_WARN_CTX(
