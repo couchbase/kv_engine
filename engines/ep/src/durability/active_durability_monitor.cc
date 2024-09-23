@@ -1473,6 +1473,12 @@ void ActiveDurabilityMonitor::State::setAndProcessCommitStrategy(
     if (commitStrategy == newStrategy) {
         return;
     }
+
+    EP_LOG_INFO_CTX(
+            "ActiveDurabilityMonitor::State::setAndProcessCommitStrategy",
+            {"vb", adm.vb.getId()},
+            {"strategy", format_as(newStrategy)});
+
     commitStrategy = newStrategy;
     if (!firstChain) {
         return;

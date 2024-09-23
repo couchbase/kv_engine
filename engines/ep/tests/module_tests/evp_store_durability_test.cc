@@ -4048,6 +4048,16 @@ TEST_P(DurabilityBucketTest, CommitNoFallbackToMasterOnly) {
             << "Expected the SyncWrite to be committed durably";
 }
 
+TEST_P(DurabilityBucketTest, DurabilityImpossibleChangeOnReplica) {
+    using namespace cb::durability;
+    setVBucketState(vbid, vbucket_state_replica);
+
+    auto vb = store->getVBucket(vbid);
+    EXPECT_NO_THROW(vb->setDurabilityImpossibleFallback(
+            std::shared_lock(vb->getStateLock()),
+            cb::config::DurabilityImpossibleFallback::FallbackToMasterAck));
+}
+
 TEST_P(DurabilityBucketTest, CommitFallbackToMasterOnly) {
     using namespace cb::durability;
     setVBucketToActiveWithValidTopology(

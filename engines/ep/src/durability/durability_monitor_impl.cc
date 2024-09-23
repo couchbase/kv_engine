@@ -10,6 +10,7 @@
  */
 
 #include "durability_monitor_impl.h"
+#include "durability/durability_monitor.h"
 #include <fmt/core.h>
 #include <folly/lang/Assume.h>
 #include <gsl/gsl-lite.hpp>
@@ -389,6 +390,16 @@ std::string to_string(DurabilityMonitor::ReplicationChainName name) {
         return "First";
     case DurabilityMonitor::ReplicationChainName::Second:
         return "Second";
+    }
+    folly::assume_unreachable();
+}
+
+std::string_view format_as(DurabilityMonitor::CommitStrategy strategy) {
+    switch (strategy) {
+    case DurabilityMonitor::CommitStrategy::MajorityAck:
+        return "MajorityAck";
+    case DurabilityMonitor::CommitStrategy::MajorityAckFallbackToMasterAckOnly:
+        return "MajorityAckFallbackToMasterAckOnly";
     }
     folly::assume_unreachable();
 }

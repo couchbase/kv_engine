@@ -150,6 +150,7 @@ protected:
 };
 
 std::string to_string(DurabilityMonitor::ReplicationChainName name);
+std::string_view format_as(DurabilityMonitor::CommitStrategy strategy);
 
 /**
  * DurabilityMonitorTrackedWrites is a sub-class "wrapper" for std::list usage

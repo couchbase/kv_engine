@@ -420,6 +420,11 @@ void VBucket::setDurabilityImpossibleFallback(
         cb::config::DurabilityImpossibleFallback fallback) {
     durabilityImpossibleFallback = fallback;
 
+    if (state != vbucket_state_active) {
+        // No ADM on non-active vbs.
+        return;
+    }
+
     const auto newStrategy = getCommitStrategy(fallback);
     getActiveDM().setAndProcessCommitStrategy(newStrategy);
 }
