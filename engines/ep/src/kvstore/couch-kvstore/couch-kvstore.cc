@@ -2064,7 +2064,8 @@ CouchKVStore::getVbucketEncryptionKeyIds(Vbid vb) const {
     }
 
     // Not encrypted
-    return {cb::engine_errc::success, {}};
+    cb::crypto::DataEncryptionKey unencrypted;
+    return {cb::engine_errc::success, {unencrypted.getId()}};
 }
 
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {
