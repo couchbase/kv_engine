@@ -3413,18 +3413,9 @@ std::optional<Collections::ManifestUid> MagmaKVStore::getCollectionsManifestUid(
              manifest.length()});
 }
 
-std::pair<Status, std::string> MagmaKVStore::getCollectionsManifestUidDoc(
-        Vbid vbid) const {
-    auto [status, manifest] = readLocalDoc(vbid, LocalDocKey::manifest);
-    if (!status) {
-        return {status, std::string{}};
-    }
-    return {status, std::move(manifest)};
-}
-
 std::pair<bool, Collections::ManifestUid>
 MagmaKVStore::getCollectionsManifestUid(Vbid vbid) const {
-    auto [status, uidDoc] = getCollectionsManifestUidDoc(vbid);
+    auto [status, uidDoc] = readLocalDoc(vbid, LocalDocKey::manifest);
     if (status) {
         return {true,
                 Collections::KVStore::decodeManifestUid(
@@ -3434,11 +3425,13 @@ MagmaKVStore::getCollectionsManifestUid(Vbid vbid) const {
     return {false, Collections::ManifestUid{}};
 }
 
-std::pair<bool, Collections::KVStore::Manifest>
-MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
-    auto [status, manifest] = getCollectionsManifestUidDoc(vbid);
+std::pair<magma::Status, Collections::KVStore::Manifest>
+MagmaKVStore::getCollectionsManifest(Vbid vbid,
+                                     magma::Magma::Snapshot& snapshot) const {
+    auto [status, manifest] =
+            readLocalDoc(vbid, snapshot, LocalDocKey::manifest);
     if (!status) {
-        return {false,
+        return {status,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
     }
@@ -3447,7 +3440,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     std::tie(status, openCollections) =
             readLocalDoc(vbid, LocalDocKey::openCollections);
     if (!status) {
-        return {false,
+        return {status,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
     }
@@ -3455,7 +3448,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     std::string openScopes;
     std::tie(status, openScopes) = readLocalDoc(vbid, LocalDocKey::openScopes);
     if (!status) {
-        return {false,
+        return {status,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
     }
@@ -3464,12 +3457,12 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
     std::tie(status, droppedCollections) =
             readLocalDoc(vbid, LocalDocKey::droppedCollections);
     if (!status) {
-        return {false,
+        return {status,
                 Collections::KVStore::Manifest{
                         Collections::KVStore::Manifest::Default{}}};
     }
 
-    return {true,
+    return {status,
             Collections::KVStore::decodeManifest(
                     {reinterpret_cast<const uint8_t*>(manifest.data()),
                      manifest.length()},
@@ -3480,6 +3473,23 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
                     {reinterpret_cast<const uint8_t*>(
                              droppedCollections.data()),
                      droppedCollections.length()})};
+}
+
+std::pair<bool, Collections::KVStore::Manifest>
+MagmaKVStore::getCollectionsManifest(Vbid vbid) const {
+    DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
+    auto status = magma->GetSnapshot(vbid.get(), snapshot);
+
+    if (!status) {
+        return {false,
+                Collections::KVStore::Manifest{
+                        Collections::KVStore::Manifest::Default{}}};
+    }
+
+    Collections::KVStore::Manifest manifest{
+            Collections::KVStore::Manifest::Empty{}};
+    std::tie(status, manifest) = getCollectionsManifest(vbid, *snapshot);
+    return {status.IsOK(), std::move(manifest)};
 }
 
 std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>

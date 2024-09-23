@@ -304,8 +304,8 @@ public:
 
     /**
      * Retrieve the manifest from the local db.
-     * MagmaKVStore implements this method as a read of 3 _local documents
-     * manifest, open collections, open scopes
+     * MagmaKVStore implements this method as a read of 4 _local documents
+     * manifest, open collections, open scopes, dropped collections.
      *
      * @param vbid vbucket id
      * @return pair of bool status and the persisted manifest data for the given
@@ -313,6 +313,18 @@ public:
      */
     std::pair<bool, Collections::KVStore::Manifest> getCollectionsManifest(
             Vbid vbid) const override;
+
+    /**
+     * Retrieve the manifest from the snapshot.
+     * MagmaKVStore implements this method as a read of 4 _local documents
+     * manifest, open collections, open scopes, dropped collections.
+     *
+     * @param vbid vbucket id
+     * @return pair of Status and the persisted manifest data for the given
+     *         vbid
+     */
+    std::pair<magma::Status, Collections::KVStore::Manifest>
+    getCollectionsManifest(Vbid vbid, magma::Magma::Snapshot& snapshot) const;
 
     /**
      * Read local doc to get a vector of open collections from the given
@@ -782,16 +794,6 @@ protected:
      * @throws std::runtime_error if the DbStats are in an invalid format.
      */
     std::optional<MagmaDbStats> getMagmaDbStats(Vbid vbid) const;
-
-    /**
-     * Get the manifest UID which is stored as a metadata document, this returns
-     * the flatbuffer data stored in a string
-     *
-     *  @return pair, first is the status and second is the data if status is
-     *          success.
-     */
-    std::pair<magma::Status, std::string> getCollectionsManifestUidDoc(
-            Vbid vbid) const;
 
     /**
      * Get the manifest UID which is stored as a metadata document, this returns
