@@ -6760,11 +6760,7 @@ TEST_P(SingleThreadedActiveStreamTest, backfillYieldsAfterDurationLimit) {
               stream->public_nextQueuedItem(*producer)->getEvent());
     EXPECT_EQ(DcpResponse::Event::Mutation,
               stream->public_nextQueuedItem(*producer)->getEvent());
-    // TODO: MB-63555 NumBackfillPauses is not incremented correctly for
-    // in-memory streams.
-    if (!ephemeral()) {
-        EXPECT_EQ(1, stream->getNumBackfillPauses());
-    }
+    EXPECT_EQ(1, stream->getNumBackfillPauses());
 }
 
 TEST_P(SingleThreadedActiveStreamTest, backfillCompletesWithoutYielding) {

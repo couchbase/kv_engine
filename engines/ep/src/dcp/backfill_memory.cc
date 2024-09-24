@@ -317,12 +317,14 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                         "as scan buffer or backfill buffer is full",
                         getVBucketId(),
                         seqnoDbg);
+            stream->incrementNumBackfillPauses();
             return backfill_success;
         }
 
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - startTime);
         if (duration >= getBackfillMaxDuration()) {
+            stream->incrementNumBackfillPauses();
             return backfill_success;
         }
     }
