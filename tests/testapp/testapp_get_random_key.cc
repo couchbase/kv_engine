@@ -43,11 +43,12 @@ protected:
             std::string xattr;
             xattr = {doc.value.data(), cb::xattr::get_body_offset(doc.value)};
             cb::xattr::Blob blob(xattr);
-            const auto xattr_str = blob.to_string();
+            const auto xattr_json = nlohmann::json::parse(blob.to_string());
             if (withSystemXattrs) {
-                EXPECT_EQ(R"({"_sys":true,"xattr":"X-value"})", xattr_str);
+                EXPECT_EQ(R"({"_sys":true,"xattr":"X-value"})"_json,
+                          xattr_json);
             } else {
-                EXPECT_EQ(R"({"xattr":"X-value"})", xattr_str);
+                EXPECT_EQ(R"({"xattr":"X-value"})"_json, xattr_json);
             }
         } else {
             value = doc.value;
