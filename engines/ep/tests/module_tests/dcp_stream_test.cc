@@ -8548,6 +8548,99 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
     EXPECT_EQ(messageBytes, control.getFreedBytes());
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, MB_63611) {
+    auto& vb0 = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb0.getHighSeqno());
+    auto& manager = *vb0.checkpointManager;
+    removeCheckpoint(vb0);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+
+    // Test connection and stream already exist
+    ASSERT_TRUE(consumer);
+    ASSERT_TRUE(stream);
+    // Setup a second stream under the same connection for a different vbucket
+    const auto vbid1 = Vbid(1);
+    setVBucketStateAndRunPersistTask(vbid1, vbucket_state_replica);
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid1, {}));
+    auto* stream1 = static_cast<MockPassiveStream*>(
+            consumer->getVbucketStream(vbid1).get());
+    ASSERT_TRUE(stream1->isActive());
+
+    // Force OOM
+    engine->getConfiguration().setMutationMemRatio(0);
+
+    const size_t seqno = 1;
+    SnapshotMarker snapshotMarker(0, // opaque
+                                  vbid,
+                                  seqno,
+                                  seqno,
+                                  DcpSnapshotMarkerFlag::Memory,
+                                  std::optional<uint64_t>(0),
+                                  {},
+                                  {},
+                                  {});
+    stream->processMarker(&snapshotMarker);
+    stream1->processMarker(&snapshotMarker);
+
+    ASSERT_EQ(0, stream->getUnackedBytes());
+    ASSERT_EQ(0, stream1->getUnackedBytes());
+
+    const std::string key = "key";
+    const auto value = std::string(1024 * 1024, 'v');
+    const auto messageBytes =
+            MutationResponse::mutationBaseMsgBytes + key.size() + value.size();
+
+    for (const auto vb : {vbid, vbid1}) {
+        queued_item qi(makeCommittedItem(makeStoredDocKey(key), value));
+        qi->setBySeqno(seqno);
+        qi->setVBucketId(vb);
+        const auto docKey = qi->getDocKey();
+        // Note: PassiveStream returns temporary_failure but DcpConsumer turns
+        // it into success.
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->public_processMutationOrPrepare(
+                          vb,
+                          (vb == Vbid(0) ? 1 : 2), // opaque
+                          docKey,
+                          std::move(qi),
+                          {},
+                          messageBytes));
+        // Note: At OOM we force items into checkpoints
+        EXPECT_EQ(store->getVBucket(vb)->getHighSeqno(), 1);
+    }
+    // Evidence of executing the OOM path is given by counters though
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+    EXPECT_EQ(messageBytes, stream1->getUnackedBytes());
+
+    auto& control = consumer->getFlowControl();
+    ASSERT_EQ(0, control.getFreedBytes());
+
+    // Still OOM, DcpConsumerTask can't process unacked bytes
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+    EXPECT_EQ(messageBytes, stream1->getUnackedBytes());
+    EXPECT_EQ(0, control.getFreedBytes());
+
+    // The system recovers from OOM
+    engine->getConfiguration().setMutationMemRatio(1);
+
+    // Before the fix for MB-63611, the next call processes all unacked bytes
+    // for one stream but returns all_processed, which put the DcpConsumerTask
+    // to sleep
+    EXPECT_EQ(more_to_process, consumer->processUnackedBytes());
+    EXPECT_EQ(messageBytes, stream->getUnackedBytes());
+    EXPECT_EQ(0, stream1->getUnackedBytes());
+    EXPECT_EQ(messageBytes, control.getFreedBytes());
+
+    // Extra paranoid check: The next DcpConsumerTask successfully processes
+    // the other stream's bytes
+    EXPECT_EQ(all_processed, consumer->processUnackedBytes());
+    EXPECT_EQ(0, stream->getUnackedBytes());
+    EXPECT_EQ(0, stream1->getUnackedBytes());
+    EXPECT_EQ(messageBytes * 2, control.getFreedBytes());
+}
+
 // MB-62847
 TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
     // Begin with an active vbucket and do some work to ensure that DCP will

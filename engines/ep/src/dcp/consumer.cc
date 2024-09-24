@@ -1293,7 +1293,11 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
 ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
     std::shared_ptr<PassiveStream> stream;
     Vbid vbid;
-    while (bufferedVBQueue.popFront(vbid) && !stream) {
+    // Note: The order of conditions here matters. In the opposite order, when
+    // a non-null stream is found we would exit the loop *only after popping an
+    // extra vbucket entry from bufferedVBQueue*. That vbucket entry would be
+    // lost and its unacked-bytes never processed.
+    while (!stream && bufferedVBQueue.popFront(vbid)) {
         stream = findStream(vbid);
     }
     if (!stream) {
@@ -1322,7 +1326,7 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
             bufferedVBQueue.pushUnique(stream->getVBucket());
         }
         incrFlowControlFreedBytes(bytesProcessed);
-        return res;
+        return bufferedVBQueue.empty() ? all_processed : more_to_process;
     }
 
     folly::assume_unreachable();
