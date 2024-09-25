@@ -63,29 +63,23 @@ public:
         auto conn = getConnection(true);
         StoredDocKey id{"X-testGetKeys", CollectionEntry::fruit};
 
-        for (int ii = 0; ii < 1000; ++ii) {
+        uint64_t seqnoToPersist = 0;
+        for (int ii = 0; ii < 1001; ++ii) {
             upsert(*conn,
                    StoredDocKey{fmt::format("Default-{}", ii),
                                 CollectionEntry::defaultC},
                    "value",
                    false);
-            upsert(*conn,
-                   StoredDocKey{fmt::format("Fruit-{}", ii),
-                                CollectionEntry::fruit},
-                   "value",
-                   false);
+            seqnoToPersist = upsert(*conn,
+                                    StoredDocKey{fmt::format("Fruit-{}", ii),
+                                                 CollectionEntry::fruit},
+                                    "value",
+                                    false)
+                                     .seqno;
         }
-
-        // Finally store the 1001th document in each collection and wait for
-        // it to be persisted
-        upsert(*conn,
-               StoredDocKey{"Default-1000", CollectionEntry::defaultC},
-               "value",
-               true);
-        upsert(*conn,
-               StoredDocKey{"Fruit-1000", CollectionEntry::fruit},
-               "value",
-               true);
+        // Make sure all documents are persisted
+        conn->authenticate("@admin");
+        conn->waitForSeqnoToPersist(Vbid(0), seqnoToPersist);
     }
 
     /**
@@ -97,16 +91,18 @@ public:
      * @param value The documents value
      * @param wait_for_persistence Set to true if call should block until
      *                             the document is persisted to disk
+     * @return The mutation info for the document stored
      */
-    static void upsert(MemcachedConnection& conn,
-                       DocKey id,
-                       std::string value,
-                       bool wait_for_persistence) {
+    static MutationInfo upsert(MemcachedConnection& conn,
+                               DocKey id,
+                               std::string value,
+                               bool wait_for_persistence) {
         Document doc;
         doc.info.id = std::string{id};
         doc.value = std::move(value);
+        MutationInfo info;
         if (wait_for_persistence) {
-            conn.mutate(doc, Vbid{0}, MutationType::Set, []() {
+            info = conn.mutate(doc, Vbid{0}, MutationType::Set, []() {
                 using namespace cb::mcbp::request;
                 FrameInfoVector ret;
                 ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
@@ -114,8 +110,9 @@ public:
                 return ret;
             });
         } else {
-            conn.mutate(doc, Vbid{0}, MutationType::Set);
+            info = conn.mutate(doc, Vbid{0}, MutationType::Set);
         }
+        return info;
     }
 
     /// Get an authenticated client to with the "default" as the selected
@@ -239,8 +236,11 @@ public:
     }
 };
 
-TEST_F(GetKeysTests, GetAllKeysAdministrator) {
+TEST_F(GetKeysTests, GetAllKeysAdministratorCollectionAware) {
     testGetKeys(true, {}, true, {});
+}
+
+TEST_F(GetKeysTests, GetAllKeysAdministratorCollectionUnaware) {
     testGetKeys(false, {}, true, {});
 }
 

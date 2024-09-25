@@ -9,6 +9,7 @@
  */
 
 #include "clustertest.h"
+#include "memcached/rbac/privileges.h"
 
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
@@ -46,7 +47,8 @@ public:
     const std::string username{"ScopeUser"};
     const std::string password{"ScopeUser"};
 
-    void testSubdocRbac(MemcachedConnection& conn, const std::string& key);
+    void testSubdocRbac(MemcachedConnection& conn);
+
     static std::unique_ptr<MemcachedConnection> getConnection() {
         auto bucket = cluster->getBucket("default");
         auto conn = bucket->getConnection(Vbid(0));
@@ -131,12 +133,9 @@ static BinprotSubdocCommand subdocInsertXattrPath(const std::string& key,
                                 cb::mcbp::subdoc::doc_flag::Mkdoc);
 }
 
-void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,
-                                      const std::string& key) {
+void CollectionsTests::testSubdocRbac(MemcachedConnection& conn) {
     auto fruit = DocKey::makeWireEncodedString(CollectionEntry::fruit,
                                                "TestBasicRbac");
-    auto vegetable = DocKey::makeWireEncodedString(CollectionEntry::vegetable,
-                                                   "TestBasicRbac");
 
     // Check subdoc, privilege checks happen in 2 places
     // 1) we're checking we can do the xattr write
@@ -148,13 +147,23 @@ void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,
     EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
 
     // 2) XTOC evaluates xattr read privs separately.
-    // connection only has xattr read, 1 entry comes back
     BinprotSubdocMultiLookupCommand cmd;
+    BinprotSubdocMultiLookupResponse resp;
     cmd.setKey(fruit);
     cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+
+    // Response will include system xattrs
     conn.sendCommand(cmd);
-    BinprotSubdocMultiLookupResponse resp;
+    conn.recvResponse(resp);
+    EXPECT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+    ASSERT_EQ(1, resp.getResults().size());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getResults().front().status);
+    EXPECT_EQ(R"(["_sys","nosys"])", resp.getResults().front().value);
+
+    // Response won't include system xattrs
+    conn.dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
     resp.clear();
+    conn.sendCommand(cmd);
     conn.recvResponse(resp);
     EXPECT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
     ASSERT_EQ(1, resp.getResults().size());
@@ -166,33 +175,34 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     const std::string username{"TestBasicRbac"};
     const std::string password{"TestBasicRbac"};
     cluster->getAuthProviderService().upsertUser({username, password, R"({
-  "buckets": {
-    "default": {
-      "scopes": {
-        "0": {
-          "collections": {
-            "0": {
-              "privileges": [
-                "Read"
-              ]
-            },
-            "9": {
-              "privileges": [
-                "Read",
-                "Insert",
-                "Delete",
-                "Upsert",
-                "SystemXattrWrite"
-              ]
+        "buckets": {
+            "default": {
+            "scopes": {
+                "0": {
+                "collections": {
+                    "0": {
+                    "privileges": [
+                        "Read"
+                    ]
+                    },
+                    "9": {
+                    "privileges": [
+                        "Read",
+                        "Insert",
+                        "Delete",
+                        "Upsert",
+                        "SystemXattrRead",
+                        "SystemXattrWrite"
+                    ]
+                    }
+                }
+                }
             }
-          }
-        }
-      }
-    }
-  },
-  "privileges": [],
-  "domain": "external"
-})"_json});
+            }
+        },
+        "privileges": [],
+        "domain": "external"
+        })"_json});
 
     auto conn = getConnection();
     mutate(*conn,
@@ -213,7 +223,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     conn->authenticate(username);
     conn->selectBucket("default");
 
-    testSubdocRbac(*conn, "TestBasicRbac");
+    testSubdocRbac(*conn);
 
     conn->get(DocKey::makeWireEncodedString(CollectionEntry::defaultC,
                                             "TestBasicRbac"),
