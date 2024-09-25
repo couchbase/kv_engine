@@ -74,7 +74,7 @@ void StatTimings::addStats(const BucketStatCollector& collector) {
 
 size_t StatTimings::getMemFootPrint() const {
     // include the size of StatTimings itself
-    size_t footprint = sizeof(this);
+    size_t footprint = sizeof(*this);
 
     // add up the footprint of any histograms which have been allocated
     for (auto& t : noArgsTimings) {
