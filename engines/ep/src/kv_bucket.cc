@@ -52,6 +52,7 @@
 #include "vbucketdeletiontask.h"
 #include <executor/executorpool.h>
 #include <executor/notifiable_task.h>
+#include <platform/json_log_conversions.h>
 
 #include <folly/CancellationToken.h>
 #include <memcached/collections.h>
@@ -723,13 +724,10 @@ void KVBucket::logQTime(const GlobalTask& task,
     const auto taskType = GlobalTask::getTaskType(task.getTaskId());
     if ((taskType == TaskType::NonIO && enqTime > std::chrono::seconds(1)) ||
         (taskType == TaskType::AuxIO && enqTime > std::chrono::seconds(10))) {
-        EP_LOG_WARN(
-                "Slow scheduling for {} task '{}' on thread {}. "
-                "Schedule overhead: {}",
-                to_string(taskType),
-                task.getDescription(),
-                threadName,
-                cb::time2text(enqTime));
+        EP_LOG_WARN_CTX("Slow scheduling",
+                        {"task", task.getDescription()},
+                        {"thread", threadName},
+                        {"overhead", enqTime});
     }
 
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
@@ -741,10 +739,10 @@ void KVBucket::logRunTime(const GlobalTask& task,
                           std::chrono::steady_clock::duration runTime) {
     // Check if exceeded expected duration; and if so log.
     if (runTime > task.maxExpectedDuration()) {
-        EP_LOG_WARN("Slow runtime for '{}' on thread {}: {}",
-                    task.getDescription(),
-                    threadName,
-                    cb::time2text(runTime));
+        EP_LOG_WARN_CTX("Slow runtime",
+                        {"task", task.getDescription()},
+                        {"thread", threadName},
+                        {"runtime", runTime});
     }
 
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(runTime);

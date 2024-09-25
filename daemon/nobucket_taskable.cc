@@ -12,6 +12,7 @@
 #include "memcached.h"
 #include "stats.h"
 #include <logger/logger.h>
+#include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
 
 const std::string& NoBucketTaskable::getName() const {
@@ -49,13 +50,10 @@ void NoBucketTaskable::logQTime(const GlobalTask& task,
     const auto taskType = GlobalTask::getTaskType(task.getTaskId());
     if ((taskType == TaskType::NonIO && enqTime > std::chrono::seconds(1)) ||
         (taskType == TaskType::AuxIO && enqTime > std::chrono::seconds(10))) {
-        LOG_WARNING(
-                "Slow scheduling for {} task '{}' on thread {}. Schedule "
-                "overhead: {}",
-                to_string(taskType),
-                task.getDescription(),
-                threadName,
-                cb::time2text(enqTime));
+        LOG_WARNING_CTX("Slow scheduling",
+                        {"task", task.getDescription()},
+                        {"thread", threadName},
+                        {"overhead", enqTime});
     }
 
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(enqTime);
@@ -67,10 +65,10 @@ void NoBucketTaskable::logRunTime(const GlobalTask& task,
                                   std::chrono::steady_clock::duration runtime) {
     // Check if exceeded expected duration; and if so log.
     if (runtime > task.maxExpectedDuration()) {
-        LOG_WARNING("Slow runtime for '{}' on thread {}: {}",
-                    task.getDescription(),
-                    threadName,
-                    cb::time2text(runtime));
+        LOG_WARNING_CTX("Slow runtime",
+                        {"task", task.getDescription()},
+                        {"thread", threadName},
+                        {"runtime", runtime});
     }
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(runtime);
     stats.taskRuntimeHistogram[static_cast<int>(task.getTaskId())].add(us);

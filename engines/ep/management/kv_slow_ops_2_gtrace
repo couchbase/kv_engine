@@ -169,9 +169,7 @@ def parse_slow_operation(node, m):
         print_event(event)
 
 
-def parse_slow_task_runtime(m):
-    (time, bucket, task, thread, runtime) = m.groups()
-
+def parse_slow_task_runtime(time, bucket, task, thread, runtime_sec):
     event = dict()
     event['cat'] = "Slow runtime"
     event['name'] = task
@@ -182,7 +180,6 @@ def parse_slow_task_runtime(m):
     # (steady_clock seconds)
     timestamp_epoch = iso8601_to_epoch(time)
     timestamp_steady_clock = timestamp_epoch + system_clock_steady_clock_delta
-    runtime_sec = human_duration_to_sec(runtime)
 
     # Timestamps and duration are expressed in microseconds
     event['ts'] = (timestamp_steady_clock - runtime_sec) * 1000000
@@ -200,9 +197,23 @@ def parse_slow_task_runtime(m):
         thread_seen[thread] = True
 
 
-def parse_slow_task_scheduling(m):
+def parse_slow_task_runtime_legacy(m):
     (time, bucket, task, thread, runtime) = m.groups()
+    runtime_sec = human_duration_to_sec(runtime)
+    parse_slow_task_runtime(time, bucket, task, thread, runtime_sec)
 
+
+def parse_slow_task_runtime_json(m):
+    (time, ctx) = m.groups()
+    data = json.loads(ctx)
+    parse_slow_task_runtime(time=time,
+                            bucket=data.get('bucket', 'No Bucket'),
+                            task=data['task'],
+                            thread=data['thread'],
+                            runtime_sec=data['runtime']['ms'] / 1000)
+
+
+def parse_slow_task_scheduling(time, bucket, task, thread, runtime_sec):
     # 'Slow scheduling' events are asynchronous with respect to the reported
     # thread - i.e. there could be multiple tasks which all have slow scheduling
     # at the same time, and hence conceptually overlap each other. As such,
@@ -219,7 +230,6 @@ def parse_slow_task_scheduling(m):
     # (steady_clock seconds)
     timestamp_epoch = iso8601_to_epoch(time)
     timestamp_steady_clock = timestamp_epoch + system_clock_steady_clock_delta
-    runtime_sec = human_duration_to_sec(runtime)
 
     begin = copy.deepcopy(event)
     begin['ph'] = "b"
@@ -242,6 +252,22 @@ def parse_slow_task_scheduling(m):
         meta['args'] = {'sort_index': -1}
         print_event(meta)
         thread_seen[thread] = True
+
+
+def parse_slow_task_scheduling_legacy(m):
+    (time, bucket, task, thread, runtime) = m.groups()
+    runtime_sec = human_duration_to_sec(runtime)
+    parse_slow_task_scheduling(time, bucket, task, thread, runtime_sec)
+
+
+def parse_slow_task_scheduling_json(m):
+    (time, ctx) = m.groups()
+    data = json.loads(ctx)
+    parse_slow_task_scheduling(time=time,
+                               bucket=data.get('bucket', 'No Bucket'),
+                               task=data['task'],
+                               thread=data['thread'],
+                               runtime_sec=data['overhead']['ms'] / 1000)
 
 
 def parse_slow_op(trace):
@@ -312,9 +338,22 @@ def main(file):
             line)
         if m:
             if system_clock_steady_clock_delta:
-                parse_slow_task_runtime(m)
+                parse_slow_task_runtime_legacy(m)
             else:
                 skipped_slow_runtime_events += 1
+            continue
+
+        # Check for "Slow runtime" messages with attached JSON.
+        m = re.search(
+            time_regex +
+            " WARNING Slow runtime ({.+})",
+            line)
+        if m:
+            if system_clock_steady_clock_delta:
+                parse_slow_task_runtime_json(m)
+            else:
+                skipped_slow_runtime_events += 1
+            continue
 
         # Check for "Slow scheduling" messages from tasks, e.g.
         # 2023-09-18T15:50:39.002619+00:00 WARNING (No Engine) Slow scheduling
@@ -326,9 +365,21 @@ def main(file):
             line)
         if m:
             if system_clock_steady_clock_delta:
-                parse_slow_task_scheduling(m)
+                parse_slow_task_scheduling_legacy(m)
             else:
                 skipped_slow_scheduling_events += 1
+
+        # Check for "Slow scheduling" messages with attached JSON.
+        m = re.search(
+            time_regex +
+            " WARNING Slow scheduling ({.+})",
+            line)
+        if m:
+            if system_clock_steady_clock_delta:
+                parse_slow_task_scheduling_json(m)
+            else:
+                skipped_slow_scheduling_events += 1
+            continue
     print(']')
     if skipped_slow_runtime_events > 0 or skipped_slow_scheduling_events > 0:
         print(("Warning: Failed to generate traces for {} 'Slow runtime' and "
