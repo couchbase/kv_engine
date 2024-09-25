@@ -4316,7 +4316,7 @@ struct ConnPerStreamStatBuilder {
     ConnPerStreamStatBuilder(DcpStatsOptions options)
         : options(std::move(options)) {
         // The stream stats format is required to emit stream stats.
-        Expects(options.getStreamStatsFormat().has_value());
+        Expects(this->options.getStreamStatsFormat().has_value());
     }
 
     /**
