@@ -320,24 +320,24 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
             using namespace cb::mcbp;
             if (engine->setFlushParam(key, value, msg) ==
                 cb::engine_errc::success) {
-                handled.push_back("setFlushParam");
+                handled.emplace_back("setFlushParam");
             }
             if (engine->setReplicationParam(key, value, msg) ==
                 cb::engine_errc::success) {
-                handled.push_back("setReplicationParam");
+                handled.emplace_back("setReplicationParam");
             }
             if (engine->setCheckpointParam(key, value, msg) ==
                 cb::engine_errc::success) {
-                handled.push_back("setCheckpointParam");
+                handled.emplace_back("setCheckpointParam");
             }
             if (engine->setDcpParam(key, value, msg) ==
                 cb::engine_errc::success) {
-                handled.push_back("setDcpParam");
+                handled.emplace_back("setDcpParam");
                 return;
             }
             if (engine->setVbucketParam(Vbid(0), key, value, msg) ==
                 cb::engine_errc::success) {
-                handled.push_back("setVBucketParam");
+                handled.emplace_back("setVBucketParam");
             }
 
             if (deprecated.count(key)) {

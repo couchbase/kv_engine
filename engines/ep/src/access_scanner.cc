@@ -75,7 +75,7 @@ public:
                 EP_LOG_DEBUG("Skipping expired/deleted item: {}",
                              v.getBySeqno());
             } else {
-                accessed.push_back(StoredDocKey(v.getKey()));
+                accessed.emplace_back(v.getKey());
                 return ++items_scanned < items_to_scan;
             }
         }

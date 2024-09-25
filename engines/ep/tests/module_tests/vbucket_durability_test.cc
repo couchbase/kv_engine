@@ -1084,8 +1084,7 @@ TEST_P(VBucketDurabilityTest, Active_ParallelSet) {
     //     synchronization.
     std::vector<std::thread> threads;
     for (auto i = 0; i < numThreads; i++) {
-        threads.push_back(
-                std::thread(load, "key" + std::to_string(i) + "_" /*prefix*/));
+        threads.emplace_back(load, "key" + std::to_string(i) + "_" /*prefix*/);
     }
     for (auto& t : threads) {
         t.join();
