@@ -81,6 +81,11 @@ protected:
                                  size_t memLowWat,
                                  size_t memHighWat);
 
+    /// Wait for a given document to be replicated to all of the nodes across
+    /// a given bucket
+    static void waitForReplicationToAllNodes(cb::test::Bucket& bucket,
+                                             const std::string& key);
+
     static std::unique_ptr<Cluster> cluster;
 };
 

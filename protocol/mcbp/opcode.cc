@@ -19,6 +19,8 @@ namespace cb::mcbp {
 
 bool is_valid_opcode(ClientOpcode opcode) {
     switch (opcode) {
+    case ClientOpcode::GetEx:
+    case ClientOpcode::GetExReplica:
     case ClientOpcode::Get:
     case ClientOpcode::Set:
     case ClientOpcode::Add:
@@ -212,6 +214,8 @@ bool is_valid_opcode(ServerOpcode opcode) {
 
 bool is_supported_opcode(ClientOpcode opcode) {
     switch (opcode) {
+    case ClientOpcode::GetEx:
+    case ClientOpcode::GetExReplica:
     case ClientOpcode::Get:
     case ClientOpcode::Set:
     case ClientOpcode::Add:
@@ -419,6 +423,8 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::SubdocReplaceBodyWithXattr:
         return true;
 
+    case ClientOpcode::GetEx:
+    case ClientOpcode::GetExReplica:
     case ClientOpcode::Get:
     case ClientOpcode::Quit:
     case ClientOpcode::Flush:
@@ -584,6 +590,8 @@ bool is_durability_supported(ClientOpcode opcode) {
 
 bool is_reorder_supported(ClientOpcode opcode) {
     switch (opcode) {
+    case ClientOpcode::GetEx:
+    case ClientOpcode::GetExReplica:
     case ClientOpcode::Get:
     case ClientOpcode::Getk:
     case ClientOpcode::Set:
@@ -772,6 +780,8 @@ bool is_reorder_supported(ClientOpcode opcode) {
 
 bool is_collection_command(ClientOpcode opcode) {
     switch (opcode) {
+    case ClientOpcode::GetEx:
+    case ClientOpcode::GetExReplica:
     case ClientOpcode::Get:
     case ClientOpcode::Set:
     case ClientOpcode::Add:
@@ -986,6 +996,8 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::DelqWithMeta:
         return true;
 
+    case ClientOpcode::GetExReplica:
+    case ClientOpcode::GetEx:
     case ClientOpcode::Get:
     case ClientOpcode::Set:
     case ClientOpcode::Add:
@@ -1175,6 +1187,8 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::SubdocReplaceBodyWithXattr:
         return true;
 
+    case ClientOpcode::GetExReplica:
+    case ClientOpcode::GetEx:
     case ClientOpcode::Delete:
     case ClientOpcode::Deleteq:
     case ClientOpcode::Touch:
@@ -1338,6 +1352,8 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
 
 bool is_subject_for_throttling(ClientOpcode opcode) {
     switch (opcode) {
+    case ClientOpcode::GetExReplica:
+    case ClientOpcode::GetEx:
     case ClientOpcode::Get:
     case ClientOpcode::Getq:
     case ClientOpcode::Getk:
@@ -1561,6 +1577,8 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::SubdocReplaceBodyWithXattr:
         return true;
 
+    case ClientOpcode::GetExReplica:
+    case ClientOpcode::GetEx:
     case ClientOpcode::Get:
     case ClientOpcode::Delete:
     case ClientOpcode::Quit:
@@ -1739,6 +1757,10 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
     using namespace cb::mcbp;
 
     switch (opcode) {
+    case ClientOpcode::GetEx:
+        return "GET_EX";
+    case ClientOpcode::GetExReplica:
+        return "GET_EX_REPLICA";
     case ClientOpcode::Get:
         return "GET";
     case ClientOpcode::Set:

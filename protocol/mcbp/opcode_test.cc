@@ -21,6 +21,8 @@ using namespace cb::mcbp;
 
 const std::map<cb::mcbp::ClientOpcode, std::string> client_blueprint = {
         {{ClientOpcode::Get, "GET"},
+         {ClientOpcode::GetEx, "GET_EX"},
+         {ClientOpcode::GetExReplica, "GET_EX_REPLICA"},
          {ClientOpcode::Set, "SET"},
          {ClientOpcode::Add, "ADD"},
          {ClientOpcode::Replace, "REPLACE"},
@@ -310,7 +312,9 @@ TEST(ClientOpcode, is_reorder_supported) {
     using cb::mcbp::ClientOpcode;
 
     testAllOpcodes(cb::mcbp::is_reorder_supported,
-                   {{ClientOpcode::Get,
+                   {{ClientOpcode::GetEx,
+                     ClientOpcode::GetExReplica,
+                     ClientOpcode::Get,
                      ClientOpcode::Getk,
                      ClientOpcode::GetLocked,
                      ClientOpcode::UnlockKey,
@@ -355,7 +359,9 @@ TEST(ClientOpcode, is_collection_command) {
     using cb::mcbp::ClientOpcode;
 
     testAllOpcodes(cb::mcbp::is_collection_command,
-                   {{ClientOpcode::Get,
+                   {{ClientOpcode::GetEx,
+                     ClientOpcode::GetExReplica,
+                     ClientOpcode::Get,
                      ClientOpcode::Set,
                      ClientOpcode::Add,
                      ClientOpcode::Replace,
@@ -444,7 +450,9 @@ TEST(ClientOpcode, is_subject_for_throttling) {
     using cb::mcbp::ClientOpcode;
 
     testAllOpcodes(cb::mcbp::is_subject_for_throttling,
-                   {{ClientOpcode::Get,
+                   {{ClientOpcode::GetEx,
+                     ClientOpcode::GetExReplica,
+                     ClientOpcode::Get,
                      ClientOpcode::Getq,
                      ClientOpcode::Getk,
                      ClientOpcode::Getkq,

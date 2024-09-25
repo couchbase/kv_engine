@@ -83,6 +83,11 @@ public:
         return *item;
     }
 
+    /// Take the item (this invalidates the item_dissector!!!!)
+    [[nodiscard]] cb::unique_item_ptr takeItem() {
+        return std::move(item);
+    }
+
 protected:
     cb::unique_item_ptr item;
     std::unique_ptr<folly::IOBuf> inflated_value;

@@ -121,6 +121,8 @@ static PrivilegeAccess empty(Cookie& cookie) {
 }
 
 McbpPrivilegeChains::McbpPrivilegeChains() {
+    setup(cb::mcbp::ClientOpcode::GetEx, requireReadOnCurrentDocument);
+    setup(cb::mcbp::ClientOpcode::GetExReplica, requireReadOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::Get, requireReadOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::Getq, requireReadOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::Getk, requireReadOnCurrentDocument);

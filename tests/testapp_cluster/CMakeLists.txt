@@ -6,6 +6,7 @@ cb_add_test_executable(cluster_test
                cross_bucket_quota_sharing_test.cc
                durability_tests.cc
                durability_upgrade_tests.cc
+               get_ex_tests.cc
                get_keys_test.cc
                main.cc
                misc_tests.cc

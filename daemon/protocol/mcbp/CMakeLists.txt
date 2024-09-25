@@ -54,6 +54,8 @@ add_library(memcached_daemon_mcbp OBJECT
         get_locked_context.h
         get_meta_context.cc
         get_meta_context.h
+        getex_context.cc
+        getex_context.h
         hello_packet_executor.cc
         ifconfig_context.cc
         ifconfig_context.h

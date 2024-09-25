@@ -121,6 +121,9 @@ enum class ClientOpcode : uint8_t {
      * vbuckets on the node */
     GetAllVbSeqnos = 0x48,
 
+    GetEx = 0x49,
+    GetExReplica = 0x4a,
+
     /* DCP */
     DcpOpen = 0x50,
     DcpAddStream = 0x51,

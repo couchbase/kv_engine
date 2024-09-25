@@ -571,6 +571,8 @@ cb::mcbp::Status Cookie::validate() {
     //            cases we might need to copy out the incomming
     //            packet.
     switch (request.getClientOpcode()) {
+    case cb::mcbp::ClientOpcode::GetEx:
+    case cb::mcbp::ClientOpcode::GetExReplica:
     case cb::mcbp::ClientOpcode::Get:
     case cb::mcbp::ClientOpcode::Set:
     case cb::mcbp::ClientOpcode::Add:

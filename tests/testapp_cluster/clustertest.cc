@@ -153,3 +153,22 @@ void cb::test::ClusterTest::setMemWatermarks(MemcachedConnection& conn,
     EXPECT_EQ(stats.lower, memLowWat);
     EXPECT_EQ(stats.upper, memHighWat);
 }
+
+void cb::test::ClusterTest::waitForReplicationToAllNodes(
+        Bucket& bucket, const std::string& key) {
+    const auto nrep = bucket.getVbucketMap()[0].size() - 1;
+    for (std::size_t rep = 0; rep < nrep; ++rep) {
+        auto conn = bucket.getConnection(Vbid(0), vbucket_state_replica, rep);
+        conn->authenticate("@admin");
+        conn->selectBucket(bucket.getName());
+
+        BinprotResponse rsp;
+        using mcbp::ClientOpcode;
+        using mcbp::Status;
+        do {
+            rsp = conn->execute(
+                    BinprotGenericCommand{ClientOpcode::GetReplica, key});
+        } while (rsp.getStatus() == Status::KeyEnoent);
+        EXPECT_TRUE(rsp.isSuccess());
+    }
+}

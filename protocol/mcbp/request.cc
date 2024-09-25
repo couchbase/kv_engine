@@ -155,6 +155,8 @@ bool Request::isQuiet() const {
     if ((getMagic() == Magic::ClientRequest) ||
         (getMagic() == Magic::AltClientRequest)) {
         switch (getClientOpcode()) {
+        case ClientOpcode::GetEx:
+        case ClientOpcode::GetExReplica:
         case ClientOpcode::Get:
         case ClientOpcode::Set:
         case ClientOpcode::Add:
@@ -467,6 +469,8 @@ nlohmann::json Request::to_json(bool validated) const {
         nlohmann::json extras;
         nlohmann::json value;
         switch (getClientOpcode()) {
+        case ClientOpcode::GetEx:
+        case ClientOpcode::GetExReplica:
         case ClientOpcode::Get:
         case ClientOpcode::Getq:
         case ClientOpcode::Getk:

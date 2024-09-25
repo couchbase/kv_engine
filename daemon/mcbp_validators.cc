@@ -1367,6 +1367,33 @@ static Status get_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+static Status getex_validator(Cookie& cookie) {
+    const auto ret = McbpValidator::verify_header(cookie,
+                                                  0,
+                                                  ExpectedKeyLen::NonZero,
+                                                  ExpectedValueLen::Zero,
+                                                  ExpectedCas::NotSet,
+                                                  GeneratesDocKey::Yes,
+                                                  PROTOCOL_BINARY_RAW_BYTES);
+    if (ret != Status::Success) {
+        return ret;
+    }
+    if (!cookie.getConnection().isXattrEnabled()) {
+        cookie.setErrorContext("Xattr support must be enabled");
+        return Status::NotSupported;
+    }
+    if (!cookie.getConnection().isDatatypeEnabled(
+                PROTOCOL_BINARY_DATATYPE_JSON)) {
+        cookie.setErrorContext("JSON support must be enabled");
+        return Status::NotSupported;
+    }
+    if (!cookie.getConnection().supportsSnappyEverywhere()) {
+        cookie.setErrorContext("SnappyEverywhere support must be enabled");
+        return Status::NotSupported;
+    }
+    return Status::Success;
+}
+
 static Status gat_validator(Cookie& cookie) {
     return McbpValidator::verify_header(cookie,
                                         sizeof(cb::mcbp::request::GatPayload),
@@ -2573,6 +2600,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::SaslAuth, sasl_auth_validator);
     setup(cb::mcbp::ClientOpcode::SaslStep, sasl_auth_validator);
     setup(cb::mcbp::ClientOpcode::Noop, noop_validator);
+    setup(cb::mcbp::ClientOpcode::GetEx, getex_validator);
+    setup(cb::mcbp::ClientOpcode::GetExReplica, getex_validator);
     setup(cb::mcbp::ClientOpcode::Get, get_validator);
     setup(cb::mcbp::ClientOpcode::Gat, gat_validator);
     setup(cb::mcbp::ClientOpcode::Touch, gat_validator);

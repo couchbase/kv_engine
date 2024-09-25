@@ -31,6 +31,7 @@
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
+#include "protocol/mcbp/getex_context.h"
 #include "protocol/mcbp/ifconfig_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/observe_context.h"
@@ -210,6 +211,10 @@ static void append_prepend_executor(Cookie& cookie) {
 
 static void get_executor(Cookie& cookie) {
     cookie.obtainContext<GetCommandContext>(cookie).drive();
+}
+
+static void getex_executor(Cookie& cookie) {
+    cookie.obtainContext<GetExCommandContext>(cookie).drive();
 }
 
 static void get_meta_executor(Cookie& cookie) {
@@ -834,6 +839,8 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::Append, append_prepend_executor);
     setup_handler(cb::mcbp::ClientOpcode::Prependq, append_prepend_executor);
     setup_handler(cb::mcbp::ClientOpcode::Prepend, append_prepend_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetEx, getex_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetExReplica, getex_executor);
     setup_handler(cb::mcbp::ClientOpcode::Get, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetReplica, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetRandomKey, get_executor);

@@ -195,7 +195,9 @@ std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {
     ret->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
                       cb::mcbp::Feature::XATTR,
                       cb::mcbp::Feature::XERROR,
-                      cb::mcbp::Feature::JSON});
+                      cb::mcbp::Feature::JSON,
+                      cb::mcbp::Feature::SNAPPY,
+                      cb::mcbp::Feature::SnappyEverywhere});
     return ret;
 }
 
