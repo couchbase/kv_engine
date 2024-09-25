@@ -123,8 +123,8 @@ TEST_F(SingleModuleParseTest, MandatoryFields) {
     //      std::vector<std::string>{{"startid", "file"}}) {
     //
     std::vector<std::string> keywords;
-    keywords.emplace_back(std::string{"startid"});
-    keywords.emplace_back(std::string{"file"});
+    keywords.emplace_back("startid");
+    keywords.emplace_back("file");
     for (const auto& tag : keywords) {
         auto removed = json["module1"].at(tag);
         json["module1"].erase(tag);

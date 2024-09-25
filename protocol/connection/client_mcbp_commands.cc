@@ -2232,7 +2232,7 @@ std::vector<std::string> BinprotGetKeysResponse::getKeys() const {
                     size_t(length),
                     value.size()));
         }
-        ret.emplace_back(std::string{value.data(), length});
+        ret.emplace_back(value.data(), length);
         value.remove_prefix(length);
     }
 

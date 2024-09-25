@@ -27,10 +27,10 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
                             "ScramPasswordMetaData(): hashes entry must be "
                             "object");
                 }
-                keys.emplace_back(Keys{
+                keys.emplace_back(
                         cb::base64::decode(it["stored_key"].get<std::string>()),
                         cb::base64::decode(
-                                it["server_key"].get<std::string>())});
+                                it["server_key"].get<std::string>()));
             }
         } else if (label == "iterations") {
             iteration_count = value.get<std::size_t>();

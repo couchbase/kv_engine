@@ -55,18 +55,16 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     for (unsigned int i = 0; i < push_count; i++) {
         if ((i & 1) == 0) {
             expected_a += std::to_string(i) + ",";
-            docA.emplace_back(BinprotSubdocCommand{
-                    cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                    "a",
-                    "",
-                    std::to_string(i)});
+            docA.emplace_back(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                              "a",
+                              "",
+                              std::to_string(i));
         } else {
             expected_b += std::to_string(i) + ",";
-            docB.emplace_back(BinprotSubdocCommand{
-                    cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                    "b",
-                    "",
-                    std::to_string(i)});
+            docB.emplace_back(cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                              "b",
+                              "",
+                              std::to_string(i));
         }
     }
 

@@ -50,7 +50,7 @@ SettingsReloadCommandContext::getInterfaces() {
     std::vector<NetworkInterfaceDescription> ret;
     auto json = nlohmann::json::parse(list);
     for (const auto& entry : json) {
-        ret.emplace_back(NetworkInterfaceDescription{entry});
+        ret.emplace_back(entry);
     }
     return ret;
 }

@@ -33,8 +33,7 @@ protected:
 
         std::vector<std::pair<const std::string, Vbid>> keys;
         for (size_t ii = 0; ii < numDocs; ++ii) {
-            keys.emplace_back(
-                    std::make_pair(prefix + std::to_string(ii), Vbid(0)));
+            keys.emplace_back(prefix + std::to_string(ii), Vbid(0));
         }
 
         // Create a bunch of documents

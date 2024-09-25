@@ -350,7 +350,7 @@ int create_buckets(const std::string& cfg,
         rmdb(dbpath.str());
         auto* handle = testHarness->create_bucket(true, config.str());
         if (handle) {
-            buckets.emplace_back(BucketHolder(handle, dbpath.str()));
+            buckets.emplace_back(handle, dbpath.str());
         } else {
             return ii;
         }

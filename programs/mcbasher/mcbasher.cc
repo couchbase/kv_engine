@@ -617,7 +617,7 @@ int main(int argc, char** argv) {
         std::deque<std::thread> threads;
 
         for (int jj = 0; jj < num_threads; ++jj) {
-            threads.emplace_back(std::thread{[num_connections] {
+            threads.emplace_back([num_connections] {
                 folly::EventBase eventBase;
                 std::deque<McBasherConnection> connections;
                 for (int ii = 0; ii < num_connections; ++ii) {
@@ -625,7 +625,7 @@ int main(int argc, char** argv) {
                 }
 
                 eventBase.loopForever();
-            }});
+            });
         }
 
         for (auto& t : threads) {
