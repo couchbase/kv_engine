@@ -2103,10 +2103,10 @@ BinprotReturnMetaCommand::BinprotReturnMetaCommand(
               cb::mcbp::ClientOpcode::ReturnMeta, d.info.id, d.value),
       doc(std::move(d)) {
     extras.setMutationType(type);
-    extras.setExpiration(d.info.expiration);
-    extras.setFlags(d.info.flags);
-    setCas(d.info.cas);
-    setDatatype(d.info.datatype);
+    extras.setExpiration(doc.info.expiration);
+    extras.setFlags(doc.info.flags);
+    setCas(doc.info.cas);
+    setDatatype(doc.info.datatype);
 }
 
 void BinprotReturnMetaCommand::encode(std::vector<uint8_t>& buf) const {

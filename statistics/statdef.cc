@@ -27,7 +27,7 @@ StatDef::StatDef(CBStatsKey cbstatsKey,
       type(type),
       labels(std::move(labels)) {
     if (metricFamily.empty()) {
-        metricFamily = std::string(cbstatsKey);
+        metricFamily = std::string(this->cbstatsKey);
     }
     metricFamily += unit.getSuffix();
 }
