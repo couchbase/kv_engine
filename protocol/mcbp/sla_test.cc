@@ -220,7 +220,7 @@ TEST(McbpSlaReconfig, to_json) {
     auto doc = R"({"version": 1, "get": {"slow": "1000000 ns"}})"_json;
     cb::mcbp::sla::reconfigure(doc);
     auto json = cb::mcbp::sla::to_json();
-    EXPECT_EQ("1 ms", json["GET"]["slow"].get<std::string>());
+    EXPECT_EQ("1000 us", json["GET"]["slow"].get<std::string>());
 
     // Verify that we don't loose information when trying to
     // make the number easier to read.

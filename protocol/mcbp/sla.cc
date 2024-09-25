@@ -44,26 +44,6 @@ static void merge_docs(nlohmann::json& doc1, const nlohmann::json& doc2);
 static std::array<std::atomic<std::chrono::nanoseconds>, 0x100> threshold;
 
 /**
- * Convert the time to a textual representation which may be used
- * to generate the JSON representation of the SLAs
- */
-static std::string time2text(std::chrono::nanoseconds time2convert) {
-    const char* const extensions[] = {" ns", " us", " ms", " s", nullptr};
-    int id = 0;
-    auto time = time2convert.count();
-
-    while (time > 999 && (time % 1000) == 0) {
-        ++id;
-        time /= 1000;
-        if (extensions[id + 1] == nullptr) {
-            break;
-        }
-    }
-
-    return std::to_string(time) + extensions[id];
-}
-
-/**
  * Determine what to use as the "default" value in the JSON.
  *
  * To do that we'll count the number of times each timeout is specified,
