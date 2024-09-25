@@ -52,13 +52,11 @@ TEST(XattrKeyValidator, KeyLengthWithPath) {
     for (auto ii = key.length(); ii > 1; --ii) {
         // Just make a copy and inject a dot ;)
         std::string copy = key;
-        copy.data()[ii - 1] = '.';
+        copy[ii - 1] = '.';
         if (ii > SUBDOC_MAX_XATTR_LENGTH) {
-            EXPECT_FALSE(is_valid_xattr_key({copy.data(), copy.size()}))
-                    << "[" << copy << "]";
+            EXPECT_FALSE(is_valid_xattr_key(copy)) << "[" << copy << "]";
         } else {
-            EXPECT_TRUE(is_valid_xattr_key({copy.data(), copy.size()}))
-                    << "[" << copy << "]";
+            EXPECT_TRUE(is_valid_xattr_key(copy)) << "[" << copy << "]";
         }
     }
 }

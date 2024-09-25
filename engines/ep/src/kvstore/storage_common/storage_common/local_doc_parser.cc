@@ -100,7 +100,7 @@ std::pair<bool, std::string> maybe_decode_local_doc(std::string_view key,
                 Collections::KVStore::CommittedManifest>(
                 key.data(), "CommittedManifest", value);
     }
-    if (key.data()[0] == '|') {
+    if (key.front() == '|') {
         return {true /*success*/, read_collection_leb128_metadata(value)};
     }
 
