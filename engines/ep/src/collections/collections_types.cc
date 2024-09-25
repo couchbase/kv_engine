@@ -35,8 +35,7 @@ ManifestUid makeManifestUid(std::string_view uid) {
 
 std::string makeCollectionIdIntoString(CollectionID collection) {
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{collection});
-    return std::string(reinterpret_cast<const char*>(leb128.data()),
-                       leb128.size());
+    return {reinterpret_cast<const char*>(leb128.data()), leb128.size()};
 }
 
 CollectionID getCollectionIDFromKey(const DocKeyView& key) {

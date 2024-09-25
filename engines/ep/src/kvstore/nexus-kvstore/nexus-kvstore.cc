@@ -568,12 +568,12 @@ StorageProperties NexusKVStore::getStorageProperties() const {
         canRetainHistory = StorageProperties::HistoryRetentionAvailable::Yes;
     }
 
-    return StorageProperties(byIdScan,
-                             autoDedupe,
-                             prepareCounting,
-                             compactionStaleItemCallbacks,
-                             canRetainHistory,
-                             StorageProperties::ContinuousBackupAvailable::No);
+    return {byIdScan,
+            autoDedupe,
+            prepareCounting,
+            compactionStaleItemCallbacks,
+            canRetainHistory,
+            StorageProperties::ContinuousBackupAvailable::No};
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

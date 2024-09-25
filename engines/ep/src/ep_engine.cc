@@ -155,7 +155,7 @@ static inline EPHandle acquireEngine(EngineIface* handle) {
     auto ret = reinterpret_cast<EventuallyPersistentEngine*>(handle);
     auto* previous = ObjectRegistry::onSwitchThread(ret, true);
 
-    return EPHandle(ret, {previous});
+    return {ret, {previous}};
 }
 
 static inline ConstEPHandle acquireEngine(const EngineIface* handle) {
@@ -170,7 +170,7 @@ static inline ConstEPHandle acquireEngine(const EngineIface* handle) {
     auto* previous = ObjectRegistry::onSwitchThread(
             const_cast<EventuallyPersistentEngine*>(ret), true);
 
-    return ConstEPHandle(ret, {previous});
+    return {ret, {previous}};
 }
 
 /**

@@ -107,7 +107,7 @@ CollectionIDNetworkOrder::CollectionIDNetworkOrder(CollectionID v)
 }
 
 CollectionID CollectionIDNetworkOrder::to_host() const {
-    return CollectionID(ntohl(value));
+    return {ntohl(value)};
 }
 
 ScopeIDNetworkOrder::ScopeIDNetworkOrder(ScopeID v)
@@ -115,7 +115,7 @@ ScopeIDNetworkOrder::ScopeIDNetworkOrder(ScopeID v)
 }
 
 ScopeID ScopeIDNetworkOrder::to_host() const {
-    return ScopeID(ntohl(value));
+    return {ntohl(value)};
 }
 
 std::string DocKeyView::to_string() const {

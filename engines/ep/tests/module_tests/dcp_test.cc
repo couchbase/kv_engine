@@ -286,7 +286,7 @@ std::string decompressValue(std::string compressedValue) {
         return {};
     }
 
-    return std::string(buffer.data(), buffer.size());
+    return {buffer.data(), buffer.size()};
 }
 
 class CompressionStreamTest : public DCPTest,

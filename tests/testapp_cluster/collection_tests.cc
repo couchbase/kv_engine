@@ -123,13 +123,13 @@ TEST_F(CollectionsTests, TestInvalidCollection) {
 static BinprotSubdocCommand subdocInsertXattrPath(const std::string& key,
                                                   const std::string& path) {
     using namespace cb::mcbp;
-    return BinprotSubdocCommand(ClientOpcode::SubdocDictAdd,
-                                key,
-                                path,
-                                "{}",
-                                cb::mcbp::subdoc::PathFlag::XattrPath |
-                                        cb::mcbp::subdoc::PathFlag::Mkdir_p,
-                                cb::mcbp::subdoc::DocFlag::Mkdoc);
+    using namespace cb::mcbp::subdoc;
+    return {ClientOpcode::SubdocDictAdd,
+            key,
+            path,
+            "{}",
+            PathFlag::XattrPath | PathFlag::Mkdir_p,
+            DocFlag::Mkdoc};
 }
 
 void CollectionsTests::testSubdocRbac(MemcachedConnection& conn,

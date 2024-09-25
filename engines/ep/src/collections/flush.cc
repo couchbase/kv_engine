@@ -726,7 +726,7 @@ FlushAccounting::StatisticsUpdate Flush::getDroppedStats(CollectionID cid) {
         return FlushAccounting::StatisticsUpdate(0);
     }
 
-    return FlushAccounting::StatisticsUpdate(itr->second);
+    return {itr->second};
 }
 
 const FlushAccounting::StatsMap& Flush::getDroppedStats() const {

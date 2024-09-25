@@ -35,7 +35,7 @@
 using namespace std::string_literals;
 
 StoredDocKey makeStoredDocKey(const std::string& string, CollectionID ns) {
-    return StoredDocKey(string, ns);
+    return {string, ns};
 }
 
 DiskDocKey makeDiskDocKey(const std::string& string,

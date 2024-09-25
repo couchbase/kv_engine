@@ -106,7 +106,7 @@ std::string InputCouchFile::getLocalDocument(
     }
 
     verbose("getLocalDocument(" + std::string(documentName) + ")");
-    return std::string(result->json.buf, result->json.size);
+    return {result->json.buf, result->json.size};
 }
 
 bool InputCouchFile::isCompletelyNamespaced() const {

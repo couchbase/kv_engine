@@ -164,7 +164,7 @@ std::string MetaData::encode() const {
 }
 
 std::string MetaData::VersionStorage::encode() const {
-    return std::string((char*)&version, sizeof(version));
+    return {(char*)&version, sizeof(version)};
 }
 
 std::string MetaData::MetaDataV0::encode(uint8_t bits) const {

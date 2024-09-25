@@ -1294,8 +1294,8 @@ std::string get_stat(EngineIface* h,
     // Here we are explictly forcing a copy of the object to work
     // around std::string copy-on-write data-race issues seen on some
     // versions of libstdc++ - see MB-18510 / MB-19688.
-    return std::string(get_stat_context.actual_stat_value.begin(),
-                       get_stat_context.actual_stat_value.end());
+    return {get_stat_context.actual_stat_value.begin(),
+            get_stat_context.actual_stat_value.end()};
 }
 
 /// Backward-compatible functions (encode type name in function name).

@@ -2842,8 +2842,8 @@ cb::engine_error KVBucket::setCollections(std::string_view manifest,
     if (cookie && maybeWaitForVBucketWarmup(cookie)) {
         EP_LOG_INFO("KVBucket::setCollections blocking for warmup cookie:{}",
                     static_cast<const void*>(cookie));
-        return cb::engine_error(cb::engine_errc::would_block,
-                                "KVBucket::setCollections waiting for warmup");
+        return {cb::engine_errc::would_block,
+                "KVBucket::setCollections waiting for warmup"};
     }
 
     // Inhibit VB state changes whilst updating the vbuckets

@@ -318,7 +318,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
             stats.replicaHTMemory += delta;
         }
     });
-    return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
+    return {vb, VBucket::DeferredDeleter(engine)};
 }
 
 void EphemeralBucket::completeStatsVKey(CookieIface& cookie,

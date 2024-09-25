@@ -3831,10 +3831,10 @@ RollbackResult CouchKVStore::rollback(Vbid vbid,
     }
 
     vbucket_state* vb_state = getCachedVBucketState(vbid);
-    return RollbackResult(true,
-                          vb_state->highSeqno,
-                          vb_state->lastSnapStart,
-                          vb_state->lastSnapEnd);
+    return {true,
+            static_cast<uint64_t>(vb_state->highSeqno),
+            vb_state->lastSnapStart,
+            vb_state->lastSnapEnd};
 }
 
 int populateAllKeys(Db* db, DocInfo* docinfo, void* ctx) {

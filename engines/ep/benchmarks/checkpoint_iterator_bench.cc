@@ -24,7 +24,7 @@ using ListContainer = std::list<TestItem>;
 using ListContainerIterator = CheckpointIterator<ListContainer>;
 
 ListContainerIterator listContainerBegin(ListContainer& c) {
-    return ListContainerIterator(c, ListContainerIterator::Position::begin);
+    return {c, ListContainerIterator::Position::begin};
 }
 
 /**

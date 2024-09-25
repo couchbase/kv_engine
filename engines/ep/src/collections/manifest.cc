@@ -773,12 +773,11 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
             // If the sid still exists it must have the same name
             if (itr != successor.endScopes()) {
                 if (scope.name != itr->second.name) {
-                    return cb::engine_error(
-                            cb::engine_errc::cannot_apply_collections_manifest,
+                    return {cb::engine_errc::cannot_apply_collections_manifest,
                             "invalid name change detected on scope "
                             "sid:" + sid.to_string() +
                                     ", name:" + scope.name +
-                                    ", new-name:" + itr->second.name);
+                                    ", new-name:" + itr->second.name};
                 }
             } else {
                 EP_LOG_INFO("drop scope manifest:{:#x}, sid:{}",
@@ -794,13 +793,12 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                 // CollectionEntry must be equal in a number of properties, but
                 // not all.
                 if (!collection.compareImmutableProperties(itr->second)) {
-                    return cb::engine_error(
-                            cb::engine_errc::cannot_apply_collections_manifest,
+                    return {cb::engine_errc::cannot_apply_collections_manifest,
                             fmt::format(
                                     "invalid collection manifest change "
                                     "detected current:{{{}}}, successor:{{{}}}",
                                     collection,
-                                    itr->second));
+                                    itr->second)};
                 }
             } else {
                 EP_LOG_INFO("drop collection manifest:{:#x} cid:{}, sid:{}",
@@ -811,18 +809,16 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
         }
     } else if (uid == successor.getUid()) {
         if (*this != successor) {
-            return cb::engine_error(
-                    cb::engine_errc::cannot_apply_collections_manifest,
-                    "equal uid but not an equal manifest");
+            return {cb::engine_errc::cannot_apply_collections_manifest,
+                    "equal uid but not an equal manifest"};
         }
     } else {
-        return cb::engine_error(
-                cb::engine_errc::cannot_apply_collections_manifest,
+        return {cb::engine_errc::cannot_apply_collections_manifest,
                 "uid must be >= current-uid:" + std::to_string(uid) +
-                        ", new-uid:" + std::to_string(successor.getUid()));
+                        ", new-uid:" + std::to_string(successor.getUid())};
     }
 
-    return cb::engine_error(cb::engine_errc::success, "");
+    return {cb::engine_errc::success, ""};
 }
 
 bool Manifest::isEpoch() const {

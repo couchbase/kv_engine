@@ -18,7 +18,7 @@ std::string to_string(cb::mcbp::Datatype datatype) {
 
 nlohmann::json to_json(cb::mcbp::Datatype datatype) {
     if (datatype == cb::mcbp::Datatype::Raw) {
-        return nlohmann::json("raw");
+        return "raw";
     }
 
     nlohmann::json ret = nlohmann::json::array();

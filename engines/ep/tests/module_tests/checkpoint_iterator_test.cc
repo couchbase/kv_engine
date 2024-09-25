@@ -38,11 +38,11 @@ using ListContainer = std::list<TestItem>;
 using ListContainerIterator = CheckpointIterator<ListContainer>;
 
 ListContainerIterator listContainerBegin(ListContainer& c) {
-    return ListContainerIterator(c, ListContainerIterator::Position::begin);
+    return {c, ListContainerIterator::Position::begin};
 }
 
 ListContainerIterator listContainerEnd(ListContainer& c) {
-    return ListContainerIterator(c, ListContainerIterator::Position::end);
+    return {c, ListContainerIterator::Position::end};
 }
 
 // Test with an empty list.

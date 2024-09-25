@@ -54,7 +54,7 @@ public:
         fmt::format_to(std::back_inserter(keyBuf), "{}{}", keyPrefix, i);
         // Note: fmt::memory_buffer is not null-terminated, cannot use the
         // cstring-ctor
-        return StoredDocKey(to_string(keyBuf), collection);
+        return {to_string(keyBuf), collection};
     }
 
     /**

@@ -35,9 +35,9 @@ DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     const auto* payload =
             reinterpret_cast<const DcpSnapshotMarkerV1Payload*>(extras.data());
-    return DcpSnapshotMarker(payload->getStartSeqno(),
-                             payload->getEndSeqno(),
-                             payload->getFlags());
+    return {payload->getStartSeqno(),
+            payload->getEndSeqno(),
+            payload->getFlags()};
 }
 
 static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(

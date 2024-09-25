@@ -927,7 +927,7 @@ GetValue EphemeralVBucket::getInternalNonResident(
         QueueBgFetch queueBgFetch,
         const StoredValue& v) {
     /* We reach here only if the v is deleted and does not have any value */
-    return GetValue();
+    return {};
 }
 
 size_t EphemeralVBucket::estimateRequiredMemory(const Item& item) {

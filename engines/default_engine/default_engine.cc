@@ -283,8 +283,7 @@ cb::unique_item_ptr default_engine::allocateItem(CookieIface& cookie,
                                 datatype);
 
     if (it) {
-        return cb::unique_item_ptr(new ItemHolder(this, it),
-                                   cb::ItemDeleter{this});
+        return {new ItemHolder(this, it), cb::ItemDeleter{this}};
     }
     throw cb::engine_error(cb::engine_errc::no_memory,
                            "default_engine::allocateItem");
@@ -1007,8 +1006,7 @@ cb::EngineErrorGetCollectionMetaResult default_engine::get_collection_meta(
         CookieIface& cookie, CollectionID cid, std::optional<Vbid> vbid) const {
     if (cid.isDefaultCollection()) {
         // default collection belongs to the default scope and is always metered
-        return cb::EngineErrorGetCollectionMetaResult(
-                0, ScopeID{ScopeID::Default}, true, false);
+        return {0, ScopeID{ScopeID::Default}, true, false};
     }
     // All other collections do not exist
     return cb::EngineErrorGetCollectionMetaResult(0);
