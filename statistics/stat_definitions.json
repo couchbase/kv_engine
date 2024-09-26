@@ -1260,6 +1260,19 @@
         "description": "Average read amplification for all background fetch operations - ratio of read()s to documents fetched.",
         "added": "7.0.0"
     },
+/* Continuous backup stats */
+    {
+        "key": "ep_continuous_backup_callback_count",
+        "unit": "none",
+        "description": "Number of times the continuous backup metadata callback was run.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_continuous_backup_callback_time",
+        "unit": "microseconds",
+        "description": "Time spent in KV in the continuous backup metadata callback.",
+        "added": "8.0.0"
+    },
 /* Magma stats */
     {
         "key": "ep_magma_sets",

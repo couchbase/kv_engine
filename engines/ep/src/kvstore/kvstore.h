@@ -26,6 +26,7 @@
 #include <memcached/thread_pool_config.h>
 #include <hdrhistogram/hdrhistogram.h>
 
+#include <platform/atomic_duration.h>
 #include <relaxed_atomic.h>
 #include <atomic>
 #include <chrono>
@@ -638,6 +639,11 @@ public:
     cb::RelaxedAtomic<size_t> numVbSetFailure;
 
     cb::RelaxedAtomic<size_t> numCompactionAborted;
+
+    /// Number of times the continuous backup triggered the metadata callback.
+    cb::RelaxedAtomic<size_t> continuousBackupCallbackCount;
+    /// Time spent in KV in the continuous backup metadata callback.
+    cb::AtomicDuration<std::chrono::microseconds> continuousBackupCallbackTime;
 
     /**
      * Number of documents read (full and meta-only) from disk for background

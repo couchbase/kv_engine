@@ -1279,6 +1279,8 @@ protected:
                                         const AddStatFn& add_stat,
                                         std::string_view key);
 
+    void doContinuousBackupStats(const BucketStatCollector& collector);
+
     cb::engine_errc doPrivilegedStats(CookieIface& cookie,
                                       const AddStatFn& add_stat,
                                       std::string_view statKey);

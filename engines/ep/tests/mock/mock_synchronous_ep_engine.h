@@ -130,6 +130,7 @@ public:
 
     using EventuallyPersistentEngine::doCollectionStats;
     using EventuallyPersistentEngine::doConnAggStats;
+    using EventuallyPersistentEngine::doContinuousBackupStats;
     using EventuallyPersistentEngine::doEngineStats;
     using EventuallyPersistentEngine::fileOpsTracker;
 

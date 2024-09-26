@@ -12,15 +12,16 @@
 #include "backup/backup_generated.h"
 #include "ep_bucket.h"
 #include "memcached/vbucket.h"
+#include "statistics/labelled_collector.h"
+#include "statistics/tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_magma_kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
-#include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
+#include <folly/portability/GMock.h>
 #include <gtest/gtest.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cb_arena_malloc_client.h>
-#include <cstdint>
 
 class ContinousBackupTest : public STParameterizedBucketTest {
 public:
@@ -184,6 +185,46 @@ TEST_P(ContinousBackupTest, StartBackupAfterWarmup) {
         runReadersUntilWarmedUp();
 
         EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+    }
+}
+
+TEST_P(ContinousBackupTest, Stats) {
+    using namespace testing;
+    auto& store = getMockKVStore(vbid);
+
+    StrictMock<MockStatCollector> collector;
+    auto bucketCollector = collector.forBucket("foo");
+
+    {
+        EXPECT_CALL(collector,
+                    addStat(StatDefNameMatcher(
+                                    "ep_continuous_backup_callback_count"),
+                            A<uint64_t>(),
+                            _));
+        EXPECT_CALL(
+                collector,
+                addStat(StatDefNameMatcher(
+                                "ep_continuous_backup_callback_time_seconds"),
+                        A<uint64_t>(),
+                        _));
+        engine->doContinuousBackupStats(bucketCollector);
+    }
+
+    runContinuousBackupCallback(vbid, *store.makeFileHandle(vbid));
+
+    {
+        EXPECT_CALL(collector,
+                    addStat(StatDefNameMatcher(
+                                    "ep_continuous_backup_callback_count"),
+                            A<uint64_t>(),
+                            _));
+        EXPECT_CALL(
+                collector,
+                addStat(StatDefNameMatcher(
+                                "ep_continuous_backup_callback_time_seconds"),
+                        A<uint64_t>(),
+                        _));
+        engine->doContinuousBackupStats(bucketCollector);
     }
 }
 

@@ -3532,6 +3532,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     const auto start = std::chrono::steady_clock::now();
 
     doDiskFailureStats(collector);
+    doContinuousBackupStats(collector);
 
     kvBucket->getFileStats(collector);
 
@@ -5322,6 +5323,19 @@ void EventuallyPersistentEngine::doDiskFailureStats(
 
     if (kvBucket->getKVStoreStat("failure_get", value)) {
         collector.addStat(Key::ep_data_read_failed, value);
+    }
+}
+
+void EventuallyPersistentEngine::doContinuousBackupStats(
+        const BucketStatCollector& collector) {
+    using namespace cb::stats;
+
+    size_t value = 0;
+    if (kvBucket->getKVStoreStat("continuous_backup_callback_count", value)) {
+        collector.addStat(Key::ep_continuous_backup_callback_count, value);
+    }
+    if (kvBucket->getKVStoreStat("continuous_backup_callback_micros", value)) {
+        collector.addStat(Key::ep_continuous_backup_callback_time, value);
     }
 }
 

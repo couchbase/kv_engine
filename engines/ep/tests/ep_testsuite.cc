@@ -7218,7 +7218,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // Add expected bespoke magma stats into the "all" group
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),
-                         {"ep_magma_active_disk_usage",
+                         {"ep_continuous_backup_callback_count",
+                          "ep_continuous_backup_callback_time",
+                          "ep_magma_active_disk_usage",
                           "ep_magma_block_cache_hits",
                           "ep_magma_block_cache_mem_used",
                           "ep_magma_block_cache_misses",

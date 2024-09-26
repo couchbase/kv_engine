@@ -33,6 +33,7 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 #include <executor/executorpool.h>
+#include <folly/ScopeGuard.h>
 #include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
@@ -3863,9 +3864,13 @@ GetStatsMap MagmaKVStore::getStats(
         }
     };
 
-    // failure_get does not call into magma, if no other stat is required return
-    // early without calling into magma
     fill("failure_get", st.numGetFailure.load());
+    fill("continuous_backup_callback_count",
+         st.continuousBackupCallbackCount.load());
+    fill("continuous_backup_callback_micros",
+         st.continuousBackupCallbackTime.load().count());
+
+    // if no other stat is required return early without calling into magma
     if (keys.size() == stats.size()) {
         return stats;
     }
@@ -4361,6 +4366,13 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
     // Work is done in the KV domain, but the flatbuffer result is constructed
     // and returned under Magma.
     cb::UseArenaMallocPrimaryDomain domainGuard;
+    auto start = std::chrono::steady_clock::now();
+    auto statUpdate = folly::makeGuard([this, start]() {
+        st.continuousBackupCallbackCount.fetch_add(1);
+        st.continuousBackupCallbackTime +=
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - start);
+    });
 
     auto [magmaStatus, vbstateString] =
             readLocalDoc(vbid, snapshot, LocalDocKey::vbstate);
