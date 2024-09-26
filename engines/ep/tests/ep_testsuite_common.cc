@@ -82,12 +82,22 @@ engine_test_t* BaseTestCase::getTest() {
         ss << "dbname=" << default_dbname << ";";
     }
 
-    // Default to 4 vBuckets (faster to setup/teardown) if the test config
-    // didn't already specify it or shards.
+    // If the test config is empty or doesn't set vbuckets
+    // * Default to 4 vbuckets/shards (for faster setup/teardown)
+
     if ((cfg == nullptr) ||
         ((std::string(cfg).find("max_vbuckets=") == std::string::npos) &&
-        (std::string(cfg).find("max_num_shards=") == std::string::npos))) {
+        (std::string(cfg).find("max_num_shards=") == std::string::npos) &&
+        (std::string(cfg).find("max_threads=") == std::string::npos))) {
         ss << "max_vbuckets=4;max_num_shards=4;";
+    }
+
+    // If the config is empty or doesn't specific threads
+    // * Default to 2 threads (which can become 4 for IO threads). This reduces
+    //   overheads and simplifies debugging.
+    if ((cfg == nullptr) ||
+        (std::string(cfg).find("max_threads=") == std::string::npos)) {
+        ss << "max_threads=2;";
     }
 
     if (skip) {
