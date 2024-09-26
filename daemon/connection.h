@@ -20,6 +20,7 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
+#include <folly/Synchronized.h>
 #include <libevent/utilities.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dcp.h>
@@ -310,7 +311,7 @@ public:
     void setTerminationReason(std::string reason);
 
     bool isDCP() const {
-        return dcpConnHandlerIface.load() != nullptr;
+        return dcpConnHandler.lock()->isDcp;
     }
 
     bool isDcpXattrAware() const {
@@ -578,11 +579,14 @@ public:
     void shutdown();
 
     DcpConnHandlerIface* getDcpConnHandlerIface() const {
-        return dcpConnHandlerIface.load(std::memory_order_acquire);
+        return dcpConnHandler.lock()->dcpConnHandlerIface;
     }
 
     void setDcpConnHandlerIface(DcpConnHandlerIface* handler) {
-        dcpConnHandlerIface.store(handler, std::memory_order_release);
+        dcpConnHandler.withLock([handler](DcpConn& dcpConn) {
+            dcpConn.isDcp = true;
+            dcpConn.dcpConnHandlerIface = handler;
+        });
     }
 
     /**
@@ -975,7 +979,11 @@ protected:
     std::chrono::nanoseconds max_sched_time = std::chrono::nanoseconds::zero();
 
     /// The stored DCP Connection Interface
-    std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
+    struct DcpConn {
+        bool isDcp{false};
+        DcpConnHandlerIface* dcpConnHandlerIface{nullptr};
+    };
+    folly::Synchronized<DcpConn, std::mutex> dcpConnHandler;
 
     /// The bufferevent structure for the object
     cb::libevent::unique_bufferevent_ptr bev;

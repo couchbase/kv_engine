@@ -318,6 +318,19 @@ void DcpConnMap::disconnect(const CookieIface* cookie) {
                 // vbstateLock).
                 conn->flagDisconnect();
             }
+
+            // Clear the raw pointer that the Connection holds, do this now
+            // as true destruction of the ConnHandler happens on a BG task.
+            if (epe) {
+                // neo requires going through the server_api, but when merged
+                // to trinity+ this becomes a direct call via cookie
+                epe->getServerApi()->cookie->setDcpConnHandler(*cookie,
+                                                               nullptr);
+            } else {
+                connForCookie->getLogger().warn(
+                        "Cannot setDcpConnHandler to null cookie:{}",
+                        static_cast<const void*>(cookie));
+            }
             handle->removeConnByCookie(cookie);
         }
     }
