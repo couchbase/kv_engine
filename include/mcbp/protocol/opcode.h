@@ -472,6 +472,13 @@ bool is_deprecated(ClientOpcode opcode);
 /// Does the client write data with this opcode?
 bool is_client_writing_data(ClientOpcode opcode);
 
+/// Must the input buffer be preserved before starting the operation
+bool must_preserve_buffer(ClientOpcode opcode);
+
+/// Is this a quiet operation or not? A quiet operation will only
+/// return data in certain situations (varies from command to command)
+bool is_quiet(ClientOpcode opcode);
+
 std::ostream& operator<<(std::ostream& out,
                          const cb::mcbp::ClientOpcode& opcode);
 std::ostream& operator<<(std::ostream& out,

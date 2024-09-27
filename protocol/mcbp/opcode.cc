@@ -12,193 +12,817 @@
 #include <mcbp/protocol/opcode.h>
 #include <platform/string_hex.h>
 #include <algorithm>
+#include <array>
+#include <bitset>
 #include <cctype>
 #include <stdexcept>
 
 namespace cb::mcbp {
 
-bool is_valid_opcode(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::GetEx:
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::Get:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-        return true;
-    case ClientOpcode::Invalid:
-        break;
+/// Enum describing the various attributes associated with an opcode
+enum class Attribute {
+    /// If the opcode is supported (at some point we might drop support
+    /// for certain commands). This allows us to reply to the client that
+    /// we know about the command, but we don't support it (rather than
+    /// return "unknown command")
+    Supported,
+    /// Does the command support adding a durability specification in the
+    /// frame info section of the command  (It does not make sense to
+    /// add durability spec to a get operation for instance).
+    Durability,
+    /// May this command be reordered or is this a "full barrier"
+    Reorder,
+    /// Does the key field contain a key which may contain a collection
+    /// identifier
+    Collection,
+    /// Does the command support adding a flag in frame info to instruct
+    /// the operation to preserve the TTL from the existing document
+    PreserveTtl,
+    /// When throttling is enabled (serverless mode) only commands with
+    /// the SubjectForThrottling set may be throttled when the user
+    /// exceeds its quota
+    SubjectForThrottling,
+    /// Before removing commands they'll be deprecated for a while
+    Deprecated,
+    /// Does the command cause new data to be added to the system or not.
+    /// These operations may be blocked when setting the system in
+    /// "read only mode" (internal users are still allowed to override this
+    /// for replication etc)
+    ClientWritingData,
+    /// MB-52884 Some commands returns data in different threads
+    ///          than the front end thread, and will race trying
+    ///          to access the incomming packet data. In these
+    ///          cases we might need to copy out the incomming
+    ///          packet.
+    MustPreserveBuffer,
+    /// Does the operation swallow the response in some cases
+    IsQuiet,
+    Count
+};
+
+/// Each opcode contains a name and a set of attributes.
+struct OpcodeMeta {
+    OpcodeMeta() = default;
+    OpcodeMeta(std::string_view name, const std::vector<Attribute>& properties)
+        : name(name) {
+        for (const auto& attr : properties) {
+            attributes.set(static_cast<int>(attr));
+        }
     }
-    return false;
+
+    bool check(Attribute attr) const {
+        return attributes.test(static_cast<int>(attr));
+    }
+
+    std::string_view name;
+    std::bitset<static_cast<std::size_t>(Attribute::Count)> attributes;
+};
+
+/// A singleton class containing information for all opcodes.
+class OpcodeInformationService {
+public:
+    bool isValid(ClientOpcode opcode) const {
+        return !opcodes[static_cast<int>(opcode)].name.empty();
+    }
+    std::string_view name(ClientOpcode opcode) const {
+        if (!isValid(opcode)) {
+            throw std::invalid_argument(fmt::format(
+                    "OpcodeInformationService::name(): Unknown command {}",
+                    to_hex(uint8_t(opcode))));
+        }
+        return opcodes[static_cast<int>(opcode)].name;
+    }
+    bool isSupported(ClientOpcode opcode) const {
+        return isValid(opcode) &&
+               opcodes[static_cast<int>(opcode)].check(Attribute::Supported);
+    }
+    bool isDurability(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::Durability);
+    }
+    bool isReorder(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::Reorder);
+    }
+    bool isCollection(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::Collection);
+    }
+    bool isPreserveTtl(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::PreserveTtl);
+    }
+    bool isSubjectForThrottling(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(
+                Attribute::SubjectForThrottling);
+    }
+    bool isDeprecated(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::Deprecated);
+    }
+    bool isClientWritingData(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(
+                Attribute::ClientWritingData);
+    }
+    bool mustPreserveBuffer(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(
+                Attribute::MustPreserveBuffer);
+    }
+    bool isQuiet(ClientOpcode opcode) const {
+        ensureValid(opcode, __func__);
+        return opcodes[static_cast<int>(opcode)].check(Attribute::IsQuiet);
+    }
+
+    OpcodeInformationService() {
+        using namespace std::string_view_literals;
+        setup(ClientOpcode::Get,
+              {"GET"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Set,
+              {"SET"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Add,
+              {"ADD"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Replace,
+              {"REPLACE"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Delete,
+              {"DELETE"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Increment,
+              {"INCREMENT"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Decrement,
+              {"DECREMENT"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Quit, {"QUIT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Flush, {"FLUSH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Getq,
+              {"GETQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Noop, {"NOOP"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Version, {"VERSION"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Getk,
+              {"GETK"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated}});
+        setup(ClientOpcode::Getkq,
+              {"GETKQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Append,
+              {"APPEND"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Prepend,
+              {"PREPEND"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Stat,
+              {"STAT"sv,
+               {Attribute::Supported, Attribute::MustPreserveBuffer}});
+        setup(ClientOpcode::Setq,
+              {"SETQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Addq,
+              {"ADDQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Replaceq,
+              {"REPLACEQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Deleteq,
+              {"DELETEQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Incrementq,
+              {"INCREMENTQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Decrementq,
+              {"DECREMENTQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Quitq,
+              {"QUITQ"sv,
+               {Attribute::Supported,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Flushq,
+              {"FLUSHQ"sv,
+               {Attribute::Supported,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Appendq,
+              {"APPENDQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Prependq,
+              {"PREPENDQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Verbosity, {"VERBOSITY"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Touch,
+              {"TOUCH"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Gat,
+              {"GAT"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::Gatq,
+              {"GATQ"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::Hello, {"HELLO"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SaslListMechs,
+              {"SASL_LIST_MECHS"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SaslAuth, {"SASL_AUTH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SaslStep, {"SASL_STEP"sv, {Attribute::Supported}});
+        setup(ClientOpcode::IoctlGet, {"IOCTL_GET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::IoctlSet, {"IOCTL_SET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ConfigValidate,
+              {"CONFIG_VALIDATE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ConfigReload,
+              {"CONFIG_RELOAD"sv, {Attribute::Supported}});
+        setup(ClientOpcode::AuditPut, {"AUDIT_PUT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::AuditConfigReload,
+              {"AUDIT_CONFIG_RELOAD"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Shutdown, {"SHUTDOWN"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SetBucketThrottleProperties,
+              {"SET_BUCKET_THROTTLE_PROPERTIES"sv,
+               {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::SetBucketDataLimitExceeded,
+              {"SET_BUCKET_DATA_LIMIT_EXCEEDED"sv,
+               {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::SetNodeThrottleProperties,
+              {"SET_NODE_THROTTLE_PROPERTIES"sv,
+               {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::SetActiveEncryptionKeys,
+              {"SET_ACTIVE_ENCRYPTION_KEYS"sv,
+               {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::Rget_Unsupported,
+              {"RGET"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rset_Unsupported,
+              {"RSET"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rsetq_Unsupported,
+              {"RSETQ"sv,
+               {Attribute::SubjectForThrottling, Attribute::IsQuiet}});
+        setup(ClientOpcode::Rappend_Unsupported,
+              {"RAPPEND"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rappendq_Unsupported,
+              {"RAPPENDQ"sv,
+               {Attribute::SubjectForThrottling, Attribute::IsQuiet}});
+        setup(ClientOpcode::Rprepend_Unsupported,
+              {"RPREPEND"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rprependq_Unsupported,
+              {"RPREPENDQ"sv,
+               {Attribute::SubjectForThrottling, Attribute::IsQuiet}});
+        setup(ClientOpcode::Rdelete_Unsupported,
+              {"RDELETE"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rdeleteq_Unsupported,
+              {"RDELETEQ"sv,
+               {Attribute::SubjectForThrottling, Attribute::IsQuiet}});
+        setup(ClientOpcode::Rincr_Unsupported,
+              {"RINCR"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rincrq_Unsupported,
+              {"RINCRQ"sv,
+               {Attribute::SubjectForThrottling, Attribute::IsQuiet}});
+        setup(ClientOpcode::Rdecr_Unsupported,
+              {"RDECR"sv, {Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Rdecrq_Unsupported,
+              {"RDECRQ"sv,
+               {Attribute::SubjectForThrottling, Attribute::IsQuiet}});
+        setup(ClientOpcode::SetVbucket,
+              {"SET_VBUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetVbucket,
+              {"GET_VBUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DelVbucket,
+              {"DEL_VBUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::TapConnect_Unsupported, {"TAP_CONNECT"sv, {}});
+        setup(ClientOpcode::TapMutation_Unsupported, {"TAP_MUTATION"sv, {}});
+        setup(ClientOpcode::TapDelete_Unsupported, {"TAP_DELETE"sv, {}});
+        setup(ClientOpcode::TapFlush_Unsupported, {"TAP_FLUSH"sv, {}});
+        setup(ClientOpcode::TapOpaque_Unsupported, {"TAP_OPAQUE"sv, {}});
+        setup(ClientOpcode::TapVbucketSet_Unsupported,
+              {"TAP_VBUCKET_SET"sv, {}});
+        setup(ClientOpcode::TapCheckpointStart_Unsupported,
+              {"TAP_CHECKPOINT_START"sv, {}});
+        setup(ClientOpcode::TapCheckpointEnd_Unsupported,
+              {"TAP_CHECKPOINT_END"sv, {}});
+        setup(ClientOpcode::GetAllVbSeqnos,
+              {"GET_ALL_VB_SEQNOS"sv,
+               {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::GetEx,
+              {"GET_EX"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::GetExReplica,
+              {"GET_EX_REPLICA"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::DcpOpen, {"DCP_OPEN"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpAddStream,
+              {"DCP_ADD_STREAM"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpCloseStream,
+              {"DCP_CLOSE_STREAM"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpStreamReq,
+              {"DCP_STREAM_REQ"sv,
+               {Attribute::Supported, Attribute::MustPreserveBuffer}});
+        setup(ClientOpcode::DcpGetFailoverLog,
+              {"DCP_GET_FAILOVER_LOG"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpStreamEnd,
+              {"DCP_STREAM_END"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpSnapshotMarker,
+              {"DCP_SNAPSHOT_MARKER"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpMutation,
+              {"DCP_MUTATION"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpDeletion,
+              {"DCP_DELETION"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpExpiration,
+              {"DCP_EXPIRATION"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpFlush_Unsupported, {"DCP_FLUSH"sv, {}});
+        setup(ClientOpcode::DcpSetVbucketState,
+              {"DCP_SET_VBUCKET_STATE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpNoop, {"DCP_NOOP"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpBufferAcknowledgement,
+              {"DCP_BUFFER_ACKNOWLEDGEMENT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpControl,
+              {"DCP_CONTROL"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpSystemEvent,
+              {"DCP_SYSTEM_EVENT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpPrepare,
+              {"DCP_PREPARE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpSeqnoAcknowledged,
+              {"DCP_SEQNO_ACKNOWLEDGED"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpCommit,
+              {"DCP_COMMIT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpAbort, {"DCP_ABORT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpSeqnoAdvanced,
+              {"DCP_SEQNO_ADVANCED"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DcpOsoSnapshot,
+              {"DCP_OSO_SNAPSHOT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::StopPersistence,
+              {"STOP_PERSISTENCE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::StartPersistence,
+              {"START_PERSISTENCE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SetParam, {"SET_PARAM"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetReplica,
+              {"GET_REPLICA"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::CreateBucket,
+              {"CREATE_BUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DeleteBucket,
+              {"DELETE_BUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ListBuckets,
+              {"LIST_BUCKETS"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SelectBucket,
+              {"SELECT_BUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::PauseBucket,
+              {"PAUSE_BUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ResumeBucket,
+              {"RESUME_BUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ObserveSeqno,
+              {"OBSERVE_SEQNO"sv,
+               {Attribute::Supported, Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::Observe,
+              {"OBSERVE"sv,
+               {Attribute::Supported, Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::EvictKey,
+              {"EVICT_KEY"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection}});
+        setup(ClientOpcode::GetLocked,
+              {"GET_LOCKED"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::UnlockKey,
+              {"UNLOCK_KEY"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::GetFailoverLog,
+              {"GET_FAILOVER_LOG"sv, {Attribute::Supported}});
+        setup(ClientOpcode::LastClosedCheckpoint_Unsupported,
+              {"LAST_CLOSED_CHECKPOINT"sv, {}});
+        setup(ClientOpcode::DeregisterTapClient_Unsupported,
+              {"DEREGISTER_TAP_CLIENT"sv, {}});
+        setup(ClientOpcode::ResetReplicationChain_Unsupported,
+              {"RESET_REPLICATION_CHAIN"sv, {}});
+        setup(ClientOpcode::GetMeta,
+              {"GET_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::GetqMeta,
+              {"GETQ_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::SetWithMeta,
+              {"SET_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SetqWithMeta,
+              {"SETQ_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::AddWithMeta,
+              {"ADD_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::AddqWithMeta,
+              {"ADDQ_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::ClientWritingData,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::SnapshotVbStates_Unsupported,
+              {"SNAPSHOT_VB_STATES"sv, {}});
+        setup(ClientOpcode::VbucketBatchCount_Unsupported,
+              {"VBUCKET_BATCH_COUNT"sv, {}});
+        setup(ClientOpcode::DelWithMeta,
+              {"DEL_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::DelqWithMeta,
+              {"DELQ_WITH_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::Deprecated,
+                Attribute::IsQuiet}});
+        setup(ClientOpcode::CreateCheckpoint_Unsupported,
+              {"CREATE_CHECKPOINT"sv, {}});
+        setup(ClientOpcode::NotifyVbucketUpdate_Unsupported,
+              {"NOTIFY_VBUCKET_UPDATE"sv, {}});
+        setup(ClientOpcode::EnableTraffic,
+              {"ENABLE_TRAFFIC"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DisableTraffic,
+              {"DISABLE_TRAFFIC"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Ifconfig, {"IFCONFIG"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ChangeVbFilter_Unsupported,
+              {"CHANGE_VB_FILTER"sv, {}});
+        setup(ClientOpcode::CheckpointPersistence_Unsupported,
+              {"CHECKPOINT_PERSISTENCE"sv, {}});
+        setup(ClientOpcode::ReturnMeta,
+              {"RETURN_META"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::CompactDb,
+              {"COMPACT_DB"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SetClusterConfig,
+              {"SET_CLUSTER_CONFIG"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetClusterConfig,
+              {"GET_CLUSTER_CONFIG"sv,
+               {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::GetRandomKey,
+              {"GET_RANDOM_KEY"sv,
+               {Attribute::Supported, Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::SeqnoPersistence,
+              {"SEQNO_PERSISTENCE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetKeys,
+              {"GET_KEYS"sv,
+               {Attribute::Supported,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling,
+                Attribute::MustPreserveBuffer}});
+        setup(ClientOpcode::CollectionsSetManifest,
+              {"COLLECTIONS_SET_MANIFEST"sv, {Attribute::Supported}});
+        setup(ClientOpcode::CollectionsGetManifest,
+              {"COLLECTIONS_GET_MANIFEST"sv, {Attribute::Supported}});
+        setup(ClientOpcode::CollectionsGetID,
+              {"COLLECTIONS_GET_ID"sv, {Attribute::Supported}});
+        setup(ClientOpcode::CollectionsGetScopeID,
+              {"COLLECTIONS_GET_SCOPE_ID"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SetDriftCounterState_Unsupported,
+              {"SET_DRIFT_COUNTER_STATE"sv, {}});
+        setup(ClientOpcode::GetAdjustedTime_Unsupported,
+              {"GET_ADJUSTED_TIME"sv, {}});
+        setup(ClientOpcode::SubdocGet,
+              {"SUBDOC_GET"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::SubdocExists,
+              {"SUBDOC_EXISTS"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::SubdocDictAdd,
+              {"SUBDOC_DICT_ADD"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocDictUpsert,
+              {"SUBDOC_DICT_UPSERT"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocDelete,
+              {"SUBDOC_DELETE"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::SubdocReplace,
+              {"SUBDOC_REPLACE"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocArrayPushLast,
+              {"SUBDOC_ARRAY_PUSH_LAST"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocArrayPushFirst,
+              {"SUBDOC_ARRAY_PUSH_FIRST"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocArrayInsert,
+              {"SUBDOC_ARRAY_INSERT"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocArrayAddUnique,
+              {"SUBDOC_ARRAY_ADD_UNIQUE"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocCounter,
+              {"SUBDOC_COUNTER"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocMultiLookup,
+              {"SUBDOC_MULTI_LOOKUP"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::SubdocMultiMutation,
+              {"SUBDOC_MULTI_MUTATION"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::SubdocGetCount,
+              {"SUBDOC_GET_COUNT"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::SubjectForThrottling}});
+        setup(ClientOpcode::SubdocReplaceBodyWithXattr,
+              {"SUBDOC_REPLACE_BODY_WITH_XATTR"sv,
+               {Attribute::Supported,
+                Attribute::Durability,
+                Attribute::Reorder,
+                Attribute::Collection,
+                Attribute::PreserveTtl,
+                Attribute::SubjectForThrottling,
+                Attribute::ClientWritingData}});
+        setup(ClientOpcode::RangeScanCreate,
+              {"RANGE_SCAN_CREATE"sv,
+               {Attribute::Supported,
+                Attribute::Reorder,
+                Attribute::SubjectForThrottling,
+                Attribute::MustPreserveBuffer}});
+        setup(ClientOpcode::RangeScanContinue,
+              {"RANGE_SCAN_CONTINUE"sv,
+               {Attribute::Supported,
+                Attribute::SubjectForThrottling,
+                Attribute::MustPreserveBuffer}});
+        setup(ClientOpcode::RangeScanCancel,
+              {"RANGE_SCAN_CANCEL"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Scrub, {"SCRUB"sv, {Attribute::Supported}});
+        setup(ClientOpcode::IsaslRefresh,
+              {"ISASL_REFRESH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SslCertsRefresh,
+              {"SSL_CERTS_REFRESH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetCmdTimer,
+              {"GET_CMD_TIMER"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SetCtrlToken,
+              {"SET_CTRL_TOKEN"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetCtrlToken,
+              {"GET_CTRL_TOKEN"sv, {Attribute::Supported}});
+        setup(ClientOpcode::UpdateExternalUserPermissions,
+              {"UPDATE_USER_PERMISSIONS"sv, {Attribute::Supported}});
+        setup(ClientOpcode::RbacRefresh,
+              {"RBAC_REFRESH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::AuthProvider,
+              {"AUTH_PROVIDER"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DropPrivilege,
+              {"DROP_PRIVILEGES"sv, {Attribute::Supported}});
+        setup(ClientOpcode::AdjustTimeofday,
+              {"ADJUST_TIMEOFDAY"sv, {Attribute::Supported}});
+        setup(ClientOpcode::EwouldblockCtl,
+              {"EWB_CTL"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetErrorMap,
+              {"GET_ERROR_MAP"sv, {Attribute::Supported}});
+    }
+
+protected:
+    void ensureValid(ClientOpcode opcode, const char* method) const {
+        // @todo look at the use pattern for the various methods to see
+        //       if its even possible that we're trying to call the operations
+        //       with invalid values (that would only be from reading the
+        //       command off the socket until we call "validate" (and the
+        //       failure path for invalid packets)
+        if (!isValid(opcode)) {
+            throw std::runtime_error(fmt::format(
+                    "OpcodeInformationService::{}(): Unknown command {}",
+                    method,
+                    to_hex(uint8_t(opcode))));
+        }
+    }
+
+    void setup(ClientOpcode opcode, OpcodeMeta meta) {
+        opcodes[static_cast<int>(opcode)] = std::move(meta);
+    }
+    std::array<OpcodeMeta, 256> opcodes;
+};
+
+/// The one and only instance
+static const OpcodeInformationService opcodeInformationServiceInstance;
+
+bool is_valid_opcode(ClientOpcode opcode) {
+    return opcodeInformationServiceInstance.isValid(opcode);
 }
 
 bool is_valid_opcode(ServerOpcode opcode) {
@@ -213,1527 +837,50 @@ bool is_valid_opcode(ServerOpcode opcode) {
 }
 
 bool is_supported_opcode(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::GetEx:
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::Get:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-        return true;
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::Invalid:
-        break;
-    }
-    return false;
+    return opcodeInformationServiceInstance.isSupported(opcode);
 }
 
 bool is_durability_supported(ClientOpcode opcode) {
-    using cb::mcbp::ClientOpcode;
-
-    switch (opcode) {
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-        return true;
-
-    case ClientOpcode::GetEx:
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::Get:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-        return false;
-
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::runtime_error(
-            "cb::mcbp::is_durability_supported: Unknown command " +
-            cb::to_hex(uint8_t(opcode)));
+    return opcodeInformationServiceInstance.isDurability(opcode);
 }
 
 bool is_reorder_supported(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::GetEx:
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::Get:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Touch:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetAllVbSeqnos:
-        return true;
-
-    case ClientOpcode::Getq:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-        return false;
-
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::runtime_error(
-            "cb::mcbp::is_reorder_supported: Unknown command " +
-            cb::to_hex(uint8_t(opcode)));
+    return opcodeInformationServiceInstance.isReorder(opcode);
 }
 
 bool is_collection_command(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::GetEx:
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::Get:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::GetKeys:
-        return true;
-
-    case ClientOpcode::Observe:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    // MB-39650: DCP input are not collection commands in this context. They do
-    // represent changes to collections, but they are not privilege checked
-    // against anything other than bucket level Privilege::DcpConsumer there
-    // is no concept of allowing some collections and failing another for DCP
-    // input.
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-        return false;
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::runtime_error(
-            "cb::mcbp::is_collection_command: Unknown command " +
-            cb::to_hex(uint8_t(opcode)));
+    return opcodeInformationServiceInstance.isCollection(opcode);
 }
 
 bool is_deprecated(ClientOpcode opcode) {
     if (!is_valid_opcode(opcode) || !is_supported_opcode(opcode)) {
         return false;
     }
-    switch (opcode) {
-    case ClientOpcode::Getq:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::DelqWithMeta:
-        return true;
-
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::GetEx:
-    case ClientOpcode::Get:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-    case ClientOpcode::Invalid:
-        break;
-    }
-    return false;
+    return opcodeInformationServiceInstance.isDeprecated(opcode);
 }
 
 bool is_preserve_ttl_supported(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::Set:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Append:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-        return true;
-
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::GetEx:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Add:
-    case ClientOpcode::Get:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-        return false;
-
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::runtime_error(
-            "cb::mcbp::is_preserve_ttl_supported: Unknown command " +
-            cb::to_hex(uint8_t(opcode)));
+    return opcodeInformationServiceInstance.isPreserveTtl(opcode);
 }
 
 bool is_subject_for_throttling(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::GetEx:
-    case ClientOpcode::Get:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-        return true;
-
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-    case ClientOpcode::RangeScanCancel:
-        // should not be throttled
-        return false;
-
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::runtime_error(
-            "cb::mcbp::is_subject_for_throttling: Unknown command " +
-            cb::to_hex(uint8_t(opcode)));
+    return opcodeInformationServiceInstance.isSubjectForThrottling(opcode);
 }
 
 bool is_client_writing_data(ClientOpcode opcode) {
-    switch (opcode) {
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Set:
-    case ClientOpcode::Add:
-    case ClientOpcode::Replace:
-    case ClientOpcode::Increment:
-    case ClientOpcode::Decrement:
-    case ClientOpcode::Append:
-    case ClientOpcode::Prepend:
-    case ClientOpcode::Setq:
-    case ClientOpcode::Addq:
-    case ClientOpcode::Replaceq:
-    case ClientOpcode::Incrementq:
-    case ClientOpcode::Decrementq:
-    case ClientOpcode::Appendq:
-    case ClientOpcode::Prependq:
-    case ClientOpcode::SetWithMeta:
-    case ClientOpcode::SetqWithMeta:
-    case ClientOpcode::AddWithMeta:
-    case ClientOpcode::AddqWithMeta:
-    case ClientOpcode::ReturnMeta:
-    case ClientOpcode::SubdocDictAdd:
-    case ClientOpcode::SubdocDictUpsert:
-    case ClientOpcode::SubdocReplace:
-    case ClientOpcode::SubdocArrayPushLast:
-    case ClientOpcode::SubdocArrayPushFirst:
-    case ClientOpcode::SubdocArrayInsert:
-    case ClientOpcode::SubdocArrayAddUnique:
-    case ClientOpcode::SubdocCounter:
-    case ClientOpcode::SubdocMultiMutation:
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-        return true;
-
-    case ClientOpcode::GetExReplica:
-    case ClientOpcode::GetEx:
-    case ClientOpcode::Get:
-    case ClientOpcode::Delete:
-    case ClientOpcode::Quit:
-    case ClientOpcode::Flush:
-    case ClientOpcode::Getq:
-    case ClientOpcode::Noop:
-    case ClientOpcode::Version:
-    case ClientOpcode::Getk:
-    case ClientOpcode::Getkq:
-    case ClientOpcode::Stat:
-    case ClientOpcode::Deleteq:
-    case ClientOpcode::Quitq:
-    case ClientOpcode::Flushq:
-    case ClientOpcode::Verbosity:
-    case ClientOpcode::Hello:
-    case ClientOpcode::SaslListMechs:
-    case ClientOpcode::SaslAuth:
-    case ClientOpcode::SaslStep:
-    case ClientOpcode::IoctlGet:
-    case ClientOpcode::IoctlSet:
-    case ClientOpcode::ConfigValidate:
-    case ClientOpcode::ConfigReload:
-    case ClientOpcode::AuditPut:
-    case ClientOpcode::AuditConfigReload:
-    case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketThrottleProperties:
-    case ClientOpcode::SetBucketDataLimitExceeded:
-    case ClientOpcode::SetNodeThrottleProperties:
-    case ClientOpcode::SetActiveEncryptionKeys:
-    case ClientOpcode::Rget_Unsupported:
-    case ClientOpcode::Rset_Unsupported:
-    case ClientOpcode::Rsetq_Unsupported:
-    case ClientOpcode::Rappend_Unsupported:
-    case ClientOpcode::Rappendq_Unsupported:
-    case ClientOpcode::Rprepend_Unsupported:
-    case ClientOpcode::Rprependq_Unsupported:
-    case ClientOpcode::Rdelete_Unsupported:
-    case ClientOpcode::Rdeleteq_Unsupported:
-    case ClientOpcode::Rincr_Unsupported:
-    case ClientOpcode::Rincrq_Unsupported:
-    case ClientOpcode::Rdecr_Unsupported:
-    case ClientOpcode::Rdecrq_Unsupported:
-    case ClientOpcode::SetVbucket:
-    case ClientOpcode::GetVbucket:
-    case ClientOpcode::DelVbucket:
-    case ClientOpcode::TapConnect_Unsupported:
-    case ClientOpcode::TapMutation_Unsupported:
-    case ClientOpcode::TapDelete_Unsupported:
-    case ClientOpcode::TapFlush_Unsupported:
-    case ClientOpcode::TapOpaque_Unsupported:
-    case ClientOpcode::TapVbucketSet_Unsupported:
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-    case ClientOpcode::GetAllVbSeqnos:
-    case ClientOpcode::DcpOpen:
-    case ClientOpcode::DcpAddStream:
-    case ClientOpcode::DcpCloseStream:
-    case ClientOpcode::DcpStreamReq:
-    case ClientOpcode::DcpGetFailoverLog:
-    case ClientOpcode::DcpStreamEnd:
-    case ClientOpcode::DcpSnapshotMarker:
-    case ClientOpcode::DcpMutation:
-    case ClientOpcode::DcpDeletion:
-    case ClientOpcode::DcpExpiration:
-    case ClientOpcode::DcpFlush_Unsupported:
-    case ClientOpcode::DcpSetVbucketState:
-    case ClientOpcode::DcpNoop:
-    case ClientOpcode::DcpBufferAcknowledgement:
-    case ClientOpcode::DcpControl:
-    case ClientOpcode::DcpSystemEvent:
-    case ClientOpcode::DcpPrepare:
-    case ClientOpcode::DcpSeqnoAcknowledged:
-    case ClientOpcode::DcpCommit:
-    case ClientOpcode::DcpAbort:
-    case ClientOpcode::DcpSeqnoAdvanced:
-    case ClientOpcode::DcpOsoSnapshot:
-    case ClientOpcode::StopPersistence:
-    case ClientOpcode::StartPersistence:
-    case ClientOpcode::SetParam:
-    case ClientOpcode::GetReplica:
-    case ClientOpcode::CreateBucket:
-    case ClientOpcode::DeleteBucket:
-    case ClientOpcode::ListBuckets:
-    case ClientOpcode::SelectBucket:
-    case ClientOpcode::PauseBucket:
-    case ClientOpcode::ResumeBucket:
-    case ClientOpcode::ObserveSeqno:
-    case ClientOpcode::Observe:
-    case ClientOpcode::EvictKey:
-    case ClientOpcode::GetLocked:
-    case ClientOpcode::UnlockKey:
-    case ClientOpcode::GetFailoverLog:
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-    case ClientOpcode::GetMeta:
-    case ClientOpcode::GetqMeta:
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-    case ClientOpcode::DelWithMeta:
-    case ClientOpcode::DelqWithMeta:
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-    case ClientOpcode::EnableTraffic:
-    case ClientOpcode::DisableTraffic:
-    case ClientOpcode::Ifconfig:
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-    case ClientOpcode::CompactDb:
-    case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
-    case ClientOpcode::GetRandomKey:
-    case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
-    case ClientOpcode::CollectionsSetManifest:
-    case ClientOpcode::CollectionsGetManifest:
-    case ClientOpcode::CollectionsGetID:
-    case ClientOpcode::CollectionsGetScopeID:
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-    case ClientOpcode::SubdocGet:
-    case ClientOpcode::SubdocExists:
-    case ClientOpcode::SubdocDelete:
-    case ClientOpcode::SubdocMultiLookup:
-    case ClientOpcode::SubdocGetCount:
-    case ClientOpcode::RangeScanCreate:
-    case ClientOpcode::RangeScanContinue:
-    case ClientOpcode::RangeScanCancel:
-    case ClientOpcode::Scrub:
-    case ClientOpcode::IsaslRefresh:
-    case ClientOpcode::SslCertsRefresh:
-    case ClientOpcode::GetCmdTimer:
-    case ClientOpcode::SetCtrlToken:
-    case ClientOpcode::GetCtrlToken:
-    case ClientOpcode::UpdateExternalUserPermissions:
-    case ClientOpcode::RbacRefresh:
-    case ClientOpcode::AuthProvider:
-    case ClientOpcode::DropPrivilege:
-    case ClientOpcode::AdjustTimeofday:
-    case ClientOpcode::EwouldblockCtl:
-    case ClientOpcode::GetErrorMap:
-        return false;
-
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::runtime_error(
-            "cb::mcbp::is_client_writing_data: Unknown command " +
-            cb::to_hex(uint8_t(opcode)));
+    return opcodeInformationServiceInstance.isClientWritingData(opcode);
 }
 
-std::ostream& operator<<(std::ostream& out,
-                         const cb::mcbp::ClientOpcode& opcode) {
-    out << ::to_string(opcode);
+bool must_preserve_buffer(ClientOpcode opcode) {
+    return opcodeInformationServiceInstance.mustPreserveBuffer(opcode);
+}
+
+bool is_quiet(ClientOpcode opcode) {
+    return opcodeInformationServiceInstance.isQuiet(opcode);
+}
+
+std::ostream& operator<<(std::ostream& out, const ClientOpcode& opcode) {
+    out << opcodeInformationServiceInstance.name(opcode);
     return out;
 }
 
@@ -1744,7 +891,7 @@ std::ostream& operator<<(std::ostream& out,
 }
 
 std::string format_as(ClientOpcode opcode) {
-    return ::to_string(opcode);
+    return std::string{opcodeInformationServiceInstance.name(opcode)};
 }
 
 std::string format_as(ServerOpcode opcode) {
@@ -1754,366 +901,7 @@ std::string format_as(ServerOpcode opcode) {
 } // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::ClientOpcode opcode) {
-    using namespace cb::mcbp;
-
-    switch (opcode) {
-    case ClientOpcode::GetEx:
-        return "GET_EX";
-    case ClientOpcode::GetExReplica:
-        return "GET_EX_REPLICA";
-    case ClientOpcode::Get:
-        return "GET";
-    case ClientOpcode::Set:
-        return "SET";
-    case ClientOpcode::Add:
-        return "ADD";
-    case ClientOpcode::Replace:
-        return "REPLACE";
-    case ClientOpcode::Delete:
-        return "DELETE";
-    case ClientOpcode::Increment:
-        return "INCREMENT";
-    case ClientOpcode::Decrement:
-        return "DECREMENT";
-    case ClientOpcode::Quit:
-        return "QUIT";
-    case ClientOpcode::Flush:
-        return "FLUSH";
-    case ClientOpcode::Getq:
-        return "GETQ";
-    case ClientOpcode::Noop:
-        return "NOOP";
-    case ClientOpcode::Version:
-        return "VERSION";
-    case ClientOpcode::Getk:
-        return "GETK";
-    case ClientOpcode::Getkq:
-        return "GETKQ";
-    case ClientOpcode::Append:
-        return "APPEND";
-    case ClientOpcode::Prepend:
-        return "PREPEND";
-    case ClientOpcode::Stat:
-        return "STAT";
-    case ClientOpcode::Setq:
-        return "SETQ";
-    case ClientOpcode::Addq:
-        return "ADDQ";
-    case ClientOpcode::Replaceq:
-        return "REPLACEQ";
-    case ClientOpcode::Deleteq:
-        return "DELETEQ";
-    case ClientOpcode::Incrementq:
-        return "INCREMENTQ";
-    case ClientOpcode::Decrementq:
-        return "DECREMENTQ";
-    case ClientOpcode::Quitq:
-        return "QUITQ";
-    case ClientOpcode::Flushq:
-        return "FLUSHQ";
-    case ClientOpcode::Appendq:
-        return "APPENDQ";
-    case ClientOpcode::Prependq:
-        return "PREPENDQ";
-    case ClientOpcode::Verbosity:
-        return "VERBOSITY";
-    case ClientOpcode::Touch:
-        return "TOUCH";
-    case ClientOpcode::Gat:
-        return "GAT";
-    case ClientOpcode::Gatq:
-        return "GATQ";
-    case ClientOpcode::Hello:
-        return "HELLO";
-    case ClientOpcode::SaslListMechs:
-        return "SASL_LIST_MECHS";
-    case ClientOpcode::SaslAuth:
-        return "SASL_AUTH";
-    case ClientOpcode::SaslStep:
-        return "SASL_STEP";
-    case ClientOpcode::IoctlGet:
-        return "IOCTL_GET";
-    case ClientOpcode::IoctlSet:
-        return "IOCTL_SET";
-    case ClientOpcode::ConfigValidate:
-        return "CONFIG_VALIDATE";
-    case ClientOpcode::ConfigReload:
-        return "CONFIG_RELOAD";
-    case ClientOpcode::AuditPut:
-        return "AUDIT_PUT";
-    case ClientOpcode::AuditConfigReload:
-        return "AUDIT_CONFIG_RELOAD";
-    case ClientOpcode::Shutdown:
-        return "SHUTDOWN";
-    case ClientOpcode::SetBucketThrottleProperties:
-        return "SET_BUCKET_THROTTLE_PROPERTIES";
-    case ClientOpcode::SetBucketDataLimitExceeded:
-        return "SET_BUCKET_DATA_LIMIT_EXCEEDED";
-    case ClientOpcode::SetNodeThrottleProperties:
-        return "SET_NODE_THROTTLE_PROPERTIES";
-    case ClientOpcode::SetActiveEncryptionKeys:
-        return "SET_ACTIVE_ENCRYPTION_KEYS";
-    case ClientOpcode::Rget_Unsupported:
-        return "RGET";
-    case ClientOpcode::Rset_Unsupported:
-        return "RSET";
-    case ClientOpcode::Rsetq_Unsupported:
-        return "RSETQ";
-    case ClientOpcode::Rappend_Unsupported:
-        return "RAPPEND";
-    case ClientOpcode::Rappendq_Unsupported:
-        return "RAPPENDQ";
-    case ClientOpcode::Rprepend_Unsupported:
-        return "RPREPEND";
-    case ClientOpcode::Rprependq_Unsupported:
-        return "RPREPENDQ";
-    case ClientOpcode::Rdelete_Unsupported:
-        return "RDELETE";
-    case ClientOpcode::Rdeleteq_Unsupported:
-        return "RDELETEQ";
-    case ClientOpcode::Rincr_Unsupported:
-        return "RINCR";
-    case ClientOpcode::Rincrq_Unsupported:
-        return "RINCRQ";
-    case ClientOpcode::Rdecr_Unsupported:
-        return "RDECR";
-    case ClientOpcode::Rdecrq_Unsupported:
-        return "RDECRQ";
-    case ClientOpcode::SetVbucket:
-        return "SET_VBUCKET";
-    case ClientOpcode::GetVbucket:
-        return "GET_VBUCKET";
-    case ClientOpcode::DelVbucket:
-        return "DEL_VBUCKET";
-    case ClientOpcode::TapConnect_Unsupported:
-        return "TAP_CONNECT";
-    case ClientOpcode::TapMutation_Unsupported:
-        return "TAP_MUTATION";
-    case ClientOpcode::TapDelete_Unsupported:
-        return "TAP_DELETE";
-    case ClientOpcode::TapFlush_Unsupported:
-        return "TAP_FLUSH";
-    case ClientOpcode::TapOpaque_Unsupported:
-        return "TAP_OPAQUE";
-    case ClientOpcode::TapVbucketSet_Unsupported:
-        return "TAP_VBUCKET_SET";
-    case ClientOpcode::TapCheckpointStart_Unsupported:
-        return "TAP_CHECKPOINT_START";
-    case ClientOpcode::TapCheckpointEnd_Unsupported:
-        return "TAP_CHECKPOINT_END";
-    case ClientOpcode::GetAllVbSeqnos:
-        return "GET_ALL_VB_SEQNOS";
-    case ClientOpcode::DcpOpen:
-        return "DCP_OPEN";
-    case ClientOpcode::DcpAddStream:
-        return "DCP_ADD_STREAM";
-    case ClientOpcode::DcpCloseStream:
-        return "DCP_CLOSE_STREAM";
-    case ClientOpcode::DcpStreamReq:
-        return "DCP_STREAM_REQ";
-    case ClientOpcode::DcpGetFailoverLog:
-        return "DCP_GET_FAILOVER_LOG";
-    case ClientOpcode::DcpStreamEnd:
-        return "DCP_STREAM_END";
-    case ClientOpcode::DcpSnapshotMarker:
-        return "DCP_SNAPSHOT_MARKER";
-    case ClientOpcode::DcpMutation:
-        return "DCP_MUTATION";
-    case ClientOpcode::DcpDeletion:
-        return "DCP_DELETION";
-    case ClientOpcode::DcpFlush_Unsupported:
-        return "DCP_FLUSH";
-    case ClientOpcode::DcpExpiration:
-        return "DCP_EXPIRATION";
-    case ClientOpcode::DcpSetVbucketState:
-        return "DCP_SET_VBUCKET_STATE";
-    case ClientOpcode::DcpNoop:
-        return "DCP_NOOP";
-    case ClientOpcode::DcpBufferAcknowledgement:
-        return "DCP_BUFFER_ACKNOWLEDGEMENT";
-    case ClientOpcode::DcpControl:
-        return "DCP_CONTROL";
-    case ClientOpcode::DcpSystemEvent:
-        return "DCP_SYSTEM_EVENT";
-    case ClientOpcode::DcpPrepare:
-        return "DCP_PREPARE";
-    case ClientOpcode::DcpSeqnoAcknowledged:
-        return "DCP_SEQNO_ACKNOWLEDGED";
-    case ClientOpcode::DcpCommit:
-        return "DCP_COMMIT";
-    case ClientOpcode::DcpAbort:
-        return "DCP_ABORT";
-    case ClientOpcode::DcpSeqnoAdvanced:
-        return "DCP_SEQNO_ADVANCED";
-    case ClientOpcode::DcpOsoSnapshot:
-        return "DCP_OSO_SNAPSHOT";
-    case ClientOpcode::StopPersistence:
-        return "STOP_PERSISTENCE";
-    case ClientOpcode::StartPersistence:
-        return "START_PERSISTENCE";
-    case ClientOpcode::SetParam:
-        return "SET_PARAM";
-    case ClientOpcode::GetReplica:
-        return "GET_REPLICA";
-    case ClientOpcode::CreateBucket:
-        return "CREATE_BUCKET";
-    case ClientOpcode::DeleteBucket:
-        return "DELETE_BUCKET";
-    case ClientOpcode::ListBuckets:
-        return "LIST_BUCKETS";
-    case ClientOpcode::SelectBucket:
-        return "SELECT_BUCKET";
-    case ClientOpcode::PauseBucket:
-        return "PAUSE_BUCKET";
-    case ClientOpcode::ResumeBucket:
-        return "RESUME_BUCKET";
-    case ClientOpcode::ObserveSeqno:
-        return "OBSERVE_SEQNO";
-    case ClientOpcode::Observe:
-        return "OBSERVE";
-    case ClientOpcode::EvictKey:
-        return "EVICT_KEY";
-    case ClientOpcode::GetLocked:
-        return "GET_LOCKED";
-    case ClientOpcode::UnlockKey:
-        return "UNLOCK_KEY";
-    case ClientOpcode::GetFailoverLog:
-        return "GET_FAILOVER_LOG";
-    case ClientOpcode::LastClosedCheckpoint_Unsupported:
-        return "LAST_CLOSED_CHECKPOINT";
-    case ClientOpcode::ResetReplicationChain_Unsupported:
-        return "RESET_REPLICATION_CHAIN";
-    case ClientOpcode::DeregisterTapClient_Unsupported:
-        return "DEREGISTER_TAP_CLIENT";
-    case ClientOpcode::GetMeta:
-        return "GET_META";
-    case ClientOpcode::GetqMeta:
-        return "GETQ_META";
-    case ClientOpcode::SetWithMeta:
-        return "SET_WITH_META";
-    case ClientOpcode::SetqWithMeta:
-        return "SETQ_WITH_META";
-    case ClientOpcode::AddWithMeta:
-        return "ADD_WITH_META";
-    case ClientOpcode::AddqWithMeta:
-        return "ADDQ_WITH_META";
-    case ClientOpcode::SnapshotVbStates_Unsupported:
-        return "SNAPSHOT_VB_STATES";
-    case ClientOpcode::VbucketBatchCount_Unsupported:
-        return "VBUCKET_BATCH_COUNT";
-    case ClientOpcode::DelWithMeta:
-        return "DEL_WITH_META";
-    case ClientOpcode::DelqWithMeta:
-        return "DELQ_WITH_META";
-    case ClientOpcode::CreateCheckpoint_Unsupported:
-        return "CREATE_CHECKPOINT";
-    case ClientOpcode::NotifyVbucketUpdate_Unsupported:
-        return "NOTIFY_VBUCKET_UPDATE";
-    case ClientOpcode::EnableTraffic:
-        return "ENABLE_TRAFFIC";
-    case ClientOpcode::DisableTraffic:
-        return "DISABLE_TRAFFIC";
-    case ClientOpcode::Ifconfig:
-        return "IFCONFIG";
-    case ClientOpcode::ChangeVbFilter_Unsupported:
-        return "CHANGE_VB_FILTER";
-    case ClientOpcode::CheckpointPersistence_Unsupported:
-        return "CHECKPOINT_PERSISTENCE";
-    case ClientOpcode::ReturnMeta:
-        return "RETURN_META";
-    case ClientOpcode::CompactDb:
-        return "COMPACT_DB";
-    case ClientOpcode::SetClusterConfig:
-        return "SET_CLUSTER_CONFIG";
-    case ClientOpcode::GetClusterConfig:
-        return "GET_CLUSTER_CONFIG";
-    case ClientOpcode::GetRandomKey:
-        return "GET_RANDOM_KEY";
-    case ClientOpcode::SeqnoPersistence:
-        return "SEQNO_PERSISTENCE";
-    case ClientOpcode::GetKeys:
-        return "GET_KEYS";
-    case ClientOpcode::CollectionsSetManifest:
-        return "COLLECTIONS_SET_MANIFEST";
-    case ClientOpcode::CollectionsGetManifest:
-        return "COLLECTIONS_GET_MANIFEST";
-    case ClientOpcode::CollectionsGetID:
-        return "COLLECTIONS_GET_ID";
-    case ClientOpcode::CollectionsGetScopeID:
-        return "COLLECTIONS_GET_SCOPE_ID";
-    case ClientOpcode::SetDriftCounterState_Unsupported:
-        return "SET_DRIFT_COUNTER_STATE";
-    case ClientOpcode::GetAdjustedTime_Unsupported:
-        return "GET_ADJUSTED_TIME";
-    case ClientOpcode::SubdocGet:
-        return "SUBDOC_GET";
-    case ClientOpcode::SubdocExists:
-        return "SUBDOC_EXISTS";
-    case ClientOpcode::SubdocDictAdd:
-        return "SUBDOC_DICT_ADD";
-    case ClientOpcode::SubdocDictUpsert:
-        return "SUBDOC_DICT_UPSERT";
-    case ClientOpcode::SubdocDelete:
-        return "SUBDOC_DELETE";
-    case ClientOpcode::SubdocReplace:
-        return "SUBDOC_REPLACE";
-    case ClientOpcode::SubdocArrayPushLast:
-        return "SUBDOC_ARRAY_PUSH_LAST";
-    case ClientOpcode::SubdocArrayPushFirst:
-        return "SUBDOC_ARRAY_PUSH_FIRST";
-    case ClientOpcode::SubdocArrayInsert:
-        return "SUBDOC_ARRAY_INSERT";
-    case ClientOpcode::SubdocArrayAddUnique:
-        return "SUBDOC_ARRAY_ADD_UNIQUE";
-    case ClientOpcode::SubdocCounter:
-        return "SUBDOC_COUNTER";
-    case ClientOpcode::SubdocMultiLookup:
-        return "SUBDOC_MULTI_LOOKUP";
-    case ClientOpcode::SubdocMultiMutation:
-        return "SUBDOC_MULTI_MUTATION";
-    case ClientOpcode::SubdocGetCount:
-        return "SUBDOC_GET_COUNT";
-    case ClientOpcode::SubdocReplaceBodyWithXattr:
-        return "SUBDOC_REPLACE_BODY_WITH_XATTR";
-    case ClientOpcode::Scrub:
-        return "SCRUB";
-    case ClientOpcode::IsaslRefresh:
-        return "ISASL_REFRESH";
-    case ClientOpcode::SslCertsRefresh:
-        return "SSL_CERTS_REFRESH";
-    case ClientOpcode::GetCmdTimer:
-        return "GET_CMD_TIMER";
-    case ClientOpcode::SetCtrlToken:
-        return "SET_CTRL_TOKEN";
-    case ClientOpcode::GetCtrlToken:
-        return "GET_CTRL_TOKEN";
-    case ClientOpcode::UpdateExternalUserPermissions:
-        return "UPDATE_USER_PERMISSIONS";
-    case ClientOpcode::RbacRefresh:
-        return "RBAC_REFRESH";
-    case ClientOpcode::AuthProvider:
-        return "AUTH_PROVIDER";
-    case ClientOpcode::DropPrivilege:
-        return "DROP_PRIVILEGES";
-    case ClientOpcode::AdjustTimeofday:
-        return "ADJUST_TIMEOFDAY";
-    case ClientOpcode::EwouldblockCtl:
-        return "EWB_CTL";
-    case ClientOpcode::GetErrorMap:
-        return "GET_ERROR_MAP";
-    case ClientOpcode::RangeScanCreate:
-        return "RANGE_SCAN_CREATE";
-    case ClientOpcode::RangeScanContinue:
-        return "RANGE_SCAN_CONTINUE";
-    case ClientOpcode::RangeScanCancel:
-        return "RANGE_SCAN_CANCEL";
-    case ClientOpcode::Invalid:
-        break;
-    }
-
-    throw std::invalid_argument(
-            "to_string(cb::mcbp::ClientOpcode): Invalid opcode: " +
-            std::to_string(int(opcode)));
+    return format_as(opcode);
 }
 
 std::string to_string(cb::mcbp::ServerOpcode opcode) {
