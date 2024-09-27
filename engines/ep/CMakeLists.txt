@@ -413,6 +413,7 @@ ADD_LIBRARY(ep STATIC
             src/vb_visitors.cc
             src/vbucket.cc
             src/vbucket_bgfetch_item.cc
+            src/vbucket_loader.cc
             src/vbucket_state.cc
             src/vbucketmap.cc
             src/vbucketdeletiontask.cc

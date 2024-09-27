@@ -28,6 +28,7 @@
 #include "mutation_log.h"
 #include "vb_visitors.h"
 #include "vbucket_bgfetch_item.h"
+#include "vbucket_loader.h"
 #include "vbucket_state.h"
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
@@ -1379,95 +1380,49 @@ void Warmup::createVBuckets(uint16_t shardId) {
             return;
         }
 
-        VBucketPtr vb = store.getVBucket(vbid);
-        if (!vb) {
-            std::unique_ptr<FailoverTable> table;
-            if (vbs.transition.failovers.empty()) {
-                table = std::make_unique<FailoverTable>(maxEntries);
-            } else {
-                table = std::make_unique<FailoverTable>(
-                        vbs.transition.failovers, maxEntries, vbs.highSeqno);
-            }
-            KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
+        const bool cleanShutdown = syncData.lock()->cleanShutdown;
+        VBucketLoader loader{store, config, {}, shardId};
+        auto status =
+                loader.createVBucket(vbid, vbs, maxEntries, cleanShutdown);
+        const auto& vb = loader.getVBucketPtr();
 
-            std::unique_ptr<Collections::VB::Manifest> manifest;
-            if (config.isCollectionsEnabled()) {
-                auto [getManifestStatus, persistedManifest] =
-                        store.getROUnderlyingByShard(shardId)
-                                ->getCollectionsManifest(vbid);
-                if (!getManifestStatus) {
-                    EP_LOG_CRITICAL(
-                            "Warmup({})::createVBuckets: {} failed to read "
-                            " collections manifest from disk",
-                            getName(),
-                            vbid);
-                    return;
-                }
-
-                manifest = std::make_unique<Collections::VB::Manifest>(
-                        store.getSharedCollectionsManager(), persistedManifest);
-            } else {
-                manifest = std::make_unique<Collections::VB::Manifest>(
-                        store.getSharedCollectionsManager());
-            }
-
-            const auto* topology =
-                    vbs.transition.replicationTopology.empty()
-                            ? nullptr
-                            : &vbs.transition.replicationTopology;
-            vb = store.makeVBucket(vbid,
-                                   vbs.transition.state,
-                                   shard,
-                                   std::move(table),
-                                   std::move(manifest),
-                                   vbs.transition.state,
-                                   vbs.highSeqno,
-                                   vbs.lastSnapStart,
-                                   vbs.lastSnapEnd,
-                                   vbs.purgeSeqno,
-                                   vbs.maxCas,
-                                   vbs.hlcCasEpochSeqno,
-                                   vbs.mightContainXattrs,
-                                   topology,
-                                   vbs.maxVisibleSeqno,
-                                   vbs.persistedPreparedSeqno);
-
-            const bool cleanShutdown = syncData.lock()->cleanShutdown;
-            if (vbs.transition.state == vbucket_state_active &&
-                (!cleanShutdown ||
-                 store.getCollectionsManager().needsUpdating(*vb))) {
-                if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {
-                    vb->createFailoverEntry(vbs.lastSnapEnd);
-                } else {
-                    vb->createFailoverEntry(vbs.lastSnapStart);
-                }
-
-                auto entry = vb->failovers->getLatestEntry();
-                EP_LOG_INFO(
-                        "Warmup({})::createVBuckets: {} created new failover "
-                        "entry "
-                        "with uuid:{} and seqno:{} due to {}",
+        using Status = VBucketLoader::CreateVBucketStatus;
+        switch (status) {
+        case Status::Success:
+            break;
+        case Status::SuccessFailover: {
+            auto failoverEntry = vb->failovers->getLatestEntry();
+            EP_LOG_INFO(
+                    "Warmup({})::createVBuckets: {} created new failover "
+                    "entry "
+                    "with uuid:{} and seqno:{} due to {}",
+                    getName(),
+                    vbid,
+                    failoverEntry.vb_uuid,
+                    failoverEntry.by_seqno,
+                    !cleanShutdown ? "unclean shutdown" : "manifest uid");
+        } break;
+        case Status::FailedReadingCollectionsManifest:
+            EP_LOG_CRITICAL(
+                    "Warmup({})::createVBuckets: {} failed to read "
+                    " collections manifest from disk",
+                    getName(),
+                    vbid);
+            return;
+        case Status::AlreadyExists:
+            EP_LOG_WARN("Warmup({})::createVBuckets: {} already exists",
                         getName(),
-                        vbid,
-                        entry.vb_uuid,
-                        entry.by_seqno,
-                        !cleanShutdown ? "unclean shutdown" : "manifest uid");
-            }
-            vb->setFreqSaturatedCallback(
-                    [this]() { store.itemFrequencyCounterSaturated(); });
+                        vbid);
+            break;
+        }
 
+        if (status == Status::Success || status == Status::SuccessFailover) {
             // Keep the shared_ptr<VBucket> until we reach PopulateVbuckets
             entry.vbucketPtr = vb;
             // Capture a weak_ptr reference to the vb, all later steps will
             // access the VBucket via a weak_ptr.
             Expects(syncData.lock()->weakVbMap.try_emplace(vbid, vb).second);
         }
-
-        // Pass the max deleted seqno for each vbucket.
-        vb->ht.setMaxDeletedRevSeqno(vbs.maxDeletedSeqno);
-
-        // For each vbucket, set the last persisted seqno checkpoint
-        vb->setPersistenceSeqno(vbs.highSeqno);
     }
 
     if (++threadtask_count == getNumShards()) {
@@ -1518,10 +1473,22 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             continue;
         }
 
-        // Take the KVFileHandle before we lock the manifest to prevent lock
-        // order inversions.
-        auto kvstoreContext = kvstore->makeFileHandle(entry.vbid);
-        if (!kvstoreContext) {
+        auto status = VBucketLoader(store, config, entry.vbucketPtr, shardId)
+                              .loadCollectionStats(kvstore);
+        using Status = VBucketLoader::LoadCollectionStatsStatus;
+        switch (status) {
+        case Status::Success:
+            break;
+        case Status::Failed:
+            EP_LOG_CRITICAL(
+                    "Warmup({})::loadCollectionStatsForShard(): "
+                    "getCollectionStats() failed for {}, aborting warmup "
+                    "as we will not be "
+                    "able to check collection stats.",
+                    getName(),
+                    entry.vbid);
+            return;
+        case Status::NoFileHandle:
             EP_LOG_CRITICAL(
                     "Warmup({})::loadCollectionStatsForShard() Unable to make "
                     "KVFileHandle for {}, aborting warmup as we will not be "
@@ -1529,39 +1496,6 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
                     getName(),
                     entry.vbid);
             return;
-        }
-
-        std::unique_lock wlh(entry.vbucketPtr->getStateLock());
-        auto wh = entry.vbucketPtr->getManifest().wlock(wlh);
-        // For each collection in the VB, get its stats
-        for (auto& collection : wh) {
-            // start tracking in-memory stats before items are warmed up.
-            // This may be called repeatedly; it is idempotent.
-            store.stats.trackCollectionStats(collection.first);
-
-            // getCollectionStats() can still can fail if the data store on disk
-            // has been corrupted between the call to makeFileHandle() and
-            // getCollectionStats()
-            auto [status, stats] = kvstore->getCollectionStats(
-                    *kvstoreContext, collection.first);
-            if (status == KVStore::GetCollectionStatsStatus::Failed) {
-                EP_LOG_CRITICAL(
-                        "Warmup({})::loadCollectionStatsForShard(): "
-                        "getCollectionStats() failed for {}, aborting warmup "
-                        "as we will not be "
-                        "able to check collection stats.",
-                        getName(),
-                        entry.vbid);
-                return;
-            }
-            // For NotFound we're ok to use the default initialised stats
-
-            collection.second.setItemCount(stats.itemCount);
-            collection.second.setPersistedHighSeqno(stats.highSeqno);
-            collection.second.setDiskSize(stats.diskSize);
-            // Set the in memory high seqno - might be 0 in the case of the
-            // default collection so we have to reset the monotonic value
-            collection.second.resetHighSeqno(stats.highSeqno);
         }
     }
 
@@ -1604,12 +1538,9 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         if (!entry.vbucketPtr) {
             continue;
         }
-
-        // Our EPBucket function will do the load for us as we re-use the code
-        // for rollback.
-        auto [itemsVisited, preparesLoaded, defaultCollectionMVS, success] =
-                store.loadPreparedSyncWrites(*entry.vbucketPtr);
-        if (!success) {
+        auto result = VBucketLoader(store, config, entry.vbucketPtr, shardId)
+                              .loadPreparedSyncWrites();
+        if (!result.success) {
             EP_LOG_CRITICAL(
                     "Warmup({})::loadPreparedSyncWrites(): "
                     "EPBucket::loadPreparedSyncWrites() failed for {} aborting "
@@ -1619,12 +1550,8 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
             return;
         }
         auto& epStats = store.getEPEngine().getEpStats();
-        epStats.warmupItemsVisitedWhilstLoadingPrepares += itemsVisited;
-        epStats.warmedUpPrepares += preparesLoaded;
-        entry.vbucketPtr->getManifest().setDefaultCollectionLegacySeqnos(
-                defaultCollectionMVS,
-                entry.vbid,
-                *store.getRWUnderlyingByShard(shardId));
+        epStats.warmupItemsVisitedWhilstLoadingPrepares += result.itemsVisited;
+        epStats.warmedUpPrepares += result.preparesLoaded;
     }
 
     if (++threadtask_count == getNumShards()) {
@@ -1635,29 +1562,9 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
 void Warmup::populateVBucketMap(uint16_t shardId) {
     for (auto& entry : shardVBData[shardId]) {
         if (entry.vbucketPtr) {
-            // Take the vBucket lock to stop the flusher from racing with our
-            // set vBucket state. It MUST go to disk in the first flush batch
-            // or we run the risk of not rolling back replicas that we should
-            auto lockedVb = store.getLockedVBucket(entry.vbid);
-            Expects(lockedVb.owns_lock());
-            Expects(!lockedVb);
-
-            entry.vbucketPtr->checkpointManager->queueSetVBState();
-
-            {
-                // Note this lock is here for correctness - the VBucket is not
-                // accessible yet, so its state cannot be changed by other code.
-                std::shared_lock rlh(entry.vbucketPtr->getStateLock());
-                if (entry.vbucketPtr->getState() == vbucket_state_active) {
-                    // For all active vbuckets, call through to the manager so
-                    // that they are made 'current' with the manifest.
-                    store.getCollectionsManager().maybeUpdate(
-                            rlh, *entry.vbucketPtr);
-                }
-            }
-
-            auto result = store.flushVBucket_UNLOCKED(
-                    {entry.vbucketPtr, std::move(lockedVb.getLock())});
+            auto result =
+                    VBucketLoader(store, config, entry.vbucketPtr, shardId)
+                            .addToVBucketMap();
             // if flusher returned MoreAvailable::Yes, this indicates the single
             // flush of the vbucket state failed.
             if (result.moreAvailable == EPBucket::MoreAvailable::Yes) {
@@ -1673,7 +1580,6 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
                         entry.vbucketPtr->getHighSeqno());
                 syncData.lock()->failedToSetAVbucketState = true;
             }
-            store.vbMap.addBucket(entry.vbucketPtr);
             // Warmup no longer needs the shared reference.
             entry.vbucketPtr.reset();
         }

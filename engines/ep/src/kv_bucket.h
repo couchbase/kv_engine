@@ -1369,6 +1369,7 @@ protected:
      */
     void completeLoadingVBuckets();
 
+    friend class VBucketLoader;
     friend class Warmup;
     friend class WarmupLoadingKVPairs;
     friend class WarmupLoadingData;
