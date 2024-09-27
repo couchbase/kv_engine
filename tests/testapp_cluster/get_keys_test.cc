@@ -79,6 +79,7 @@ public:
                                      .seqno;
         }
         // Make sure all documents are persisted
+        conn->authenticate("@admin");
         conn->waitForSeqnoToPersist(Vbid(0), seqnoToPersist);
     }
 
