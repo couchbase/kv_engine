@@ -38,7 +38,7 @@ public:
     uint64_t getCas() const;
 
     [[nodiscard]] bool hasFrameInfos() const {
-        return frame_info.empty();
+        return !frame_info.empty();
     }
 
     virtual void clear();
