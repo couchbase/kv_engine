@@ -2122,7 +2122,10 @@ cb::engine_errc VBucket::setWithMeta(
             maybeKeyExists = false;
         }
     } else {
-        if (eviction == EvictionPolicy::Full) {
+        // Avoid the bloomfilter call when genBySeqno is GenerateBySeqno::No
+        // (while processing a DCP mutation).
+        if (eviction == EvictionPolicy::Full &&
+            genBySeqno == GenerateBySeqno::Yes) {
             // Check Bloomfilter's prediction
             if (!maybeKeyExistsInFilter(itm.getKey())) {
                 maybeKeyExists = false;

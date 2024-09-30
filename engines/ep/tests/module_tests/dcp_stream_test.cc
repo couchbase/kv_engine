@@ -8744,3 +8744,43 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
     auto& endStream = dynamic_cast<StreamEndResponse&>(*resp);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Slow, endStream.getFlags());
 }
+
+TEST_P(SingleThreadedPassiveStreamTest,
+       SkipBloomFilterWhenProcessingDcpMutation) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     1, // start
+                                     2, // end
+                                     DcpSnapshotMarkerFlag::Memory |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
+                                     {}));
+
+    const auto key = makeStoredDocKey("key");
+    // Set the expectation keyMayExist is never called for Magma.
+    using namespace ::testing;
+    auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+    EXPECT_CALL(mockKVStore, keyMayExist(_, _)).Times(0);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 1, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+    EXPECT_EQ(1, vb.getHighSeqno());
+}
