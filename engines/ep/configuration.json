@@ -1362,9 +1362,13 @@
         },
         "magma_min_value_block_size_threshold": {
             "default": "(64 * 1024)",
-            "dynamic": false,
-            "descr": "Magma creates value blocks for values larger than this size. Value blocks only contain a single KV item and their reads/writes are optimised for memory as it avoids many value copies. Right now compression is turned off for value blocks to reduce memory consumption while building them. This setting should be at least as large as the SeqIndex block size.", 
-            "type": "size_t"
+            "dynamic": true,
+            "descr": "Magma creates value blocks for values larger than this size. Value blocks only contain a single KV item and their reads/writes are optimised for lesser memory consumption as it avoids many value copies. For example, magma block compression is turned off for them as compression requires an output buffer as large as the input buffer. This is fine since for such large docs, per document Snappy compression already should give good enough space savings. This setting should be >= SeqIndex data block size or else it won't take effect.",
+            "type": "size_t",
+	    "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
         },
         "magma_enable_memory_optimized_writes": {
             "default": {
@@ -1384,7 +1388,7 @@
         "magma_seq_tree_data_block_size": {
             "default": "4096",
             "dynamic": true,
-            "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key, metadata and value for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+            "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key, metadata and value for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them. If this is less than magma_min_value_block_size_threshold, Magma will internally auto configure the value block size to be as large as this.",
             "type": "size_t",
             "validator": {
                 "range": {

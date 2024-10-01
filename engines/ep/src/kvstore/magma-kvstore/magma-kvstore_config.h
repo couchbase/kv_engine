@@ -134,10 +134,6 @@ public:
         return magmaMaxDefaultStorageThreads;
     }
 
-    size_t getMagmaMinValueBlockSizeThreshold() const {
-        return magmaMinValueBlockSizeThreshold;
-    }
-
     size_t getMagmaSeqTreeDataBlockSize() const {
         return magmaSeqTreeDataBlockSize.load();
     }
@@ -152,6 +148,12 @@ public:
 
     size_t getMagmaKeyTreeDataBlockSize() const {
         return magmaKeyTreeDataBlockSize.load();
+    }
+
+    void setMagmaMinValueBlockSizeThreshold(size_t value);
+
+    size_t getMagmaMinValueBlockSizeThreshold() const {
+        return magmaMinValueBlockSizeThreshold.load();
     }
 
     void setMagmaKeyTreeDataBlockSize(size_t value);
@@ -389,6 +391,11 @@ private:
     std::atomic<size_t> magmaSeqTreeDataBlockSize{4096};
 
     /**
+     * Value block size for SeqIndex SSTable.
+     */
+    std::atomic<size_t> magmaMinValueBlockSizeThreshold{64 * 1024};
+
+    /**
      * Index block size for SeqIndex SSTable.
      */
     std::atomic<size_t> magmaSeqTreeIndexBlockSize{4096};
@@ -410,16 +417,6 @@ private:
      * determine the ratio of flusher and compactor threads.
      */
     size_t magmaMaxDefaultStorageThreads{20};
-
-    /**
-     * Magma creates value blocks for values larger than this size. Value
-     * blocks only contain a single KV item and their reads/writes are
-     * optimised for memory as it avoids many value copies. Right now
-     * compression is turned off for value blocks to reduce memory consumption
-     * while building them. This setting should be at least as large as the
-     * SeqIndex block size.
-     */
-    size_t magmaMinValueBlockSizeThreshold;
 
     /**
      * Cached copy of the persistent_metadata_purge_age. Used in
