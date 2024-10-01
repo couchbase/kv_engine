@@ -637,6 +637,18 @@ public:
     std::pair<magma::Status, std::string> onContinuousBackupCallback(
             const KVFileHandle& kvFileHandle);
 
+    /**
+     * Continuous backup callback called from Magma.
+     * This callback serialises some of the state of the vBucket into a
+     * flatbuffer, to be stored in the backup file as additional metadata.
+     *
+     * @param vbid the vBucket
+     * @param snapshot Magma snapshot from which to read the vBucket state
+     * @return status code and the serialized metadata
+     */
+    virtual std::pair<magma::Status, std::string> onContinuousBackupCallback(
+            Vbid vbid, magma::Magma::Snapshot& snapshot);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;
@@ -860,18 +872,6 @@ protected:
      */
     std::filesystem::path getContinuousBackupPath(
             Vbid vbid, const vbucket_state& committedState);
-
-    /**
-     * Continuous backup callback called from Magma.
-     * This callback serialises some of the state of the vBucket into a
-     * flatbuffer, to be stored in the backup file as additional metadata.
-     *
-     * @param vbid the vBucket
-     * @param snapshot Magma snapshot from which to read the vBucket state
-     * @return status code and the serialized metadata
-     */
-    virtual std::pair<magma::Status, std::string> onContinuousBackupCallback(
-            Vbid vbid, magma::Magma::Snapshot& snapshot);
 
     /**
      * If the provided @p op does not already have datatype Snappy, attempt

@@ -201,6 +201,13 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
                                        dbName.filename().generic_string(),
                                        config.getUuid());
 
+    magmaCfg.OnBackupCallback = [this](auto vbid, auto& snapshot) {
+        if (!store) {
+            throw std::logic_error("OnBackupCallback: MagmaKVStore not set!");
+        }
+        return store->onContinuousBackupCallback(Vbid(vbid), snapshot);
+    };
+
     historyRetentionTime =
             std::chrono::seconds(config.getHistoryRetentionSeconds());
     historyRetentionSize = config.getHistoryRetentionBytes();

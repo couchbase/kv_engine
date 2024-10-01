@@ -250,6 +250,10 @@ public:
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);
 
+    magma::Status StartBackup(const magma::Magma::KVStoreID kvID,
+                              const std::string& backupPath);
+    magma::Status StopBackup(const magma::Magma::KVStoreID kvID);
+
     void setActiveEncryptionKeys(const cb::crypto::KeyStore& keyStore);
 
     nlohmann::json getVbucketEncryptionKeyIds(

@@ -929,19 +929,43 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
 
     if (startBackup) {
         const auto backupPath = getContinuousBackupPath(vbid, committedState);
+        // The directory path will depend on the vbucket state. Magma wants the
+        // path to be present when we call StartBackup().
+        std::error_code ec;
+        if (std::filesystem::create_directories(backupPath, ec); ec) {
+            logger->logWithContext(
+                    spdlog::level::warn,
+                    "Failed to create continuous backup directory",
+                    {{"backup_path", backupPath.native()},
+                     {"error", ec.message()}});
+        }
+
         logger->logWithContext(spdlog::level::info,
                                "Starting continuous backup",
                                {{"vb", vbid},
                                 {"vb_state", VBucket::toString(newState)},
                                 {"backup_path", backupPath.native()}});
-        // TODO MB-62250: Call into Magma.
+        auto status =
+                magma->StartBackup(vbid.get(), backupPath.generic_string());
+        if (!status) {
+            logger->logWithContext(spdlog::level::warn,
+                                   "Failed to start continuous backup",
+                                   {{"vb", vbid}, {"error", status.String()}});
+            return;
+        }
         backupStatus = BackupStatus::Started;
     } else if (stopBackup) {
         logger->logWithContext(
                 spdlog::level::info,
                 "Stopping continuous backup",
                 {{"vb", vbid}, {"vb_state", VBucket::toString(newState)}});
-        // TODO MB-62250: Call into Magma.
+        auto status = magma->StopBackup(vbid.get());
+        if (!status) {
+            logger->logWithContext(spdlog::level::warn,
+                                   "Failed to stop continuous backup",
+                                   {{"vb", vbid}, {"error", status.String()}});
+            return;
+        }
         backupStatus = BackupStatus::Stopped;
     }
 }
@@ -4330,6 +4354,10 @@ std::filesystem::path MagmaKVStore::getContinuousBackupPath(
 
 std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
         Vbid vbid, magma::Magma::Snapshot& snapshot) {
+    // Work is done in the KV domain, but the flatbuffer result is constructed
+    // and returned under Magma.
+    cb::UseArenaMallocPrimaryDomain domainGuard;
+
     auto [magmaStatus, vbstateString] =
             readLocalDoc(vbid, snapshot, LocalDocKey::vbstate);
 

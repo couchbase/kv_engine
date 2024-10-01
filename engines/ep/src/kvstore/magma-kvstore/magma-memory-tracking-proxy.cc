@@ -611,6 +611,18 @@ void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
     magma->SetKeyTreeIndexBlockSize(value);
 }
 
+magma::Status MagmaMemoryTrackingProxy::StartBackup(
+        const magma::Magma::KVStoreID kvID, const std::string& backupPath) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->StartBackup(kvID, backupPath);
+}
+
+magma::Status MagmaMemoryTrackingProxy::StopBackup(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->StopBackup(kvID);
+}
+
 void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
         const cb::crypto::KeyStore& keyStore) {
     // magma only cares about the current key
