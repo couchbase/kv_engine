@@ -2703,6 +2703,49 @@ TEST_F(SingleThreadedKVBucketTest, ProducerIdleTimeoutUpdatedOnConfigChange) {
     connMap.removeConn(cookie);
 }
 
+// Ensure that a get_failover_log which is deferred around warmup correctly
+// fails if the ConnHandler was freed (via disconnect) before the task runs.
+TEST_F(SingleThreadedKVBucketTest, MB_63618) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Proceed to warmup so that get_failover_log blocks.
+    resetEngineAndEnableWarmup();
+
+    // Setup DCP so the command is happy.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "MB_63618", 0 /*cb::mcbp::DcpOpenFlag::None*/);
+    ASSERT_EQ(1, producer.use_count());
+
+    // Need to put our producer in the ConnMap so the clean-up path is covered
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, producer);
+    ASSERT_EQ(2, producer.use_count());
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              engine->get_failover_log(
+                      *cookie, 1 /*opaque*/, vbid, fakeDcpAddFailoverLog));
+
+    engine->disconnect(*cookie);
+    connMap.manageConnections();
+    ASSERT_EQ(1, producer.use_count());
+    producer.reset(); // drop this shared_ptr - now destructed
+
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+
+    // finish warmup so get_failover_log is notified
+    while (engine->getKVBucket()->isWarmupLoadingData()) {
+        CheckedExecutor executor(task_executor, readerQueue);
+        executor.runCurrentTask();
+    }
+
+    // Before fixing invalid pointer would be accessed.
+    // Note that on the second run of the command, the DCP pointer is null and
+    // we do not enter the "is DCP producer" code - the command will now run
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->get_failover_log(
+                      *cookie, 1 /*opaque*/, vbid, fakeDcpAddFailoverLog));
+}
+
 void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
         bool flowControlEnabled) {
     uint32_t opaque = 0;
