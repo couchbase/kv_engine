@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
 #include <atomic>
 #include <chrono>
@@ -81,7 +82,7 @@ public:
     }
 
     bool isDCP() const {
-        return dcpConnHandlerIface.load() != nullptr;
+        return dcpConnHandler.lock()->isDcp;
     }
 
     /**
@@ -95,7 +96,10 @@ public:
      * @param handler The new handler (may be nullptr to clear the handler)
      */
     void setDcpConnHandler(DcpConnHandlerIface* handler) {
-        dcpConnHandlerIface.store(handler, std ::memory_order_release);
+        dcpConnHandler.withLock([handler](DcpConn& dcpConn) {
+            dcpConn.isDcp = true;
+            dcpConn.dcpConnHandlerIface = handler;
+        });
     }
 
     /**
@@ -110,7 +114,7 @@ public:
      *         none is specified)
      */
     DcpConnHandlerIface* getDcpConnHandler() const {
-        return dcpConnHandlerIface.load(std::memory_order_acquire);
+        return dcpConnHandler.lock()->dcpConnHandlerIface;
     }
 
     /**
@@ -133,4 +137,10 @@ protected:
     const std::chrono::steady_clock::time_point created =
             std::chrono::steady_clock::now();
     std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
+    /// The stored DCP Connection Interface
+    struct DcpConn {
+        bool isDcp{false};
+        DcpConnHandlerIface* dcpConnHandlerIface{nullptr};
+    };
+    folly::Synchronized<DcpConn, std::mutex> dcpConnHandler;
 };
