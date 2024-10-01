@@ -36,6 +36,8 @@ public:
             config.setMagmaSeqTreeDataBlockSize(value);
         } else if (key == "magma_seq_tree_index_block_size") {
             config.setMagmaSeqTreeIndexBlockSize(value);
+        } else if (key == "magma_min_value_block_size_threshold") {
+            config.setMagmaMinValueBlockSizeThreshold(value);
         } else if (key == "magma_key_tree_data_block_size") {
             config.setMagmaKeyTreeDataBlockSize(value);
         } else if (key == "magma_key_tree_index_block_size") {
@@ -105,8 +107,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaMaxLevel0TTL =
             std::chrono::seconds(1s * config.getMagmaMaxLevel0Ttl());
     magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
-    magmaMinValueBlockSizeThreshold =
-            config.getMagmaMinValueBlockSizeThreshold();
     metadataPurgeAge = config.getPersistentMetadataPurgeAge();
     magmaBloomFilterAccuracy = config.getMagmaBloomFilterAccuracy();
     magmaBloomFilterAccuracyForBottomLevel =
@@ -124,6 +124,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     perDocumentCompressionEnabled =
             config.isMagmaPerDocumentCompressionEnabled();
     magmaSeqTreeDataBlockSize = config.getMagmaSeqTreeDataBlockSize();
+    magmaMinValueBlockSizeThreshold =
+            config.getMagmaMinValueBlockSizeThreshold();
     magmaSeqTreeIndexBlockSize = config.getMagmaSeqTreeIndexBlockSize();
     magmaKeyTreeDataBlockSize = config.getMagmaKeyTreeDataBlockSize();
     magmaKeyTreeIndexBlockSize = config.getMagmaKeyTreeIndexBlockSize();
@@ -150,6 +152,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_seq_tree_data_block_size",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_min_value_block_size_threshold",
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "magma_seq_tree_index_block_size",
@@ -231,6 +236,13 @@ void MagmaKVStoreConfig::setMagmaSeqTreeDataBlockSize(size_t value) {
     magmaSeqTreeDataBlockSize.store(value);
     if (store) {
         store->setMagmaSeqTreeDataBlockSize(value);
+    }
+}
+
+void MagmaKVStoreConfig::setMagmaMinValueBlockSizeThreshold(size_t value) {
+    magmaMinValueBlockSizeThreshold.store(value);
+    if (store) {
+        store->setMagmaMinValueBlockSizeThreshold(value);
     }
 }
 

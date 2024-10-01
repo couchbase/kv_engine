@@ -558,6 +558,8 @@ public:
 
     void setMagmaSeqTreeDataBlockSize(size_t value);
 
+    void setMagmaMinValueBlockSizeThreshold(size_t value);
+
     void setMagmaSeqTreeIndexBlockSize(size_t value);
 
     void setMagmaKeyTreeDataBlockSize(size_t value);

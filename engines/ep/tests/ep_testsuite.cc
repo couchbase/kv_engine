@@ -6585,7 +6585,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_item_freq_decayer_percent",
               "ep_magma_per_document_compression_enabled",
               "ep_magma_sync_every_batch",
-              "ep_magma_min_value_block_size_threshold",
               "ep_magma_checkpoint_interval",
               "ep_magma_min_checkpoint_interval",
               "ep_magma_checkpoint_threshold",
@@ -6915,7 +6914,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_num_workers",
               "ep_magma_per_document_compression_enabled",
               "ep_magma_sync_every_batch",
-              "ep_magma_min_value_block_size_threshold",
               "ep_magma_checkpoint_interval",
               "ep_magma_min_checkpoint_interval",
               "ep_magma_checkpoint_threshold",
@@ -7299,6 +7297,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_fragmentation_percentage",
                           "ep_magma_mem_quota_ratio",
                           "ep_magma_seq_tree_data_block_size",
+                          "ep_magma_min_value_block_size_threshold",
                           "ep_magma_seq_tree_index_block_size",
                           "ep_magma_key_tree_data_block_size",
                           "ep_magma_key_tree_index_block_size"});

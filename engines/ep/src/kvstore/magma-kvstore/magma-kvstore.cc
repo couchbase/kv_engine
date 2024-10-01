@@ -4036,6 +4036,10 @@ void MagmaKVStore::setMagmaSeqTreeDataBlockSize(size_t value) {
     magma->SetSeqTreeDataBlockSize(value);
 }
 
+void MagmaKVStore::setMagmaMinValueBlockSizeThreshold(size_t value) {
+    magma->SetMinValueBlockSizeThreshold(value);
+}
+
 void MagmaKVStore::setMagmaSeqTreeIndexBlockSize(size_t value) {
     magma->SetSeqTreeIndexBlockSize(value);
 }
