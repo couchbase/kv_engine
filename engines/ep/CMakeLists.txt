@@ -69,15 +69,15 @@ kv_enable_pch(gencode)
 add_executable(genconfig tools/genconfig.cc)
 target_link_libraries(genconfig PRIVATE fmt::fmt nlohmann_json::nlohmann_json)
 kv_enable_pch(genconfig)
-
-add_executable(pid_runner tools/pid_runner.cc $<TARGET_OBJECTS:ep_objs>)
-
 if (WIN32)
     # windows need getopt
     target_link_libraries(gencode PRIVATE platform)
     target_link_libraries(genconfig PRIVATE platform)
 endif()
 add_sanitizers(genconfig)
+
+add_executable(pid_runner tools/pid_runner.cc)
+target_link_libraries(pid_runner PRIVATE ep)
 
 add_subdirectory(tools/couchfile_upgrade)
 include_directories(tools/couchfile_upgrade)
@@ -86,34 +86,9 @@ add_subdirectory(tools/humpty_dumpty)
 
 cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
-        ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-        $<TARGET_OBJECTS:ep_objs>)
+        ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
 kv_enable_pch(kvstore_gen)
-
-target_link_libraries(kvstore_gen PRIVATE
-        cbcompress
-        engine_utilities
-        ep-engine_collections
-        mcd_executor
-        mcbp
-        mcd_tracing
-        mcd_util
-        hdrhistogram
-        platform
-        phosphor
-        statistics
-        xattr
-        ${EP_STORAGE_LIBS}
-        ${LIBEVENT_LIBRARIES}
-)
-
-target_link_libraries(pid_runner
-        ep-engine_collections
-        mcd_executor
-        mcbp
-        mcd_tracing
-        xattr
-        ${EP_STORAGE_LIBS})
+target_link_libraries(kvstore_gen PRIVATE ep)
 
 ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
                           ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.h
@@ -286,7 +261,7 @@ set_source_files_properties(src/crc32.c
                             SKIP_PRECOMPILE_HEADERS ON
                             SKIP_UNITY_BUILD_INCLUSION ON)
 
-ADD_LIBRARY(ep_objs OBJECT
+ADD_LIBRARY(ep STATIC
             src/access_scanner.cc
             src/array_histogram.cc
             src/backup/backup.cc
@@ -438,67 +413,49 @@ ADD_LIBRARY(ep_objs OBJECT
             ${COUCH_KVSTORE_SOURCE}
             ${MAGMA_KVSTORE_SOURCE}
             ${COLLECTIONS_SOURCE})
-SET_PROPERTY(TARGET ep_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
-cb_enable_unity_build(ep_objs)
-
-add_sanitizers(ep_objs)
-target_link_libraries(ep_objs PUBLIC mcd_executor hdrhistogram platform
-spdlog::spdlog ${EP_STORAGE_LIBS})
-kv_enable_pch(ep_objs)
-
-ADD_LIBRARY(ep STATIC $<TARGET_OBJECTS:ep_objs>)
+SET_PROPERTY(TARGET ep PROPERTY POSITION_INDEPENDENT_CODE 1)
+cb_enable_unity_build(ep)
+add_sanitizers(ep)
+target_link_libraries(ep
+        PUBLIC
+        hdrhistogram
+        platform
+        statistics
+        spdlog::spdlog
+        PRIVATE
+        ${EP_STORAGE_LIBS}
+        ${LIBEVENT_LIBRARIES}
+        cbcompress
+        engine_utilities
+        ep-engine_collections
+        mcbp
+        mcd_executor
+        mcd_tracing
+        mcd_util
+        phosphor
+        xattr)
 kv_enable_pch(ep)
 
 if (NOT WIN32)
   # Enable the more efficient ThreadLocalStorage model
-  SET_TARGET_PROPERTIES(ep_objs
+  SET_TARGET_PROPERTIES(ep
                         PROPERTIES
                         COMPILE_FLAGS
                         "-ftls-model=initial-exec")
 endif(NOT WIN32)
 
-target_link_libraries(ep
-        PRIVATE
-                ${EP_STORAGE_LIBS}
-                ${LIBEVENT_LIBRARIES}
-                cbcompress
-                hdrhistogram
-                engine_utilities
-                ep-engine_collections
-                mcbp
-                mcd_executor
-                mcd_tracing
-                mcd_util
-                phosphor
-                platform
-                statistics
-                xattr)
-add_sanitizers(ep)
-
 # Convenience function to define an ep_testsuite /ep_perfsuite -style
 # test.
 function(add_ep_testsuite name source)
-  cb_add_test_executable(${name}
-    ${source}
-    $<TARGET_OBJECTS:ep_testsuite_objs>
-    $<TARGET_OBJECTS:mock_dcp>
-    $<TARGET_OBJECTS:engine_testapp>
-    )
+  cb_add_test_executable(${name} ${source})
   kv_enable_pch(${name})
-
   target_link_libraries(${name}
-    PRIVATE
-        ${LIBEVENT_LIBRARIES}
-        cbcompress
-        engine_testapp_dependencies
-        engine_utilities
-        mcbp
-        mcd_executor
-        mcd_util
-        platform
-        platform_cb_malloc_arena
-        xattr
-    )
+          PRIVATE
+          engine_testapp
+          mock_dcp
+          ep_testsuite_objs
+          engine_testapp_dependencies
+          platform_cb_malloc_arena)
   add_sanitizers(${name})
 endfunction()
 
@@ -556,10 +513,6 @@ cb_add_test_executable(ep_engine_benchmarks
                benchmarks/quota_sharing_bench.cc
                benchmarks/stats_bench.cc
                benchmarks/tracing_bench.cc
-               $<TARGET_OBJECTS:mock_dcp>
-               $<TARGET_OBJECTS:ep_objs>
-               $<TARGET_OBJECTS:ep_mocks>
-               $<TARGET_OBJECTS:couchstore_test_fileops>
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
@@ -567,27 +520,15 @@ kv_enable_pch(ep_engine_benchmarks)
 
 TARGET_LINK_LIBRARIES(ep_engine_benchmarks
         PRIVATE
+                ep
+                mock_dcp
+                ep_mocks
+                couchstore_test_fileops
                 benchmark::benchmark
-                cbcompress
                 cluster_framework
-                engine_utilities
-                ep-engine_collections
-                mcd_executor
                 GTest::gtest
                 GTest::gmock
-                mcbp
-                mcd_util
-                mcd_tracing
-                memcached_logger
-                phosphor
-                platform
-                hdrhistogram
-                platform_cb_malloc_arena
-                statistics
-                xattr
-                ${MALLOC_LIBRARIES}
-                ${EP_STORAGE_LIBS}
-                ${LIBEVENT_LIBRARIES})
+                platform_cb_malloc_arena)
 TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
                            tests
                            benchmarks
@@ -596,25 +537,9 @@ TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
 add_sanitizers(ep_engine_benchmarks)
 cb_enable_unity_build(ep_engine_benchmarks)
 
-cb_add_test_executable(ep-engine_sizes src/sizes.cc
-               $<TARGET_OBJECTS:ep_objs>)
+cb_add_test_executable(ep-engine_sizes src/sizes.cc)
 kv_enable_pch(ep-engine_sizes)
-target_link_libraries(ep-engine_sizes
-        PRIVATE
-                ${EP_STORAGE_LIBS}
-                ${LIBEVENT_LIBRARIES}
-                cbcompress
-                engine_utilities
-                ep-engine_collections
-                mcbp
-                mcd_executor
-                mcd_tracing
-                mcd_util
-                phosphor
-                platform
-                hdrhistogram
-                statistics
-                xattr)
+target_link_libraries(ep-engine_sizes ep platform)
 add_sanitizers(ep-engine_sizes)
 
 INSTALL(FILES

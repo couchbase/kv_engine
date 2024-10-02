@@ -11,11 +11,10 @@ target_link_libraries(mock_dcp PUBLIC platform)
 ADD_LIBRARY(ep_testsuite_objs EXCLUDE_FROM_ALL OBJECT
         ep_request_utils.cc
         ep_testsuite_common.cc
-        ep_test_apis.cc
-        $<TARGET_OBJECTS:ep_objs>)
+        ep_test_apis.cc)
 SET_PROPERTY(TARGET ep_testsuite_objs PROPERTY POSITION_INDEPENDENT_CODE 1)
 add_sanitizers(ep_testsuite_objs)
-target_link_libraries(ep_testsuite_objs PUBLIC platform)
+target_link_libraries(ep_testsuite_objs PUBLIC platform ep)
 
 # Single executable containing all class-level unit tests involving
 # EventuallyPersistentEngine driven by GoogleTest.
@@ -141,9 +140,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/work_sharding_test.cc
         module_tests/warmup_test.cc
         module_tests/item_compression_task_test.cc
-        $<TARGET_OBJECTS:mock_dcp>
-        $<TARGET_OBJECTS:ep_objs>
-        $<TARGET_OBJECTS:ep_mocks>
         $<TARGET_OBJECTS:couchstore_test_fileops>
         $<TARGET_OBJECTS:couchfile_upgrade_objects>
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
@@ -163,28 +159,16 @@ TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         ${EventuallyPersistentEngine_BINARY_DIR}/tests/include)
 
 target_link_libraries(ep-engine_ep_unit_tests PRIVATE
-        cbcompress
-        engine_utilities
-        ep-engine_collections
-        mcd_executor
+        ep
+        mock_dcp
+        ep_mocks
         GTest::gtest
         GTest::gmock
-        hdrhistogram
-        memcached_logger
-        mcbp
-        mcd_util
         mcd_test_util
-        mcd_tracing
         mock_server
-        platform
         platform_cb_malloc_arena
         phosphor
-        statistics
-        xattr
-        ${EP_STORAGE_LIBS}
-        ${MALLOC_LIBRARIES}
-        ${LIBEVENT_LIBRARIES})
-
+        ${EP_STORAGE_LIBS})
 if (NUMA_FOUND)
     target_link_libraries(ep-engine_ep_unit_tests PRIVATE ${NUMA_LIBRARIES})
 endif()
