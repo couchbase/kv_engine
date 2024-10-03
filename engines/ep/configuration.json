@@ -1643,12 +1643,6 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "magma_fusion_volatile_storage_path": {
-            "default": "",
-            "descr": "Path to the local volatile storage for Fusion; used as a disk cache.",
-            "dynamic": false,
-            "type": "std::string"
-        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",

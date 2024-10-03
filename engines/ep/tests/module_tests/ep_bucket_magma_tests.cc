@@ -25,8 +25,6 @@ public:
         config_string += ";magma_fusion_volume_name=" + fusionVolume;
         config_string +=
                 ";magma_fusion_cache_size=" + std::to_string(fusionCacheSize);
-        config_string += ";magma_fusion_volatile_storage_path=" +
-                         fusionVolatileStoragePath;
         STParameterizedBucketTest::SetUp();
     }
 
@@ -34,7 +32,6 @@ protected:
     const std::string fusionURI = "fusion://localhost:10000";
     const std::string fusionVolume = "volume-1";
     const size_t fusionCacheSize = 123456;
-    const std::string fusionVolatileStoragePath = "some-path";
 };
 
 TEST_P(SingleThreadedMagmaTest, FusionEndpointUri) {
@@ -61,12 +58,6 @@ TEST_P(SingleThreadedMagmaTest, FusionCacheSize) {
     auto& config = engine->getConfiguration();
     config.setMagmaFusionCacheSize(newSize);
     EXPECT_EQ(newSize, kvstoreConfig.getFusionCacheSize());
-}
-
-TEST_P(SingleThreadedMagmaTest, FusionVolatileStoragePath) {
-    const auto& config = engine->getConfiguration();
-    EXPECT_EQ(fusionVolatileStoragePath,
-              config.getMagmaFusionVolatileStoragePath());
 }
 
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,
