@@ -45,11 +45,6 @@ TEST_P(SingleThreadedMagmaTest, FusionVolumeName) {
     EXPECT_EQ(fusionVolume, config.getFusionVolumeName());
 }
 
-TEST_P(SingleThreadedMagmaTest, FusionCacheSize) {
-    const auto& config = store->getEPEngine().getConfiguration();
-    EXPECT_EQ(0, config.getMagmaFusionCacheSize());
-}
-
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,
                          SingleThreadedMagmaTest,
                          STParameterizedBucketTest::magmaConfigValues(),

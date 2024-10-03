@@ -1637,12 +1637,6 @@
             "dynamic": false,
             "type": "std::string"
         },
-        "magma_fusion_cache_size": {
-            "default": "0",
-            "descr": "Size (in bytes) of the magma cache for Fusion.",
-            "dynamic": false,
-            "type": "size_t"
-        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",
