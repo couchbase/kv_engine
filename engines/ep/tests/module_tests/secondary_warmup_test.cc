@@ -30,10 +30,10 @@ public:
 #ifdef EP_USE_MAGMA
         config_string += ";" + magmaRollbackConfig;
 #endif
-        config_string += ";warmup_min_memory_threshold=0;";
-        config_string += "warmup_min_items_threshold=0;";
+        config_string += ";warmup_behavior=use_config;";
+        config_string += "primary_warmup_min_memory_threshold=0;";
+        config_string += "primary_warmup_min_items_threshold=0;";
         config_string += "data_traffic_enabled=false;";
-        // Set chunk to 0, this means 1 runNextTask = 1 key.
         config_string += "secondary_warmup_min_memory_threshold=100;";
         // Finally configure from parameter so warmup can stop based on items
         config_string += "secondary_warmup_min_items_threshold=" +

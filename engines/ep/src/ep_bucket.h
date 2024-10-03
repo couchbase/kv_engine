@@ -521,6 +521,13 @@ protected:
     void allVbucketsDeinitialize();
 
     /**
+     * Given the value of "config:warmup_behavior" setup the 4 configuration
+     * parameters (primary/secondary)
+     * @param behavior see configuration.json warmup_behavior
+     */
+    void setupWarmupConfig(std::string_view behavior);
+
+    /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
      * split Memory Checkpoints, a hard limit is only imposed for Disk

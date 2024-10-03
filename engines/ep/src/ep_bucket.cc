@@ -234,11 +234,11 @@ public:
             bucket.setAccessScannerSleeptime(value, false);
         } else if (key == "alog_task_time") {
             bucket.resetAccessScannerStartTime();
-        } else if (key == "warmup_min_memory_threshold") {
+        } else if (key == "primary_warmup_min_memory_threshold") {
             if (auto* warmup = bucket.getPrimaryWarmup()) {
                 warmup->setMemoryThreshold(value);
             }
-        } else if (key == "warmup_min_items_threshold") {
+        } else if (key == "primary_warmup_min_items_threshold") {
             if (auto* warmup = bucket.getPrimaryWarmup()) {
                 warmup->setItemThreshold(value);
             }
@@ -251,6 +251,21 @@ public:
             auto* warmup = bucket.getSecondaryWarmup();
             if (warmup) {
                 warmup->setItemThreshold(value);
+            }
+        } else if (key == "warmup_behavior") {
+            bucket.setupWarmupConfig(key);
+            auto& config = bucket.getConfiguration();
+            if (auto* warmup = bucket.getPrimaryWarmup()) {
+                warmup->setMemoryThreshold(
+                        config.getPrimaryWarmupMinMemoryThreshold());
+                warmup->setItemThreshold(
+                        config.getPrimaryWarmupMinItemsThreshold());
+            }
+            if (auto* warmup = bucket.getSecondaryWarmup()) {
+                warmup->setMemoryThreshold(
+                        config.getSecondaryWarmupMinMemoryThreshold());
+                warmup->setItemThreshold(
+                        config.getSecondaryWarmupMinItemsThreshold());
             }
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
@@ -320,10 +335,10 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
             "retain_erroneous_tombstones",
             std::make_unique<ValueChangedListener>(*this));
     config.addValueChangedListener(
-            "warmup_min_memory_threshold",
+            "primary_warmup_min_memory_threshold",
             std::make_unique<ValueChangedListener>(*this));
     config.addValueChangedListener(
-            "warmup_min_items_threshold",
+            "primary_warmup_min_items_threshold",
             std::make_unique<ValueChangedListener>(*this));
     config.addValueChangedListener(
             "secondary_warmup_min_memory_threshold",
@@ -331,6 +346,10 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     config.addValueChangedListener(
             "secondary_warmup_min_items_threshold",
             std::make_unique<ValueChangedListener>(*this));
+    config.addValueChangedListener(
+            "warmup_behavior", std::make_unique<ValueChangedListener>(*this));
+
+    setupWarmupConfig(config.getWarmupBehaviorString());
 
     // create the semaphore with a default capacity of 1. This will be
     // updated when a compaction is scheduled.
@@ -2363,8 +2382,8 @@ void EPBucket::initializeWarmupTask() {
                 *this,
                 config,
                 [this]() { primaryWarmupCompleted(); },
-                config.getWarmupMinMemoryThreshold(),
-                config.getWarmupMinItemsThreshold(),
+                config.getPrimaryWarmupMinMemoryThreshold(),
+                config.getPrimaryWarmupMinItemsThreshold(),
                 "Primary");
     }
 }
@@ -2791,4 +2810,32 @@ cb::engine_errc EPBucket::prepareForResume() {
 
 bool EPBucket::disconnectReplicationAtOOM() const {
     return false;
+}
+
+void EPBucket::setupWarmupConfig(std::string_view behavior) {
+    auto& config = getConfiguration();
+
+    if (behavior == "background") {
+        config.setPrimaryWarmupMinItemsThreshold(0);
+        config.setPrimaryWarmupMinMemoryThreshold(0);
+        config.setSecondaryWarmupMinItemsThreshold(100);
+        config.setSecondaryWarmupMinMemoryThreshold(100);
+    } else if (behavior == "blocking") {
+        config.setPrimaryWarmupMinItemsThreshold(100);
+        config.setPrimaryWarmupMinMemoryThreshold(100);
+        config.setSecondaryWarmupMinItemsThreshold(0);
+        config.setSecondaryWarmupMinMemoryThreshold(0);
+    } else if (behavior == "none") {
+        config.setPrimaryWarmupMinItemsThreshold(0);
+        config.setPrimaryWarmupMinMemoryThreshold(0);
+        config.setSecondaryWarmupMinItemsThreshold(0);
+        config.setSecondaryWarmupMinMemoryThreshold(0);
+    } else if (behavior == "use_config") {
+        EP_LOG_INFO_RAW(
+                "EPBucket::setupWarmupConfig: \"use_config\" is set - "
+                "Using configuration values for warmup thresholds");
+    } else {
+        throw std::logic_error(fmt::format(
+                "EPBucket::setupWarmupConfig: Unknown behavior:{}", behavior));
+    }
 }

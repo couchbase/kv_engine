@@ -2081,9 +2081,9 @@ void Warmup::addStats(const StatCollector& collector) const {
 
     collector.addStat(Key::ep_warmup_key_count, stats.warmedUpKeys);
     collector.addStat(Key::ep_warmup_value_count, stats.warmedUpValues);
-    collector.addStat(Key::ep_warmup_min_memory_threshold,
+    collector.addStat(Key::ep_primary_warmup_min_memory_threshold,
                       maxSizeScaleFactor * 100.0);
-    collector.addStat(Key::ep_warmup_min_items_threshold,
+    collector.addStat(Key::ep_primary_warmup_min_items_threshold,
                       maxItemsScaleFactor * 100.0);
 
     auto md_time = metadata.load();

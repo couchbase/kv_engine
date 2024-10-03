@@ -2632,43 +2632,43 @@ static enum test_result test_warmup_conf(EngineIface* h) {
     }
 
     checkeq(0,
-            get_int_stat(h, "ep_warmup_min_items_threshold"),
+            get_int_stat(h, "ep_primary_warmup_min_items_threshold"),
             "Incorrect initial warmup min items threshold.");
     checkeq(0,
-            get_int_stat(h, "ep_warmup_min_memory_threshold"),
+            get_int_stat(h, "ep_primary_warmup_min_memory_threshold"),
             "Incorrect initial warmup min memory threshold.");
 
     checkeq(cb::engine_errc::invalid_arguments,
             set_param(h,
                       EngineParamCategory::Flush,
-                      "warmup_min_items_threshold",
+                      "primary_warmup_min_items_threshold",
                       "a"),
-            "Set warmup_min_items_threshold should have failed");
+            "Set primary_warmup_min_items_threshold should have failed");
     checkeq(cb::engine_errc::invalid_arguments,
             set_param(h,
                       EngineParamCategory::Flush,
-                      "warmup_min_items_threshold",
+                      "primary_warmup_min_items_threshold",
                       "a"),
-            "Set warmup_min_memory_threshold should have failed");
+            "Set primary_warmup_min_memory_threshold should have failed");
 
     checkeq(cb::engine_errc::success,
             set_param(h,
                       EngineParamCategory::Flush,
-                      "warmup_min_items_threshold",
+                      "primary_warmup_min_items_threshold",
                       "80"),
-            "Set warmup_min_items_threshold should have worked");
+            "Set primary_warmup_min_items_threshold should have worked");
     checkeq(cb::engine_errc::success,
             set_param(h,
                       EngineParamCategory::Flush,
-                      "warmup_min_memory_threshold",
+                      "primary_warmup_min_memory_threshold",
                       "80"),
-            "Set warmup_min_memory_threshold should have worked");
+            "Set primary_warmup_min_memory_threshold should have worked");
 
     checkeq(80,
-            get_int_stat(h, "ep_warmup_min_items_threshold"),
+            get_int_stat(h, "ep_primary_warmup_min_items_threshold"),
             "Incorrect smaller warmup min items threshold.");
     checkeq(80,
-            get_int_stat(h, "ep_warmup_min_memory_threshold"),
+            get_int_stat(h, "ep_primary_warmup_min_memory_threshold"),
             "Incorrect smaller warmup min memory threshold.");
 
     for (int i = 0; i < 100; ++i) {
@@ -2681,10 +2681,7 @@ static enum test_result test_warmup_conf(EngineIface* h) {
 
     // Restart the server.
     std::string config(testHarness->get_current_testcase()->cfg);
-    config +=
-            "warmup_min_memory_threshold=0;"
-            "secondary_warmup_min_items_threshold=0;"
-            "secondary_warmup_min_memory_threshold=0";
+    config += "warmup_behavior=none";
     testHarness->reload_engine(&h, config, true, false);
 
     wait_for_warmup_complete(h);
@@ -3577,16 +3574,13 @@ static enum test_result test_warmup_with_threshold(EngineIface* h) {
     }
 
     // Restart the server.
-    testHarness->reload_engine(&h,
-
-                               testHarness->get_current_testcase()->cfg,
-                               true,
-                               false);
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
 
     wait_for_warmup_complete(h);
 
     checkeq(1,
-            get_int_stat(h, "ep_warmup_min_items_threshold", "warmup"),
+            get_int_stat(h, "ep_primary_warmup_min_items_threshold", "warmup"),
             "Unable to set warmup_min_items_threshold to 1%");
 
     const std::string policy = get_str_stat(h, "ep_item_eviction_policy");
@@ -6525,6 +6519,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_pitr_enabled",
               "ep_pitr_granularity",
               "ep_pitr_max_history_age",
+              "ep_primary_warmup_min_items_threshold",
+              "ep_primary_warmup_min_memory_threshold",
               "ep_range_scan_kv_store_scan_ratio",
               "ep_range_scan_max_continue_tasks",
               "ep_range_scan_max_lifetime",
@@ -6540,8 +6536,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_vbucket_mapping_sanity_checking",
               "ep_vbucket_mapping_sanity_checking_error_mode",
               "ep_warmup_batch_size",
-              "ep_warmup_min_items_threshold",
-              "ep_warmup_min_memory_threshold",
+              "ep_warmup_behavior",
               "ep_xattr_enabled"}},
             {"workload",
              {"ep_workload:num_readers",
@@ -6858,6 +6853,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_pitr_enabled",
               "ep_pitr_granularity",
               "ep_pitr_max_history_age",
+              "ep_primary_warmup_min_items_threshold",
+              "ep_primary_warmup_min_memory_threshold",
               "ep_queue_size",
               "ep_range_scan_kv_store_scan_ratio",
               "ep_range_scan_max_continue_tasks",
@@ -6908,8 +6905,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_vbucket_mapping_sanity_checking",
               "ep_vbucket_mapping_sanity_checking_error_mode",
               "ep_warmup_batch_size",
-              "ep_warmup_min_items_threshold",
-              "ep_warmup_min_memory_threshold",
+              "ep_warmup_behavior",
               "ep_workload_pattern",
               "ep_xattr_enabled",
               "mem_used",
@@ -7521,17 +7517,18 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
     };
 
     if (isWarmupEnabled(h)) {
-        statsKeys.insert( { "warmup", { "ep_warmup",
-                                        "ep_warmup_state",
-                                        "ep_warmup_thread",
-                                        "ep_warmup_key_count",
-                                        "ep_warmup_value_count",
-                                        "ep_warmup_dups",
-                                        "ep_warmup_oom",
-                                        "ep_warmup_min_memory_threshold",
-                                        "ep_warmup_min_items_threshold",
-                                        "ep_warmup_estimated_key_count",
-                                        "ep_warmup_estimated_value_count" } });
+        statsKeys.insert({"warmup",
+                          {"ep_warmup",
+                           "ep_warmup_state",
+                           "ep_warmup_thread",
+                           "ep_warmup_key_count",
+                           "ep_warmup_value_count",
+                           "ep_warmup_dups",
+                           "ep_warmup_oom",
+                           "ep_primary_warmup_min_memory_threshold",
+                           "ep_primary_warmup_min_items_threshold",
+                           "ep_warmup_estimated_key_count",
+                           "ep_warmup_estimated_value_count"}});
     }
 
     if (isPersistentBucket(h)) {
@@ -8564,7 +8561,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_warmup_with_threshold,
                  test_setup,
                  teardown,
-                 "warmup_min_items_threshold=1;"
+                 "warmup_behavior=use_config;"
+                 "primary_warmup_min_items_threshold=1;"
+                 "primary_warmup_min_memory_threshold=0;"
                  "secondary_warmup_min_items_threshold=0;"
                  "secondary_warmup_min_memory_threshold=0",
                  prepare,

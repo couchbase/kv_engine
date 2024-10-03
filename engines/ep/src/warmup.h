@@ -404,8 +404,9 @@ public:
      * the bucket quota (max_size).
      *
      * This function is related to the configuration parameter
-     * warmup_min_memory_threshold which requires a integer value from 0 to 100,
-     * but this function can accept values greater than 100 for test purposes.
+     * primary|secondary_warmup_min_memory_threshold which requires a integer
+     * value from 0 to 100, but this function can accept values greater than 100
+     * for test purposes.
      *
      * @param perc A integer value that is the % of max_size at which Warmup
      *             will transition to Done.
@@ -421,8 +422,9 @@ public:
      * the available items is loaded.
      *
      * This function is related to the configuration parameter
-     * warmup_min_items_threshold which requires a integer value from 0 to 100,
-     * but this function can accept values greater than 100 for test purposes.
+     * primary|secondary_warmup_min_items_threshold which requires a integer
+     * value from 0 to 100, but this function can accept values greater than 100
+     * for test purposes.
      *
      * @param perc A integer value that is the % of items at which Warmup
      *             will transition to Done.

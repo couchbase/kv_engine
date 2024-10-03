@@ -87,9 +87,9 @@ memcached like this:
 |                                |        | scanner will be scheduled to run.          |
 | alog_resident_ratio_threshold  | int    | Resident ratio percentage above which we   |
 |                                |        | do not generate access log.                |
-| warmup_min_memory_threshold    | int    | Memory threshold (%) during warmup to      |
+| primary_warmup_min_memory_threshold    | int    | Memory threshold (%) during warmup to      |
 |                                |        | enable traffic.                            |
-| warmup_min_items_threshold     | int    | Item num threshold (%) during warmup to    |
+| primary_warmup_min_items_threshold     | int    | Item num threshold (%) during warmup to    |
 |                                |        | enable traffic.                            |
 | conflict_resolution_type       | string | Specifies the type of xdcr conflict        |
 |                                |        | resolution to use                          |

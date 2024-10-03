@@ -701,11 +701,7 @@ void KVBucketTest::setProcessExpiredItemHook(std::function<void()> cb) {
 }
 
 void KVBucketTest::setupPrimaryWarmupOnly() {
-    config_string +=
-            "warmup_min_memory_threshold=100;"
-            "warmup_min_items_threshold=100;"
-            "secondary_warmup_min_memory_threshold=0;"
-            "secondary_warmup_min_items_threshold=0;";
+    config_string += "warmup_behavior=blocking;";
 }
 
 bool KVBucketTest::itemCompressorTaskIsSleepingForever() const {

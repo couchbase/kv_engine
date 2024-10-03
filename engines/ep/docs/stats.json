@@ -52,10 +52,10 @@
         "ep_warmup_keys_time": {
             "description": "Time (usec) spent by warming keys."
         },
-        "ep_warmup_min_item_threshold": {
+        "ep_primary_warmup_min_item_threshold": {
             "description": "The minimum number of items that needs to be warmed up before external data mutations is allowed. This is in % of the number of items"
         },
-        "ep_warmup_min_memory_threshold": {
+        "ep_primary_warmup_min_memory_threshold": {
             "description": "The minimum amount of memory that needs to be warmed up before external data mutations is allowed. This is in % of the configured maximum memory."
         },
         "ep_warmup_mutation_log": {

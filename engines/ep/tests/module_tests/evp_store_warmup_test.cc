@@ -3152,10 +3152,7 @@ TEST_F(WarmupTest, WarmupStateRace) {
 TEST_F(WarmupTest, WarmupZeroThreshold) {
     const auto config =
             "item_eviction_policy=full_eviction;"
-            "warmup_min_memory_threshold=0;"
-            "warmup_min_items_threshold=0;"
-            "secondary_warmup_min_memory_threshold=0;"
-            "secondary_warmup_min_items_threshold=0;"
+            "warmup_behavior=none;"
             "bfilter_enabled=false";
 
     // 1. Create a vbucket and docs, persist them to disk
@@ -3287,10 +3284,7 @@ TEST_F(WarmupTest, DoNotWarmupIntoNewVbucket) {
     resetEngineAndEnableWarmup(
             "item_eviction_policy=value_only;"
             "warmup_backfill_scan_chunk_duration=0;"
-            "warmup_min_memory_threshold=100;"
-            "warmup_min_items_threshold=100;"
-            "secondary_warmup_min_memory_threshold=0;"
-            "secondary_warmup_min_items_threshold=0;"
+            "warmup_behavior=blocking;"
             "max_num_shards=1");
 
     auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);

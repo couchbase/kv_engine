@@ -108,8 +108,13 @@ TEST_P(AccessLogTest, WarmupWithAccessLog) {
     // This will mean that after the LoadingAccessLog warmup phase has loaded
     // the two items, warmup will not attempt LoadingData and the final expects
     // will be met.
-    const auto config = buildNewWarmupConfig("warmup_min_items_threshold=50") +
-                        ";" + "bfilter_enabled=false";
+    const auto config = buildNewWarmupConfig(
+            "warmup_behavior=use_config;"
+            "primary_warmup_min_items_threshold=50;"
+            "primary_warmup_min_memory_threshold=100;"
+            "secondary_warmup_min_items_threshold=0;"
+            "secondary_warmup_min_memory_threshold=0;"
+            "bfilter_enabled=false");
     resetEngineAndWarmup(config);
     // Post-warmup should pass the same check as pre-warmup.
     // MB-59262 fails here as key1/key3 are resident and key2/key4 are not

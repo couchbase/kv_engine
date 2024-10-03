@@ -273,9 +273,9 @@ For introductory information on stats within Couchbase, start with the
 |                                       | warmup                                  |
 | ep_warmup_dups                        | Number of Duplicate items encountered   |
 |                                       | during warmup                           |
-| ep_warmup_min_items_threshold         | Percentage of total items warmed up     |
+| ep_primary_warmup_min_items_threshold | Percentage of total items warmed up     |
 |                                       | before we enable traffic                |
-| ep_warmup_min_memory_threshold        | Percentage of max mem warmed up before  |
+| ep_primary_warmup_min_memory_threshold| Percentage of max mem warmed up before  |
 |                                       | we enable traffic                       |
 | ep_warmup_oom                         | The amount of oom errors that occured   |
 |                                       | during warmup                           |

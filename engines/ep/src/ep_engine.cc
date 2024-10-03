@@ -755,13 +755,41 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setItemFreqDecayerPercent(std::stoull(val));
             /* End of ItemPager parameters */
         } else if (key == "warmup_min_memory_threshold") {
-            configuration.setWarmupMinMemoryThreshold(std::stoull(val));
+            // warn for legacy parameter
+            msg = fmt::format(
+                    "Setting of key '{}' is no longer supported "
+                    "using set flush param. Use the Buckets REST API instead.",
+                    key);
+
+            // @todo: switch from logging to failing (and returning msg)
+            EP_LOG_WARN("{}", msg);
+
+            // But keep working until ns_server moves away from this key
+            configuration.setPrimaryWarmupMinMemoryThreshold(std::stoull(val));
         } else if (key == "warmup_min_items_threshold") {
-            configuration.setWarmupMinItemsThreshold(std::stoull(val));
+            // warn for legacy parameter
+            msg = fmt::format(
+                    "Setting of key '{}' is no longer supported "
+                    "using set flush param. Use the Buckets REST API instead.",
+                    key);
+
+            // @todo: switch from logging to failing (and returning msg)
+            EP_LOG_WARN("{}", msg);
+
+            // But keep working until ns_server moves away from this key
+            configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
+        } else if (key == "primary_warmup_min_items_threshold") {
+            configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
+        } else if (key == "primary_warmup_min_memory_threshold") {
+            configuration.setPrimaryWarmupMinMemoryThreshold(std::stoull(val));
+        } else if (key == "primary_warmup_min_items_threshold") {
+            configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
         } else if (key == "secondary_warmup_min_memory_threshold") {
             configuration.setSecondaryWarmupMinMemoryThreshold(std::stoull(val));
         } else if (key == "secondary_warmup_min_items_threshold") {
             configuration.setSecondaryWarmupMinItemsThreshold(std::stoull(val));
+        } else if (key == "warmup_behavior") {
+            configuration.setWarmupBehavior(val);
         } else if (key == "num_reader_threads" || key == "num_writer_threads" ||
                    key == "num_auxio_threads" || key == "num_nonio_threads") {
             msg = fmt::format(

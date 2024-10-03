@@ -6452,10 +6452,7 @@ TEST_P(WarmupSTSingleShardTest, DeleteVBWhilstPaused) {
     // This test also only runs with Primary warmup for less manual steps.
     resetEngineAndEnableWarmup(
             "warmup_backfill_scan_chunk_duration=0;"
-            "warmup_min_memory_threshold=100;"
-            "warmup_min_items_threshold=100;"
-            "secondary_warmup_min_memory_threshold=0;"
-            "secondary_warmup_min_items_threshold=0");
+            "warmup_behavior=blocking");
 
     auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
