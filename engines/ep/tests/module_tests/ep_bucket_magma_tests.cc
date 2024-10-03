@@ -22,13 +22,11 @@ class SingleThreadedMagmaTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
         config_string += "magma_fusion_endpoint_uri=" + fusionURI;
-        config_string += ";magma_fusion_volume_name=" + fusionVolume;
         STParameterizedBucketTest::SetUp();
     }
 
 protected:
     const std::string fusionURI = "fusion://localhost:10000";
-    const std::string fusionVolume = "volume-1";
 };
 
 TEST_P(SingleThreadedMagmaTest, FusionEndpointUri) {
@@ -39,10 +37,8 @@ TEST_P(SingleThreadedMagmaTest, FusionEndpointUri) {
 }
 
 TEST_P(SingleThreadedMagmaTest, FusionVolumeName) {
-    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
-    const auto& config =
-            dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
-    EXPECT_EQ(fusionVolume, config.getFusionVolumeName());
+    const auto& config = store->getEPEngine().getConfiguration();
+    EXPECT_TRUE(config.getMagmaFusionVolumeName().empty());
 }
 
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,

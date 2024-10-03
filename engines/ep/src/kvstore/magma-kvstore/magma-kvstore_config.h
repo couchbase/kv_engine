@@ -279,10 +279,6 @@ public:
         return fusionEndpointURI;
     }
 
-    std::string getFusionVolumeName() const {
-        return fusionVolumeName;
-    }
-
     magma::Magma::Config magmaCfg;
 
     /**
@@ -554,8 +550,4 @@ private:
 
     // Endpoint URI of the Fusion StoragePool.
     std::string fusionEndpointURI;
-
-    // Namespace where all data of a bucket is uploaded onto the Fusion
-    // StoragePool.
-    std::string fusionVolumeName;
 };
