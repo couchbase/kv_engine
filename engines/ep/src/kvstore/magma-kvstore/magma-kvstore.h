@@ -638,8 +638,6 @@ public:
             const KVFileHandle& kvFileHandle);
 
     void setFusionCacheSize(size_t bytes);
-    void setFusionCheckpointing(Vbid vbid, bool value);
-    bool isFusionCheckpointingEnabled(Vbid vbid) const;
 
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.

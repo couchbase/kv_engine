@@ -1076,22 +1076,6 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
                 rv = cb::engine_errc::not_my_vbucket;
                 msg = "Not my vbucket";
             }
-        } else if (key == "magma_fusion_checkpointing_enabled") {
-            const auto bucketType = configuration.getBucketTypeString();
-            if (bucketType != "persistent") {
-                throw std::invalid_argument("bucket_type:" + bucketType);
-            }
-            const auto backend = configuration.getBackendString();
-            if (backend != "magma") {
-                throw std::invalid_argument("backend:" + backend);
-            }
-            if (val != "false" && val != "true") {
-                throw std::invalid_argument("val:" + val);
-            }
-
-            Expects(kvBucket);
-            auto& epBucket = dynamic_cast<EPBucket&>(*kvBucket);
-            epBucket.setStoreCheckpointing(vbucket, val == "true");
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;

@@ -4395,12 +4395,3 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
 void MagmaKVStore::setFusionCacheSize(size_t bytes) {
     magma->SetFusionCacheSize(bytes);
 }
-
-void MagmaKVStore::setFusionCheckpointing(Vbid vbid, bool value) {
-    magma->setFusionCheckpointing(magma::Magma::KVStoreID(vbid.get()), value);
-}
-
-bool MagmaKVStore::isFusionCheckpointingEnabled(Vbid vbid) const {
-    return magma->IsFusionCheckpointingEnabled(
-            magma::Magma::KVStoreID(vbid.get()));
-}

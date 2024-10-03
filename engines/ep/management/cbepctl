@@ -317,8 +317,6 @@ Available params for "set":
               integers. The new-value is interpretted as an unsigned 64-bit integer.
 
               cbepctl host:port -b default set_vbucket_param max_cas <vbucket-id> <new-value>
-    magma_fusion_checkpointing_enabled - Enable/disable magma/fusion checkpointing for the
-                                         given VBucket
 
   Triggering compaction with "compact":
     4 parameters

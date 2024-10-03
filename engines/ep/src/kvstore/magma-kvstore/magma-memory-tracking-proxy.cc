@@ -616,29 +616,6 @@ void MagmaMemoryTrackingProxy::SetFusionCacheSize(size_t bytes) {
     magma->SetFusionCacheSize(bytes);
 }
 
-void MagmaMemoryTrackingProxy::setFusionCheckpointing(
-        magma::Magma::KVStoreID id, bool value) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    if (value) {
-        magma->StartFusionCheckpointing(id);
-    } else {
-        magma->StopFusionCheckpointing(id);
-    }
-}
-
-bool MagmaMemoryTrackingProxy::IsFusionCheckpointingEnabled(
-        magma::Magma::KVStoreID kvID) const {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    const auto [status, enabled] = magma->IsFusionCheckpointingEnabled(kvID);
-    if (status != magma::Status::OK()) {
-        throw std::logic_error(
-                "MagmaMemoryTrackingProxy::IsFusionCheckpointingEnabled: "
-                "status:" +
-                status.String());
-    }
-    return enabled;
-}
-
 void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
         const cb::crypto::KeyStore& keyStore) {
     // magma only cares about the current key
