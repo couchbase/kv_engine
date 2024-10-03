@@ -503,6 +503,17 @@ TEST_P(STParamMagmaBucketTest, MagmaSeqTreeDataBlocksSize) {
     ASSERT_EQ(7777, config.getMagmaSeqTreeDataBlockSize());
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaMinValueBlocksSizeThreshold) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_min_value_block_size_threshold", "131072", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    ASSERT_EQ(131072, config.getMagmaMinValueBlockSizeThreshold());
+}
+
 TEST_P(STParamMagmaBucketTest, MagmaSeqTreeIndexBlocksSize) {
     std::string msg;
     ASSERT_EQ(cb::engine_errc::success,

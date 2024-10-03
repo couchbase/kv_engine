@@ -245,6 +245,7 @@ public:
     magma::Magma::SeqNo GetOldestHistorySeqno(magma::Magma::Snapshot& snapshot);
 
     void SetSeqTreeDataBlockSize(size_t value);
+    void SetMinValueBlockSizeThreshold(size_t value);
     void SetSeqTreeIndexBlockSize(size_t value);
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);

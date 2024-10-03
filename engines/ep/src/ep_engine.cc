@@ -910,6 +910,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setMagmaEnableBlockCache(cb_stob(val));
         } else if (key == "magma_seq_tree_data_block_size") {
             configuration.setMagmaSeqTreeDataBlockSize(std::stoull(val));
+        } else if (key == "magma_min_value_block_size_threshold") {
+            configuration.setMagmaMinValueBlockSizeThreshold(std::stoull(val));
         } else if (key == "magma_seq_tree_index_block_size") {
             configuration.setMagmaSeqTreeIndexBlockSize(std::stoull(val));
         } else if (key == "magma_key_tree_data_block_size") {

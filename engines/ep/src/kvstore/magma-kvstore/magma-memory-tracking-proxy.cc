@@ -591,6 +591,11 @@ void MagmaMemoryTrackingProxy::SetSeqTreeDataBlockSize(size_t value) {
     magma->SetSeqTreeDataBlockSize(value);
 }
 
+void MagmaMemoryTrackingProxy::SetMinValueBlockSizeThreshold(size_t value) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetSeqTreeValueBlockSize(value);
+}
+
 void MagmaMemoryTrackingProxy::SetSeqTreeIndexBlockSize(size_t value) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetSeqTreeIndexBlockSize(value);

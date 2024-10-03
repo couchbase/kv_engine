@@ -1306,6 +1306,7 @@ class MagmaKVStoreConfigTest : public MagmaKVStoreTest {
     void SetUp() override {
         configStr =
                 "magma_seq_tree_data_block_size=5555;"
+                "magma_min_value_block_size_threshold=131072;"
                 "magma_seq_tree_index_block_size=6666;"
                 "magma_key_tree_data_block_size=7777;"
                 "magma_key_tree_index_block_size=8888;";
@@ -1316,6 +1317,7 @@ class MagmaKVStoreConfigTest : public MagmaKVStoreTest {
 
 TEST_F(MagmaKVStoreConfigTest, TestMagmaConfig) {
     EXPECT_EQ(kvstoreConfig->getMagmaSeqTreeDataBlockSize(), 5555);
+    EXPECT_EQ(kvstoreConfig->getMagmaMinValueBlockSizeThreshold(), 131072);
     EXPECT_EQ(kvstoreConfig->getMagmaSeqTreeIndexBlockSize(), 6666);
     EXPECT_EQ(kvstoreConfig->getMagmaKeyTreeDataBlockSize(), 7777);
     EXPECT_EQ(kvstoreConfig->getMagmaKeyTreeIndexBlockSize(), 8888);
