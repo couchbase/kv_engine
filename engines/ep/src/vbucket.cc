@@ -2568,13 +2568,18 @@ cb::engine_errc VBucket::deleteWithMeta(
         metaBgFetch = false;
     } else if (mayNeedXattrsPreserving &&
                (itm = pruneXattrDocument(*v, itemMeta))) {
-        // A new item has been generated and must be given a new seqno
-        queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
+        if (auto status = checkCasForWrite(*v, cas, true); status) {
+            // CAS mismatch
+            delrv = *status;
+        } else {
+            // A new item has been generated and must be given a new seqno
+            queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
 
-        // MB-36101: The result should always be a deleted item
-        itm->setDeleted();
-        std::tie(v, delrv, notifyCtx) =
-                updateStoredValue(hbl, *v, *itm, queueItmCtx);
+            // MB-36101: The result should always be a deleted item
+            itm->setDeleted();
+            std::tie(v, delrv, notifyCtx) =
+                    updateStoredValue(hbl, *v, *itm, queueItmCtx);
+        }
     } else {
         // system xattrs must remain, however no need to prune xattrs if
         // this is a replication call (i.e. not to an active vbucket),
@@ -3451,6 +3456,43 @@ void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy) {
     dirtyQueuePendingWrites.fetch_sub(decrementBy);
 }
 
+std::optional<MutationStatus> VBucket::checkCasForWrite(StoredValue& v,
+                                                        uint64_t cas,
+                                                        bool isDelete) const {
+    // Perform CAS check. If document is locked then the request cas must
+    // match the locked CAS (i.e. the same CAS returned from the getLocked()
+    // operation), if not locked then check against the normal cas (last
+    // modified time) if CAS specified otherwise no CAS permitted.
+    const auto now = ep_current_time();
+    if (v.isLocked(now)) {
+        if (cas != v.getCasForWrite(now)) {
+            return MutationStatus::IsLocked;
+        }
+        return {};
+    }
+
+    if (cas == 0 || cas == v.getCas()) {
+        // No CAS check required.
+        return {};
+    }
+    // CAS mismatch - determine which status to return.
+
+    if (v.isTempNonExistentItem()) {
+        // This is a temporary item which marks a key as non-existent;
+        // therefore specifying a non-matching CAS should be exposed
+        // as item not existing.
+        return MutationStatus::NotFound;
+    }
+    if ((v.isTempDeletedItem() || v.isDeleted()) && !isDelete) {
+        // Existing item is deleted, and we are not replacing it with
+        // a (different) deleted value - return not existing.
+        return MutationStatus::NotFound;
+    }
+    // None of the above special cases; the existing item cannot be
+    // modified with the specified CAS.
+    return MutationStatus::InvalidCas;
+}
+
 std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSet(
         HashTable::FindUpdateResult& htRes,
         StoredValue*& v,
@@ -3588,34 +3630,12 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
             !committed->isDeleted()) {
             return {MutationStatus::InvalidCas, {}};
         }
-        const auto now = ep_current_time();
-        if (committed->isLocked(now)) {
-            /*
-             * item is locked, deny if there is cas value mismatch
-             * or no cas value is provided by the user
-             */
-            if (cas != committed->getCasForWrite(now)) {
-                return {MutationStatus::IsLocked, {}};
-            }
-            /* allow operation*/
-            committed->unlock();
-        } else if (cas && cas != committed->getCasForWrite(now)) {
-            if (committed->isTempNonExistentItem()) {
-                // This is a temporary item which marks a key as non-existent;
-                // therefore specifying a non-matching CAS should be exposed
-                // as item not existing.
-                return {MutationStatus::NotFound, {}};
-            }
-            if ((committed->isTempDeletedItem() || committed->isDeleted()) &&
-                !itm.isDeleted()) {
-                // Existing item is deleted, and we are not replacing it with
-                // a (different) deleted value - return not existing.
-                return {MutationStatus::NotFound, {}};
-            }
-            // None of the above special cases; the existing item cannot be
-            // modified with the specified CAS.
-            return {MutationStatus::InvalidCas, {}};
+        if (auto status = checkCasForWrite(*committed, cas, itm.isDeleted());
+            status) {
+            return {*status, {}};
         }
+        /* allow operation*/
+        committed->unlock();
         if (!hasMetaData) {
             itm.setRevSeqno(committed->getRevSeqno() + 1);
             /* MB-23530: We must ensure that a replace operation (i.e.
@@ -3868,22 +3888,9 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
     if (v.isTempInitialItem() && eviction == EvictionPolicy::Full) {
         return std::make_tuple(MutationStatus::NeedBgFetch, &v, empty);
     }
-
-    // Perform CAS check. If document is locked then the request cas must
-    // match the locked CAS (i.e. the same CAS returned from the getLocked()
-    // operation), if not locked then check against the normal cas (last
-    // modified time) if CAS specified otherwise no CAS permitted.
-    const auto now = ep_current_time();
-    if (v.isLocked(now)) {
-        if (cas != v.getCasForWrite(now)) {
-            return std::make_tuple(MutationStatus::IsLocked, &v, empty);
-        }
-    } else {
-        if (cas != 0 && cas != v.getCas()) {
-            return std::make_tuple(MutationStatus::InvalidCas, &v, empty);
-        }
+    if (auto status = checkCasForWrite(v, cas, true); status) {
+        return std::make_tuple(*status, &v, empty);
     }
-
     /* allow operation */
     v.unlock();
 
