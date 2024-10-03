@@ -1146,7 +1146,7 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
     }
 
     logger->warn("Trying to handle an unknown response {}, disconnecting",
-                 to_string(opcode));
+                 opcode);
 
     return false;
 }

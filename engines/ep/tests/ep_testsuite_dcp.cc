@@ -587,7 +587,7 @@ void TestDcpConsumer::run(bool openConn) {
             default:
                 // Aborting ...
                 std::stringstream ss;
-                ss << "Unknown DCP operation: " << to_string(producers.last_op);
+                ss << "Unknown DCP operation: " << producers.last_op;
                 check(false, ss.str().c_str());
             }
             producers.last_op = cb::mcbp::ClientOpcode::Invalid;

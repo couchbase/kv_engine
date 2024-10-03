@@ -430,7 +430,7 @@ void Cookie::maybeLogSlowCommand(
                                                getHeader().getOpaque())},
                                   {"duration", cb::time2text(timings)},
                                   {"trace", tracer.to_string()},
-                                  {"command", to_string(opcode)},
+                                  {"command", opcode},
                                   {"peer", c.getPeername()},
                                   {"bucket", c.getBucket().name},
                                   {"packet", getHeader().to_json(validated)},
@@ -502,7 +502,7 @@ cb::mcbp::Status Cookie::validate() {
                         "{}: Trying to execute {} before authentication. "
                         "Returning eaccess",
                         getConnectionId(),
-                        to_string(opcode));
+                        opcode);
             }
 #endif
             return cb::mcbp::Status::Eaccess;
@@ -531,7 +531,7 @@ cb::mcbp::Status Cookie::validate() {
                     "{} Can't run the requested command on "
                     "cluster-config-bucket: {}",
                     connection.getId(),
-                    to_string(opcode));
+                    opcode);
             if (connection.isXerrorSupport()) {
                 return cb::mcbp::Status::EConfigOnly;
             }
@@ -551,7 +551,7 @@ cb::mcbp::Status Cookie::validate() {
                     "{}: Packet validation failed for \"{}\" - Status: \"{}\" "
                     "- Packet:[{}] - Returned payload:[{}]",
                     connection.getId(),
-                    to_string(opcode),
+                    opcode,
                     to_string(result),
                     request.to_json(false).dump(),
                     getErrorJson());

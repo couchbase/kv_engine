@@ -496,7 +496,7 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
         if (!connection.isDCP()) {
             LOG_DEBUG("{}: Can't send {} on connection before DCP open",
                       cookie.getConnectionId(),
-                      to_string(cookie.getRequest().getClientOpcode()));
+                      cookie.getRequest().getClientOpcode());
             cookie.setErrorContext(
                     "The command can only be sent on a DCP connection");
             return Status::Einval;

@@ -266,11 +266,10 @@ static void testAllOpcodes(const std::function<bool(ClientOpcode)>& function,
             if (std::find(blueprint.begin(), blueprint.end(), opcode) !=
                 blueprint.end()) {
                 EXPECT_TRUE(function(opcode))
-                        << to_string(opcode) << " should support " << feature;
+                        << opcode << " should support " << feature;
             } else {
                 EXPECT_FALSE(function(opcode))
-                        << to_string(opcode) << " should not support "
-                        << feature;
+                        << opcode << " should not support " << feature;
             }
         } else {
             EXPECT_THROW(function(opcode), std::runtime_error)

@@ -217,7 +217,7 @@ nlohmann::json Request::to_json(bool validated) const {
     ret["magic"] = m;
 
     if (is_client_magic(m)) {
-        ret["opcode"] = ::to_string(getClientOpcode());
+        ret["opcode"] = getClientOpcode();
 
         if (validated && m == Magic::AltClientRequest) {
             nlohmann::json frameid;
@@ -266,7 +266,7 @@ nlohmann::json Request::to_json(bool validated) const {
             }
         }
     } else {
-        ret["opcode"] = ::to_string(getServerOpcode());
+        ret["opcode"] = getServerOpcode();
     }
 
     if (validated && !getKeyString().empty()) {
@@ -628,8 +628,7 @@ nlohmann::json Request::to_json(bool validated) const {
             break;
         case ClientOpcode::GetCmdTimer:
             try {
-                extras["opcode"] =
-                        ::to_string(ClientOpcode(getExtdata().front()));
+                extras["opcode"] = ClientOpcode(getExtdata().front());
             } catch (const std::exception&) {
                 extras["opcode"] = "unknown";
             }

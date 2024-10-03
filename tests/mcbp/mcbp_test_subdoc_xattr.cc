@@ -156,19 +156,19 @@ TEST_P(SubdocXattrSingleTest, PathTest) {
     path = "superduperlongpath";
     flags = cb::mcbp::subdoc::PathFlag::None;
     EXPECT_EQ(cb::mcbp::Status::Success, validate())
-            << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
+            << cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
 
     // XATTR keys must be < 16 characters (we've got standalone tests
     // to validate all of the checks for the xattr keys, this is just
     // to make sure that our validator calls it ;-)
     flags = cb::mcbp::subdoc::PathFlag::XattrPath;
     EXPECT_EQ(cb::mcbp::Status::XattrEinval, validate())
-            << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
+            << cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
 
     // Truncate it to a shorter one, and this time it should pass
     path = "_sync.cas";
     EXPECT_EQ(cb::mcbp::Status::Success, validate())
-            << ::to_string(cb::mcbp::ClientOpcode(std::get<0>(GetParam())));
+            << cb::mcbp::ClientOpcode(std::get<0>(GetParam()));
 }
 
 TEST_P(SubdocXattrSingleTest, ValidateFlags) {

@@ -173,9 +173,9 @@ protected:
             << fmt::format("{}", request.getMagic()) << ")" << std::endl;
         out << "    Opcode       (1)    : " << cb::to_hex(bytes[1]) << " (";
         if (cb::mcbp::is_client_magic(request.getMagic())) {
-            out << to_string(request.getClientOpcode()) << ")" << std::endl;
+            out << request.getClientOpcode() << ")" << std::endl;
         } else {
-            out << to_string(request.getServerOpcode()) << ")" << std::endl;
+            out << request.getServerOpcode() << ")" << std::endl;
         }
 
         if (cb::mcbp::is_alternative_encoding(request.getMagic())) {
@@ -414,9 +414,9 @@ protected:
             << fmt::format("{}", response.getMagic()) << ")" << std::endl;
         out << "    Opcode       (1)    : " << cb::to_hex(bytes[1]) << " (";
         if (cb::mcbp::is_client_magic(response.getMagic())) {
-            out << to_string(response.getClientOpcode()) << ")" << std::endl;
+            out << response.getClientOpcode() << ")" << std::endl;
         } else {
-            out << to_string(response.getServerOpcode()) << ")" << std::endl;
+            out << response.getServerOpcode() << ")" << std::endl;
         }
         if (cb::mcbp::is_alternative_encoding(response.getMagic())) {
             out << "    Framing extlen (2)  : "

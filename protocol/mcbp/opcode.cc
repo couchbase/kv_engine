@@ -10,6 +10,7 @@
 
 #include <fmt/format.h>
 #include <mcbp/protocol/opcode.h>
+#include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
 #include <algorithm>
 #include <array>
@@ -886,7 +887,7 @@ std::ostream& operator<<(std::ostream& out, const ClientOpcode& opcode) {
 
 std::ostream& operator<<(std::ostream& out,
                          const cb::mcbp::ServerOpcode& opcode) {
-    out << ::to_string(opcode);
+    out << format_as(opcode);
     return out;
 }
 
@@ -896,6 +897,14 @@ std::string format_as(ClientOpcode opcode) {
 
 std::string format_as(ServerOpcode opcode) {
     return ::to_string(opcode);
+}
+
+void to_json(nlohmann::json& j, const ClientOpcode& opcode) {
+    j = format_as(opcode);
+}
+
+void to_json(nlohmann::json& j, const ServerOpcode& opcode) {
+    j = format_as(opcode);
 }
 
 } // namespace cb::mcbp

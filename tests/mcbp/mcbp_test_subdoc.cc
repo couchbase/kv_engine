@@ -263,7 +263,7 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationOpcodes) {
         }
         request.at(0) = {cmd, cb::mcbp::subdoc::PathFlag::None, "[0]"};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
-                << "Failed for cmd:" << ::to_string(cb::mcbp::ClientOpcode(ii));
+                << "Failed for cmd:" << ::cb::mcbp::ClientOpcode(ii);
     }
 }
 
@@ -885,7 +885,7 @@ TEST_P(SubdocMultiMutationTest, InvalidLocationOpcodes) {
 
         request.at(0) = {cmd, cb::mcbp::subdoc::PathFlag(0), "[0]", {}};
         EXPECT_EQ(cb::mcbp::Status::SubdocInvalidCombo, validate(request))
-                << "Failed for cmd:" << ::to_string(cb::mcbp::ClientOpcode(ii));
+                << "Failed for cmd:" << ::cb::mcbp::ClientOpcode(ii);
     }
 }
 

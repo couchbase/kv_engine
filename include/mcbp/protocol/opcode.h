@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <iosfwd>
 #include <string>
@@ -479,13 +480,12 @@ bool must_preserve_buffer(ClientOpcode opcode);
 /// return data in certain situations (varies from command to command)
 bool is_quiet(ClientOpcode opcode);
 
-std::ostream& operator<<(std::ostream& out,
-                         const cb::mcbp::ClientOpcode& opcode);
-std::ostream& operator<<(std::ostream& out,
-                         const cb::mcbp::ServerOpcode& opcode);
-
+std::ostream& operator<<(std::ostream& out, const ClientOpcode& opcode);
+std::ostream& operator<<(std::ostream& out, const ServerOpcode& opcode);
 std::string format_as(ClientOpcode opcode);
 std::string format_as(ServerOpcode opcode);
+void to_json(nlohmann::json& j, const ClientOpcode& opcode);
+void to_json(nlohmann::json& j, const ServerOpcode& opcode);
 } // namespace cb::mcbp
 
 /**

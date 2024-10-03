@@ -427,7 +427,7 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
                     "returning TMPFAIL",
                     cookie.getConnectionId(),
                     cb::limits::SubdocMaxAutoRetries,
-                    to_string(cookie.getRequest().getClientOpcode()),
+                    cookie.getRequest().getClientOpcode(),
                     cb::UserDataView(
                             cookie.getRequestKey().toPrintableString()));
             cookie.sendResponse(cb::mcbp::Status::Etmpfail);

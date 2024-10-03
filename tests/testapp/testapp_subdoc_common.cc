@@ -17,7 +17,7 @@
 #include "testapp_binprot.h"
 
 std::ostream& operator<<(std::ostream& os, const BinprotSubdocCommand& obj) {
-    os << "[cmd:" << to_string(cb::mcbp::ClientOpcode(obj.getOp()))
+    os << "[cmd:" << cb::mcbp::ClientOpcode(obj.getOp())
        << " key:" << obj.getKey() << " path:" << obj.getPath()
        << " value:" << obj.getValue()
        << " flags:" << static_cast<int>(obj.getFlags())

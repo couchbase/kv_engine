@@ -269,7 +269,7 @@ protected:
             cmd.setMutationType(MutationType::Prepend);
         } else {
             std::cerr << TerminalColor::Red << "sendMutation: Invalid opcode "
-                      << to_string(op) << ". Fix your program and try again"
+                      << op << ". Fix your program and try again"
                       << TerminalColor::Reset << std::endl;
             std::_Exit(EXIT_FAILURE);
         }
@@ -461,7 +461,7 @@ protected:
             }
         case cb::mcbp::ClientOpcode::Hello:
             if (response.getStatus() != cb::mcbp::Status::Success) {
-                std::cerr << to_string(response.getClientOpcode()) << " failed"
+                std::cerr << response.getClientOpcode() << " failed"
                           << std::endl;
                 std::exit(EXIT_FAILURE);
             }

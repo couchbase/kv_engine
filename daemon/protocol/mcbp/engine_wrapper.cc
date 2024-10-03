@@ -33,7 +33,7 @@ cb::engine_errc bucket_unknown_command(Cookie& cookie,
         LOG_WARNING("{}: {} {} return cb::engine_errc::disconnect",
                     c.getId(),
                     c.getDescription().dump(),
-                    to_string(request.getClientOpcode()));
+                    request.getClientOpcode());
         c.setTerminationReason("Engine forced disconnect");
     }
     return ret;

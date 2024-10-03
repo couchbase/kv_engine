@@ -27,10 +27,10 @@ nlohmann::json Response::to_json(bool validated) const {
     ret["magic"] = m;
 
     if (is_client_magic(m)) {
-        ret["opcode"] = ::to_string(getClientOpcode());
+        ret["opcode"] = getClientOpcode();
 
     } else {
-        ret["opcode"] = ::to_string(getServerOpcode());
+        ret["opcode"] = getServerOpcode();
     }
 
     ret["keylen"] = getKeylen();
