@@ -214,8 +214,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             "magma_fusion_cache_size",
             std::make_unique<ConfigChangeListener>(*this));
     fusionCacheSize = config.getMagmaFusionCacheSize();
-
-    fusionVolatileStoragePath = config.getMagmaFusionVolatileStoragePath();
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {

@@ -64,10 +64,9 @@ TEST_P(SingleThreadedMagmaTest, FusionCacheSize) {
 }
 
 TEST_P(SingleThreadedMagmaTest, FusionVolatileStoragePath) {
-    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
-    const auto& config =
-            dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
-    EXPECT_EQ(fusionVolatileStoragePath, config.getFusionVolatileStoragePath());
+    const auto& config = engine->getConfiguration();
+    EXPECT_EQ(fusionVolatileStoragePath,
+              config.getMagmaFusionVolatileStoragePath());
 }
 
 INSTANTIATE_TEST_SUITE_P(SingleThreadedMagmaTest,

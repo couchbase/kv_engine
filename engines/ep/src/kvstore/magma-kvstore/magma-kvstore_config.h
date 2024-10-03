@@ -289,10 +289,6 @@ public:
 
     void setMagmaFusionCacheSize(size_t bytes);
 
-    std::string getFusionVolatileStoragePath() const {
-        return fusionVolatileStoragePath;
-    }
-
     magma::Magma::Config magmaCfg;
 
     /**
@@ -571,7 +567,4 @@ private:
 
     // Size (in bytes) of the magma cache size for Fusion.
     std::atomic<size_t> fusionCacheSize;
-
-    // Path to the local volatile storage for Fusion; used as a disk cache.
-    std::string fusionVolatileStoragePath;
 };
