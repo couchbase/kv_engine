@@ -137,6 +137,18 @@ public:
         return opcodes[static_cast<int>(opcode)].check(Attribute::IsQuiet);
     }
 
+    /**
+     * Try to look up the opcode with the provided name
+     */
+    ClientOpcode lookup(std::string_view name) const {
+        for (std::size_t ii = 0; ii < opcodes.size(); ++ii) {
+            if (opcodes[ii].name == name) {
+                return static_cast<ClientOpcode>(ii);
+            }
+        }
+        return ClientOpcode::Invalid;
+    }
+
     OpcodeInformationService() {
         using namespace std::string_view_literals;
         setup(ClientOpcode::Get,
@@ -907,6 +919,21 @@ void to_json(nlohmann::json& j, const ServerOpcode& opcode) {
     j = format_as(opcode);
 }
 
+ClientOpcode to_client_opcode(std::string_view string) {
+    std::string input;
+    std::transform(
+            string.begin(), string.end(), std::back_inserter(input), ::toupper);
+    // If the user used space between the words, replace with '_'
+    std::replace(input.begin(), input.end(), ' ', '_');
+
+    auto ret = opcodeInformationServiceInstance.lookup(input);
+    if (ret != ClientOpcode::Invalid) {
+        return ret;
+    }
+
+    throw std::invalid_argument(
+            fmt::format(R"(to_client_opcode(): unknown opcode: "{}")", string));
+}
 } // namespace cb::mcbp
 
 std::string to_string(cb::mcbp::ClientOpcode opcode) {
@@ -928,25 +955,4 @@ std::string to_string(cb::mcbp::ServerOpcode opcode) {
     throw std::invalid_argument(
             "to_string(cb::mcbp::ServerOpcode): Invalid opcode: " +
             std::to_string(int(opcode)));
-}
-
-cb::mcbp::ClientOpcode to_opcode(std::string_view string) {
-    std::string input;
-    std::transform(
-            string.begin(), string.end(), std::back_inserter(input), ::toupper);
-    // If the user used space between the words, replace with '_'
-    std::replace(input.begin(), input.end(), ' ', '_');
-    for (int ii = 0; ii < int(cb::mcbp::ClientOpcode::Invalid); ++ii) {
-        try {
-            auto str = to_string(cb::mcbp::ClientOpcode(ii));
-            if (str == input) {
-                return cb::mcbp::ClientOpcode(ii);
-            }
-        } catch (const std::invalid_argument&) {
-            // ignore
-        }
-    }
-
-    throw std::invalid_argument(
-            fmt::format(R"(to_opcode(): unknown opcode: "{}")", string));
 }

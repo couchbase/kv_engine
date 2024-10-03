@@ -227,12 +227,12 @@ TEST(ClientOpcode_to_string, InvalidValues) {
 
 TEST(ClientOpcode_to_opcode, LegalValues) {
     for (auto& entry : client_blueprint) {
-        EXPECT_EQ(entry.first, to_opcode(entry.second));
+        EXPECT_EQ(entry.first, to_client_opcode(entry.second));
     }
 }
 
 TEST(ClientOpcode_to_opcode, UnknownValues) {
-    EXPECT_THROW(to_opcode("asdfasdf"), std::invalid_argument);
+    EXPECT_THROW(to_client_opcode("asdfasdf"), std::invalid_argument);
 }
 
 TEST(ClientOpcode_to_opcode, CaseDontMatter) {
@@ -242,7 +242,7 @@ TEST(ClientOpcode_to_opcode, CaseDontMatter) {
                        entry.second.end(),
                        std::back_inserter(lower),
                        ::tolower);
-        EXPECT_EQ(entry.first, to_opcode(lower));
+        EXPECT_EQ(entry.first, to_client_opcode(lower));
     }
 }
 
@@ -250,7 +250,7 @@ TEST(ClientOpcode_to_opcode, SpaceMayBeUsed) {
     for (auto& entry : client_blueprint) {
         std::string input{entry.second};
         std::replace(input.begin(), input.end(), '_', ' ');
-        EXPECT_EQ(entry.first, to_opcode(input));
+        EXPECT_EQ(entry.first, to_client_opcode(input));
     }
 }
 

@@ -248,9 +248,9 @@ void reconfigure(const nlohmann::json& doc, bool apply) {
             continue;
         }
 
-        cb::mcbp::ClientOpcode opcode;
+        ClientOpcode opcode;
         try {
-            opcode = to_opcode(it.key());
+            opcode = to_client_opcode(it.key());
         } catch (const std::invalid_argument&) {
             throw std::invalid_argument(
                     std::string{

@@ -486,6 +486,13 @@ std::string format_as(ClientOpcode opcode);
 std::string format_as(ServerOpcode opcode);
 void to_json(nlohmann::json& j, const ClientOpcode& opcode);
 void to_json(nlohmann::json& j, const ServerOpcode& opcode);
+
+/**
+ * Convert a textual representation of an opcode to an Opcode
+ *
+ * @throws std::invalid_argument for unknown opcodes
+ */
+ClientOpcode to_client_opcode(std::string_view string);
 } // namespace cb::mcbp
 
 /**
@@ -495,10 +502,3 @@ void to_json(nlohmann::json& j, const ServerOpcode& opcode);
  */
 std::string to_string(cb::mcbp::ClientOpcode opcode);
 std::string to_string(cb::mcbp::ServerOpcode opcode);
-
-/**
- * Convert a textual representation of an opcode to an Opcode
- *
- * @throws std::invalid_argument for unknown opcodes
- */
-cb::mcbp::ClientOpcode to_opcode(std::string_view string);

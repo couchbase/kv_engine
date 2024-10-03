@@ -387,7 +387,7 @@ int main(int argc, char** argv) {
                     try {
                         request_cmd_timings(*connection,
                                             bucket,
-                                            to_opcode(arg),
+                                            cb::mcbp::to_client_opcode(arg),
                                             verbose,
                                             false,
                                             jsonDataFromBucket);
