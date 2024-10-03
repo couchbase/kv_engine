@@ -715,8 +715,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setHtSizeDecreaseDelay(std::stoull(val));
         } else if (key == "ht_temp_items_allowed_percent") {
             configuration.setHtTempItemsAllowedPercent(std::stoull(val));
-        } else if (key == "magma_fusion_cache_size") {
-            configuration.setMagmaFusionCacheSize(std::stoull(val));
         } else if (key == "max_item_privileged_bytes") {
             configuration.setMaxItemPrivilegedBytes(std::stoull(val));
         } else if (key == "max_item_size") {

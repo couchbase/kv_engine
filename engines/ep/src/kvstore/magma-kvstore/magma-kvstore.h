@@ -637,8 +637,6 @@ public:
     std::pair<magma::Status, std::string> onContinuousBackupCallback(
             const KVFileHandle& kvFileHandle);
 
-    void setFusionCacheSize(size_t bytes);
-
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

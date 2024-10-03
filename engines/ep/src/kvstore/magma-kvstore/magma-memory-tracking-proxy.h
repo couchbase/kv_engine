@@ -250,8 +250,6 @@ public:
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);
 
-    void SetFusionCacheSize(size_t bytes);
-
     void setActiveEncryptionKeys(const cb::crypto::KeyStore& keyStore);
 
     nlohmann::json getVbucketEncryptionKeyIds(

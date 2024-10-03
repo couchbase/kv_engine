@@ -4389,7 +4389,3 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
     return onContinuousBackupCallback(magmaFileHandle.vbid,
                                       *magmaFileHandle.snapshot.get());
 }
-
-void MagmaKVStore::setFusionCacheSize(size_t bytes) {
-    magma->SetFusionCacheSize(bytes);
-}

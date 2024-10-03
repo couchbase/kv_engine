@@ -287,8 +287,6 @@ public:
         return fusionCacheSize;
     }
 
-    void setMagmaFusionCacheSize(size_t bytes);
-
     magma::Magma::Config magmaCfg;
 
     /**
@@ -566,5 +564,5 @@ private:
     std::string fusionVolumeName;
 
     // Size (in bytes) of the magma cache size for Fusion.
-    std::atomic<size_t> fusionCacheSize;
+    size_t fusionCacheSize;
 };

@@ -611,11 +611,6 @@ void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
     magma->SetKeyTreeIndexBlockSize(value);
 }
 
-void MagmaMemoryTrackingProxy::SetFusionCacheSize(size_t bytes) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    magma->SetFusionCacheSize(bytes);
-}
-
 void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
         const cb::crypto::KeyStore& keyStore) {
     // magma only cares about the current key
