@@ -279,6 +279,8 @@ public:
         WithMetaTest::SetUp();
     }
 
+    void deletePreservesXattrsWhenSkipConflictResolution();
+
     cb::mcbp::ClientOpcode op;
     bool withValue;
 };
@@ -592,6 +594,58 @@ TEST_P(DelWithMetaTest, deleteUnlocks) {
             SKIP_CONFLICT_RESOLUTION_FLAG);
 
     EXPECT_EQ(cb::engine_errc::success, callEngine(op, dwm));
+}
+
+void DelWithMetaTest::deletePreservesXattrsWhenSkipConflictResolution() {
+    auto item = store_item(vbid,
+                           makeStoredDocKey("mykey"),
+                           createXattrValue("myvalue", true),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, item.getDocKey());
+
+    auto dwm = buildWithMetaPacket(
+            op,
+            withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_RAW_BYTES,
+            vbid /*vbucket*/,
+            0 /*opaque*/,
+            0 /*cas*/,
+            ItemMetaData{1, 1, 0, 0},
+            "mykey",
+            withValue ? item.getValueView() : std::string_view{},
+            {},
+            SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    // A deleteWithMeta without value should manage preserving xattrs.
+    const auto expected =
+            withValue ? cb::engine_errc::success : cb::engine_errc::would_block;
+    EXPECT_EQ(expected, callEngine(op, dwm))
+            << "Expected a BGFetch would be needed in order to preserve xattrs";
+}
+
+class DelWithMetaFullEvictionTest : public DelWithMetaTest {
+    void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "item_eviction_policy=full_eviction";
+        DelWithMetaTest::SetUp();
+    }
+};
+
+/// Tests that we preserve the xattrs even when skip conflict resolution is off.
+TEST_P(DelWithMetaTest, deletePreservesXattrsWhenSkipConflictResolution) {
+    deletePreservesXattrsWhenSkipConflictResolution();
+}
+
+/// Tests that we preserve the xattrs even when skip conflict resolution is off.
+TEST_P(DelWithMetaFullEvictionTest,
+       deletePreservesXattrsWhenSkipConflictResolution) {
+    deletePreservesXattrsWhenSkipConflictResolution();
 }
 
 TEST_P(AllWithMetaTest, failForceAccept) {
@@ -1738,6 +1792,12 @@ struct PrintSnappyOnOff {
 
 INSTANTIATE_TEST_SUITE_P(DelWithMeta,
                          DelWithMetaTest,
+                         ::testing::Combine(::testing::Bool(),
+                                            deleteOpcodeValues),
+                         PrintToStringCombinedName());
+
+INSTANTIATE_TEST_SUITE_P(DelWithMetaFullEviction,
+                         DelWithMetaFullEvictionTest,
                          ::testing::Combine(::testing::Bool(),
                                             deleteOpcodeValues),
                          PrintToStringCombinedName());

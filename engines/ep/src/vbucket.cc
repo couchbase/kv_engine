@@ -2477,13 +2477,27 @@ cb::engine_errc VBucket::deleteWithMeta(
         checkConflicts = CheckConflicts::No;
     }
 
+    // We will need to know the type of the value, as if it has xattrs, we
+    // will need to preserve the system xattrs. This does not apply to
+    // replication calls, since the active would have already done this.
+    if (state == vbucket_state_active) {
+        if (v && v->isTempInitialItem()) {
+            return bgFetch(std::move(hbl), key, *v, cookie, engine, true);
+        } else if (!v) {
+            // Item is 1) deleted or not existent in the value eviction case OR
+            // 2) deleted or evicted in the full eviction.
+            if (maybeKeyExistsInFilter(key)) {
+                return addTempItemAndBGFetch(
+                        std::move(hbl), key, cookie, engine, true);
+            }
+        }
+    }
+    // At this point, v might be nullptr if the bloom filter said it does not
+    // exist on disk.
+
     // Need conflict resolution?
     if (checkConflicts == CheckConflicts::Yes) {
         if (v) {
-            if (v->isTempInitialItem()) {
-                return bgFetch(std::move(hbl), key, *v, cookie, engine, true);
-            }
-
             switch (conflictResolver->resolve(
                     *v, itemMeta, PROTOCOL_BINARY_RAW_BYTES, true)) {
             case ConflictResolution::Result::RejectBehind:
@@ -2496,43 +2510,35 @@ cb::engine_errc VBucket::deleteWithMeta(
                 // continue
             }
         } else {
-            // Item is 1) deleted or not existent in the value eviction case OR
-            // 2) deleted or evicted in the full eviction.
-            if (maybeKeyExistsInFilter(key)) {
-                return addTempItemAndBGFetch(
-                        std::move(hbl), key, cookie, engine, true);
-            } else {
-                // Even though bloomfilter predicted that item doesn't exist
-                // on disk, we must put this delete on disk if the cas is valid.
-                auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
-                if (rv.status == TempAddStatus::NoMem) {
-                    return cb::engine_errc::no_memory;
-                }
-                v = rv.storedValue;
-                v->setTempDeleted();
-            }
-        }
-    } else {
-        if (!v) {
-            // We should always try to persist a delete here.
-            auto rv = addTempStoredValue(hbl, key, enforceMemCheck);
+            // Even though bloomfilter predicted that item doesn't exist
+            // on disk, we must put this delete on disk if the cas is valid.
+            auto rv = addTempStoredValue(hbl, key, EnforceMemCheck::Yes);
             if (rv.status == TempAddStatus::NoMem) {
                 return cb::engine_errc::no_memory;
             }
             v = rv.storedValue;
+            // TODO(MB-63781): This should be set to non-existent, but since it
+            // would change the return status code to no_such_key, it will be
+            // done under a separate MB.
             v->setTempDeleted();
-            v->setCas(cas);
-        } else if (v->isTempInitialItem()) {
-            v->setTempDeleted();
-            v->setCas(cas);
         }
+    } else if (!v) {
+        // We should always try to persist a delete here.
+        auto rv = addTempStoredValue(hbl, key, enforceMemCheck);
+        if (rv.status == TempAddStatus::NoMem) {
+            return cb::engine_errc::no_memory;
+        }
+        v = rv.storedValue;
+        // TODO(MB-63781): This should be set to non-existent, but since it
+        // would change the return status code to no_such_key, it will be done
+        // under a separate MB.
+        v->setTempDeleted();
+        v->setCas(cas);
     }
 
     Expects(v);
 
-    if (v->isLocked(ep_current_time()) &&
-        (getState() == vbucket_state_replica ||
-         getState() == vbucket_state_pending)) {
+    if (v->isLocked(ep_current_time()) && state != vbucket_state_active) {
         v->unlock();
     }
 
