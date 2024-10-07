@@ -462,6 +462,8 @@ cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
         break;
     case ScanStatus::Failed:
         // Scan cannot continue due to KVStore failure
+        engineStatus = cb::engine_errc::failed;
+        break;
     case ScanStatus::Cancelled:
         // Scan cannot continue, it has been cancelled, e.g. the "handler"
         // spotted the vbucket is no longer compatible. In this case an
