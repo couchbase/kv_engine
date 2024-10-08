@@ -754,30 +754,15 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "item_freq_decayer_percent") {
             configuration.setItemFreqDecayerPercent(std::stoull(val));
             /* End of ItemPager parameters */
-        } else if (key == "warmup_min_memory_threshold") {
+        } else if (key == "warmup_min_memory_threshold" ||
+                   key == "warmup_min_items_threshold") {
             // warn for legacy parameter
             msg = fmt::format(
                     "Setting of key '{}' is no longer supported "
-                    "using set flush param. Use the Buckets REST API instead.",
+                    "using set flush param. Use the Buckets REST API instead to"
+                    "set warmup_behavior",
                     key);
-
-            // @todo: switch from logging to failing (and returning msg)
-            EP_LOG_WARN("{}", msg);
-
-            // But keep working until ns_server moves away from this key
-            configuration.setPrimaryWarmupMinMemoryThreshold(std::stoull(val));
-        } else if (key == "warmup_min_items_threshold") {
-            // warn for legacy parameter
-            msg = fmt::format(
-                    "Setting of key '{}' is no longer supported "
-                    "using set flush param. Use the Buckets REST API instead.",
-                    key);
-
-            // @todo: switch from logging to failing (and returning msg)
-            EP_LOG_WARN("{}", msg);
-
-            // But keep working until ns_server moves away from this key
-            configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
+            return cb::engine_errc::invalid_arguments;
         } else if (key == "primary_warmup_min_items_threshold") {
             configuration.setPrimaryWarmupMinItemsThreshold(std::stoull(val));
         } else if (key == "primary_warmup_min_memory_threshold") {
