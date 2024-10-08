@@ -37,7 +37,8 @@ static unsigned long find_first_logfile_id(
     for (const auto& p :
          std::filesystem::directory_iterator(pattern.parent_path(), ec)) {
         auto& path = p.path();
-        if (path.extension().string() != ".txt") {
+        const auto extension = path.extension().string();
+        if (extension != ".txt" && extension != ".cef") {
             continue;
         }
 
@@ -108,12 +109,17 @@ custom_rotating_file_sink<Mutex>::openFile() {
     using namespace cb::dek;
     auto dek = Manager::instance().lookup(Entity::Logs);
     std::filesystem::path path;
+    std::filesystem::path other;
     do {
         path = fmt::format("{}.{:06}.{}",
                            _base_filename,
-                           _next_file_id++,
+                           _next_file_id,
                            dek ? "cef" : "txt");
-    } while (exists(path));
+        other = fmt::format("{}.{:06}.{}",
+                            _base_filename,
+                            _next_file_id++,
+                            dek ? "txt" : "cef");
+    } while (exists(path) || exists(other));
 
     return cb::crypto::FileWriter::create(dek, path);
 }
