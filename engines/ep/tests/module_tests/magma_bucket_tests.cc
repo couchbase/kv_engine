@@ -1155,3 +1155,26 @@ INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+class STMagmaFusionTest : public STParamMagmaBucketTest {
+public:
+    void SetUp() override {
+        config_string += "magma_fusion_logstore_uri=" + fusionURI;
+        STParamMagmaBucketTest::SetUp();
+    }
+
+protected:
+    const std::string fusionURI = "s3://some-uuid";
+};
+
+TEST_P(STMagmaFusionTest, LogstoreUri) {
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const auto& config =
+            dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(fusionURI, config.getFusionLogstoreURI());
+}
+
+INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,
+                         STMagmaFusionTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);

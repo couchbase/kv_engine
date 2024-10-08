@@ -275,6 +275,10 @@ public:
         return historyRetentionTime;
     }
 
+    std::string getFusionLogstoreURI() const {
+        return fusionLogstoreURI;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -543,4 +547,7 @@ private:
 
     size_t historyRetentionSize{0};
     std::chrono::seconds historyRetentionTime{0};
+
+    // Fusion Logstore URI.
+    std::string fusionLogstoreURI;
 };

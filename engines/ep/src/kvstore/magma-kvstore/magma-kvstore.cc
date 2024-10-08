@@ -741,6 +741,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
             configuration.getMagmaKeyTreeDataBlockSize();
     configuration.magmaCfg.KeyTreeIndexBlockSize =
             configuration.getMagmaKeyTreeIndexBlockSize();
+    configuration.magmaCfg.FusionLogStoreURI =
+            configuration.getFusionLogstoreURI();
 
     configuration.setStore(this);
 
