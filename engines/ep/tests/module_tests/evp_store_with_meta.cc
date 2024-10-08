@@ -14,6 +14,7 @@
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
+#include "gmock/gmock.h"
 #include "item.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_global_task.h"
@@ -278,6 +279,8 @@ public:
         WithMetaTest::SetUp();
     }
 
+    void deletePreservesXattrsWhenSkipConflictResolution();
+
     cb::mcbp::ClientOpcode op;
     bool withValue;
 };
@@ -475,6 +478,174 @@ TEST_P(DelWithMetaTest, invalidCas) {
                   withValue /*set a value*/,
                   cb::mcbp::Status::KeyEexists,
                   cb::engine_errc::no_such_key);
+}
+
+/// Tests that we can delete a document when the request CAS matches.
+TEST_P(DelWithMetaTest, deleteWithCas) {
+    auto item = store_item(vbid,
+                           makeStoredDocKey("mykey"),
+                           createXattrValue("myvalue", true),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    auto dwm = buildWithMetaPacket(
+            op,
+            withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_RAW_BYTES,
+            vbid /*vbucket*/,
+            0 /*opaque*/,
+            item.getCas() /*cas*/,
+            ItemMetaData{1, 1, 0, 0},
+            "mykey",
+            withValue ? item.getValueView() : std::string_view{},
+            {},
+            SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    EXPECT_EQ(cb::engine_errc::success, callEngine(op, dwm));
+}
+
+/// Tests that the request CAS is checked and the operation fails on mismatch.
+TEST_P(DelWithMetaTest, deleteCasMismatch) {
+    auto item = store_item(vbid,
+                           makeStoredDocKey("mykey"),
+                           createXattrValue("myvalue", true),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    auto dwm = buildWithMetaPacket(
+            op,
+            withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_RAW_BYTES,
+            vbid /*vbucket*/,
+            0 /*opaque*/,
+            1 /*cas*/,
+            ItemMetaData{1, 1, 0, 0},
+            "mykey",
+            withValue ? item.getValueView() : std::string_view{},
+            {},
+            SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    EXPECT_EQ(cb::engine_errc::key_already_exists, callEngine(op, dwm));
+}
+
+/// Tests that the locked status of the document is respected.
+TEST_P(DelWithMetaTest, deleteIsLocked) {
+    auto item = store_item(vbid,
+                           makeStoredDocKey("mykey"),
+                           createXattrValue("myvalue", true),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            store->getLocked(
+                         item.getDocKey(), vbid, ep_current_time(), 30, cookie)
+                    .getStatus());
+
+    auto dwm = buildWithMetaPacket(
+            op,
+            withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_RAW_BYTES,
+            vbid /*vbucket*/,
+            0 /*opaque*/,
+            0 /*cas*/,
+            ItemMetaData{1, 1, 0, 0},
+            "mykey",
+            withValue ? item.getValueView() : std::string_view{},
+            {},
+            SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    // Sets return status locked which maps to key_already_exists on old
+    // clients. Deletes return status locked_tmpfail which maps to tmpfail on
+    // old clients. Since DeleteWithMeta with value is implemented as a
+    // SetWithMeta, the returned status can differ (see MB-63781).
+    EXPECT_THAT(callEngine(op, dwm),
+                testing::AnyOf(cb::engine_errc::locked_tmpfail,
+                               cb::engine_errc::locked));
+}
+
+/// Tests that we can delete a locked document.
+TEST_P(DelWithMetaTest, deleteUnlocks) {
+    auto item = store_item(vbid,
+                           makeStoredDocKey("mykey"),
+                           createXattrValue("myvalue", true),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    auto gv = store->getLocked(
+            item.getDocKey(), vbid, ep_current_time(), 30, cookie);
+    ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
+
+    auto dwm = buildWithMetaPacket(
+            op,
+            withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_RAW_BYTES,
+            vbid /*vbucket*/,
+            0 /*opaque*/,
+            gv.item->getCas() /*cas*/,
+            ItemMetaData{1, 1, 0, 0},
+            "mykey",
+            withValue ? item.getValueView() : std::string_view{},
+            {},
+            SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    EXPECT_EQ(cb::engine_errc::success, callEngine(op, dwm));
+}
+
+void DelWithMetaTest::deletePreservesXattrsWhenSkipConflictResolution() {
+    auto item = store_item(vbid,
+                           makeStoredDocKey("mykey"),
+                           createXattrValue("myvalue", true),
+                           0,
+                           {cb::engine_errc::success},
+                           PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, item.getDocKey());
+
+    auto dwm = buildWithMetaPacket(
+            op,
+            withValue ? PROTOCOL_BINARY_DATATYPE_XATTR
+                      : PROTOCOL_BINARY_RAW_BYTES,
+            vbid /*vbucket*/,
+            0 /*opaque*/,
+            0 /*cas*/,
+            ItemMetaData{1, 1, 0, 0},
+            "mykey",
+            withValue ? item.getValueView() : std::string_view{},
+            {},
+            SKIP_CONFLICT_RESOLUTION_FLAG);
+
+    // A deleteWithMeta without value should manage preserving xattrs.
+    const auto expected =
+            withValue ? cb::engine_errc::success : cb::engine_errc::would_block;
+    EXPECT_EQ(expected, callEngine(op, dwm))
+            << "Expected a BGFetch would be needed in order to preserve xattrs";
+}
+
+class DelWithMetaFullEvictionTest : public DelWithMetaTest {
+    void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "item_eviction_policy=full_eviction";
+        DelWithMetaTest::SetUp();
+    }
+};
+
+/// Tests that we preserve the xattrs even when skip conflict resolution is off.
+TEST_P(DelWithMetaTest, deletePreservesXattrsWhenSkipConflictResolution) {
+    deletePreservesXattrsWhenSkipConflictResolution();
+}
+
+/// Tests that we preserve the xattrs even when skip conflict resolution is off.
+TEST_P(DelWithMetaFullEvictionTest,
+       deletePreservesXattrsWhenSkipConflictResolution) {
+    deletePreservesXattrsWhenSkipConflictResolution();
 }
 
 TEST_P(AllWithMetaTest, failForceAccept) {
@@ -1621,6 +1792,12 @@ struct PrintSnappyOnOff {
 
 INSTANTIATE_TEST_SUITE_P(DelWithMeta,
                          DelWithMetaTest,
+                         ::testing::Combine(::testing::Bool(),
+                                            deleteOpcodeValues),
+                         PrintToStringCombinedName());
+
+INSTANTIATE_TEST_SUITE_P(DelWithMetaFullEviction,
+                         DelWithMetaFullEvictionTest,
                          ::testing::Combine(::testing::Bool(),
                                             deleteOpcodeValues),
                          PrintToStringCombinedName());

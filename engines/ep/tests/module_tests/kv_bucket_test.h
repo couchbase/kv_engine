@@ -319,8 +319,8 @@ public:
             uint32_t opaque,
             uint64_t cas,
             ItemMetaData metaData,
-            const std::string& key,
-            const std::string& body,
+            std::string_view key,
+            std::string_view body,
             const std::vector<char>& emd = {},
             int options = 0);
 

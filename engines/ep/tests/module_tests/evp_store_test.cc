@@ -2405,7 +2405,7 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
     cas = casForDWM;
 
     auto expected = casToUse == CASValue::Incorrect
-                            ? cb::engine_errc::key_already_exists
+                            ? cb::engine_errc::no_such_key
                             : cb::engine_errc::success;
 
     // delwithmeta should not require a bgfetch - the item does not exist

@@ -476,8 +476,8 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
         uint32_t opaque,
         uint64_t cas,
         ItemMetaData metaData,
-        const std::string& key,
-        const std::string& body,
+        std::string_view key,
+        std::string_view body,
         const std::vector<char>& emd,
         int options) {
     EXPECT_EQ(sizeof(cb::mcbp::request::SetWithMetaPayload),
