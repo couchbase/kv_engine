@@ -2308,7 +2308,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     stats.setLowWaterMarkPercent(configuration.getMemLowWatPercent());
     stats.setHighWaterMarkPercent(configuration.getMemHighWatPercent());
-    updateLegacyMemWatermarksConfiguration();
 
     setMaxDataSize(configuration.getMaxSize());
 
@@ -3651,6 +3650,9 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     }
     collector.addStat(Key::ep_num_checkpoints_pending_destruction,
                       kvBucket->getNumCheckpointsPendingDestruction());
+
+    collector.addStat(Key::ep_mem_low_wat, epstats.mem_low_wat);
+    collector.addStat(Key::ep_mem_high_wat, epstats.mem_high_wat);
 
     return cb::engine_errc::success;
 }
@@ -7515,12 +7517,6 @@ void EventuallyPersistentEngine::configureMemWatermarksForQuota(size_t quota) {
     auto highWaterMarkPercent = configuration.getMemHighWatPercent();
     stats.setLowWaterMark(cb::fractionOf(quota, lowWaterMarkPercent));
     stats.setHighWaterMark(cb::fractionOf(quota, highWaterMarkPercent));
-    updateLegacyMemWatermarksConfiguration();
-}
-
-void EventuallyPersistentEngine::updateLegacyMemWatermarksConfiguration() {
-    configuration.setMemLowWat(stats.mem_low_wat);
-    configuration.setMemHighWat(stats.mem_high_wat);
 }
 
 void EventuallyPersistentEngine::configureStorageMemoryForQuota(size_t quota) {

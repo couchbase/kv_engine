@@ -1009,18 +1009,6 @@
                 "backend": "nexus"
             }
         },
-        "mem_high_wat": {
-            "default": "max",
-            "descr": "High water mark (in bytes). No longer supported. This config parameter has no effect. Use mem_low_wat_percent to set the low watermark for a bucket.",
-            "dynamic": true,
-            "type": "size_t"
-        },
-        "mem_low_wat": {
-            "default": "max",
-            "descr": "Low water mark (in bytes). No longer supported. This config parameter has no effect. Use mem_low_wat_percent to set the low watermark for a bucket.",
-            "dynamic": true,
-            "type": "size_t"
-        },
         "mem_high_wat_percent": {
             "default": "0.85",
             "descr": "Ratio of the Bucket Quota at which to place the high watermark. This is the maximum desired memory usage. This value should be lower than mutation_mem_ratio to avoid no memory errors.",

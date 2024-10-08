@@ -949,15 +949,6 @@ public:
     void configureMemWatermarksForQuota(size_t size);
 
     /**
-     * Update the legacy configuration keys mem_low_wat and mem_high_wat.
-     * These have no effect when specified as bucket configuration, but they
-     * generate stats from their current values, so we keep those up-to-date.
-     * Once we are ready to remove them from the bucket configuration, we can
-     * just start reporting them manually like normal stats.
-     */
-    void updateLegacyMemWatermarksConfiguration();
-
-    /**
      * Set the quota in the storage engine
      *
      * @param size in bytes for the new quota

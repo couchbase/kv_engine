@@ -1212,6 +1212,24 @@
         "description": "Time spent in KV in the continuous backup metadata callback.",
         "added": "8.0.0"
     },
+    {
+        "key": "ep_mem_low_wat",
+        "unit": "bytes",
+        "description": "The bucket's memory used low watermark.",
+        "added": "7.0.0",
+        "prometheus": {
+            "family": "ep_mem_low_wat"
+        }
+    },
+    {
+        "key": "ep_mem_high_wat",
+        "unit": "bytes",
+        "description": "The bucket's memory used high watermark.",
+        "added": "7.0.0",
+        "prometheus": {
+            "family": "ep_mem_high_wat"
+        }
+    },
 /* Magma stats */
     {
         "key": "ep_magma_sets",

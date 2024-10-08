@@ -93,10 +93,8 @@ public:
     void floatValueChanged(std::string_view key, float value) override {
         if (key == "mem_low_wat_percent") {
             stats.setLowWaterMarkPercent(value);
-            store.getEPEngine().updateLegacyMemWatermarksConfiguration();
         } else if (key == "mem_high_wat_percent") {
             stats.setHighWaterMarkPercent(value);
-            store.getEPEngine().updateLegacyMemWatermarksConfiguration();
         } else if (key == "mem_used_merge_threshold_percent") {
             store.getEPEngine()
                     .getArenaMallocClient()

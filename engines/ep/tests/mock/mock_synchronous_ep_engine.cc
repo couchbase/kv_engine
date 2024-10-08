@@ -95,7 +95,6 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
 
     stats.setLowWaterMarkPercent(configuration.getMemLowWatPercent());
     stats.setHighWaterMarkPercent(configuration.getMemHighWatPercent());
-    updateLegacyMemWatermarksConfiguration();
 
     configuration.addValueChangedListener(
             "dcp_consumer_buffer_ratio",

@@ -150,7 +150,6 @@ void BucketQuotaChangeTask::checkForNewQuotaChange() {
         auto& stats = engine->getEpStats();
         stats.setLowWaterMark(previousLowWatermark);
         stats.setHighWaterMark(previousHighWatermark);
-        engine->updateLegacyMemWatermarksConfiguration();
     } else {
         EP_LOG_INFO("Starting quota change from {} to {}",
                     getCurrentBucketQuota(),
