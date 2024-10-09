@@ -360,6 +360,7 @@ cb::engine_errc DcpProducer::streamRequest(
                                                 req.vbucket_uuid,
                                                 req.snap_start_seqno,
                                                 req.snap_end_seqno,
+                                                req.purge_seqno,
                                                 includeValue,
                                                 includeXattrs,
                                                 includeDeleteTime,

@@ -6796,6 +6796,122 @@ TEST_P(SingleThreadedActiveStreamTest, backfillCompletesWithoutYielding) {
     EXPECT_EQ(0, stream->getNumBackfillPauses());
 }
 
+TEST_P(SingleThreadedActiveStreamTest,
+       StreamRequestRollbackWhenPurgeSeqnoChanges) {
+    if (ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+
+    // Store & delete some items.
+    store_item(vbid, makeStoredDocKey("foo"), "bar"); // Seqno: 1
+    store_item(vbid, makeStoredDocKey("foo1"), "bar"); // Seqno: 2
+    delete_item(vbid, makeStoredDocKey("foo")); // Seqno: 3
+    store_item(vbid, makeStoredDocKey("foo2"), "bar"); // Seqno: 4
+
+    flushAndRemoveCheckpoints(vbid);
+    // Run compaction for persistent buckets & tombstone purger for ephemeral
+    // buckets.
+    purgeTombstonesBefore(3);
+    auto purgeSeqno = vb.getPurgeSeqno();
+    EXPECT_EQ(3, purgeSeqno);
+
+    producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer->test_consumer",
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            false /*startTask*/);
+
+    producer->createCheckpointProcessorTask();
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+
+    stream = producer->mockActiveStreamRequest(
+            {} /*flags*/,
+            0 /*opaque*/,
+            vb,
+            2 /*st_seqno*/,
+            ~0 /*en_seqno*/,
+            0x0 /*vb_uuid*/,
+            0 /*snap_start_seqno*/,
+            ~0 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            producer->public_getIncludePurgeSeqno(),
+            {},
+            {},
+            3 /*purge_seqno*/);
+
+    stream->transitionStateToBackfilling();
+    ASSERT_TRUE(stream->isBackfilling());
+    EXPECT_EQ(0, stream->public_readyQSize());
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One snapshot marker & the mutation at seqno 4 (st_seqno requested above
+    // was 2 & compaction removed seqno: 3.)
+    EXPECT_EQ(2, stream->public_readyQSize());
+
+    stream.reset();
+
+    producer = std::make_shared<MockDcpProducer>(
+            *engine,
+            cookie,
+            "test_producer->test_consumer",
+            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            false /*startTask*/);
+
+    producer->createCheckpointProcessorTask();
+    producer->setSyncReplication(SyncReplication::SyncReplication);
+
+    stream = producer->mockActiveStreamRequest(
+            {} /*flags*/,
+            0 /*opaque*/,
+            vb,
+            2 /*st_seqno*/,
+            ~0 /*en_seqno*/,
+            0x0 /*vb_uuid*/,
+            0 /*snap_start_seqno*/,
+            ~0 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            producer->public_getIncludePurgeSeqno(),
+            {},
+            {},
+            3);
+
+    // Before the backfill runs & after the stream request has been processed,
+    // process a few more mutations & run compaction. This would move the purge
+    // seqno & send stream-end to the client.
+
+    delete_item(vbid, makeStoredDocKey("foo1")); // Seqno: 5
+    store_item(vbid, makeStoredDocKey("foo3"), "bar"); // Seqno: 6
+
+    flushAndRemoveCheckpoints(vbid);
+    // Run compaction for persistent buckets & tombstone purger for ephemeral
+    // buckets.
+    purgeTombstonesBefore(5);
+    purgeSeqno = vb.getPurgeSeqno();
+    EXPECT_EQ(5, purgeSeqno);
+
+    // Perform the actual backfill - fills up the readyQ in the stream.
+    producer->getBFM().backfill();
+
+    // One Stream end message.
+    // 1. The stream was created when the purge seqno was at 3 & a compaction
+    //    ran and changed the purge seqno to 5, and therefore we should
+    //    rollback.
+    EXPECT_EQ(1, stream->public_readyQSize());
+
+    auto resp = stream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::StreamEnd, resp->getEvent());
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),

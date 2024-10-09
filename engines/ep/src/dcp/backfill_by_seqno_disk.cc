@@ -134,6 +134,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     //    compaction may have changed the purgeSeqno
     // 2) Cursor dropping can also schedule backfills and they must not re-start
     //    behind the current purge-seqno
+    // 3) When the stream request was processed the remotePurgeSeqno could have
+    //    been the same as the purge seqno of the vbucket. A compaction could
+    //    run (and could have moved the purge seqno forward) before this
+    //    backfill run - double check if remotePurgeSeqno is the same as the
+    //    local purgeSeqno else rollback.
     //
     // If allowNonRollBackCollectionStream is false then the purge seqno,
     // collections high seqno must have moved or the stream isn't a
@@ -144,7 +149,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     // start-seqno must be above purge-seqno
     backfill_status_t status = backfill_finished;
     if (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno) &&
-        !allowNonRollBackStream) {
+        !allowNonRollBackStream &&
+        (stream->getRemotePurgeSeqno() != scanCtx->purgeSeqno)) {
         auto vb = bucket.getVBucket(getVBucketId());
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::create(): ({}) cannot be "

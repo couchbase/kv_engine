@@ -178,7 +178,8 @@ public:
             IncludeDeletedUserXattrs includeDeleteUserXattrs =
                     IncludeDeletedUserXattrs::No,
             std::optional<std::string_view> jsonFilter = {},
-            std::function<void(MockActiveStream&)> preSetActiveHook = {});
+            std::function<void(MockActiveStream&)> preSetActiveHook = {},
+            uint64_t purge_seqno = 0);
 
     std::shared_ptr<MockActiveStream> mockActiveStreamRequest(
             cb::mcbp::DcpAddStreamFlag flags,
@@ -194,7 +195,8 @@ public:
             IncludeDeletedUserXattrs,
             IncludePurgeSeqno includePurgeSeqno,
             std::optional<std::string_view> jsonFilter,
-            std::function<void(MockActiveStream&)> preSetActiveHook = {});
+            std::function<void(MockActiveStream&)> preSetActiveHook = {},
+            uint64_t purge_seqno = 0);
 
     /**
      * Step the producer and expect the opcode to be returned

@@ -56,7 +56,8 @@ public:
                      IncludeDeletedUserXattrs includeDeletedUserXattrs,
                      IncludePurgeSeqno includePurgeSeqno,
                      std::optional<std::string_view> jsonFilter,
-                     const std::string& streamName = "");
+                     const std::string& streamName = "",
+                     uint64_t purge_seqno = 0);
 
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {

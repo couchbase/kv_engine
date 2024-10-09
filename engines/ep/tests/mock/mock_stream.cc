@@ -42,6 +42,7 @@ MockActiveStream::MockActiveStream(
                    vb_uuid,
                    snap_start_seqno,
                    snap_end_seqno,
+                   0, // no remote purge seqno
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,
@@ -66,7 +67,8 @@ MockActiveStream::MockActiveStream(
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
         IncludePurgeSeqno includePurgeSeqno,
         std::optional<std::string_view> jsonFilter,
-        const std::string& streamName)
+        const std::string& streamName,
+        uint64_t purge_seqno)
     : ActiveStream(e,
                    p,
                    streamName.empty() ? p->getName() : streamName,
@@ -78,6 +80,7 @@ MockActiveStream::MockActiveStream(
                    vb_uuid,
                    snap_start_seqno,
                    snap_end_seqno,
+                   purge_seqno,
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,

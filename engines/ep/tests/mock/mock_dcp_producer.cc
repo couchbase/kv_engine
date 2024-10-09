@@ -68,7 +68,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
         std::optional<std::string_view> jsonFilter,
-        std::function<void(MockActiveStream&)> preSetActiveHook) {
+        std::function<void(MockActiveStream&)> preSetActiveHook,
+        uint64_t purge_seqno) {
     return mockActiveStreamRequest(flags,
                                    opaque,
                                    vb,
@@ -82,7 +83,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
                                    includeDeletedUserXattrs,
                                    IncludePurgeSeqno::No,
                                    jsonFilter,
-                                   preSetActiveHook);
+                                   preSetActiveHook,
+                                   purge_seqno);
 }
 
 std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
@@ -99,7 +101,8 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
         IncludePurgeSeqno includePurgeSeqno,
         std::optional<std::string_view> jsonFilter,
-        std::function<void(MockActiveStream&)> preSetActiveHook) {
+        std::function<void(MockActiveStream&)> preSetActiveHook,
+        uint64_t purge_seqno) {
     auto stream = std::make_shared<MockActiveStream>(
             &engine_,
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -115,7 +118,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             includeXattrs,
             includeDeletedUserXattrs,
             includePurgeSeqno,
-            jsonFilter);
+            jsonFilter,
+            "",
+            purge_seqno);
 
     if (preSetActiveHook) {
         preSetActiveHook(*stream);

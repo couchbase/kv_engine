@@ -118,6 +118,7 @@ public:
                  uint64_t vb_uuid,
                  uint64_t snap_start_seqno,
                  uint64_t snap_end_seqno,
+                 uint64_t remote_purge_seqno,
                  IncludeValue includeVal,
                  IncludeXattrs includeXattrs,
                  IncludeDeleteTime includeDeleteTime,
@@ -208,6 +209,10 @@ public:
 
     uint64_t getNumBackfillPauses() {
         return numBackfillPauses;
+    }
+
+    uint64_t getRemotePurgeSeqno() const {
+        return remotePurgeSeqno;
     }
 
     /**
@@ -713,6 +718,10 @@ protected:
     TestingHook<> completeBackfillHook;
     TestingHook<const DcpResponse*> nextHook;
     TestingHook<> takeoverSendPhaseHook;
+
+    // The last purge seqno received by the client & the one sent in the
+    // stream request.
+    const uint64_t remotePurgeSeqno;
 
     // Whether the responses sent using this stream should contain the body
     const IncludeValue includeValue;

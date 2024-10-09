@@ -770,7 +770,7 @@ public:
     }
 
     void setPurgeSeqno(uint64_t purge_seqno) {
-        DcpStreamReqPayloadV2::purge_seqno = purge_seqno;
+        DcpStreamReqPayloadV2::purge_seqno = htonll(purge_seqno);
     }
 
     cb::const_byte_buffer getBuffer() const {
