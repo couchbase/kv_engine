@@ -91,6 +91,7 @@ std::optional<std::string> cb::logger::initialize(
     auto fname = logger_settings.filename;
     auto buffersz = logger_settings.buffersize;
     auto cyclesz = logger_settings.cyclesize;
+    auto max_aggregated_size = logger_settings.max_aggregated_size;
 
     if (getenv("CB_MAXIMIZE_LOGGER_CYCLE_SIZE") != nullptr) {
         cyclesz = 1024 * 1024 * 1024; // use up to 1 GB log file size
@@ -129,7 +130,7 @@ std::optional<std::string> cb::logger::initialize(
 
         if (!fname.empty()) {
             auto fsink = std::make_shared<custom_rotating_file_sink_mt>(
-                    fname, cyclesz, log_pattern);
+                    fname, cyclesz, log_pattern, max_aggregated_size);
             fsink->set_level(spdlog::level::trace);
             sink->add_sink(fsink);
         }

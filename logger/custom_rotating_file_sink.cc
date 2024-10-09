@@ -26,49 +26,23 @@
 #include <gsl/gsl-lite.hpp>
 #include <spdlog/details/file_helper.h>
 #include <spdlog/details/fmt_helper.h>
+#include <charconv>
 #include <filesystem>
+#include <optional>
 
-static unsigned long find_first_logfile_id(
-        const std::filesystem::path& pattern) {
-    unsigned long id = 0;
-
-    const auto prefix = pattern.filename().string();
-    std::error_code ec;
-    for (const auto& p :
-         std::filesystem::directory_iterator(pattern.parent_path(), ec)) {
-        auto& path = p.path();
-        const auto extension = path.extension().string();
-        if (extension != ".txt" && extension != ".cef") {
-            continue;
-        }
-
-        auto file = path.stem().string();
-        if (file.find(prefix) == 0) {
-            const auto index = file.rfind('.');
-            if (index != std::string::npos) {
-                try {
-                    unsigned long value = std::stoul(file.substr(index + 1));
-                    if (value > id) {
-                        id = value;
-                    }
-                } catch (...) {
-                    // Ignore
-                }
-            }
-        }
-    }
-
-    return id;
-}
+/// The absolute maximum number of log files we can keep
+constexpr std::size_t max_number_of_log_giles = 10000;
 
 template <class Mutex>
 custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
         const spdlog::filename_t& base_filename,
         std::size_t max_size,
-        const std::string& log_pattern)
-    : _base_filename(base_filename),
-      _max_size(max_size),
-      _next_file_id(find_first_logfile_id(base_filename)) {
+        const std::string& log_pattern,
+        std::size_t max_aggregated_size)
+    : base_filename(base_filename),
+      max_size(max_size),
+      max_aggregated_size(max_aggregated_size) {
+    scanExistingLogFiles();
     formatter = std::make_unique<spdlog::pattern_formatter>(
             log_pattern, spdlog::pattern_time_type::local);
     file_writer = openFile();
@@ -85,15 +59,46 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
     file_writer->write({formatted.data(), formatted.size()});
 
     // Is it time to wrap to the next file?
-    if (file_writer->size() > _max_size) {
+    if (file_writer->size() > max_size) {
         try {
             auto next = openFile();
+            aggregated_size += file_writer->size();
             std::swap(file_writer, next);
         } catch (...) {
             // Keep on logging to this file, but try swap at the next
             // insert of data (didn't use the next file we need to
             // roll back the next_file_id to avoid getting a hole ;-)
-            _next_file_id--;
+            next_file_id--;
+        }
+
+        auto removeFile = [this](const std::filesystem::path& path) {
+            std::error_code ec;
+            if (exists(path, ec)) {
+                const auto size = file_size(path, ec);
+                if (remove(path, ec)) {
+                    aggregated_size -= size;
+                }
+                return true;
+            }
+            return false;
+        };
+
+        // Remove old log entries if we have too much data (or too many files)
+        while (aggregated_size > max_aggregated_size ||
+               ((next_file_id - tail_file_id) > max_number_of_log_giles)) {
+            // We can't (or at least shouldn't) remove the "current" log file
+            if (tail_file_id == (next_file_id - 1)) {
+                break;
+            }
+
+            std::filesystem::path path = createFilename(tail_file_id, false);
+            if (!removeFile(path)) {
+                // We didn't have an unencrypted version of the file;
+                // try to remove an encrypted version of the file
+                path = createFilename(tail_file_id, true);
+                removeFile(path);
+            }
+            ++tail_file_id;
         }
     }
 }
@@ -101,6 +106,62 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
 template <class Mutex>
 void custom_rotating_file_sink<Mutex>::flush_() {
     file_writer->flush();
+}
+template <class Mutex>
+std::filesystem::path custom_rotating_file_sink<Mutex>::createFilename(
+        unsigned long id, bool encrypted) {
+    return fmt::format(
+            "{}.{:06}.{}", base_filename, id, encrypted ? "cef" : "txt");
+}
+
+std::optional<unsigned long> parseNumber(std::string_view view) {
+    uint64_t ret;
+    auto [ptr, ec] =
+            std::from_chars(view.data(), view.data() + view.size(), ret);
+    if (ec == std::errc()) {
+        return ret;
+    }
+    (void)ptr;
+    return 0;
+}
+
+template <class Mutex>
+void custom_rotating_file_sink<Mutex>::scanExistingLogFiles() {
+    const std::filesystem::path pattern = base_filename;
+    const auto prefix = pattern.filename().string();
+    std::error_code ec;
+    bool found = false;
+    for (const auto& p :
+         std::filesystem::directory_iterator(pattern.parent_path(), ec)) {
+        auto& path = p.path();
+        const auto extension = path.extension().string();
+        auto file = path.stem().string();
+        if (file.rfind(prefix, 0) != 0 ||
+            (extension != ".txt" && extension != ".cef")) {
+            continue;
+        }
+
+        const auto index = file.rfind('.');
+        if (index != std::string::npos) {
+            auto value = parseNumber(file.substr(index + 1));
+            if (value.has_value()) {
+                std::error_code error;
+                const auto fsize = file_size(path, error);
+                if (error == std::errc()) {
+                    next_file_id = std::max(next_file_id, *value);
+                    if (!found) {
+                        tail_file_id = next_file_id;
+                        found = true;
+                    }
+                    tail_file_id = std::max(tail_file_id, *value);
+                    if (value > next_file_id) {
+                        next_file_id = *value;
+                    }
+                    aggregated_size += fsize;
+                }
+            }
+        }
+    }
 }
 
 template <class Mutex>
@@ -111,14 +172,9 @@ custom_rotating_file_sink<Mutex>::openFile() {
     std::filesystem::path path;
     std::filesystem::path other;
     do {
-        path = fmt::format("{}.{:06}.{}",
-                           _base_filename,
-                           _next_file_id,
-                           dek ? "cef" : "txt");
-        other = fmt::format("{}.{:06}.{}",
-                            _base_filename,
-                            _next_file_id++,
-                            dek ? "txt" : "cef");
+        path = createFilename(next_file_id, dek.get() != nullptr);
+        other = createFilename(next_file_id, dek.get() == nullptr);
+        ++next_file_id;
     } while (exists(path) || exists(other));
 
     return cb::crypto::FileWriter::create(dek, path);

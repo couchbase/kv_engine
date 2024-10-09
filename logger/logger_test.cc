@@ -49,9 +49,12 @@ protected:
 
 /**
  * Log multiple messages, which will causes the files to rotate a few times.
- * Test if the hooks appear in each file.
  */
 TEST_F(FileRotationTest, MultipleFilesTest) {
+    cb::logger::shutdown();
+    config.max_aggregated_size = 6 * 1024;
+    setUpLogger();
+
     for (auto ii = 0; ii < 100; ii++) {
         LOG_DEBUG(
                 "This is a textual log message that we want to repeat a "
@@ -61,7 +64,17 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
     cb::logger::shutdown();
 
     files = cb::io::findFilesWithPrefix(config.filename);
-    EXPECT_LT(1, files.size());
+    // sort the files so we know the order they appear
+    std::sort(files.begin(), files.end());
+    // This would have generated 6 files of log messages, but given that
+    // we prune after 3 files we should have 3 files left (starting with
+    // file id 3)
+    ASSERT_EQ(3, files.size());
+    for (std::size_t ii = 0; ii < files.size(); ++ii) {
+        auto filename = std::filesystem::path(files[ii]).filename();
+        EXPECT_EQ(fmt::format("spdlogger_test.00000{}.txt", 3 + ii),
+                  filename.string());
+    }
 }
 
 #ifndef WIN32

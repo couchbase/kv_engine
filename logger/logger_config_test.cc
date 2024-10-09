@@ -34,6 +34,7 @@ TEST(LoggerConfig, ToFromJson) {
     config.cyclesize = 4;
     config.unit_test = true;
     config.console = false;
+    config.max_aggregated_size = 100;
 
     const nlohmann::json json = config;
     EXPECT_EQ(config.filename, json["filename"].get<std::string>());
@@ -41,7 +42,8 @@ TEST(LoggerConfig, ToFromJson) {
     EXPECT_EQ(config.cyclesize, json["cyclesize"].get<size_t>());
     EXPECT_EQ(config.unit_test, json["unit_test"].get<bool>());
     EXPECT_EQ(config.console, json["console"].get<bool>());
-
+    EXPECT_EQ(config.max_aggregated_size,
+              json["max_aggregated_size"].get<size_t>());
     const auto parsed = json.get<Config>();
     EXPECT_EQ(config, parsed);
 }

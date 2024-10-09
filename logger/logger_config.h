@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -30,6 +29,8 @@ struct Config {
     size_t buffersize = 8192;
     /// 100 MB per cycled file
     size_t cyclesize = 100 * 1024 * 1024;
+    /// Start deleting old log files when we exceed 500MB
+    size_t max_aggregated_size = 500 * 1024 * 1024;
     /// if running in a unit test or not
     bool unit_test = false;
     /// Should messages be passed on to the console via stderr

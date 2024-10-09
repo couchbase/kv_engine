@@ -21,10 +21,10 @@
 
 #pragma once
 
-#include <mutex>
-
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/base_sink.h>
+#include <filesystem>
+#include <mutex>
 
 namespace cb::crypto {
 class FileWriter;
@@ -42,21 +42,40 @@ class custom_rotating_file_sink : public spdlog::sinks::base_sink<Mutex> {
 public:
     custom_rotating_file_sink(const spdlog::filename_t& base_filename,
                               std::size_t max_size,
-                              const std::string& log_pattern);
+                              const std::string& log_pattern,
+                              std::size_t max_aggregated_size);
 
 protected:
     void sink_it_(const spdlog::details::log_msg& msg) override;
     void flush_() override;
 
 private:
-    // Calculate the full filename to use the next time
+    std::filesystem::path createFilename(unsigned long id, bool encrypted);
+
+    /// Scan the log directory and initialize:
+    /// * next_file_id to contain the number for the next file we should
+    ///   create
+    /// * tail_file_id to contain the number for the oldest file we found
+    /// * aggregated_size to contain the total size of log on disk
+    void scanExistingLogFiles();
+
+    /// Calculate the full filename to use the next time and open the new
+    /// file
     std::unique_ptr<cb::crypto::FileWriter> openFile();
 
-    const spdlog::filename_t _base_filename;
-    const std::size_t _max_size;
+    const spdlog::filename_t base_filename;
+    const std::size_t max_size;
+    const std::size_t max_aggregated_size;
     std::unique_ptr<cb::crypto::FileWriter> file_writer;
     std::unique_ptr<spdlog::pattern_formatter> formatter;
-    unsigned long _next_file_id;
+    /// The next file we're going to open (not the current) should use
+    /// this number
+    unsigned long next_file_id = 0;
+    /// The oldest file we've got use this number
+    unsigned long tail_file_id = 0;
+    /// The aggregated size of log we've got (on disk). It does not include
+    /// the content of the current file
+    std::size_t aggregated_size = 0;
 };
 
 using custom_rotating_file_sink_mt = custom_rotating_file_sink<std::mutex>;

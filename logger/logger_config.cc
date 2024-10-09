@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -20,6 +19,7 @@ bool Config::operator==(const Config& other) const {
            (this->buffersize == other.buffersize) &&
            (this->cyclesize == other.cyclesize) &&
            (this->unit_test == other.unit_test) &&
+           (this->max_aggregated_size == other.max_aggregated_size) &&
            (this->console == other.console);
 }
 
@@ -31,6 +31,7 @@ void to_json(nlohmann::json& json, const Config& config) {
     json = {{"filename", config.filename},
             {"buffersize", config.buffersize},
             {"cyclesize", config.cyclesize},
+            {"max_aggregated_size", config.max_aggregated_size},
             {"unit_test", config.unit_test},
             {"console", config.console}};
 }
@@ -41,6 +42,8 @@ void from_json(const nlohmann::json& json, Config& config) {
     config.cyclesize = json.value("cyclesize", config.cyclesize);
     config.unit_test = json.value("unit_test", config.unit_test);
     config.console = json.value("console", config.console);
+    config.max_aggregated_size =
+            json.value("max_aggregated_size", config.max_aggregated_size);
 }
 
 } // namespace cb::logger
