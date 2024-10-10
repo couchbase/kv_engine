@@ -279,6 +279,10 @@ public:
         return fusionLogstoreURI;
     }
 
+    std::string getFusionMetadatastoreURI() const {
+        return fusionMetadatastoreURI;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -550,4 +554,7 @@ private:
 
     // Fusion Logstore URI.
     std::string fusionLogstoreURI;
+
+    // Fusion Metadatastore URI.
+    std::string fusionMetadatastoreURI;
 };

@@ -213,6 +213,7 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     historyRetentionSize = config.getHistoryRetentionBytes();
 
     fusionLogstoreURI = config.getMagmaFusionLogstoreUri();
+    fusionMetadatastoreURI = config.getMagmaFusionMetadatastoreUri();
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
