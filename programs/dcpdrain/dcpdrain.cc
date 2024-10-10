@@ -588,7 +588,7 @@ int main(int argc, char** argv) {
     sa_family_t family = AF_UNSPEC;
     bool csv = false;
     std::vector<std::pair<std::string, std::string>> controls;
-    std::string name = "dcpdrain-" + std::to_string(::getpid());
+    std::string name = "dcpdrain:" + std::to_string(::getpid());
     EnableOSO enableOso{EnableOSO::False};
     bool enableCollections{true};
     std::string streamRequestFileName;
