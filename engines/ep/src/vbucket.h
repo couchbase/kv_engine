@@ -2358,6 +2358,16 @@ private:
     void decrDirtyQueuePendingWrites(size_t decrementBy);
 
     /**
+     * Allows the operation only if the request CAS matches the document CAS or
+     * if request CAS = 0 and the document is not locked. Returns the
+     * appropriate mutation status for the type of value.
+     * @return status on error, empty on success
+     */
+    std::optional<MutationStatus> checkCasForWrite(StoredValue& v,
+                                                   uint64_t cas,
+                                                   bool isDelete) const;
+
+    /**
      * Updates an existing StoredValue in in-memory data structures like HT.
      * Assumes that HT bucket lock is grabbed.
      *

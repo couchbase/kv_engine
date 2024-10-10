@@ -694,24 +694,8 @@ static enum test_result test_delete_with_meta_deleted(EngineIface* h) {
 
 static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     std::string_view key = "delete_with_meta_key";
-
-    // check the stat
-    checkeq(0,
-            get_int_stat(h, "ep_num_ops_del_meta"),
-            "Expect zero setMeta ops");
-
-    cb::EngineErrorMetadataPair errorMetaPair;
-
-    // get metadata of nonexistent key
-    check(!get_meta(h, key, errorMetaPair),
-          "Expected get meta to return false");
-    checkeq(cb::engine_errc::no_such_key,
-            errorMetaPair.first,
-            "Expected no_such_key");
-    checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
-
     // this is the cas to be used with a subsequent delete with meta
-    uint64_t valid_cas = last_cas;
+    uint64_t valid_cas = 0;
     uint64_t invalid_cas = 2012;
 
     // do delete with meta
@@ -719,10 +703,13 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     ItemMetaData itm_meta(
             0xdeadbeef, 10, 0xdeadbeef, 1735689600); // expires in 2025
 
-    // do delete with meta with an incorrect cas value. should fail.
-    checkeq(cb::engine_errc::key_already_exists,
+    // do delete with meta with a cas value. should fail.
+    // TODO(MB-63781): This should just check for no_such_key after the fix, but
+    // right now, the return value depends on whether we do a bgfetch
+    // (non-existent) or bloomfilter lookup (we create a fake tempDeleted).
+    checkne(cb::engine_errc::success,
             del_with_meta(h, key, Vbid(0), &itm_meta, invalid_cas),
-            "Expected invalid cas error");
+            "Expected error");
     // check the stat
     checkeq(0,
             get_int_stat(h, "ep_num_ops_del_meta"),
@@ -730,7 +717,7 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkPersistentBucketTempItems(h, 1);
 
-    // do delete with meta with the correct cas value. should pass.
+    // do delete with meta with no cas check. should pass.
     checkeq(cb::engine_errc::success,
             del_with_meta(h, key, Vbid(0), &itm_meta, valid_cas),
             "Expected delete OK");
@@ -742,7 +729,8 @@ static enum test_result test_delete_with_meta_nonexistent(EngineIface* h) {
     wait_for_stat_to_be(h, "curr_items", 0);
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
 
-    // get metadata again to verify that delete with meta was successful
+    cb::EngineErrorMetadataPair errorMetaPair;
+    // get metadata to verify that delete with meta was successful
     check(get_meta(h, key, errorMetaPair), "Expected to get meta");
     checkeq(DocumentState::Deleted,
             errorMetaPair.second.document_state,

@@ -2321,7 +2321,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
                           key_1, vbid, cookie, metadata, deleted, datatype));
     }
 
-    uint64_t cas = -1;
+    uint64_t cas = 0;
     metadata.flags = 0xf00f0088;
     metadata.cas = 0xbeeff00dcafe1234ull;
     metadata.revSeqno = 0xdad;
