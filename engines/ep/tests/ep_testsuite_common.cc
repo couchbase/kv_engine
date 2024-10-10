@@ -394,10 +394,11 @@ void check_key_value(EngineIface* h,
     cb::compression::Buffer inflated;
     if (isCompressionEnabled(h) &&
         (info.datatype & PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
-        cb::compression::inflateSnappy(
-                {static_cast<const char*>(info.value[0].iov_base),
-                 info.value[0].iov_len},
-                inflated);
+        if (!inflateSnappy({static_cast<const char*>(info.value[0].iov_base),
+                            info.value[0].iov_len},
+                           inflated)) {
+            throw std::runtime_error("Failed to inflate document");
+        }
         payload = inflated;
     } else {
         payload = {static_cast<const char *>(info.value[0].iov_base),

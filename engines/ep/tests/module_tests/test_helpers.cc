@@ -106,7 +106,9 @@ std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
     }
     if (shouldCompress) {
         cb::compression::Buffer output;
-        cb::compression::deflateSnappy(value, output);
+        if (!deflateSnappy(value, output)) {
+            throw std::runtime_error("Failed to deflate value");
+        }
         itemDataType |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         return std::make_unique<Item>(key, /*flags*/0, /*exp*/0,
                                       output.data(), output.size(),
@@ -164,7 +166,9 @@ std::string createXattrValue(const std::string& body,
 
     if (makeItSnappy) {
         cb::compression::Buffer output;
-        cb::compression::deflateSnappy(data, output);
+        if (!deflateSnappy(data, output)) {
+            throw std::runtime_error("Failed to deflate value");
+        }
         return {output.data(), output.size()};
     }
     return data;

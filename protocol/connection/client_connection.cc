@@ -358,7 +358,9 @@ void Document::compress() {
     }
 
     cb::compression::Buffer buf;
-    cb::compression::deflateSnappy(value, buf);
+    if (!deflateSnappy(value, buf)) {
+        throw std::runtime_error("Failed to deflate value");
+    }
     value = {buf.data(), buf.size()};
     info.datatype = cb::mcbp::Datatype(uint8_t(info.datatype) |
                                        uint8_t(cb::mcbp::Datatype::Snappy));
@@ -371,7 +373,9 @@ void Document::uncompress() {
     }
 
     cb::compression::Buffer buf;
-    cb::compression::inflateSnappy(value, buf);
+    if (!inflateSnappy(value, buf)) {
+        throw std::runtime_error("Failed to inflate document");
+    }
     value = {buf.data(), buf.size()};
 
     auto in_datatype = static_cast<uint8_t>(info.datatype);

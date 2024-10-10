@@ -3541,7 +3541,7 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
             return 0;
         }
         cb::compression::Buffer buffer;
-        cb::compression::deflateSnappy({value.data(), value.size()}, buffer);
+        EXPECT_TRUE(deflateSnappy({value.data(), value.size()}, buffer));
         return buffer.size();
     };
 

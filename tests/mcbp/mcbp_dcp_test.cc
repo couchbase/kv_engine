@@ -588,7 +588,7 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
         }
 
         if (cb::mcbp::datatype::is_snappy(valid)) {
-            cb::compression::deflateSnappy(value, deflated);
+            ASSERT_TRUE(deflateSnappy(value, deflated));
             value = deflated;
         }
 
@@ -613,7 +613,7 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
         cb::compression::Buffer deflated;
 
         if (cb::mcbp::datatype::is_snappy(invalid)) {
-            cb::compression::deflateSnappy(value, deflated);
+            ASSERT_TRUE(deflateSnappy(value, deflated));
             value = deflated;
         }
         builder.setValue(value);
@@ -987,7 +987,7 @@ TEST_P(DcpXattrValidatorTest, SystemXattrTooLarge) {
     }
 
     if (isSnappyEnabled()) {
-        cb::compression::deflateSnappy(value, deflated);
+        ASSERT_TRUE(deflateSnappy(value, deflated));
         value = deflated;
     } else {
         value = blob.finalize();

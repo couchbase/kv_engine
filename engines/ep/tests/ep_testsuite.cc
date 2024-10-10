@@ -979,7 +979,9 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
     }
 
     cb::compression::Buffer compressedDoc;
-    cb::compression::deflateSnappy(data, compressedDoc);
+    if (!deflateSnappy(data, compressedDoc)) {
+        throw std::runtime_error("Unable to deflate data");
+    }
 
     for (int i = 0; i < 13; i++) {
         std::stringstream ss;
