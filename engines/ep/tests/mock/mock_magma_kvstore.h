@@ -63,14 +63,6 @@ public:
 
     using MagmaKVStore::isContinuousBackupStarted;
 
-    bool isContinuousBackupEnabled() {
-        return continuousBackupEnabled;
-    }
-
-    std::chrono::seconds getContinuousBackupInterval() {
-        return continuousBackupInterval;
-    }
-
     magma::Status addLocalDoc(Vbid vbid,
                               std::string_view key,
                               std::string value);

@@ -824,7 +824,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
                              configuration.getMaxVBuckets());
 
     setContinuousBackupInterval(configuration.getContinousBackupInterval());
-    setContinuousBackupEnabled(configuration.isContinousBackupEnabled());
 
     // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
@@ -920,7 +919,7 @@ void MagmaKVStore::resume() {
 void MagmaKVStore::postVBStateFlush(Vbid vbid,
                                     const vbucket_state& committedState) {
     const auto newState = committedState.transition.state;
-    const auto isBackupEnabled = continuousBackupEnabled.load();
+    const auto isBackupEnabled = configuration.isContinousBackupEnabled();
 
     auto& backupStatus = continuousBackupStatus[getCacheSlot(vbid)];
 
@@ -4358,6 +4357,11 @@ std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {
 
 bool MagmaKVStore::isContinuousBackupStarted(Vbid vbid) {
     return continuousBackupStatus[getCacheSlot(vbid)] == BackupStatus::Started;
+}
+
+void MagmaKVStore::setContinuousBackupInterval(std::chrono::seconds interval) {
+    magma->SetBackupInterval(
+            std::chrono::duration_cast<std::chrono::minutes>(interval));
 }
 
 std::filesystem::path MagmaKVStore::getContinuousBackupPath(

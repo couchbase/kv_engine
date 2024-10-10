@@ -611,6 +611,12 @@ void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
     magma->SetKeyTreeIndexBlockSize(value);
 }
 
+void MagmaMemoryTrackingProxy::SetBackupInterval(
+        std::chrono::minutes interval) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetBackupInterval(interval);
+}
+
 magma::Status MagmaMemoryTrackingProxy::StartBackup(
         const magma::Magma::KVStoreID kvID, const std::string& backupPath) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

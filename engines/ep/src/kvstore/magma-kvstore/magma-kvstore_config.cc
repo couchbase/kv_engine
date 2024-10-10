@@ -188,11 +188,14 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
 
     continuousBackupEnabled = config.isContinuousBackupEnabled();
-    continuousBackupInterval =
-            std::chrono::seconds(config.getContinuousBackupInterval());
     config.addValueChangedListener(
             "continuous_backup_enabled",
             std::make_unique<ConfigChangeListener>(*this));
+
+    continuousBackupInterval =
+            std::chrono::seconds(config.getContinuousBackupInterval());
+    magmaCfg.BackupInterval = std::chrono::duration_cast<std::chrono::minutes>(
+            continuousBackupInterval.load());
     config.addValueChangedListener(
             "continuous_backup_interval",
             std::make_unique<ConfigChangeListener>(*this));
@@ -301,13 +304,6 @@ void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
     magmaKeyTreeIndexBlockSize.store(value);
     if (store) {
         store->setMagmaKeyTreeIndexBlockSize(value);
-    }
-}
-
-void MagmaKVStoreConfig::setContinousBackupEnabled(bool enabled) {
-    continuousBackupEnabled = enabled;
-    if (store) {
-        store->setContinuousBackupEnabled(enabled);
     }
 }
 

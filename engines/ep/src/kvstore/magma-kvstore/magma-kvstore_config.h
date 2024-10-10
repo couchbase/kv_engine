@@ -253,11 +253,15 @@ public:
     bool isContinousBackupEnabled() const {
         return continuousBackupEnabled;
     }
-    void setContinousBackupEnabled(bool enabled);
+
+    void setContinousBackupEnabled(bool enabled) {
+        continuousBackupEnabled = enabled;
+    }
 
     std::chrono::seconds getContinousBackupInterval() const {
         return continuousBackupInterval;
     }
+
     void setContinousBackupInterval(std::chrono::seconds interval);
 
     /**

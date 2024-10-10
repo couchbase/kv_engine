@@ -250,6 +250,7 @@ public:
     void SetKeyTreeDataBlockSize(size_t value);
     void SetKeyTreeIndexBlockSize(size_t value);
 
+    void SetBackupInterval(std::chrono::minutes interval);
     magma::Status StartBackup(const magma::Magma::KVStoreID kvID,
                               const std::string& backupPath);
     magma::Status StopBackup(const magma::Magma::KVStoreID kvID);

@@ -81,15 +81,16 @@ public:
 TEST_P(ContinousBackupTest, Config) {
     using namespace std::chrono_literals;
     auto& store = getMockKVStore(vbid);
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(store.getConfig());
 
-    EXPECT_EQ(store.isContinuousBackupEnabled(), true);
-    EXPECT_EQ(store.getContinuousBackupInterval(), 1000s);
+    EXPECT_EQ(config.isContinousBackupEnabled(), true);
+    EXPECT_EQ(config.getContinousBackupInterval(), 1000s);
 
     engine->getConfiguration().setContinuousBackupEnabled(false);
     engine->getConfiguration().setContinuousBackupInterval(123);
 
-    EXPECT_EQ(store.isContinuousBackupEnabled(), false);
-    EXPECT_EQ(store.getContinuousBackupInterval(), 123s);
+    EXPECT_EQ(config.isContinousBackupEnabled(), false);
+    EXPECT_EQ(config.getContinousBackupInterval(), 123s);
 }
 
 TEST_P(ContinousBackupTest, PathConfig) {
