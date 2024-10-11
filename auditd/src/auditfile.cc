@@ -201,7 +201,8 @@ bool AuditFile::open() {
     } while (exists(open_file_name));
 
     try {
-        file = cb::crypto::FileWriter::create(key, open_file_name, 8192);
+        file = cb::crypto::FileWriter::create(
+                key, open_file_name, 8192, cb::crypto::Compression::ZLIB);
         LOG_INFO_CTX(
                 "Audit file",
                 {"encrypted", file->is_encrypted() ? "encrypted" : "plain"});
