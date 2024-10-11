@@ -398,7 +398,7 @@ void McdEnvironment::iterateLogLines(
 bool McdEnvironment::iterateAuditEvents(
         const std::function<bool(const nlohmann::json&)>& callback) const {
     const auto files =
-            cb::io::findFilesContaining(mcd_env->getAuditLogDir(), "audit.log");
+            cb::io::findFilesContaining(mcd_env->getAuditLogDir(), "audit.cef");
     for (const auto& file : files) {
         std::filesystem::path path(file);
         if (is_symlink(path)) {

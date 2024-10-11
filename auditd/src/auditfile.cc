@@ -176,6 +176,9 @@ bool AuditFile::open() {
     auto ts = cb::time::timestamp(open_time).substr(0, 19);
     std::replace(ts.begin(), ts.end(), ':', '-');
 
+    auto key = cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit);
+    const auto* extension = key ? "cef" : "log";
+
     // If we for some reason need to rotate the file and there is already
     // a pre-existing file with the filename: hostname-timestamp-audit.log
     // lets use the name "hostname-timestamp-counter-audit.log".
@@ -184,21 +187,21 @@ bool AuditFile::open() {
     int count = 0;
     do {
         if (count == 0) {
-            open_file_name = log_directory /
-                             fmt::format("{}-{}-audit.log", hostname, ts);
-        } else {
             open_file_name =
                     log_directory /
-                    fmt::format("{}-{}-{}-audit.log", hostname, ts, count);
+                    fmt::format("{}-{}-audit.{}", hostname, ts, extension);
+        } else {
+            open_file_name = log_directory / fmt::format("{}-{}-{}-audit.{}",
+                                                         hostname,
+                                                         ts,
+                                                         count,
+                                                         extension);
         }
         ++count;
     } while (exists(open_file_name));
 
     try {
-        file = cb::crypto::FileWriter::create(
-                cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit),
-                open_file_name,
-                8192);
+        file = cb::crypto::FileWriter::create(key, open_file_name, 8192);
         LOG_INFO_CTX(
                 "Audit file",
                 {"encrypted", file->is_encrypted() ? "encrypted" : "plain"});
