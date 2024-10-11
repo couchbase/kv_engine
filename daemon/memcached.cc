@@ -894,6 +894,18 @@ int memcached_main(int argc, char** argv) {
     }
 #endif
 
+    {
+        nlohmann::json encryption = nlohmann::json::object();
+        cb::dek::Manager::instance().iterate(
+                [&encryption](auto entity, const auto& ks) {
+                    encryption[cb::dek::format_as(entity)] =
+                            cb::dek::toLoggableJson(ks);
+                });
+        if (!encryption.empty()) {
+            LOG_INFO_CTX("Data encryption", {"config", encryption});
+        }
+    }
+
 #if defined(__x86_64__) || defined(_M_X64)
     if (!folly::CpuId().sse42()) {
         // MB-44941: hw crc32 is required, and is part of SSE4.2. If the CPU

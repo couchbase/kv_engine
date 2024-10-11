@@ -87,6 +87,19 @@ void SetActiveEncryptionKeysContext::execute() {
                       {"error", e.what()});
         status = cb::engine_errc::disconnect;
     }
+
+    if (status == cb::engine_errc::success) {
+        try {
+            auto entry = cb::dek::toLoggableJson(json);
+            LOG_INFO_CTX("Updating Data encryption",
+                         {"entity", entity},
+                         {"config", entry});
+        } catch (const std::exception& e) {
+            LOG_ERROR_CTX(
+                    "Failed to build a list of encryption keys for logging",
+                    {"error", e.what()});
+        }
+    }
 }
 
 cb::engine_errc SetActiveEncryptionKeysContext::done() const {

@@ -28,6 +28,10 @@ inline auto to_string(Entity entity) {
 }
 Entity to_entity(std::string_view entity);
 
+/// Convert a keystore to a JSON object we may put in our logs
+/// (strip off the actual keys etc)
+nlohmann::json toLoggableJson(const cb::crypto::KeyStore& keystore);
+
 class Manager {
 public:
     virtual ~Manager() = default;
@@ -76,5 +80,10 @@ public:
     virtual void setActive(Entity entity, SharedEncryptionKey key) = 0;
     /// Set the list of active encryption keys for a given entity
     virtual void setActive(Entity entity, crypto::KeyStore ks) = 0;
+
+    /// Iterate over all key stores
+    virtual void iterate(
+            const std::function<void(Entity, const crypto::KeyStore&)>&
+                    callback) = 0;
 };
 } // namespace cb::dek
