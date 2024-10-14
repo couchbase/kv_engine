@@ -8,7 +8,6 @@ add_library(mc_client_connection STATIC
             client_mcbp_commands.cc
             client_mcbp_commands.h
             cluster_config_map_utils.h
-            $<TARGET_OBJECTS:folly_io_callbacks>
         )
 kv_enable_pch(mc_client_connection)
 cb_enable_unity_build(mc_client_connection)
@@ -25,6 +24,7 @@ target_link_libraries(mc_client_connection PRIVATE
     platform
     ${COUCHBASE_NETWORK_LIBS}
   PRIVATE
+    folly_io_callbacks
     cbcompress
     json_validator
     xattr)

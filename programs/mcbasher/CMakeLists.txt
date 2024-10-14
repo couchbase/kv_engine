@@ -1,4 +1,4 @@
-cb_add_test_executable(mcbasher mcbasher.cc $<TARGET_OBJECTS:mc_program_utils>)
+cb_add_test_executable(mcbasher mcbasher.cc)
 kv_enable_pch(mcbasher)
-target_link_libraries(mcbasher PRIVATE mc_client_connection mcd_util platform)
+target_link_libraries(mcbasher PRIVATE mc_client_connection mcd_util mc_program_utils platform)
 add_sanitizers(mcbasher)

@@ -1,6 +1,6 @@
-add_executable(mctestauth mctestauth.cc $<TARGET_OBJECTS:mc_program_utils>)
+add_executable(mctestauth mctestauth.cc)
 kv_enable_pch(mctestauth)
-target_link_libraries(mctestauth PRIVATE mc_client_connection platform)
+target_link_libraries(mctestauth PRIVATE mc_client_connection mc_program_utils platform)
 add_sanitizers(mctestauth)
 install(TARGETS mctestauth RUNTIME DESTINATION bin)
 AddToStandalonePackage(TARGETS mctestauth PACKAGES admin_tools)

@@ -1,6 +1,6 @@
-add_executable(mcstat mcstat.cc $<TARGET_OBJECTS:mc_program_utils>)
+add_executable(mcstat mcstat.cc)
 kv_enable_pch(mcstat)
-target_link_libraries(mcstat PRIVATE mc_client_connection platform)
+target_link_libraries(mcstat PRIVATE mc_client_connection mc_program_utils platform)
 add_sanitizers(mcstat)
 install(TARGETS mcstat RUNTIME DESTINATION bin)
 AddToStandalonePackage(TARGETS mcstat PACKAGES admin_tools)
