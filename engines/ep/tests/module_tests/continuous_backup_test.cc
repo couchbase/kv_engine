@@ -11,6 +11,7 @@
 #include "backup/backup.h"
 #include "backup/backup_generated.h"
 #include "ep_bucket.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "memcached/vbucket.h"
 #include "statistics/labelled_collector.h"
 #include "statistics/tests/mock/mock_stat_collector.h"
@@ -89,6 +90,33 @@ TEST_P(ContinousBackupTest, Config) {
 
     EXPECT_EQ(store.isContinuousBackupEnabled(), false);
     EXPECT_EQ(store.getContinuousBackupInterval(), 123s);
+}
+
+TEST_P(ContinousBackupTest, PathConfig) {
+    auto& config = engine->getConfiguration();
+    std::filesystem::path dbName =
+            std::filesystem::canonical(config.getDbname());
+    auto bucketDirName = fmt::format("{}-123", engine->getName());
+
+    {
+        config.parseConfiguration("uuid=123;continuous_backup_path=path");
+        MagmaKVStoreConfig kvStoreConfig(config, "magma", 1, 1);
+        EXPECT_EQ(kvStoreConfig.getContinuousBackupPath(),
+                  dbName / "path" / bucketDirName);
+    }
+    {
+        config.parseConfiguration("uuid=123;continuous_backup_path=path/");
+        MagmaKVStoreConfig kvStoreConfig(config, "magma", 1, 1);
+        EXPECT_EQ(kvStoreConfig.getContinuousBackupPath(),
+                  dbName / "path" / bucketDirName);
+    }
+    {
+        config.parseConfiguration(
+                "uuid=123;continuous_backup_path=../@continuous_backup");
+        MagmaKVStoreConfig kvStoreConfig(config, "magma", 1, 1);
+        EXPECT_EQ(kvStoreConfig.getContinuousBackupPath(),
+                  dbName.parent_path() / "@continuous_backup" / bucketDirName);
+    }
 }
 
 TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {

@@ -1661,6 +1661,12 @@
                 }
             }
         },
+        "continuous_backup_path": {
+            "default": "../@continuous_backup/",
+            "dynamic": false,
+            "type": "std::string",
+            "descr": "A relative path to the continuous backup directory for this bucket."
+        },
         "range_scan_kv_store_scan_ratio": {
             "default": "0.8",
             "dynamic": false,

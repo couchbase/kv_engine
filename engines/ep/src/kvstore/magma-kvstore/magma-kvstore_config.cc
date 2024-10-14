@@ -12,11 +12,13 @@
 #include "magma-kvstore_config.h"
 
 #include "configuration.h"
+#include "ep_engine.h"
 #include "error_handler.h"
 #include "file_ops_tracker.h"
 #include "magma-kvstore.h"
 #include "magma-kvstore_fs.h"
 
+#include <fmt/args.h>
 #include <memcached/server_core_iface.h>
 
 /// A listener class to update MagmaKVSTore related configs at runtime.
@@ -196,10 +198,15 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
 
     std::filesystem::path dbName = config.getDbname();
-    continuousBackupPath = dbName.parent_path() / "@continuous_backup" /
-                           fmt::format("{}-{}",
-                                       dbName.filename().generic_string(),
-                                       config.getUuid());
+
+    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+    // Some tests may not have an engine, so we have a fallback.
+    std::string bucketName =
+            engine ? engine->getName() : dbName.filename().generic_string();
+
+    continuousBackupPath = std::filesystem::weakly_canonical(
+            dbName / config.getContinuousBackupPath() /
+            fmt::format("{}-{}", bucketName, config.getUuid()));
 
     magmaCfg.OnBackupCallback = [this](auto vbid, auto& snapshot) {
         if (!store) {
