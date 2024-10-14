@@ -27,7 +27,8 @@ public:
     void SetUp() override {
         config_string +=
                 "continuous_backup_enabled=true;"
-                "continuous_backup_interval=1000";
+                "continuous_backup_interval=1000;"
+                "history_retention_seconds=2000";
 
         STParameterizedBucketTest::SetUp();
         replaceMagmaKVStore();
