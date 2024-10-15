@@ -212,11 +212,16 @@ TEST_P(ContinousBackupTest, StartBackupAfterWarmup) {
         replaceMagmaKVStore();
         auto& store = getMockKVStore(vbid);
         auto& kvBucket = *static_cast<EPBucket*>(engine->getKVBucket());
+
+        EXPECT_FALSE(store.isContinuousBackupStarted(vbid));
+        EXPECT_TRUE(store.isHistoryEvictionPaused());
+
         kvBucket.initializeWarmupTask();
         kvBucket.startWarmupTask();
         runReadersUntilWarmedUp();
 
         EXPECT_TRUE(store.isContinuousBackupStarted(vbid));
+        EXPECT_FALSE(store.isHistoryEvictionPaused());
     }
 }
 

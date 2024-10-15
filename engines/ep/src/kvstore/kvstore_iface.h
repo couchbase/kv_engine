@@ -348,6 +348,12 @@ public:
     virtual std::vector<vbucket_state*> listPersistedVbuckets() = 0;
 
     /**
+     * This API is called after warmup has populated the vBucket map and after
+     * flushing the vbucket states for all vbuckets managed by this KVStore.
+     */
+    virtual void completeLoadingVBuckets() = 0;
+
+    /**
      * Persist a snapshot of the vbucket states in the underlying storage
      * system.
      *

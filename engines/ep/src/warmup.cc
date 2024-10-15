@@ -1675,8 +1675,12 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
 
     if (++threadtask_count == getNumShards()) {
         // All threads have finished populating the vBucket map (and potentially
-        // flushing a new vBucket state), it's now safe for us to start the
-        // flushers.
+        // flushing a new vBucket state).
+
+        // We can let the KVStore know. This will enable history eviction if it
+        // was previously disable due to continuous backup.
+        store.completeLoadingVBuckets();
+        // It's now safe for us to start the flushers.
         store.startFlusher();
 
         // Can now drop the shared_ptrs from Warmup

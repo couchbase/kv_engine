@@ -1331,6 +1331,12 @@ protected:
      */
     void createNewActiveCheckpoints();
 
+    /**
+     * Should be called after warmup has populated the vBucket map and after
+     * flushing the vbucket states for all vbuckets.
+     */
+    void completeLoadingVBuckets();
+
     friend class Warmup;
     friend class WarmupLoadingKVPairs;
     friend class WarmupLoadingData;

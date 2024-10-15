@@ -62,6 +62,7 @@ public:
     bool snapshotVBucket(Vbid vbid, const VB::Commit& meta) override;
 
     using MagmaKVStore::isContinuousBackupStarted;
+    using MagmaKVStore::isHistoryEvictionPaused;
 
     magma::Status addLocalDoc(Vbid vbid,
                               std::string_view key,

@@ -1017,6 +1017,11 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
     return primaryVbStates;
 }
 
+void NexusKVStore::completeLoadingVBuckets() {
+    primary->completeLoadingVBuckets();
+    secondary->completeLoadingVBuckets();
+}
+
 bool NexusKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
     auto primaryResult = primary->snapshotVBucket(vbucketId, meta);
     auto secondaryResult = secondary->snapshotVBucket(vbucketId, meta);

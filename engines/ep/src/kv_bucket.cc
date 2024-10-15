@@ -3444,6 +3444,13 @@ void KVBucket::createNewActiveCheckpoints() {
     }
 }
 
+void KVBucket::completeLoadingVBuckets() {
+    for (auto& i : vbMap.shards) {
+        KVShard* shard = i.get();
+        shard->getRWUnderlying()->completeLoadingVBuckets();
+    }
+}
+
 void KVBucket::setCompactionExpiryFetchInline(bool value) {
     compactionExpiryFetchInline = value;
 }

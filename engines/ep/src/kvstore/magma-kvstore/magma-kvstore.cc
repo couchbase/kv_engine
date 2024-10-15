@@ -825,6 +825,11 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
 
     setContinuousBackupInterval(configuration.getContinousBackupInterval());
 
+    if (configuration.isContinousBackupEnabled()) {
+        magma->DisableHistoryEviction();
+        historyEvictionPaused = true;
+    }
+
     // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
 
@@ -1134,6 +1139,13 @@ std::vector<vbucket_state*> MagmaKVStore::listPersistedVbuckets() {
         result.emplace_back(vb.get());
     }
     return result;
+}
+
+void MagmaKVStore::completeLoadingVBuckets() {
+    KVStore::completeLoadingVBuckets();
+    if (historyEvictionPaused.exchange(false)) {
+        magma->EnableHistoryEviction();
+    }
 }
 
 void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {

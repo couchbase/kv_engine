@@ -896,6 +896,10 @@ public:
         return std::make_unique<RollbackCtx>();
     }
 
+    void completeLoadingVBuckets() override {
+        // Do nothing by default.
+    }
+
     void setSystemEvent(TransactionContext& txnCtx, const queued_item) override;
 
     void delSystemEvent(TransactionContext& txnCtx, const queued_item) override;

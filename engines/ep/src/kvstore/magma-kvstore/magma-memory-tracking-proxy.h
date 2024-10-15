@@ -255,6 +255,9 @@ public:
                               const std::string& backupPath);
     magma::Status StopBackup(const magma::Magma::KVStoreID kvID);
 
+    void EnableHistoryEviction();
+    void DisableHistoryEviction();
+
     void setActiveEncryptionKeys(const cb::crypto::KeyStore& keyStore);
 
     nlohmann::json getVbucketEncryptionKeyIds() const;

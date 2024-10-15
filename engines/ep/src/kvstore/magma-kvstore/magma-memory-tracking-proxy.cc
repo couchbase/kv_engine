@@ -629,6 +629,16 @@ magma::Status MagmaMemoryTrackingProxy::StopBackup(
     return magma->StopBackup(kvID);
 }
 
+void MagmaMemoryTrackingProxy::EnableHistoryEviction() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->EnableHistoryEviction();
+}
+
+void MagmaMemoryTrackingProxy::DisableHistoryEviction() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->DisableHistoryEviction();
+}
+
 void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
         const cb::crypto::KeyStore& keyStore) {
     // magma only cares about the current key

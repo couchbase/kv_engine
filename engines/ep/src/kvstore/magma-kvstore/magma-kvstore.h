@@ -164,6 +164,13 @@ public:
 
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
+    /**
+     * When the continuous backup feature is enabled, we disable history
+     * eviction until we've definitively called StartBackup for all warmed up
+     * vBuckets. We re-enable history eviction from this API.
+     */
+    void completeLoadingVBuckets() override;
+
     bool snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) override;
 
     // Compaction in magma is asynchronous. Its triggered by 3 conditions:
@@ -852,6 +859,13 @@ protected:
     bool isContinuousBackupStarted(Vbid vbid);
 
     /**
+     * @returns true if history eviction is currently paused.
+     */
+    bool isHistoryEvictionPaused() {
+        return historyEvictionPaused;
+    }
+
+    /**
      * Called after a VBState is flushed to disk. Starts/stops continuous backup
      * as needed.
      *
@@ -950,6 +964,15 @@ protected:
      * elements.
      */
     std::vector<BackupStatus> continuousBackupStatus;
+
+    /**
+     * Set to true if we paused history eviction when opening the Magma DB.
+     * We do this to ensure that continuous backup does not lose history due to
+     * WAL replay pushing causing the history window to move at startup. We
+     * should unpause history eviction after populating all vBuckets for this
+     * shard and initialising continuous backup.
+     */
+    std::atomic<bool> historyEvictionPaused{false};
 
     /**
      * Testing hook called with the result of CompactKVStore when dropping
