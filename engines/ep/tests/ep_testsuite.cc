@@ -6431,7 +6431,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bucket_quota_change_task_poll_interval",
               "ep_cache_size",
               "ep_chk_expel_enabled",
-              "ep_chk_remover_stime",
               "ep_checkpoint_destruction_tasks",
               "ep_checkpoint_memory_ratio",
               "ep_checkpoint_memory_recovery_upper_mark",
@@ -6678,7 +6677,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_cache_size",
               "ep_chk_expel_enabled",
               "ep_chk_persistence_remains",
-              "ep_chk_remover_stime",
               "ep_checkpoint_destruction_tasks",
               "ep_checkpoint_memory_pending_destruction",
               "ep_checkpoint_memory_ratio",
@@ -8506,7 +8504,6 @@ BaseTestCase testsuite_testcases[] = {
                  // also limit shards to 4 so amount of memory overhead is more
                  // or less constant.
                  "checkpoint_max_size=1024;"
-                 "chk_remover_stime=1;"
                  "max_num_shards=4;"
                  "max_size=10000000;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
@@ -8516,7 +8513,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_param_message,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_size=6291456",
+                 "max_size=6291456",
                  prepare,
                  cleanup),
 
@@ -8588,7 +8585,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // Settings to trigger checkpoint creation/removal as soon as
                  // an item is queued in checkpoint
-                 "chk_remover_stime=1;checkpoint_memory_recovery_"
+                 "checkpoint_memory_recovery_"
                  "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
                  "checkpoint_max_size=1",
                  prepare,
@@ -8791,7 +8788,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_shutdown_snapshot_range,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_max_size=1024",
+                 "checkpoint_max_size=1024",
                  prepare,
                  cleanup),
 
@@ -8810,7 +8807,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // Settings to trigger checkpoint creation/removal as soon as
                  // an item is queued in checkpoint
-                 "chk_remover_stime=1;checkpoint_memory_recovery_"
+                 "checkpoint_memory_recovery_"
                  "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
                  "checkpoint_max_size=1",
                  prepare_ep_bucket,
@@ -8819,7 +8816,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_disk_gt_ram_paged_rm,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_memory_recovery_"
+                 "checkpoint_memory_recovery_"
                  "upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                  prepare_ep_bucket,
                  cleanup),
@@ -9060,7 +9057,6 @@ BaseTestCase testsuite_testcases[] = {
                 test_vbucket_destroy_stats,
                 test_setup,
                 teardown,
-                "chk_remover_stime=1;"
                 "chk_expel_enabled=false;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                 /* Checkpoint expelling needs to be disabled for this test

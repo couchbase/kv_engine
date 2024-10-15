@@ -185,11 +185,6 @@
             "dynamic" : true,
             "type": "bool"
         },
-        "chk_remover_stime": {
-            "default": "5",
-            "dynamic": false,
-            "type": "size_t"
-        },
         "checkpoint_destruction_tasks": {
             "default": "2",
             "descr": "Number of tasks responsible for destroying closed unreferenced checkpoints.",

@@ -69,12 +69,10 @@ public:
     /**
      * @param e the engine
      * @param st the stats
-     * @param interval
      * @param removerId of this task's instance, defined in [0, num_removers -1]
      */
     CheckpointMemRecoveryTask(EventuallyPersistentEngine& e,
                               EPStats& st,
-                              size_t interval,
                               size_t removerId);
 
     bool runInner(bool manuallyNotified) override;
@@ -98,10 +96,6 @@ public:
     std::vector<std::pair<Vbid, size_t>> getVbucketsSortedByChkMem() const;
 
 protected:
-    std::chrono::microseconds getSleepTime() const override {
-        return std::chrono::seconds(sleepTime);
-    }
-
     enum class ReductionRequired : uint8_t { No, Yes };
 
     /**
@@ -130,8 +124,7 @@ protected:
      */
     ReductionRequired attemptCursorDropping();
 
-    EPStats                   &stats;
-    size_t                     sleepTime;
+    EPStats& stats;
 
     // This task is "sharded" by (vbid % numRemovers == removerId), ie each task
     // instance determines what vbuckets to process by picking only vbuckets

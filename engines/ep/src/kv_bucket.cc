@@ -3184,8 +3184,7 @@ size_t KVBucket::getVBMapSize() const {
 
 KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
-    const auto recoveryThreshold =
-            checkpointQuota * checkpointMemoryRecoveryUpperMark;
+    const auto recoveryThreshold = getCMRecoveryUpperMarkBytes();
     const auto usage = stats.getCheckpointManagerEstimatedMemUsage() +
                        getCheckpointPendingDestructionMemoryUsage();
 
@@ -3335,13 +3334,11 @@ void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
 }
 
 void KVBucket::createAndScheduleCheckpointRemoverTasks() {
-    const auto checkpointRemoverInterval =
-            engine.getConfiguration().getChkRemoverStime();
     const auto numChkRemovers =
             engine.getConfiguration().getCheckpointRemoverTaskCount();
     for (size_t id = 0; id < numChkRemovers; ++id) {
-        auto task = std::make_shared<CheckpointMemRecoveryTask>(
-                engine, stats, checkpointRemoverInterval, id);
+        auto task =
+                std::make_shared<CheckpointMemRecoveryTask>(engine, stats, id);
         chkRemovers.emplace_back(task);
         ExecutorPool::get()->schedule(task);
     }

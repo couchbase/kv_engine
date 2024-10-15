@@ -67,10 +67,7 @@ TEST_P(CheckpointRemoverTest, CheckpointRemoverVBucketOrder) {
 
     for (uint8_t removerId = 0; removerId < numRemovers; ++removerId) {
         const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-                *engine,
-                engine->getEpStats(),
-                engine->getConfiguration().getChkRemoverStime(),
-                removerId);
+                *engine, engine->getEpStats(), removerId);
 
         // std::vector<std::pair<Vbid, size_t>>
         const auto vbuckets = remover->getVbucketsSortedByChkMem();
@@ -340,10 +337,7 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     }
 
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-            *engine,
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime(),
-            0);
+            *engine, engine->getEpStats(), 0);
     remover->run();
     getCkptDestroyerTask(vbid)->run();
 
@@ -442,10 +436,7 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     // 2. Move the cursors from the closed checkpoint to the open one
     // 3. Remove the closed (and now unred) checkpoint
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-            *engine,
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime(),
-            0);
+            *engine, engine->getEpStats(), 0);
     remover->run();
 
     // That allows to remove checkpoints and recover from OOM
@@ -506,10 +497,7 @@ TEST_P(CheckpointRemoverTest, MB59601) {
         newManager.getListOfCursorsToDropHook = [&tg]() { tg.threadUp(); };
         bgThread = std::thread([this]() {
             auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-                    *engine,
-                    engine->getEpStats(),
-                    engine->getConfiguration().getChkRemoverStime(),
-                    0);
+                    *engine, engine->getEpStats(), 0);
             remover->run();
         });
 
@@ -527,10 +515,7 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_noCursorDropWhenTargetMet) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto& config = engine->getConfiguration();
     const auto& task = std::make_shared<CheckpointMemRecoveryTask>(
-            *engine,
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime(),
-            0);
+            *engine, engine->getEpStats(), 0);
 
     auto vb = store->getVBuckets().getBucket(vbid);
     auto* checkpointManager =
@@ -856,10 +841,7 @@ TEST_P(CheckpointRemoverEPTest, MB_48233) {
     // Task::available flag set to false, which prevent any further execution
     // of the removal logic at the next runs.
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-            *engine,
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime(),
-            0);
+            *engine, engine->getEpStats(), 0);
     remover->run();
 
     auto& config = engine->getConfiguration();
@@ -948,10 +930,7 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
 
     ASSERT_GT(store->getRequiredCMMemoryReduction(), 0);
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-            *engine,
-            engine->getEpStats(),
-            engine->getConfiguration().getChkRemoverStime(),
-            0);
+            *engine, engine->getEpStats(), 0);
     remover->run();
     getCkptDestroyerTask(vbid)->run();
 
@@ -1320,7 +1299,7 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
     config.setCheckpointMemoryRatio(0); // will always require reduction
 
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
-            *engine, engine->getEpStats(), INT_MAX, 0);
+            *engine, engine->getEpStats(), 0);
 
     // Reduction required
     ASSERT_GT(store->getRequiredCMMemoryReduction(), 0);

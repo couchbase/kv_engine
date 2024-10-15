@@ -45,8 +45,6 @@ memcached like this:
 | max_vbuckets                   | int    | Maximum number of vbuckets expected (1024) |
 | concurrentDB                   | bool   | True (default) if concurrent DB reads are  |
 |                                |        | permitted where possible.                  |
-| chk_remover_stime              | int    | Interval for the checkpoint remover that   |
-|                                |        | purges closed unreferenced checkpoints.    |
 | max_checkpoints                | size_t | The expected max number of checkpoints in  |
 |                                |        | each VBucket on a balanced system. Note:   |
 |                                |        | That is not a hard limit on the single     |

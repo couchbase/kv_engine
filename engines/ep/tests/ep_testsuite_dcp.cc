@@ -7958,14 +7958,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_replica_stream_backfill,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2",
+                 "max_checkpoints=2",
                  prepare,
                  cleanup),
         TestCase("test dcp replica stream backfill and warmup (MB-34173)",
                  test_dcp_replica_stream_backfill_MB_34173,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2;"
+                 "max_checkpoints=2;"
                  "flusher_total_batch_limit=10",
                  prepare_ep_bucket,
                  cleanup),
@@ -7973,14 +7973,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_replica_stream_in_memory,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2",
+                 "max_checkpoints=2",
                  prepare,
                  cleanup),
         TestCase("test dcp replica stream all",
                  test_dcp_replica_stream_all,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                 "max_checkpoints=2;checkpoint_memory_"
                  "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark="
                  "0;chk_expel_enabled=false",
                  prepare,
@@ -7990,7 +7990,7 @@ BaseTestCase testsuite_testcases[] = {
                 test_dcp_replica_stream_all_collection_enabled,
                 test_setup,
                 teardown,
-                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                 prepare,
                 cleanup),
@@ -8000,7 +8000,7 @@ BaseTestCase testsuite_testcases[] = {
                 test_dcp_replica_stream_one_collection_on_disk,
                 test_setup,
                 teardown,
-                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                 prepare,
                 cleanup),
@@ -8009,7 +8009,7 @@ BaseTestCase testsuite_testcases[] = {
                 test_dcp_replica_stream_one_collection,
                 test_setup,
                 teardown,
-                "chk_remover_stime=1;max_checkpoints=2;checkpoint_memory_"
+                "max_checkpoints=2;checkpoint_memory_"
                 "recovery_upper_mark=0;checkpoint_memory_recovery_lower_mark=0",
                 prepare,
                 cleanup),
@@ -8050,7 +8050,7 @@ BaseTestCase testsuite_testcases[] = {
                  //   checkpoint_memory_recovery_upper_mark to enable/disable
                  //   the CheckpointMemRecoveryTask for easier control over
                  //   memory creation
-                 "chk_remover_stime=1;max_size=10240000;checkpoint_max_size="
+                 "max_size=10240000;checkpoint_max_size="
                  "10240;checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
@@ -8060,7 +8060,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_full_merged_snapshots,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "false",
                  prepare_ep_bucket,
@@ -8069,7 +8069,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_full,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;max_checkpoints=2;"
+                 "max_checkpoints=2;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare_ephemeral_bucket,
@@ -8078,7 +8078,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_backfill,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;dcp_scan_item_limit=50;"
+                 "dcp_scan_item_limit=50;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
                  "true",
@@ -8088,7 +8088,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_diskonly,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
@@ -8103,7 +8103,7 @@ BaseTestCase testsuite_testcases[] = {
                  //   recovery. If ItemExpel kicks in before checkpoint removal,
                  //   then the test fails.
                  // - Allow all checkpoints removed by periodic recovery task
-                 "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
+                 "dcp_backfill_byte_limit=1;"
                  "checkpoint_max_size=1;"
                  "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0;"
@@ -8114,7 +8114,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_mem,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1",
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test producer stream request (DGM)",
@@ -8128,7 +8128,7 @@ BaseTestCase testsuite_testcases[] = {
                  //  a value that is expected to make the test happy when
                  //  re-enabled.
                  "checkpoint_max_size=1;"
-                 "chk_remover_stime=1;max_size=6291456",
+                 "max_size=6291456",
                  /* not needed in ephemeral as it is DGM case */
                  prepare_ep_bucket,
                  cleanup),
@@ -8136,7 +8136,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_req_coldness,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_max_size=1",
+                 "checkpoint_max_size=1",
                  prepare_ep_bucket,
                  cleanup),
         TestCase("test dcp consumer hotness data",
@@ -8158,14 +8158,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_keep_stream_open,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1",
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test producer keep stream open replica",
                  test_dcp_producer_keep_stream_open_replica,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_memory_recovery_upper_mark=0;"
+                 "checkpoint_memory_recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
                  cleanup),
@@ -8173,7 +8173,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_stream_cursor_movement,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1;checkpoint_max_size=1;checkpoint_memory_"
+                 "checkpoint_max_size=1;checkpoint_memory_"
                  "recovery_upper_mark=0;"
                  "checkpoint_memory_recovery_lower_mark=0",
                  prepare,
@@ -8205,14 +8205,14 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_takeover,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1",
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test dcp stream takeover no items",
                  test_dcp_takeover_no_items,
                  test_setup,
                  teardown,
-                 "chk_remover_stime=1",
+                 nullptr,
                  prepare,
                  cleanup),
         TestCase("test dcp consumer takeover",
@@ -8228,7 +8228,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // Settings to trigger checkpoint creation/removal as soon as
                  // an item is queued in checkpoint
-                 "chk_remover_stime=1;checkpoint_memory_recovery_"
+                 "checkpoint_memory_recovery_"
                  "upper_mark=0;checkpoint_memory_recovery_lower_mark=0;"
                  "checkpoint_max_size=1",
                  prepare,
