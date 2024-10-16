@@ -155,13 +155,21 @@ struct vbucket_state {
 
     /**
      * Stores the seqno of the last completed (Committed or Aborted) Prepare.
+     * Together with the persisted prepare seqno, it defines a range which
+     * contains all prepares we need to load during warmup, and we can do seqno
+     * scan for that range only. We send this value in the disk snapshot to
+     * replicas, where it is used for the same. A similar value is the HCS (high
+     * completed seqno). While the PCS is the seqno that this node has
+     * completed, the HCS is the seqno that the replica will have completed once
+     * it has the full disk snapshot.
      * Added for SyncReplication in 6.5.
      */
     uint64_t persistedCompletedSeqno = 0;
 
     /**
-     * Stores the seqno of the last prepare (Pending SyncWrite). Added for
-     * SyncReplication in 6.5.
+     * Stores the seqno of the last prepare (Pending SyncWrite).
+     * Used for the same as above but acts as lower bound of scan.
+     * Added for SyncReplication in 6.5.
      */
     uint64_t persistedPreparedSeqno = 0;
 
@@ -172,7 +180,16 @@ struct vbucket_state {
      * is relevant for a replica, which should not acknowledge a seqno as
      * Prepared until the entire snapshot is received. Using the
      * persistedPreparedSeqno would lead to a replica acking a seqno which is
-     * too high. Added for SyncReplication in 6.5.
+     * too high. Similarly, using the snapshot end seqno would be invalid, as
+     * that would include non-durable mutations.
+     * We expose this seqno to ns_server and ns_server uses it to decide which
+     * replica to promote (the one with the highest HPS). Right now we set the
+     * value once we receive a full disk snapshot and we set to the disk
+     * snapshot end. Currently, we do not pass this value to replicas, but that
+     * will change with MB-51689, which will ensure we update this value before
+     * the full disk snapshot is received and will allow more optimal replica
+     * selection in that case.
+     * Added for SyncReplication in 6.5.
      */
     uint64_t highPreparedSeqno = 0;
 
