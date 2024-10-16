@@ -1122,6 +1122,9 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         ++stats.warmDups;
         break;
     case MutationStatus::NotFound:
+        EP_LOG_DEBUG(
+                "LoadStorageKVPairCallback::callback: Inserted into HT key:{}",
+                i->getKey());
         break;
     default:
         throw std::logic_error(
@@ -1580,7 +1583,12 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
         }
         auto& epVb = static_cast<EPVBucket&>(*vb);
         epVb.setNumTotalItems(*store.getRWUnderlyingByShard(shardId));
-        item_count += epVb.getNumTotalItems();
+        const auto vbItemCount = epVb.getNumTotalItems();
+        item_count += vbItemCount;
+        EP_LOG_INFO_CTX("Warmup::estimateDatabaseItemCount: ",
+                        {"shard_id", shardId},
+                        {"vb", vbid},
+                        {"item_count", vbItemCount});
     }
 
     // Start off by adding each shard's total item count. A healthy warmup and

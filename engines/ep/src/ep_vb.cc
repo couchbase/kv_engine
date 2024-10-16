@@ -1235,27 +1235,25 @@ static size_t countSystemEvents(Vbid vbid, KVStoreIface& kvstore) {
 
 void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
     const size_t systemEvents = countSystemEvents(getId(), kvstore);
-    const size_t itemCount = kvstore.getItemCount(getId());
+    const size_t totalItemCount = kvstore.getItemCount(getId());
     const auto* vbState = kvstore.getCachedVBucketState(getId());
     Expects(vbState);
     // We don't want to include the number of prepares on disk in the number
     // of items in the vBucket/Bucket that is displayed to the user so
     // subtract the number of prepares from the number of on disk items.
-    const auto vbItemCount1 = itemCount - vbState->onDiskPrepares;
-    const auto vbItemCount2 = vbItemCount1 - systemEvents;
+    // The same applies to SysEvents.
+    const auto itemCount =
+            totalItemCount - vbState->onDiskPrepares - systemEvents;
     try {
-        setNumTotalItems(vbItemCount2);
+        setNumTotalItems(itemCount);
     } catch (const std::exception& e) {
-        EP_LOG_CRITICAL(
-                "EPVBucket::setNumTotalItems {} caught exception itemCount:{} - "
-                "onDiskPrepares:{} "
-                " - systemEvents:{} = {} e.what:{}",
-                getId(),
-                itemCount,
-                vbState->onDiskPrepares,
-                systemEvents,
-                vbItemCount2,
-                e.what());
+        EP_LOG_CRITICAL_CTX("EPVBucket::setNumTotalItems: ",
+                            {"vb", getId().get()},
+                            {"total_item_count", totalItemCount},
+                            {"on_disk_prepares", vbState->onDiskPrepares},
+                            {"system_events", systemEvents},
+                            {"itemCount", itemCount},
+                            {"error:", e.what()});
         throw;
     }
 }
