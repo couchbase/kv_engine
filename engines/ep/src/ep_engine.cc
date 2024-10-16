@@ -74,6 +74,7 @@
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
+#include <platform/split_string.h>
 #include <platform/string_hex.h>
 #include <serverless/config.h>
 #include <statistics/cbstat_collector.h>
@@ -5425,6 +5426,58 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
     return cb::engine_errc::no_access;
 }
 
+cb::engine_errc EventuallyPersistentEngine::doFusionStats(
+        CookieIface& cookie,
+        const AddStatFn& add_stat,
+        std::string_view statKey) {
+    std::optional<std::string> subCmd;
+    std::optional<Vbid> vbid;
+
+    // Format: "fusion opt<sub_cmd> opt<vbid>"
+    std::string trimmedStatKey(statKey);
+    boost::algorithm::trim(trimmedStatKey);
+    const auto args = cb::string::split(trimmedStatKey, ' ');
+    if (args.size() == 0 || args.size() > 3) {
+        EP_LOG_WARN_CTX(
+                "EventuallyPersistentEngine::doFusionStats: invalid "
+                "arguments",
+                {"stat_key", statKey});
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    Expects(args.at(0) == "fusion");
+    if (args.size() == 2) {
+        const auto second = std::string(args.at(1));
+        if (std::all_of(second.begin(), second.end(), ::isdigit)) {
+            // "fusion <vbid>"
+            vbid = Vbid(std::stoul(second));
+        } else {
+            // "fusion <sub_cmd>"
+            subCmd = second;
+        }
+    } else if (args.size() == 3) {
+        // "fusion <sub_cmd> <vbid>"
+        subCmd = args.at(1);
+        const auto third = std::string(args.at(2));
+        if (!std::all_of(third.begin(), third.end(), ::isdigit)) {
+            EP_LOG_WARN_CTX(
+                    "EventuallyPersistentEngine::doFusionStats: invalid "
+                    "arguments",
+                    {"stat_key", statKey});
+            return cb::engine_errc::invalid_arguments;
+        }
+        vbid = Vbid(std::stoul(third));
+    }
+
+    // @todo: To be replaced by actual sub-commands results
+    nlohmann::json json;
+    json["sub_cmd"] = subCmd.value_or("N/A");
+    json["vbid"] = vbid.has_value() ? std::to_string((*vbid).get()) : "N/A";
+    add_stat("fusion", json.dump(), cookie);
+
+    return cb::engine_errc::success;
+}
+
 static const CheckYieldFn default_check_yield_fn{[]() { return false; }};
 
 cb::engine_errc EventuallyPersistentEngine::getStats(
@@ -5595,6 +5648,9 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     }
     if (cb_isPrefix(key, "range-scans")) {
         return doRangeScanStats(bucketCollector, key);
+    }
+    if (cb_isPrefix(key, "fusion")) {
+        return doFusionStats(c, add_stat, key);
     }
 
     // Unknown stat requested

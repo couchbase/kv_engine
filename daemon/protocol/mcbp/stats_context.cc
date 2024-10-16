@@ -688,6 +688,14 @@ static cb::engine_errc stat_scheduler_executor(const std::string& arg,
     return bucket_get_stats(cookie, "scheduler"sv, {}, appendStatsFn);
 }
 
+static cb::engine_errc stat_fusion_executor(const std::string& arg,
+                                            Cookie& cookie) {
+    return bucket_get_stats(cookie,
+                            cookie.getRequest().getKeyString(),
+                            cookie.getRequest().getValueString(),
+                            appendStatsFn);
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -739,7 +747,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                 {StatGroupId::EncryptionKeyIds,
                  {true, stat_encryption_key_ids_executor}},
                 {StatGroupId::Runtimes, {true, stat_runtimes_executor}},
-                {StatGroupId::Scheduler, {true, stat_scheduler_executor}}};
+                {StatGroupId::Scheduler, {true, stat_scheduler_executor}},
+                {StatGroupId::Fusion, {true, stat_fusion_executor}}};
 
 /**
  * For a given key, try and return the handler for it

@@ -1276,6 +1276,10 @@ protected:
                                       const AddStatFn& add_stat,
                                       std::string_view statKey);
 
+    cb::engine_errc doFusionStats(CookieIface& cookie,
+                                  const AddStatFn& add_stat,
+                                  std::string_view statKey);
+
     /**
      * Get metrics from this engine for the "High" (cardinality) group.
      *

@@ -327,6 +327,7 @@ StatsGroupManager::StatsGroupManager()
                 "Get information about vbucket range-scans",
                 false,
                 true},
+               {StatGroupId::Fusion, "fusion", "Get Fusion state", false, true},
 
                {StatGroupId::StatTimings,
                 "stat-timings",

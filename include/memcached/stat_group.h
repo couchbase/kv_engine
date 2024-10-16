@@ -80,6 +80,7 @@ enum class StatGroupId {
     _VbucketDump,
     Uuid,
     RangeScans,
+    Fusion,
 
     // stat command timings
 
