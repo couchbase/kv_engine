@@ -298,13 +298,13 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::Deleteq:
         case ClientOpcode::Noop:
         case ClientOpcode::Quit:
-        case ClientOpcode::Flush:
+        case ClientOpcode::Flush_Unsupported:
         case ClientOpcode::Version:
         case ClientOpcode::Append:
         case ClientOpcode::Prepend:
         case ClientOpcode::Stat:
         case ClientOpcode::Quitq:
-        case ClientOpcode::Flushq:
+        case ClientOpcode::Flushq_Unsupported:
         case ClientOpcode::Appendq:
         case ClientOpcode::Prependq:
         case ClientOpcode::Hello:

@@ -150,8 +150,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::Decrementq, requireUpsertOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::Quit, empty);
     setup(cb::mcbp::ClientOpcode::Quitq, empty);
-    setup(cb::mcbp::ClientOpcode::Flush, require<Privilege::NodeSupervisor>);
-    setup(cb::mcbp::ClientOpcode::Flushq, require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::Noop, empty);
     setup(cb::mcbp::ClientOpcode::Version, empty);
     setup(cb::mcbp::ClientOpcode::Stat, empty);

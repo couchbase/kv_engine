@@ -8,6 +8,7 @@
  */
 #include "mcbp_executors.h"
 
+#include "buckets.h"
 #include "config_parse.h"
 #include "error_map_manager.h"
 #include "external_auth_manager_thread.h"
@@ -26,7 +27,6 @@
 #include "protocol/mcbp/dcp_system_event_executor.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "protocol/mcbp/executors.h"
-#include "protocol/mcbp/flush_command_context.h"
 #include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_locked_context.h"
@@ -309,10 +309,6 @@ static void sasl_step_executor(Cookie& cookie) {
 
 static void noop_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::Success);
-}
-
-static void flush_executor(Cookie& cookie) {
-    cookie.obtainContext<FlushCommandContext>(cookie).drive();
 }
 
 static void delete_executor(Cookie& cookie) {
@@ -827,8 +823,6 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::SaslAuth, sasl_auth_executor);
     setup_handler(cb::mcbp::ClientOpcode::SaslStep, sasl_step_executor);
     setup_handler(cb::mcbp::ClientOpcode::Noop, noop_executor);
-    setup_handler(cb::mcbp::ClientOpcode::Flush, flush_executor);
-    setup_handler(cb::mcbp::ClientOpcode::Flushq, flush_executor);
     setup_handler(cb::mcbp::ClientOpcode::Setq, set_executor);
     setup_handler(cb::mcbp::ClientOpcode::Set, set_executor);
     setup_handler(cb::mcbp::ClientOpcode::Addq, add_executor);

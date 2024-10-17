@@ -1281,38 +1281,6 @@ static Status noop_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-static Status flush_validator(Cookie& cookie) {
-    auto& header = cookie.getHeader();
-    uint8_t extlen = header.getExtlen();
-
-    if (extlen != 0 && extlen != 4) {
-        cookie.setErrorContext("Request extras must be of length 0 or 4");
-        return Status::Einval;
-    }
-    // We've already checked extlen so pass actual extlen as expected extlen
-    auto status = McbpValidator::verify_header(cookie,
-                                               extlen,
-                                               ExpectedKeyLen::Zero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::NotSet,
-                                               GeneratesDocKey::No,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-
-    if (extlen == 4) {
-        auto& req = header.getRequest();
-        auto extdata = req.getExtdata();
-        if (*reinterpret_cast<const uint32_t*>(extdata.data()) != 0) {
-            cookie.setErrorContext("Delayed flush no longer supported");
-            return Status::NotSupported;
-        }
-    }
-
-    return Status::Success;
-}
-
 static Status add_validator(Cookie& cookie) {
     constexpr uint8_t expected_datatype_mask = PROTOCOL_BINARY_RAW_BYTES |
                                                PROTOCOL_BINARY_DATATYPE_JSON |
@@ -2673,13 +2641,13 @@ McbpValidator::McbpValidator() {
 
     setup(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);
     setup(cb::mcbp::ClientOpcode::Scrub_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Flush_Unsupported, not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::Flushq_Unsupported, not_supported_validator);
 
     if (cb::serverless::isEnabled()) {
         // No need to start allowing quiet commands in a serverless
         // deployment
         setup(cb::mcbp::ClientOpcode::Quitq, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Flush, not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::Flushq, not_supported_validator);
         setup(cb::mcbp::ClientOpcode::Getq, not_supported_validator);
         setup(cb::mcbp::ClientOpcode::Getk, not_supported_validator);
         setup(cb::mcbp::ClientOpcode::Getkq, not_supported_validator);
@@ -2698,8 +2666,6 @@ McbpValidator::McbpValidator() {
         setup(cb::mcbp::ClientOpcode::DelqWithMeta, not_supported_validator);
     } else {
         setup(cb::mcbp::ClientOpcode::Quitq, quit_validator);
-        setup(cb::mcbp::ClientOpcode::Flush, flush_validator);
-        setup(cb::mcbp::ClientOpcode::Flushq, flush_validator);
         setup(cb::mcbp::ClientOpcode::Getq, get_validator);
         setup(cb::mcbp::ClientOpcode::Getk, get_validator);
         setup(cb::mcbp::ClientOpcode::Getkq, get_validator);

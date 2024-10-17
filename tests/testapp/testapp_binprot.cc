@@ -46,7 +46,6 @@ static void mcbp_validate_response_header(const cb::mcbp::Response& response,
         case cb::mcbp::ClientOpcode::Appendq:
         case cb::mcbp::ClientOpcode::Decrementq:
         case cb::mcbp::ClientOpcode::Deleteq:
-        case cb::mcbp::ClientOpcode::Flushq:
         case cb::mcbp::ClientOpcode::Incrementq:
         case cb::mcbp::ClientOpcode::Prependq:
         case cb::mcbp::ClientOpcode::Quitq:
@@ -79,7 +78,6 @@ static void mcbp_validate_response_header(const cb::mcbp::Response& response,
             }
             ASSERT_NE(0, response.getCas());
             break;
-        case cb::mcbp::ClientOpcode::Flush:
         case cb::mcbp::ClientOpcode::Noop:
         case cb::mcbp::ClientOpcode::Quit:
             ASSERT_EQ(0, response.getKeylen());

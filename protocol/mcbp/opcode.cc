@@ -209,7 +209,7 @@ public:
                 Attribute::SubjectForThrottling,
                 Attribute::ClientWritingData}});
         setup(ClientOpcode::Quit, {"QUIT"sv, {Attribute::Supported}});
-        setup(ClientOpcode::Flush, {"FLUSH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Flush_Unsupported, {"FLUSH"sv, {}});
         setup(ClientOpcode::Getq,
               {"GETQ"sv,
                {Attribute::Supported,
@@ -310,11 +310,7 @@ public:
                {Attribute::Supported,
                 Attribute::Deprecated,
                 Attribute::IsQuiet}});
-        setup(ClientOpcode::Flushq,
-              {"FLUSHQ"sv,
-               {Attribute::Supported,
-                Attribute::Deprecated,
-                Attribute::IsQuiet}});
+        setup(ClientOpcode::Flushq_Unsupported, {"FLUSHQ"sv, {}});
         setup(ClientOpcode::Appendq,
               {"APPENDQ"sv,
                {Attribute::Supported,

@@ -876,87 +876,6 @@ TEST_P(QuitValidatorTest, InvalidDatatype) {
               validate(cb::mcbp::ClientOpcode::Quitq));
 }
 
-// Test FLUSH & FLUSHQ
-class FlushValidatorTest : public ::testing::WithParamInterface<bool>,
-                           public ValidatorTest {
-public:
-    FlushValidatorTest() : ValidatorTest(GetParam()) {
-    }
-
-protected:
-    cb::mcbp::Status validate(cb::mcbp::ClientOpcode opcode) {
-        return ValidatorTest::validate(opcode, &request);
-    }
-};
-
-TEST_P(FlushValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, CorrectMessageWithTime) {
-    request.setExtlen(4);
-    request.setBodylen(4);
-    EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Success,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, CorrectMessageWithUnsupportedTime) {
-    request.setExtlen(4);
-    request.setBodylen(4);
-    *reinterpret_cast<uint32_t*>(blob + sizeof(request)) = 1;
-    EXPECT_EQ(cb::mcbp::Status::NotSupported,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::NotSupported,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, InvalidExtlen) {
-    request.setExtlen(21);
-    request.setBodylen(21);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, InvalidKey) {
-    request.setKeylen(10);
-    request.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, InvalidCas) {
-    request.setCas(1);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, InvalidBodylen) {
-    request.setBodylen(10);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
-TEST_P(FlushValidatorTest, InvalidDatatype) {
-    request.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flush));
-    EXPECT_EQ(cb::mcbp::Status::Einval,
-              validate(cb::mcbp::ClientOpcode::Flushq));
-}
-
 // test Noop
 class NoopValidatorTest : public ::testing::WithParamInterface<bool>,
                           public ValidatorTest {
@@ -2497,27 +2416,6 @@ TEST_P(CommandSpecificErrorContextTest, Hello) {
               validate_error_context(cb::mcbp::ClientOpcode::Hello));
 }
 
-TEST_P(CommandSpecificErrorContextTest, Flush) {
-    // Flush command requires extlen of 0 or 4
-    header.setExtlen(3);
-    header.setKeylen(0);
-    header.setBodylen(3);
-    EXPECT_EQ("Request extras must be of length 0 or 4",
-              validate_error_context(cb::mcbp::ClientOpcode::Flush));
-
-    // Delayed flush is unsupported
-    header.setExtlen(4);
-    header.setKeylen(0);
-    header.setBodylen(4);
-    // right after the header one may specify a timestamp for when
-    // the flush should happen (but that's not supported by couchbase)
-    // Insert a value and verify that we reject such packets
-    *reinterpret_cast<uint32_t*>(blob + sizeof(header)) = 10;
-    EXPECT_EQ("Delayed flush no longer supported",
-              validate_error_context(cb::mcbp::ClientOpcode::Flush,
-                                     cb::mcbp::Status::NotSupported));
-}
-
 TEST_P(CommandSpecificErrorContextTest, Add) {
     // Collections requires longer key for collection ID
     connection.setCollectionsSupported(true);
@@ -2954,10 +2852,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          QuitValidatorTest,
-                         ::testing::Bool(),
-                         ::testing::PrintToStringParamName());
-INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
-                         FlushValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,

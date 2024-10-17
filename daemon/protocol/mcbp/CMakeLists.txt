@@ -43,8 +43,6 @@ add_library(memcached_daemon_mcbp OBJECT
         engine_wrapper.h
         executors.cc
         executors.h
-        flush_command_context.cc
-        flush_command_context.h
         gat_context.cc
         gat_context.h
         get_cmd_timer_executor.cc
