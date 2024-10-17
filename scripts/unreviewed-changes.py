@@ -60,8 +60,14 @@ def gerrit_request(*args, **kwargs):
         return json.load(res)
 
 
-def get_change_url(change_id: str) -> str:
-    return 'https://review.couchbase.org/q/' + change_id
+def get_change_url(change: dict) -> str:
+    """
+    Constructs a URL for accessing the change.
+    Reference: https://gerrit.googlesource.com/gerrit/+/master/Documentation/rest-api-changes.txt
+    """
+    return 'https://review.couchbase.org/c/{}/+/{}'.format(
+        change['project'],
+        change['_number'])
 
 
 def query_changes(*params: list) -> str:
@@ -127,7 +133,7 @@ def main(webhook: Optional[str], threshold_stale: int):
         if wait_time > timedelta(days=5):
             timestr += '❗'
         subject = change['subject']
-        url = get_change_url(change['id'])
+        url = get_change_url(change)
         author = get_account_name(change['owner']['_account_id'])
         message_text += (f'● {subject}\n'
                          f' ◦ {author} has been waiting for review for '
