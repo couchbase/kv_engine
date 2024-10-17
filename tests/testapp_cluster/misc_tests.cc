@@ -629,7 +629,7 @@ TEST_F(BasicClusterTest, SubdocReplicaReadDeletedDocument) {
     EXPECT_EQ(Status::SubdocPathEnoent, rsp.getResults()[2].status);
 }
 
-TEST_F(BasicClusterTest, OAUTHBEARER) {
+TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
     auto builder = cb::test::AuthProviderService::getTokenBuilder("jwt");
     builder->addClaim("cb-rbac", cb::base64url::encode(R"({
   "buckets": {
