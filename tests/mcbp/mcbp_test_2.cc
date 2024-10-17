@@ -314,50 +314,6 @@ TEST_P(EnableDisableTrafficValidatorTest, InvalidBodylen) {
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(false));
 }
 
-class ScrubValidatorTest : public ::testing::WithParamInterface<bool>,
-                           public ValidatorTest {
-public:
-    ScrubValidatorTest() : ValidatorTest(GetParam()), req(request) {
-    }
-
-protected:
-    cb::mcbp::Request& req;
-    cb::mcbp::Status validate() {
-        return ValidatorTest::validate(cb::mcbp::ClientOpcode::Scrub, &request);
-    }
-};
-
-TEST_P(ScrubValidatorTest, CorrectMessage) {
-    EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(ScrubValidatorTest, InvalidExtlen) {
-    req.setExtlen(2);
-    req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(ScrubValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(ScrubValidatorTest, IvalidCas) {
-    req.setCas(0xff);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(ScrubValidatorTest, InvalidKey) {
-    req.setKeylen(2);
-    req.setBodylen(2);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
-TEST_P(ScrubValidatorTest, InvalidBodylen) {
-    req.setBodylen(8);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
-}
-
 class GetKeysValidatorTest : public ::testing::WithParamInterface<bool>,
                              public ValidatorTest {
 public:
@@ -755,11 +711,6 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          EnableDisableTrafficValidatorTest,
-                         ::testing::Bool(),
-                         ::testing::PrintToStringParamName());
-
-INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
-                         ScrubValidatorTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 

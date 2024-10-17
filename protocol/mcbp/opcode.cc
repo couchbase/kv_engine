@@ -783,7 +783,7 @@ public:
                 Attribute::MustPreserveBuffer}});
         setup(ClientOpcode::RangeScanCancel,
               {"RANGE_SCAN_CANCEL"sv, {Attribute::Supported}});
-        setup(ClientOpcode::Scrub, {"SCRUB"sv, {Attribute::Supported}});
+        setup(ClientOpcode::Scrub_Unsupported, {"SCRUB"sv, {}});
         setup(ClientOpcode::IsaslRefresh,
               {"ISASL_REFRESH"sv, {Attribute::Supported}});
         setup(ClientOpcode::SslCertsRefresh,

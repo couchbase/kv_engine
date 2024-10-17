@@ -2125,16 +2125,6 @@ static Status ewb_validator(Cookie& cookie) {
     return Status::Success;
 }
 
-static Status scrub_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        GeneratesDocKey::No,
-                                        PROTOCOL_BINARY_RAW_BYTES);
-}
-
 static Status get_random_key_validator(Cookie& cookie) {
     const auto extdata = cookie.getRequest().getExtdata();
     const auto status = McbpValidator::verify_header(cookie,
@@ -2682,7 +2672,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::GetAllVbSeqnos, get_all_vb_seqnos_validator);
 
     setup(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);
-    setup(cb::mcbp::ClientOpcode::Scrub, scrub_validator);
+    setup(cb::mcbp::ClientOpcode::Scrub_Unsupported, not_supported_validator);
 
     if (cb::serverless::isEnabled()) {
         // No need to start allowing quiet commands in a serverless

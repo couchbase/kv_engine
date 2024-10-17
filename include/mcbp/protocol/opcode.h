@@ -326,8 +326,7 @@ enum class ClientOpcode : uint8_t {
     /* Cancel a "key-index" RangeScan */
     RangeScanCancel = 0xdc,
 
-    /* Scrub the data */
-    Scrub = 0xf0,
+    Scrub_Unsupported = 0xf0,
     /* Refresh the ISASL data */
     IsaslRefresh = 0xf1,
     /* Refresh the SSL certificates */

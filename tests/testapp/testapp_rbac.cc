@@ -66,14 +66,6 @@ TEST_P(RbacTest, ReloadSasl_NoAccess) {
     EXPECT_EQ(cb::mcbp::Status::Eaccess, conn.execute(cmd).getStatus());
 }
 
-TEST_P(RbacTest, ScrubNoAccess) {
-    auto& c = getConnection();
-    c.authenticate("larry");
-
-    BinprotGenericCommand command(cb::mcbp::ClientOpcode::Scrub);
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, c.execute(command).getStatus());
-}
-
 TEST_P(RbacTest, DropPrivilege) {
     auto& c = getAdminConnection();
     c.selectBucket(bucketName);

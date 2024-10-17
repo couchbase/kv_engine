@@ -377,8 +377,6 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
           requireUpsertOnCurrentDocument);
 
-    /* Scrub the data */
-    setup(cb::mcbp::ClientOpcode::Scrub, require<Privilege::Administrator>);
     /* Refresh the ISASL data */
     setup(cb::mcbp::ClientOpcode::IsaslRefresh,
           require<Privilege::NodeSupervisor>);
