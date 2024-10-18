@@ -578,26 +578,13 @@ private:
 
     void populateShardVbStates();
 
-    using MakeBackfillTaskFn = std::function<ExTask(size_t)>;
     /**
-     * Helper method to schedule a WarmupBackfillTask for each shard
-     * @param makeBackfillTask function that will be call to create a
-     * WarmupBackfillTask for a given shard based on it's shardId.
+     * Helper method to schedule a WarmupBackfillTask for each shard.
+     *
+     * @param phase The warmup phase that is being scheduled to run. See
+     *  WarmupState::State for details.
      */
-    void scheduleBackfillTask(MakeBackfillTaskFn makeBackfillTask);
-
-    void scheduleInitialize();
-    void scheduleCreateVBuckets();
-    void scheduleLoadingCollectionCounts();
-    void scheduleEstimateDatabaseItemCount();
-    void scheduleLoadPreparedSyncWrites();
-    void schedulePopulateVBucketMap();
-    void scheduleKeyDump();
-    void scheduleCheckForAccessLog();
-    void scheduleLoadingAccessLog();
-    void scheduleLoadingKVPairs();
-    void scheduleLoadingData();
-    void scheduleCompletion();
+    void scheduleShardedTasks(const WarmupState::State phase);
 
     void transition(WarmupState::State to, bool force = false);
 

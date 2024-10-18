@@ -1323,11 +1323,6 @@ void Warmup::stop() {
     done();
 }
 
-void Warmup::scheduleInitialize() {
-    ExTask task = std::make_shared<WarmupInitialize>(store, this);
-    ExecutorPool::get()->schedule(task);
-}
-
 void Warmup::initialize() {
     auto session_stats = store.getOneROUnderlying()->getPersistedStats();
     auto it = session_stats.find("ep_force_shutdown");
@@ -1360,15 +1355,6 @@ void Warmup::initialize() {
     populateShardVbStates();
 
     transition(WarmupState::State::CreateVBuckets);
-}
-
-void Warmup::scheduleCreateVBuckets() {
-    threadtask_count = 0;
-    for (size_t shard = 0; shard < getNumShards(); shard++) {
-        ExTask task =
-                std::make_shared<WarmupCreateVBuckets>(store, shard, this);
-        ExecutorPool::get()->schedule(task);
-    }
 }
 
 void Warmup::createVBuckets(uint16_t shardId) {
@@ -1519,15 +1505,6 @@ bool Warmup::maybeWaitForVBucketWarmup(CookieIface* cookie) {
     return false;
 }
 
-void Warmup::scheduleLoadingCollectionCounts() {
-    threadtask_count = 0;
-    for (size_t shard = 0; shard < getNumShards(); shard++) {
-        ExTask task = std::make_shared<WarmupLoadingCollectionCounts>(
-                store, shard, *this);
-        ExecutorPool::get()->schedule(task);
-    }
-}
-
 void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     // get each VB in the shard and iterate its collections manifest
     // load the _local doc count value
@@ -1592,17 +1569,6 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     }
 }
 
-void Warmup::scheduleEstimateDatabaseItemCount() {
-    threadtask_count = 0;
-    estimateTime.store(std::chrono::steady_clock::duration::zero());
-    estimatedKeyCount = 0;
-    for (size_t shard = 0; shard < getNumShards(); shard++) {
-        ExTask task = std::make_shared<WarmupEstimateDatabaseItemCount>(
-                store, shard, this);
-        ExecutorPool::get()->schedule(task);
-    }
-}
-
 void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
     auto st = std::chrono::steady_clock::now();
     size_t item_count = 0;
@@ -1624,15 +1590,6 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
 
     if (++threadtask_count == getNumShards()) {
         transition(WarmupState::State::LoadPreparedSyncWrites);
-    }
-}
-
-void Warmup::scheduleLoadPreparedSyncWrites() {
-    threadtask_count = 0;
-    for (size_t shard = 0; shard < getNumShards(); shard++) {
-        ExTask task = std::make_shared<WarmupLoadPreparedSyncWrites>(
-                store.getEPEngine(), shard, *this);
-        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -1667,15 +1624,6 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
 
     if (++threadtask_count == getNumShards()) {
         transition(WarmupState::State::PopulateVBucketMap);
-    }
-}
-
-void Warmup::schedulePopulateVBucketMap() {
-    threadtask_count = 0;
-    for (size_t shard = 0; shard < getNumShards(); shard++) {
-        ExTask task =
-                std::make_shared<WarmupPopulateVBucketMap>(store, shard, *this);
-        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -1756,24 +1704,61 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
     }
 }
 
-void Warmup::scheduleBackfillTask(MakeBackfillTaskFn makeBackfillTask) {
+void Warmup::scheduleShardedTasks(const WarmupState::State phase) {
     threadtask_count = 0;
-    for (size_t shardId = 0; shardId < getNumShards(); ++shardId) {
-        ExecutorPool::get()->schedule(makeBackfillTask(shardId));
+
+    for (size_t shardId = 0; shardId < store.vbMap.shards.size(); ++shardId) {
+        switch (phase) {
+        case WarmupState::State::CreateVBuckets:
+            ExecutorPool::get()->schedule(
+                    std::make_shared<WarmupCreateVBuckets>(
+                            store, shardId, this));
+            break;
+        case WarmupState::State::LoadingCollectionCounts:
+            ExecutorPool::get()->schedule(
+                    std::make_shared<WarmupLoadingCollectionCounts>(
+                            store, shardId, *this));
+            break;
+        case WarmupState::State::EstimateDatabaseItemCount:
+            ExecutorPool::get()->schedule(
+                    std::make_shared<WarmupEstimateDatabaseItemCount>(
+                            store, shardId, this));
+            break;
+        case WarmupState::State::LoadPreparedSyncWrites:
+            ExecutorPool::get()->schedule(
+                    std::make_shared<WarmupLoadPreparedSyncWrites>(
+                            store.getEPEngine(), shardId, *this));
+            break;
+        case WarmupState::State::PopulateVBucketMap:
+            ExecutorPool::get()->schedule(
+                    std::make_shared<WarmupPopulateVBucketMap>(
+                            store, shardId, *this));
+            break;
+        case WarmupState::State::KeyDump:
+            ExecutorPool::get()->schedule(std::make_shared<WarmupKeyDump>(
+                    store, shardId, *this, threadtask_count));
+            break;
+        case WarmupState::State::LoadingAccessLog:
+            ExecutorPool::get()->schedule(std::make_shared<WarmupLoadAccessLog>(
+                    store, shardId, this));
+            break;
+        case WarmupState::State::LoadingKVPairs:
+            ExecutorPool::get()->schedule(
+                    std::make_shared<WarmupLoadingKVPairs>(
+                            store, shardId, *this, threadtask_count));
+            break;
+        case WarmupState::State::LoadingData:
+            ExecutorPool::get()->schedule(std::make_shared<WarmupLoadingData>(
+                    store, shardId, *this, threadtask_count));
+            break;
+        case WarmupState::State::Initialize:
+        case WarmupState::State::CheckForAccessLog:
+        case WarmupState::State::Done:
+            throw std::logic_error(
+                    "Warmup::scheduleShardedTasks: Unexpected phase:" +
+                    to_string(phase));
+        }
     }
-}
-
-void Warmup::scheduleKeyDump() {
-    auto createTask = [this](size_t shardId) -> ExTask {
-        return std::make_shared<WarmupKeyDump>(
-                store, shardId, *this, threadtask_count);
-    };
-    scheduleBackfillTask(createTask);
-}
-
-void Warmup::scheduleCheckForAccessLog() {
-    ExTask task = std::make_shared<WarmupCheckforAccessLog>(store, this);
-    ExecutorPool::get()->schedule(task);
 }
 
 void Warmup::checkForAccessLog() {
@@ -1828,14 +1813,6 @@ void Warmup::checkForAccessLog() {
         } else {
             transition(WarmupState::State::LoadingKVPairs);
         }
-    }
-}
-
-void Warmup::scheduleLoadingAccessLog() {
-    threadtask_count = 0;
-    for (size_t shard = 0; shard < getNumShards(); shard++) {
-        ExTask task = std::make_shared<WarmupLoadAccessLog>(store, shard, this);
-        ExecutorPool::get()->schedule(task);
     }
 }
 
@@ -1939,27 +1916,6 @@ Warmup::WarmupAccessLogState Warmup::doWarmup(
     return WarmupAccessLogState::Done;
 }
 
-void Warmup::scheduleLoadingKVPairs() {
-    auto createTask = [this](size_t shardId) -> ExTask {
-        return std::make_shared<WarmupLoadingKVPairs>(
-                store, shardId, *this, threadtask_count);
-    };
-    scheduleBackfillTask(createTask);
-}
-
-void Warmup::scheduleLoadingData() {
-    auto createTask = [this](size_t shardId) -> ExTask {
-        return std::make_shared<WarmupLoadingData>(
-                store, shardId, *this, threadtask_count);
-    };
-    scheduleBackfillTask(createTask);
-}
-
-void Warmup::scheduleCompletion() {
-    ExTask task = std::make_shared<WarmupCompletion>(store, this);
-    ExecutorPool::get()->schedule(task);
-}
-
 void Warmup::done() {
     if (setFinishedLoading()) {
         setWarmupTime();
@@ -1969,48 +1925,35 @@ void Warmup::done() {
 }
 
 void Warmup::step() {
-    switch (state.getState()) {
+    const auto state = this->state.getState();
+    switch (state) {
     case WarmupState::State::Initialize:
-        scheduleInitialize();
-        return;
-    case WarmupState::State::CreateVBuckets:
-        scheduleCreateVBuckets();
-        return;
-    case WarmupState::State::LoadingCollectionCounts:
-        scheduleLoadingCollectionCounts();
-        return;
-    case WarmupState::State::EstimateDatabaseItemCount:
-        scheduleEstimateDatabaseItemCount();
-        return;
-    case WarmupState::State::LoadPreparedSyncWrites:
-        scheduleLoadPreparedSyncWrites();
-        return;
-    case WarmupState::State::PopulateVBucketMap:
-        schedulePopulateVBucketMap();
-        return;
-    case WarmupState::State::KeyDump:
-        scheduleKeyDump();
-        return;
-    case WarmupState::State::CheckForAccessLog:
-        scheduleCheckForAccessLog();
-        return;
-    case WarmupState::State::LoadingAccessLog:
-        scheduleLoadingAccessLog();
-        return;
-    case WarmupState::State::LoadingKVPairs:
-        scheduleLoadingKVPairs();
-        return;
-    case WarmupState::State::LoadingData:
-        scheduleLoadingData();
+        ExecutorPool::get()->schedule(
+                std::make_shared<WarmupInitialize>(store, this));
         return;
     case WarmupState::State::Done:
-        scheduleCompletion();
+        ExecutorPool::get()->schedule(
+                std::make_shared<WarmupCompletion>(store, this));
         return;
+    case WarmupState::State::CheckForAccessLog:
+        ExecutorPool::get()->schedule(
+                std::make_shared<WarmupCheckforAccessLog>(store, this));
+        return;
+    case WarmupState::State::EstimateDatabaseItemCount: {
+        estimateTime.store(std::chrono::steady_clock::duration::zero());
+        estimatedKeyCount = 0;
     }
-    throw std::logic_error(
-            fmt::format("Warmup({})::step: illegal warmup state:{}",
-                        getName(),
-                        to_string(state.getState())));
+    case WarmupState::State::CreateVBuckets:
+    case WarmupState::State::LoadingCollectionCounts:
+    case WarmupState::State::LoadPreparedSyncWrites:
+    case WarmupState::State::PopulateVBucketMap:
+    case WarmupState::State::KeyDump:
+    case WarmupState::State::LoadingAccessLog:
+    case WarmupState::State::LoadingKVPairs:
+    case WarmupState::State::LoadingData:
+        return scheduleShardedTasks(state);
+    }
+    folly::assume_unreachable();
 }
 
 void Warmup::transition(WarmupState::State to, bool force) {
