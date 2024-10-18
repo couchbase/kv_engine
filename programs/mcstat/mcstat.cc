@@ -168,7 +168,7 @@ static void request_stat(MemcachedConnection& connection,
 }
 
 static void usage(McProgramGetopt& instance, int exitcode) {
-    std::cerr << R"(Usage: mcstat [options] statkey ...
+    std::cerr << R"(Usage: mcstat [options] statkey [arguments to statkey]
 
 Options:
 
@@ -304,6 +304,22 @@ void printStatkeyHelp() {
     exit(EXIT_SUCCESS);
 }
 
+/// Build the stat string from the arguments provided to mcstat
+/// For compat with cbstats allow "all" to be used
+static std::string buildStatString(const std::vector<std::string_view>& args) {
+    if (args.empty() || (args.size() == 1 && args.front() == "all")) {
+        return {};
+    }
+
+    std::stringstream ss;
+    for (const auto& arg : args) {
+        ss << arg << " ";
+    }
+    auto ret = ss.str();
+    ret.pop_back();
+    return ret;
+}
+
 int main(int argc, char** argv) {
     std::string impersonate;
     bool json = false;
@@ -376,6 +392,8 @@ int main(int argc, char** argv) {
     }
 
     try {
+        const auto stat_key = buildStatString(arguments);
+
         getopt.assemble();
         auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
@@ -403,17 +421,7 @@ int main(int argc, char** argv) {
                 bucketItr++;
             }
 
-            if (arguments.empty()) {
-                request_stat(*connection, "", json, format, impersonate);
-            } else {
-                for (const auto& arg : arguments) {
-                    request_stat(*connection,
-                                 std::string{arg},
-                                 json,
-                                 format,
-                                 impersonate);
-                }
-            }
+            request_stat(*connection, stat_key, json, format, impersonate);
         } while (bucketItr != buckets.end());
 
     } catch (const ConnectionError& ex) {
