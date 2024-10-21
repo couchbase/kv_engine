@@ -20,21 +20,8 @@
 
 using namespace cb::terminal;
 
-static bool request_dcp_stat(MemcachedConnection& connection,
-                             const std::string& impersonate,
-                             bool json) {
+static bool request_dcp_stat(MemcachedConnection& connection, bool json) {
     try {
-        auto getFrameInfos = [&impersonate]() -> FrameInfoVector {
-            if (impersonate.empty()) {
-                return {};
-            }
-            FrameInfoVector ret;
-            ret.emplace_back(std::make_unique<
-                             cb::mcbp::request::ImpersonateUserFrameInfo>(
-                    impersonate));
-            return ret;
-        };
-
         bool first_time = true;
         connection.stats(
                 [&first_time, json](const auto& key,
@@ -77,8 +64,7 @@ static bool request_dcp_stat(MemcachedConnection& connection,
                     }
                 },
                 "dcp",
-                R"({ "stream_format" : "json" })",
-                getFrameInfos);
+                R"({ "stream_format" : "json" })");
         if (json) {
             std::cout << "}" << std::endl;
         }
@@ -102,30 +88,19 @@ static bool request_dcp_stat(MemcachedConnection& connection,
 static void request_stat(MemcachedConnection& connection,
                          const std::string& statGroup,
                          bool json,
-                         bool format,
-                         const std::string& impersonate) {
+                         bool format) {
     if (statGroup == "dcp") {
         // It is possible to request these stats in a (network and
         // memory) optimized format
-        if (request_dcp_stat(connection, impersonate, json)) {
+        if (request_dcp_stat(connection, json)) {
             return;
         }
         // The node does not support the new mode to fetch the
         // stats.. fall back
     }
     try {
-        auto getFrameInfos = [&impersonate]() -> FrameInfoVector {
-            if (impersonate.empty()) {
-                return {};
-            }
-            FrameInfoVector ret;
-            ret.emplace_back(std::make_unique<
-                             cb::mcbp::request::ImpersonateUserFrameInfo>(
-                    impersonate));
-            return ret;
-        };
         if (json) {
-            auto stats = connection.stats(statGroup, getFrameInfos);
+            auto stats = connection.stats(statGroup);
             std::cout << stats.dump(format ? 2 : -1) << std::endl;
         } else {
             connection.stats(
@@ -157,9 +132,7 @@ static void request_stat(MemcachedConnection& connection,
                             std::cout << key << " " << value << std::endl;
                         }
                     },
-                    statGroup,
-                    {},
-                    getFrameInfos);
+                    statGroup);
         }
     } catch (const ConnectionError& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
@@ -321,7 +294,6 @@ static std::string buildStatString(const std::vector<std::string_view>& args) {
 }
 
 int main(int argc, char** argv) {
-    std::string impersonate;
     bool json = false;
     bool format = false;
     bool allBuckets = false;
@@ -349,14 +321,6 @@ int main(int argc, char** argv) {
                       Argument::Required,
                       "bucketname",
                       "The name of the bucket to operate on"});
-
-    getopt.addOption(
-            {[&impersonate](auto value) { impersonate = std::string{value}; },
-             'I',
-             "impersonate",
-             Argument::Required,
-             "username",
-             "Try to impersonate the specified user"});
 
     getopt.addOption(
             {[&allBuckets](auto) { allBuckets = true; },
@@ -421,7 +385,7 @@ int main(int argc, char** argv) {
                 bucketItr++;
             }
 
-            request_stat(*connection, stat_key, json, format, impersonate);
+            request_stat(*connection, stat_key, json, format);
         } while (bucketItr != buckets.end());
 
     } catch (const ConnectionError& ex) {
