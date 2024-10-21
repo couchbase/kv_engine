@@ -481,7 +481,7 @@ nlohmann::json Request::to_json(bool validated) const {
             extras = getCommandSpecifics<DcpAddStreamPayload>();
             break;
         case ClientOpcode::DcpStreamReq:
-            extras = getCommandSpecifics<DcpStreamReqPayloadV1>();
+            extras = getCommandSpecifics<DcpStreamReqPayload>();
             break;
         case ClientOpcode::DcpStreamEnd:
             extras = getCommandSpecifics<DcpStreamEndPayload>();
@@ -500,15 +500,16 @@ nlohmann::json Request::to_json(bool validated) const {
                             const DcpSnapshotMarkerV2_0Value*>(
                             getValue().data());
                     break;
-                case DcpSnapshotMarkerV2xVersion::One:
-                    throw std::invalid_argument(
-                            "DcpSnapshotMarkerV2xVersion::One not supported");
-                    break;
                 case DcpSnapshotMarkerV2xVersion::Two:
                     value = *reinterpret_cast<
                             const DcpSnapshotMarkerV2_2Value*>(
                             getValue().data());
                     break;
+                default:
+                    throw std::invalid_argument(fmt::format(
+                            "DcpSnapshotMarkerV2xVersion::invalid version:{}",
+                            std::underlying_type<DcpSnapshotMarkerV2xVersion>::
+                                    type(payload.getVersion())));
                 }
             }
             break;

@@ -68,8 +68,7 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
         std::optional<std::string_view> jsonFilter,
-        std::function<void(MockActiveStream&)> preSetActiveHook,
-        uint64_t purge_seqno) {
+        std::function<void(MockActiveStream&)> preSetActiveHook) {
     return mockActiveStreamRequest(flags,
                                    opaque,
                                    vb,
@@ -81,10 +80,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
                                    includeValue,
                                    includeXattrs,
                                    includeDeletedUserXattrs,
-                                   IncludePurgeSeqno::No,
+                                   MarkerVersion::V2_0,
                                    jsonFilter,
-                                   preSetActiveHook,
-                                   purge_seqno);
+                                   preSetActiveHook);
 }
 
 std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
@@ -99,10 +97,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         IncludeValue includeValue,
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
-        IncludePurgeSeqno includePurgeSeqno,
+        MarkerVersion maxMarkerVersion,
         std::optional<std::string_view> jsonFilter,
-        std::function<void(MockActiveStream&)> preSetActiveHook,
-        uint64_t purge_seqno) {
+        std::function<void(MockActiveStream&)> preSetActiveHook) {
     auto stream = std::make_shared<MockActiveStream>(
             &engine_,
             std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
@@ -117,10 +114,9 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
             includeValue,
             includeXattrs,
             includeDeletedUserXattrs,
-            includePurgeSeqno,
+            maxMarkerVersion,
             jsonFilter,
-            "",
-            purge_seqno);
+            "");
 
     if (preSetActiveHook) {
         preSetActiveHook(*stream);

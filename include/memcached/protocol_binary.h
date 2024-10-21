@@ -577,11 +577,6 @@ enum class DcpOpenFlag : uint32_t {
      * deletion values.
      */
     IncludeDeletedUserXattrs = 256,
-    /**
-     * SnapshotMarker Version 2.2 includes the purgeSeqno of the vbucket for a
-     * given ActiveStream.
-     */
-    SendSnapshotMarkerV2_2 = 512,
 };
 std::string format_as(DcpOpenFlag flag);
 
@@ -703,7 +698,7 @@ protected:
 
 static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 
-class DcpStreamReqPayloadV1 {
+class DcpStreamReqPayload {
 public:
     DcpAddStreamFlag getFlags() const {
         return static_cast<DcpAddStreamFlag>(ntohl(flags));
@@ -715,37 +710,37 @@ public:
         return ntohl(reserved);
     }
     void setReserved(uint32_t reserved) {
-        DcpStreamReqPayloadV1::reserved = htonl(reserved);
+        DcpStreamReqPayload::reserved = htonl(reserved);
     }
     uint64_t getStartSeqno() const {
         return ntohll(start_seqno);
     }
     void setStartSeqno(uint64_t start_seqno) {
-        DcpStreamReqPayloadV1::start_seqno = htonll(start_seqno);
+        DcpStreamReqPayload::start_seqno = htonll(start_seqno);
     }
     uint64_t getEndSeqno() const {
         return ntohll(end_seqno);
     }
     void setEndSeqno(uint64_t end_seqno) {
-        DcpStreamReqPayloadV1::end_seqno = htonll(end_seqno);
+        DcpStreamReqPayload::end_seqno = htonll(end_seqno);
     }
     uint64_t getVbucketUuid() const {
         return ntohll(vbucket_uuid);
     }
     void setVbucketUuid(uint64_t vbucket_uuid) {
-        DcpStreamReqPayloadV1::vbucket_uuid = htonll(vbucket_uuid);
+        DcpStreamReqPayload::vbucket_uuid = htonll(vbucket_uuid);
     }
     uint64_t getSnapStartSeqno() const {
         return ntohll(snap_start_seqno);
     }
     void setSnapStartSeqno(uint64_t snap_start_seqno) {
-        DcpStreamReqPayloadV1::snap_start_seqno = htonll(snap_start_seqno);
+        DcpStreamReqPayload::snap_start_seqno = htonll(snap_start_seqno);
     }
     uint64_t getSnapEndSeqno() const {
         return ntohll(snap_end_seqno);
     }
     void setSnapEndSeqno(uint64_t snap_end_seqno) {
-        DcpStreamReqPayloadV1::snap_end_seqno = htonll(snap_end_seqno);
+        DcpStreamReqPayload::snap_end_seqno = htonll(snap_end_seqno);
     }
 
     cb::const_byte_buffer getBuffer() const {
@@ -761,26 +756,7 @@ protected:
     uint64_t snap_start_seqno = 0;
     uint64_t snap_end_seqno = 0;
 };
-static_assert(sizeof(DcpStreamReqPayloadV1) == 48, "Unexpected struct size");
-
-class DcpStreamReqPayloadV2 : public DcpStreamReqPayloadV1 {
-public:
-    uint64_t getPurgeSeqno() const {
-        return ntohll(purge_seqno);
-    }
-
-    void setPurgeSeqno(uint64_t purge_seqno) {
-        DcpStreamReqPayloadV2::purge_seqno = htonll(purge_seqno);
-    }
-
-    cb::const_byte_buffer getBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
-    }
-
-protected:
-    uint64_t purge_seqno;
-};
-static_assert(sizeof(DcpStreamReqPayloadV2) == 56, "Unexpected struct size");
+static_assert(sizeof(DcpStreamReqPayload) == 48, "Unexpected struct size");
 
 class DcpStreamEndPayload {
 public:
@@ -854,7 +830,18 @@ protected:
 static_assert(sizeof(DcpSnapshotMarkerV1Payload) == 20,
               "Unexpected struct size");
 
-enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, One = 1, Two = 2 };
+/**
+ * 1.0 = flags, start, end
+ * The 2.x series extends 1.0 with more data for more advanced server features.
+ * These are all opt-in
+ *
+ * 2.x first adds a 1byte version field (for .x) + 1b
+ * 2.0 = MVS/HCS  (durability in server 6.5) + 16b
+ * 2.2 = MVS/HCS/PurgeSeqno (8.0) + 24b
+ *
+ * Note 2.1 is dropped from the spec.
+ */
+enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, Two = 2 };
 
 // Version 2.x
 class DcpSnapshotMarkerV2xPayload {
@@ -864,9 +851,6 @@ public:
     }
     DcpSnapshotMarkerV2xVersion getVersion() const {
         return version;
-    }
-    void setVersion(DcpSnapshotMarkerV2xVersion v) {
-        version = v;
     }
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
@@ -918,7 +902,7 @@ public:
     }
 
 protected:
-    uint64_t purgeSeqno;
+    uint64_t purgeSeqno{0};
 };
 static_assert(sizeof(DcpSnapshotMarkerV2_2Value) == 44,
               "Unexpected struct size");

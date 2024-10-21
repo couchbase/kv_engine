@@ -102,6 +102,10 @@ public:
         supportsSyncReplication = value;
     }
 
+    void setMaxMarkerVersion(MarkerVersion value) {
+        maxMarkerVersion = value;
+    }
+
     /**
      * Create the ActiveStreamCheckpointProcessorTask and assign to
      * checkpointCreator->task
@@ -178,8 +182,7 @@ public:
             IncludeDeletedUserXattrs includeDeleteUserXattrs =
                     IncludeDeletedUserXattrs::No,
             std::optional<std::string_view> jsonFilter = {},
-            std::function<void(MockActiveStream&)> preSetActiveHook = {},
-            uint64_t purge_seqno = 0);
+            std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
     std::shared_ptr<MockActiveStream> mockActiveStreamRequest(
             cb::mcbp::DcpAddStreamFlag flags,
@@ -193,10 +196,9 @@ public:
             IncludeValue includeValue,
             IncludeXattrs includeXattrs,
             IncludeDeletedUserXattrs,
-            IncludePurgeSeqno includePurgeSeqno,
+            MarkerVersion maxMarkerVersion,
             std::optional<std::string_view> jsonFilter,
-            std::function<void(MockActiveStream&)> preSetActiveHook = {},
-            uint64_t purge_seqno = 0);
+            std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
     /**
      * Step the producer and expect the opcode to be returned
@@ -262,8 +264,8 @@ public:
         return includeXattrs;
     }
 
-    IncludePurgeSeqno public_getIncludePurgeSeqno() const {
-        return includePurgeSeqno;
+    MarkerVersion public_getMaxMarkerVersion() const {
+        return maxMarkerVersion;
     }
 
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {

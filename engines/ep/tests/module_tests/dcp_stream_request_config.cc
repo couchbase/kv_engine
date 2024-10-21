@@ -87,7 +87,6 @@ void DcpStreamRequestConfig::createDcpStream(MockDcpProducer& producer) const {
                       getVbucketUUID(),
                       getSnapshotStart(),
                       getSnapshotEnd(),
-                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;

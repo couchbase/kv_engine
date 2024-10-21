@@ -119,7 +119,10 @@ TEST_F(CollectionsVBFilterTest, junk_in) {
                                        R"({"collections:{"a":1})",
                                        R"({"collection:["a"])",
                                        R"({"collections:[a])",
-                                       R"({"scope":"1", "collections:[a])"};
+                                       R"({"collections:[a]})",
+                                       R"({"scope":"1", "collections:[a])",
+                                       R"({"purge_seqno":1})",
+                                       R"({"purge_seqno":"p"})"};
 
     for (const auto& s : inputs) {
         std::optional<std::string_view> json(s);
@@ -331,6 +334,15 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
     }
 }
 
+/**
+ * Test purge seqno decodes correctly
+ */
+TEST_F(CollectionsVBFilterTest, purge_seqno) {
+    std::string input = R"({"purge_seqno":"8"})";
+    std::optional<std::string_view> json(input);
+    Collections::VB::Filter f(json, vb->getManifest(), *cookie, *engine);
+    EXPECT_EQ(8, f.getRemotePurgeSeqno());
+}
 // class exposes some of the internal state flags
 class CollectionsTestFilter : public Collections::VB::Filter {
 public:

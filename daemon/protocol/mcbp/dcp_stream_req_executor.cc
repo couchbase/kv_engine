@@ -36,14 +36,10 @@ void dcp_stream_req_executor(Cookie& cookie) {
     if (ret == cb::engine_errc::success) {
         const auto& request = cookie.getRequest();
         using cb::mcbp::DcpAddStreamFlag;
-        using cb::mcbp::request::DcpStreamReqPayloadV1;
-        using cb::mcbp::request::DcpStreamReqPayloadV2;
-        auto isV2 = cookie.getConnection().isDcpIncludePurgeSeqno();
-
-        uint64_t purge_seqno = 0;
+        using cb::mcbp::request::DcpStreamReqPayload;
 
         const auto& payload =
-                request.getCommandSpecifics<DcpStreamReqPayloadV1>();
+                request.getCommandSpecifics<DcpStreamReqPayload>();
         const auto flags = payload.getFlags();
         uint64_t start_seqno = payload.getStartSeqno();
         uint64_t end_seqno = payload.getEndSeqno();
@@ -51,18 +47,13 @@ void dcp_stream_req_executor(Cookie& cookie) {
         uint64_t snap_start_seqno = payload.getSnapStartSeqno();
         uint64_t snap_end_seqno = payload.getSnapEndSeqno();
 
-        if (isV2) {
-            purge_seqno = request.getCommandSpecifics<DcpStreamReqPayloadV2>()
-                                  .getPurgeSeqno();
-        }
-
         // Collection enabled DCP allows a value containing stream config data.
-        std::optional<std::string_view> collections;
+        std::optional<std::string_view> jsonConfig;
         // Initialise the optional only if collections is enabled and even
         // if valuelen is 0
         if (cookie.getConnection().isCollectionsSupported()) {
             auto value = request.getValue();
-            collections = std::string_view{
+            jsonConfig = std::string_view{
                     reinterpret_cast<const char*>(value.data()), value.size()};
         }
 
@@ -76,13 +67,12 @@ void dcp_stream_req_executor(Cookie& cookie) {
                 vbucket_uuid,
                 snap_start_seqno,
                 snap_end_seqno,
-                purge_seqno,
                 &rollback_seqno,
                 [c = std::ref(cookie)](
                         const std::vector<vbucket_failover_t>& vec) {
                     return add_failover_log(vec, c);
                 },
-                collections);
+                jsonConfig);
     }
 
     if (ret == cb::engine_errc::rollback) {

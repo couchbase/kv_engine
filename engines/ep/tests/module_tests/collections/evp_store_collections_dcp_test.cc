@@ -351,7 +351,6 @@ TEST_F(CollectionsDcpTest, failover_after_drop_collection) {
                                       vbucket_uuid, // vbucket_uuid,
                                       vb0->getHighSeqno(), // snap_start_seqno,
                                       vb0->getHighSeqno(), // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {}));
@@ -1306,7 +1305,6 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
                                       uuid,
                                       ss,
                                       se,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{nullptr, 0}}));
@@ -1952,7 +1950,6 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
                       vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
                       0, // snap_start_seqno,
                       6, // snap_end_seqno,
-                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;
@@ -2064,7 +2061,6 @@ TEST_P(CollectionsDcpParameterizedTest, MB_47009_deny_sync_writes) {
                       vb->failovers->getLatestEntry().vb_uuid, // vbucket_uuid,
                       0, // snap_start_seqno,
                       0, // snap_end_seqno,
-                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;
@@ -2299,7 +2295,6 @@ TEST_P(CollectionsDcpParameterizedTest, empty_filter_stream_closes) {
                                 0, // vbucket_uuid,
                                 0, // snap_start_seqno,
                                 0, // snap_end_seqno,
-                                0,
                                 &rollbackSeqno,
                                 &CollectionsDcpTest::dcpAddFailoverLog,
                                 {{R"({"collections":["8"]})"}});
@@ -4216,7 +4211,6 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
                       vb->failovers->getLatestUUID(), // vbucket_uuid,
                       takoverStreamStart, // snap_start_seqno,
                       takoverStreamStart, // snap_end_seqno,
-                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;
@@ -4326,7 +4320,6 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
                       0, // vbucket_uuid,
                       0, // snap_start_seqno,
                       0, // snap_end_seqno,
-                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;
@@ -4622,7 +4615,6 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
                                       0,
                                       0,
                                       0,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{nullptr, 0}}));
@@ -4689,7 +4681,6 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
                                       0,
                                       0,
                                       0,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{nullptr, 0}}));
@@ -4740,7 +4731,6 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
                                        replicaVB,
                                        0,
                                        ~0ull, // end_seqno
-                                       0,
                                        0,
                                        0,
                                        0,

@@ -1058,7 +1058,8 @@ TEST_P(StreamTest, CursorDroppingBasicNotAllowedStates) {
 TEST_P(StreamTest, RollbackDueToPurge) {
     setup_dcp_stream(cb::mcbp::DcpAddStreamFlag::None,
                      IncludeValue::No,
-                     IncludeXattrs::No);
+                     IncludeXattrs::No,
+                     {{"enable_noop", "true"}});
 
     /* Store 4 items */
     const int numItems = 4;
@@ -1098,15 +1099,15 @@ TEST_P(StreamTest, RollbackDueToPurge) {
 
     // local_purge_seqno > start_seqno, but remote_purge_seqno ==
     // local_purge_seqno. We don't expect a rollback.
-    result = doStreamRequest(*producer,
-                             vbid,
-                             numItems - 2, // startSeqno
-                             numItems, // endSeqno
-                             0, // snapStartSeqno
-                             numItems - 2, // snapEndSeqno
-                             vbUuid,
-                             numItems - 1 // remotePurgeSeqno
-    );
+    result = doStreamRequest(
+            *producer,
+            vbid,
+            numItems - 2, // startSeqno
+            numItems, // endSeqno
+            0, // snapStartSeqno
+            numItems - 2, // snapEndSeqno
+            vbUuid,
+            fmt::format(R"({{"purge_seqno":"{}"}})", numItems - 1));
 
     EXPECT_EQ(cb::engine_errc::success, result.status);
     EXPECT_EQ(cb::engine_errc::success,
@@ -1114,15 +1115,15 @@ TEST_P(StreamTest, RollbackDueToPurge) {
 
     // local_purge_seqno > start_seqno, but remote_purge_seqno !=
     // local_purge_seqno. We expect a rollback.
-    result = doStreamRequest(*producer,
-                             vbid,
-                             numItems - 2, // startSeqno
-                             numItems, // endSeqno
-                             0, // snapStartSeqno
-                             numItems - 2, // snapEndSeqno
-                             vbUuid,
-                             numItems - 2 // remotePurgeSeqno
-    );
+    result = doStreamRequest(
+            *producer,
+            vbid,
+            numItems - 2, // startSeqno
+            numItems, // endSeqno
+            0, // snapStartSeqno
+            numItems - 2, // snapEndSeqno
+            vbUuid,
+            fmt::format(R"({{"purge_seqno":"{}"}})", numItems - 2));
 
     EXPECT_EQ(cb::engine_errc::rollback, result.status);
     EXPECT_EQ(0, result.rollbackSeqno);
@@ -1643,6 +1644,7 @@ void SingleThreadedActiveStreamTest::SetUp() {
     STParameterizedBucketTest::SetUp();
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     setupProducer();
+    cookie_to_mock_cookie(cookie)->setCollectionsSupport(true);
 }
 
 void SingleThreadedActiveStreamTest::TearDown() {
@@ -1685,7 +1687,8 @@ void SingleThreadedActiveStreamTest::setupProducer(
 void SingleThreadedActiveStreamTest::recreateProducerAndStream(
         VBucket& vb,
         cb::mcbp::DcpOpenFlag flags,
-        std::optional<std::string_view> jsonFilter) {
+        std::optional<std::string_view> jsonFilter,
+        const std::vector<std::pair<std::string, std::string>>& controls) {
     producer = std::make_shared<MockDcpProducer>(*engine,
                                                  cookie,
                                                  "test_producer->test_consumer",
@@ -1693,6 +1696,12 @@ void SingleThreadedActiveStreamTest::recreateProducerAndStream(
                                                  false /*startTask*/);
     producer->createCheckpointProcessorTask();
     producer->setSyncReplication(SyncReplication::SyncReplication);
+
+    for (const auto& c : controls) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->control(0 /*opaque*/, c.first, c.second)) << c.first << "=" << c.second;
+    }
+
     recreateStream(vb, true /*enforceProducerFlags*/, jsonFilter);
 }
 
@@ -1714,7 +1723,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 producer->public_getIncludeValue(),
                 producer->public_getIncludeXattrs(),
                 producer->public_getIncludeDeletedUserXattrs(),
-                producer->public_getIncludePurgeSeqno(),
+                producer->public_getMaxMarkerVersion(),
                 jsonFilter);
     } else {
         stream = producer->mockActiveStreamRequest(flags,
@@ -2550,7 +2559,6 @@ TEST_P(SingleThreadedActiveStreamTest,
                                       vb.failovers->getLatestUUID(),
                                       1,
                                       1,
-                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       std::nullopt));
@@ -3727,7 +3735,6 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       vb.failovers->getLatestUUID(),
                                       snapEndSeqno,
                                       snapEndSeqno,
-                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -3740,7 +3747,6 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       vb.failovers->getLatestUUID(),
                                       snapEndSeqno,
                                       snapEndSeqno,
-                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -3756,7 +3762,6 @@ TEST_P(SingleThreadedActiveStreamTest, ConsumerSnapEndLimitedByHighSeqno) {
                                       vb.failovers->getLatestUUID(),
                                       snapStartSeqno,
                                       snapEndSeqno,
-                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -3798,7 +3803,6 @@ TEST_P(SingleThreadedActiveStreamTest,
                                       vb.failovers->getLatestUUID(),
                                       snapStartSeqno,
                                       snapEndSeqno,
-                                      0,
                                       &rollbackSeqno,
                                       mock_dcp_add_failover_log,
                                       {}));
@@ -6348,7 +6352,6 @@ TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
                                            vb.failovers->getLatestUUID(),
                                            0,
                                            0,
-                                           0,
                                            &rollbackSeqno,
                                            mock_dcp_add_failover_log,
                                            std::nullopt);
@@ -6370,7 +6373,7 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_InMemory) {
     stream.reset();
 
     auto& vb = *engine->getVBucket(vbid);
-    // Create Stream without SendSnapshotMarkerV2_2.
+    // Create Stream without MarkerVersion::V2_2.
     recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
 
     // Store a single item.
@@ -6390,7 +6393,10 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_InMemory) {
     auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
     EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 
-    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2);
+    recreateProducerAndStream(vb,
+                              cb::mcbp::DcpOpenFlag::None,
+                              {},
+                              {{"max_marker_version", "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     EXPECT_EQ(0, stream->public_readyQSize());
@@ -6420,7 +6426,7 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
 
     flushAndRemoveCheckpoints(vbid);
 
-    //! 1. Recreate the stream without SendSnapshotMarkerV2_2 & expect the
+    //! 1. Recreate the stream without MarkerVersion::V2_2 & expect the
     //! purgeSeqno is not included.
     recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
 
@@ -6440,9 +6446,12 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
     //! The purgeSeqno shouldn't be present.
     EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 
-    //! 2. Recreate the stream with SendSnapshotMarkerV2_2 & expect the
+    //! 2. Recreate the stream with max_marker_version=2.2 & expect the
     //! purgeSeqno is included.
-    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2);
+    recreateProducerAndStream(vb,
+                              cb::mcbp::DcpOpenFlag::None,
+                              {},
+                              {{"max_marker_version", "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6479,9 +6488,12 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
     const auto purgeSeqno = vb.getPurgeSeqno();
     EXPECT_EQ(3, purgeSeqno);
 
-    //! 3. Recreate the stream with SendSnapshotMarkerV2_2 & expect the
+    //! 3. Recreate the stream with max_marker_version=2.2 & expect the
     //! purgeSeqno is included and it set to 3.
-    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2);
+    recreateProducerAndStream(vb,
+                              cb::mcbp::DcpOpenFlag::None,
+                              {},
+                              {{"max_marker_version", "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6586,9 +6598,11 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! message is sent. All the mutations are filtered out.
     recreateProducerAndStream(
             vb,
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
-                        uint32_t(CollectionEntry::defaultC.getId())));
+                        uint32_t(CollectionEntry::defaultC.getId())),
+
+            {{"max_marker_version", "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     resp = stream->next(*producer);
@@ -6643,9 +6657,11 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! meant for the collection-filtered stream is sent.
     recreateProducerAndStream(
             vb,
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
-                        uint32_t(CollectionEntry::vegetable.getId())));
+                        uint32_t(CollectionEntry::vegetable.getId())),
+
+            {{"max_marker_version", "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     EXPECT_EQ(0, stream->public_readyQSize());
@@ -6705,9 +6721,11 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! mutation meant for the default-collection stream is sent.
     recreateProducerAndStream(
             vb,
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
-                        uint32_t(CollectionEntry::defaultC.getId())));
+                        uint32_t(CollectionEntry::defaultC.getId())),
+
+            {{"max_marker_version", "2.2"}});
 
     ASSERT_TRUE(stream->isInMemory());
     resp = stream->next(*producer);
@@ -6819,9 +6837,11 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! the one mutation relevant to this stream.
     recreateProducerAndStream(
             vb,
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
-                        uint32_t(CollectionEntry::vegetable.getId())));
+                        uint32_t(CollectionEntry::vegetable.getId())),
+
+            {{"max_marker_version", "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6862,9 +6882,11 @@ TEST_P(SingleThreadedActiveStreamTest,
     //! mutations relevant to this stream are filtered out.
     recreateProducerAndStream(
             vb,
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
+            cb::mcbp::DcpOpenFlag::None,
             fmt::format(R"({{"collections":["{:x}"]}})",
-                        uint32_t(CollectionEntry::vegetable.getId())));
+                        uint32_t(CollectionEntry::vegetable.getId())),
+
+            {{"max_marker_version", "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6970,15 +6992,15 @@ TEST_P(SingleThreadedActiveStreamTest,
     auto purgeSeqno = vb.getPurgeSeqno();
     EXPECT_EQ(3, purgeSeqno);
 
-    producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer->test_consumer",
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
-            false /*startTask*/);
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 cb::mcbp::DcpOpenFlag::None,
+                                                 false /*startTask*/);
 
     producer->createCheckpointProcessorTask();
     producer->setSyncReplication(SyncReplication::SyncReplication);
+    producer->setMaxMarkerVersion(MarkerVersion::V2_2);
 
     stream = producer->mockActiveStreamRequest(
             {} /*flags*/,
@@ -6992,10 +7014,9 @@ TEST_P(SingleThreadedActiveStreamTest,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
-            producer->public_getIncludePurgeSeqno(),
-            {},
-            {},
-            3 /*purge_seqno*/);
+            producer->public_getMaxMarkerVersion(),
+            R"({"purge_seqno":"3"})",
+            {});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -7010,12 +7031,11 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     stream.reset();
 
-    producer = std::make_shared<MockDcpProducer>(
-            *engine,
-            cookie,
-            "test_producer->test_consumer",
-            cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2,
-            false /*startTask*/);
+    producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie,
+                                                 "test_producer->test_consumer",
+                                                 cb::mcbp::DcpOpenFlag::None,
+                                                 false /*startTask*/);
 
     producer->createCheckpointProcessorTask();
     producer->setSyncReplication(SyncReplication::SyncReplication);
@@ -7032,10 +7052,9 @@ TEST_P(SingleThreadedActiveStreamTest,
             producer->public_getIncludeValue(),
             producer->public_getIncludeXattrs(),
             producer->public_getIncludeDeletedUserXattrs(),
-            producer->public_getIncludePurgeSeqno(),
-            {},
-            {},
-            3);
+            producer->public_getMaxMarkerVersion(),
+            R"({"purge_seqno":"3"})",
+            {});
 
     // Before the backfill runs & after the stream request has been processed,
     // process a few more mutations & run compaction. This would move the purge

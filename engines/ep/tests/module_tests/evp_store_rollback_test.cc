@@ -796,7 +796,6 @@ TEST_P(RollbackTest, MB21784) {
                                        /*vb_uuid*/ 0,
                                        /*snap_start*/ 0,
                                        /*snap_end*/ 0,
-                                       0,
                                        &rollbackSeqno,
                                        RollbackTest::fakeDcpAddFailoverLog,
                                        {});
@@ -2492,7 +2491,6 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
                       /*vb_uuid*/ 0,
                       /*snap_start*/ 0,
                       /*snap_end*/ ~0,
-                      0,
                       &rollbackSeqno,
                       [](const std::vector<vbucket_failover_t>&) {
                           return cb::engine_errc::success;

@@ -90,14 +90,10 @@ void dcp_open_executor(Cookie& cookie) {
                 (flags & DcpOpenFlag::NoValue) == DcpOpenFlag::NoValue;
         const bool dcpDeleteTimes = (flags & DcpOpenFlag::IncludeDeleteTimes) ==
                                     DcpOpenFlag::IncludeDeleteTimes;
-        const bool dcpIncludePurgeSeqno =
-                (flags & DcpOpenFlag::SendSnapshotMarkerV2_2) ==
-                DcpOpenFlag::SendSnapshotMarkerV2_2;
         connection.setDcpXattrAware(dcpXattrAware);
         connection.setDcpDeletedUserXattr(dcpDeletedUserXattr);
         connection.setDcpNoValue(dcpNoValue);
         connection.setDcpDeleteTimeEnabled(dcpDeleteTimes);
-        connection.setDcpIncludePurgeSeqno(dcpIncludePurgeSeqno);
         connection.disableSaslAuth();
         connection.setType(dcpProducer ? Connection::Type::Producer
                                        : Connection::Type::Consumer);

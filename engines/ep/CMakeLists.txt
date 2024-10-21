@@ -296,6 +296,7 @@ ADD_LIBRARY(ep STATIC
             src/dcp/backfill_to_stream.cc
             src/dcp/consumer.cc
             src/dcp/dcpconnmap.cc
+            src/dcp/dcp-types.cc
             src/dcp/flow-control.cc
             src/dcp/flow-control-manager.cc
             src/dcp/msg_producers_border_guard.cc

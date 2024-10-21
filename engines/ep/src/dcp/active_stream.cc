@@ -58,12 +58,11 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            uint64_t vb_uuid,
                            uint64_t snap_start_seqno,
                            uint64_t snap_end_seqno,
-                           uint64_t purge_seqno,
                            IncludeValue includeVal,
                            IncludeXattrs includeXattrs,
                            IncludeDeleteTime includeDeleteTime,
                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
-                           IncludePurgeSeqno includePurgeSeqno,
+                           MarkerVersion maxMarkerVersion,
                            Collections::VB::Filter f)
     : Stream(n,
              flags,
@@ -78,11 +77,10 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       pendingBackfill(false),
       lastReadSeqno(st_seqno, {*this}),
       backfillRemaining(),
-      remotePurgeSeqno(purge_seqno),
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeletedUserXattrs(includeDeletedUserXattrs),
-      includePurgeSeqno(includePurgeSeqno),
+      maxMarkerVersion(maxMarkerVersion),
       lastSentSeqno(st_seqno, {*this}),
       lastSentSeqnoAdvance(0, {*this}),
       curChkSeqno(st_seqno, {*this}),
@@ -398,7 +396,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
-        auto psToSend = includePurgeSeqno == IncludePurgeSeqno::Yes
+        auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
                                 ? std::make_optional(purgeSeqno)
                                 : std::nullopt;
 
@@ -1704,7 +1702,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                        ? std::make_optional(maxVisibleSeqno)
                                        : std::nullopt;
 
-        const auto psToSend = includePurgeSeqno == IncludePurgeSeqno::Yes
+        const auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
                                       ? std::make_optional(purgeSeqno)
                                       : std::nullopt;
 
@@ -2732,7 +2730,7 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
     start = adjustStartIfFirstSnapshot(start, true);
     const auto flags = getMarkerFlags(meta);
     const auto vb = engine->getVBucket(vb_);
-    const auto psToSend = includePurgeSeqno == IncludePurgeSeqno::Yes
+    const auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
                                   ? std::make_optional(vb->getPurgeSeqno())
                                   : std::nullopt;
 

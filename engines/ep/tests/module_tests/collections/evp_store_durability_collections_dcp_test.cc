@@ -49,7 +49,6 @@ void CollectionsSyncWriteParamTest::SetUp() {
                                       0, // vbucket_uuid,
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       [](const std::vector<vbucket_failover_t>&) {
                                         return cb::engine_errc::success;
@@ -384,12 +383,10 @@ TEST_P(CollectionsSyncWriteParamTest,
                                       failoverEntry.vb_uuid, // vbucket_uuid,
                                       4, // snap_start_seqno,
                                       7, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       [](const std::vector<vbucket_failover_t>&) {
                                         return cb::engine_errc::success;
                                       },
-
                                       std::make_optional(
                                               std::string_view{})
                       /*collections on,

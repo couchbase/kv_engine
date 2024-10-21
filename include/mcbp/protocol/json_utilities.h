@@ -31,7 +31,7 @@ void to_json(nlohmann::json& json,
              const SetBucketDataLimitExceededPayload& payload);
 void to_json(nlohmann::json& json, const DcpOpenPayload& payload);
 void to_json(nlohmann::json& json, const DcpAddStreamPayload& payload);
-void to_json(nlohmann::json& json, const DcpStreamReqPayloadV1& payload);
+void to_json(nlohmann::json& json, const DcpStreamReqPayload& payload);
 void to_json(nlohmann::json& json, const DcpStreamEndPayload& payload);
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerFlag& flags);
 void to_json(nlohmann::json& json, const DcpSnapshotMarkerV1Payload& payload);

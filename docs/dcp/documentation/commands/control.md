@@ -67,6 +67,16 @@ invalid and will be rejected.
 snapshots in DCP streams. A configuration of `false` is invalid and will be
 rejected.
 
+* `max_marker_version` = `2.2` - Set the maximum snapshot marker format the
+client can accept. With this configuration the server can use any marker format
+from v1 to v2.2. Enabling this will expose the client to new features in the
+server, like tracking the purge-seqno which can be used to mitigate rollbacks on
+re-connect see [stream-request-value.md](./stream-request-value.md). The format
+of snapshot markers is described in [snapshot-marker.md](./snapshot-marker.md).
+
+Note that the only value is "2.2", but the server can send 1.0 (by default) and
+2.0 if sync-replication is enabled (which has a different enablement path).
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

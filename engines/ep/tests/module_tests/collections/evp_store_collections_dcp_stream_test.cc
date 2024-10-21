@@ -124,7 +124,6 @@ TEST_P(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       std::string_view{}));
@@ -225,7 +224,6 @@ TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
                                       vb->failovers->getLatestUUID(),
                                       streamSeqno, // snap_start_seqno,
                                       streamSeqno, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{R"({"collections":["9"]})"}}));
@@ -277,7 +275,6 @@ TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
                                       vb->failovers->getLatestUUID(),
                                       streamSeqno, // snap_start_seqno,
                                       streamSeqno, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{R"({"collections":["9"]})"}}));
@@ -353,7 +350,6 @@ TEST_P(CollectionsDcpStreamsTest,
                                       vb->failovers->getLatestUUID(),
                                       streamSeqno, // snap_start_seqno,
                                       streamSeqno, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{R"({"collections":["9"]})"}}));
@@ -421,7 +417,6 @@ TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
                                       vb->failovers->getLatestUUID(),
                                       streamSeqno, // snap_start_seqno,
                                       streamSeqno, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{R"({"collections":["8","9"]})"}}));
@@ -498,7 +493,6 @@ TEST_P(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
                                       vb->failovers->getLatestUUID(),
                                       streamSeqno, // snap_start_seqno,
                                       streamSeqno, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{R"({"collections":["8","9"]})"}}));
@@ -514,7 +508,6 @@ TEST_P(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
                                       vb->failovers->getLatestUUID(),
                                       streamSeqno, // snap_start_seqno,
                                       streamSeqno, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       &CollectionsDcpTest::dcpAddFailoverLog,
                                       {{R"({"collections":["8","9"]})"}}));

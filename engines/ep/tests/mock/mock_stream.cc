@@ -42,12 +42,11 @@ MockActiveStream::MockActiveStream(
                    vb_uuid,
                    snap_start_seqno,
                    snap_end_seqno,
-                   0, // no remote purge seqno
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,
                    includeDeletedUserXattrs,
-                   IncludePurgeSeqno::No,
+                   MarkerVersion::V2_0,
                    {jsonFilter, vb.getManifest(), *p->getCookie(), *e}) {
 }
 
@@ -65,10 +64,9 @@ MockActiveStream::MockActiveStream(
         IncludeValue includeValue,
         IncludeXattrs includeXattrs,
         IncludeDeletedUserXattrs includeDeletedUserXattrs,
-        IncludePurgeSeqno includePurgeSeqno,
+        MarkerVersion maxMarkerVersion,
         std::optional<std::string_view> jsonFilter,
-        const std::string& streamName,
-        uint64_t purge_seqno)
+        const std::string& streamName)
     : ActiveStream(e,
                    p,
                    streamName.empty() ? p->getName() : streamName,
@@ -80,12 +78,11 @@ MockActiveStream::MockActiveStream(
                    vb_uuid,
                    snap_start_seqno,
                    snap_end_seqno,
-                   purge_seqno,
                    includeValue,
                    includeXattrs,
                    IncludeDeleteTime::No,
                    includeDeletedUserXattrs,
-                   includePurgeSeqno,
+                   maxMarkerVersion,
                    {jsonFilter, vb.getManifest(), *p->getCookie(), *e}) {
 }
 

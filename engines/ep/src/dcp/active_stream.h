@@ -118,12 +118,11 @@ public:
                  uint64_t vb_uuid,
                  uint64_t snap_start_seqno,
                  uint64_t snap_end_seqno,
-                 uint64_t remote_purge_seqno,
                  IncludeValue includeVal,
                  IncludeXattrs includeXattrs,
                  IncludeDeleteTime includeDeleteTime,
                  IncludeDeletedUserXattrs includeDeletedUserXattrs,
-                 IncludePurgeSeqno includePurgeSeqno,
+                 MarkerVersion maxMarkerVersion,
                  Collections::VB::Filter filter);
 
     ~ActiveStream() override;
@@ -212,7 +211,7 @@ public:
     }
 
     uint64_t getRemotePurgeSeqno() const {
-        return remotePurgeSeqno;
+        return filter.getRemotePurgeSeqno();
     }
 
     /**
@@ -712,10 +711,6 @@ protected:
     TestingHook<const DcpResponse*> nextHook;
     TestingHook<> takeoverSendPhaseHook;
 
-    // The last purge seqno received by the client & the one sent in the
-    // stream request.
-    const uint64_t remotePurgeSeqno;
-
     // Whether the responses sent using this stream should contain the body
     const IncludeValue includeValue;
 
@@ -727,10 +722,9 @@ protected:
     // deletions?
     const IncludeDeletedUserXattrs includeDeletedUserXattrs;
 
-    // Include the purge seqno of the vbucket if this is set - a DCP connection
-    // opened with the DcpOpenFlag::SendSnapshotMarkerV2_2 flag should include
-    // the purge seqno.
-    const IncludePurgeSeqno includePurgeSeqno;
+    // The producer can be configured to use the v1/v2.0 or v2.2 DCP marker
+    // format.
+    const MarkerVersion maxMarkerVersion;
 
     /**
      * Should the next snapshot marker have the 'checkpoint' flag

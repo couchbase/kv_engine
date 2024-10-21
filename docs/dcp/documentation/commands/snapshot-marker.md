@@ -38,9 +38,23 @@ Snapshot Type is a bit field and stores the following flags:
 
 ##### 0x01
 
-_V2.1_ is an extension to V2.0, but the type _must_ be set to disk, and it
-adds a 64 bit timestamp which is the timestamp for when the disk snapshot was
-committed.
+_V2.1_ is removed from the spec, it was never used.
+
+##### 0x02
+
+_V2.2_ extends _V2.0_ to include an 8-byte field for the server purge-seqno. Clients
+can use this purge-seqno to mitigate rollback (by presenting the purge-seqno in
+stream-requests).
+
+The full spec of v2.2 is.
+
+* 0:  1b version
+* 1:  8b Start Seqno
+* 9:  8b End Seqno
+* 17: 4b Snapshot Type
+* 21: 8b Max Visible Seqno
+* 29: 8b High Completed Seqno
+* 37: 8b Purge Seqno
 
 ### Encoding Examples
 

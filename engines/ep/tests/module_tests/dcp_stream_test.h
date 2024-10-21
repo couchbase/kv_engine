@@ -56,12 +56,17 @@ protected:
      *
      * @param vb
      * @param dcpOpenflags The flags used at producer creation
-     * @param jsonFilter JSON representing the collections filter for the stream
+     * @param config JSON representing the stream request config (mostly used
+     * for collection filter config).
+     * @param controls a vector of key/value pairs representing the desired DCP
+     * controls.
      */
     void recreateProducerAndStream(
             VBucket& vb,
             cb::mcbp::DcpOpenFlag flags,
-            std::optional<std::string_view> jsonFilter = {});
+            std::optional<std::string_view> config = {},
+            const std::vector<std::pair<std::string, std::string>>& controls =
+                    {});
 
     /**
      * @param vb

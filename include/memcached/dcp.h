@@ -479,7 +479,6 @@ struct DcpIface {
             uint64_t vbucket_uuid,
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,
-            uint64_t purge_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
             std::optional<std::string_view> json) = 0;

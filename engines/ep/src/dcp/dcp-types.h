@@ -97,8 +97,6 @@ enum class IncludeDeletedUserXattrs : bool {
     No,
 };
 
-enum class IncludePurgeSeqno : bool { Yes, No };
-
 /**
  * SnappyEnabled is used to state whether an active stream supports snappy
  * compressed documents.
@@ -160,6 +158,14 @@ enum class FlatBuffersEvents : bool {
     No,
 };
 
+enum class MarkerVersion {
+    V1_0,
+    V2_0,
+    V2_2
+};
+
+std::string to_string(MarkerVersion);
+
 // See docs/dcp/documentation/commands/control.md for more information on
 // control keys.
 namespace DcpControlKeys {
@@ -179,4 +185,6 @@ constexpr std::string_view DeletedUserXattrs = "include_deleted_user_xattrs";
 constexpr std::string_view EnableNoop = "enable_noop";
 constexpr std::string_view NoopInterval = "set_noop_interval";
 constexpr std::string_view ConnBufferSize = "connection_buffer_size";
+constexpr std::string_view SnapshotMaxMarkerVersion = "max_marker_version";
+
 } // namespace DcpControlKeys

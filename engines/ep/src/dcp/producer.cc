@@ -247,10 +247,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
             isFlagSet(flags, cb::mcbp::DcpOpenFlag::IncludeDeletedUserXattrs)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
-    includePurgeSeqno =
-            isFlagSet(flags, cb::mcbp::DcpOpenFlag::SendSnapshotMarkerV2_2)
-                    ? IncludePurgeSeqno::Yes
-                    : IncludePurgeSeqno::No;
 }
 
 DcpProducer::~DcpProducer() {
@@ -293,7 +289,6 @@ cb::engine_errc DcpProducer::streamRequest(
         uint64_t vbucket_uuid,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
-        uint64_t purge_seqno,
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
         std::optional<std::string_view> json) {
@@ -303,8 +298,7 @@ cb::engine_errc DcpProducer::streamRequest(
                           start_seqno,
                           end_seqno,
                           snap_start_seqno,
-                          snap_end_seqno,
-                          purge_seqno};
+                          snap_end_seqno};
     auto ret = cb::engine_errc::failed;
     VBucketPtr vb;
 
@@ -362,12 +356,11 @@ cb::engine_errc DcpProducer::streamRequest(
                                                 req.vbucket_uuid,
                                                 req.snap_start_seqno,
                                                 req.snap_end_seqno,
-                                                req.purge_seqno,
                                                 includeValue,
                                                 includeXattrs,
                                                 includeDeleteTime,
                                                 includeDeletedUserXattrs,
-                                                includePurgeSeqno,
+                                                maxMarkerVersion,
                                                 std::move(filter));
     } catch (const cb::engine_error& e) {
         logger->warnWithContext(
@@ -561,7 +554,7 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
             req.snap_start_seqno,
             req.snap_end_seqno,
             purgeSeqno,
-            req.purge_seqno,
+            filter.getRemotePurgeSeqno(),
             isFlagSet(req.flags, cb::mcbp::DcpAddStreamFlag::StrictVbUuid),
             getHighSeqnoOfCollections(filter, vb));
 
@@ -1294,6 +1287,10 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             supportsSyncReplication = SyncReplication::SyncWrites;
             if (!consumerName.lock()->empty()) {
                 supportsSyncReplication = SyncReplication::SyncReplication;
+                if (maxMarkerVersion < MarkerVersion::V2_0) {
+                    // upgrade to 2.0, but never downgrade from 2.2
+                    maxMarkerVersion = MarkerVersion::V2_0;
+                }
             }
             return cb::engine_errc::success;
         }
@@ -1339,6 +1336,14 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         }
 
         changeStreams = true;
+        return cb::engine_errc::success;
+    } else if (key == DcpControlKeys::SnapshotMaxMarkerVersion &&
+               valueStr == "2.2") {
+        if (!collectionsEnabled) {
+            logger->warn("Rejected control {}={} because collections are disabled", key, valueStr);
+            return cb::engine_errc::not_supported;
+        }
+        maxMarkerVersion = MarkerVersion::V2_2;
         return cb::engine_errc::success;
     }
 
@@ -1717,6 +1722,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
             c);
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
     addStat("synchronous_writes", isSyncWritesEnabled(), add_stat, c);
+    addStat("max_marker_version", to_string(maxMarkerVersion), add_stat, c);
 
     // Possible that the producer has had its streams closed and hence doesn't
     // have a backfill manager anymore.

@@ -49,7 +49,7 @@ cb::engine_errc MockDcpMessageProducers::stream_req(
     last_end_seqno = end_seqno;
     last_vbucket_uuid = vbucket_uuid;
     last_packet_size = sizeof(cb::mcbp::Request) +
-                       sizeof(cb::mcbp::request::DcpStreamReqPayloadV1) +
+                       sizeof(cb::mcbp::request::DcpStreamReqPayload) +
                        request_value.size();
     last_snap_start_seqno = snap_start_seqno;
     last_snap_end_seqno = snap_end_seqno;

@@ -263,6 +263,13 @@ public:
     CollectionSizeStats getSizeStats(const Manifest& manifest) const;
 
     /**
+     * @return the purgeSeqno which may of been set in the JSON object
+     */
+    uint64_t getRemotePurgeSeqno() const {
+        return remotePurgeSeqno;
+    }
+
+    /**
      * Dump this to std::cerr
      */
     void dump() const;
@@ -359,6 +366,7 @@ protected:
     cb::mcbp::DcpStreamId streamId = {};
     bool scopeIsDropped = false;
     bool defaultAllowed = false;
+    uint64_t remotePurgeSeqno{0};
 
     enum class FilterType {
         // The "bucket stream" - everything is allowed
@@ -393,6 +401,7 @@ protected:
     static const char* ScopeKey;
     static const char* UidKey;
     static const char* StreamIdKey;
+    static const char* PurgeSeqnoKey;
 };
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter);

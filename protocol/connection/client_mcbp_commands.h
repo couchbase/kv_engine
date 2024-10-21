@@ -854,7 +854,7 @@ public:
 
 private:
     // The byteorder is fixed when we append the members to the packet
-    cb::mcbp::request::DcpStreamReqPayloadV1 meta;
+    cb::mcbp::request::DcpStreamReqPayload meta;
 };
 
 class BinprotDcpAddStreamCommand : public BinprotGenericCommand {

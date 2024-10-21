@@ -425,7 +425,6 @@ cb::engine_errc dcpStreamEnd(Cookie& cookie,
  * @param vbucketUuid The vbucket UUID
  * @param snapshotStartSeqno The start seqno of the last received snapshot
  * @param snapshotEndSeqno The end seqno of the last received snapshot
- * @param purgeSeqno The purge seqno included in the last received snapshot
  * @param rollbackSeqno Used by the engine to add the rollback seqno in the
  * response
  * @param callback The callback to be used by the engine to add the failover log
@@ -444,7 +443,6 @@ cb::engine_errc dcpStreamReq(Cookie& cookie,
                              uint64_t vbucketUuid,
                              uint64_t snapStartSeqno,
                              uint64_t snapEndSeqno,
-                             uint64_t purgeSeqno,
                              uint64_t* rollbackSeqno,
                              dcp_add_failover_log callback,
                              std::optional<std::string_view> json);

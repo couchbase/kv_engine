@@ -406,7 +406,6 @@ TEST_F(SingleThreadedEPBucketTest, stream_from_active_vbucket_only) {
                                            /*vb_uuid*/ 0,
                                            /*snap_start*/ 0,
                                            /*snap_end*/ 0,
-                                           0,
                                            &rollbackSeqno,
                                            SingleThreadedEPBucketTest::
                                                    fakeDcpAddFailoverLog,

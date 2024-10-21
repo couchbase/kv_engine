@@ -149,7 +149,6 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
     // A uid by itself ok, we no longer do anything with it, but we must not
     // fail the user for this.
     const auto uidObject = json.find(UidKey);
-
     const auto scopesObject = json.find(ScopeKey);
     const auto collectionsObject = json.find(CollectionsKey);
     if (scopesObject != json.end()) {
@@ -191,15 +190,26 @@ std::pair<cb::engine_errc, uint64_t> Filter::constructFromJson(
         }
     }
 
-    // The input JSON must of contained at least a sid, uid, scope, or
-    // collections key
-    if (uidObject == json.end() && collectionsObject == json.end() &&
-        scopesObject == json.end() && streamIdObject == json.end()) {
-        throw cb::engine_error(
-                cb::engine_errc::invalid_arguments,
-                "Filter::constructFromJson no sid, uid, scope or "
-                "collections found");
+    const auto purgeSeqnoObject = json.find(PurgeSeqnoKey);
+    if (purgeSeqnoObject != json.end()) {
+        auto purgeString = cb::getJsonObject(json,
+                                             PurgeSeqnoKey,
+                                             nlohmann::json::value_t::string,
+                                             "Filter::constructFromJson");
+
+        remotePurgeSeqno = std::stoull(purgeString.get<std::string>());
     }
+
+    // The input JSON must of contained at least a sid, uid, scope,
+    // collections or purge_seqno key
+    if (uidObject == json.end() && collectionsObject == json.end() &&
+        scopesObject == json.end() && streamIdObject == json.end() &&
+        purgeSeqnoObject == json.end()) {
+        throw cb::engine_error(cb::engine_errc::invalid_arguments,
+                               "Filter::constructFromJson no sid, uid, scope, "
+                               "collections or purge_seqno found");
+    }
+
     return {cb::engine_errc::success, rh.getManifestUid()};
 }
 
@@ -614,12 +624,15 @@ const char* Filter::CollectionsKey = "collections";
 const char* Filter::ScopeKey = "scope";
 const char* Filter::UidKey = "uid";
 const char* Filter::StreamIdKey = "sid";
+const char* Filter::PurgeSeqnoKey = "purge_seqno";
 
 std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     os << "VBucket::Filter"
        << ": defaultAllowed:" << filter.defaultAllowed
        << ", type:" << Filter::to_string(filter.filterType)
-       << ", scopeIsDropped:" << filter.scopeIsDropped;
+       << ", scopeIsDropped:" << filter.scopeIsDropped
+       << ", remotePurgeSeqno:" << filter.getRemotePurgeSeqno();
+
     if (filter.isScopeFilter()) {
         os << ", scopeID:" << filter.scopeID;
     }
@@ -631,7 +644,7 @@ std::ostream& operator<<(std::ostream& os, const Filter& filter) {
     os << ", sid:" << filter.streamId;
     os << ", filter.size:" << filter.filter.size() << std::endl;
     for (const auto& c : filter.filter) {
-        os << "filter:entry:0x" << std::hex << c.first << std::endl;
+        os << "filter:entry:0x" << std::hex << c.first << std::dec << std::endl;
     }
     return os;
 }

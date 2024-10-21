@@ -54,10 +54,9 @@ public:
                      IncludeValue includeValue,
                      IncludeXattrs includeXattrs,
                      IncludeDeletedUserXattrs includeDeletedUserXattrs,
-                     IncludePurgeSeqno includePurgeSeqno,
+                     MarkerVersion maxMarkerVersion,
                      std::optional<std::string_view> jsonFilter,
-                     const std::string& streamName = "",
-                     uint64_t purge_seqno = 0);
+                     const std::string& streamName = "");
 
     // Expose underlying protected ActiveStream methods as public
     OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {

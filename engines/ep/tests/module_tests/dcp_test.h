@@ -58,14 +58,15 @@ protected:
      * Helper function to simplify calling producer->streamRequest() - provides
      * sensible default values for common invocations.
      */
-    static StreamRequestResult doStreamRequest(DcpProducer& producer,
-                                               Vbid vbid = Vbid{0},
-                                               uint64_t startSeqno = 0,
-                                               uint64_t endSeqno = ~0,
-                                               uint64_t snapStart = 0,
-                                               uint64_t snapEnd = ~0,
-                                               uint64_t vbUUID = 0,
-                                               uint64_t remotePurgeSeqno = 0);
+    static StreamRequestResult doStreamRequest(
+            DcpProducer& producer,
+            Vbid vbid = Vbid{0},
+            uint64_t startSeqno = 0,
+            uint64_t endSeqno = ~0,
+            uint64_t snapStart = 0,
+            uint64_t snapEnd = ~0,
+            uint64_t vbUUID = 0,
+            std::optional<std::string_view> json = std::nullopt);
 
     /**
      * Helper function to simplify the process of preparing DCP items to be

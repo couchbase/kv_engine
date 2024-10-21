@@ -172,7 +172,7 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(
         uint64_t snapStart,
         uint64_t snapEnd,
         uint64_t vbUUID,
-        uint64_t remotePurgeSeqno) {
+        std::optional<std::string_view> json) {
     DCPTest::StreamRequestResult result;
     result.status = producer.streamRequest(cb::mcbp::DcpAddStreamFlag::None,
                                            /*opaque*/ 0,
@@ -182,10 +182,9 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(
                                            vbUUID,
                                            snapStart,
                                            snapEnd,
-                                           remotePurgeSeqno,
                                            &result.rollbackSeqno,
                                            DCPTest::fakeDcpAddFailoverLog,
-                                           {});
+                                           json);
     return result;
 }
 
@@ -1573,7 +1572,6 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
                             0 /*vbUUID*/,
                             0 /*snapStart*/,
                             0 /*snapEnd*/,
-                            0,
                             &rollbackSeqno,
                             mock_dcp_add_failover_log,
                             {});
@@ -1616,7 +1614,6 @@ TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
                                       /*vb_uuid*/ 0,
                                       /*snap_start*/ 0,
                                       /*snap_end*/ 0,
-                                      0,
                                       &rollbackSeqno,
                                       fakeDcpAddFailoverLog,
                                       {}));
@@ -1725,7 +1722,6 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
                                       0, // vbucket_uuid,
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       fakeDcpAddFailoverLog,
                                       {}));
@@ -1806,7 +1802,6 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
                                       0, // vbucket_uuid,
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       fakeDcpAddFailoverLog,
                                       {} /*collection_filter*/));
@@ -1856,7 +1851,6 @@ TEST_F(DcpConnMapTest,
                                       0, // vbucket_uuid,
                                       0, // snap_start_seqno,
                                       0, // snap_end_seqno,
-                                      0,
                                       &rollbackSeqno,
                                       fakeDcpAddFailoverLog,
                                       {} /*collection_filter*/));
@@ -2026,7 +2020,6 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
                                          0, // vbucket_uuid,
                                          0, // snap_start_seqno,
                                          0, // snap_end_seqno,
-                                         0,
                                          &rollbackSeqno,
                                          fakeDcpAddFailoverLog,
                                          {} /*collection_filter*/));
@@ -2277,7 +2270,6 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
                       0, // vbucket_uuid,
                       0, // snap_start_seqno,
                       0, // snap_end_seqno,
-                      0,
                       &rollbackSeqno,
                       ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog,
                       {}));
@@ -2297,7 +2289,6 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
                       0, // vbucket_uuid,
                       0, // snap_start_seqno,
                       0, // snap_end_seqno,
-                      0,
                       &rollbackSeqno,
                       ActiveStreamChkptProcessorTaskTest::fakeDcpAddFailoverLog,
                       {}));

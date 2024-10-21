@@ -90,7 +90,6 @@ public:
             uint64_t vbucket_uuid,
             uint64_t last_seqno,
             uint64_t next_seqno,
-            uint64_t purge_seqno,
             uint64_t* rollback_seqno,
             dcp_add_failover_log callback,
             std::optional<std::string_view> json) override;
@@ -444,16 +443,14 @@ protected:
                           uint64_t start_seqno,
                           uint64_t end_seqno,
                           uint64_t snap_start_seqno,
-                          uint64_t snap_end_seqno,
-                          uint64_t purge_seqno)
+                          uint64_t snap_end_seqno)
             : flags{flags},
               vbucket_uuid{vbucket_uuid},
               high_seqno{high_seqno},
               start_seqno{start_seqno},
               end_seqno{end_seqno},
               snap_start_seqno{snap_start_seqno},
-              snap_end_seqno{snap_end_seqno},
-              purge_seqno{purge_seqno} {
+              snap_end_seqno{snap_end_seqno} {
         }
 
         const cb::mcbp::DcpAddStreamFlag flags;
@@ -463,7 +460,6 @@ protected:
         uint64_t end_seqno;
         uint64_t snap_start_seqno;
         uint64_t snap_end_seqno;
-        uint64_t purge_seqno;
     };
 
     std::pair<cb::engine_errc, VBucketPtr> checkConditionsForStreamRequest(
@@ -802,11 +798,9 @@ protected:
     IncludeDeleteTime includeDeleteTime;
 
     /**
-     * Indicates if the purgeSeqno should be included in the Snapshot Marker
-     * sent as a part of the active stream responses.
+     * The maximum marker format the streams can send.
      */
-
-    IncludePurgeSeqno includePurgeSeqno;
+    MarkerVersion maxMarkerVersion{MarkerVersion::V1_0};
 
     /* Indicates if the 'checkpoint processor task' should be created.
        NOTE: We always create the checkpoint processor task during regular

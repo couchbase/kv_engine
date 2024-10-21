@@ -331,14 +331,6 @@ public:
         return dcpDeleteTimeEnabled;
     }
 
-    void setDcpIncludePurgeSeqno(bool enable) {
-        dcpIncludePurgeSeqno = enable;
-    }
-
-    bool isDcpIncludePurgeSeqno() const {
-        return dcpIncludePurgeSeqno;
-    }
-
     /// returns true if either collections or delete_time is enabled
     bool isDcpDeleteV2() const {
         return isCollectionsSupported() || isDcpDeleteTimeEnabled();
@@ -1231,9 +1223,6 @@ protected:
 
     /// Should DCP replicate the time a delete was created?
     bool dcpDeleteTimeEnabled = false;
-
-    /// Should DCP include the purge seqno in the Snapshot marker.
-    bool dcpIncludePurgeSeqno = false;
 
     /**
      * If the client enabled the mutation seqno feature each mutation

@@ -85,6 +85,22 @@ prefix.
 }
 ```
 
+### purge-seqno
+
+A DCP client can give to the server the most recent purge-seqno the client has
+observed which can reduce rollbacks. Only servers which support transmitting the
+purge-seqno will utilise this input parameter. To discover if the server supports
+this feature a client can test if "max_marker_version=2.2" can be enabled,
+see [control.md max_marker_version](./control.md).
+
+The value is a JSON string with the purge-seqno as a base-10 representation.
+
+```
+{
+    "purge_seqno" : "81021"
+}
+```
+
 ## Validation
 
 * The stream-request code does not error for unknown keys.
@@ -109,14 +125,19 @@ be created per vbucket.
 ### scope
 * The stream-request will fail if `scope` is not a JSON string
 
+### purge-seqno
+* The stream-request will fail if `purge_seqno` is not a JSON string.
+* The stream-request will fail if `purge_seqno` value cannot be converted using
+  std::strtoull
+
 ## Example
 
-Request a DCP stream to include collections with id `0xa` and `0x1e` and resuming
-when the last observed system event encoded a manifest-UID of `0xc2`
+Request a DCP stream to include collections with id `0xa` and `0x1e` and last
+seen purge-seqno of 1000.
 
 ```
 {
-    "uid" : "c2",
-    "collections" : ["a", "1e"]
+    "collections" : ["a", "1e"],
+    "purge_seqno" : "1000"
 }
 ```
