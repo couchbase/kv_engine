@@ -20,63 +20,52 @@
 
 using namespace cb::terminal;
 
-static bool request_dcp_stat(MemcachedConnection& connection, bool json) {
-    try {
-        bool first_time = true;
-        connection.stats(
-                [&first_time, json](const auto& key,
-                                    const auto& value,
-                                    auto datatype) -> void {
-                    if (json) {
-                        if (first_time) {
-                            std::cout << "{" << std::endl;
-                            first_time = false;
-                        } else {
-                            std::cout << "," << std::endl;
-                        }
+static void request_dcp_stat(MemcachedConnection& connection, bool json) {
+    bool first_time = true;
+    if (json) {
+        std::cout << "{" << std::endl;
+    }
+    connection.stats(
+            [&first_time, json](
+                    const auto& key, const auto& value, auto datatype) -> void {
+                if (json) {
+                    if (first_time) {
+                        first_time = false;
+                    } else {
+                        std::cout << "," << std::endl;
                     }
+                }
 
-                    if (datatype == cb::mcbp::Datatype::JSON) {
-                        auto payload = nlohmann::json::parse(value);
-                        if (json) {
-                            fmt::print(
-                                    stdout, R"("{}":{})", key, payload.dump(2));
-                        } else if (payload.is_object()) {
-                            for (auto iter = payload.begin();
-                                 iter != payload.end();
-                                 ++iter) {
-                                fmt::print(stdout,
-                                           "{}_{} {}\n",
-                                           key,
-                                           iter.key(),
-                                           iter.value().dump());
-                            }
-                        } else {
-                            fmt::print(stdout, "{} {}\n", key, value);
+                if (datatype == cb::mcbp::Datatype::JSON) {
+                    auto payload = nlohmann::json::parse(value);
+                    if (json) {
+                        fmt::print(stdout, R"("{}":{})", key, payload.dump(2));
+                    } else if (payload.is_object()) {
+                        for (auto iter = payload.begin(); iter != payload.end();
+                             ++iter) {
+                            fmt::print(stdout,
+                                       "{}_{} {}\n",
+                                       key,
+                                       iter.key(),
+                                       iter.value().dump());
                         }
                     } else {
-                        // dump it as a string value for now
-                        if (json) {
-                            fmt::print(stdout, R"("{}":"{}")", key, value);
-                        } else {
-                            fmt::print(stdout, "{} {}\n", key, value);
-                        }
+                        fmt::print(stdout, "{} {}\n", key, value);
                     }
-                },
-                "dcp",
-                R"({ "stream_format" : "json" })");
-        if (json) {
-            std::cout << "}" << std::endl;
-        }
-    } catch (const ConnectionError& ex) {
-        if (ex.isInvalidArguments()) {
-            return false;
-        }
-        std::cerr << TerminalColor::Red << ex.what() << ": "
-                  << ex.getErrorJsonContext().dump(2) << TerminalColor::Reset
-                  << std::endl;
+                } else {
+                    // dump it as a string value for now
+                    if (json) {
+                        fmt::print(stdout, R"("{}":"{}")", key, value);
+                    } else {
+                        fmt::print(stdout, "{} {}\n", key, value);
+                    }
+                }
+            },
+            "dcp",
+            R"({ "stream_format" : "json" })");
+    if (json) {
+        std::cout << "}" << std::endl;
     }
-    return true;
 }
 
 /**
@@ -89,53 +78,42 @@ static void request_stat(MemcachedConnection& connection,
                          const std::string& statGroup,
                          bool json) {
     if (statGroup == "dcp") {
-        // It is possible to request these stats in a (network and
-        // memory) optimized format
-        if (request_dcp_stat(connection, json)) {
-            return;
-        }
-        // The node does not support the new mode to fetch the
-        // stats.. fall back
+        request_dcp_stat(connection, json);
+        return;
     }
-    try {
-        if (json) {
-            auto stats = connection.stats(statGroup);
-            std::cout << stats.dump() << std::endl;
-        } else {
-            connection.stats(
-                    [statGroup](const std::string& key,
-                                const std::string& value) -> void {
-                        bool printed = false;
-                        if (value.find(R"("data":[)") != std::string::npos &&
-                            value.find(R"("bucketsLow":)") !=
-                                    std::string::npos) {
-                            // this might be a timing histogram... just try to
-                            // dump as such
-                            std::string_view nm;
-                            if (key.empty() || std::isdigit(key.front())) {
-                                nm = statGroup;
-                            } else {
-                                nm = key;
-                            }
-
-                            try {
-                                TimingHistogramPrinter printer(
-                                        nlohmann::json::parse(value));
-                                printer.dumpHistogram(nm);
-                                printed = true;
-                            } catch (const std::exception&) {
-                            }
+    if (json) {
+        auto stats = connection.stats(statGroup);
+        std::cout << stats.dump() << std::endl;
+    } else {
+        connection.stats(
+                [statGroup](const std::string& key,
+                            const std::string& value) -> void {
+                    bool printed = false;
+                    if (value.find(R"("data":[)") != std::string::npos &&
+                        value.find(R"("bucketsLow":)") != std::string::npos) {
+                        // this might be a timing histogram... just try to
+                        // dump as such
+                        std::string_view nm;
+                        if (key.empty() || std::isdigit(key.front())) {
+                            nm = statGroup;
+                        } else {
+                            nm = key;
                         }
 
-                        if (!printed) {
-                            std::cout << key << " " << value << std::endl;
+                        try {
+                            TimingHistogramPrinter printer(
+                                    nlohmann::json::parse(value));
+                            printer.dumpHistogram(nm);
+                            printed = true;
+                        } catch (const std::exception&) {
                         }
-                    },
-                    statGroup);
-        }
-    } catch (const ConnectionError& ex) {
-        std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset
-                  << std::endl;
+                    }
+
+                    if (!printed) {
+                        std::cout << key << " " << value << std::endl;
+                    }
+                },
+                statGroup);
     }
 }
 
