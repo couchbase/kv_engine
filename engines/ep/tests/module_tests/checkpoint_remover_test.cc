@@ -26,6 +26,7 @@
 #include "vbucket.h"
 
 #include <folly/portability/GMock.h>
+#include <climits>
 
 void CheckpointRemoverTest::SetUp() {
     if (!config_string.empty()) {
@@ -1308,6 +1309,47 @@ TEST_P(CheckpointRemoverTest, UpdateNumDestroyers_TaskRunning) {
     EXPECT_NE(newDestroyer0, newDestroyer1);
     EXPECT_NE(destroyer.get(), newDestroyer0);
     EXPECT_NE(destroyer.get(), newDestroyer1);
+}
+
+// Snooze and wakeup again if the lower_mark has not been reached
+TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& config = engine->getConfiguration();
+    config.setMaxSize(1024 * 1024); // 1MB
+    config.setCheckpointMemoryRatio(0); // will always require reduction
+
+    const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
+            *engine, engine->getEpStats(), INT_MAX, 0);
+
+    // Reduction required
+    ASSERT_GT(store->getRequiredCMMemoryReduction(), 0);
+
+    // Not scheduled to run initially
+    EXPECT_EQ(remover->getWaketime(),
+              std::chrono::steady_clock::time_point::max());
+    EXPECT_EQ(remover->getState(), TASK_SNOOZED);
+
+    // Reduction still required after first run
+    remover->run();
+    ASSERT_GT(store->getRequiredCMMemoryReduction(), 0);
+
+    // Scheduled to run again
+    EXPECT_NE(remover->getWaketime(),
+              std::chrono::steady_clock::time_point::max());
+    EXPECT_EQ(remover->getState(), TASK_SNOOZED);
+
+    // Update upper_mark above current usage
+    engine->getKVBucket()->setCheckpointMemoryRatio(0.2);
+
+    // No longer require reduction
+    remover->run();
+    ASSERT_EQ(store->getRequiredCMMemoryReduction(), 0);
+
+    // Not scheduled to run again
+    EXPECT_EQ(remover->getWaketime(),
+              std::chrono::steady_clock::time_point::max());
+    EXPECT_EQ(remover->getState(), TASK_SNOOZED);
 }
 
 INSTANTIATE_TEST_SUITE_P(

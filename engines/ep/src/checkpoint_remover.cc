@@ -242,7 +242,12 @@ bool CheckpointMemRecoveryTask::runInner(bool) {
     }
 
     // More memory to recover, try CursorDrop + CheckpointRemoval
-    attemptCursorDropping();
+    if (attemptCursorDropping() == ReductionRequired::No) {
+        return true;
+    }
+
+    // Run again as the required amount of memory was not recovered
+    snooze(0.1);
 
     return true;
 }
