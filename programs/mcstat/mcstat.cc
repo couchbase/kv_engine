@@ -87,8 +87,7 @@ static bool request_dcp_stat(MemcachedConnection& connection, bool json) {
  */
 static void request_stat(MemcachedConnection& connection,
                          const std::string& statGroup,
-                         bool json,
-                         bool format) {
+                         bool json) {
     if (statGroup == "dcp") {
         // It is possible to request these stats in a (network and
         // memory) optimized format
@@ -101,7 +100,7 @@ static void request_stat(MemcachedConnection& connection,
     try {
         if (json) {
             auto stats = connection.stats(statGroup);
-            std::cout << stats.dump(format ? 2 : -1) << std::endl;
+            std::cout << stats.dump() << std::endl;
         } else {
             connection.stats(
                     [statGroup](const std::string& key,
@@ -295,23 +294,31 @@ static std::string buildStatString(const std::vector<std::string_view>& args) {
 
 int main(int argc, char** argv) {
     bool json = false;
-    bool format = false;
     bool allBuckets = false;
     std::vector<std::string> buckets;
 
     McProgramGetopt getopt;
     using cb::getopt::Argument;
-    getopt.addOption({[&json, &format](auto value) {
-                          json = true;
-                          if (value == "pretty") {
-                              format = true;
-                          }
-                      },
-                      'j',
-                      "json",
-                      Argument::Optional,
-                      "pretty",
-                      "Print result in JSON"});
+    getopt.addOption(
+            {[&json](auto value) {
+                 json = true;
+                 if (value == "pretty") {
+                     std::cerr
+                             << "Pretty print is no longer supported. Use an "
+                                "external tool such as jq to format the output"
+                             << std::endl;
+                 } else if (!value.empty()) {
+                     std::cerr << TerminalColor::Red
+                               << "Unknown json argument: " << value
+                               << TerminalColor::Reset << std::endl;
+                     std::exit(EXIT_FAILURE);
+                 }
+             },
+             'j',
+             "json",
+             Argument::Optional,
+             "",
+             "Print result in JSON. Using pretty is no longer supported"});
 
     getopt.addOption({[&buckets](auto value) {
                           buckets.emplace_back(std::string{value});
@@ -385,7 +392,7 @@ int main(int argc, char** argv) {
                 bucketItr++;
             }
 
-            request_stat(*connection, stat_key, json, format);
+            request_stat(*connection, stat_key, json);
         } while (bucketItr != buckets.end());
 
     } catch (const ConnectionError& ex) {
