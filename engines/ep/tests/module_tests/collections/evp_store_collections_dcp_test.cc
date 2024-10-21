@@ -89,7 +89,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ {},
                                        /*HCS*/ {},
-                                       /*maxVisibleSeqno*/ {}));
+                                       /*maxVisibleSeqno*/ {},
+                                       /*purgeSeqno*/ {}));
 
     VBucketPtr vb = store->getVBucket(vbid);
 
@@ -206,7 +207,8 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ {},
                                        /*highCompletedSeqno*/ {},
-                                       /*maxVisibleSeqno*/ {}));
+                                       /*maxVisibleSeqno*/ {},
+                                       /*purgeSeqno*/ {}));
 
     // Call the consumer function for handling DCP events
     // create the meat collection
@@ -3734,7 +3736,8 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ {},
                                        /*HCS*/ {},
-                                       /*maxVisibleSeqno*/ {}));
+                                       /*maxVisibleSeqno*/ {},
+                                       /*purgeSeqno*/ {}));
 
     VBucketPtr vb = store->getVBucket(vbid);
 

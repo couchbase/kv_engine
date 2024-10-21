@@ -67,6 +67,9 @@ public:
     std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
+    std::optional<uint64_t> getPurgeSeqno() const {
+        return purgeSeqno;
+    }
 
     void setStartSeqno(uint64_t value) {
         startSeqno = value;
@@ -82,6 +85,9 @@ public:
     }
     void setMaxVisibleSeqno(uint64_t value) {
         maxVisibleSeqno = value;
+    }
+    void setPurgeSeqno(uint64_t value) {
+        purgeSeqno = value;
     }
 
     nlohmann::json to_json() const;

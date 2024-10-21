@@ -219,6 +219,7 @@ public:
                                     uint64_t,
                                     cb::mcbp::request::DcpSnapshotMarkerFlag,
                                     std::optional<uint64_t>,
+                                    std::optional<uint64_t>,
                                     std::optional<uint64_t>) override {
         return cb::engine_errc::no_bucket;
     }

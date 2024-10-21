@@ -170,7 +170,8 @@ public:
             uint64_t end_seqno,
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> high_completed_seqno,
-            std::optional<uint64_t> max_visible_seqno);
+            std::optional<uint64_t> max_visible_seqno,
+            std::optional<uint64_t> purge_seqno);
 
     virtual cb::engine_errc setVBucketState(uint32_t opaque,
                                             Vbid vbucket,

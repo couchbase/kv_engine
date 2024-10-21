@@ -756,11 +756,13 @@ static Status dcp_stream_end_validator(Cookie& cookie) {
     return verify_common_dcp_restrictions(cookie);
 }
 
+// Producer can send v1, v2.0 or v2.2 formats.
 static Status dcp_snapshot_marker_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
     using cb::mcbp::request::DcpSnapshotMarkerV1Payload;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_2Value;
     using cb::mcbp::request::DcpSnapshotMarkerV2xPayload;
     using cb::mcbp::request::DcpSnapshotMarkerV2xVersion;
 
@@ -770,19 +772,24 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
         return Status::Einval;
     }
 
-    // If v2.x validate the value length is expected
+    // If v2.x validate the value length is expected, 2.0 or 2.2
     auto expectedValueLen = ExpectedValueLen::Zero;
     if (header.getExtlen() == sizeof(DcpSnapshotMarkerV2xPayload)) {
         const auto& payload =
                 header.getRequest()
                         .getCommandSpecifics<DcpSnapshotMarkerV2xPayload>();
-        size_t expectedLen = sizeof(DcpSnapshotMarkerV2_0Value);
         expectedValueLen = ExpectedValueLen::Any;
-        if (payload.getVersion() != DcpSnapshotMarkerV2xVersion::Zero) {
+        if (payload.getVersion() != DcpSnapshotMarkerV2xVersion::Zero &&
+            payload.getVersion() != DcpSnapshotMarkerV2xVersion::Two) {
             cookie.setErrorContext(
                     "Unsupported dcp snapshot version:" +
                     std::to_string(uint32_t(payload.getVersion())));
             return Status::Einval;
+        }
+
+        size_t expectedLen = sizeof(DcpSnapshotMarkerV2_0Value);
+        if (payload.getVersion() == DcpSnapshotMarkerV2xVersion::Two) {
+            expectedLen = sizeof(DcpSnapshotMarkerV2_2Value);
         }
 
         if (header.getValue().size() != expectedLen) {

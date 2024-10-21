@@ -229,7 +229,9 @@ struct MockEngine : public EngineIface, public DcpIface {
             uint64_t end_seqno,
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> high_completed_seqno,
-            std::optional<uint64_t> max_visible_seqno) override;
+            std::optional<uint64_t> max_visible_seqno,
+            std::optional<uint64_t> purge_seqno) override;
+
     cb::engine_errc mutation(CookieIface& cookie,
                              uint32_t opaque,
                              const DocKeyView& key,

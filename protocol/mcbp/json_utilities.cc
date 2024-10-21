@@ -231,6 +231,13 @@ void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2_0Value& payload) {
     json["high_completed_seqno"] =
             std::to_string(payload.getHighCompletedSeqno());
 }
+void to_json(nlohmann::json& json, const DcpSnapshotMarkerV2_2Value& payload) {
+    to_json(json, dynamic_cast<const DcpSnapshotMarkerV1Payload&>(payload));
+    json["max_visible_seqno"] = std::to_string(payload.getMaxVisibleSeqno());
+    json["high_completed_seqno"] =
+            std::to_string(payload.getHighCompletedSeqno());
+    json["purge_seqno"] = std::to_string(payload.getPurgeSeqno());
+}
 
 void to_json(nlohmann::json& json, const DcpMutationPayload& payload) {
     json = {

@@ -515,7 +515,8 @@ TEST_F(WarmupTest, MB_32577) {
                                       /*end_seqno*/ 100,
                                       {}, // flags
                                       /*HCS*/ {},
-                                      /*maxVisibleSeqno*/ {}));
+                                      /*maxVisibleSeqno*/ {},
+                                      /*purgeSeqno*/ {}));
 
     // create a DocKey object for the delete request
     const DocKeyView docKey{reinterpret_cast<const uint8_t*>(keyName.data()),

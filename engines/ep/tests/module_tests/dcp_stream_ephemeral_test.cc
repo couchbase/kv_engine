@@ -369,7 +369,8 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                        DcpSnapshotMarkerFlag::Checkpoint |
                                                DcpSnapshotMarkerFlag::Disk,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeqno*/));
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgeSeqno*/));
 
     const auto keyA = DocKeyView("keyA", DocKeyEncodesCollectionId::No);
     if (durReqs) {
@@ -424,7 +425,8 @@ void STPassiveStreamEphemeralTest::test_MB_44139(
                                          DcpSnapshotMarkerFlag::Checkpoint |
                                                  DcpSnapshotMarkerFlag::Memory,
                                          {} /*HCS*/,
-                                         {} /*maxVisibleSeqno*/));
+                                         {} /*maxVisibleSeqno*/,
+                                         {} /*purgeSeqno*/));
     }
 
     // Receive DEL:4 while there is a range-read in place (eg, TombstonePurger

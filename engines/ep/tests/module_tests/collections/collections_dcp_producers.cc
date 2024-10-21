@@ -153,7 +153,8 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
                                        end_seqno,
                                        flags,
                                        high_completed_seqno,
-                                       maxVisibleSeqno);
+                                       maxVisibleSeqno,
+                                       purgeSeqno);
         EXPECT_EQ(cb::engine_errc::success, ret);
     }
 

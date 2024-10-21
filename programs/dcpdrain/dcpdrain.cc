@@ -587,7 +587,14 @@ int main(int argc, char** argv) {
     std::string bucket{};
     sa_family_t family = AF_UNSPEC;
     bool csv = false;
-    std::vector<std::pair<std::string, std::string>> controls;
+    std::vector<std::pair<std::string, std::string>> controls = {
+            {"set_priority", "high"},
+            {"supports_cursor_dropping_vulcan", "true"},
+            {"supports_hifi_MFU", "true"},
+            {"send_stream_end_on_client_close_stream", "true"},
+            {"enable_expiry_opcode", "true"},
+            {"set_noop_interval", "60"},
+            {"enable_noop", "true"}};
     std::string name = "dcpdrain:" + std::to_string(::getpid());
     EnableOSO enableOso{EnableOSO::False};
     bool enableCollections{true};
@@ -917,42 +924,32 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                auto ctrls = controls;
-                if (ctrls.empty()) {
-                    ctrls = {{"set_priority", "high"},
-                             {"supports_cursor_dropping_vulcan", "true"},
-                             {"supports_hifi_MFU", "true"},
-                             {"send_stream_end_on_client_close_stream", "true"},
-                             {"enable_expiry_opcode", "true"},
-                             {"set_noop_interval", "60"},
-                             {"enable_noop", "true"}};
-                }
-
                 if (streamIdConfig) {
-                    ctrls.emplace_back("enable_stream_id", "true");
+                    controls.emplace_back("enable_stream_id", "true");
                 }
 
                 switch (enableOso) {
                 case EnableOSO::False:
                     break;
                 case EnableOSO::True:
-                    ctrls.emplace_back("enable_out_of_order_snapshots", "true");
+                    controls.emplace_back("enable_out_of_order_snapshots",
+                                          "true");
                     break;
                 case EnableOSO::TrueWithSeqnoAdvanced:
-                    ctrls.emplace_back("enable_out_of_order_snapshots",
-                                       "true_with_seqno_advanced");
+                    controls.emplace_back("enable_out_of_order_snapshots",
+                                          "true_with_seqno_advanced");
                     break;
                 }
 
                 if (enableFlatbufferSysEvents) {
-                    ctrls.emplace_back("flatbuffers_system_events", "true");
+                    controls.emplace_back("flatbuffers_system_events", "true");
                 }
 
                 if (enableChangeStreams) {
-                    ctrls.emplace_back("change_streams", "true");
+                    controls.emplace_back("change_streams", "true");
                 }
 
-                setControlMessages(c, ctrls);
+                setControlMessages(c, controls);
             }
         }
 

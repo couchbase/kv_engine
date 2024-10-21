@@ -1279,7 +1279,8 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                              /*end_seqno*/ 0,
                              /*flags*/ {},
                              /*HCS*/ {},
-                             /*maxVisibleSeqno*/ {});
+                             /*maxVisibleSeqno*/ {},
+                             /*purgeSeqno*/ {});
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for snapshotMarker";
     consumer->setLastMessageTime(initMsgTime);
@@ -2640,7 +2641,8 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
                                        10,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeq*/));
+                                       {} /*maxVisibleSeq*/,
+                                       {} /*purgeSeqno*/));
     const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
 
     // Receive a mutation

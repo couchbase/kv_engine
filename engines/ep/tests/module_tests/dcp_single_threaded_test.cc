@@ -233,7 +233,8 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              1 /*end_seqno*/,
                              DcpSnapshotMarkerFlag::Disk,
                              0 /*HCS*/,
-                             {} /*maxVisibleSeqno*/);
+                             {} /*maxVisibleSeqno*/,
+                             {} /*purgeSeqno*/);
 
     // Even without a checkpoint flag the first disk checkpoint will bump the ID
     EXPECT_EQ(2, manager.getOpenCheckpointId());
@@ -302,7 +303,8 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              0 /*end_seqno*/,
                              {} /*flags*/,
                              {} /*HCS*/,
-                             {} /*maxVisibleSeqno*/);
+                             {} /*maxVisibleSeqno*/,
+                             {} /*purgeSeqno*/);
 
     // A new opencheckpoint should no be opened
     EXPECT_EQ(2, manager.getOpenCheckpointId());
@@ -352,7 +354,8 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              1 /*end_seqno*/,
                              DcpSnapshotMarkerFlag::Disk,
                              0 /*HCS*/,
-                             {} /*maxVisibleSeqno*/);
+                             {} /*maxVisibleSeqno*/,
+                             {} /*purgeSeqno*/);
 
     // Even without a checkpoint flag the first disk checkpoint will bump the ID
     EXPECT_EQ(2, manager.getOpenCheckpointId());
@@ -363,7 +366,8 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              2 /*end_seqno*/,
                              {} /*flags*/,
                              {} /*HCS*/,
-                             {} /*maxVisibleSeqno*/);
+                             {} /*maxVisibleSeqno*/,
+                             {} /*purgeSeqno*/);
 
     EXPECT_EQ(3, manager.getOpenCheckpointId());
     // Still cp:2 as checkpoint was empty so we have just re-used it.
@@ -589,7 +593,8 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
                                        snapEnd,
                                        DcpSnapshotMarkerFlag::Memory,
                                        /*HCS*/ {},
-                                       /*maxVisibleSeqno*/ {}));
+                                       /*maxVisibleSeqno*/ {},
+                                       /*purgeSeqno*/ {}));
 
     // Simulate OOM on the node
     auto& config = engine->getConfiguration();
@@ -941,7 +946,8 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        snapEnd,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeq*/));
+                                       {} /*maxVisibleSeq*/,
+                                       {} /*purgeSeqno*/));
 
     /* Send an item for replication */
     const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};

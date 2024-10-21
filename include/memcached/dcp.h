@@ -512,7 +512,8 @@ struct DcpIface {
             uint64_t end_seqno,
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> high_completed_seqno,
-            std::optional<uint64_t> max_visible_seqno) = 0;
+            std::optional<uint64_t> max_visible_seqno,
+            std::optional<uint64_t> purge_seqno) = 0;
 
     /**
      * Callback to the engine that a mutation message was received

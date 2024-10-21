@@ -499,7 +499,8 @@ cb::engine_errc MockEngine::snapshot_marker(
         uint64_t end_seqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
-        std::optional<uint64_t> max_visible_seqno) {
+        std::optional<uint64_t> max_visible_seqno,
+        std::optional<uint64_t> purge_seqno) {
     return the_engine_dcp->snapshot_marker(cookie,
                                            opaque,
                                            vbucket,
@@ -507,7 +508,8 @@ cb::engine_errc MockEngine::snapshot_marker(
                                            end_seqno,
                                            flags,
                                            high_completed_seqno,
-                                           max_visible_seqno);
+                                           max_visible_seqno,
+                                           purge_seqno);
 }
 
 cb::engine_errc MockEngine::mutation(CookieIface& cookie,

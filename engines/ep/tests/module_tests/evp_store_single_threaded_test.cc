@@ -1111,7 +1111,7 @@ cb::engine_errc STParameterizedBucketTest::snapshot(
         uint64_t start,
         uint64_t end,
         DcpSnapshotMarkerFlag flags) {
-    return consumer.snapshotMarker(opaque, vbid, start, end, flags, 0, end);
+    return consumer.snapshotMarker(opaque, vbid, start, end, flags, 0, end, {});
 }
 
 cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
@@ -2383,7 +2383,8 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
             /*endseq*/ 2,
             /*flags*/ DcpSnapshotMarkerFlag::Disk,
             /*HCS*/ 0,
-            /*maxVisibleSeqno*/ {});
+            /*maxVisibleSeqno*/ {},
+            /*purgeSeqno*/ {});
 
     // 2. Now add a deletion.
     consumer->deletion(/*opaque*/ 1,
@@ -2477,7 +2478,8 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
                              /*endseq*/ 2,
                              /*flags*/ {},
                              /*HCS*/ {},
-                             /*maxVisibleSeqno*/ {});
+                             /*maxVisibleSeqno*/ {},
+                             /*purgeSeqno*/ {});
     // 2. Now add two deletions, one without deleteTime, one with
     consumer->deletionV2(/*opaque*/ 1,
                          {"key1", DocKeyEncodesCollectionId::No},
@@ -2919,7 +2921,8 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeqno*/));
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgSeqno*/));
     EXPECT_EQ(cb::engine_errc::success,
               consumer->mutation(opaque,
                                  docKey,
@@ -2952,7 +2955,8 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeqno*/));
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgSeqno*/));
     EXPECT_EQ(cb::engine_errc::success,
               consumer->deletion(opaque,
                                  docKey,
@@ -3397,7 +3401,8 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeqno*/));
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgSeqno*/));
 
     cb::const_byte_buffer valueBuf{
             reinterpret_cast<const uint8_t*>(value.data()), value.size()};
@@ -3473,7 +3478,8 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
-                                       {} /*maxVisibleSeqno*/));
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgSeqno*/));
 
     EXPECT_EQ(cb::engine_errc::success,
               consumer->deletion(opaque,
@@ -4439,6 +4445,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
             /*end_seqno*/ 1,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {},
+            {},
             {});
 
     // Store value with an xattr
@@ -4479,6 +4486,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
             /*start_seqno*/ 2,
             /*end_seqno*/ 2,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
             {},
             {});
 

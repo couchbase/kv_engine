@@ -40,14 +40,14 @@ DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {
             payload->getFlags()};
 }
 
-static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
+static DcpSnapshotMarker decodeDcpSnapshotMarkerV2_0Value(
         cb::const_byte_buffer value) {
     using cb::mcbp::request::DcpSnapshotMarkerFlag;
     using cb::mcbp::request::DcpSnapshotMarkerV2_0Value;
 
     if (value.size() != sizeof(DcpSnapshotMarkerV2_0Value)) {
         throw std::runtime_error(
-                "decodeDcpSnapshotMarkerV21Value: Invalid size");
+                "decodeDcpSnapshotMarkerV2_0Value: Invalid size");
     }
 
     const auto* payload2_0 =
@@ -67,6 +67,35 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV20Value(
     return marker;
 }
 
+static DcpSnapshotMarker decodeDcpSnapshotMarkerV2_2Value(
+        cb::const_byte_buffer value) {
+    using cb::mcbp::request::DcpSnapshotMarkerFlag;
+    using cb::mcbp::request::DcpSnapshotMarkerV2_2Value;
+
+    if (value.size() != sizeof(DcpSnapshotMarkerV2_2Value)) {
+        throw std::runtime_error(
+                "decodeDcpSnapshotMarkerV2_2Value: Invalid size");
+    }
+
+    const auto* payload2_2 =
+            reinterpret_cast<const DcpSnapshotMarkerV2_2Value*>(value.data());
+    DcpSnapshotMarker marker(payload2_2->getStartSeqno(),
+                             payload2_2->getEndSeqno(),
+                             payload2_2->getFlags());
+
+    // MaxVisible is sent in all V2.0 snapshot markers
+    marker.setMaxVisibleSeqno(payload2_2->getMaxVisibleSeqno());
+
+    // HighCompletedSeqno is always present in V2.0 but should only be accessed
+    // when the flags have disk set.
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
+        marker.setHighCompletedSeqno(payload2_2->getHighCompletedSeqno());
+    }
+
+    marker.setPurgeSeqno(payload2_2->getPurgeSeqno());
+    return marker;
+}
+
 DcpSnapshotMarker DcpSnapshotMarker::decode(const Request& request) {
     if (request.getClientOpcode() != ClientOpcode::DcpSnapshotMarker) {
         throw std::runtime_error(
@@ -78,14 +107,16 @@ DcpSnapshotMarker DcpSnapshotMarker::decode(const Request& request) {
     if (extras.size() == sizeof(DcpSnapshotMarkerV2xVersion)) {
         switch (extras[0]) {
         case 0:
-            return decodeDcpSnapshotMarkerV20Value(request.getValue());
+            return decodeDcpSnapshotMarkerV2_0Value(request.getValue());
         case 1:
             throw std::runtime_error(
                     "DcpSnapshotMarker::decode: snapshot marker version 2.1 no "
                     "longer supported");
+        case 2:
+            return decodeDcpSnapshotMarkerV2_2Value(request.getValue());
         }
-        throw std::runtime_error(
-                "DcpSnapshotMarker::decode: Unknown snapshot marker version");
+        throw std::runtime_error(fmt::format(
+                "DcpSnapshotMarker::decode: Unknown version:{}", extras[0]));
     }
     if (extras.size() ==
         sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload)) {

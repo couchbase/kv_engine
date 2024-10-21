@@ -4412,7 +4412,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
                                      0,
-                                     0));
+                                     0,
+                                     {}));
 
     auto ackBytes = consumer->getFlowControl().getFreedBytes();
     EXPECT_EQ(sizeof(cb::mcbp::Request) +
@@ -4460,7 +4461,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpCommit) {
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
                                      0,
-                                     0));
+                                     0,
+                                     {}));
     // No change, marker hasn't been acked
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 
@@ -4500,6 +4502,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
                                      1,
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
+                                     0,
                                      0,
                                      0));
 
@@ -4548,6 +4551,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
                                      2,
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
+                                     0,
                                      0,
                                      0));
 

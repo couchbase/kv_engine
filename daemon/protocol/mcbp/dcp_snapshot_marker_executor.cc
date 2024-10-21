@@ -29,7 +29,8 @@ void dcp_snapshot_marker_executor(Cookie& cookie) {
                                 snapshot.getEndSeqno(),
                                 snapshot.getFlags(),
                                 snapshot.getHighCompletedSeqno(),
-                                snapshot.getMaxVisibleSeqno());
+                                snapshot.getMaxVisibleSeqno(),
+                                snapshot.getPurgeSeqno());
     }
 
     if (ret != cb::engine_errc::success) {

@@ -791,7 +791,8 @@ cb::engine_errc dcpSnapshotMarker(
         uint64_t endSeqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
-        std::optional<uint64_t> maxVisibleSeqno) {
+        std::optional<uint64_t> maxVisibleSeqno,
+        std::optional<uint64_t> purge_seqno) {
     auto& connection = cookie.getConnection();
     auto* dcp = connection.getBucket().getDcpIface();
     auto ret = dcp->snapshot_marker(cookie,
@@ -801,7 +802,8 @@ cb::engine_errc dcpSnapshotMarker(
                                     endSeqno,
                                     flags,
                                     highCompletedSeqno,
-                                    maxVisibleSeqno);
+                                    maxVisibleSeqno,
+                                    purge_seqno);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} dcp.snapshot_marker returned "

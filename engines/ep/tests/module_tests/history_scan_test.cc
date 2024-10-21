@@ -494,7 +494,7 @@ TEST_P(HistoryScanTest, OSOThenHistory) {
     runBackfill();
 
     // see comment in CollectionsOSODcpTest.basic
-    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, {}, 0, highSeqno);
+    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, {}, 0, highSeqno, {});
 
     // Manually step the producer and inspect all callbacks
     stepAndExpect(ClientOpcode::DcpOsoSnapshot);
