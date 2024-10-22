@@ -461,6 +461,13 @@ public:
     virtual size_t getItemCount(Vbid vbid) = 0;
 
     /**
+     * This method will return the purge seqno from the VB KVstore
+     *
+     * @param vbid - vbucket id to get the purgeSeqno for.
+     */
+    virtual uint64_t getPurgeSeqno(Vbid vbid) = 0;
+
+    /**
      * Rollback the specified vBucket to the state it had at rollbackseqno.
      *
      * On success, the vBucket should have discarded *at least* back to the

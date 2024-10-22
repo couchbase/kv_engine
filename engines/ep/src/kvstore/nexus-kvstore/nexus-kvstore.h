@@ -85,6 +85,7 @@ public:
     DBFileInfo getDbFileInfo(Vbid dbFileId) override;
     DBFileInfo getAggrDbFileInfo() override;
     size_t getItemCount(Vbid vbid) override;
+    uint64_t getPurgeSeqno(Vbid vbid) override;
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackseqno,
                             std::unique_ptr<RollbackCB> ptr) override;
@@ -256,7 +257,7 @@ protected:
      * @param vbid Vbid to map
      * @return purge seqno in the slot given by getCacheSlot()
      */
-    uint64_t getPurgeSeqno(Vbid vbid) const;
+    uint64_t getCachedPurgeSeqno(Vbid vbid) const;
 
     /**
      * Compare get values of the primary against the secondary. Compares status

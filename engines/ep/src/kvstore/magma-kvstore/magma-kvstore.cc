@@ -2836,6 +2836,19 @@ size_t MagmaKVStore::getItemCount(Vbid vbid) {
     return dbStats->docCount;
 }
 
+uint64_t MagmaKVStore::getPurgeSeqno(Vbid vbid) {
+    auto stats = magma->GetKVStoreUserStats(vbid.get());
+
+    if (!stats) {
+        logger->warn(
+                "MagmaKVStore::getPurgeSeqno {} failed GetKVStoreUserStats",
+                vbid);
+        return 0;
+    }
+    auto* otherStats = dynamic_cast<MagmaDbStats*>(stats.get());
+    return otherStats->purgeSeqno;
+}
+
 cb::engine_errc MagmaKVStore::getAllKeys(
         Vbid vbid,
         const DiskDocKey& startKey,

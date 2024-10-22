@@ -126,6 +126,7 @@ public:
     MOCK_METHOD(DBFileInfo, getDbFileInfo, (Vbid dbFileId), (override));
     MOCK_METHOD(DBFileInfo, getAggrDbFileInfo, (), (override));
     MOCK_METHOD(size_t, getItemCount, (Vbid vbid), (override));
+    MOCK_METHOD(uint64_t, getPurgeSeqno, (Vbid vbid), (override));
     MOCK_METHOD(RollbackResult,
                 rollback,
                 (Vbid vbid,

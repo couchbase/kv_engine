@@ -97,7 +97,7 @@ public:
             kvstore.handleError(msg, item.getVBucketId());
         }
 
-        if (kvstore.getPurgeSeqno(item.getVBucketId()) != 0) {
+        if (kvstore.getCachedPurgeSeqno(item.getVBucketId()) != 0) {
             // All bets are off now as we have purged something. This means that
             // a flush against one KVStore may be an Insert and against another
             // it may be an Update. We could technically work out if a
@@ -139,7 +139,7 @@ public:
             kvstore.handleError(msg, item.getVBucketId());
         }
 
-        if (kvstore.getPurgeSeqno(item.getVBucketId()) != 0) {
+        if (kvstore.getCachedPurgeSeqno(item.getVBucketId()) != 0) {
             // All bets are off now as we have purged something. This means that
             // a flush against one KVStore may be an Insert and against another
             // it may be an Update. We could technically work out if a

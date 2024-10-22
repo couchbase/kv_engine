@@ -281,6 +281,8 @@ public:
 
     size_t getItemCount(Vbid vbid) override;
 
+    uint64_t getPurgeSeqno(Vbid vbid) override;
+
     /**
      * Do a rollback to the specified seqNo on the particular vbucket
      *

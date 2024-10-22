@@ -212,6 +212,8 @@ public:
 
     size_t getItemCount(Vbid vbid) override;
 
+    uint64_t getPurgeSeqno(Vbid vbid) override;
+
     RollbackResult rollback(Vbid vbid,
                             uint64_t rollbackSeqno,
                             std::unique_ptr<RollbackCB>) override;

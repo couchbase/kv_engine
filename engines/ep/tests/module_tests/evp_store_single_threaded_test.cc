@@ -1292,6 +1292,9 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     // Advance the purgeSeqno
     purgeTombstonesBefore(3);
     ASSERT_EQ(3, vb->getPurgeSeqno());
+    if (persistent()) {
+        EXPECT_EQ(3, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+    }
 
     // Run the backfill we scheduled when we transitioned to the backfilling
     // state

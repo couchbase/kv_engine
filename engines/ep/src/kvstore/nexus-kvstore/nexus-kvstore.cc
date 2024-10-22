@@ -594,11 +594,11 @@ void NexusKVStore::doPostGetChecks(std::string_view caller,
         if ((primaryGetValue.getStatus() == cb::engine_errc::no_such_key &&
              secondaryGetValue.getStatus() == cb::engine_errc::success &&
              static_cast<uint64_t>(secondaryGetValue.item->getBySeqno()) <=
-                     getPurgeSeqno(vb)) ||
+                     getCachedPurgeSeqno(vb)) ||
             (secondaryGetValue.getStatus() == cb::engine_errc::no_such_key &&
              primaryGetValue.getStatus() == cb::engine_errc::success &&
              static_cast<uint64_t>(primaryGetValue.item->getBySeqno()) <=
-                     getPurgeSeqno(vb))) {
+                     getCachedPurgeSeqno(vb))) {
             skippedChecksDueToPurging++;
             return;
         }
@@ -829,7 +829,7 @@ void NexusKVStore::getRange(Vbid vb,
     // there are gaps in either. getRange doens't use a file handle so the purge
     // seqno is not consistent with the scanned items so we can only make a best
     // effort here and check thoroughly if the purge seqno for both is 0.
-    if (getPurgeSeqno(vb) != 0) {
+    if (getCachedPurgeSeqno(vb) != 0) {
         skippedChecksDueToPurging++;
         return;
     }
@@ -947,7 +947,7 @@ bool NexusKVStore::compareVBucketState(Vbid vbid,
         secondaryVbState.setOnDiskPrepareBytes(0);
     }
 
-    if (getPurgeSeqno(vbid) != 0) {
+    if (getCachedPurgeSeqno(vbid) != 0) {
         // Purged something - purge seqnos are likely to be no longer
         // comparable.
         skippedChecksDueToPurging++;
@@ -1142,7 +1142,7 @@ public:
     void purgedItem(PurgedItemType type, uint64_t seqno) override {
         PurgedItemCtx::purgedItem(type, seqno);
 
-        // Can't use getPurgeSeqno as it is const
+        // Can't use getCachedPurgeSeqno as it is const
         kvstore.purgeSeqno[kvstore.getCacheSlot(vbid)] = seqno;
     }
 
@@ -1256,9 +1256,9 @@ CompactDBStatus NexusKVStore::compactDB(
     };
 
     primaryCtx->purgedItemCtx = std::make_unique<NexusPurgedItemCtx>(
-            *this, vbid, getPurgeSeqno(vbid));
+            *this, vbid, getCachedPurgeSeqno(vbid));
     secondaryCtx->purgedItemCtx = std::make_unique<NexusPurgedItemCtx>(
-            *this, vbid, getPurgeSeqno(vbid));
+            *this, vbid, getCachedPurgeSeqno(vbid));
 
     // Comparisons in the callbacks made may be difficult to make if one KVStore
     // may call back with stale items but the other does not. If we know that
@@ -1426,7 +1426,7 @@ CompactDBStatus NexusKVStore::compactDB(
     for (auto& [key, seqno] : primaryDrops) {
         auto itr = secondaryDrops.find(key);
         if (itr == secondaryDrops.end()) {
-            if (static_cast<uint64_t>(seqno) <= getPurgeSeqno(vbid)) {
+            if (static_cast<uint64_t>(seqno) <= getCachedPurgeSeqno(vbid)) {
                 // Seqno may have been purged, skip to next key as any
                 // comparison is not valid.
                 skippedChecksDueToPurging++;
@@ -1461,7 +1461,7 @@ CompactDBStatus NexusKVStore::compactDB(
     auto secondaryItr = secondaryDrops.begin();
     while (secondaryItr != secondaryDrops.end()) {
         if (static_cast<uint64_t>(secondaryItr->second) <=
-            getPurgeSeqno(vbid)) {
+            getCachedPurgeSeqno(vbid)) {
             secondaryItr = secondaryDrops.erase(secondaryItr);
             skippedChecksDueToPurging++;
             continue;
@@ -1676,6 +1676,21 @@ size_t NexusKVStore::getItemCount(Vbid vbid) {
     return primaryCount;
 }
 
+uint64_t NexusKVStore::getPurgeSeqno(Vbid vbid) {
+    auto primaryPurgeSeq = primary->getPurgeSeqno(vbid);
+    auto secondaryPurgeSeq = secondary->getPurgeSeqno(vbid);
+    if (primaryPurgeSeq != secondaryPurgeSeq) {
+        auto msg = fmt::format(
+                "NexusKVStore::getPurgeSeqno: {}: difference purgeSeq. "
+                "primary:{}, secondary:{}",
+                vbid,
+                primaryPurgeSeq,
+                secondaryPurgeSeq);
+        handleError(msg, vbid);
+    }
+    return primaryPurgeSeq;
+}
+
 /**
  * Rollback callback for NexusKVStore. This callback:
  *
@@ -1845,7 +1860,7 @@ RollbackResult NexusKVStore::rollback(Vbid vbid,
     for (const auto& [key, seqno] : primaryRollbacks) {
         auto itr = secondaryRollbacks.find(key);
         if (itr == secondaryRollbacks.end()) {
-            if (seqno <= getPurgeSeqno(vbid)) {
+            if (seqno <= getCachedPurgeSeqno(vbid)) {
                 // Below the purge seqno, comparison not valid
                 skippedChecksDueToPurging++;
                 continue;
@@ -1951,12 +1966,12 @@ public:
         // the purge seqno is not consistent with the scanned items so we can
         // only make a best effort here and check thoroughly if the purge seqno
         // for both is 0.
-        if (kvstore.getPurgeSeqno(vbid) != 0) {
+        if (kvstore.getCachedPurgeSeqno(vbid) != 0) {
             EP_LOG_DEBUG(
                     "NexusKVStore::SecondaryGetAllKeys::callback {}: purge "
                     "seqno is non-zero ({}) so no checks are valid",
                     vbid,
-                    kvstore.getPurgeSeqno(vbid));
+                    kvstore.getCachedPurgeSeqno(vbid));
             primaryCallbacks.clear();
             kvstore.skippedChecksDueToPurging++;
             return;
@@ -2106,7 +2121,7 @@ public:
     void callback(GetValue& val) override {
         if (primaryCallbacks.empty() &&
             static_cast<uint64_t>(val.item->getBySeqno()) <=
-                    kvstore.getPurgeSeqno(vbid)) {
+                    kvstore.getCachedPurgeSeqno(vbid)) {
             // primaryCallbacks could be empty if we're below the purge seqno
             // and paused in an inconvenient place. Yield because we don't want
             // the secondary scanning farther than the primary did and getting
@@ -2121,7 +2136,7 @@ public:
         while (!primaryCallbacks.empty() &&
                static_cast<uint64_t>(
                        primaryCallbacks.front().first.getBySeqno()) <=
-                       kvstore.getPurgeSeqno(vbid) &&
+                       kvstore.getCachedPurgeSeqno(vbid) &&
                !kvstore.compareItem(primaryCallbacks.front().first,
                                     *val.item)) {
             primaryCallbacks.pop_front();
@@ -2146,7 +2161,7 @@ public:
         // Item should match the one returned by the primary
         if (!kvstore.compareItem(primaryVal, *val.item)) {
             if (static_cast<uint64_t>(val.item->getBySeqno()) <=
-                kvstore.getPurgeSeqno(vbid)) {
+                kvstore.getCachedPurgeSeqno(vbid)) {
                 kvstore.skippedChecksDueToPurging++;
                 return;
             }
@@ -2233,7 +2248,7 @@ public:
         // secondary scanning farther than the primary and getting out of sync
         if (primaryCallbacks.empty() &&
             static_cast<uint64_t>(val.getBySeqno()) <=
-                    kvstore.getPurgeSeqno(vbid)) {
+                    kvstore.getCachedPurgeSeqno(vbid)) {
             yield();
             kvstore.skippedChecksDueToPurging++;
             return;
@@ -2252,7 +2267,7 @@ public:
              itr++) {
             if (itr->second == cb::engine_errc::success) {
                 if (static_cast<uint64_t>(itr->first.getBySeqno()) <=
-                            kvstore.getPurgeSeqno(vbid) &&
+                            kvstore.getCachedPurgeSeqno(vbid) &&
                     itr->first.getBySeqno() < val.getBySeqno()) {
                     // We want to stop the scan now, but we need to set
                     // the last read seqno to resume from the same point as the
@@ -2270,7 +2285,7 @@ public:
         // this callback for
         auto [primaryVal, primaryStatus] = primaryCallbacks.front();
         while (static_cast<uint64_t>(primaryVal.getBySeqno()) <=
-                       kvstore.getPurgeSeqno(vbid) &&
+                       kvstore.getCachedPurgeSeqno(vbid) &&
                primaryVal != val) {
             primaryCallbacks.pop_front();
 
@@ -2290,7 +2305,7 @@ public:
             // this later. If we continued now we'd skip keys for the secondary
             // that the primary may see.
             if (static_cast<uint64_t>(val.getBySeqno()) <=
-                kvstore.getPurgeSeqno(vbid)) {
+                kvstore.getCachedPurgeSeqno(vbid)) {
                 kvstore.skippedChecksDueToPurging++;
                 yield();
                 return;
@@ -2310,7 +2325,7 @@ public:
 
         if (primaryVal != val) {
             if (static_cast<uint64_t>(val.getBySeqno()) <=
-                kvstore.getPurgeSeqno(vbid)) {
+                kvstore.getCachedPurgeSeqno(vbid)) {
                 kvstore.skippedChecksDueToPurging++;
                 return;
             }
@@ -2688,7 +2703,7 @@ void NexusKVStore::checkScanCallbacks(Vbid vbid, const T& callbacks) const {
     if (!callbacks.empty()) {
         auto firstItem = callbacks.back().first;
         if (static_cast<uint64_t>(firstItem.getBySeqno()) >
-            getPurgeSeqno(vbid)) {
+            getCachedPurgeSeqno(vbid)) {
             auto msg = fmt::format(
                     "NexusKVStore::checkScanCallbacks: {}: {} scan "
                     "callbacks were not matched by secondary scan "
@@ -2812,8 +2827,8 @@ ScanStatus NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     }
 
     if (primaryCtx.lastReadSeqno != secondaryCtx.lastReadSeqno) {
-        if (primaryCtx.lastReadSeqno > getPurgeSeqno(ctx.vbid) &&
-            secondaryCtx.lastReadSeqno > getPurgeSeqno(ctx.vbid)) {
+        if (primaryCtx.lastReadSeqno > getCachedPurgeSeqno(ctx.vbid) &&
+            secondaryCtx.lastReadSeqno > getCachedPurgeSeqno(ctx.vbid)) {
             auto msg = fmt::format(
                     "NexusKVStore::scan: {}: last read seqno not "
                     "equal primary:{} secondary:{}",
@@ -3104,7 +3119,7 @@ GetValue NexusKVStore::getBySeqno(KVFileHandle& handle,
 
     // There's no point comparing values below the purge seqno as one of the
     // KVStores may have purged the value that we're looking for
-    if (seq <= getPurgeSeqno(vbid)) {
+    if (seq <= getCachedPurgeSeqno(vbid)) {
         skippedChecksDueToPurging++;
         return primaryGetValue;
     }
@@ -3332,7 +3347,8 @@ void NexusKVStore::handleError(std::string_view msg,
     std::string formatted;
     formatted.append(msg);
     if (vbid) {
-        formatted.append(fmt::format(" purgeSeqno:{}", getPurgeSeqno(*vbid)));
+        formatted.append(
+                fmt::format(" purgeSeqno:{}", getCachedPurgeSeqno(*vbid)));
     }
     cb::handleError(*getGlobalBucketLogger(),
                     spdlog::level::critical,
@@ -3353,6 +3369,6 @@ Vbid::id_type NexusKVStore::getCacheSlot(Vbid vbid) const {
     return vbid.get() / configuration.getMaxShards();
 }
 
-uint64_t NexusKVStore::getPurgeSeqno(Vbid vbid) const {
+uint64_t NexusKVStore::getCachedPurgeSeqno(Vbid vbid) const {
     return purgeSeqno.at(getCacheSlot(vbid));
 }

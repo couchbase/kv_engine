@@ -3671,6 +3671,10 @@ size_t CouchKVStore::getItemCount(Vbid vbid) {
     return getDbInfo(vbid).docCount;
 }
 
+uint64_t CouchKVStore::getPurgeSeqno(Vbid vbid) {
+    return getDbInfo(vbid).purgeSeqNum;
+}
+
 RollbackResult CouchKVStore::rollback(Vbid vbid,
                                       uint64_t rollbackSeqno,
                                       std::unique_ptr<RollbackCB> cb) {
