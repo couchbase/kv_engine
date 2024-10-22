@@ -125,6 +125,13 @@ public:
         return sfd;
     }
 
+    /// override getAgentName to return "cbstat" to make sure we reformat
+    /// all histograms to the old style format as we haven't updated the
+    /// unit tests to expect the new format
+    std::string_view getAgentName() const override {
+        return "cbstat";
+    }
+
     void reserve() override;
     void release() override;
 

@@ -65,6 +65,11 @@ public:
     /// connection.
     virtual uint32_t getConnectionId() const = 0;
 
+    /// Get the agent name used by the connection owning this cookie
+    virtual std::string_view getAgentName() const {
+        return {};
+    }
+
     /// Notify the cookie that the engine completed its work for the cookie
     /// so the cookie is no longer blocked.
     virtual void notifyIoComplete(cb::engine_errc status) = 0;

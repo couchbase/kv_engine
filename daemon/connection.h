@@ -572,6 +572,7 @@ public:
      * Set the name of the connected agent
      */
     void setAgentName(std::string_view name);
+    std::string_view getAgentName() const;
 
     /**
      * Get the Identifier specified for this connection.

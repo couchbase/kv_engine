@@ -1351,6 +1351,10 @@ void Connection::setAgentName(std::string_view name) {
     agentName[size] = '\0';
 }
 
+std::string_view Connection::getAgentName() const {
+    return agentName.data();
+}
+
 void Connection::setConnectionId(std::string_view uuid) {
     auto size = std::min(uuid.size(), connectionId.size() - 1);
     std::copy(uuid.begin(), uuid.begin() + size, connectionId.begin());

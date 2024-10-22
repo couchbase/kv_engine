@@ -164,6 +164,8 @@ public:
 
     uint32_t getConnectionId() const override;
 
+    std::string_view getAgentName() const override;
+
     /**
      * Execute the current packet
      *

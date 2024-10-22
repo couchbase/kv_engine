@@ -200,6 +200,10 @@ uint32_t Cookie::getConnectionId() const {
     return connection.getId();
 }
 
+std::string_view Cookie::getAgentName() const {
+    return connection.getAgentName();
+}
+
 bool Cookie::execute(bool useStartTime) {
     auto ts = useStartTime ? start : std::chrono::steady_clock::now();
 

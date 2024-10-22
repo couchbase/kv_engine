@@ -127,24 +127,32 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 void CBStatCollector::addStat(const cb::stats::StatDef& k,
                               const HdrHistogram& v,
                               const Labels& labels) const {
-    // cbstats handles HdrHistograms in the same manner as Histogram,
-    // so convert to the common HistogramData type and call addStat again.
-    if (v.getValueCount() > 0) {
-        HistogramData histData;
-        histData.mean = std::round(v.getMean());
-        histData.sampleCount = v.getValueCount() + v.getOverflowCount();
-        histData.maxTrackableValue = v.getMaxTrackableValue();
+    const auto useOldStyleHistograms =
+            cookie.getAgentName().find("cbstat") != std::string::npos;
+    if (useOldStyleHistograms) {
+        // cbstats handles HdrHistograms in the same manner as Histogram,
+        // so convert to the common HistogramData type and call addStat again.
+        if (v.getValueCount() > 0) {
+            HistogramData histData;
+            histData.mean = std::round(v.getMean());
+            histData.sampleCount = v.getValueCount() + v.getOverflowCount();
+            histData.maxTrackableValue = v.getMaxTrackableValue();
 
-        for (const auto& bucket : v) {
-            histData.buckets.push_back(
-                    {bucket.lower_bound, bucket.upper_bound, bucket.count});
+            for (const auto& bucket : v) {
+                histData.buckets.push_back(
+                        {bucket.lower_bound, bucket.upper_bound, bucket.count});
 
-            // TODO: HdrHistogram doesn't track the sum of all added values. but
-            //  For now just approximate it from bucket counts.
-            auto avgBucketValue = (bucket.lower_bound + bucket.upper_bound) / 2;
-            histData.sampleSum += avgBucketValue * bucket.count;
+                // TODO: HdrHistogram doesn't track the sum of all added values.
+                // but
+                //  For now just approximate it from bucket counts.
+                auto avgBucketValue =
+                        (bucket.lower_bound + bucket.upper_bound) / 2;
+                histData.sampleSum += avgBucketValue * bucket.count;
+            }
+            addStat(k, histData, labels);
         }
-        addStat(k, histData, labels);
+    } else {
+        addStat(k, v.to_string(), labels);
     }
 }
 
