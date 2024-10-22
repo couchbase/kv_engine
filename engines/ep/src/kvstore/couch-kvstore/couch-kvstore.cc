@@ -2034,7 +2034,8 @@ StorageProperties CouchKVStore::getStorageProperties() const {
                          StorageProperties::CompactionStaleItemCallbacks::No,
                          StorageProperties::HistoryRetentionAvailable::No,
                          StorageProperties::ContinuousBackupAvailable::No,
-                         StorageProperties::BloomFilterAvailable::No);
+                         StorageProperties::BloomFilterAvailable::No,
+                         StorageProperties::Fusion::No);
     return rv;
 }
 

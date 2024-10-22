@@ -658,3 +658,10 @@ nlohmann::json MagmaMemoryTrackingProxy::getVbucketEncryptionKeyIds() const {
     // domain
     return magma->GetActiveEncryptionKeyIDs();
 }
+
+std::tuple<magma::Status, nlohmann::json>
+MagmaMemoryTrackingProxy::GetFusionSyncInfo(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetFusionSyncInfo(kvID);
+}

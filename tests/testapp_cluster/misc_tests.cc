@@ -459,6 +459,14 @@ TEST_F(BasicClusterTest, AllStatGroups) {
             // These require a vbucket argument.
             key += " 0";
             break;
+        case StatGroupId::Fusion: {
+            if (conn->statsMap("")["ep_backend"] != "magma") {
+                return;
+            }
+            // These require a existing subcmd and a vbucket argument.
+            key += " sync_info 0";
+            break;
+        }
         default:
             break;
         }

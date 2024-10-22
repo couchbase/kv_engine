@@ -1111,7 +1111,8 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
                          StorageProperties::CompactionStaleItemCallbacks::Yes,
                          StorageProperties::HistoryRetentionAvailable::Yes,
                          StorageProperties::ContinuousBackupAvailable::Yes,
-                         StorageProperties::BloomFilterAvailable::Yes);
+                         StorageProperties::BloomFilterAvailable::Yes,
+                         StorageProperties::Fusion::Yes);
     return rv;
 }
 
@@ -4470,4 +4471,28 @@ std::pair<Status, std::string> MagmaKVStore::onContinuousBackupCallback(
             dynamic_cast<const MagmaKVFileHandle&>(kvFileHandle);
     return onContinuousBackupCallback(magmaFileHandle.vbid,
                                       *magmaFileHandle.snapshot.get());
+}
+
+nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
+    const auto checkError = [stat, vbid](magma::Status status) -> void {
+        if (status.ErrorCode() != Status::Code::Ok) {
+            const auto msg = fmt::format(
+                    "MagmaKVStore::getFusionStats: stat:{} {}, status:{}",
+                    stat,
+                    vbid,
+                    status);
+            throw std::logic_error(msg);
+        }
+    };
+
+    switch (stat) {
+    case FusionStat::Invalid:
+        throw std::logic_error("MagmaKVStore::getFusionStats: Invalid");
+    case FusionStat::SyncInfo:
+        const auto res = magma->GetFusionSyncInfo(Magma::KVStoreID(vbid.get()));
+        checkError(std::get<Status>(res));
+        return std::get<nlohmann::json>(res);
+    }
+
+    folly::assume_unreachable();
 }

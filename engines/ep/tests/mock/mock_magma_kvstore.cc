@@ -20,7 +20,8 @@ MockMagmaKVStore::MockMagmaKVStore(MagmaKVStoreConfig& config)
                         StorageProperties::CompactionStaleItemCallbacks::Yes,
                         StorageProperties::HistoryRetentionAvailable::Yes,
                         StorageProperties::ContinuousBackupAvailable::Yes,
-                        StorageProperties::BloomFilterAvailable::Yes) {
+                        StorageProperties::BloomFilterAvailable::Yes,
+                        StorageProperties::Fusion::Yes) {
 }
 
 KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(

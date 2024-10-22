@@ -155,3 +155,19 @@ std::string to_string(CanDeduplicate value) {
 std::ostream& operator<<(std::ostream& os, const CanDeduplicate& value) {
     return os << to_string(value);
 }
+
+static const std::unordered_map<std::string, FusionStat>
+        fusionStatsStringToEnum = {{"sync_info", FusionStat::SyncInfo}};
+static const std::unordered_map<FusionStat, std::string>
+        fusionStatsEnumToString = {{FusionStat::SyncInfo, "sync_info"}};
+
+FusionStat toFusionStat(const std::string& str) {
+    const auto it = fusionStatsStringToEnum.find(str);
+    return it != fusionStatsStringToEnum.end() ? it->second
+                                               : FusionStat::Invalid;
+}
+
+std::string format_as(FusionStat stat) {
+    const auto it = fusionStatsEnumToString.find(stat);
+    return it != fusionStatsEnumToString.end() ? it->second : "invalid";
+}

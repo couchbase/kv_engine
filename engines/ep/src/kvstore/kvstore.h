@@ -969,6 +969,12 @@ public:
         return std::nullopt;
     }
 
+    nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
+        // Only supported by backends which report
+        // StorageProperties::Fusion::Yes
+        return {};
+    }
+
     /**
      * Check if the specified document metadata is /potentially/ affected
      * by a datatype corruption issue (MB-52793) - a deleted document with

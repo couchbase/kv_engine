@@ -393,20 +393,27 @@ public:
 
     enum class BloomFilterAvailable : bool { Yes, No };
 
+    /**
+     * Does the KVStore support Fusion?
+     */
+    enum class Fusion : bool { Yes, No };
+
     StorageProperties(ByIdScan byIdScan,
                       AutomaticDeduplication automaticDeduplication,
                       PrepareCounting prepareCounting,
                       CompactionStaleItemCallbacks compactionStaleItemCallbacks,
                       HistoryRetentionAvailable historyRetentionAvailable,
                       ContinuousBackupAvailable continuousBackupAvailable,
-                      BloomFilterAvailable bloomFilterAvailable)
+                      BloomFilterAvailable bloomFilterAvailable,
+                      Fusion fusion)
         : byIdScan(byIdScan),
           automaticDeduplication(automaticDeduplication),
           prepareCounting(prepareCounting),
           compactionStaleItemCallbacks(compactionStaleItemCallbacks),
           historyRetentionAvailable(historyRetentionAvailable),
           continuousBackupAvailable(continuousBackupAvailable),
-          bloomFilterAvailable(bloomFilterAvailable) {
+          bloomFilterAvailable(bloomFilterAvailable),
+          fusion(fusion) {
     }
 
     bool hasByIdScan() const {
@@ -438,6 +445,10 @@ public:
         return bloomFilterAvailable == BloomFilterAvailable::Yes;
     }
 
+    bool supportsFusion() const {
+        return fusion == Fusion::Yes;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
@@ -446,6 +457,7 @@ private:
     HistoryRetentionAvailable historyRetentionAvailable;
     ContinuousBackupAvailable continuousBackupAvailable;
     BloomFilterAvailable bloomFilterAvailable;
+    Fusion fusion;
 };
 
 // The type of the snapshot
@@ -489,6 +501,10 @@ enum class ErrorHandlingMethod {
 };
 
 } // namespace cb
+
+enum class FusionStat : uint8_t { Invalid, SyncInfo };
+FusionStat toFusionStat(const std::string& str);
+std::string format_as(FusionStat stat);
 
 template <>
 struct fmt::formatter<CanDeduplicate> : ostream_formatter {};

@@ -578,7 +578,8 @@ StorageProperties NexusKVStore::getStorageProperties() const {
             compactionStaleItemCallbacks,
             canRetainHistory,
             StorageProperties::ContinuousBackupAvailable::No,
-            hasBloomFilter};
+            hasBloomFilter,
+            StorageProperties::Fusion::No};
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

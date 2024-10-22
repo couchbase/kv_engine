@@ -652,6 +652,8 @@ public:
     virtual std::pair<magma::Status, std::string> onContinuousBackupCallback(
             Vbid vbid, magma::Magma::Snapshot& snapshot);
 
+    nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

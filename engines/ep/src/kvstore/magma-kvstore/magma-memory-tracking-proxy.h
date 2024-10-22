@@ -262,6 +262,9 @@ public:
 
     nlohmann::json getVbucketEncryptionKeyIds() const;
 
+    std::tuple<magma::Status, nlohmann::json> GetFusionSyncInfo(
+            const magma::Magma::KVStoreID kvID);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

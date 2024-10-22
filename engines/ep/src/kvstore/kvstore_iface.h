@@ -908,6 +908,9 @@ public:
     virtual void setHistoryRetentionSeconds(std::chrono::seconds secs) = 0;
 
     virtual std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) = 0;
+
+    /// Fusion API, supported only by MagmaKVStore
+    virtual nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) = 0;
 };
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status);

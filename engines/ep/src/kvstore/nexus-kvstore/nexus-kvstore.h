@@ -172,6 +172,9 @@ public:
     std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override {
         return std::nullopt;
     }
+    nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
+        return {};
+    }
 
     /**
      * Unit test only hook called before we compact the first KVStore. Public as

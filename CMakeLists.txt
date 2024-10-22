@@ -62,6 +62,10 @@ if (CB_PRODUCTION_BUILD)
   add_definitions(-DCB_PRODUCTION_BUILD=1)
 endif()
 
+if (TARGET fusionfs)
+    add_definitions(-DUSE_FUSION=1)
+endif()
+
 if (WIN32)
     # 'conversion' conversion from 'type1' to 'type2', possible loss of data
     add_definitions(/wd4244)

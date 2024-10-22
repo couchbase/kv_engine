@@ -5425,6 +5425,14 @@ cb::engine_errc EventuallyPersistentEngine::doFusionStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
+    Expects(kvBucket);
+    if (!kvBucket->getStorageProperties().supportsFusion()) {
+        EP_LOG_WARN_RAW(
+                "EventuallyPersistentEngine::doFusionStats: Not supported on "
+                "non-magma buckets");
+        return cb::engine_errc::not_supported;
+    }
+
     std::optional<std::string> subCmd;
     std::optional<Vbid> vbid;
 
@@ -5464,11 +5472,26 @@ cb::engine_errc EventuallyPersistentEngine::doFusionStats(
         vbid = Vbid(std::stoul(third));
     }
 
-    // @todo: To be replaced by actual sub-commands results
-    nlohmann::json json;
-    json["sub_cmd"] = subCmd.value_or("N/A");
-    json["vbid"] = vbid.has_value() ? std::to_string((*vbid).get()) : "N/A";
-    add_stat("fusion", json.dump(), cookie);
+    // @todo: At the time of writing I'm first adding support for per-vbucket
+    // sub-commands.
+    if (!subCmd || !vbid) {
+        return cb::engine_errc::not_supported;
+    }
+
+    const auto stat = toFusionStat(*subCmd);
+    if (stat == FusionStat::Invalid) {
+        EP_LOG_WARN_CTX(
+                "EventuallyPersistentEngine::doFusionStats: Invalid "
+                "arguments",
+                {"stat_key", statKey});
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    add_stat("fusion",
+             kvBucket->getRWUnderlying(*vbid)
+                     ->getFusionStats(stat, *vbid)
+                     .dump(),
+             cookie);
 
     return cb::engine_errc::success;
 }

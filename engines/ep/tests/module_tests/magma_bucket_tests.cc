@@ -1188,6 +1188,8 @@ INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
+#ifdef USE_FUSION
+
 class STMagmaFusionTest : public STParamMagmaBucketTest {
 public:
     void SetUp() override {
@@ -1222,3 +1224,5 @@ INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,
                          STMagmaFusionTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+#endif // USE_FUSION
