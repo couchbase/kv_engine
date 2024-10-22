@@ -18,11 +18,13 @@ Commit::Commit(Collections::VB::Manifest& manifest,
                WriteOperation writeOp,
                vbucket_state vbs,
                SysErrorCallback sysErrorCallback,
-               CheckpointHistorical historical)
+               CheckpointHistorical historical,
+               uint64_t purgeSeqno)
     : collections(manifest),
       writeOp(writeOp),
       proposedVBState(std::move(vbs)),
       sysErrorCallback(std::move(sysErrorCallback)),
-      historical(historical) {
+      historical(historical),
+      purgeSeqno(purgeSeqno) {
 }
 } // namespace VB

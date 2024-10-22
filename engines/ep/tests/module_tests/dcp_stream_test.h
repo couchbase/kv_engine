@@ -193,6 +193,17 @@ protected:
                                           bool hasValue,
                                           OOMLevel oomLevel);
 
+    /**
+     * Test for receiving a purge-seqno in a snapshot (MB:63977)
+     */
+    void purgeSeqnoReplicated(bool flushTwice);
+
+    // helper for pushing a mutation to the consumer
+    void mutation(uint32_t opaque,
+                  const DocKeyView& key,
+                  Vbid vbid,
+                  uint64_t bySeqno);
+
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
     // SetUp()?

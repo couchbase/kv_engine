@@ -1770,6 +1770,11 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
             magmaDbStats.highSeqno = vbstate.highSeqno;
         }
 
+        // If present (>0) set the purgeSeqno
+        if (commitData.purgeSeqno) {
+            magmaDbStats.purgeSeqno = commitData.purgeSeqno;
+        }
+
         // @todo: Magma doesn't track onDiskPrepares
         // @todo MB-42900: Magma doesn't track onDiskPrepareBytes
 

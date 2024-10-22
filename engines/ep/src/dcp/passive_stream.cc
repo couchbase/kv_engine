@@ -1002,7 +1002,12 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                hcs,
                                checkpointType,
                                visibleSeq,
-                               historical);
+                               historical,
+                               // set the purgeSeqno onto the snapshot for
+                               // initial disk only.
+                               // @todo: run scenario with cursor drop and extra
+                               // disk snapshot
+                               marker->getPurgeSeqno().value_or(0));
     } else {
         // Case: receiving any type of snapshot (Disk/Memory).
 

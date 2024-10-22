@@ -79,6 +79,9 @@ struct ItemsToFlush {
     // The maxCas of the flush batch, which takes into account a possible reset
     uint64_t maxCas{0};
 
+    // The purgeSeqno of the disk-snapshot (non-zero is only when this matters)
+    uint64_t purgeSeqno{0};
+
     // See CM::ItemsForCursor for details.
     UniqueFlushHandle flushHandle;
 };

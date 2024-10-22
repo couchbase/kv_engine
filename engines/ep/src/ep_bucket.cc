@@ -557,8 +557,12 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
         writeOp = WriteOperation::Insert;
     }
 
-    VB::Commit commitData(
-            vb.getManifest(), writeOp, vbstate, callback, toFlush.historical);
+    VB::Commit commitData(vb.getManifest(),
+                          writeOp,
+                          vbstate,
+                          callback,
+                          toFlush.historical,
+                          toFlush.purgeSeqno);
 
     vbucket_state& proposedVBState = commitData.proposedVBState;
 
@@ -951,6 +955,11 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     //     (write+sync to disk), then we can just afford to calling
     //     back to the DM unconditionally.
     vb.notifyPersistenceToDurabilityMonitor();
+
+    // If a purgeSeqno is specified, the vb should now reflect that
+    if (toFlush.purgeSeqno) {
+        vb.maybeSetPurgeSeqno(toFlush.purgeSeqno);
+    }
 
     // @todo: ideally pass vb over *vbPtr which is already an EPVbucket&
     flushSuccessEpilogue(*vbPtr,

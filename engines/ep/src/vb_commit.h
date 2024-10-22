@@ -40,7 +40,8 @@ public:
                     WriteOperation writeOp = WriteOperation::Upsert,
                     vbucket_state vbs = {},
                     SysErrorCallback sysErrorCallback = {},
-                    CheckpointHistorical historical = CheckpointHistorical::No);
+                    CheckpointHistorical historical = CheckpointHistorical::No,
+                    uint64_t purgeSeqno = 0);
 
     /// Object for updating the collection's meta-data during commit
     Collections::VB::Flush collections;
@@ -67,6 +68,11 @@ public:
      * of historical data.
      */
     CheckpointHistorical historical;
+
+    /**
+     * The purge-seqno that the flusher should set (if 0 do nothing)
+     */
+    uint64_t purgeSeqno{0};
 };
 
 } // end namespace VB

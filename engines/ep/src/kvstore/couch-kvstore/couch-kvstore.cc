@@ -3183,6 +3183,11 @@ couchstore_error_t CouchKVStore::saveDocs(
     }
     txnCtx.pendingLocalReqsQ.clear();
 
+    // Does the purgeSeqno need setting?
+    if (kvctx.commitData.purgeSeqno) {
+        couchstore_set_purge_seq(db, kvctx.commitData.purgeSeqno);
+    }
+
     auto cs_begin = std::chrono::steady_clock::now();
 
     errCode = couchstore_commit(db, kvctx.commitData.sysErrorCallback);
@@ -3222,6 +3227,7 @@ couchstore_error_t CouchKVStore::saveDocs(
                 vbid);
     }
     state.highSeqno = info.updateSeqNum;
+    state.purgeSeqno = info.purgeSeqNum;
 
     // update stat
     st.docsCommitted = docs.size();

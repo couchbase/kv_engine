@@ -286,6 +286,7 @@ public:
                Vbid vbid,
                CheckpointType checkpointType,
                CheckpointHistorical historical,
+               uint64_t purgeSeqno,
                size_t position);
 
     ~Checkpoint();
@@ -626,6 +627,10 @@ public:
         return positionOnItemLine;
     }
 
+    uint64_t getPurgeSeqno() const {
+        return purgeSeqno;
+    }
+
     /**
      * Dump this checkpoint to stderr.
      */
@@ -778,6 +783,9 @@ private:
     // Whether the snapshot stored in this checkpoint is part of a historical
     // sequence of mutation.
     CheckpointHistorical historical;
+
+    // PurgeSeqno received over DCP from active node.
+    uint64_t purgeSeqno{0};
 
     cb::NonNegativeCounter<size_t> positionOnItemLine;
 

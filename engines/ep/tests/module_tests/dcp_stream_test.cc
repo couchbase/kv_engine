@@ -3227,6 +3227,63 @@ TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
     FAIL();
 }
 
+void SingleThreadedPassiveStreamTest::mutation(uint32_t opaque,
+                                               const DocKeyView& key,
+                                               Vbid vbid,
+                                               uint64_t bySeqno) {
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(
+                      opaque, key, {}, 0, 1, vbid, 0, bySeqno, 0, 0, 0, {}, 0));
+}
+
+// Test covers functionality of MB_63977, a disk snapshot which is received
+// with a purge-seqno ensures that the disk snapshot is given that purge-seqno.
+// The test writes a "sparse" snapshot in two flushes and checks that the purge
+// seqno moves correctly.
+void SingleThreadedPassiveStreamTest::purgeSeqnoReplicated(bool flushTwice) {
+    // Setup a disk snapshot
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          10,
+                          DcpSnapshotMarkerFlag::Disk,
+                          0 /*HCS*/,
+                          10, /*MVS*/
+                          5, /* purge */
+                          cb::mcbp::DcpStreamId{});
+    stream->processMarker(&marker);
+
+    // Write seqno 4.
+    mutation(1, makeStoredDocKey("keyA"), vbid, 4);
+
+    if (flushTwice) {
+        flushVBucketToDiskIfPersistent(vbid, 1);
+
+        // The first flush has only flushed seqno:4, the purgeSeqno of our
+        // snapshot is 5. We must ensure the purgeSeqno only moved to the
+        // high-seqno (4)
+        EXPECT_EQ(4, store->getVBucket(vbid)->getPurgeSeqno());
+        EXPECT_EQ(4, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+    }
+
+    // Write seqno 10.
+    mutation(1, makeStoredDocKey("keyB"), vbid, 10);
+    flushVBucketToDiskIfPersistent(vbid, flushTwice ? 1 : 2);
+
+    // And flushed seqno:10, the purgeSeqno of the marker was 5. We must
+    // ensure the purgeSeqno only moved to 5
+    EXPECT_EQ(5, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(5, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, purgeSeqnoReplicated) {
+    purgeSeqnoReplicated(false);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, purgeSeqnoReplicatedFlushTwice) {
+    purgeSeqnoReplicated(true);
+}
+
 /**
  * Fixture for tests which start out as active and switch to replica to assert
  * we setup the PassiveStream correctly.

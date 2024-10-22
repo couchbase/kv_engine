@@ -138,12 +138,14 @@ public:
                        std::optional<uint64_t> maxDeletedRevSeqno,
                        std::optional<uint64_t> highCompletedSeqno,
                        uint64_t visibleSeqno,
-                       CheckpointHistorical historical)
+                       CheckpointHistorical historical,
+                       uint64_t purgeSeqno)
             : checkpointType(checkpointType),
               historical(historical),
               maxDeletedRevSeqno(maxDeletedRevSeqno),
               highCompletedSeqno(highCompletedSeqno),
-              visibleSeqno(visibleSeqno) {
+              visibleSeqno(visibleSeqno),
+              purgeSeqno(purgeSeqno) {
         }
         std::vector<CheckpointSnapshotRange> ranges;
         bool moreAvailable = {false};
@@ -192,6 +194,12 @@ public:
          * the seqno ordering a set-vb-state may have reset the maxCas.
          */
         uint64_t maxCas{0};
+
+        /**
+         * The purgeSeqno - this is only relevant when checkpoint is a disk
+         * CP. If zero this has no usage.
+         */
+        uint64_t purgeSeqno{0};
 
         /// Set only for persistence cursor, resets the CM state after flush.
         UniqueFlushHandle flushHandle;
@@ -491,7 +499,8 @@ public:
             std::optional<uint64_t> highCompletedSeqno,
             CheckpointType checkpointType,
             uint64_t maxVisibleSnapEnd,
-            CheckpointHistorical historical = CheckpointHistorical::No);
+            CheckpointHistorical historical = CheckpointHistorical::No,
+            uint64_t purgeSeqno = 0);
 
     /**
      * Extend the open checkpoint to contain more mutations. Allowed only for
@@ -747,7 +756,8 @@ protected:
                           uint64_t visibleSnapEnd,
                           std::optional<uint64_t> highCompletedSeqno,
                           CheckpointType checkpointType,
-                          CheckpointHistorical historical);
+                          CheckpointHistorical historical,
+                          uint64_t purgeSeqno = 0);
 
     /**
      * Closes the current open checkpoint and adds a new open checkpoint to
@@ -776,7 +786,8 @@ protected:
                            std::optional<uint64_t> highCompletedSeqno,
                            uint64_t highPreparedSeqno,
                            CheckpointType checkpointType,
-                           CheckpointHistorical historical);
+                           CheckpointHistorical historical,
+                           uint64_t purgeSeqno = 0);
 
     /**
      * Verifies whether the cursor and CM states allow to move the cursor to the

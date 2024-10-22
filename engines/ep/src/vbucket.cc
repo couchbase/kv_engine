@@ -553,6 +553,13 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxMaxItems,
 
     auto rangeInfo = checkpointManager->getItemsForPersistence(
             result.items, approxMaxItems, approxMaxBytes);
+
+    // Cap purgeSeqno (if present to lower of purgeSeqno and flush end).The
+    // purge-seqno in the snapshot cannot exceed the snapshot range.
+    if (result.items.size() > 0) {
+        result.purgeSeqno = std::min(rangeInfo.purgeSeqno,
+                                 uint64_t(result.items.back()->getBySeqno()));
+    }
     result.ranges = std::move(rangeInfo.ranges);
     result.maxDeletedRevSeqno = rangeInfo.maxDeletedRevSeqno;
     result.checkpointType = rangeInfo.checkpointType;

@@ -166,7 +166,8 @@ void CheckpointManager::addNewCheckpoint(
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
-        CheckpointHistorical historical) {
+        CheckpointHistorical historical,
+        uint64_t purgeSeqno) {
     // First, we must close the open checkpoint.
     auto& oldOpenCkpt = *checkpointList.back();
     const auto minSeqno = oldOpenCkpt.getMinimumCursorSeqno();
@@ -204,7 +205,8 @@ void CheckpointManager::addNewCheckpoint(
                       highCompletedSeqno,
                       hps,
                       checkpointType,
-                      historical);
+                      historical,
+                      purgeSeqno);
 
     // If cursors reached to the end of its current checkpoint, move it to the
     // next checkpoint. That is done to help in making checkpoints eligible for
@@ -258,11 +260,13 @@ void CheckpointManager::addOpenCheckpoint(
         std::optional<uint64_t> highCompletedSeqno,
         uint64_t highPreparedSeqno,
         CheckpointType checkpointType,
-        CheckpointHistorical historical) {
+        CheckpointHistorical historical,
+        uint64_t purgeSeqno) {
     const auto makeException = [&](std::string_view suffix) {
         return std::invalid_argument(fmt::format(
                 "CheckpointManager::addOpenCheckpoint: {}, snapStart:{}, "
-                "snapEnd:{}, visibleSnapEnd:{}, HCS:{}, HPS:{}, type:{}, {} - "
+                "snapEnd:{}, visibleSnapEnd:{}, HCS:{}, HPS:{}, type:{}, {}, "
+                "purge:{} - "
                 "{}",
                 vb.getId(),
                 snapStart,
@@ -272,6 +276,7 @@ void CheckpointManager::addOpenCheckpoint(
                 to_string_or_none(highCompletedSeqno),
                 ::to_string(checkpointType),
                 ::to_string(historical),
+                purgeSeqno,
                 suffix));
     };
 
@@ -293,7 +298,7 @@ void CheckpointManager::addOpenCheckpoint(
     EP_LOG_DEBUG(
             "CheckpointManager::addOpenCheckpoint: Create "
             "a new open checkpoint: [{}, id:{}, snapStart:{}, snapEnd:{}, "
-            "visibleSnapEnd:{}, hcs:{}, hps:{} type:{}]",
+            "visibleSnapEnd:{}, hcs:{}, hps:{} type:{}, purgeSeqno:{}]",
             vb.getId(),
             id,
             snapStart,
@@ -301,7 +306,8 @@ void CheckpointManager::addOpenCheckpoint(
             visibleSnapEnd,
             to_string_or_none(highCompletedSeqno),
             highPreparedSeqno,
-            to_string(checkpointType));
+            to_string(checkpointType),
+            purgeSeqno);
 
     auto ckpt = std::make_unique<Checkpoint>(*this,
                                              stats,
@@ -314,6 +320,7 @@ void CheckpointManager::addOpenCheckpoint(
                                              vb.getId(),
                                              checkpointType,
                                              historical,
+                                             purgeSeqno,
                                              totalItems);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
@@ -1104,7 +1111,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                           checkpoint.getMaxDeletedRevSeqno(),
                           checkpoint.getHighCompletedSeqno(),
                           checkpoint.getVisibleSnapshotEndSeqno(),
-                          checkpoint.getHistorical());
+                          checkpoint.getHistorical(),
+                          checkpoint.getPurgeSeqno());
 
     // Only enforce a hard limit for Disk Checkpoints (i.e backfill). This will
     // prevent huge memory growth due to flushing vBuckets on replicas during a
@@ -1461,7 +1469,8 @@ void CheckpointManager::createSnapshot(
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
         uint64_t visibleSnapEnd,
-        CheckpointHistorical historical) {
+        CheckpointHistorical historical,
+        uint64_t purgeSeqno) {
     if (isDiskCheckpointType(checkpointType)) {
         Expects(highCompletedSeqno.has_value());
     }
@@ -1473,7 +1482,8 @@ void CheckpointManager::createSnapshot(
                      visibleSnapEnd,
                      highCompletedSeqno,
                      checkpointType,
-                     historical);
+                     historical,
+                     purgeSeqno);
 }
 
 void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
