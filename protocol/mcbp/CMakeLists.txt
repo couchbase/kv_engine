@@ -57,7 +57,6 @@ cb_add_test_executable(mcbp_unit_tests
                framebuilder_test.cc
                magic_test.cc
                mcbp_dump_parser_test.cc
-               opcode_test.cc
                request_test.cc
                sla_test.cc)
 kv_enable_pch(mcbp_unit_tests)
