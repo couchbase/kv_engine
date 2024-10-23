@@ -47,7 +47,11 @@ void threadlocal_stats_reset(std::vector<thread_stats>& thread_stats);
 void notifyIoComplete(Cookie& cookie, cb::engine_errc status);
 void scheduleDcpStep(Cookie& cookie);
 
-void safe_close(SOCKET sfd);
+/// Safely closes a server socket.
+void close_server_socket(SOCKET sfd);
+/// Safely closes a client socket.
+void close_client_socket(SOCKET sfd);
+
 const char* get_server_version();
 bool is_memcached_shutting_down();
 void stop_memcached_main_base();

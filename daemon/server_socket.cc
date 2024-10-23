@@ -172,7 +172,7 @@ LibeventServerSocketImpl::~LibeventServerSocketImpl() {
                         cb_strerror());
         }
     }
-    safe_close(sfd);
+    close_server_socket(sfd);
     numInstances--;
 }
 
@@ -191,12 +191,12 @@ void LibeventServerSocketImpl::acceptNewClient() {
     stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     if (cb::net::set_socket_noblocking(client) == -1) {
         LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
-        safe_close(client);
+        close_client_socket(client);
         return;
     }
 
     if (is_memcached_shutting_down()) {
-        safe_close(client);
+        close_client_socket(client);
         return;
     }
 
@@ -225,7 +225,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
                 interface->system ? " on system interface" : "",
                 current,
                 limit);
-        safe_close(client);
+        close_client_socket(client);
         if (interface->system) {
             --stats.system_conns;
         }
@@ -259,7 +259,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         if (interface->system) {
             --stats.system_conns;
         }
-        safe_close(client);
+        close_client_socket(client);
         return;
     }
 

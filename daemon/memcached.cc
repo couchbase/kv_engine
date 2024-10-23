@@ -515,21 +515,33 @@ static void update_settings_from_config()
             opcode_attributes_override_changed_listener);
 }
 
-void safe_close(SOCKET sfd) {
-    if (sfd != INVALID_SOCKET) {
-        int rval;
+static bool safe_close(SOCKET sfd) {
+    if (sfd == INVALID_SOCKET) {
+        return false;
+    }
 
-        do {
-            rval = evutil_closesocket(sfd);
-        } while (rval == SOCKET_ERROR &&
-                 cb::net::is_interrupted(cb::net::get_socket_error()));
+    int rval;
 
-        if (rval == SOCKET_ERROR) {
-            std::string error = cb_strerror();
-            LOG_WARNING("Failed to close socket {} ({})!!", (int)sfd, error);
-        } else {
-            stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
-        }
+    do {
+        rval = evutil_closesocket(sfd);
+    } while (rval == SOCKET_ERROR &&
+             cb::net::is_interrupted(cb::net::get_socket_error()));
+
+    if (rval == SOCKET_ERROR) {
+        std::string error = cb_strerror();
+        LOG_WARNING("Failed to close socket {} ({})!!", (int)sfd, error);
+        return false;
+    }
+    return true;
+}
+
+void close_server_socket(SOCKET sfd) {
+    safe_close(sfd);
+}
+
+void close_client_socket(SOCKET sfd) {
+    if (safe_close(sfd)) {
+        --stats.curr_conns;
     }
 }
 
