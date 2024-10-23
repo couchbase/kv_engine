@@ -157,9 +157,13 @@ std::ostream& operator<<(std::ostream& os, const CanDeduplicate& value) {
 }
 
 static const std::unordered_map<std::string, FusionStat>
-        fusionStatsStringToEnum = {{"sync_info", FusionStat::SyncInfo}};
+        fusionStatsStringToEnum = {
+                {"sync_info", FusionStat::SyncInfo},
+                {"active_guest_volumes", FusionStat::ActiveGuestVolumes}};
 static const std::unordered_map<FusionStat, std::string>
-        fusionStatsEnumToString = {{FusionStat::SyncInfo, "sync_info"}};
+        fusionStatsEnumToString = {
+                {FusionStat::SyncInfo, "sync_info"},
+                {FusionStat::ActiveGuestVolumes, "active_guest_volumes"}};
 
 FusionStat toFusionStat(const std::string& str) {
     const auto it = fusionStatsStringToEnum.find(str);

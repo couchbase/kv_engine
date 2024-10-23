@@ -93,4 +93,15 @@ TEST_P(FusionTest, Stat_SyncInfo) {
     EXPECT_EQ(1, res["version"]);
 }
 
+TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
+    nlohmann::json res;
+    adminConnection->executeInBucket(bucketName, [&res](auto& conn) {
+        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
+                   "fusion active_guest_volumes 0");
+    });
+
+    // @todo MB-63679: Actual values will be populated once we have MountKVStore
+    ASSERT_TRUE(res.is_array());
+}
+
 #endif // USE_FUSION

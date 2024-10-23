@@ -4488,10 +4488,17 @@ nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
     switch (stat) {
     case FusionStat::Invalid:
         throw std::logic_error("MagmaKVStore::getFusionStats: Invalid");
-    case FusionStat::SyncInfo:
+    case FusionStat::SyncInfo: {
         const auto res = magma->GetFusionSyncInfo(Magma::KVStoreID(vbid.get()));
         checkError(std::get<Status>(res));
         return std::get<nlohmann::json>(res);
+    }
+    case FusionStat::ActiveGuestVolumes: {
+        const auto res = magma->GetFusionActiveGuestVolumes(
+                Magma::KVStoreID(vbid.get()));
+        checkError(std::get<Status>(res));
+        return std::get<nlohmann::json>(res);
+    }
     }
 
     folly::assume_unreachable();

@@ -665,3 +665,10 @@ MagmaMemoryTrackingProxy::GetFusionSyncInfo(
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->GetFusionSyncInfo(kvID);
 }
+
+std::tuple<magma::Status, nlohmann::json>
+MagmaMemoryTrackingProxy::GetFusionActiveGuestVolumes(
+        const magma::Magma::KVStoreID kvID) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetActiveFusionGuestVolumes(kvID);
+}
