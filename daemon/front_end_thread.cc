@@ -68,7 +68,7 @@ nlohmann::json ClientConnectionDetails::to_json(
 FrontEndThread::ConnectionQueue::~ConnectionQueue() {
     connections.withLock([](auto& c) {
         for (auto& entry : c) {
-            safe_close(entry.sock);
+            close_client_socket(entry.sock);
         }
     });
 }
@@ -335,7 +335,7 @@ void FrontEndThread::dispatch_new_connections() {
             if (system) {
                 --stats.system_conns;
             }
-            safe_close(entry.sock);
+            close_client_socket(entry.sock);
         }
     }
 }
@@ -410,7 +410,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
         if (descr->system) {
             --stats.system_conns;
         }
-        safe_close(sfd);
+        close_client_socket(sfd);
     }
 }
 

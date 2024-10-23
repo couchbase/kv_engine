@@ -536,23 +536,34 @@ static void update_settings_from_config()
             });
 }
 
-void safe_close(SOCKET sfd) {
-    if (sfd != INVALID_SOCKET) {
-        int rval;
+static bool safe_close(SOCKET sfd) {
+    if (sfd == INVALID_SOCKET) {
+        return false;
+    }
 
-        do {
-            rval = evutil_closesocket(sfd);
-        } while (rval == SOCKET_ERROR &&
-                 cb::net::is_interrupted(cb::net::get_socket_error()));
+    int rval;
 
-        if (rval == SOCKET_ERROR) {
-            std::string error = cb_strerror();
-            LOG_WARNING_CTX("Failed to close socket",
-                            {"fd", (int)sfd},
-                            {"error", error});
-        } else {
-            --stats.curr_conns;
-        }
+    do {
+        rval = evutil_closesocket(sfd);
+    } while (rval == SOCKET_ERROR &&
+             cb::net::is_interrupted(cb::net::get_socket_error()));
+
+    if (rval == SOCKET_ERROR) {
+        std::string error = cb_strerror();
+        LOG_WARNING_CTX(
+                "Failed to close socket", {"fd", (int)sfd}, {"error", error});
+        return false;
+    }
+    return true;
+}
+
+void close_server_socket(SOCKET sfd) {
+    safe_close(sfd);
+}
+
+void close_client_socket(SOCKET sfd) {
+    if (safe_close(sfd)) {
+        --stats.curr_conns;
     }
 }
 

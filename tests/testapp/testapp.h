@@ -195,6 +195,9 @@ protected:
     // per test tear-down function.
     void TearDown() override;
 
+    // Validate some stats at tear down.
+    static void validateStatsWhenTearingDownTestCase();
+
     // per test compression mode configuration function
     void setCompressionMode(const std::string& compression_mode);
 

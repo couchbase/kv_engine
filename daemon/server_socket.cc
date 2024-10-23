@@ -192,7 +192,7 @@ LibeventServerSocketImpl::~LibeventServerSocketImpl() {
                         cb_strerror());
         }
     }
-    safe_close(sfd);
+    close_server_socket(sfd);
     numInstances--;
 }
 
@@ -211,12 +211,12 @@ void LibeventServerSocketImpl::acceptNewClient() {
     ++stats.curr_conns;
     if (cb::net::set_socket_noblocking(client) == -1) {
         LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
-        safe_close(client);
+        close_client_socket(client);
         return;
     }
 
     if (is_memcached_shutting_down()) {
-        safe_close(client);
+        close_client_socket(client);
         return;
     }
 
@@ -249,7 +249,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
                         {"conn_id", client},
                         {"error", e.what()});
             }
-            safe_close(client);
+            close_client_socket(client);
             return;
         }
     }
@@ -275,7 +275,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
                 interface->system ? " on system interface" : "",
                 current,
                 limit);
-        safe_close(client);
+        close_client_socket(client);
         if (interface->system) {
             --stats.system_conns;
         }

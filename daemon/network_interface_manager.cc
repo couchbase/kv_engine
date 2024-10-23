@@ -230,7 +230,7 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
     }
 
     if (evutil_make_socket_nonblocking(sfd) == -1) {
-        safe_close(sfd);
+        close_server_socket(sfd);
         return INVALID_SOCKET;
     }
 
@@ -244,7 +244,7 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
                 sfd, IPPROTO_IPV6, IPV6_V6ONLY, &flags, sizeof(flags));
         if (error != 0) {
             LOG_WARNING("setsockopt(IPV6_V6ONLY): {}", strerror(errno));
-            safe_close(sfd);
+            close_server_socket(sfd);
             return INVALID_SOCKET;
         }
     }
@@ -338,7 +338,7 @@ NetworkInterfaceManager::createInterface(
                     next->ai_addrlen);
             errors.push_back("Failed to bind to " + name + " - " +
                              cb_strerror(bind_error));
-            safe_close(sfd);
+            close_server_socket(sfd);
             continue;
         }
 
@@ -350,7 +350,6 @@ NetworkInterfaceManager::createInterface(
                 description.isSystem(),
                 description.isTls());
         listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
-        ++stats.curr_conns;
         ret.push_back(listen_conn.back()->to_json());
     }
 
