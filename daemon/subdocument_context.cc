@@ -9,7 +9,6 @@
  */
 #include "subdocument_context.h"
 
-#include "debug_helpers.h"
 #include "front_end_thread.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
@@ -17,7 +16,6 @@
 #include "subdocument_validators.h"
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
-#include <platform/base64.h>
 #include <platform/crc32c.h>
 #include <platform/string_hex.h>
 #include <subdoc/util.h>
@@ -64,47 +62,6 @@ uint64_t SubdocExecutionContext::getOperationValueBytesTotal() const {
         }
     }
     return result;
-}
-
-// Debug - print details of the specified subdocument command.
-static void subdoc_print_command(Connection& c,
-                                 cb::mcbp::ClientOpcode cmd,
-                                 std::string_view key,
-                                 std::string_view path,
-                                 std::string_view value) {
-    std::array<char, KEY_MAX_LENGTH + 32> clean_key;
-    std::array<char, SUBDOC_PATH_MAX_LENGTH> clean_path;
-
-    if ((key_to_printable_buffer(clean_key.data(),
-                                 clean_key.size(),
-                                 c.getId(),
-                                 true,
-                                 to_string(cb::mcbp::ClientOpcode(cmd)).c_str(),
-                                 key.data(),
-                                 key.size())) &&
-        (buf_to_printable_buffer(clean_path.data(),
-                                 clean_path.size(),
-                                 path.data(),
-                                 path.size()))) {
-        // print key, path & value if there is a value, but only print first
-        // few characters of the value
-        std::array<char, 80> clean_value;
-        if (!value.empty() && (buf_to_printable_buffer(clean_value.data(),
-                                                       clean_value.size(),
-                                                       value.data(),
-                                                       value.size()))) {
-            LOG_DEBUG("{} path:'{}' value:'{}'",
-                      cb::UserDataView(clean_key.data()),
-                      cb::UserDataView(clean_path.data()),
-                      cb::UserDataView(clean_value.data()));
-
-        } else {
-            // key & path only
-            LOG_DEBUG("{} path:'{}'",
-                      cb::UserDataView(clean_key.data()),
-                      cb::UserDataView(clean_path.data()));
-        }
-    }
 }
 
 /*
@@ -160,14 +117,6 @@ void SubdocExecutionContext::create_single_path_context(
         // of the to-be-created document root.
         jroot_type = Subdoc::Util::get_root_type(
                 traits.subdocCommand, path.data(), path.size());
-    }
-
-    if (Settings::instance().getVerbose() > 1) {
-        subdoc_print_command(cookie.getConnection(),
-                             request.getClientOpcode(),
-                             request.getKeyString(),
-                             path,
-                             value);
     }
 }
 
@@ -242,15 +191,6 @@ void SubdocExecutionContext::create_multi_path_context(
                 {path.data(), path.size()},
                 {spec_value.data(), spec_value.size()}});
         offset += headerlen + path.size() + spec_value.size();
-    }
-
-    if (Settings::instance().getVerbose() > 1) {
-        using namespace std::literals;
-        subdoc_print_command(cookie.getConnection(),
-                             request.getClientOpcode(),
-                             request.getKeyString(),
-                             "<multipath>"sv,
-                             value);
     }
 }
 
