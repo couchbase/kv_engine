@@ -803,17 +803,6 @@ def stats_checkpoint(mc, vb=-1):
     except ValueError:
         print('Specified vbucket \"%s\" is not valid' % str(vb))
 
-
-@cmd
-def stats_slabs(mc):
-    stats_formatter(stats_perform(mc, 'slabs'))
-
-
-@cmd
-def stats_items(mc):
-    stats_formatter(stats_perform(mc, 'items'))
-
-
 @cmd
 def stats_uuid(mc):
     stats_formatter(stats_perform(mc, 'uuid'))
@@ -1167,7 +1156,6 @@ def main():
     c.addCommand('workload', stats_workload, 'workload')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
-    c.addCommand('items', stats_items, 'items (memcached bucket only)')
     c.addCommand(
         'key',
         stats_key,
@@ -1179,7 +1167,6 @@ def main():
     c.addCommand('raw', stats_raw, 'raw argument')
     c.addCommand('reset', reset, 'reset')
     c.addCommand('responses', stats_responses, 'responses [all]')
-    c.addCommand('slabs', stats_slabs, 'slabs (memcached bucket only)')
     c.addCommand('dcp', stats_dcp, 'dcp')
     c.addCommand('dcpagg', stats_dcpagg, 'dcpagg')
     c.addCommand(
