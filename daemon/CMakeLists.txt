@@ -25,8 +25,6 @@ add_library(memcached_daemon STATIC
             cookie_trace_context.h
             datatype_filter.cc
             datatype_filter.h
-            debug_helpers.cc
-            debug_helpers.h
             enginemap.cc
             enginemap.h
             environment.cc

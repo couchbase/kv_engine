@@ -12,7 +12,6 @@
 #include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
-#include "debug_helpers.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "logger/logger.h"
@@ -22,6 +21,7 @@
 #include <auditd/couchbase_audit_events.h>
 #include <auditd/src/audit_descriptor_manager.h>
 #include <folly/Synchronized.h>
+#include <mcbp/protocol/header.h>
 #include <memcached/audit_interface.h>
 #include <nlohmann/json.hpp>
 #include <platform/scope_timer.h>
@@ -247,23 +247,12 @@ void audit_command_access_failed(Cookie& cookie) {
             connection,
             connection.getUser(),
             cookie.getEffectiveUser());
-    std::array<char, 256> buffer;
-    memset(buffer.data(), 0, buffer.size());
-    const auto packet = cookie.getPacket();
-    // Deliberately ignore failure of bytes_to_output_string
-    // We'll either have a partial string or no string.
-    bytes_to_output_string(buffer.data(),
-                           buffer.size(),
-                           connection.getId(),
-                           true,
-                           "Access to command is not allowed:",
-                           reinterpret_cast<const char*>(packet.data()),
-                           packet.size());
-    root["packet"] = buffer;
+    root["packet"] = cookie.getHeader().to_json(false);
     do_audit(&cookie,
              MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE,
              root,
-             buffer.data());
+             "Failed to send command access failed audit event to the audit "
+             "daemon");
 }
 
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {

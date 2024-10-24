@@ -14,7 +14,6 @@
 
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <daemon/debug_helpers.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <xattr/utils.h>
