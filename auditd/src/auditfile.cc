@@ -47,8 +47,10 @@ void AuditFile::iterate_old_files(
     for (const auto& p : directory_iterator(log_directory)) {
         try {
             const auto& path = p.path();
-            if (starts_with(path.filename().generic_string(), hostname) &&
-                ends_with(path.generic_string(), "-audit.log")) {
+            const auto filename = path.filename().string();
+            if (starts_with(filename, hostname) &&
+                (ends_with(filename, "-audit.log") ||
+                 ends_with(filename, "-audit.cef"))) {
                 callback(path);
             }
         } catch (const std::exception& e) {
