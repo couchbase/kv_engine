@@ -864,9 +864,12 @@ cb::mcbp::Status SubdocExecutionContext::operate_one_path(
 
     default:
         // TODO: handle remaining errors.
-        LOG_DEBUG("Unexpected response from subdoc: {} ({:x})",
-                  subdoc_res.description(),
-                  int(subdoc_res.code()));
+        LOG_WARNING_CTX(
+                "Unexpected response from subdoc",
+                {"conn_id", cookie.getConnectionId()},
+                {"ref", cookie.getEventId()},
+                {"description", subdoc_res.description()},
+                {"code", fmt::format("0x{:x}", int(subdoc_res.code()))});
         return cb::mcbp::Status::Einternal;
     }
 }
