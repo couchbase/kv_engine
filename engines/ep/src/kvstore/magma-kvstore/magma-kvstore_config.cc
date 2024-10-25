@@ -202,14 +202,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     std::filesystem::path dbName = config.getDbname();
 
-    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-    // Some tests may not have an engine, so we have a fallback.
-    std::string bucketName =
-            engine ? engine->getName() : dbName.filename().generic_string();
-
     continuousBackupPath = std::filesystem::weakly_canonical(
             dbName / config.getContinuousBackupPath() /
-            fmt::format("{}-{}", bucketName, config.getUuid()));
+            fmt::format("{}-{}", config.getCouchBucket(), config.getUuid()));
 
     magmaCfg.OnBackupCallback = [this](auto vbid, auto& snapshot) {
         if (!store) {

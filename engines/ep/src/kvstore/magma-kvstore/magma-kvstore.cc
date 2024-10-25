@@ -940,7 +940,7 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
             logger->logWithContext(
                     spdlog::level::warn,
                     "Failed to create continuous backup directory",
-                    {{"backup_path", backupPath.native()},
+                    {{"backup_path", backupPath.generic_string()},
                      {"error", ec.message()}});
         }
 
@@ -948,7 +948,7 @@ void MagmaKVStore::postVBStateFlush(Vbid vbid,
                                "Starting continuous backup",
                                {{"vb", vbid},
                                 {"vb_state", VBucket::toString(newState)},
-                                {"backup_path", backupPath.native()}});
+                                {"backup_path", backupPath.generic_string()}});
         auto status =
                 magma->StartBackup(vbid.get(), backupPath.generic_string());
         if (!status) {

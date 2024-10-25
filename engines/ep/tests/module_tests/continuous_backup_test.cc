@@ -30,6 +30,8 @@ public:
         config_string +=
                 "continuous_backup_enabled=true;"
                 "continuous_backup_interval=1000;"
+                // Ensure the path is within the unit test
+                "continuous_backup_path=@continuous_backup;"
                 "history_retention_seconds=2000";
 
         STParameterizedBucketTest::SetUp();
@@ -97,7 +99,8 @@ TEST_P(ContinousBackupTest, PathConfig) {
     auto& config = engine->getConfiguration();
     std::filesystem::path dbName =
             std::filesystem::canonical(config.getDbname());
-    auto bucketDirName = fmt::format("{}-123", engine->getName());
+    auto bucketDirName =
+            fmt::format("{}-123", engine->getConfiguration().getCouchBucket());
 
     {
         config.parseConfiguration("uuid=123;continuous_backup_path=path");
