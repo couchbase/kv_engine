@@ -198,11 +198,8 @@ void PagingVisitor::visitBucket(VBucket& vb) {
         return;
     }
 
-    // skip active vbuckets if active resident ratio is lower than replica
-    auto current = static_cast<double>(store.getPageableMemCurrent());
-    auto lower = static_cast<double>(store.getPageableMemLowWatermark());
-
-    if (current <= lower) {
+    if (stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat ||
+        store.getPageableMemCurrent() <= store.getPageableMemLowWatermark()) {
         // stop eviction whenever memory usage is below low watermark
         isBelowLowWaterMark = true;
         return;

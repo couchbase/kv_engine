@@ -1580,12 +1580,17 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
  */
 class STEphemeralAutoDeleteItemPagerTest : public STItemPagerTest {};
 
-// Test reproduced MB-59368. This was an issue where memory reached the
-// threshold to trigger the pager (which will delete data), but code in the
-// paging visitor was checking different values and stopped the pager. The pager
-// would then just keep getting triggered leading to noticeable CPU increase
-// and no memory reduction.
-TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
+// MB-59368 was an issue where memory reached the threshold to trigger the
+// pager (which will delete data), but code in the paging visitor was checking
+// different values and stopped the pager. The pager would then just keep
+// getting triggered leading to noticeable CPU increase and no memory reduction.
+// Unfortunately the calculation of pageable watermarks is flawed and items may
+// be deleted with plenty of spare memory (MB-64008). This test checks that we
+// don't delete under the simple LWM when pageable mem used is above the
+// pageable LWM.
+TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_64008) {
+    ASSERT_TRUE(itemPagerScheduled);
+
     // Need two vbuckets and one must be replica so that we account the replica
     // memory usage which will affect the result of getPageableMemCurrent
     const Vbid activeVbid = vbid;
@@ -1617,19 +1622,56 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
         storeItem(item);
     };
 
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    auto checkNotScheduling = [this, &lpNonioQ]() {
+        ASSERT_TRUE(itemPagerScheduled);
+        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+        try {
+            runNextTask(lpNonioQ, "Paging out items.");
+            FAIL() << "ItemPager did run";
+        } catch (const std::logic_error& ex) {
+            ASSERT_STREQ("CheckedExecutor failed fetchNextTask", ex.what());
+        }
+    };
+    auto checkNotDeleting = [this, &lpNonioQ]() {
+        ASSERT_TRUE(itemPagerScheduled);
+        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
+        // Item pager consists of two Tasks - the parent ItemPager task,
+        // and then a task (via VCVBAdapter) to process each vBucket (which
+        // there is just one of as we only have one vBucket online).
+        runNextTask(lpNonioQ, "Paging out items.");
+        ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+        ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize())
+                << "VBucket visitor scheduled";
+    };
+
     auto& stats = engine->getEpStats();
     int count = 0;
     do {
-        // Write the active last as the path it executes will do the memory
-        // check that schedules the pager.
         setReplica(replicaVbid, count);
         setActive(activeVbid, count);
         ++count;
-    } while (store->getPageableMemCurrent() <
+    } while (store->getPageableMemCurrent() <=
              store->getPageableMemHighWatermark());
+    // This is the condition which produced the issue in MB-59368,
+    // but we actually don't want to delete under LWM as in MB-64008.
+    ASSERT_LE(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
+    checkNotScheduling();
+    store->wakeItemPager();
+    checkNotDeleting();
 
-    // This is the condition which produced the issue.
-    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat);
+    do {
+        setReplica(replicaVbid, count);
+        setActive(activeVbid, count);
+        ++count;
+    } while (stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat ||
+             store->getPageableMemCurrent() <=
+                     store->getPageableMemHighWatermark());
+    checkNotScheduling();
+    store->wakeItemPager();
+    checkNotDeleting();
 
     auto& vb = *store->getVBucket(activeVbid);
     bool softDeleteCalled{false};
@@ -1638,6 +1680,13 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
                 softDeleteCalled = true;
             }});
 
+    do {
+        // Write the active last as the path it executes will do the memory
+        // check that schedules the pager.
+        setReplica(replicaVbid, count);
+        setActive(activeVbid, count);
+        ++count;
+    } while (stats.getEstimatedTotalMemoryUsed() <= stats.mem_high_wat);
     // Run the pager and check that items got deleted.
     runHighMemoryPager();
     EXPECT_TRUE(softDeleteCalled) << "Nothing was deleted";
