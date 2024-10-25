@@ -99,11 +99,11 @@ bool ItemPager::run() {
     notified.store(false);
 
     KVBucket* kvBucket = engine.getKVBucket();
+    auto currentTotal = stats.getEstimatedTotalMemoryUsed();
     auto current = engine.getKVBucket()->getPageableMemCurrent();
-    auto upper = engine.getKVBucket()->getPageableMemHighWatermark();
     auto lower = engine.getKVBucket()->getPageableMemLowWatermark();
 
-    if (current <= lower) {
+    if (current <= lower || currentTotal <= stats.mem_low_wat) {
         // doEvict may have been set to ensure eviction would continue until the
         // low watermark was reached - it now has, so clear the flag.
         doEvict = false;
@@ -112,7 +112,7 @@ bool ItemPager::run() {
         return true;
     }
 
-    if ((current > upper) || doEvict || wasNotified) {
+    if (wasNotified || doEvict || currentTotal > stats.mem_high_wat) {
         if (!pagerSemaphore->try_acquire(numConcurrentPagers)) {
             // could not acquire the required number of tokens, so there's
             // still a paging visitor running. Don't create more.
