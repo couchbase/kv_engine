@@ -138,3 +138,19 @@ protected:
     void getStats(cb::engine_errc& command_error,
                   const AddStatFn& add_stat_callback) override;
 };
+
+class StatsTaskEncryptionKeyIds : public StatsTaskBucketStats {
+public:
+    StatsTaskEncryptionKeyIds(TaskId taskId,
+                              Cookie& cookie,
+                              std::string key,
+                              std::string value)
+        : StatsTaskBucketStats(
+                  taskId, cookie, std::move(key), std::move(value)) {
+    }
+    std::string getDescription() const override;
+
+protected:
+    void getStats(cb::engine_errc& command_error,
+                  const AddStatFn& add_stat_callback) override;
+};

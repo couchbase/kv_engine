@@ -464,11 +464,12 @@ static cb::engine_errc stat_encryption_key_ids_executor(const std::string&,
                                                         Cookie& cookie) {
     auto key = cookie.getRequest().getKeyString();
     auto value = cookie.getRequest().getValueString();
-    std::shared_ptr<StatsTask> task = std::make_shared<StatsTaskBucketStats>(
-            TaskId::Core_StatsBucketAuxIoTask,
-            cookie,
-            std::string(key),
-            std::string(value));
+    std::shared_ptr<StatsTask> task =
+            std::make_shared<StatsTaskEncryptionKeyIds>(
+                    TaskId::Core_StatsBucketAuxIoTask,
+                    cookie,
+                    std::string(key),
+                    std::string(value));
     cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;

@@ -9,6 +9,8 @@
  */
 
 #include "stats_tasks.h"
+
+#include "concurrency_semaphores.h"
 #include "connection.h"
 #include "cookie.h"
 #include "daemon/protocol/mcbp/engine_wrapper.h"
@@ -222,4 +224,20 @@ std::string StatsTaskClientConnectionDetails::getDescription() const {
 std::chrono::microseconds
 StatsTaskClientConnectionDetails::maxExpectedDuration() const {
     return std::chrono::seconds(1);
+}
+
+std::string StatsTaskEncryptionKeyIds::getDescription() const {
+    return "stats encryption-key-ids";
+}
+
+void StatsTaskEncryptionKeyIds::getStats(cb::engine_errc& command_error,
+                                         const AddStatFn& add_stat_callback) {
+    auto& semaphore =
+            ConcurrencySemaphores::instance().set_active_encryption_keys;
+    if (semaphore.try_acquire()) {
+        cb::SemaphoreGuard<> semaphoreGuard(&semaphore, cb::adopt_token_t{});
+        StatsTaskBucketStats::getStats(command_error, add_stat_callback);
+    } else {
+        command_error = cb::engine_errc::temporary_failure;
+    }
 }
