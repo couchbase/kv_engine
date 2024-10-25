@@ -957,6 +957,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         throw std::logic_error(msg);
     }
 
+    uint64_t purgeSeqno = 0;
     if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk)) {
         // A replica could receive a duplicate DCP prepare during a disk
         // snapshot if it had previously received an uncompleted prepare.
@@ -969,6 +970,25 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         // allow any currently outstanding prepares to be overwritten, but
         // not any new ones.
         vb->setDuplicatePrepareWindow();
+
+        // Only set the purgeSeqno if the snapshot is a disk snapshot
+        purgeSeqno = marker->getPurgeSeqno().value_or(0);
+
+        // Purge can be below the snapshot range, but never ahead.
+        if (purgeSeqno > marker->getEndSeqno()) {
+            const auto msg = fmt::format(
+                    "PassiveStream::processMarker: stream:{} {}, flags:{}, "
+                    "snapStart:{}, snapEnd:{}, HCS:{}, purgeSeqno:{} - "
+                    "invalid purgeSeqno",
+                    name_,
+                    vb_,
+                    marker->getFlags(),
+                    marker->getStartSeqno(),
+                    marker->getEndSeqno(),
+                    to_string_or_none(hcs),
+                    purgeSeqno);
+            throw std::logic_error(msg);
+        }
     }
 
     // We could be connected to a non sync-repl, so if the max-visible is
@@ -995,7 +1015,6 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         // Note that replica may never execute here as the active may switch
         // directly to in-memory and send the first snapshot in a Memory
         // snapshot.
-
         vb->setReceivingInitialDiskSnapshot(true);
         ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                cur_snapshot_end.load(),
@@ -1003,11 +1022,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                checkpointType,
                                visibleSeq,
                                historical,
-                               // set the purgeSeqno onto the snapshot for
-                               // initial disk only.
-                               // @todo: run scenario with cursor drop and extra
-                               // disk snapshot
-                               marker->getPurgeSeqno().value_or(0));
+                               purgeSeqno);
     } else {
         // Case: receiving any type of snapshot (Disk/Memory).
 
@@ -1017,7 +1032,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                    hcs,
                                    checkpointType,
                                    visibleSeq,
-                                   historical);
+                                   historical,
+                                   purgeSeqno);
         } else {
             // MB-42780: In general we cannot merge multiple snapshots into
             // the same checkpoint. The only exception is for when replica
@@ -1038,7 +1054,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                        hcs,
                                        checkpointType,
                                        visibleSeq,
-                                       historical);
+                                       historical,
+                                       purgeSeqno);
             }
         }
     }

@@ -3236,6 +3236,14 @@ void SingleThreadedPassiveStreamTest::mutation(uint32_t opaque,
                       opaque, key, {}, 0, 1, vbid, 0, bySeqno, 0, 0, 0, {}, 0));
 }
 
+void SingleThreadedPassiveStreamTest::deletion(uint32_t opaque,
+                                               const DocKeyView& key,
+                                               Vbid vbid,
+                                               uint64_t bySeqno) {
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->deletionV2(opaque, key, {}, 0, 1, vbid, bySeqno, 0, 0));
+}
+
 // Test covers functionality of MB_63977, a disk snapshot which is received
 // with a purge-seqno ensures that the disk snapshot is given that purge-seqno.
 // The test writes a "sparse" snapshot in two flushes and checks that the purge
@@ -3282,6 +3290,92 @@ TEST_P(SingleThreadedPassiveStreamTest, purgeSeqnoReplicated) {
 
 TEST_P(SingleThreadedPassiveStreamTest, purgeSeqnoReplicatedFlushTwice) {
     purgeSeqnoReplicated(true);
+}
+
+// Test some cases where we drop a cursor (disk snapshot arrives)
+// The active/replica purge independenly of each other, the replica cannot just
+// accept an incoming purge-seqno without some checks.
+TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          10,
+                          DcpSnapshotMarkerFlag::Disk,
+                          0 /*HCS*/,
+                          10, /*MVS*/
+                          0, /* purge */
+                          cb::mcbp::DcpStreamId{});
+    stream->processMarker(&marker);
+    // We could imagine that key1@seq1 is deleted at seq2
+    deletion(1, makeStoredDocKey("key1"), vbid, 2);
+    deletion(1, makeStoredDocKey("key2"), vbid, 9);
+    deletion(1, makeStoredDocKey("key3"), vbid, 10);
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    EXPECT_EQ(0, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(0, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+
+    // Replica runs tombstone purge, cannot purge high-seqno. But seq2,9 gone
+    purgeTombstonesBefore(10);
+    EXPECT_EQ(9, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(9, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+
+    // Next interesting case is a drop cursor, a second disk checkpoint.
+    // The active has indpendently purged, but the timing meant the active
+    // drops 2 but retains 9 and 10, i.e. the incoming purge-seqno is 2, which
+    // is lower than the replica purge - it must have no effect on the replica
+    SnapshotMarker marker2(0 /*opaque*/,
+                           vbid,
+                           10 /*snapStart*/,
+                           11,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           11, /*MVS*/
+                           2, /* purge */
+                           cb::mcbp::DcpStreamId{});
+    stream->processMarker(&marker2);
+    mutation(1, makeStoredDocKey("key4"), vbid, 11);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // local purge is still 9.
+    EXPECT_EQ(9, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(9, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+
+    // Next case is another disk snapshot, this time the active has purged.
+    // It has actually purged ahead of the replica, but the replica still stores
+    // the purged tombstone (seq:10). Because the purge-seqno is outside of the
+    // range, we ignore it.
+    SnapshotMarker marker3(0 /*opaque*/,
+                           vbid,
+                           12 /*snapStart*/,
+                           13,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           13, /*MVS*/
+                           10, /* purge */
+                           cb::mcbp::DcpStreamId{});
+    stream->processMarker(&marker3);
+    mutation(1, makeStoredDocKey("key4"), vbid, 13);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // local purge is still 9.
+    EXPECT_EQ(9, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(9, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
+
+    // Next case, new disk snapshot which has purge seqno within it. We must
+    // use that purge seqno to avoid inconsitency problems with clients.
+    SnapshotMarker marker4(0 /*opaque*/,
+                           vbid,
+                           14 /*snapStart*/,
+                           20,
+                           DcpSnapshotMarkerFlag::Disk,
+                           0 /*HCS*/,
+                           20, /*MVS*/
+                           15, /* purge */
+                           cb::mcbp::DcpStreamId{});
+    stream->processMarker(&marker4);
+    mutation(1, makeStoredDocKey("key4"), vbid, 20);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    // local purge is now 15
+    EXPECT_EQ(15, store->getVBucket(vbid)->getPurgeSeqno());
+    EXPECT_EQ(15, store->getRWUnderlying(vbid)->getPurgeSeqno(vbid));
 }
 
 /**

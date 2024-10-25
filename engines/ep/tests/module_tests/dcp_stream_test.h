@@ -204,6 +204,12 @@ protected:
                   Vbid vbid,
                   uint64_t bySeqno);
 
+    // helper for pushing a deletion to the consumer.
+    void deletion(uint32_t opaque,
+                  const DocKeyView& key,
+                  Vbid vbid,
+                  uint64_t bySeqno);
+
 protected:
     // Should the DcpConsumer have SyncReplication enabled when created in
     // SetUp()?
