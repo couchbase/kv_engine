@@ -301,8 +301,8 @@ public:
      */
     void pendingTasks() override;
 
-    std::pair<cb::engine_errc, nlohmann::json> getVbucketEncryptionKeyIds(
-            Vbid vb) const override;
+    std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    getEncryptionKeyIds() const override;
 
     /// Create a snapshot in the provided directory for the provided vbucket
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(

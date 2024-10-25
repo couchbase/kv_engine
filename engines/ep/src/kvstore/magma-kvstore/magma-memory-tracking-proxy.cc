@@ -657,12 +657,12 @@ void MagmaMemoryTrackingProxy::setActiveEncryptionKeys(
     }
 }
 
-nlohmann::json MagmaMemoryTrackingProxy::getVbucketEncryptionKeyIds() const {
-    // this is a const method in magma so it'll only allocate memory in this
-    // domain (and not cause any allocation / free in magmas domain) so we
-    // can just return the allocated memory as it'll be freed in the same
-    // domain
-    return magma->GetActiveEncryptionKeyIDs();
+std::unordered_set<std::string> MagmaMemoryTrackingProxy::getEncryptionKeyIds()
+        const {
+    auto keys = magma->GetActiveEncryptionKeyIDs();
+    std::unordered_set<std::string> ret;
+    ret.insert(keys.begin(), keys.end());
+    return ret;
 }
 
 std::tuple<magma::Status, nlohmann::json>

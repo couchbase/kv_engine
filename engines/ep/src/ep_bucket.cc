@@ -1687,6 +1687,22 @@ DBFileInfo EPBucket::getAggregatedFileInfo() {
     return totalInfo;
 }
 
+std::pair<cb::engine_errc, std::unordered_set<std::string>>
+EPBucket::getEncryptionKeyIds() {
+    const auto numShards = vbMap.getNumShards();
+    std::unordered_set<std::string> keys;
+    for (uint16_t shardId = 0; shardId < numShards; shardId++) {
+        auto underlying = getRWUnderlyingByShard(shardId);
+        auto [status, inuse] = underlying->getEncryptionKeyIds();
+        if (status != cb::engine_errc::success) {
+            return {status, {}};
+        }
+        keys.insert(inuse.begin(), inuse.end());
+    }
+
+    return {cb::engine_errc::success, std::move(keys)};
+}
+
 uint64_t EPBucket::getTotalDiskSize() {
     using namespace cb::stats;
     return getAggregatedFileInfo().fileSize;

@@ -3836,54 +3836,16 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
 
 cb::engine_errc EventuallyPersistentEngine::doEncryptionKeyIdsStats(
         CookieIface& cookie, const AddStatFn& add_stat) {
-    class StatEncryptionKeyIdsVisitor : public VBucketVisitor {
-    public:
-        StatEncryptionKeyIdsVisitor(CookieIface& c, KVBucket& bucket)
-            : cookie(c), bucket(bucket), json(nlohmann::json::object()) {
+    auto [status, keys] = kvBucket->getEncryptionKeyIds();
+    if (status == cb::engine_errc::success) {
+        auto active = encryptionKeyProvider.lookup({});
+        if (active) {
+            std::string key(active->getId());
+            keys.insert(key);
         }
-
-        void visitBucket(VBucket& vb) override {
-            auto underlying = bucket.getROUnderlying(vb.getId());
-            if (underlying) {
-                std::shared_lock rlh(vb.getStateLock());
-                const auto state = vb.getState();
-                if (state == vbucket_state_active ||
-                    state == vbucket_state_replica) {
-                    auto [ec, val] =
-                            underlying->getVbucketEncryptionKeyIds(vb.getId());
-                    if (ec == cb::engine_errc::success && !val.empty()) {
-                        if (val.is_string()) {
-                            addKey(vb.getId(), val.get<std::string>());
-                        } else if (val.is_array()) {
-                            for (auto& e : val) {
-                                addKey(vb.getId(), e.get<std::string>());
-                            }
-                        } else {
-                            throw std::logic_error(
-                                    "StatEncryptionKeyIdsVisitor::visitVbucket:"
-                                    " Unexpected JSON element type");
-                        }
-                    }
-                }
-            }
-        }
-
-        void addKey(Vbid vb, const std::string_view key) {
-            if (!json.contains(key)) {
-                json[key] = nlohmann::json::array();
-            }
-            json[key].emplace_back(vb.get());
-        }
-
-        CookieIface& cookie;
-        KVBucket& bucket;
-        nlohmann::json json;
-    };
-
-    StatEncryptionKeyIdsVisitor visitor(cookie, *kvBucket);
-    kvBucket->visit(visitor);
-    add_stat("encryption-key-ids", visitor.json.dump(), cookie);
-    return cb::engine_errc::success;
+        add_stat("encryption-key-ids", nlohmann::json(keys).dump(), cookie);
+    }
+    return status;
 }
 
 cb::engine_errc EventuallyPersistentEngine::doHashStats(

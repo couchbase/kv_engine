@@ -427,6 +427,9 @@ public:
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;
 
+    std::pair<cb::engine_errc, std::unordered_set<std::string>>
+    getEncryptionKeyIds() override;
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

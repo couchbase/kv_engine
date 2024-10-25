@@ -1135,9 +1135,9 @@ void MagmaKVStore::setMaxDataSize(size_t size) {
     magma->SetMemoryQuota(memoryQuota);
 }
 
-std::pair<cb::engine_errc, nlohmann::json>
-MagmaKVStore::getVbucketEncryptionKeyIds(Vbid) const {
-    return {cb::engine_errc::success, magma->getVbucketEncryptionKeyIds()};
+std::pair<cb::engine_errc, std::unordered_set<std::string>>
+MagmaKVStore::getEncryptionKeyIds() const {
+    return {cb::engine_errc::success, magma->getEncryptionKeyIds()};
 }
 
 // Note: This routine is only called during warmup. The caller

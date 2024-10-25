@@ -2079,8 +2079,8 @@ StorageProperties CouchKVStore::getStorageProperties() const {
     return rv;
 }
 
-std::pair<cb::engine_errc, nlohmann::json>
-CouchKVStore::getVbucketEncryptionKeyIds(Vbid vb) const {
+std::pair<cb::engine_errc, std::unordered_set<std::string>>
+CouchKVStore::getEncryptionKeyIds() const {
     return {cb::engine_errc::success, vbucketEncryptionKeysManager.getKeys()};
 }
 

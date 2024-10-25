@@ -22,6 +22,8 @@
 
 #include "libmagma/magma.h"
 
+#include <unordered_set>
+
 namespace cb::crypto {
 class KeyStore;
 }
@@ -262,7 +264,7 @@ public:
 
     void setActiveEncryptionKeys(const cb::crypto::KeyStore& keyStore);
 
-    nlohmann::json getVbucketEncryptionKeyIds() const;
+    std::unordered_set<std::string> getEncryptionKeyIds() const;
 
     std::tuple<magma::Status, nlohmann::json> GetFusionSyncInfo(
             const magma::Magma::KVStoreID kvID);
