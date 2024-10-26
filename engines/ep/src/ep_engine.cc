@@ -1809,7 +1809,8 @@ EventuallyPersistentEngine::get_collection_id(CookieIface& cookie,
         }
     }
 
-    if (rv.result == cb::engine_errc::unknown_collection) {
+    if (rv.result == cb::engine_errc::unknown_collection ||
+        rv.result == cb::engine_errc::unknown_scope) {
         engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
     return rv;
