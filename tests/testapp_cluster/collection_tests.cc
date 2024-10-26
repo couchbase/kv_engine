@@ -455,3 +455,26 @@ TEST_F(CollectionsTests, getId_MB_44807_using_keylen) {
     EXPECT_EQ(CollectionEntry::defaultC.getId(),
               uint32_t{payload2.getScopeId()});
 }
+
+TEST_F(CollectionsTests, getId_MB_64026) {
+    auto conn = getConnection();
+    try {
+        conn->getScopeId("_default");
+        conn->getCollectionId("_default.mb64026");
+        FAIL() << "Expected getCollectionId to fail";
+    } catch (const ConnectionError& err) {
+        EXPECT_EQ(cb::mcbp::Status::UnknownCollection, err.getReason());
+        auto ctx = err.getErrorJsonContext();
+        EXPECT_TRUE(ctx.contains("manifest_uid")) << ctx.dump();
+    }
+
+    // Now try an unknown scope
+    try {
+        conn->getCollectionId("mb64026.mb64026");
+        FAIL() << "Expected getCollectionId to fail";
+    } catch (const ConnectionError& err) {
+        EXPECT_EQ(cb::mcbp::Status::UnknownScope, err.getReason());
+        auto ctx = err.getErrorJsonContext();
+        EXPECT_TRUE(ctx.contains("manifest_uid")) << ctx.dump();
+    }
+}
