@@ -1589,11 +1589,11 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDefault) {
     ASSERT_EQ(2, this->pool->getNumWriters());
     ASSERT_EQ(2, this->pool->getNumReaders());
 
-    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount::Default);
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount::DiskIOBounded);
     EXPECT_EQ(4, this->pool->getNumWriters())
             << "num_writers should be 4 with ThreadCount::Default";
 
-    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount::Default);
+    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount::DiskIOBounded);
     EXPECT_EQ(16, this->pool->getNumReaders())
             << "num_writers should be capped at 16 with ThreadCount::Default";
 }
@@ -1645,19 +1645,19 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, setNumReadersExactly) {
 }
 
 std::vector<ThreadCountsParams> threadCountValues = {
-        {ThreadPoolConfig::ThreadCount::Default, 1, 4, 4, 2, 2},
-        {ThreadPoolConfig::ThreadCount::Default, 2, 4, 4, 4, 2},
-        {ThreadPoolConfig::ThreadCount::Default, 4, 4, 4, 8, 2},
-        {ThreadPoolConfig::ThreadCount::Default, 8, 8, 4, 16, 2},
-        {ThreadPoolConfig::ThreadCount::Default, 10, 10, 4, 20, 3},
-        {ThreadPoolConfig::ThreadCount::Default, 14, 14, 4, 28, 4},
-        {ThreadPoolConfig::ThreadCount::Default, 20, 16, 4, 40, 6},
-        {ThreadPoolConfig::ThreadCount::Default, 24, 16, 4, 48, 7},
-        {ThreadPoolConfig::ThreadCount::Default, 32, 16, 4, 64, 8},
-        {ThreadPoolConfig::ThreadCount::Default, 48, 16, 4, 96, 8},
-        {ThreadPoolConfig::ThreadCount::Default, 64, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::Default, 128, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::Default, 256, 16, 4, 128, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 1, 4, 4, 2, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 2, 4, 4, 4, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 4, 4, 4, 8, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 8, 8, 4, 16, 2},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 10, 10, 4, 20, 3},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 14, 14, 4, 28, 4},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 20, 16, 4, 40, 6},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 24, 16, 4, 48, 7},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 32, 16, 4, 64, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 48, 16, 4, 96, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 64, 16, 4, 128, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 128, 16, 4, 128, 8},
+        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 256, 16, 4, 128, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 1, 4, 4, 2, 2},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 2, 4, 4, 4, 2},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 4, 8, 8, 8, 2},
@@ -1670,7 +1670,12 @@ std::vector<ThreadCountsParams> threadCountValues = {
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 48, 96, 96, 96, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 64, 128, 128, 128, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 128, 128, 128, 128, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 256, 128, 128, 128, 8}};
+        {ThreadPoolConfig::ThreadCount::DiskIOOptimized,
+         256,
+         128,
+         128,
+         128,
+         8}};
 
 INSTANTIATE_TEST_SUITE_P(ThreadCountTest,
                          ExecutorPoolTestWithParam,

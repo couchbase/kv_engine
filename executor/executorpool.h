@@ -43,9 +43,9 @@ public:
     static void create(Backend backend = Backend::Default,
                        size_t maxThreads = 0,
                        ThreadPoolConfig::ThreadCount maxReaders =
-                               ThreadPoolConfig::ThreadCount::Default,
+                               ThreadPoolConfig::ThreadCount::DiskIOBounded,
                        ThreadPoolConfig::ThreadCount maxWriters =
-                               ThreadPoolConfig::ThreadCount::Default,
+                               ThreadPoolConfig::ThreadCount::DiskIOBounded,
                        ThreadPoolConfig::AuxIoThreadCount maxAuxIO =
                                ThreadPoolConfig::AuxIoThreadCount::Default,
                        ThreadPoolConfig::NonIoThreadCount maxNonIO =
