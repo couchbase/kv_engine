@@ -39,7 +39,7 @@ Settings& Settings::instance() {
 
 std::string storageThreadConfig2String(int val) {
     if (val == 0) {
-        return "disk_io_bounded";
+        return "default";
     }
 
     return std::to_string(val);
@@ -55,7 +55,7 @@ std::string threadConfig2String(int val) {
 
 static int parseStorageThreadConfigSpec(const std::string& variable,
                                         const std::string& spec) {
-    if (spec == "disk_io_bounded") {
+    if (spec == "default") {
         return 0;
     }
 
@@ -63,7 +63,7 @@ static int parseStorageThreadConfigSpec(const std::string& variable,
     if (!safe_strtoull(spec, val)) {
         throw std::invalid_argument(
                 variable +
-                R"( must be specified as a numeric value or "disk_io_bounded")");
+                R"( must be specified as a numeric value or "default")");
     }
     return val;
 }

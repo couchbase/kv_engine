@@ -34,8 +34,8 @@ public:
         // Restart the one started in main
         ExecutorPool::create(ExecutorPool::Backend::Folly,
                              0,
-                             ThreadPoolConfig::ThreadCount::DiskIOBounded,
-                             ThreadPoolConfig::ThreadCount::DiskIOBounded,
+                             ThreadPoolConfig::ThreadCount::Default,
+                             ThreadPoolConfig::ThreadCount::Default,
                              ThreadPoolConfig::AuxIoThreadCount::Default,
                              ThreadPoolConfig::NonIoThreadCount::Default,
                              ThreadPoolConfig::IOThreadsPerCore::Default);

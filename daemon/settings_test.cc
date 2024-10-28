@@ -1231,17 +1231,11 @@ TEST_F(SettingsTest, TestSettingNumThreads) {
         size_t numberOfJsonErrors = 0;
         for (const auto& key : threadKeys) {
             if (value.index() == 0) {
-                if (std::get<std::string>(value) == "default") {
-                    // "threads" doesn't take string values so if we're setting
-                    // to "default" just set it to 0.
-                    if (key == "threads") {
-                        config[key] = uint8_t{0};
-                    } else if (key == "num_reader_threads" ||
-                               key == "num_writer_threads") {
-                        // MB-63835: num_read_threads and num_writer_threads now
-                        // defaults to "disk_io_bounded" instead of "default"
-                        config[key] = "disk_io_bounded";
-                    }
+                // "threads" doesn't take string values so if we're setting to
+                // "default" just set it to 0.
+                if (key == "threads" &&
+                    std::get<std::string>(value) == "default") {
+                    config[key] = uint8_t{0};
                 } else {
                     config[key] = std::get<std::string>(value);
                 }
