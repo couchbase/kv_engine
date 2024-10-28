@@ -53,34 +53,23 @@ std::string threadConfig2String(int val) {
     return storageThreadConfig2String(val);
 }
 
-static int parseStorageThreadConfigSpec(const std::string& variable,
-                                        const std::string& spec) {
-    if (spec == "default") {
-        return 0;
-    }
-
-    uint64_t val;
-    if (!safe_strtoull(spec, val)) {
-        throw std::invalid_argument(
-                variable +
-                R"( must be specified as a numeric value or "default")");
-    }
-    return val;
-}
-
 static int parseThreadConfigSpec(const std::string& variable,
                                  const std::string& spec) {
     if (spec == "disk_io_optimized") {
         return -1;
     }
-
-    try {
-        return parseStorageThreadConfigSpec(variable, spec);
-    } catch (std::invalid_argument& e) {
-        std::string message{e.what()};
-        message.append(R"( or "disk_io_optimized")");
-        throw std::invalid_argument(message);
+    if (spec == "default" || spec == "disk_io_bounded") {
+        // disk_io_bounded is the new name for the default value. We continue to
+        // support default for backwards compatibility.
+        return 0;
     }
+    uint64_t val;
+    if (!safe_strtoull(spec, val)) {
+        throw std::invalid_argument(
+                variable +
+                R"( must be specified as a numeric value, "disk_io_bounded" or "disk_io_optimized")");
+    }
+    return val;
 }
 
 void Settings::setMaxConcurrentAuthentications(size_t val) {
@@ -244,9 +233,15 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "num_storage_threads"sv) {
             if (value.is_number_unsigned()) {
                 setNumStorageThreads(value.get<size_t>());
+            } else if (value.is_string() &&
+                       value.get<std::string>() == "default") {
+                setNumStorageThreads(static_cast<int>(
+                        ThreadPoolConfig::StorageThreadCount::Default));
             } else {
-                setNumStorageThreads(parseStorageThreadConfigSpec(
-                        "num_storage_threads", value.get<std::string>()));
+                throw std::invalid_argument(fmt::format(
+                        "Value to set number of storage threads must be an "
+                        "unsigned integer or \"default\"! Value:'{}'",
+                        value.dump()));
             }
         } else if (key == "num_auxio_threads"sv) {
             if (value.is_number_unsigned()) {

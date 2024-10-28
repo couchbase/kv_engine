@@ -32,8 +32,8 @@ class SingleThreadedExecutorPool : public CB3ExecutorPool {
 public:
     explicit SingleThreadedExecutorPool()
         : CB3ExecutorPool(/*threads*/ 0,
-                          ThreadPoolConfig::ThreadCount::Default,
-                          ThreadPoolConfig::ThreadCount::Default,
+                          ThreadPoolConfig::ThreadCount::DiskIOBounded,
+                          ThreadPoolConfig::ThreadCount::DiskIOBounded,
                           ThreadPoolConfig::AuxIoThreadCount::Default,
                           ThreadPoolConfig::NonIoThreadCount::Default,
                           ThreadPoolConfig::IOThreadsPerCore::Default) {

@@ -483,6 +483,7 @@ static std::string get_errmaps_dir() {
     return cb::io::sanitizePath(SOURCE_ROOT "/etc/couchbase/kv/error_maps");
 }
 
+// If any of these configs are changed, check if it is supported by ns_server
 nlohmann::json TestappTest::generate_config() {
     nlohmann::json ret = {
             {"max_connections", Testapp::MAX_CONNECTIONS},
@@ -506,8 +507,8 @@ nlohmann::json TestappTest::generate_config() {
             {"threads", 2},
             {"num_auxio_threads", "default"},
             {"num_nonio_threads", "default"},
-            {"num_reader_threads", "default"},
-            {"num_writer_threads", "default"},
+            {"num_reader_threads", "disk_io_bounded"},
+            {"num_writer_threads", "disk_io_bounded"},
             {"opcode_attributes_override",
              {{"version", 1},
               {"EWB_CTL", {{"slow", 50}}},
