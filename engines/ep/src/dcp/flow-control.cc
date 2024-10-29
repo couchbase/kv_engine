@@ -57,7 +57,7 @@ cb::engine_errc FlowControl::handleFlowCtl(
 
             NonBucketAllocationGuard guard;
             return producers.control(consumerConn.incrOpaqueCounter(),
-                                     consumerConn.getControlMsgKey(),
+                                     DcpControlKeys::ConnBufferSize,
                                      std::to_string(bufferSize));
         }
     }

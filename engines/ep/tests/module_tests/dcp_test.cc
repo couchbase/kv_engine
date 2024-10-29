@@ -816,6 +816,8 @@ protected:
                 vbid, state, {}, TransferVB::Yes);
     }
 
+    void testConsumerDcpControlSyncRepl(const std::string& name);
+
     /* vbucket associated with this connection */
     Vbid vbid;
 };
@@ -1456,159 +1458,42 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(ConnectionTest, ConsumerWithoutConsumerNameDoesNotEnableSyncRepl) {
+void ConnectionTest::testConsumerDcpControlSyncRepl(const std::string& name) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp consumer
     auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(*cookie, "consumer"));
+            *connMap.newConsumer(*cookie, "consumer", name));
     consumer.setPendingAddStream(false);
     EXPECT_FALSE(consumer.isSyncReplicationEnabled());
-    EXPECT_EQ(DcpConsumer::BlockingDcpControlNegotiation::State::Completed,
-              consumer.public_getSyncReplNegotiation().state);
 
+    // Loop through ALL dcp.control commands, then check the sync-repl config
+    MockDcpMessageProducers producers;
+    do {
+        EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
+        handleProducerResponseIfStepBlocked(consumer, producers);
+    } while (!consumer.public_getPendingControls().lock()->empty());
+
+    if (name.empty()) {
+        // When there is no name, sync-replication does not enable.
+        EXPECT_FALSE(consumer.isSyncReplicationEnabled());
+        EXPECT_TRUE(producers.consumer_name.empty());
+    } else {
+        // When there is a name, expect that SyncReplication is enabled and the
+        // producer has the name
+        EXPECT_TRUE(consumer.isSyncReplicationEnabled());
+        EXPECT_EQ("replica1", producers.consumer_name);
+    }
     destroy_mock_cookie(cookie);
 }
 
 TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie(engine);
-    // Create a new Dcp consumer
-    auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(*cookie, "consumer", "replica1"));
-    consumer.setPendingAddStream(false);
-    EXPECT_FALSE(consumer.isSyncReplicationEnabled());
-    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
-    auto syncReplNeg = consumer.public_getSyncReplNegotiation();
-    EXPECT_EQ(State::PendingRequest, syncReplNeg.state);
-
-    // Move consumer into paused state (aka EWOULDBLOCK) by stepping through the
-    // DCP_CONTROL logic.
-    MockDcpMessageProducers producers;
-    cb::engine_errc result;
-    do {
-        result = consumer.step(false, producers);
-        handleProducerResponseIfStepBlocked(consumer, producers);
-        syncReplNeg = consumer.public_getSyncReplNegotiation();
-    } while (syncReplNeg.state != State::Completed);
-    EXPECT_EQ(cb::engine_errc::success, result);
-
-    // Last step - send the consumer name
-    ASSERT_TRUE(consumer.public_getPendingSendConsumerName());
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-
-    // SyncReplication negotiation is now completed, SyncReplication is enabled
-    // on this consumer, and we have sent the consumer name to the producer.
-    EXPECT_TRUE(consumer.isSyncReplicationEnabled());
-    EXPECT_FALSE(consumer.public_getPendingSendConsumerName());
-    EXPECT_EQ("replica1", producers.last_value);
-
-    destroy_mock_cookie(cookie);
+    testConsumerDcpControlSyncRepl("replica1");
 }
 
-/// Verify that a DcpConsumer correctly handles a matched version setup where
-/// the Producer side of the connection supports a floating-point seconds value
-/// for DcpControl("set_noop_interval") (i.e. v7.6+). DcpConsumer should
-/// correctly setup a (potentially) sub-second value.
-TEST_P(ConnectionTest, MillisecondNoopIntervalAcceptedByProducer) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie(engine);
-    // Create a new Dcp consumer
-    auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(*cookie, "consumer", "replica1"));
-    consumer.setPendingAddStream(false);
-    using State = DcpConsumer::NoopIntervalNegotiation::State;
-    auto& noopRegState = consumer.public_getnoopIntervalNegotiation();
-    ASSERT_EQ(State::PendingMillisecondsRequest, noopRegState.state);
-
-    // Step Consumer to the point where it has sent a set_noop_interval request
-    // in floating-point seconds.
-    MockDcpMessageProducers producers;
-    while (true) {
-        EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-        if (noopRegState.state != State::PendingMillisecondsRequest) {
-            // Reached where we want to stop - point where Consumer has just
-            // sent the DcpControl message to producer; we want to specify
-            // a specific response.
-            break;
-        }
-        handleProducerResponseIfStepBlocked(consumer, producers);
-    }
-    EXPECT_EQ(State::PendingMillisecondsResponse, noopRegState.state);
-    // Have producer respond to consumer with success.
-    auto sendDcpControlResponse = [&producers](auto& consumer, auto status) {
-        cb::mcbp::Response resp{};
-        resp.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-        resp.setStatus(status);
-        resp.setOpaque(producers.last_opaque);
-        return consumer.handleResponse(resp);
-    };
-    EXPECT_TRUE(sendDcpControlResponse(consumer, cb::mcbp::Status::Success));
-
-    // Step consumer, should change state to complete.
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-    EXPECT_EQ(State::Completed, noopRegState.state);
-
-    destroy_mock_cookie(cookie);
-}
-
-/// Verify that a DcpConsumer correctly handles a mixed-mode setup where the
-/// Producer side of the connection doesn't support a floating-point seconds
-/// value for DcpControl("set_noop_interval") (i.e. <v7.6) and rejects it.
-/// DcpConsumer should handle this and try again specifying as seconds.
-TEST_P(ConnectionTest, MillisecondNoopIntervalRejectedByDownlevelProducer) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie(engine);
-    // Create a new Dcp consumer
-    auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(*cookie, "consumer", "replica1"));
-    consumer.setPendingAddStream(false);
-    using State = DcpConsumer::NoopIntervalNegotiation::State;
-    auto& noopRegState = consumer.public_getnoopIntervalNegotiation();
-    ASSERT_EQ(State::PendingMillisecondsRequest, noopRegState.state);
-
-    // Step Consumer to the point where it has sent a set_noop_interval request
-    // in floating-point seconds.
-    MockDcpMessageProducers producers;
-    while (true) {
-        EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-        if (noopRegState.state != State::PendingMillisecondsRequest) {
-            // Reached where we want to stop - point where Consumer has just
-            // sent the DcpControl message to producer; we want to specify
-            // a specific response.
-            break;
-        }
-        handleProducerResponseIfStepBlocked(consumer, producers);
-    }
-    EXPECT_EQ(State::PendingMillisecondsResponse, noopRegState.state);
-    // Have producer respond to consumer with invalid_arguments as per producer
-    // if a non-integer value is seen.
-    auto sendDcpControlResponse = [&producers](auto& consumer, auto status) {
-        cb::mcbp::Response resp{};
-        resp.setMagic(cb::mcbp::Magic::ClientResponse);
-        resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-        resp.setStatus(status);
-        resp.setOpaque(producers.last_opaque);
-        return consumer.handleResponse(resp);
-    };
-    // Consumer should handle the Einval, and fallback to sending integer.
-    EXPECT_TRUE(sendDcpControlResponse(consumer, cb::mcbp::Status::Einval));
-
-    // Step consumer, should change state to sending an integer seconds request.
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-    EXPECT_EQ("1", producers.last_value);
-    EXPECT_EQ(State::PendingSecondsResponse, noopRegState.state);
-
-    // Have producer respond to consumer with success this time.
-    EXPECT_TRUE(sendDcpControlResponse(consumer, cb::mcbp::Status::Success));
-    EXPECT_EQ(State::Completed, noopRegState.state);
-
-    destroy_mock_cookie(cookie);
+TEST_P(ConnectionTest, ConsumerWithoutConsumerNameDoesNotEnableSyncRepl) {
+    testConsumerDcpControlSyncRepl({});
 }
 
 class DcpConnMapTest : public ::testing::Test {

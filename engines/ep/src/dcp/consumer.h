@@ -43,41 +43,70 @@ class DcpConsumer : public ConnHandler,
 
 public:
     /**
-     * Some of the DCP Consumer/Producer negotiation happens over DcpControl and
-     * it is blocking (eg, SyncReplication). An instance of this struct is used
-     * to process a specific negotiation on the Consumer side.
+     * Each DCP control negotiation with the producer uses an instance of this
+     * object, allowing send of the control and process of the response.
+     * The response from the producer uses the success or failure callbacks to
+     * allow other state to change.
      */
+    struct BlockingDcpControlNegotiation;
+    using Controls = std::deque<BlockingDcpControlNegotiation>;
     struct BlockingDcpControlNegotiation {
-        enum class State : uint8_t {
-            PendingRequest,
-            PendingResponse,
-            Completed // Covers "nothing to negotiate" and "neg complete"
-        } state;
-        // Used to identify the specific response from Producer.
-        uint32_t opaque{0};
-    };
+        /**
+         * Construct with default success and failure callbacks that do nothing
+         */
+        BlockingDcpControlNegotiation(std::string_view key, std::string value)
+            : key(key),
+              value(std::move(value)),
+              success([]() {}),
+              failure([](Controls&) { return false; }) {
+        }
 
-    /**
-     * State of the noop interval negotiation. As of v7.6 we support sub-second
-     * DCP no-op intervals to facilitate ns_server performing faster failover,
-     * as only expecting a DCP NOOP every second (and needing multiple NACKs to
-     * consider unhealthy) significantly limits how quickly an unhealthy DCP
-     * stream can be detected. However, prior to 7.6 only integer second
-     * interval could be specified. Negotiation therefore initially tries
-     * a sub-second (fractional second) control message, if that is rejected
-     * (i.e. mixed-mode cluster where the producer is downlevel) then we retry
-     * with the previous integer second interval.
-     */
-    struct NoopIntervalNegotiation {
-        enum class State : uint8_t {
-            PendingMillisecondsRequest,
-            PendingMillisecondsResponse,
-            PendingSecondsRequest,
-            PendingSecondsResponse,
-            Completed
-        } state;
-        // Used to identify the specific response from Producer.
-        uint32_t opaque{0};
+        /**
+         * Construct with a success callback, the failure callback is intialised
+         * to do nothing
+         */
+        BlockingDcpControlNegotiation(std::string_view key,
+                                      std::string value,
+                                      std::function<void()> success)
+
+            : key(key),
+              value(std::move(value)),
+              success(std::move(success)),
+              failure([](Controls&) { return false; }) {
+        }
+
+        /**
+         * Construct with a success and failure callback
+         */
+        BlockingDcpControlNegotiation(std::string_view key,
+                                      std::string value,
+                                      std::function<void()> success,
+                                      std::function<bool(Controls&)> failure)
+            : key(key),
+              value(std::move(value)),
+              success(std::move(success)),
+              failure(std::move(failure)) {
+        }
+
+        // Used to identify the specific response from Producer. This is
+        // optional so we can determine when the opaque has been assigned and
+        // can ignore the response if it's from say the flow-control setup.
+        std::optional<uint32_t> opaque;
+
+        // The control key. e.g. "change_streams"
+        std::string key;
+
+        // The control value. e.g. "true"
+        std::string value;
+
+        // Callback for when the producer responds with success
+        std::function<void()> success;
+
+        // Callback for when the producer responds !success. This callback can
+        // then control if the consumer should disconnect by returning true.
+        // This callback takes a Controls (container) reference to which it can
+        // emplace_back new controls.
+        std::function<bool(Controls&)> failure;
     };
 
     /**
@@ -300,8 +329,6 @@ public:
 
     void setFlowControlBufSize(uint32_t newSize);
 
-    static const std::string& getControlMsgKey();
-
     bool isStreamPresent(Vbid vbucket);
 
     void cancelTask();
@@ -383,40 +410,18 @@ protected:
 
     cb::engine_errc handleNoop(DcpMessageProducersIface& producers);
 
-    cb::engine_errc handlePriority(DcpMessageProducersIface& producers);
-
-    cb::engine_errc supportCursorDropping(DcpMessageProducersIface& producers);
-
-    cb::engine_errc supportHifiMFU(DcpMessageProducersIface& producers);
-
-    cb::engine_errc sendStreamEndOnClientStreamClose(
-            DcpMessageProducersIface& producers);
-
-    cb::engine_errc enableExpiryOpcode(DcpMessageProducersIface& producers);
-
-    cb::engine_errc enableSynchronousReplication(
-            DcpMessageProducersIface& producers);
-
-    cb::engine_errc enableV7DcpStatus(DcpMessageProducersIface& producers);
-
-    cb::engine_errc enableFlatBuffersSystemEvents(
-            DcpMessageProducersIface& producers);
-
     /**
-     * Handles the negotiation of IncludeDeletedUserXattrs.
+     * When pendingControls is not empty ::step() must drive DCP control
+     * negotiations forwards. This function will look at the given control and
+     * "step forward" the control negoiations based on the objects state.
      *
-     * @param producers Pointers to message producers
+     * @param producers call control on this object if a message must be sent
+     * @param control the current control state object
+     * @return return value of producers.control or would_block
      */
-    cb::engine_errc handleDeletedUserXattrs(
-            DcpMessageProducersIface& producers);
-
-    /**
-     * Handles the negotiation of ChangeStreams.
-     *
-     * @param producers Pointers to message producers
-     * @return engine_errc
-     */
-    cb::engine_errc handleChangeStreams(DcpMessageProducersIface& producers);
+    cb::engine_errc stepControlNegotiation(
+            DcpMessageProducersIface& producers,
+            BlockingDcpControlNegotiation& control);
 
     void notifyVbucketReady(Vbid vbucket);
 
@@ -509,8 +514,6 @@ protected:
      */
     std::shared_ptr<PassiveStream> removeStream(Vbid vbid);
 
-
-
     /**
      * Helper method to lookup the correct stream for the given
      * vbid / opaque pair, and then dispatch the message to that stream.
@@ -533,6 +536,27 @@ protected:
      * @return
      */
     cb::engine_errc getOpaqueMissMatchErrorCode() const;
+
+    /**
+     * Adds to the given controls container the control to negotiate DCP noop
+     * using a seconds granularity (needed when the producer does not support
+     * fractional seconds).
+     */
+    void addNoopSecondsPendingControl(Controls& controls);
+
+    /**
+     * The container of DCP control negotiations. BlockingDcpControlNegotiation
+     * objects are added by construction and can even be added by the success or
+     * failure callbacks (added to back of the deque).
+     * The container is processed after the consumer is connected to the
+     * producer from front to back. The objects are removed once they are
+     * processed (response from producer).
+     *
+     * The container is protected by a mutex for safe access via stats. The main
+     * send/receieve code accessing the container should all be the same worker
+     * thread.
+     */
+    folly::Synchronized<Controls, std::mutex> pendingControls;
 
     uint64_t opaqueCounter;
     size_t processorTaskId;
@@ -571,30 +595,9 @@ protected:
     // Step can't start sending packets until we've received add stream
     bool pendingAddStream = true;
 
-    bool pendingEnableNoop;
-    NoopIntervalNegotiation noopIntervalNegotiation;
-    bool pendingSetPriority;
-    bool pendingSupportCursorDropping;
-    bool pendingSendStreamEndOnClientStreamClose;
-    bool pendingSupportHifiMFU;
-    bool pendingEnableExpiryOpcode;
-
-    // Maintains the state of the v7 Dcp Status codes negotiation
-    BlockingDcpControlNegotiation v7DcpStatusCodesNegotiation;
-
-    // Flag to state that the DCP consumer has negotiate the with the producer
+    // Flag to state that the DCP consumer has negotiated with the producer
     // that V7 DCP status codes can be used.
-    bool isV7DcpStatusEnabled = false;
-
-    // Maintains the state of the Sync Replication negotiation
-    BlockingDcpControlNegotiation syncReplNegotiation;
-
-    // Maintains the state of the system event negotiation
-    BlockingDcpControlNegotiation flatBuffersNegotiation;
-
-    // SyncReplication: Producer needs to know the Consumer name to identify
-    // the source of received SeqnoAck messages.
-    bool pendingSendConsumerName;
+    bool useDcpV7StatusCodes = false;
 
     // Sync Replication: The identifier the consumer should to identify itself
     // to the producer.
@@ -614,15 +617,7 @@ protected:
         Skip = 0, // Covers "do not send request" and "response ready"
         PendingRequest,
         PendingResponse
-    } getErrorMapState;
-
-    /**
-     * Handles the negotiation for IncludeDeletedUserXattrs.
-     * The final purpose is for the Consumer to know if the Producer supports
-     * IncludeDeletedUserXattrs, to enforce the proper validation on the payload
-     * for normal/sync DCP delete.
-     */
-    BlockingDcpControlNegotiation deletedUserXattrsNegotiation;
+    } getErrorMapState{GetErrorMapState::Skip};
 
     /* Indicates if the 'Processor' task is running */
     std::atomic<bool> processorTaskRunning;
@@ -636,28 +631,8 @@ protected:
      */
     std::atomic_bool allowSanitizeValueInDeletion;
 
-    /**
-     * Handles the negotiation for ChangeStreams.
-     * The final purpose is for the Consumer to know if the DCP connection
-     * enables history snapshots.
-     */
-    BlockingDcpControlNegotiation changeStreamsNegotiation;
-
     friend UpdateFlowControl;
-
-    static const std::string noopCtrlMsg;
-    static const std::string noopIntervalCtrlMsg;
-    static const std::string connBufferCtrlMsg;
-    static const std::string priorityCtrlMsg;
-    static const std::string cursorDroppingCtrlMsg;
-    static const std::string sendStreamEndOnClientStreamCloseCtrlMsg;
-    static const std::string hifiMFUCtrlMsg;
-    static const std::string enableOpcodeExpiryCtrlMsg;
 };
-
-std::ostream& operator<<(std::ostream& os,
-                         DcpConsumer::NoopIntervalNegotiation::State state);
-std::string format_as(DcpConsumer::NoopIntervalNegotiation::State state);
 
 /**
  * RAII helper class to update the flowControl object with the number of

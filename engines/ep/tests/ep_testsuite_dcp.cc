@@ -3067,6 +3067,9 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
                         "Unexpected last_op");
                 checkeq(controlKey, producers.last_key, "Unexpected key");
                 checkne(opaque, producers.last_opaque, "Unexpected opaque");
+                simulateProdRespToDcpControlBlockingNegotiation(
+                        engine, cookie, producers);
+
             };
 
     if (get_bool_stat(engine, "ep_dcp_consumer_flow_control_enabled")) {
@@ -3111,17 +3114,12 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
     dcpStepAndExpectControlMsg("send_stream_end_on_client_close_stream"s);
     dcpStepAndExpectControlMsg("enable_expiry_opcode"s);
     dcpStepAndExpectControlMsg("enable_sync_writes"s);
-    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg("consumer_name"s);
     dcpStepAndExpectControlMsg("include_deleted_user_xattrs"s);
-    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg("v7_dcp_status_codes"s);
-    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg(
             std::string{DcpControlKeys::FlatBuffersSystemEvents});
-    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
     dcpStepAndExpectControlMsg(std::string(DcpControlKeys::ChangeStreams));
-    simulateProdRespToDcpControlBlockingNegotiation(engine, cookie, producers);
 
     dcp_step(engine, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
@@ -3855,16 +3853,8 @@ static void drainDcpControl(EngineIface* engine,
                             MockDcpMessageProducers& producers) {
     do {
         dcp_step(engine, cookie, producers);
-        // The Sync Repl/include deleted user xattrs/v7 dcp status codes
-        // negotiation introduces a blocking step
-        if (producers.last_key == "enable_sync_writes" ||
-            producers.last_key == "include_deleted_user_xattrs" ||
-            producers.last_key == "v7_dcp_status_codes" ||
-            producers.last_key == DcpControlKeys::FlatBuffersSystemEvents ||
-            producers.last_key == DcpControlKeys::ChangeStreams) {
-            simulateProdRespToDcpControlBlockingNegotiation(
-                    engine, cookie, producers);
-        }
+        simulateProdRespToDcpControlBlockingNegotiation(
+                engine, cookie, producers);
     } while (producers.last_op == cb::mcbp::ClientOpcode::DcpControl);
 }
 

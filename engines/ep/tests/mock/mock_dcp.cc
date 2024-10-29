@@ -346,6 +346,11 @@ cb::engine_errc MockDcpMessageProducers::control(uint32_t opaque,
     last_key.assign(key.data(), key.size());
     last_value.assign(value.data(), value.size());
     last_packet_size = sizeof(cb::mcbp::Request) + key.size() + value.size();
+
+    if (last_key == DcpControlKeys::ConsumerName) {
+        consumer_name = last_value;
+    }
+
     return cb::engine_errc::success;
 }
 

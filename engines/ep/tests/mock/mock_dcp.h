@@ -201,6 +201,7 @@ public:
     CanDeduplicate last_can_deduplicate = CanDeduplicate::Yes;
     cb::ExpiryLimit last_max_ttl;
     Collections::Metered last_metered = Collections::Metered::No;
+    std::string consumer_name;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

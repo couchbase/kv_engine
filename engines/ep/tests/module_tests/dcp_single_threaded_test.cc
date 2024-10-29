@@ -87,13 +87,6 @@ protected:
             IncludeDeletedUserXattrs producerState);
 
     /**
-     * @param producerState Are we simulating a negotiation against a Producer
-     *  that enables IncludeDeletedUserXattrs?
-     */
-    void testConsumerNegotiatesIncludeDeletedUserXattrs(
-            IncludeDeletedUserXattrs producerState);
-
-    /**
      * Creates a consumer conn and sends items on the conn with memory usage
      * near to replication threshold
      *
@@ -101,12 +94,35 @@ protected:
      *                        threshold or just below it
      */
     void sendConsumerMutationsNearThreshold(bool beyondThreshold);
+};
 
-    /**
-     * @param enabled Are we simulating a negotiation against a Producer
-     *  that enables change_streams?
-     */
-    void testConsumerNegotiatesCDC(bool enabled);
+class STDcpConsumerTest : public STParameterizedBucketTest {
+public:
+    void SetUp() override {
+        STParameterizedBucketTest::SetUp();
+        connMap = std::make_unique<MockDcpConnMap>(*engine);
+        connMap->initialize();
+        cookie = create_mock_cookie();
+        consumer = dynamic_cast<MockDcpConsumer*>(
+                connMap->newConsumer(*cookie, "STDcpConsumerTest", "consumer"));
+        EXPECT_TRUE(consumer);
+    }
+
+    void TearDown() override {
+        destroy_mock_cookie(cookie);
+        connMap.reset();
+        STParameterizedBucketTest::TearDown();
+    }
+
+    void testConsumerNegotiates(
+            cb::mcbp::Status producerStatus,
+            std::string_view testControl,
+            std::string_view value,
+            std::function<bool(const MockDcpConsumer&)> validate);
+
+    std::unique_ptr<MockDcpConnMap> connMap;
+    MockDcpConsumer* consumer{nullptr};
+    MockCookie* cookie;
 };
 
 class DcpStepper {
@@ -483,88 +499,59 @@ TEST_P(STDcpTest,
             IncludeDeletedUserXattrs::Yes);
 }
 
-void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
-        IncludeDeletedUserXattrs producerState) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie();
-
-    // Create a new Consumer, flag that we want it to support DeleteXattr
-    auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(*cookie, "conn_name", "the_consumer_name"));
-
-    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
-    auto syncReplNeg = consumer.public_getSyncReplNegotiation();
-    ASSERT_EQ(State::PendingRequest, syncReplNeg.state);
-
-    // Consumer::step performs multiple negotiation steps. Some of them are
-    // "blocking" steps. So, move the Consumer to the point where all the
-    // negotiation steps (but IncludeDeletedUserXattrs) have been completed and
-    // verifying that the negotiation of DeletedUserXattrs flows as exptected.
-    consumer.setPendingAddStream(false);
+// "generic" test that iteates through Consumer dcp control and validates
+// consumer reflects negoiation result
+void STDcpConsumerTest::testConsumerNegotiates(
+        cb::mcbp::Status producerStatus,
+        std::string_view testControl,
+        std::string_view value,
+        std::function<bool(const MockDcpConsumer&)> validate) {
+    consumer->setPendingAddStream(false);
     MockDcpMessageProducers producers;
-    cb::engine_errc result;
-    // Step and unblock (ie, simulate Producer response) up to completing the
-    // SyncRepl negotiation, which is the last blocking step before the
-    // DeletedUserXattrs negotiation
-    do {
-        result = consumer.step(false, producers);
-        handleProducerResponseIfStepBlocked(consumer, producers);
-        syncReplNeg = consumer.public_getSyncReplNegotiation();
-    } while (syncReplNeg.state != State::Completed);
-    EXPECT_EQ(cb::engine_errc::success, result);
 
-    // Skip over "send consumer name"
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-    ASSERT_FALSE(consumer.public_getPendingSendConsumerName());
+    // Keep stepping until the current control negotiation is the one the test
+    // cares about.
+    while (consumer->public_getCurrentControlNegotiation().key != testControl) {
+        EXPECT_EQ(cb::engine_errc::success, consumer->step(false, producers));
+        handleProducerResponseIfStepBlocked(*consumer, producers);
+    }
 
     // Check pre-negotiation state
-    auto xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
-    ASSERT_EQ(State::PendingRequest, xattrNeg.state);
-    ASSERT_EQ(0, xattrNeg.opaque);
+    {
+        auto& control = consumer->public_getCurrentControlNegotiation();
+        ASSERT_FALSE(control.opaque.has_value());
+    }
 
     // Start negotiation - consumer sends DcpControl
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
-    EXPECT_EQ(State::PendingResponse, xattrNeg.state);
-    EXPECT_EQ("include_deleted_user_xattrs", producers.last_key);
-    EXPECT_EQ("true", producers.last_value);
-    EXPECT_GT(xattrNeg.opaque, 0);
-    EXPECT_EQ(xattrNeg.opaque, producers.last_opaque);
+    EXPECT_EQ(cb::engine_errc::success, consumer->step(false, producers));
+    EXPECT_EQ(testControl, producers.last_key);
+    EXPECT_EQ(value, producers.last_value);
+
+    {
+        // State changed and an opaque assigned.
+        auto& control = consumer->public_getCurrentControlNegotiation();
+        EXPECT_GT(control.opaque.value(), 0);
+        EXPECT_EQ(control.opaque.value(), producers.last_opaque);
+    }
 
     // Verify blocked - Consumer cannot proceed until negotiation completes
-    EXPECT_EQ(cb::engine_errc::would_block, consumer.step(false, producers));
-    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
-    EXPECT_EQ(State::PendingResponse, xattrNeg.state);
+    EXPECT_EQ(cb::engine_errc::would_block, consumer->step(false, producers));
+    {
+        auto& control = consumer->public_getCurrentControlNegotiation();
+        EXPECT_EQ(testControl, control.key);
+    }
 
-    // Simulate Producer response
-    cb::mcbp::Status respStatus =
-            (producerState == IncludeDeletedUserXattrs::Yes
-                     ? cb::mcbp::Status::Success
-                     : cb::mcbp::Status::UnknownCommand);
+    // Producer response based on test input.
     cb::mcbp::Response response{};
     response.setMagic(cb::mcbp::Magic::ClientResponse);
     response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    response.setStatus(respStatus);
-    response.setOpaque(xattrNeg.opaque);
-    consumer.handleResponse(response);
+    response.setStatus(producerStatus);
+    EXPECT_TRUE(
+            consumer->public_getCurrentControlNegotiation().opaque.has_value());
+    response.setOpaque(*consumer->public_getCurrentControlNegotiation().opaque);
+    consumer->handleResponse(response);
 
-    // Verify final consumer state
-    xattrNeg = consumer.public_getDeletedUserXattrsNegotiation();
-    EXPECT_EQ(State::Completed, xattrNeg.state);
-    EXPECT_EQ(producerState, consumer.public_getIncludeDeletedUserXattrs());
-
-    destroy_mock_cookie(cookie);
-}
-
-TEST_P(STDcpTest, ConsumerNegotiatesDeletedUserXattrs_DisabledAtProducer) {
-    testConsumerNegotiatesIncludeDeletedUserXattrs(
-            IncludeDeletedUserXattrs::No);
-}
-
-TEST_P(STDcpTest, ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
-    testConsumerNegotiatesIncludeDeletedUserXattrs(
-            IncludeDeletedUserXattrs::Yes);
+    EXPECT_TRUE(validate(*consumer));
 }
 
 // Here we test how the Processor task in DCP consumer handles the scenario
@@ -1195,85 +1182,152 @@ TEST_P(STDcpTest, ProducerNegotiatesCDC_NotMagma) {
     destroy_mock_cookie(cookie);
 }
 
-void STDcpTest::testConsumerNegotiatesCDC(bool enabled) {
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize();
-    auto* cookie = create_mock_cookie();
-
-    // Create a new Consumer, flag that we want it to support DeleteXattr
-    auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(*cookie, "conn_name", "the_consumer_name"));
-
-    // Consumer::step performs multiple negotiation steps. Some of them are
-    // "blocking" steps. So, move the Consumer to the point where all the
-    // negotiation steps (but ChangeStreams) have been completed and then
-    // verifying that the negotiation of ChangeStreams flows as expected.
-    // Blocking negotiations that we need to jump are:
-    //  1. SyncRepl
-    //  2. DeletedUserXattrs
-    //  3. v7DCP
-    //  4. flatbuffers system-event
-    // , so (4) Completed is our target here.
-
-    const auto& preNegState =
-            consumer.public_getFlatbuffersSysEventNegotiation();
-    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
-    ASSERT_EQ(State::PendingRequest, preNegState.state);
-
-    consumer.setPendingAddStream(false);
-    MockDcpMessageProducers producers;
-    cb::engine_errc result;
-    // Step and unblock (ie, simulate Producer response) up to completing the
-    // negotiation.
-    do {
-        result = consumer.step(false, producers);
-        handleProducerResponseIfStepBlocked(consumer, producers);
-    } while (preNegState.state != State::Completed);
-    EXPECT_EQ(cb::engine_errc::success, result);
-
-    // Check pre-negotiation state
-    const auto& neg = consumer.public_getChangeStreamsNegotiation();
-    ASSERT_EQ(State::PendingRequest, neg.state);
-    ASSERT_EQ(0, neg.opaque);
-    ASSERT_FALSE(consumer.areChangeStreamsEnabled());
-
-    // Start negotiation - consumer sends DcpControl
-    EXPECT_EQ(cb::engine_errc::success, consumer.step(false, producers));
-    EXPECT_EQ(State::PendingResponse, neg.state);
-    EXPECT_EQ(DcpControlKeys::ChangeStreams, producers.last_key);
-    EXPECT_EQ("true", producers.last_value);
-    EXPECT_GT(neg.opaque, 0);
-    EXPECT_EQ(neg.opaque, producers.last_opaque);
-
-    // Verify blocked - Consumer cannot proceed until negotiation completes
-    EXPECT_EQ(cb::engine_errc::would_block, consumer.step(false, producers));
-    EXPECT_EQ(State::PendingResponse, neg.state);
-
-    // Simulate Producer response
-    cb::mcbp::Status respStatus = (enabled ? cb::mcbp::Status::Success
-                                           : cb::mcbp::Status::UnknownCommand);
-    cb::mcbp::Response response{};
-    response.setMagic(cb::mcbp::Magic::ClientResponse);
-    response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    response.setStatus(respStatus);
-    response.setOpaque(neg.opaque);
-    consumer.handleResponse(response);
-
-    // Verify final consumer state
-    EXPECT_EQ(State::Completed, neg.state);
-    EXPECT_EQ(enabled, consumer.areChangeStreamsEnabled());
-
-    destroy_mock_cookie(cookie);
+TEST_P(STDcpConsumerTest,
+       ConsumerNegotiatesDeletedUserXattrs_DisabledAtProducer) {
+    testConsumerNegotiates(
+            cb::mcbp::Status::UnknownCommand,
+            DcpControlKeys::DeletedUserXattrs,
+            "true",
+            [](const MockDcpConsumer& consumer) {
+                return consumer.public_getIncludeDeletedUserXattrs() ==
+                       IncludeDeletedUserXattrs::No;
+            });
 }
 
-TEST_P(STDcpTest, ConsumerNegotiatesCDC_DisabledAtProducer) {
-    testConsumerNegotiatesCDC(false);
+TEST_P(STDcpConsumerTest,
+       ConsumerNegotiatesDeletedUserXattrs_EnabledAtProducer) {
+    testConsumerNegotiates(
+            cb::mcbp::Status::Success,
+            DcpControlKeys::DeletedUserXattrs,
+            "true",
+            [](const MockDcpConsumer& consumer) {
+                return consumer.public_getIncludeDeletedUserXattrs() ==
+                       IncludeDeletedUserXattrs::Yes;
+            });
 }
 
-TEST_P(STDcpTest, ConsumerNegotiatesCDC_EnabledAtProducer) {
-    testConsumerNegotiatesCDC(true);
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesCDC_DisabledAtProducer) {
+    testConsumerNegotiates(cb::mcbp::Status::UnknownCommand,
+                           DcpControlKeys::ChangeStreams,
+                           "true",
+                           [](const MockDcpConsumer& consumer) {
+                               return !consumer.areChangeStreamsEnabled();
+                           });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesCDC_EnabledAtProducer) {
+    testConsumerNegotiates(cb::mcbp::Status::Success,
+                           DcpControlKeys::ChangeStreams,
+                           "true",
+                           [](const MockDcpConsumer& consumer) {
+                               return consumer.areChangeStreamsEnabled();
+                           });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesFlatBuffers_DisabledAtProducer) {
+    testConsumerNegotiates(
+            cb::mcbp::Status::UnknownCommand,
+            DcpControlKeys::FlatBuffersSystemEvents,
+            "true",
+            [](const MockDcpConsumer& consumer) {
+                return !consumer.areFlatBuffersSystemEventsEnabled();
+            });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesFlatBuffers_EnabledAtProducer) {
+    testConsumerNegotiates(
+            cb::mcbp::Status::Success,
+            DcpControlKeys::FlatBuffersSystemEvents,
+            "true",
+            [](const MockDcpConsumer& consumer) {
+                return consumer.areFlatBuffersSystemEventsEnabled();
+            });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesV7StatusCodes_DisabledAtProducer) {
+    testConsumerNegotiates(cb::mcbp::Status::UnknownCommand,
+                           DcpControlKeys::V7DcpStatusCodes,
+                           "true",
+                           [](const MockDcpConsumer& consumer) {
+                               return !consumer.useV7StatusCodes();
+                           });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesV7StatusCodes_EnabledAtProducer) {
+    testConsumerNegotiates(cb::mcbp::Status::Success,
+                           DcpControlKeys::V7DcpStatusCodes,
+                           "true",
+                           [](const MockDcpConsumer& consumer) {
+                               return consumer.useV7StatusCodes();
+                           });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerAccepts) {
+    // Validate that there is no seconds negotiation pending
+    for (const auto& control : *consumer->public_getPendingControls().lock()) {
+        if (control.key == DcpControlKeys::NoopInterval &&
+            control.value == "1") {
+            FAIL() << "Expected millisecond negotiation";
+        }
+    }
+
+    testConsumerNegotiates(
+            cb::mcbp::Status::Success,
+            DcpControlKeys::NoopInterval,
+            "0.100000",
+            [](const MockDcpConsumer& consumer) {
+                // validate that the consumer's pendingControl
+                // does not include the seconds negotiate
+                for (const auto& control :
+                     *consumer.public_getPendingControls().lock()) {
+                    if (control.key == DcpControlKeys::NoopInterval &&
+                        control.value == "1") {
+                        return false;
+                    }
+                }
+                return true;
+            });
+}
+
+TEST_P(STDcpConsumerTest, ConsumerNegotiatesNoopMillisecondsProducerFails) {
+    // Validate that there is no seconds negotiation pending
+    for (const auto& control : *consumer->public_getPendingControls().lock()) {
+        if (control.key == DcpControlKeys::NoopInterval &&
+            control.value == "1") {
+            FAIL() << "Expected millisecond negotiation";
+        }
+    }
+
+    testConsumerNegotiates(
+            cb::mcbp::Status::Einval,
+            DcpControlKeys::NoopInterval,
+            "0.100000",
+            [](const MockDcpConsumer& consumer) {
+                // validate that the consumer's pendingControl
+                // now includes the seconds negotiate
+                for (const auto& control :
+                     *consumer.public_getPendingControls().lock()) {
+                    if (control.key == DcpControlKeys::NoopInterval &&
+                        control.value == "1") {
+                        return true;
+                    }
+                }
+                return false;
+            });
+
+    // Now we should get the seconds negotiated
+    testConsumerNegotiates(cb::mcbp::Status::Einval,
+                           DcpControlKeys::NoopInterval,
+                           "1",
+                           [](const MockDcpConsumer& consumer) {
+                               return true; // @todo: what can we check?
+                           });
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          STDcpTest,
+                         STParameterizedBucketTest::allConfigValues());
+
+INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
+                         STDcpConsumerTest,
                          STParameterizedBucketTest::allConfigValues());

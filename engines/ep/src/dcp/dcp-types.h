@@ -160,14 +160,23 @@ enum class FlatBuffersEvents : bool {
     No,
 };
 
+// See docs/dcp/documentation/commands/control.md for more information on
+// control keys.
 namespace DcpControlKeys {
-/**
- * Control key to enable FlatBuffers system events
- */
 constexpr std::string_view FlatBuffersSystemEvents =
         "flatbuffers_system_events";
-
-/// Control key to enable history on a DCP connection
 constexpr std::string_view ChangeStreams = "change_streams";
-
+constexpr std::string_view Priority = "set_priority";
+constexpr std::string_view CursorDropping = "supports_cursor_dropping_vulcan";
+constexpr std::string_view HifiMfu = "supports_hifi_MFU";
+constexpr std::string_view SendStreamEndOnClientStream =
+        "send_stream_end_on_client_close_stream";
+constexpr std::string_view ExpiryOpcode = "enable_expiry_opcode";
+constexpr std::string_view SyncReplication = "enable_sync_writes";
+constexpr std::string_view ConsumerName = "consumer_name";
+constexpr std::string_view V7DcpStatusCodes = "v7_dcp_status_codes";
+constexpr std::string_view DeletedUserXattrs = "include_deleted_user_xattrs";
+constexpr std::string_view EnableNoop = "enable_noop";
+constexpr std::string_view NoopInterval = "set_noop_interval";
+constexpr std::string_view ConnBufferSize = "connection_buffer_size";
 } // namespace DcpControlKeys

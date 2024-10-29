@@ -32,19 +32,6 @@
 #include <charconv>
 #include <utility>
 
-const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
-const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
-const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
-const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
-// from vulcan onwards we only use the _vulcan control message
-const std::string DcpConsumer::cursorDroppingCtrlMsg =
-        "supports_cursor_dropping_vulcan";
-const std::string DcpConsumer::sendStreamEndOnClientStreamCloseCtrlMsg =
-        "send_stream_end_on_client_close_stream";
-const std::string DcpConsumer::hifiMFUCtrlMsg = "supports_hifi_MFU";
-const std::string DcpConsumer::enableOpcodeExpiryCtrlMsg =
-        "enable_expiry_opcode";
-
 class DcpConsumerTask : public EpTask {
 public:
     DcpConsumerTask(EventuallyPersistentEngine& e,
@@ -149,7 +136,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       processorNotification(false),
       backoffs(0),
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
-      pendingSendStreamEndOnClientStreamClose(true),
       consumerName(std::move(consumerName_)),
       processorTaskRunning(false),
       flowControl(engine, *this) {
@@ -158,49 +144,69 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     setLogContext("DCP (Consumer) " + getName() + " -",
                   {{"dcp", "consumer"}, {"dcp_name", getName()}});
 
-    pendingEnableNoop = config.isDcpEnableNoop();
-    getErrorMapState = pendingEnableNoop ? GetErrorMapState::PendingRequest
-                                         : GetErrorMapState::Skip;
-    noopIntervalNegotiation.state =
-            config.isDcpEnableNoop()
-                    ? NoopIntervalNegotiation::State::PendingMillisecondsRequest
-                    : NoopIntervalNegotiation::State::Completed;
-    pendingSetPriority = true;
-    pendingSupportCursorDropping = true;
-    pendingSupportHifiMFU = true;
-    pendingEnableExpiryOpcode = true;
-
-    // If a consumer_name was provided then tell the producer about it. Having
-    // a consumer name determines if we should support SyncReplication. If we
-    // have not yet received a consumer name then the cluster is in a mixed mode
-    // state and ns_server will not have set the topology on any producer nodes.
-    // We should NOT attempt to enable SyncReplication if this is the case. When
-    // the cluster is fully upgraded to MadHatter+, ns_server will tear down DCP
-    // connections and recreate them with the consumer name.
-    pendingSendConsumerName = !consumerName.empty();
-    syncReplNegotiation.state =
-            pendingSendConsumerName
-                    ? BlockingDcpControlNegotiation::State::PendingRequest
-                    : BlockingDcpControlNegotiation::State::Completed;
-
-    // Consumer needs to know if the Producer supports IncludeDeletedUserXattrs
-    deletedUserXattrsNegotiation.state =
-            BlockingDcpControlNegotiation::State::PendingRequest;
-
-    // Consumer need to know if the Producer supports v7 DCP status codes
-    v7DcpStatusCodesNegotiation.state =
-            BlockingDcpControlNegotiation::State::PendingRequest;
-
-    // Consumer unconditionally will attempt to negotiate "FlatBuffers"
-    // SystemEvents using DCP Control.
-    flatBuffersNegotiation.state =
-            BlockingDcpControlNegotiation::State::PendingRequest;
-
     allowSanitizeValueInDeletion.store(config.isAllowSanitizeValueInDeletion());
 
-    // Enable ChangeStreams on this connection
-    changeStreamsNegotiation.state =
-            BlockingDcpControlNegotiation::State::PendingRequest;
+    // Contstructor adds DCP controls we will negoiate with the producer.
+    auto controls = pendingControls.lock();
+    if (config.isDcpEnableNoop()) {
+        controls->emplace_back(DcpControlKeys::EnableNoop, "true");
+        // First setup for millisecond negotiation.
+        // MB-56973: For v7.6+ producers, support sub-second noop-interval
+        // encoded as fractional seconds.
+        std::chrono::duration<float> interval = dcpNoopTxInterval;
+        // The control has an empty success callback, but failure injects the
+        // pre 7.6 seconds negotiation.
+        controls->emplace_back(
+                DcpControlKeys::NoopInterval,
+                std::to_string(interval.count()),
+                []() { /*nothing on success*/ },
+                [this](Controls& controls) {
+                    /* inject a new control and don't disconnect */
+                    addNoopSecondsPendingControl(controls);
+                    return false;
+                });
+        // When noop is enabled, GetErrorMap is used to determine if the
+        // producer is the correct version.
+        getErrorMapState = GetErrorMapState::PendingRequest;
+    }
+    controls->emplace_back(DcpControlKeys::Priority, "high");
+    controls->emplace_back(DcpControlKeys::CursorDropping, "true");
+    controls->emplace_back(DcpControlKeys::HifiMfu, "true");
+    controls->emplace_back(DcpControlKeys::SendStreamEndOnClientStream,
+                                   "true");
+    controls->emplace_back(DcpControlKeys::ExpiryOpcode, "true");
+    if (!consumerName.empty()) {
+        // If a consumer_name was provided then tell the producer about it.
+        // Having a consumer name determines if we should support
+        // SyncReplication. If we have not yet received a consumer name then the
+        // cluster is in a mixed mode state and ns_server will not have set the
+        // topology on any producer nodes. We should NOT attempt to enable
+        // SyncReplication if this is the case. When the cluster is fully
+        // upgraded to MadHatter+, ns_server will tear down DCP connections and
+        // recreate them with the consumer name.
+        controls->emplace_back(
+                DcpControlKeys::SyncReplication, "true", [this]() {
+                    supportsSyncReplication.store(
+                            SyncReplication::SyncReplication);
+                });
+        controls->emplace_back(DcpControlKeys::ConsumerName,
+                                       consumerName);
+    }
+    controls->emplace_back(
+            DcpControlKeys::DeletedUserXattrs, "true", [this]() {
+                includeDeletedUserXattrs = IncludeDeletedUserXattrs::Yes;
+            });
+    controls->emplace_back(DcpControlKeys::V7DcpStatusCodes,
+                                   "true",
+                                   [this]() { useDcpV7StatusCodes = true; });
+
+    controls->emplace_back(
+            DcpControlKeys::FlatBuffersSystemEvents, "true", [this]() {
+                flatBuffersSystemEventsEnabled = true;
+            });
+    controls->emplace_back(DcpControlKeys::ChangeStreams,
+                                   "true",
+                                   [this]() { changeStreams = true; });
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -857,50 +863,12 @@ cb::engine_errc DcpConsumer::step(bool throttled,
         return ret;
     }
 
+    // Process all controls before anything else.
+    if (auto controls = pendingControls.lock(); !controls->empty()) {
+        return stepControlNegotiation(producers, controls->front());
+    }
+
     if ((ret = handleNoop(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = handlePriority(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = supportCursorDropping(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = supportHifiMFU(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = sendStreamEndOnClientStreamClose(producers)) !=
-        cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = enableExpiryOpcode(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = enableSynchronousReplication(producers)) !=
-        cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = handleDeletedUserXattrs(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = enableV7DcpStatus(producers)) != cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = enableFlatBuffersSystemEvents(producers)) !=
-        cb::engine_errc::failed) {
-        return ret;
-    }
-
-    if ((ret = handleChangeStreams(producers)) != cb::engine_errc::failed) {
         return ret;
     }
 
@@ -1047,73 +1015,59 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         return true;
     }
     if (opcode == cb::mcbp::ClientOpcode::DcpControl) {
-        // The Consumer-Producer negotiation for Sync Replication, deleted user
-        // xattrs and v7 DCP status codes happens over DCP_CONTROL and
-        // introduces a blocking step. The blocking DCP_CONTROL request is
-        // signed at Consumer by tracking the opaque value sent to the Producer,
-        // so here we can identify it and complete the negotiation. Note that a
-        // pre-6.5 Producer sends EINVAL as it does not recognize the Sync
-        // Replication negotiation-key.
-        const auto opaque = response.getOpaque();
-        if (opaque == syncReplNegotiation.opaque) {
-            syncReplNegotiation.state =
-                    BlockingDcpControlNegotiation::State::Completed;
-            if (response.getStatus() == cb::mcbp::Status::Success) {
-                supportsSyncReplication.store(SyncReplication::SyncReplication);
-            }
-        } else if (opaque == deletedUserXattrsNegotiation.opaque) {
-            deletedUserXattrsNegotiation.state =
-                    BlockingDcpControlNegotiation::State::Completed;
-            includeDeletedUserXattrs =
-                    (response.getStatus() == cb::mcbp::Status::Success
-                             ? IncludeDeletedUserXattrs::Yes
-                             : IncludeDeletedUserXattrs::No);
-        } else if (opaque == v7DcpStatusCodesNegotiation.opaque) {
-            v7DcpStatusCodesNegotiation.state =
-                    BlockingDcpControlNegotiation::State::Completed;
-            isV7DcpStatusEnabled =
-                    response.getStatus() == cb::mcbp::Status::Success;
-        } else if (response.getOpaque() == flatBuffersNegotiation.opaque) {
-            flatBuffersNegotiation.state =
-                    BlockingDcpControlNegotiation::State::Completed;
-            flatBuffersSystemEventsEnabled =
-                    response.getStatus() == cb::mcbp::Status::Success;
-        } else if (opaque == changeStreamsNegotiation.opaque) {
-            changeStreamsNegotiation.state =
-                    BlockingDcpControlNegotiation::State::Completed;
-            changeStreams = (response.getStatus() == cb::mcbp::Status::Success);
-        } else if (opaque == noopIntervalNegotiation.opaque) {
-            using State = NoopIntervalNegotiation::State;
-            switch (noopIntervalNegotiation.state) {
-            case State::PendingMillisecondsResponse:
-                // Producer accepted the value encoded as milliseconds
-                // (i.e. v7.6+), negotiation complete, otherwise fallback and
-                // attempt integer seconds request.
-                noopIntervalNegotiation.state =
-                        (response.getStatus() == cb::mcbp::Status::Success)
-                                ? State::Completed
-                                : State::PendingSecondsRequest;
-                break;
-            case State::PendingSecondsResponse:
-                if (response.getStatus() != cb::mcbp::Status::Success) {
-                    logger->error(
-                            "Got non-success status {} for "
-                            "DcpControl(\"set_noop_interval\") - "
-                            "disconnecting",
-                            noopIntervalNegotiation.state);
-                    return false;
-                }
-                noopIntervalNegotiation.state = State::Completed;
-                break;
-            default:
-                logger->error(
-                        "Unexpected noopIntervalNegotiation state:{} when "
-                        "handling DcpControl response - disconnecting",
-                        noopIntervalNegotiation.state);
-                return false;
-            }
+        auto controls = pendingControls.lock();
+        if (controls->empty() || !controls->front().opaque) {
+            // This case exists for DcpControl responses which are not initiated
+            // from "pendingControl" e.g. FlowControl can send DcpControl.
+            // There is nothing todo other than swallow the response and stay
+            // connected (return true).
+            return true;
         }
-        return true;
+
+        // pendingControls is processed front to back. If we have a response
+        // to DcpControl we expect the front to be the control which sent the
+        // DcpControl request, thus we expect the opaque to match.
+        const auto& control = controls->front();
+        if (response.getOpaque() != control.opaque.value()) {
+            logger->error(
+                    "Got non-matching opaque {} for "
+                    "DcpControl(\"{}\", \"{}\") expecting {} - "
+                    "disconnecting",
+                    response.getOpaque(),
+                    control.key,
+                    control.value,
+                    control.opaque.value());
+            return false;
+        }
+
+        // Opaque matches, is this success or failure from the producer?
+        bool stayConnected = true;
+        if (response.getStatus() == cb::mcbp::Status::Success) {
+            control.success();
+        } else if (control.failure(*controls)) {
+            logger->error(
+                    "Got non-success status {} for "
+                    "DcpControl(\"{}\", \"{}\") - "
+                    "disconnecting",
+                    response.getStatus(),
+                    control.key,
+                    control.value);
+            // failure returned true, we must disconnect
+            stayConnected = false;
+        } else {
+            // Log info about what didn't get enabled
+            logger->info(
+                    "Got non-success status {} for "
+                    "DcpControl(\"{}\", \"{}\")",
+                    response.getStatus(),
+                    control.key,
+                    control.value);
+        }
+
+        // We have completed processing this control, discard it ready for the
+        // next.
+        controls->pop_front();
+        return stayConnected;
     }
     if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
         auto status = response.getStatus();
@@ -1262,6 +1216,21 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
             c);
 
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
+
+    auto controls = pendingControls.lock();
+    if (!controls->empty()) {
+        auto sz = controls->size();
+        // copy front and dump it
+        auto control = controls->front();
+        controls.unlock();
+
+        addStat("pending_controls_size", sz, add_stat, c);
+        addStat("pending_control", control.key, add_stat, c);
+        addStat("pending_control_value", control.value, add_stat, c);
+        if (control.opaque) {
+            addStat("pending_control_opaque", control.opaque.value(), add_stat, c);
+        }
+    }
 }
 
 void DcpConsumer::addStreamStats(const AddStatFn& add_stat,
@@ -1495,56 +1464,6 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
 }
 
 cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
-    if (pendingEnableNoop) {
-        cb::engine_errc ret;
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        ret = producers.control(opaque, noopCtrlMsg, val);
-        pendingEnableNoop = false;
-        return ret;
-    }
-
-    using State = NoopIntervalNegotiation::State;
-    using namespace std::chrono;
-
-    logger->debug("handleNoop(): state:{}", noopIntervalNegotiation.state);
-
-    switch (noopIntervalNegotiation.state) {
-    case State::PendingMillisecondsRequest: {
-        // MB-56973: For v7.6+ producers, support sub-second noop-interval
-        // encoded as fractional seconds.
-        uint32_t opaque = ++opaqueCounter;
-        duration<float> interval = dcpNoopTxInterval;
-        noopIntervalNegotiation = {State::PendingMillisecondsResponse, opaque};
-        return producers.control(
-                opaque, noopIntervalCtrlMsg, std::to_string(interval.count()));
-    }
-    case State::PendingMillisecondsResponse:
-        // We have to wait for the response before proceeding.
-        return cb::engine_errc::would_block;
-
-    case State::PendingSecondsRequest: {
-        // MB-56973: pre 7.6.0 producer, send integer seconds count, at least
-        // 1 second - rounding dcpNoopTxInterval to seconds, so we can correctly
-        // query the configured value after.
-        uint32_t opaque = ++opaqueCounter;
-        dcpNoopTxInterval = round<seconds>(dcpNoopTxInterval);
-        dcpNoopTxInterval =
-                std::max(std::chrono::duration<float>(1), dcpNoopTxInterval);
-        seconds interval = duration_cast<seconds>(dcpNoopTxInterval);
-
-        noopIntervalNegotiation = {State::PendingSecondsResponse, opaque};
-        return producers.control(
-                opaque, noopIntervalCtrlMsg, std::to_string(interval.count()));
-    }
-    case State::PendingSecondsResponse:
-        // We have to wait for the response before proceeding.
-        return cb::engine_errc::would_block;
-
-    case State::Completed:
-        break;
-    }
-
     const auto now = ep_uptime_now();
     auto dcpIdleTimeout = getIdleTimeout();
     if ((now - lastMessageTime) > dcpIdleTimeout) {
@@ -1583,194 +1502,21 @@ cb::engine_errc DcpConsumer::handleGetErrorMap(
     return cb::engine_errc::failed;
 }
 
-cb::engine_errc DcpConsumer::handlePriority(
-        DcpMessageProducersIface& producers) {
-    if (pendingSetPriority) {
-        cb::engine_errc ret;
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("high");
-        ret = producers.control(opaque, priorityCtrlMsg, val);
-        pendingSetPriority = false;
-        return ret;
-    }
-
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::supportCursorDropping(
-        DcpMessageProducersIface& producers) {
-    if (pendingSupportCursorDropping) {
-        cb::engine_errc ret;
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        ret = producers.control(opaque, cursorDroppingCtrlMsg, val);
-        pendingSupportCursorDropping = false;
-        return ret;
-    }
-
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::supportHifiMFU(
-        DcpMessageProducersIface& producers) {
-    if (pendingSupportHifiMFU) {
-        cb::engine_errc ret;
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        ret = producers.control(opaque, hifiMFUCtrlMsg, val);
-        pendingSupportHifiMFU = false;
-        return ret;
-    }
-
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::sendStreamEndOnClientStreamClose(
-        DcpMessageProducersIface& producers) {
-    /* Sending this ctrl message tells the DCP producer that the consumer is
-       expecting a "STREAM_END" message when it initiates a stream close */
-    if (pendingSendStreamEndOnClientStreamClose) {
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        cb::engine_errc ret = producers.control(
-                opaque, sendStreamEndOnClientStreamCloseCtrlMsg, val);
-        pendingSendStreamEndOnClientStreamClose = false;
-        return ret;
-    }
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::enableExpiryOpcode(
-        DcpMessageProducersIface& producers) {
-    if (pendingEnableExpiryOpcode) {
-        uint32_t opaque = ++opaqueCounter;
-        std::string val("true");
-        cb::engine_errc ret =
-                producers.control(opaque, enableOpcodeExpiryCtrlMsg, val);
-        pendingEnableExpiryOpcode = false;
-        return ret;
-    }
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::enableSynchronousReplication(
-        DcpMessageProducersIface& producers) {
-    // enable_sync_writes and consumer_name are separated into two
-    // different variables as in the future non-replication consumers may wish
-    // to stream prepares and commits.
-    switch (syncReplNegotiation.state) {
-    case BlockingDcpControlNegotiation::State::PendingRequest: {
-        uint32_t opaque = ++opaqueCounter;
-        cb::engine_errc ret =
-                producers.control(opaque, "enable_sync_writes", "true");
-        syncReplNegotiation.state =
-                BlockingDcpControlNegotiation::State::PendingResponse;
-        syncReplNegotiation.opaque = opaque;
-        return ret;
-    }
-    case BlockingDcpControlNegotiation::State::PendingResponse:
-        // We have to wait for the response before proceeding
-        return cb::engine_errc::would_block;
-    case BlockingDcpControlNegotiation::State::Completed:
-        break;
-    }
-
-    if (pendingSendConsumerName && isSyncReplicationEnabled()) {
-        uint32_t opaque = ++opaqueCounter;
+cb::engine_errc DcpConsumer::stepControlNegotiation(
+        DcpMessageProducersIface& producers,
+        BlockingDcpControlNegotiation& control) {
+    if (!control.opaque) {
+        // Assign the opaque and send the DcpControl request
+        control.opaque = incrOpaqueCounter();
         NonBucketAllocationGuard guard;
-        cb::engine_errc ret =
-                producers.control(opaque, "consumer_name", consumerName);
-        pendingSendConsumerName = false;
-        return ret;
+        return producers.control(
+                control.opaque.value(), control.key, control.value);
     }
-
-    return cb::engine_errc::failed;
+    // opaque is assigned, wait
+    return cb::engine_errc::would_block;
 }
 
-cb::engine_errc DcpConsumer::enableV7DcpStatus(
-        DcpMessageProducersIface& producers) {
-    switch (v7DcpStatusCodesNegotiation.state) {
-    case BlockingDcpControlNegotiation::State::PendingRequest: {
-        uint32_t opaque = ++opaqueCounter;
-        auto ret = producers.control(opaque, "v7_dcp_status_codes", "true");
-        v7DcpStatusCodesNegotiation.state =
-                BlockingDcpControlNegotiation::State::PendingResponse;
-        v7DcpStatusCodesNegotiation.opaque = opaque;
-        return ret;
-    }
-    case BlockingDcpControlNegotiation::State::PendingResponse:
-        return cb::engine_errc::would_block;
-    case BlockingDcpControlNegotiation::State::Completed:
-        break;
-    }
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::enableFlatBuffersSystemEvents(
-        DcpMessageProducersIface& producers) {
-    switch (flatBuffersNegotiation.state) {
-    case BlockingDcpControlNegotiation::State::PendingRequest: {
-        uint32_t opaque = ++opaqueCounter;
-        auto ret = producers.control(
-                opaque, DcpControlKeys::FlatBuffersSystemEvents, "true");
-        flatBuffersNegotiation.state =
-                BlockingDcpControlNegotiation::State::PendingResponse;
-        flatBuffersNegotiation.opaque = opaque;
-        return ret;
-    }
-    case BlockingDcpControlNegotiation::State::PendingResponse:
-        return cb::engine_errc::would_block;
-    case BlockingDcpControlNegotiation::State::Completed:
-        break;
-    }
-    return cb::engine_errc::failed;
-}
-
-cb::engine_errc DcpConsumer::handleDeletedUserXattrs(
-        DcpMessageProducersIface& producers) {
-    switch (deletedUserXattrsNegotiation.state) {
-    case BlockingDcpControlNegotiation::State::PendingRequest: {
-        uint32_t opaque = ++opaqueCounter;
-        NonBucketAllocationGuard guard;
-        // Note: the protocol requires a value in the payload, make it happy
-        cb::engine_errc ret = producers.control(
-                opaque, "include_deleted_user_xattrs", "true");
-        deletedUserXattrsNegotiation.state =
-                BlockingDcpControlNegotiation::State::PendingResponse;
-        deletedUserXattrsNegotiation.opaque = opaque;
-        return ret;
-    }
-    case BlockingDcpControlNegotiation::State::PendingResponse:
-        return cb::engine_errc::would_block;
-    case BlockingDcpControlNegotiation::State::Completed:
-        return cb::engine_errc::failed;
-    }
-    folly::assume_unreachable();
-}
-
-cb::engine_errc DcpConsumer::handleChangeStreams(
-        DcpMessageProducersIface& producers) {
-    switch (changeStreamsNegotiation.state) {
-    case BlockingDcpControlNegotiation::State::PendingRequest: {
-        uint32_t opaque = ++opaqueCounter;
-        NonBucketAllocationGuard guard;
-        const auto ret = producers.control(
-                opaque, DcpControlKeys::ChangeStreams, "true");
-        changeStreamsNegotiation.state =
-                BlockingDcpControlNegotiation::State::PendingResponse;
-        changeStreamsNegotiation.opaque = opaque;
-        return ret;
-    }
-    case BlockingDcpControlNegotiation::State::PendingResponse:
-        return cb::engine_errc::would_block;
-    case BlockingDcpControlNegotiation::State::Completed:
-        return cb::engine_errc::failed;
-    }
-    folly::assume_unreachable();
-}
-
-uint64_t DcpConsumer::incrOpaqueCounter()
-{
+uint64_t DcpConsumer::incrOpaqueCounter() {
     return (++opaqueCounter);
 }
 
@@ -1780,11 +1526,6 @@ uint32_t DcpConsumer::getFlowControlBufSize() const {
 
 void DcpConsumer::setFlowControlBufSize(uint32_t newSize) {
     flowControl.setBufferSize(newSize);
-}
-
-const std::string& DcpConsumer::getControlMsgKey()
-{
-    return connBufferCtrlMsg;
 }
 
 bool DcpConsumer::isStreamPresent(Vbid vbucket) {
@@ -2001,16 +1742,16 @@ std::shared_ptr<PassiveStream> DcpConsumer::removeStream(Vbid vbid) {
 cb::engine_errc DcpConsumer::getNoStreamFoundErrorCode() const {
     // No stream for this vBucket / opaque - return ENOENT to indicate this.
     // Or use V7 dcp code cb::engine_errc::stream_not_found if enabled
-    return isV7DcpStatusEnabled ? cb::engine_errc::stream_not_found
-                                : cb::engine_errc::no_such_key;
+    return useDcpV7StatusCodes ? cb::engine_errc::stream_not_found
+                               : cb::engine_errc::no_such_key;
 }
 
 cb::engine_errc DcpConsumer::getOpaqueMissMatchErrorCode() const {
     // No such stream with the given opaque - return KEY_EEXISTS to indicate
     // that a stream exists but not for this opaque (similar to InvalidCas).
     // Or use V7 dcp code cb::engine_errc::opaque_no_match if enabled
-    return isV7DcpStatusEnabled ? cb::engine_errc::opaque_no_match
-                                : cb::engine_errc::key_already_exists;
+    return useDcpV7StatusCodes ? cb::engine_errc::opaque_no_match
+                               : cb::engine_errc::key_already_exists;
 }
 
 bool DcpConsumer::isFlowControlEnabled() const {
@@ -2022,25 +1763,22 @@ void DcpConsumer::incrFlowControlFreedBytes(uint32_t bytes) {
     scheduleNotifyIfNecessary();
 }
 
-std::string format_as(DcpConsumer::NoopIntervalNegotiation::State state) {
-    using State = DcpConsumer::NoopIntervalNegotiation::State;
-    switch (state) {
-    case State::PendingMillisecondsRequest:
-        return "PendingMillisecondsRequest";
-    case State::PendingMillisecondsResponse:
-        return "PendingMillisecondsResponse";
-    case State::PendingSecondsRequest:
-        return "PendingSecondsRequest";
-    case State::PendingSecondsResponse:
-        return "PendingSecondsResponse";
-    case State::Completed:
-        return "Completed";
-    }
-    return fmt::format("Invalid NoopIntervalNegotiation::State: {}",
-                       uint8_t(state));
-}
+void DcpConsumer::addNoopSecondsPendingControl(Controls& controls) {
+    using namespace std::chrono;
 
-std::ostream& operator<<(std::ostream& os,
-                         DcpConsumer::NoopIntervalNegotiation::State state) {
-    return os << format_as(state);
+    // Compute a integer seconds interval, which must be 1 or greater.
+    dcpNoopTxInterval = round<seconds>(dcpNoopTxInterval);
+    dcpNoopTxInterval =
+            std::max(std::chrono::duration<float>(1), dcpNoopTxInterval);
+    seconds interval = duration_cast<seconds>(dcpNoopTxInterval);
+
+    // Always put new controls to the back of the queue
+    controls.emplace_back(
+            DcpControlKeys::NoopInterval,
+            std::to_string(interval.count()),
+            []() { /*nothing on success*/ },
+            [this](Controls&) {
+                /* we really want noop, so on failure force disconnect */;
+                return true;
+            });
 }
