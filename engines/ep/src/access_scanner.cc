@@ -54,14 +54,12 @@ public:
         log = std::make_unique<MutationLog>(next, conf.getAlogBlockSize());
         log->open();
         if (!log->isOpen()) {
-            EP_LOG_WARN("Failed to open access log: '{}'", next);
+            EP_LOG_WARN_CTX("Failed to open access log", {"path", next});
             throw std::runtime_error(fmt::format(
                     "ItemAccessVisitor failed log->isOpen {}", next));
         }
-        EP_LOG_INFO(
-                "Attempting to generate new access file "
-                "'{}'",
-                next);
+        EP_LOG_INFO_CTX("Attempting to generate new access file",
+                        {"path", next});
     }
 
     ~ItemAccessVisitor() override {
@@ -72,8 +70,8 @@ public:
         // Record resident, Committed HashTable items as 'accessed'.
         if (v.isResident() && v.isCommitted()) {
             if (v.isExpired(startTime) || v.isDeleted()) {
-                EP_LOG_DEBUG("Skipping expired/deleted item: {}",
-                             v.getBySeqno());
+                EP_LOG_DEBUG_CTX("Skipping expired/deleted item",
+                                 {"seqno", v.getBySeqno()});
             } else {
                 accessed.emplace_back(v.getKey());
                 return ++items_scanned < items_to_scan;
@@ -126,45 +124,34 @@ public:
         }
 
         if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
-            EP_LOG_WARN(
-                    "Failed to remove access log file "
-                    "'{}': {}",
-                    prev,
-                    strerror(errno));
+            EP_LOG_WARN_CTX("Failed to remove access log file",
+                            {"path", prev},
+                            {"error", strerror(errno)});
             remove(next.c_str());
             return;
         }
-        EP_LOG_INFO("Removed old access log file: '{}'", prev);
+        EP_LOG_INFO_CTX("Removed old access log file", {"prev", prev});
         if (cb::io::isFile(name) && rename(name.c_str(), prev.c_str()) == -1) {
-            EP_LOG_WARN(
-                    "Failed to rename access log file "
-                    "from '{}' to '{}': {}",
-                    name,
-                    prev,
-                    strerror(errno));
+            EP_LOG_WARN_CTX("Failed to rename access log file",
+                            {"from", name},
+                            {"to", prev},
+                            {"error", strerror(errno)});
             remove(next.c_str());
             return;
         }
-        EP_LOG_INFO(
-                "Renamed access log file from '{}' to "
-                "'{}'",
-                name,
-                prev);
+        EP_LOG_INFO_CTX(
+                "Renamed access log file", {"from", name}, {"to", prev});
         if (rename(next.c_str(), name.c_str()) == -1) {
-            EP_LOG_WARN(
-                    "Failed to rename access log file "
-                    "from '{}' to '{}': {}",
-                    next,
-                    name,
-                    strerror(errno));
+            EP_LOG_WARN_CTX("Failed to rename access log file",
+                            {"from", next},
+                            {"to", name},
+                            {"error", strerror(errno)});
             remove(next.c_str());
             return;
         }
-        EP_LOG_INFO(
-                "New access log file '{}' created with "
-                "{} keys",
-                name,
-                static_cast<uint64_t>(num_items));
+        EP_LOG_INFO_CTX("New access log file created",
+                        {"name", name},
+                        {"num_items", static_cast<uint64_t>(num_items)});
     }
 
 private:
@@ -283,12 +270,11 @@ bool AccessScanner::run() {
                 std::string name(alogPath + "." + std::to_string(i));
                 std::string prev(name + ".old");
 
-                EP_LOG_INFO(
-                        "Deleting access log files '{}' and "
-                        "'{}' as resident ratio is over {}",
-                        name,
-                        prev,
-                        residentRatioThreshold);
+                EP_LOG_INFO_CTX(
+                        "Deleting access log files resident ratio is over the "
+                        "threshold",
+                        {"paths", {name, prev}},
+                        {"resident_ratio_threshold", residentRatioThreshold});
 
                 /* Remove .old shard access log file */
                 deleteAlogFile(prev);
@@ -327,7 +313,9 @@ std::chrono::microseconds AccessScanner::maxExpectedDuration() const {
 
 void AccessScanner::deleteAlogFile(const std::string& fileName) {
     if (cb::io::isFile(fileName) && remove(fileName.c_str()) == -1) {
-        EP_LOG_WARN("Failed to remove '{}': {}", fileName, strerror(errno));
+        EP_LOG_WARN_CTX("Failed to remove",
+                        {"path", fileName},
+                        {"error", strerror(errno)});
     }
 }
 
@@ -354,12 +342,12 @@ void AccessScanner::createAndScheduleTask(const size_t shard,
                          TaskId::AccessScannerVisitor,
                          maxExpectedDuration);
     } catch (const std::exception& e) {
-        EP_LOG_WARN(
-                "Failed to create ItemAccessVisitor for shard:{}, e:'{}'. "
-                "Please verify the location specified for the access logs is "
-                "valid and exists. Current location is set at: '{}'",
-                shard,
-                e.what(),
-                conf.getAlogPath());
+        EP_LOG_WARN_CTX(
+                "Failed to create ItemAccessVisitor for shard. Please "
+                "verify the location specified for the access logs is valid "
+                "and exists",
+                {"shard", shard},
+                {"error", e.what()},
+                {"path", conf.getAlogPath()});
     }
 }
