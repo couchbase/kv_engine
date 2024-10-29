@@ -77,13 +77,13 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ() {
         if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
             readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {
-            EP_LOG_DEBUG(
-                    "readyQ size for stream {} ({}) underflow, likely wrong "
-                    "stat calculation! curr size: {}; new size: {}",
-                    name_.c_str(),
-                    getVBucket(),
-                    readyQueueMemory.load(std::memory_order_relaxed),
-                    respSize);
+            EP_LOG_DEBUG_CTX(
+                    "readyQ size underflow, likely wrong stat calculation",
+                    {"dcp_name", name_.c_str()},
+                    {"vb", getVBucket()},
+                    {"current_size",
+                     readyQueueMemory.load(std::memory_order_relaxed)},
+                    {"new_size", respSize});
             readyQueueMemory.store(0, std::memory_order_relaxed);
         }
 
@@ -112,7 +112,7 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
         add_casted_stat("items_ready", itemsReady.load(), add_stat, c);
         add_casted_stat("readyQ_items", readyQ.size(), add_stat, c);
     } catch (std::exception& error) {
-        EP_LOG_WARN("Stream::addStats: Failed to build stats: {}",
-                    error.what());
+        EP_LOG_WARN_CTX("Stream::addStats: Failed to build stats",
+                        {"error", error.what()});
     }
 }

@@ -417,33 +417,25 @@ void ConnHandler::unPause() {
     });
 }
 
-std::string ConnHandler::getPausedDetailsDescription() const {
+nlohmann::json ConnHandler::getPausedDetailsDescription() const {
     const auto details = pausedDetails.copy();
-    fmt::memory_buffer buf;
-    bool addComma = false;
+    auto json = nlohmann::json::object();
     size_t totalCount = 0;
     std::chrono::nanoseconds totalDuration{};
     for (uint8_t reason = 0; size_t{reason} < PausedReasonCount; reason++) {
         const auto count = details.reasonCounts[reason];
         if (count) {
-            if (addComma) {
-                fmt::format_to(std::back_inserter(buf), ",");
-            }
-            addComma = true;
             const auto duration = details.reasonDurations[reason];
-            fmt::format_to(std::back_inserter(buf),
-                           R"("{}": {{"count":{}, "duration":"{}"}})",
-                           to_string(ConnHandler::PausedReason{reason}),
-                           count,
-                           cb::time2text(duration));
+            json[to_string(ConnHandler::PausedReason{reason})] = {
+                    {"count", count}, {"duration", cb::time2text(duration)}};
             totalCount += count;
             totalDuration += duration;
         }
     }
-    return fmt::format("Paused {} times, for {} total. Details: {{{}}}",
-                       totalCount,
-                       cb::time2text(totalDuration),
-                       std::string_view{buf.data(), buf.size()});
+
+    return {{"reasons", std::move(json)},
+            {"paused_count", totalCount},
+            {"paused_duration", cb::time2text(totalDuration)}};
 }
 
 std::pair<size_t, size_t> ConnHandler::getPausedCounters() const {

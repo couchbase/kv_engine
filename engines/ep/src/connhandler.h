@@ -378,10 +378,10 @@ public:
     void unPause();
 
     /**
-     * @returns a textual description of the current paused state, and details
+     * @returns a JSON description of the current paused state, and details
      * of how previous paused reaons.
      */
-    std::string getPausedDetailsDescription() const;
+    nlohmann::json getPausedDetailsDescription() const;
 
     const std::string& getAuthenticatedUser() const {
         return authenticatedUser;

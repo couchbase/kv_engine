@@ -62,7 +62,7 @@ DcpConsumer* DcpConnMap::newConsumer(CookieIface& cookie,
     conn_name.append(name);
 
     auto consumer = makeConsumer(engine, &cookie, conn_name, consumerName);
-    EP_LOG_DEBUG("{} Connection created", consumer->logHeader());
+    EP_LOG_DEBUG_CTX("Connection created", {"consumer", consumer->logHeader()});
     auto* rawPtr = consumer.get();
 
     // Get a write-handle!
@@ -72,12 +72,16 @@ DcpConsumer* DcpConnMap::newConsumer(CookieIface& cookie,
     //  mark the existing connection as "want to disconnect".
     const auto& connForName = handle->findConnHandlerByName(conn_name);
     if (connForName) {
-        EP_LOG_INFO(
-                "{} Disconnecting existing Dcp Consumer {} as it has the "
-                "same name as a new connection {}",
-                connForName->logHeader(),
-                static_cast<const void*>(connForName->getCookie()),
-                static_cast<const void*>(&cookie));
+        EP_LOG_INFO_CTX(
+                "Disconnecting existing Dcp Consumer as it has the same name "
+                "as a new connection",
+                {"dcp", "consumer"},
+                {"dcp_name", name},
+                {"existing_cookie",
+                 fmt::to_string(fmt::ptr(
+                         static_cast<const void*>(connForName->getCookie())))},
+                {"cookie",
+                 fmt::to_string(fmt::ptr(static_cast<const void*>(&cookie)))});
         connForName->setDisconnect();
     }
 
@@ -100,11 +104,11 @@ bool DcpConnMap::isPassiveStreamConnected(Vbid vbucket) {
         auto* dcpConsumer =
                 dynamic_cast<DcpConsumer*>(cookieToConn.second.get());
         if (dcpConsumer && dcpConsumer->isStreamPresent(vbucket)) {
-            EP_LOG_DEBUG(
-                    "({}) A DCP passive stream "
-                    "is already exists for the vbucket in connection: {}",
-                    vbucket,
-                    dcpConsumer->logHeader());
+            EP_LOG_DEBUG_CTX(
+                    "A DCP passive stream already exists for the vbucket",
+                    {"dcp", "consumer"},
+                    {"dcp_name", dcpConsumer->getName()},
+                    {"vb", vbucket});
             return true;
         }
     }
@@ -117,11 +121,12 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
                                              cb::mcbp::DcpAddStreamFlag flags) {
     // Check if a stream (passive) for the vbucket is already present
     if (isPassiveStreamConnected(vbucket)) {
-        EP_LOG_WARN(
-                "{} ({}) Failing to add passive stream, "
-                "as one already exists for the vbucket!",
-                conn.logHeader(),
-                vbucket);
+        EP_LOG_WARN_CTX(
+                "Failing to add passive stream, as one already exists for the "
+                "vbucket",
+                {"dcp", "consumer"},
+                {"dcp_name", conn.getName()},
+                {"vb", vbucket});
         return cb::engine_errc::key_already_exists;
     }
 
@@ -136,7 +141,9 @@ DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
 
     auto producer = std::make_shared<DcpProducer>(
             engine, &cookie, conn_name, flags, true /*startTask*/);
-    EP_LOG_DEBUG("{} Connection created", producer->logHeader());
+    EP_LOG_DEBUG_CTX("Connection created",
+                     {"dcp", "producer"},
+                     {"dcp_name", producer->getName()}, );
     auto* result = producer.get();
 
     // Get a write-handle!
@@ -151,12 +158,16 @@ DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
     // vbstateLock).
     const auto& connForName = handle->findConnHandlerByName(conn_name);
     if (connForName) {
-        EP_LOG_INFO(
-                "{} Disconnecting existing Dcp Producer {} as it has the "
-                "same name as a new connection {}",
-                connForName->logHeader(),
-                static_cast<const void*>(connForName->getCookie()),
-                static_cast<const void*>(&cookie));
+        EP_LOG_INFO_CTX(
+                "Disconnecting existing Dcp Producer as it has the same name "
+                "as a new connection",
+                {"dcp", "producer"},
+                {"dcp_name", connForName->getName()},
+                {"existing_cookie",
+                 fmt::to_string(fmt::ptr(
+                         static_cast<const void*>(connForName->getCookie())))},
+                {"cookie",
+                 fmt::to_string(fmt::ptr(static_cast<const void*>(&cookie)))});
         connForName->flagDisconnect();
 
         // Note: I thought that we need to 'map_.erase(oldCookie)'
@@ -279,14 +290,16 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
             {
                 NonBucketAllocationGuard guard;
                 if (epe) {
-                    connForCookie->getLogger().info("Removing connection {}",
-                                                    cookie->getConnectionIface()
-                                                            .getDescription()
-                                                            .dump());
+                    connForCookie->getLogger().infoWithContext(
+                            "Removing connection",
+                            {{"description",
+                              cookie->getConnectionIface().getDescription()}});
                 } else {
-                    connForCookie->getLogger().info(
-                            "Removing connection {}",
-                            static_cast<const void*>(cookie));
+                    connForCookie->getLogger().infoWithContext(
+                            "Removing connection",
+                            {{"cookie",
+                              fmt::to_string(fmt::ptr(
+                                      static_cast<const void*>(cookie)))}});
                 }
                 ObjectRegistry::onSwitchThread(epe);
                 // MB-36557: Just flag the connection as disconnected, defer

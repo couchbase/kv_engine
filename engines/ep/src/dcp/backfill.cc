@@ -97,10 +97,9 @@ backfill_status_t DCPBackfill::scan(DCPBackfill::State state) {
 
 void DCPBackfill::cancel() {
     if (*state.rlock() != State::Done) {
-        EP_LOG_WARN(
-                "DCPBackfill::cancel ({}) cancelled before reaching "
-                "State::Done",
-                getVBucketId());
+        EP_LOG_WARN_CTX(
+                "DCPBackfill::cancel cancelled before reaching State::Done",
+                {"vb", getVBucketId()});
     }
 }
 
@@ -267,8 +266,8 @@ void KVStoreScanTracker::updateMaxRunningDcpBackfills(size_t maxBackfills) {
     scans.withLock([&maxBackfills](auto& backfills) {
         backfills.maxNumBackfillsPerConnection = maxBackfills;
     });
-    EP_LOG_DEBUG("KVStoreScanTracker::updateMaxRunningDcpBackfills {}",
-                 maxBackfills);
+    EP_LOG_DEBUG_CTX("KVStoreScanTracker::updateMaxRunningDcpBackfills",
+                     {"max_backfills", maxBackfills});
 }
 
 void KVStoreScanTracker::updateMaxRunningScans(size_t maxDataSize,
@@ -290,12 +289,10 @@ void KVStoreScanTracker::setMaxRunningScans(uint16_t newMaxRunningBackfills,
         backfills.maxRunningRangeScans = newMaxRunningRangeScans;
         backfills.maxNumBackfillsPerConnection = maxBackfills;
     });
-    EP_LOG_DEBUG(
-            "KVStoreScanTracker::setMaxRunningScans scans:{} rangeScans:{} "
-            "maxBackfills:{}",
-            newMaxRunningBackfills,
-            newMaxRunningRangeScans,
-            maxBackfills);
+    EP_LOG_DEBUG_CTX("KVStoreScanTracker::setMaxRunningScans",
+                     {"new_max_running_backfills", newMaxRunningBackfills},
+                     {"new_max_running_range_scans", newMaxRunningRangeScans},
+                     {"max_backfills", maxBackfills});
 }
 
 /* Db file memory */

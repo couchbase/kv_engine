@@ -8,9 +8,9 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include "active_stream.h"
 
-#include "active_stream_impl.h"
-
+#include "bucket_logger.h"
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "configuration.h"
@@ -1996,7 +1996,6 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
                 spdlog::level::level_enum::info,
                 "ActiveStream::scheduleBackfill_UNLOCKED register cursor",
                 {
-                        {"name", name_},
                         {"cursor_req_seqno", inMemoryStart},
                         {"try_backfill", registerResult.tryBackfill},
                         {"op",
@@ -2304,8 +2303,7 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
             logWithContext(spdlog::level::level_enum::info,
                            "ActiveStream::notifyEmptyBackfill: Re-registering "
                            "dropped cursor",
-                           {{"name", name_},
-                            {"last_seen_seqno", lastSeenSeqno},
+                           {{"last_seen_seqno", lastSeenSeqno},
                             {"try_backfill", result.tryBackfill},
                             {"next_seqno", result.nextSeqno}});
             curChkSeqno = result.nextSeqno;
@@ -2986,8 +2984,7 @@ void ActiveStream::removeBackfill(BackfillManager& bfm) {
 void ActiveStream::logWithContext(spdlog::level::level_enum severity,
                                   std::string_view msg,
                                   cb::logger::Json ctx) const {
-    // Format: {"dcp":"producer", "stream": "name", vb:"vb:X", "sid":
-    // "sid:none", ...}
+    // Format: {"vb:"vb:X", "sid": "sid:none", ...}
     auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
     if (sid) {
         object.insert(object.begin(), {"sid", sid.to_string()});

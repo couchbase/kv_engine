@@ -10,7 +10,8 @@
  */
 
 #include "dcp/backfill_by_id_disk.h"
-#include "dcp/active_stream_impl.h"
+#include "bucket_logger.h"
+#include "dcp/active_stream.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "vbucket.h"
@@ -52,11 +53,11 @@ static ByIdRange createCollectionRange(CollectionID cid) {
 backfill_status_t DCPBackfillByIdDisk::create() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillByIdDisk::create(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn",
-                getVBucketId());
+        EP_LOG_WARN_CTX(
+                "DCPBackfillByIdDisk::create(): backfill create ended "
+                "prematurely as the associated stream is deleted by the "
+                "producer conn",
+                {"vb", getVBucketId()});
         return backfill_finished;
     }
 
@@ -95,15 +96,16 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     if (!scanCtx) {
         auto vb = bucket.getVBucket(getVBucketId());
         std::stringstream log;
-        log << "DCPBackfillByIdDisk::create(): (" << getVBucketId()
-            << ") initByIdScanContext failed";
+        log << getVBucketId() << " initByIdScanContext failed";
         if (vb) {
             log << VBucket::toString(vb->getState());
         } else {
             log << "vb not found!!";
         }
 
-        stream->log(spdlog::level::level_enum::warn, "{}", log.str());
+        stream->logWithContext(spdlog::level::level_enum::warn,
+                               "DCPBackfillByIdDisk::create()",
+                               {{"error", log.str()}});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -123,18 +125,17 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 backfill_status_t DCPBackfillByIdDisk::scan() {
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillByIdDisk::scan(): "
-                "({}) backfill scan ended prematurely as the associated stream "
-                "is deleted by the producer conn",
-                getVBucketId());
+        EP_LOG_WARN_CTX(
+                "DCPBackfillByIdDisk::scan(): backfill scan ended prematurely "
+                "as the associated stream is deleted by the producer conn",
+                {"vb", getVBucketId()});
         return backfill_finished;
     }
     if (!stream->isActive()) {
-        stream->log(spdlog::level::warn,
-                    "DCPBackfillByIdDisk::scan(): ({}) ended prematurely as "
-                    "stream is not active",
-                    getVBucketId());
+        stream->logWithContext(
+                spdlog::level::warn,
+                "DCPBackfillByIdDisk::scan(): ended prematurely as "
+                "stream is not active");
         return backfill_finished;
     }
 
@@ -155,10 +156,10 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_success;
     case ScanStatus::Failed:
         // Scan did not complete successfully. Propagate error to stream.
-        stream->log(spdlog::level::err,
-                    "DCPBackfillByIdDisk::scan(): {} Scan failed Setting "
-                    "stream to dead state.",
-                    getVBucketId());
+        stream->logWithContext(
+                spdlog::level::err,
+                "DCPBackfillByIdDisk::scan(): Scan failed Setting "
+                "stream to dead state.");
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -173,9 +174,8 @@ void DCPBackfillByIdDisk::complete(ActiveStream& stream) {
                                runtime,
                                scanCtx->diskBytesRead,
                                scanCtx->keysScanned);
-    stream.log(spdlog::level::level_enum::debug,
-               "({}) DCPBackfillByIdDisk task complete",
-               vbid);
+    stream.logWithContext(spdlog::level::level_enum::debug,
+                          "DCPBackfillByIdDisk task complete");
 }
 
 backfill_status_t DCPBackfillByIdDisk::scanHistory() {

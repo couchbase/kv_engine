@@ -38,10 +38,10 @@ void DcpFlowControlManager::updateConsumersBufferSize(
         c->setFlowControlBufSize(bufferSize);
     }
 
-    EP_LOG_DEBUG(
-            "DcpFlowControlManager::computeBufferSize: The new FlowControl "
-            "buffer size for DCP Consumers is {}",
-            bufferSize);
+    EP_LOG_DEBUG_CTX(
+            "DcpFlowControlManager::computeBufferSize: new FlowControl "
+            "buffer size for DCP Consumers",
+            {"buffer_size", bufferSize});
 }
 
 void DcpFlowControlManager::newConsumer(DcpConsumer& consumer) {

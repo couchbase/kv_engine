@@ -10,8 +10,9 @@
  */
 
 #include "dcp/backfill_memory.h"
+#include "bucket_logger.h"
 #include "collections/vbucket_manifest_handles.h"
-#include "dcp/active_stream_impl.h"
+#include "dcp/active_stream.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ephemeral_vb.h"
@@ -19,6 +20,7 @@
 #include "stored-value.h"
 
 #include <phosphor/phosphor.h>
+#include <platform/json_log_conversions.h>
 
 // Here we must force call the baseclass (DCPBackfillToStream(s))because of the
 // use of multiple inheritance (and virtual inheritance), otherwise stream will
@@ -61,23 +63,22 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::run(): ({}) backfill ended "
-                "prematurely with vb in dead state; start seqno:{}, "
-                "end seqno:{}",
-                getVBucketId(),
-                startSeqno,
-                endSeqno);
+        EP_LOG_WARN_CTX(
+                "DCPBackfillMemoryBuffered::run(): backfill ended prematurely "
+                "with vb in dead state",
+                {"vb", getVBucketId()},
+                {"start_seqno", startSeqno},
+                {"end_seqno", endSeqno});
         return backfill_finished;
     }
 
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::create(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn ",
-                getVBucketId());
+        EP_LOG_WARN_CTX(
+                "DCPBackfillMemoryBuffered::create(): backfill create ended "
+                "prematurely as the associated stream is deleted by the "
+                "producer conn",
+                {"vb", getVBucketId()});
         return backfill_finished;
     }
 
@@ -89,18 +90,16 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         } else {
             // Multiple range iterators are permitted, so if one could not be
             // created purgeTombstones must have acquired an exclusive range
-            stream->log(spdlog::level::level_enum::debug,
-                        "{}"
-                        " Deferring backfill creation as another "
-                        "task needs exclusive access to a range of the seqlist",
-                        getVBucketId());
+            stream->logWithContext(
+                    spdlog::level::level_enum::debug,
+                    "Deferring backfill creation as another task needs "
+                    "exclusive access to a range of the seqlist");
             return backfill_snooze;
         }
     } catch (const std::bad_alloc&) {
-        stream->log(spdlog::level::level_enum::warn,
-                    "Alloc error when trying to create a range iterator"
-                    "on the sequence list for ({})",
-                    getVBucketId());
+        stream->logWithContext(spdlog::level::level_enum::warn,
+                               "Alloc error when trying to create a range "
+                               "iterator on the sequence list for");
         /* Try backfilling again later; here we snooze because system has
            hit ENOMEM */
         return backfill_snooze;
@@ -129,13 +128,12 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
      * greater than purgeSeqno. */
     if ((startSeqno != 1 && (startSeqno <= purgeSeqno)) &&
         !allowNonRollBackStream) {
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::create(): "
-                "({}) running backfill failed because the startSeqno:{} is < "
-                "purgeSeqno:{}",
-                getVBucketId(),
-                startSeqno,
-                purgeSeqno);
+        EP_LOG_WARN_CTX(
+                "DCPBackfillMemoryBuffered::create(): running backfill failed "
+                "because startSeqno < purgeSeqno",
+                {"vb", getVBucketId()},
+                {"start_seqno", startSeqno},
+                {"purge_seqno", purgeSeqno});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
         return backfill_finished;
     }
@@ -189,23 +187,22 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
     if (evb->getState() == vbucket_state_dead) {
         /* We don't have to close the stream here. Task doing vbucket state
            change should handle stream closure */
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::scan(): ({}) backfill ended "
-                "prematurely with vb in dead state; start seqno:{}, "
-                "end seqno:{}",
-                getVBucketId(),
-                startSeqno,
-                endSeqno);
+        EP_LOG_WARN_CTX(
+                "DCPBackfillMemoryBuffered::scan(): backfill ended prematurely "
+                "with vb in dead state",
+                {"vb", getVBucketId()},
+                {"start_seqno", startSeqno},
+                {"end_seqno", endSeqno});
         return backfill_finished;
     }
 
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillMemoryBuffered::scan(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn ",
-                getVBucketId());
+        EP_LOG_WARN_CTX(
+                "DCPBackfillMemoryBuffered::scan(): backfill create ended "
+                "prematurely as the associated stream is deleted by the "
+                "producer conn",
+                {"vb", getVBucketId()});
         return backfill_finished;
     }
     if (!(stream->isActive())) {
@@ -291,12 +288,10 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                 item->setExpTime(osv.getCompletedOrDeletedTime());
             }
         } catch (const std::bad_alloc&) {
-            stream->log(spdlog::level::level_enum::warn,
-                        "Alloc error when trying to create an "
-                        "item copy from hash table. Item seqno:{}"
-                        ", {}",
-                        osv.getBySeqno(),
-                        getVBucketId());
+            stream->logWithContext(spdlog::level::level_enum::warn,
+                                   "Alloc error when trying to create an item "
+                                   "copy from hash table",
+                                   {{"seqno", osv.getBySeqno()}});
             /* Try backfilling again later; here we snooze because system has
                hit ENOMEM */
             return backfill_snooze;
@@ -312,11 +307,11 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
                want to check if other backfills can be run by the
                backfillMgr */
             TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
-            stream->log(spdlog::level::level_enum::debug,
-                        "{} Backfill yields after processing seqno:{} "
-                        "as scan buffer or backfill buffer is full",
-                        getVBucketId(),
-                        seqnoDbg);
+            stream->logWithContext(
+                    spdlog::level::level_enum::debug,
+                    "Backfill yields after processing seqno: as scan buffer or "
+                    "backfill buffer is full",
+                    {{"seqno", seqnoDbg}});
             stream->incrementNumBackfillPauses();
             return backfill_success;
         }
@@ -340,11 +335,10 @@ void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
     runtime += (std::chrono::steady_clock::now() - runStart);
     stream.completeBackfill(endSeqno, runtime, 0, 0);
-    stream.log(spdlog::level::level_enum::debug,
-               "({}) Backfill memory task ({} to {}) complete",
-               getVBucketId(),
-               startSeqno,
-               endSeqno);
+    stream.logWithContext(
+            spdlog::level::level_enum::debug,
+            "Backfill memory task complete",
+            {{"start_seqno", startSeqno}, {"end_seqno", endSeqno}});
 }
 
 backfill_status_t DCPBackfillMemoryBuffered::scanHistory() {
@@ -390,11 +384,10 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     }
 
     // No change and outside of threshold.
-    stream.log(spdlog::level::level_enum::warn,
-               "({}) DCPBackfillMemoryBuffered no progress has been made "
-               "on the scan for more than {}s. seqno:{}",
-               vbid,
-               maxNoProgressDuration.count(),
-               *trackedPosition);
+    stream.logWithContext(spdlog::level::level_enum::warn,
+                          "DCPBackfillMemoryBuffered no progress has been made "
+                          "on the scan for more than s. seqno",
+                          {{"max_no_progress_duration", maxNoProgressDuration},
+                           {"tracked_position", trackedPosition}});
     return true;
 }

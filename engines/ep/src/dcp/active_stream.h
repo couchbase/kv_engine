@@ -337,13 +337,6 @@ public:
         return lastSentSnapEndSeqno;
     }
 
-    // Defined in active_stream_impl.h to remove the need to include the
-    // producer header here
-    template <typename... Args>
-    void log(spdlog::level::level_enum severity,
-             const char* fmt,
-             Args... args) const;
-
     void logWithContext(spdlog::level::level_enum severity,
                         std::string_view msg,
                         cb::logger::Json ctx) const;

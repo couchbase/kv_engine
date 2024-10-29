@@ -25,8 +25,8 @@
 #include "objectregistry.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
-#include <fmt/chrono.h>
 #include <phosphor/phosphor.h>
+#include <platform/json_log_conversions.h>
 #include <xattr/utils.h>
 
 #include <charconv>
@@ -212,12 +212,11 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
 DcpConsumer::~DcpConsumer() {
     // Log runtime / pause information when we destruct.
     const auto now = ep_uptime_now();
-    logger->info(
-            "Destroying connection. Created {} ago. Last message received "
-            "{} ago. {}",
-            (now - created),
-            (now - lastMessageTime),
-            getPausedDetailsDescription());
+    logger->infoWithContext(
+            "Destroying connection",
+            {{"since_created", (now - created)},
+             {"since_last_message", (now - lastMessageTime)},
+             {"paused_details", getPausedDetailsDescription()}});
 
     cancelTask();
 }
@@ -280,17 +279,17 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
 
     VBucketPtr vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        logger->warn(
-                "({}) Add stream failed because this vbucket doesn't exist",
-                vbucket);
+        logger->warnWithContext(
+                "Add stream failed because this vbucket doesn't exist",
+                {{"vb", vbucket}});
         return cb::engine_errc::not_my_vbucket;
     }
 
     if (vb->getState() == vbucket_state_active) {
-        logger->warn(
-                "({}) Add stream failed because this vbucket happens to "
-                "be in active state",
-                vbucket);
+        logger->warnWithContext(
+                "Add stream failed because this vbucket happens to be in "
+                "active state",
+                {{"vb", vbucket}});
         return cb::engine_errc::not_my_vbucket;
     }
 
@@ -313,8 +312,9 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     auto stream = findStream(vbucket);
     if (stream) {
         if(stream->isActive()) {
-            logger->warn("({}) Cannot add stream because one already exists",
-                         vbucket);
+            logger->warnWithContext(
+                    "Cannot add stream because one already exists",
+                    {{"vb", vbucket}});
             return cb::engine_errc::key_already_exists;
         }
         removeStream(vbucket);
@@ -373,10 +373,9 @@ cb::engine_errc DcpConsumer::closeStream(uint32_t opaque,
 
     auto stream = findStream(vbucket);
     if (!stream) {
-        logger->warn(
-                "({}) Cannot close stream because no "
-                "stream exists for this vbucket",
-                vbucket);
+        logger->warnWithContext(
+                "Cannot close stream because no stream exists for this vbucket",
+                {{"vb", vbucket}});
         return getNoStreamFoundErrorCode();
     }
 
@@ -400,12 +399,9 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
 
     auto stream = findStream(vbucket);
     if (!stream) {
-        logger->warn(
-                "({}) End stream received with opaque:{} but no such stream "
-                "for this "
-                "vBucket",
-                vbucket,
-                opaque);
+        logger->warnWithContext(
+                "End stream received but no such stream for this vBucket",
+                {{"vb", vbucket}, {"opaque", opaque}});
         return getNoStreamFoundErrorCode();
     }
 
@@ -414,18 +410,18 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
         // the DcpProducer it is possible that ns_server has already started
         // a new Stream (with updated opaque) for this vbucket.
         // In which case just ignore this StreamEnd message, returning SUCCESS.
-        logger->info(
-                "({}) End stream received with opaque {} but current opaque "
-                "for that vb is {} - ignoring",
-                vbucket,
-                opaque,
-                stream->getOpaque());
+        logger->infoWithContext(
+                "End stream received but current opaque for that vb is "
+                "different - ignoring",
+                {{"vb", vbucket},
+                 {"opaque", opaque},
+                 {"stream_opaque", stream->getOpaque()}});
         return cb::engine_errc::success;
     }
 
-    logger->info("({}) End stream received with reason {}",
-                 vbucket,
-                 cb::mcbp::to_string(status));
+    logger->infoWithContext(
+            "End stream received",
+            {{"vb", vbucket}, {"status", cb::mcbp::to_string(status)}});
 
     auto msg = std::make_unique<StreamEndResponse>(
             opaque, status, vbucket, cb::mcbp::DcpStreamId{});
@@ -487,7 +483,8 @@ cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
     lastMessageTime = ep_uptime_now();
 
     if (bySeqno == 0) {
-        logger->warn("({}) Invalid sequence number(0) for mutation!", vbucket);
+        logger->warnWithContext("Invalid sequence number (0) for mutation!",
+                                {{"vb", vbucket}});
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -577,7 +574,8 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
     }
 
     if (bySeqno == 0) {
-        logger->warn("({}) Invalid sequence number(0) for deletion!", vbucket);
+        logger->warnWithContext("Invalid sequence number (0) for deletion!",
+                                {{"vb", vbucket}});
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -636,10 +634,9 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
             // the sanitizer is left only for test purpose.
 
             if (!allowSanitizeValueInDeletion) {
-                logger->error(
-                        "DcpConsumer::deletion: ({}) Value cannot contain a "
-                        "body",
-                        vbucket);
+                logger->errorWithContext(
+                        "DcpConsumer::deletion: Value cannot contain a body",
+                        {{"vb", vbucket}});
                 return cb::engine_errc::invalid_arguments;
             }
 
@@ -793,12 +790,9 @@ cb::engine_errc DcpConsumer::snapshotMarker(
     UpdateFlowControl ufc(*this, bytes);
 
     if (start_seqno > end_seqno) {
-        logger->warn(
-                "({}) Invalid snapshot marker "
-                "received, snap_start ({}) <= snap_end ({})",
-                vbucket,
-                start_seqno,
-                end_seqno);
+        logger->warnWithContext(
+                "Invalid snapshot marker received, snap_start <= snap_end",
+                {{"vb", vbucket}, {"snapshot", {start_seqno, end_seqno}}});
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -922,8 +916,8 @@ cb::engine_errc DcpConsumer::step(bool throttled,
             break;
         }
         default:
-            logger->warn("Unknown consumer event ({}), disconnecting",
-                         int(resp->getEvent()));
+            logger->warnWithContext("Unknown consumer event, disconnecting",
+                                    {{"event", int(resp->getEvent())}});
             ret = cb::engine_errc::disconnect;
     }
 
@@ -950,26 +944,25 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
     const auto opcode = response.getClientOpcode();
     const auto opaque = response.getOpaque();
 
-    logger->debug("handleResponse(): opcode:{}, opqaue:{}, status:{}",
-                  opcode,
-                  opaque,
-                  response.getStatus());
+    logger->debugWithContext("handleResponse()",
+                             {{"opcode", opcode},
+                              {"opaque", opaque},
+                              {"status", response.getStatus()}});
 
     if (opcode == cb::mcbp::ClientOpcode::DcpStreamReq) {
         auto oitr = opaqueMap_.find(opaque);
         if (oitr == opaqueMap_.end()) {
-            EP_LOG_WARN(
-                    "Received response with opaque {} and that opaque "
-                    "does not exist in opaqueMap",
-                    opaque);
+            EP_LOG_WARN_CTX(
+                    "Received response with opaque that does not exist in "
+                    "opaqueMap",
+                    {"opaque", opaque});
             return false;
         }
         if (!isValidOpaque(opaque, oitr->second.second)) {
-            EP_LOG_WARN(
-                    "Received response with opaque {} and that stream does not "
-                    "exist for {}",
-                    opaque,
-                    Vbid(oitr->second.second));
+            EP_LOG_WARN_CTX(
+                    "Received response with opaque that does not have a stream",
+                    {"opaque", opaque},
+                    {"vb", Vbid(oitr->second.second)});
             return false;
         }
 
@@ -986,11 +979,10 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
 
         if (status == cb::mcbp::Status::Rollback) {
             if (value.size() != sizeof(uint64_t)) {
-                logger->warn(
-                        "({}) Received rollback "
-                        "request with incorrect bodylen of {}, disconnecting",
-                        vbid,
-                        value.size());
+                logger->warnWithContext(
+                        "Received rollback request with incorrect bodylen, "
+                        "disconnecting",
+                        {{"vb", vbid}, {"size", value.size()}});
                 return false;
             }
             uint64_t rollbackSeqno = 0;
@@ -1001,11 +993,10 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
 
         if (((value.size() % 16) != 0 || value.empty()) &&
             status == cb::mcbp::Status::Success) {
-            logger->warn(
-                    "({})Got a stream response with a "
-                    "bad failover log (length {}), disconnecting",
-                    vbid,
-                    value.size());
+            logger->warnWithContext(
+                    "Got a stream response with a bad failover log, "
+                    "disconnecting",
+                    {{"vb", vbid}, {"size", value.size()}});
             return false;
         }
 
@@ -1082,12 +1073,12 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         auto producerIsVersion5orHigher =
                 status != cb::mcbp::Status::UnknownCommand;
         if (!producerIsVersion5orHigher) {
-            logger->error(
+            logger->errorWithContext(
                     "Incompatible Producer node version detected - this "
                     "version of CB Server requires version 6 or higher - "
-                    "disconnecting. (Producer responded with {} to GetErrorMap "
+                    "disconnecting. (Producer responded to GetErrorMap "
                     "request indicating version <5.0.0)",
-                    status);
+                    {{"status", status}});
             return false;
         }
         getErrorMapState = GetErrorMapState::Skip;
@@ -1101,8 +1092,9 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         return true;
     }
 
-    logger->warn("Trying to handle an unknown response {}, disconnecting",
-                 opcode);
+    logger->warnWithContext(
+            "Trying to handle an unknown response , disconnecting",
+            {{"opcode", opcode}});
 
     return false;
 }
@@ -1114,10 +1106,10 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
     auto stream = findStream(vbid);
 
     if (!(vb && stream)) {
-        logger->warn("({}) handleRollbackResponse: {}, stream:{}",
-                     vbid,
-                     vb.get() ? "ok" : "nullptr",
-                     stream.get() ? "ok" : "nullptr");
+        logger->warnWithContext("handleRollbackResponse",
+                                {{"vb", vbid},
+                                 {"vb_ok", bool(vb.get())},
+                                 {"stream_ok", bool(stream.get())}});
         return false;
     }
 
@@ -1131,30 +1123,27 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
         if (entry.by_seqno == stream->getStartSeqno()) {
             vb->failovers->removeLatestEntry();
             entry = vb->failovers->getLatestEntry();
-            logger->info(
-                    "({}) Received rollback request. Rollback to 0, have {} "
-                    "entries remaining. Retrying with previous failover "
-                    "vb_uuid:{}",
-                    vbid,
-                    vb->failovers->getNumEntries(),
-                    entry.vb_uuid);
+            logger->infoWithContext(
+                    "Received rollback request. Rollback to 0, have entries "
+                    "remaining. Retrying with previous failover vb_uuid",
+                    {{"vb", vbid},
+                     {"num_entries", vb->failovers->getNumEntries()},
+                     {"vb_uuid", entry.vb_uuid}});
 
             stream->streamRequest(entry.vb_uuid);
             return true;
         }
-        logger->info(
-                "({}) Cannot avoid rollback to 0, vb_uuid:{} cannot be used"
-                " as entry.by_seqno:{} does not match stream "
-                "start_seqno:{}",
-                vbid,
-                entry.vb_uuid,
-                entry.by_seqno,
-                stream->getStartSeqno());
+        logger->infoWithContext(
+                "Cannot avoid rollback to 0, vb_uuid cannot be used as "
+                "entry.by_seqno does not match stream start_seqno",
+                {{"vb", vbid},
+                 {"vb_uuid", entry.vb_uuid},
+                 {"entry_by_seqno", entry.by_seqno},
+                 {"start_seqno", stream->getStartSeqno()}});
     }
 
-    logger->info("({}) Received rollback request. Rolling back to seqno:{}",
-                 vbid,
-                 rollbackSeqno);
+    logger->infoWithContext("Received rollback request. Rolling back",
+                            {{"vb", vbid}, {"rollback_seqno", rollbackSeqno}});
     ExTask task = std::make_shared<RollbackTask>(
             engine_, opaque, vbid, rollbackSeqno, shared_from_this());
     ExecutorPool::get()->schedule(task);
@@ -1170,15 +1159,16 @@ bool DcpConsumer::doRollback(uint32_t opaque,
     case TaskStatus::Reschedule:
         return true; // Reschedule the rollback.
     case TaskStatus::Abort:
-        logger->warn("{} Rollback failed on the vbucket", vbid);
+        logger->warnWithContext("Rollback failed on the vbucket",
+                                {{"vb", vbid}});
         break;
     case TaskStatus::Complete: {
         VBucketPtr vb = engine_.getVBucket(vbid);
         if (!vb) {
-            logger->warn(
-                    "{} Aborting rollback task as the vbucket was"
-                    " deleted after rollback",
-                    vbid);
+            logger->warnWithContext(
+                    "Aborting rollback task as the vbucket was deleted after "
+                    "rollback",
+                    {{"vb", vbid}});
             break;
         }
         auto stream = findStream(vbid);
@@ -1194,9 +1184,9 @@ bool DcpConsumer::doRollback(uint32_t opaque,
 void DcpConsumer::seqnoAckStream(Vbid vbid, int64_t seqno) {
     auto stream = findStream(vbid);
     if (!stream) {
-        logger->warn("{} Could not ack seqno {} because stream was not found",
-                     vbid,
-                     seqno);
+        logger->warnWithContext(
+                "Could not ack seqno because stream was not found",
+                {{"vb", vbid}, {"seqno", seqno}});
         return;
     }
     stream->seqnoAck(seqno);
@@ -1286,10 +1276,10 @@ ProcessUnackedBytesResult DcpConsumer::processUnackedBytes() {
     case KVBucket::ReplicationThrottleStatus::Disconnect:
         backoffs++;
         bufferedVBQueue.pushUnique(stream->getVBucket());
-        logger->warn(
-                "{} Processor task indicating disconnection "
-                "as there is no memory to complete replication",
-                stream->getVBucket());
+        logger->warnWithContext(
+                "Processor task indicating disconnection as there is no memory "
+                "to complete replication",
+                {{"vb", stream->getVBucket()}});
         setDisconnect();
         return stop_processing;
     case KVBucket::ReplicationThrottleStatus::Process:
@@ -1403,26 +1393,20 @@ void DcpConsumer::streamAccepted(uint32_t opaque,
                 KVBucketIface* kvBucket = engine_.getKVBucket();
                 kvBucket->scheduleVBStatePersist(vbucket);
             }
-            logger->debug("({}) Add stream for opaque {} with error code {}",
-                          vbucket,
-                          opaque,
-                          status == cb::mcbp::Status::Success ? "succeeded"
-                                                              : "failed");
+            logger->debugWithContext(
+                    "Add stream for opaque with error code",
+                    {{"vb", vbucket}, {"opaque", opaque}, {"status", status}});
             stream->acceptStream(status, add_opaque);
         } else {
-            logger->warn(
-                    "({}) Trying to add stream, but "
-                    "none exists (opaque: {}, add_opaque: {})",
-                    vbucket,
-                    opaque,
-                    add_opaque);
+            logger->warnWithContext("Trying to add stream, but none exists",
+                                    {{"vb", vbucket},
+                                     {"opaque", opaque},
+                                     {"add_opaque", add_opaque}});
         }
         opaqueMap_.erase(opaque);
     } else {
-        logger->warn(
-                "No opaque found for add stream response "
-                "with opaque {}",
-                opaque);
+        logger->warnWithContext("No opaque found for add stream response",
+                                {{"opaque", opaque}});
     }
 }
 
@@ -1460,9 +1444,9 @@ void DcpConsumer::closeStreamDueToVbStateChange(Vbid vbucket,
                                                 vbucket_state_t state) {
     auto stream = removeStream(vbucket);
     if (stream) {
-        logger->debug("({}) State changed to {}, closing passive stream!",
-                      vbucket,
-                      VBucket::toString(state));
+        logger->debugWithContext(
+                "State changed, closing passive stream!",
+                {{"vb", vbucket}, {"state", VBucket::toString(state)}});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::StateChanged);
     }
 }
@@ -1471,14 +1455,12 @@ cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
     const auto now = ep_uptime_now();
     auto dcpIdleTimeout = getIdleTimeout();
     if ((now - lastMessageTime) > dcpIdleTimeout) {
-        logger->warn(
-                "Disconnecting because a message has not been received for "
-                "the DCP idle timeout of {}s. "
-                "Received last message (e.g. mutation/noop/StreamEnd) {}s ago. "
-                "DCP noop interval is {}s.",
-                dcpIdleTimeout.count(),
-                (now - lastMessageTime),
-                dcpNoopTxInterval.count());
+        logger->warnWithContext(
+                "Disconnecting because a message has not been received for the "
+                "DCP idle timeout",
+                {{"dcp_idle_timeout", dcpIdleTimeout},
+                 {"since_last_message", (now - lastMessageTime)},
+                 {"dcp_noop_tx_interval", dcpNoopTxInterval}});
         return cb::engine_errc::disconnect;
     }
 
@@ -1591,7 +1573,8 @@ cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
     lastMessageTime = ep_uptime_now();
 
     if (by_seqno == 0) {
-        logger->warn("({}) Invalid sequence number(0) for prepare!", vbucket);
+        logger->warnWithContext("Invalid sequence number(0) for prepare!",
+                                {{"vb", vbucket}});
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -1626,11 +1609,10 @@ cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
                     {reinterpret_cast<const char*>(value.data()),
                      value.size()}) > 0) {
             if (!allowSanitizeValueInDeletion) {
-                logger->error(
-                        "DcpConsumer::prepare: ({}) Value cannot contain a "
-                        "body "
-                        "for SyncDelete",
-                        vbucket);
+                logger->errorWithContext(
+                        "DcpConsumer::prepare: Value cannot contain a body for "
+                        "SyncDelete",
+                        {{"vb", vbucket}});
                 return cb::engine_errc::invalid_arguments;
             }
 
@@ -1692,7 +1674,8 @@ cb::engine_errc DcpConsumer::commit(uint32_t opaque,
     UpdateFlowControl ufc(*this, msgBytes);
 
     if (commit_seqno == 0) {
-        logger->warn("({}) Invalid sequence number(0) for commit!", vbucket);
+        logger->warnWithContext("Invalid sequence number (0) for commit!",
+                                {{"vb", vbucket}});
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -1711,7 +1694,7 @@ cb::engine_errc DcpConsumer::abort(uint32_t opaque,
                           AbortSyncWrite::abortBaseMsgBytes + key.size());
 
     if (!abortSeqno) {
-        logger->warn("({}) Invalid abort-seqno (0)", vbucket);
+        logger->warnWithContext("Invalid abort-seqno (0)", {{"vb", vbucket}});
         return cb::engine_errc::invalid_arguments;
     }
 

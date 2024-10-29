@@ -277,11 +277,6 @@ protected:
      */
     void streamRequest_UNLOCKED(uint64_t vb_uuid);
 
-    template <typename... Args>
-    void log(spdlog::level::level_enum severity,
-             const char* fmt,
-             Args... args) const;
-
     void logWithContext(spdlog::level::level_enum severity,
                         std::string_view msg,
                         cb::logger::Json ctx) const;

@@ -17,6 +17,7 @@
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 
+#include <platform/json_log_conversions.h>
 #include <spdlog/fmt/fmt.h>
 
 DCPBackfillDiskToStream::DCPBackfillDiskToStream(
@@ -169,10 +170,10 @@ bool DCPBackfillDiskToStream::scanHistoryCreate(
 
     // try to create historyScanCtx.scanCtx
     if (!createHistoryScanContext(bucket, scanCtx)) {
-        EP_LOG_WARN(
-                "DCPBackfillDiskToStream::scanHistoryCreate(): ({}) failure "
+        EP_LOG_WARN_CTX(
+                "DCPBackfillDiskToStream::scanHistoryCreate(): failure "
                 "creating history ScanContext",
-                getVBucketId());
+                {"vb", getVBucketId()});
         return false;
     }
 
@@ -198,16 +199,16 @@ backfill_status_t DCPBackfillDiskToStream::doHistoryScan(KVBucket& bucket,
 
     auto stream = streamPtr.lock();
     if (!stream) {
-        EP_LOG_WARN(
-                "DCPBackfillDiskToStream::doHistoryScan(): "
-                "({}) backfill create ended prematurely as the associated "
-                "stream is deleted by the producer conn ",
-                getVBucketId());
+        EP_LOG_WARN_CTX(
+                "DCPBackfillDiskToStream::doHistoryScan(): backfill create "
+                "ended prematurely as the associated stream is deleted by the "
+                "producer conn",
+                {"vb", getVBucketId()});
         return backfill_finished;
     }
 
-    EP_LOG_DEBUG("DCPBackfillDiskToStream::doHistoryScan ({}) running",
-                 getVBucketId());
+    EP_LOG_DEBUG_CTX("DCPBackfillDiskToStream::doHistoryScan running",
+                     {"vb", getVBucketId()});
 
     // If there is no historyScanCtx.scanCtx create it now (one-off creation).
     // The existing ScanContext cannot be re-used because it could of been
@@ -242,15 +243,13 @@ backfill_status_t DCPBackfillDiskToStream::doHistoryScan(KVBucket& bucket,
     case ScanStatus::Failed:
         // Scan did not complete successfully. Backfill is missing data,
         // propagate error to stream and (unsuccessfully) finish scan.
-        stream->log(
-                spdlog::level::err,
-                "DCPBackfillDiskToStream::doHistoryScan(): ({}, startSeqno:{}, "
-                "maxSeqno:{}) Scan failed at lastReadSeqno:{}. Setting "
-                "stream to dead state.",
-                getVBucketId(),
-                bySeqnoCtx.startSeqno,
-                bySeqnoCtx.maxSeqno,
-                bySeqnoCtx.lastReadSeqno);
+        stream->logWithContext(spdlog::level::err,
+                               "DCPBackfillDiskToStream::doHistoryScan(): Scan "
+                               "failed. Setting "
+                               "stream to dead state.",
+                               {{"start_seqno", bySeqnoCtx.startSeqno},
+                                {"max_seqno", bySeqnoCtx.maxSeqno},
+                                {"last_read_seqno", bySeqnoCtx.lastReadSeqno}});
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -278,11 +277,10 @@ void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
                                                 uint64_t maxSeqno) {
     runtime += (std::chrono::steady_clock::now() - runStart);
     stream.completeBackfill(maxSeqno, runtime, bytesRead, keysScanned);
-    stream.log(spdlog::level::level_enum::debug,
-               "({}) Backfill task ({} to {}) complete",
-               vbid,
-               startSeqno,
-               endSeqno);
+    stream.logWithContext(
+            spdlog::level::level_enum::debug,
+            "Backfill task complete",
+            {{"start_seqno", startSeqno}, {"end_seqno", endSeqno}});
 }
 
 bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
@@ -294,19 +292,19 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
     // If history scan, care only about the progress of that, as
     if (historyScan && historyScan->scanCtx &&
         isProgressStalled(historyScan->scanCtx->getPosition())) {
-        stream.log(spdlog::level::level_enum::warn,
-                   "({}) Backfill task cancelled as no progress has been made "
-                   "on the history-scan for more than {}s",
-                   vbid,
-                   maxNoProgressDuration.count());
+        stream.logWithContext(
+                spdlog::level::level_enum::warn,
+                "Backfill task cancelled as no progress has been made on the "
+                "history-scan for more than the no progress duration",
+                {{"max_no_progress_duration", maxNoProgressDuration}});
         return true;
     }
     if (scanCtx && isProgressStalled(scanCtx->getPosition())) {
-        stream.log(spdlog::level::level_enum::warn,
-                   "({}) Backfill task cancelled as no progress has been made "
-                   "on the scan for more than {}s",
-                   vbid,
-                   maxNoProgressDuration.count());
+        stream.logWithContext(
+                spdlog::level::level_enum::warn,
+                "Backfill task cancelled as no progress has been made on the "
+                "scan for more than the no progress duration",
+                {{"max_no_progress_duration", maxNoProgressDuration}});
         return true;
     }
     return false;

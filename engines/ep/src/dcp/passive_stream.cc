@@ -74,12 +74,10 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
 PassiveStream::~PassiveStream() {
     if (state_ != StreamState::Dead) {
         // Destructed a "live" stream, log it.
-        log(spdlog::level::level_enum::info,
-            "({}) Destructing stream."
-            " last_seqno is {}, unAckedBytes is {}.",
-            vb_,
-            last_seqno.load(),
-            unackedBytes);
+        logWithContext(spdlog::level::level_enum::info,
+                       "Destructing stream",
+                       {{"last_seqno", last_seqno.load()},
+                        {"unacked_bytes", unackedBytes.load()}});
     }
 
     if (auto consumer = consumerPtr.lock()) {
@@ -133,13 +131,11 @@ void PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
                 status == cb::mcbp::DcpStreamEndStatus::Disconnected
                         ? spdlog::level::level_enum::warn
                         : spdlog::level::level_enum::info;
-        log(severity,
-            "({}) Setting stream to dead state, lastSeqno:{}, unackedBytes:{}, "
-            "status:{}",
-            vb_,
-            last_seqno.load(),
-            unackedBytes,
-            cb::mcbp::to_string(status));
+        logWithContext(severity,
+                       "Setting stream to dead state",
+                       {{"last_seqno", last_seqno.load()},
+                        {"unacked_bytes", unackedBytes.load()},
+                        {"status", cb::mcbp::to_string(status)}});
     }
 }
 
@@ -162,21 +158,19 @@ bool PassiveStream::isPending() const {
 void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (!vb) {
-        log(spdlog::level::level_enum::warn,
-            "({}) PassiveStream::acceptStream(): status:{} - Unable to find "
-            "VBucket - cannot accept Stream.",
-            vb_,
-            status);
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::acceptStream(): Unable to "
+                       "find VBucket - cannot accept Stream",
+                       {{"status", status}});
         return;
     }
 
     auto consumer = consumerPtr.lock();
     if (!consumer) {
-        log(spdlog::level::level_enum::warn,
-            "({}) PassiveStream::acceptStream(): status:{} - Unable to lock "
-            "Consumer - cannot accept Stream.",
-            vb_,
-            status);
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::acceptStream(): Unable to "
+                       "lock Consumer - cannot accept Stream",
+                       {{"status", status}});
         return;
     }
 
@@ -262,17 +256,13 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
         cur_snapshot_start.reset(start_seqno);
         cur_snapshot_end.reset(start_seqno);
 
-        log(spdlog::level::level_enum::info,
-            "({}) Attempting to reconnect stream with opaque {}, start seq "
-            "no {}, end seq no {}, snap start seqno {}, snap end seqno {}, and "
-            "vb manifest uid {}",
-            vb_,
-            new_opaque,
-            start_seqno,
-            end_seqno_,
-            snap_start_seqno_,
-            snap_end_seqno_,
-            stream_req_value.empty() ? "none" : stream_req_value);
+        logWithContext(spdlog::level::level_enum::info,
+                       "Attempting to reconnect stream",
+                       {{"new_opaque", new_opaque},
+                        {"start_seqno", start_seqno},
+                        {"end_seqno", end_seqno_},
+                        {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
+                        {"value", stream_req_value}});
 
         pushToReadyQ(std::make_unique<StreamRequest>(vb_,
                                                      new_opaque,
@@ -305,16 +295,14 @@ cb::engine_errc PassiveStream::messageReceived(
     auto seqno = dcpResponse->getBySeqno();
     if (seqno) {
         if (uint64_t(*seqno) <= last_seqno.load()) {
-            log(spdlog::level::level_enum::warn,
-                "({}) Erroneous (out of sequence) message ({}) received, "
-                "with opaque: {}, its seqno ({}) is not "
-                "greater than last received seqno ({}); "
-                "Dropping mutation!",
-                vb_,
-                dcpResponse->to_string(),
-                opaque_,
-                *seqno,
-                last_seqno.load());
+            logWithContext(spdlog::level::level_enum::warn,
+                           "Erroneous (out of sequence) message received, with "
+                           "its seqno is not greater than last received "
+                           "seqno; Dropping mutation",
+                           {{"response", dcpResponse->to_string()},
+                            {"opaque", opaque_},
+                            {"seqno", *seqno},
+                            {"last_seqno", last_seqno.load()}});
             return cb::engine_errc::out_of_range;
         }
     } else if (dcpResponse->getEvent() == DcpResponse::Event::SnapshotMarker) {
@@ -322,16 +310,14 @@ cb::engine_errc PassiveStream::messageReceived(
         uint64_t snapStart = s->getStartSeqno();
         uint64_t snapEnd = s->getEndSeqno();
         if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
-            log(spdlog::level::level_enum::warn,
-                "({}) Erroneous snapshot marker received, with "
-                "opaque: {}, its start "
-                "({}), and end ({}) are less than last "
-                "received seqno ({}); Dropping marker!",
-                vb_,
-                opaque_,
-                snapStart,
-                snapEnd,
-                last_seqno.load());
+            logWithContext(
+                    spdlog::level::level_enum::warn,
+                    "Erroneous snapshot marker received, its start and "
+                    "end are less than last received seqno; Dropping marker",
+                    {{"opaque", opaque_},
+                     {"snap_start", snapStart},
+                     {"snap_end", snapEnd},
+                     {"last_seqno", last_seqno.load()}});
             return cb::engine_errc::out_of_range;
         }
     }
@@ -339,10 +325,10 @@ cb::engine_errc PassiveStream::messageReceived(
     auto& bucket = *engine->getKVBucket();
     switch (bucket.getReplicationThrottleStatus()) {
     case KVBucket::ReplicationThrottleStatus::Disconnect:
-        log(spdlog::level::level_enum::warn,
-            "{} Disconnecting the connection as there is no memory to complete "
-            "replication",
-            vb_);
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Disconnecting the connection as there is no memory to "
+                       "complete replication",
+                       cb::logger::Json::object());
         return cb::engine_errc::disconnect;
     case KVBucket::ReplicationThrottleStatus::Process: {
         return forceMessage(*dcpResponse).getError();
@@ -387,17 +373,13 @@ cb::engine_errc PassiveStream::processMessageInner(
 
     if (uint64_t(*message->getBySeqno()) < cur_snapshot_start.load() ||
         uint64_t(*message->getBySeqno()) > cur_snapshot_end.load()) {
-        log(spdlog::level::level_enum::warn,
-            "({}) Erroneous {} [sequence "
-            "number does not fall in the expected snapshot range : "
-            "{{snapshot_start ({}) <= seq_no ({}) <= "
-            "snapshot_end ({})]; Dropping the {}!",
-            vb_,
-            message->to_string(),
-            cur_snapshot_start.load(),
-            *message->getBySeqno(),
-            cur_snapshot_end.load(),
-            message->to_string());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Erroneous (sequence number does not fall in the "
+                       "expected snapshot range); Dropping the seqno",
+                       {{"message", message->to_string()},
+                        {"current_snapshot",
+                         {cur_snapshot_start.load(), cur_snapshot_end.load()}},
+                        {"seqno", *message->getBySeqno()}});
         return cb::engine_errc::out_of_range;
     }
 
@@ -406,13 +388,12 @@ cb::engine_errc PassiveStream::processMessageInner(
     // this check may send us "bad" CAS values, we should regenerate them (which
     // is better than rejecting the data entirely).
     if (!Item::isValidCas(message->getItem()->getCas())) {
-        log(spdlog::level::level_enum::warn,
-            "Invalid CAS ({:#x}) received for {} {{{}, seqno:{}}}. "
-            "Regenerating new CAS",
-            message->getItem()->getCas(),
-            message->to_string(),
-            vb_,
-            message->getItem()->getBySeqno());
+        logWithContext(
+                spdlog::level::level_enum::warn,
+                "Invalid CAS received. Regenerating new CAS",
+                {{"cas", fmt::format("{:#x}", message->getItem()->getCas())},
+                 {"message", message->to_string()},
+                 {"seqno", message->getItem()->getBySeqno()}});
         message->getItem()->setCas();
     }
 
@@ -508,13 +489,12 @@ void PassiveStream::seqnoAck(int64_t seqno) {
     // Only send a seqnoAck if we have an active stream that the producer has
     // responded with Success to the stream request
     if (!isActive() || isPending()) {
-        log(spdlog::level::level_enum::warn,
-            "{} Could not ack seqno {} because stream was in StreamState:{} "
-            "Expected it to be in state {}",
-            vb_,
-            seqno,
-            to_string(state_.load()),
-            to_string(StreamState::Reading));
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Could not ack seqno because stream was in StreamState: "
+                       "Expected it to be in a different state",
+                       {{"seqno", seqno},
+                        {"state", to_string(state_.load())},
+                        {"expected_state", to_string(StreamState::Reading)}});
         return;
     }
 
@@ -680,10 +660,9 @@ cb::engine_errc PassiveStream::processBeginCollection(
                                   Collections::ManifestUid{},
                                   event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processBeginCollection {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::processBeginCollection exception",
+                       {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -700,10 +679,9 @@ cb::engine_errc PassiveStream::processDropCollection(
                                  false,
                                  event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processDropCollection {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::processDropCollection exception",
+                       {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -717,10 +695,9 @@ cb::engine_errc PassiveStream::processCreateScope(
                               event.getKey(),
                               event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processCreateScope {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::processCreateScope exception",
+                       {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -735,10 +712,9 @@ cb::engine_errc PassiveStream::processDropScope(VBucket& vb,
                             false,
                             event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processDropScope {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::processDropScope exception",
+                       {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -769,12 +745,10 @@ cb::engine_errc PassiveStream::processBeginCollection(
                 Collections::ManifestUid{collection.flushUid()},
                 *event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processBeginCollection FlatBuffers {} "
-            "exception "
-            "{}",
-            vb.getId(),
-            e.what());
+        logWithContext(
+                spdlog::level::level_enum::warn,
+                "PassiveStream::processBeginCollection FlatBuffers exception",
+                {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -800,10 +774,10 @@ cb::engine_errc PassiveStream::processModifyCollection(
                 getCanDeduplicateFromHistory(collection.history()),
                 *event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processModifyCollection flatbuffer {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(
+                spdlog::level::level_enum::warn,
+                "PassiveStream::processModifyCollection flatbuffer exception",
+                {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -820,10 +794,10 @@ cb::engine_errc PassiveStream::processDropCollection(
                                  collection->systemCollection(),
                                  *event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processDropCollection FlatBuffers {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(
+                spdlog::level::level_enum::warn,
+                "PassiveStream::processDropCollection FlatBuffers exception",
+                {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -839,10 +813,10 @@ cb::engine_errc PassiveStream::processCreateScope(
                               event.getKey(),
                               *event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processCreateScope FlatBuffers {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(
+                spdlog::level::level_enum::warn,
+                "PassiveStream::processCreateScope FlatBuffers exception",
+                {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -859,10 +833,9 @@ cb::engine_errc PassiveStream::processDropScope(
                             scope->systemScope(),
                             *event.getBySeqno());
     } catch (std::exception& e) {
-        log(spdlog::level::level_enum::warn,
-            "PassiveStream::processDropScope FlatBuffers {} exception {}",
-            vb.getId(),
-            e.what());
+        logWithContext(spdlog::level::level_enum::warn,
+                       "PassiveStream::processDropScope FlatBuffers exception",
+                       {{"error", e.what()}});
         return cb::engine_errc::invalid_arguments;
     }
     return cb::engine_errc::success;
@@ -1151,8 +1124,9 @@ void PassiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
         }
 
     } catch (std::exception& error) {
-        EP_LOG_WARN("PassiveStream::addStats: Failed to build stats: {}",
-                    error.what());
+        logWithContext(spdlog::level::info,
+                       "PassiveStream::addStats: Failed to build stats",
+                       {{"error", error.what()}});
     }
 }
 
@@ -1168,12 +1142,10 @@ std::unique_ptr<DcpResponse> PassiveStream::next() {
 }
 
 bool PassiveStream::transitionState(StreamState newState) {
-    log(spdlog::level::level_enum::debug,
-        "PassiveStream::transitionState: ({}) "
-        "Transitioning from {} to {}",
-        vb_,
-        to_string(state_.load()),
-        to_string(newState));
+    logWithContext(
+            spdlog::level::level_enum::debug,
+            "PassiveStream::transitionState: Transitioning",
+            {{"from", to_string(state_.load())}, {"to", to_string(newState)}});
 
     if (state_ == newState) {
         return false;
@@ -1230,27 +1202,10 @@ std::string PassiveStream::createStreamReqValue() const {
     return stream_req_json.dump();
 }
 
-template <typename... Args>
-void PassiveStream::log(spdlog::level::level_enum severity,
-                        const char* fmt,
-                        Args... args) const {
-    auto consumer = consumerPtr.lock();
-    if (consumer) {
-        consumer->getLogger().log(severity, fmt, args...);
-    } else {
-        if (getGlobalBucketLogger()->should_log(severity)) {
-            getGlobalBucketLogger()->log(
-                    severity,
-                    std::string{passiveStreamLoggingPrefix}.append(fmt).data(),
-                    args...);
-        }
-    }
-}
-
 void PassiveStream::logWithContext(spdlog::level::level_enum severity,
                                    std::string_view msg,
                                    cb::logger::Json ctx) const {
-    // Format: {"dcp":"consumer", "stream": "name", vb:"vb:X", ...}
+    // Format: {"vb":"vb:X", ...}
     auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
     object.insert(object.begin(), {"vb", getVBucket()});
 
@@ -1270,18 +1225,16 @@ void PassiveStream::maybeLogMemoryState(cb::engine_errc status,
                                         int64_t seqno) {
     bool previousNoMem = isNoMemory.load();
     if (status == cb::engine_errc::no_memory && !previousNoMem) {
-        log(spdlog::level::level_enum::warn,
-            "{} Got error '{}' while trying to process "
-            "{} with seqno:{}",
-            vb_,
-            cb::to_string(status),
-            msgType,
-            seqno);
+        logWithContext(spdlog::level::level_enum::warn,
+                       "Got error while trying to process with seqno",
+                       {{"status", cb::to_string(status)},
+                        {"message_type", msgType},
+                        {"seqno", seqno}});
         isNoMemory.store(true);
     } else if (status == cb::engine_errc::success && previousNoMem) {
-        log(spdlog::level::level_enum::info,
-            "{} PassiveStream resuming after no-memory backoff",
-            vb_);
+        logWithContext(spdlog::level::level_enum::info,
+                       "PassiveStream resuming after no-memory backoff",
+                       cb::logger::Json::object());
         isNoMemory.store(false);
     }
 }
@@ -1350,26 +1303,27 @@ PassiveStream::ProcessMessageResult PassiveStream::processMessage(
         if (ret != cb::engine_errc::success) {
             // ENOMEM logging is handled by maybeLogMemoryState
             if (ret != cb::engine_errc::no_memory) {
-                log(spdlog::level::level_enum::warn,
-                    "PassiveStream::processMessage: {} Got error '{}' while "
-                    "trying to process {} with seqno:{} cid:{}",
-                    vb_,
-                    cb::to_string(ret),
-                    resp->to_string(),
-                    *seqno,
-                    mutation->getItem()->getKey().getCollectionID());
+                logWithContext(
+                        spdlog::level::level_enum::warn,
+                        "PassiveStream::processMessage: Got error while trying "
+                        "to process with seqno: cid",
+                        {{"vb_", vb_},
+                         {"cb::to_stringret", cb::to_string(ret)},
+                         {"resp-to_string", resp->to_string()},
+                         {"*seqno", *seqno},
+                         {"collection_i_d",
+                          mutation->getItem()->getKey().getCollectionID()}});
             }
         }
         maybeLogMemoryState(ret, resp->to_string(), *seqno);
     } else {
         if (ret != cb::engine_errc::success) {
-            log(spdlog::level::level_enum::warn,
-                "PassiveStream::processMessage: {} Got error '{}' while trying "
-                "to process {} with seqno:{}",
-                vb_,
-                cb::to_string(ret),
-                resp->to_string(),
-                seqno ? std::to_string(*seqno) : "N/A");
+            logWithContext(spdlog::level::level_enum::warn,
+                           "PassiveStream::processMessage: Got error while "
+                           "trying to process with seqno",
+                           {{"error", cb::to_string(ret)},
+                            {"response", resp->to_string()},
+                            {"seqno", seqno}});
         }
     }
 
