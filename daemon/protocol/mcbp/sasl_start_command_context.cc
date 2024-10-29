@@ -77,11 +77,6 @@ void SaslStartCommandContext::doSaslStart() {
     using cb::tracing::SpanStopwatch;
     ScopeTimer1<SpanStopwatch> timer(cookie, cb::tracing::Code::Sasl);
 
-    LOG_DEBUG("{}: SASL START with mech: '{}' with {} bytes of data",
-              connection.getId(),
-              mechanism,
-              challenge.size());
-
     auto& server = *connection.getSaslServerContext();
     try {
         auto avail = cookie.getConnection().getSaslMechanisms();

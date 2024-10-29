@@ -66,11 +66,6 @@ void SaslStepCommandContext::doSaslStep() {
     using cb::tracing::SpanStopwatch;
     ScopeTimer1<SpanStopwatch> timer(cookie, cb::tracing::Code::Sasl);
 
-    LOG_DEBUG("{}: SASL CONTINUE with mech: '{}' with {} bytes of data",
-              connection.getId(),
-              mechanism,
-              challenge.size());
-
     auto& serverContext = *connection.getSaslServerContext();
     try {
         auto [e, p] = serverContext.step(challenge);

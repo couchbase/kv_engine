@@ -1124,10 +1124,6 @@ static void maximize_sndbuf(const SOCKET sfd) {
         }
     }
 
-    LOG_DEBUG_CTX("send buffer changed",
-                  {"conn_id", sfd},
-                  {"from", old_size},
-                  {"to", last_good});
     hint = last_good;
 }
 
@@ -1619,23 +1615,6 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         response.setFramingExtraslen(0);
         response.setBodylen(value_len + extras_len + key_len);
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response)};
-    }
-
-    if (Settings::instance().getVerbose() > 1) {
-        auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
-        try {
-            LOG_TRACE_CTX("Sending",
-                          {"conn_id", getId()},
-                          {"header", header->to_json(true)});
-        } catch (const std::exception&) {
-            // Failed.. do a raw dump instead
-            LOG_TRACE_CTX(
-                    "Sending",
-                    {"conn_id", getId()},
-                    {"header",
-                     cb::to_hex({reinterpret_cast<const uint8_t*>(wbuf.data()),
-                                 sizeof(cb::mcbp::Header)})});
-        }
     }
     ++getBucket().responseCounters[uint16_t(status)];
 

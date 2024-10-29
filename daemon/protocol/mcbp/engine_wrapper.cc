@@ -48,7 +48,6 @@ bool bucket_get_item_info(Connection& c,
                           const ItemIface& item_,
                           item_info& item_info_) {
     auto ret = c.getBucketEngine().get_item_info(item_, item_info_);
-    LOG_TRACE("bucket_get_item_info() item:{} -> {}", item_, ret);
     if (!ret) {
         LOG_INFO("{}: {} bucket_get_item_info failed",
                  c.getId(),
@@ -95,16 +94,6 @@ cb::engine_errc bucket_store(
                                          document_state,
                                          preserveTtl);
 
-    LOG_TRACE(
-            "bucket_store() item:{} cas:{} op:{} durability:{} doc_state:{} -> "
-            "{}",
-            item_,
-            cas,
-            operation,
-            (durability ? to_string(*durability) : "--"),
-            document_state,
-            ret);
-
     if (ret == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,
@@ -141,19 +130,6 @@ cb::EngineErrorCasPair bucket_store_if(
                                                         durability,
                                                         document_state,
                                                         preserveTtl);
-    LOG_TRACE(
-            "bucket_store_if() key:{} cas:{} operation:{} predicate:{} "
-            "durability:{} doc_state:{} preserve_ttl:{} -> {}",
-            item_.getDocKey().toPrintableString(),
-            cas,
-            operation,
-            predicate ? "yes" : "no",
-            durability.has_value() ? nlohmann::json(durability.value()).dump()
-                                   : "no",
-            document_state,
-            preserveTtl ? "yes" : "no",
-            rstatus);
-
     if (rstatus == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,
@@ -212,12 +188,6 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
                     c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
-    LOG_TRACE("bucket_get() key:{} vbucket:{} docStateFilter:{} -> {}",
-              cb::UserDataView(std::string_view{key}),
-              vbucket,
-              documentStateFilter,
-              ret.first);
-
     return ret;
 }
 
@@ -239,11 +209,6 @@ cb::EngineErrorItemPair bucket_get_replica(
                 c.getDescription().dump());
         c.setTerminationReason("Engine forced disconnect");
     }
-    LOG_TRACE("bucket_get_replica() key:{} vbucket:{} -> {}",
-              cb::UserDataView(std::string_view{key}),
-              vbucket,
-              ret.first);
-
     return ret;
 }
 
@@ -391,16 +356,6 @@ cb::unique_item_ptr bucket_allocate(Cookie& cookie,
 
     auto& c = cookie.getConnection();
     try {
-        LOG_TRACE(
-                "bucket_allocate() key:{} nbytes:{} flags:{} exptime:{} "
-                "datatype:{} vbucket:{}",
-                cb::UserDataView(std::string_view(key)),
-                nbytes,
-                flags,
-                exptime,
-                datatype,
-                vbucket);
-
         auto it = c.getBucketEngine().allocateItem(cookie,
                                                    key,
                                                    nbytes,

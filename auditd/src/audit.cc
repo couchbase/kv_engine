@@ -163,8 +163,6 @@ bool AuditImpl::configure() {
             [&filter](auto& f) { f = std::move(filter); });
     ++generation;
 
-    LOG_DEBUG("Using audit Event filter: {}",
-              event_filter.rlock()->to_json().dump());
     if (!auditfile.is_open()) {
         auditfile.remove_audit_link(config.get_log_directory());
     }

@@ -269,18 +269,12 @@ static void version_executor(Cookie& cookie) {
 static void quit_executor(Cookie& cookie) {
     cookie.sendResponse(cb::mcbp::Status::Success);
     auto& connection = cookie.getConnection();
-    LOG_DEBUG("{}: quit_executor - closing connection {}",
-              connection.getId(),
-              connection.getDescription().dump());
     connection.shutdown();
     connection.setTerminationReason("Client sent QUIT");
 }
 
 static void quitq_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
-    LOG_DEBUG("{}: quitq_executor - closing connection {}",
-              connection.getId(),
-              connection.getDescription().dump());
     connection.shutdown();
     connection.setTerminationReason("Client sent QUIT");
 }

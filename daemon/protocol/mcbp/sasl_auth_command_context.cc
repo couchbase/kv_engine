@@ -158,7 +158,6 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         return tryHandleSaslOk(payload);
 
     case cb::sasl::Error::CONTINUE:
-        LOG_DEBUG("{}: SASL CONTINUE", connection.getId());
         return authContinue(payload);
 
     case cb::sasl::Error::BAD_PARAM:

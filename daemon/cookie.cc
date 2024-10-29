@@ -531,11 +531,6 @@ cb::mcbp::Status Cookie::validate() {
                  cb::mcbp::ClientOpcode::SelectBucket}};
         if (std::find(allowed.begin(), allowed.end(), opcode) ==
             allowed.end()) {
-            LOG_DEBUG(
-                    "{} Can't run the requested command on "
-                    "cluster-config-bucket: {}",
-                    connection.getId(),
-                    opcode);
             if (connection.isXerrorSupport()) {
                 return cb::mcbp::Status::EConfigOnly;
             }

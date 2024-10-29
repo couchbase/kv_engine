@@ -801,13 +801,6 @@ private:
         return suspended_map.withLock([cookie, this](const auto& map) {
             for (const auto& [id, c] : map) {
                 if (c == cookie) {
-                    LOG_DEBUG(
-                            "Connection {} with id {} should be suspended for "
-                            "engine {}",
-                            static_cast<const void*>(c),
-                            id,
-                            (void*)this);
-
                     return true;
                 }
             }
@@ -869,10 +862,6 @@ bool EWB_Engine::should_inject_error(Cmd cmd,
         const bool inject = iter->second.second->should_inject_error(cmd, err);
 
         if (inject) {
-            LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
-                      err,
-                      to_string(cmd));
-
             if (err == cb::engine_errc::would_block) {
                 const auto add_to_pending_io_ops =
                         iter->second.second->add_to_pending_io_ops();
@@ -964,7 +953,6 @@ cb::engine_errc EWB_Engine::remove(
 }
 
 void EWB_Engine::release(ItemIface& item) {
-    LOG_DEBUG_RAW("EWB_Engine: release");
     return real_engine->release(item);
 }
 
@@ -1239,12 +1227,6 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
             return cb::engine_errc::failed;
         }
         try {
-            LOG_DEBUG(
-                    "EWB_Engine::unknown_command(): Setting EWB mode "
-                    "to {} for cookie {}",
-                    new_mode->to_string(),
-                    static_cast<const void*>(&cookie));
-
             connection_map.withLock([&cookie, new_mode](auto& map) {
                 map[uint64_t(&cookie.getConnectionIface())] = {&cookie,
                                                                new_mode};
@@ -1270,7 +1252,6 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
 }
 
 bool EWB_Engine::get_item_info(const ItemIface& item, item_info& item_info) {
-    LOG_DEBUG_RAW("EWB_Engine: get_item_info");
     return real_engine->get_item_info(item, item_info);
 }
 
@@ -1816,15 +1797,11 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
             void run() override {
                 setRunning();
 
-                LOG_DEBUG("Block monitor for file {} started", file);
-
                 // @todo Use the file monitoring APIs to avoid this "busy" loop
                 while (cb::io::isFile(file)) {
                     std::this_thread::sleep_for(std::chrono::microseconds(100));
                 }
 
-                LOG_DEBUG("Block monitor for file {} stopping (file is gone)",
-                          file);
                 callback();
             }
 
@@ -1845,14 +1822,6 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
         return cb::engine_errc::failed;
     }
 
-    LOG_DEBUG(
-            "Registered connection {} (engine {}) as {} to be"
-            " suspended. Monitor file {}",
-            static_cast<const void*>(cookie),
-            (void*)this,
-            id,
-            file.c_str());
-
     response({},
              {},
              {},
@@ -1867,9 +1836,6 @@ cb::engine_errc EWB_Engine::handleSuspend(CookieIface* cookie,
                                           uint32_t id,
                                           const AddResponseFn& response) {
     if (suspendConn(cookie, id)) {
-        LOG_DEBUG("Registered connection {} as {} to be suspended",
-                  static_cast<const void*>(cookie),
-                  id);
         response({},
                  {},
                  {},
@@ -1887,7 +1853,6 @@ cb::engine_errc EWB_Engine::handleResume(CookieIface* cookie,
                                          uint32_t id,
                                          const AddResponseFn& response) {
     if (resumeConn(id)) {
-        LOG_DEBUG("Connection with id {} will be resumed", id);
         response({},
                  {},
                  {},

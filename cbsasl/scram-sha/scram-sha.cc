@@ -28,8 +28,6 @@ bool ScramShaBackend::decodeAttributeList(Context& context,
                                           AttributeMap& attributes) {
     size_t pos = 0;
 
-    LOG_DEBUG("Decoding attribute list [{}]", list);
-
     while (pos < list.length()) {
         auto equal = list.find('=', pos);
         if (equal == std::string::npos) {
