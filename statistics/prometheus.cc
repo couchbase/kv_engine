@@ -20,6 +20,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
 #include <prometheus/exposer.h>
@@ -62,6 +63,7 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
 }
 
 void addEndpoint(std::string path,
+                 EndpointTraceId traceId,
                  IncludeTimestamps timestamps,
                  IncludeMetaMetrics metaMetrics,
                  GetStatsCallback getStatsCB) {
@@ -72,8 +74,11 @@ void addEndpoint(std::string path,
                 "MetricServer instance",
                 path));
     }
-    handle->addEndpoint(
-            std::move(path), timestamps, metaMetrics, std::move(getStatsCB));
+    handle->addEndpoint(std::move(path),
+                        traceId,
+                        timestamps,
+                        metaMetrics,
+                        std::move(getStatsCB));
 }
 
 void shutdown() {
@@ -101,9 +106,11 @@ nlohmann::json getRunningConfigAsJson() {
 class MetricServer::Endpoint : public ::prometheus::Collectable {
 public:
     Endpoint(std::string path,
+             EndpointTraceId traceId,
              IncludeTimestamps timestamps,
              GetStatsCallback getStatsCB)
         : path(std::move(path)),
+          traceId(traceId),
           timestamps(timestamps),
           getStatsCB(std::move(getStatsCB)) {
     }
@@ -114,6 +121,27 @@ public:
     [[nodiscard]] std::vector<::prometheus::MetricFamily> Collect()
             const override {
         using namespace std::chrono;
+
+        // Use a thread_local ctor/dtor to register/deregister phosphor
+        struct PhosphorRegister {
+            PhosphorRegister() {
+                // Name this thread after what we see that prometheus-cpp names
+                // the scrape thread
+                phosphor::TraceLog::getInstance().registerThread(
+                        "civetweb-worker");
+            }
+            ~PhosphorRegister() {
+                phosphor::TraceLog::getInstance().deregisterThread();
+            }
+        };
+
+        thread_local PhosphorRegister phosphorRegistered;
+
+        TRACE_EVENT1("prometheus",
+                     "Collect",
+                     "id",
+                     std::underlying_type<EndpointTraceId>::type(traceId));
+
         // get current time in seconds as double
         double timestamp = duration_cast<duration<double>>(
                                    system_clock::now().time_since_epoch())
@@ -167,6 +195,7 @@ public:
 
 private:
     const std::string path;
+    const EndpointTraceId traceId;
     const IncludeTimestamps timestamps;
 
     // function to call on every incoming request to generate stats
@@ -216,6 +245,7 @@ MetricServer::~MetricServer() {
 }
 
 void MetricServer::addEndpoint(std::string path,
+                               EndpointTraceId traceId,
                                IncludeTimestamps timestamps,
                                IncludeMetaMetrics metaMetrics,
                                GetStatsCallback getStatsCB) {
@@ -225,8 +255,8 @@ void MetricServer::addEndpoint(std::string path,
                             "MetricServer instance",
                             path));
     }
-    auto ptr =
-            std::make_shared<Endpoint>(path, timestamps, std::move(getStatsCB));
+    auto ptr = std::make_shared<Endpoint>(
+            path, traceId, timestamps, std::move(getStatsCB));
 
     exposer->RegisterAuth(authCB, authRealm, path);
     exposer->RegisterCollectable(ptr, path);

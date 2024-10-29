@@ -73,6 +73,7 @@ target_link_libraries(statistics
                 platform
                 prometheus-cpp::core # ep-engine and core need the include path
         PRIVATE
+                phosphor
                 hdrhistogram
                 Folly::headers
                 mcd_util

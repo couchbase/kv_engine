@@ -53,6 +53,14 @@ enum class IncludeTimestamps {
  */
 enum class IncludeMetaMetrics { No, Yes };
 
+enum class EndpointTraceId {
+    LowCardinality,
+    LowCardinalityNoTimestamp,
+    HighCardinality,
+    HighCardinalityNoTimestamp,
+    Metering
+};
+
 using AuthCallback =
         std::function<bool(const std::string&, const std::string&)>;
 
@@ -73,6 +81,7 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
                           AuthCallback authCB);
 
 void addEndpoint(std::string path,
+                 EndpointTraceId traceId,
                  IncludeTimestamps timestamps,
                  IncludeMetaMetrics metaMetrics,
                  GetStatsCallback getStatsCB);
@@ -110,6 +119,7 @@ public:
     MetricServer& operator=(MetricServer&&) = delete;
 
     void addEndpoint(std::string path,
+                     EndpointTraceId traceId,
                      IncludeTimestamps timestamps,
                      IncludeMetaMetrics metaMetrics,
                      GetStatsCallback getStatsCB);

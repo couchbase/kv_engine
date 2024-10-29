@@ -35,6 +35,7 @@ static nlohmann::json prometheus_init(
         cb::prometheus::AuthCallback authCB) {
     auto port = cb::prometheus::initialize(config, std::move(authCB));
 
+    using cb::prometheus::EndpointTraceId;
     using cb::prometheus::IncludeMetaMetrics;
     using cb::prometheus::IncludeTimestamps;
     // Only the low cardinality metrics include the exposer_ metrics.
@@ -42,23 +43,28 @@ static nlohmann::json prometheus_init(
     // and joining the two sets of exposer_ naively will result in duplicates,
     // which is not valid Prometheus exposition format.
     cb::prometheus::addEndpoint("/_prometheusMetrics",
+                                EndpointTraceId::LowCardinality,
                                 IncludeTimestamps::Yes,
                                 IncludeMetaMetrics::Yes,
                                 server_prometheus_stats_low);
     cb::prometheus::addEndpoint("/_prometheusMetricsNoTS",
+                                EndpointTraceId::LowCardinalityNoTimestamp,
                                 IncludeTimestamps::No,
                                 IncludeMetaMetrics::Yes,
                                 server_prometheus_stats_low);
     cb::prometheus::addEndpoint("/_prometheusMetricsHigh",
+                                EndpointTraceId::HighCardinality,
                                 IncludeTimestamps::Yes,
                                 IncludeMetaMetrics::No,
                                 server_prometheus_stats_high);
     cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
+                                EndpointTraceId::HighCardinalityNoTimestamp,
                                 IncludeTimestamps::No,
                                 IncludeMetaMetrics::No,
                                 server_prometheus_stats_high);
     if (cb::serverless::isEnabled()) {
         cb::prometheus::addEndpoint("/_metering",
+                                    EndpointTraceId::Metering,
                                     IncludeTimestamps::No,
                                     IncludeMetaMetrics::No,
                                     server_prometheus_metering);
