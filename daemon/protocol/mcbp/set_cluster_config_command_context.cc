@@ -70,19 +70,19 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
         const auto iob = cb::compression::deflateSnappy(uncompressed);
         compressed = std::string{folly::StringPiece(iob->coalesce())};
     } catch (const std::bad_alloc&) {
-        LOG_WARNING("{}: Compression of {} config {} failed: No memory",
-                    cookie.getConnectionId(),
-                    bucketname.empty() ? "global"
-                                       : fmt::format("bucket '{}'", bucketname),
-                    version);
+        LOG_WARNING_CTX("Compression of config failed: No memory",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"bucket", bucketname},
+                        {"global", bucketname.empty()},
+                        {"version", fmt::to_string(version)});
         return cb::engine_errc::no_memory;
     } catch (const std::exception& exception) {
-        LOG_WARNING("{}: Compression of {} config {} failed: {}",
-                    cookie.getConnectionId(),
-                    bucketname.empty() ? "global"
-                                       : fmt::format("bucket '{}'", bucketname),
-                    version,
-                    exception.what());
+        LOG_WARNING_CTX("Compression of config failed",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"bucket", bucketname},
+                        {"global", bucketname.empty()},
+                        {"version", fmt::to_string(version)},
+                        {"error", exception.what()});
         cookie.setErrorContext("Compression failed");
         return cb::engine_errc::failed;
     }
@@ -109,21 +109,21 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     }
 
     if (status == cb::engine_errc::temporary_failure) {
-        LOG_WARNING("{}: Can't set {} config when bucket state is: {}",
-                    cookie.getConnectionId(),
-                    bucketname.empty() ? "global"
-                                       : fmt::format("bucket '{}'", bucketname),
-                    status,
-                    to_string(state));
+        LOG_WARNING_CTX("Can't set config in this bucket state",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"bucket", bucketname},
+                        {"global", bucketname.empty()},
+                        {"status", status},
+                        {"state", to_string(state)});
         return status;
     }
 
-    LOG_WARNING("{}: Failed to update {} config {}: {}",
-                cookie.getConnectionId(),
-                bucketname.empty() ? "global"
-                                   : fmt::format("bucket '{}'", bucketname),
-                version,
-                status);
+    LOG_WARNING_CTX("Failed to update config",
+                    {"conn_id", cookie.getConnectionId()},
+                    {"bucket", bucketname},
+                    {"global", bucketname.empty()},
+                    {"version", fmt::to_string(version)},
+                    {"status", status});
     return status;
 }
 
@@ -222,11 +222,11 @@ static void push_cluster_config(std::string_view bucketname) {
 }
 
 cb::engine_errc SetClusterConfigCommandContext::done() {
-    LOG_INFO("{}: Updated {} configuration. New revision: {}",
-             cookie.getConnectionId(),
-             bucketname.empty() ? "global"
-                                : fmt::format("bucket '{}'", bucketname),
-             version);
+    LOG_INFO_CTX("Updated configuration",
+                 {"conn_id", cookie.getConnectionId()},
+                 {"bucket", bucketname},
+                 {"global", bucketname.empty()},
+                 {"version", fmt::to_string(version)});
 
     cookie.setCas(sessiontoken);
     cookie.sendResponse(cb::mcbp::Status::Success);
@@ -240,10 +240,10 @@ cb::engine_errc SetClusterConfigCommandContext::done() {
                         try {
                             push_cluster_config(the_name_of_the_bucket);
                         } catch (const std::exception& exception) {
-                            LOG_WARNING(
+                            LOG_WARNING_CTX(
                                     "An error occurred while pushing cluster "
-                                    "configurations: {}",
-                                    exception.what());
+                                    "configurations",
+                                    {"error", exception.what()});
                         }
                     },
                     ConcurrencySemaphores::instance().cccp_notification));

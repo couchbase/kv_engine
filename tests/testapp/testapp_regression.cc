@@ -632,16 +632,18 @@ TEST_P(RegressionTest, MB54848) {
         mcd_env->iterateLogLines([&found_no_user,
                                   &found_wrong_passwd,
                                   &found_no_profile](auto line) {
-            if (line.find(": User [<ud>nouser</ud>] not found") !=
-                std::string_view::npos) {
+            if (line.find("User not found") != std::string_view::npos &&
+                line.find("<ud>nouser</ud>") != std::string_view::npos) {
                 found_no_user = true;
-            } else if (line.find(": Invalid password specified for "
-                                 "[<ud>jones</ud>].") !=
-                       std::string_view::npos) {
+            } else if (line.find("Invalid password specified") !=
+                               std::string_view::npos &&
+                       line.find("<ud>jones</ud>") != std::string_view::npos) {
                 found_wrong_passwd = true;
-            } else if (line.find(": User [<ud>UserWithoutProfile</ud>] is not "
-                                 "defined as a user in Couchbase.") !=
-                       std::string_view::npos) {
+            } else if (line.find(
+                               "User is not defined as a user in Couchbase") !=
+                               std::string_view::npos &&
+                       line.find("<ud>UserWithoutProfile</ud>") !=
+                               std::string_view::npos) {
                 found_no_profile = true;
             }
 

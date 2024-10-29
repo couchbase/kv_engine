@@ -44,23 +44,23 @@ cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
             break;
         }
         cookie.setErrorContext("Internal error");
-        LOG_WARNING(
-                "{}: {} - Internal error - Invalid return code from "
-                "cb::sasl::server::refresh()",
-                cookie.getConnectionId(),
-                cookie.getEventId());
+        LOG_WARNING_CTX(
+                "Internal error - Invalid return code from "
+                "cb::sasl::server::refresh",
+                {"conn_id", cookie.getConnectionId()},
+                {"event_id", cookie.getEventId()});
     } catch (const std::exception& e) {
         std::string error = e.what();
         cookie.setErrorContext(e.what());
-        LOG_WARNING("{}: Failed to refresh password database: {}",
-                    cookie.getConnectionId(),
-                    error);
+        LOG_WARNING_CTX("Failed to refresh password database",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"error", error});
     } catch (...) {
         std::string error = "Unknown error";
         cookie.setErrorContext(error);
-        LOG_WARNING("{}: Failed to refresh password database: {}",
-                    cookie.getConnectionId(),
-                    error);
+        LOG_WARNING_CTX("Failed to refresh password database",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"error", error});
     }
     return cb::engine_errc::failed;
 }

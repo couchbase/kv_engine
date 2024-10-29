@@ -31,8 +31,9 @@ cb::engine_errc AuditConfigureCommandContext::configuring() {
     case cb::engine_errc::would_block:
         break;
     default:
-        LOG_WARNING("configuration of audit daemon failed with config file: {}",
-                    Settings::instance().getAuditFile());
+        LOG_WARNING_CTX("configuration of audit daemon failed",
+                        {"audit_file", Settings::instance().getAuditFile()},
+                        {"status", ret});
     }
 
     return ret;

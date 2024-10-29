@@ -26,14 +26,11 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
     auto oldIndex = connection.getBucketIndex();
 
     if (!cookie.mayAccessBucket(bucketname)) {
-        LOG_INFO(
-                "{}: select_bucket failed - No access. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription().dump(),
-                bucketname);
+        LOG_INFO_CTX("select_bucket failed - No access",
+                     {"conn_id", connection.getId()},
+                     {"bucket", bucketname},
+                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
+                     {"description", connection.getDescription()});
         return cb::engine_errc::no_access;
     }
 
@@ -92,36 +89,28 @@ void select_bucket_executor(Cookie& cookie) {
     auto& connection = cookie.getConnection();
     if (!connection.isAuthenticated()) {
         cookie.setErrorContext("Not authenticated");
-        LOG_INFO(
-                "{}: select_bucket failed - Not authenticated. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription().dump(),
-                bucketname);
+        LOG_INFO_CTX("select_bucket failed - Not authenticated",
+                     {"conn_id", connection.getId()},
+                     {"bucket", bucketname},
+                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
+                     {"description", connection.getDescription()});
         code = cb::engine_errc::no_access;
     } else if (connection.isDCP()) {
         cookie.setErrorContext("DCP connections cannot change bucket");
-        LOG_INFO(
-                "{}: select_bucket failed - DCP connection. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription().dump(),
-                bucketname);
+
+        LOG_INFO_CTX("select_bucket failed - DCP connection",
+                     {"conn_id", connection.getId()},
+                     {"bucket", bucketname},
+                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
+                     {"description", connection.getDescription()});
         code = cb::engine_errc::not_supported;
     } else if (connection.getNumberOfCookies() > 1) {
         // We can't switch bucket if we've got multiple commands in flight
-        LOG_INFO(
-                "{}: select_bucket failed - multiple commands in flight. "
-                R"({{"cid":"{}/{:x}","connection":"{}","bucket":"{}"}})",
-                connection.getId(),
-                connection.getConnectionId().data(),
-                ntohl(cookie.getRequest().getOpaque()),
-                connection.getDescription().dump(),
-                bucketname);
+        LOG_INFO_CTX("select_bucket failed - multiple commands in flight",
+                     {"conn_id", connection.getId()},
+                     {"bucket", bucketname},
+                     {"opaque", ntohl(cookie.getRequest().getOpaque())},
+                     {"description", connection.getDescription()});
         code = cb::engine_errc::not_supported;
     } else if (bucketname == "@no bucket@") {
         // unselect bucket!

@@ -31,10 +31,10 @@ void adjust_timeofday_executor(Cookie& cookie) {
 
     switch (payload.getTimeType()) {
     case AdjustTimePayload::TimeType::TimeOfDay:
-        LOG_INFO("{} Adjust TimeOfDay offset from {} to {}",
-                 cookie.getConnectionId(),
-                 cb_get_timeofday_offset(),
-                 payload.getOffset());
+        LOG_INFO_CTX("Adjust TimeOfDay offset",
+                     {"conn_id", cookie.getConnectionId()},
+                     {"from", cb_get_timeofday_offset()},
+                     {"to", payload.getOffset()});
 
         cb_set_timeofday_offset(gsl::narrow_cast<int>(payload.getOffset()));
         cb::time::Regulator::instance().tickUptimeClockOnce();
@@ -42,10 +42,10 @@ void adjust_timeofday_executor(Cookie& cookie) {
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
     case AdjustTimePayload::TimeType::Uptime:
-        LOG_INFO("{} Adjust uptime offset from {} to {}",
-                 cookie.getConnectionId(),
-                 cb_get_uptime_offset(),
-                 payload.getOffset());
+        LOG_INFO_CTX("Adjust uptime offset",
+                     {"conn_id", cookie.getConnectionId()},
+                     {"from", cb_get_uptime_offset()},
+                     {"to", payload.getOffset()});
 
         cb_set_uptime_offset(payload.getOffset());
         cb::time::Regulator::instance().tickUptimeClockOnce();

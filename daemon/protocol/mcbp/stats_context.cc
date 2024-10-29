@@ -577,9 +577,9 @@ static cb::engine_errc stat_threads_executor(const std::string& arg,
                 json[std::to_string(tid)] = std::move(entry);
             });
         } catch (const std::exception& e) {
-            LOG_WARNING("{} - sigar::iterate_process_threads: {}",
-                        cookie.getConnectionId(),
-                        e.what());
+            LOG_WARNING_CTX("sigar::iterate_process_threads",
+                            {"conn_id", cookie.getConnectionId()},
+                            {"error", e.what()});
         }
 
         append_stats("threads:details", json.dump(), cookie);
@@ -603,11 +603,11 @@ static cb::engine_errc stat_tasks_all_executor(const std::string&,
                     cookie.getRequest().getValueString(),
                     appendStatsFn);
             if (err != cb::engine_errc::success) {
-                LOG_WARNING(
+                LOG_WARNING_CTX(
                         "stat_tasks_all_executor(): Failed to get stats from "
-                        "bucket [{}]: {}",
-                        bucket.name,
-                        err);
+                        "bucket",
+                        {"bucket", bucket.name},
+                        {"error", err});
             }
         }
         return true;

@@ -20,13 +20,13 @@
 
 cb::engine_errc RbacReloadCommandContext::doRbacReload() {
     try {
-        LOG_INFO("{}: Loading RBAC configuration from [{}]",
-                 connection.getId(),
-                 Settings::instance().getRbacFile());
+        LOG_INFO_CTX("Loading RBAC configuration",
+                     {"conn_id", connection.getId()},
+                     {"rbac_file", Settings::instance().getRbacFile()});
         cb::rbac::loadPrivilegeDatabase(Settings::instance().getRbacFile());
-        LOG_INFO("{}: RBAC configuration updated {}",
-                 connection.getId(),
-                 connection.getDescription().dump());
+        LOG_INFO_CTX("RBAC configuration updated",
+                     {"conn_id", connection.getId()},
+                     {"description", connection.getDescription()});
 
         if (externalAuthManager) {
             externalAuthManager->setRbacCacheEpoch(
@@ -35,12 +35,12 @@ cb::engine_errc RbacReloadCommandContext::doRbacReload() {
 
         return cb::engine_errc::success;
     } catch (const std::runtime_error& error) {
-        LOG_WARNING(
-                "{}: RbacConfigReloadTask(): An error occurred while loading "
-                "RBAC configuration from [{}]: {}",
-                connection.getId(),
-                Settings::instance().getRbacFile(),
-                error.what());
+        LOG_WARNING_CTX(
+                "RbacConfigReloadTask(): An error occurred while loading RBAC "
+                "configuration",
+                {"conn_id", connection.getId()},
+                {"rbac_file", Settings::instance().getRbacFile()},
+                {"error", error.what()});
     }
     return cb::engine_errc::failed;
 }

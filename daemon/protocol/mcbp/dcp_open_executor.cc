@@ -67,11 +67,11 @@ void dcp_open_executor(Cookie& cookie) {
                               request.getKeyString(),
                               request.getValueString());
             } catch (const std::exception& e) {
-                LOG_WARNING(
-                        "{}: Received an exception as part DCP Open: {}, "
-                        "disconnect client",
-                        connection.getId(),
-                        e.what());
+                LOG_WARNING_CTX(
+                        "Received an exception as part DCP Open, disconnect "
+                        "client",
+                        {"conn_id", connection.getId()},
+                        {"error", e.what()});
                 ret = cb::engine_errc::disconnect;
             }
             cookie.decrementRefcount();
@@ -105,36 +105,30 @@ void dcp_open_executor(Cookie& cookie) {
                     "interface");
         }
 
-        // String buffer with max length = total length of all possible contents
-        std::string logBuffer;
+        auto flags = cb::logger::Json::array();
 
         if (dcpProducer) {
-            logBuffer.append("PRODUCER, ");
+            flags.push_back("PRODUCER");
         } else {
-            logBuffer.append("CONSUMER, ");
+            flags.push_back("CONSUMER");
         }
         if (dcpXattrAware) {
-            logBuffer.append("INCLUDE_XATTRS, ");
+            flags.push_back("INCLUDE_XATTRS");
         }
         if (dcpNoValue) {
-            logBuffer.append("NO_VALUE, ");
+            flags.push_back("NO_VALUE");
         }
         if (dcpDeleteTimes) {
-            logBuffer.append("DELETE_TIMES, ");
+            flags.push_back("DELETE_TIMES");
         }
         if (connection.isDcpDeletedUserXattr()) {
-            logBuffer.append("INCLUDE_DELETED_USER_XATTRS, ");
+            flags.push_back("INCLUDE_DELETED_USER_XATTRS");
         }
 
-        // Remove trailing whitespace and comma
-        if (!logBuffer.empty()) {
-            logBuffer.resize(logBuffer.size() - 2);
-        }
-
-        LOG_INFO("{}: DCP connection opened successfully. {} {}",
-                 connection.getId(),
-                 logBuffer,
-                 connection.getDescription().dump());
+        LOG_INFO_CTX("DCP connection opened successfully",
+                     {"conn_id", connection.getId()},
+                     {"flags", std::move(flags)},
+                     {"description", connection.getDescription()});
 
         connection.getThread().maybeRegisterThrottleableDcpConnection(
                 connection);

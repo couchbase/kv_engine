@@ -69,13 +69,12 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         try {
             (void)createContext(serverContext.getUser(), {});
         } catch (const cb::rbac::NoSuchUserException&) {
-            LOG_WARNING(
-                    "{}: User [{}] is not defined as a user in Couchbase. "
-                    "Mechanism:[{}], UUID:[{}]",
-                    connection.getId(),
-                    cb::UserDataView(serverContext.getUser().name),
-                    mechanism,
-                    cookie.getEventId());
+            LOG_WARNING_CTX(
+                    "User is not defined as a user in Couchbase",
+                    {"conn_id", connection.getId()},
+                    {"user", cb::UserDataView(serverContext.getUser().name)},
+                    {"mechanism", mechanism},
+                    {"event_id", cookie.getEventId()});
             authFailure(cb::sasl::Error::NO_RBAC_PROFILE);
             return cb::engine_errc::success;
         }
@@ -84,13 +83,10 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     // Success
     connection.setAuthenticated(serverContext.getUser());
     audit_auth_success(connection, &cookie);
-    auto& user = connection.getUser();
-    LOG_INFO("{}: Client {} authenticated as {}. Mechanism:[{}]{}",
-             connection.getId(),
-             connection.getPeername().dump(),
-             user.getSanitizedName(),
-             mechanism,
-             user.domain == cb::sasl::Domain::External ? " (LDAP)" : "");
+    LOG_INFO_CTX("Client authenticated",
+                 {"conn_id", connection.getId()},
+                 {"description", connection.getDescription()},
+                 {"mechanism", mechanism});
 
     if (Settings::instance().isDeprecatedBucketAutoselectEnabled()) {
         // associate the connection with the appropriate bucket
@@ -173,23 +169,22 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         return authFailure(error);
 
     case cb::sasl::Error::NO_USER:
-        LOG_WARNING("{}: User [{}] not found. Mechanism:[{}], UUID:[{}]",
-                    connection.getId(),
-                    cb::UserDataView(serverContext.getUser().name),
-                    mechanism,
-                    cookie.getEventId());
+        LOG_WARNING_CTX(
+                "User not found",
+                {"conn_id", connection.getId()},
+                {"user", cb::UserDataView(serverContext.getUser().name)},
+                {"mechanism", mechanism},
+                {"event_id", cookie.getEventId()});
         audit_auth_failure(
                 connection, serverContext.getUser(), "Unknown user", &cookie);
         return authFailure(error);
 
     case cb::sasl::Error::PASSWORD_ERROR:
-        LOG_WARNING(
-                "{}: Invalid password specified for [{}]. Mechanism:[{}], "
-                "UUID:[{}]",
-                connection.getId(),
-                serverContext.getUser().getSanitizedName(),
-                mechanism,
-                cookie.getEventId());
+        LOG_WARNING_CTX("Invalid password specified",
+                        {"conn_id", connection.getId()},
+                        {"user", serverContext.getUser().getSanitizedName()},
+                        {"mechanism", mechanism},
+                        {"event_id", cookie.getEventId()});
         audit_auth_failure(connection,
                            serverContext.getUser(),
                            "Incorrect password",
@@ -206,13 +201,12 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         return authFailure(error);
 
     case cb::sasl::Error::NO_RBAC_PROFILE:
-        LOG_WARNING(
-                "{}: User [{}] is not defined as a user in Couchbase. "
-                "Mechanism:[{}], UUID:[{}]",
-                connection.getId(),
-                cb::UserDataView(serverContext.getUser().name),
-                mechanism,
-                cookie.getEventId());
+        LOG_WARNING_CTX(
+                "User is not defined as a user in Couchbase",
+                {"conn_id", connection.getId()},
+                {"user", cb::UserDataView(serverContext.getUser().name)},
+                {"mechanism", mechanism},
+                {"event_id", cookie.getEventId()});
         audit_auth_failure(connection,
                            serverContext.getUser(),
                            "No RBAC profile",
@@ -220,9 +214,9 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
         return authFailure(error);
 
     case cb::sasl::Error::AUTH_PROVIDER_DIED:
-        LOG_WARNING("{}: Auth provider closed the connection. UUID:[{}]",
-                    connection.getId(),
-                    cookie.getEventId());
+        LOG_WARNING_CTX("Auth provider closed the connection",
+                        {"conn_id", connection.getId()},
+                        {"event_id", cookie.getEventId()});
         return authFailure(error);
     }
 

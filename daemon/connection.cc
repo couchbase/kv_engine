@@ -430,6 +430,7 @@ void Connection::updateDescription() {
         if (getUser().domain == cb::sasl::Domain::External) {
             user["ldap"] = true;
         }
+        description["user"] = std::move(user);
     } else {
         description["user"] = nullptr;
     }

@@ -66,12 +66,10 @@ cb::engine_errc BucketManagementCommandContext::create() {
                     status = BucketManager::instance().create(
                             *client, nm, cfg, t);
                 } catch (const std::runtime_error& error) {
-                    LOG_WARNING(
-                            "{}: An error occurred while creating bucket [{}]: "
-                            "{}",
-                            connection.getId(),
-                            nm,
-                            error.what());
+                    LOG_WARNING_CTX("An error occurred while creating bucket",
+                                    {"conn_id", connection.getId()},
+                                    {"bucket", nm},
+                                    {"error", error.what()});
                     status = cb::engine_errc::failed;
                 }
                 client->notifyIoComplete(status);
@@ -113,20 +111,17 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                 invalid_arguments = true;
             }
             if (invalid_arguments) {
-                LOG_WARNING(
-                        "{} Invalid payload provided with delete bucket: {}",
-                        connection.getId(),
-                        config);
+                LOG_WARNING_CTX("Invalid payload provided with delete bucket",
+                                {"conn_id", connection.getId()},
+                                {"config", config});
                 return cb::engine_errc::invalid_arguments;
             }
         } catch (const std::exception& e) {
-            LOG_WARNING(
-                    "{} Exception occurred while parsing delete bucket "
-                    "payload: "
-                    "\"{}\". {}",
-                    connection.getId(),
-                    config,
-                    e.what());
+            LOG_WARNING_CTX(
+                    "Exception occurred while parsing delete bucket payload",
+                    {"conn_id", connection.getId()},
+                    {"config", config},
+                    {"error", e.what()});
             return cb::engine_errc::failed;
         }
     }
@@ -156,10 +151,10 @@ cb::engine_errc BucketManagementCommandContext::remove() {
         try {
             status = destroyer.drive();
         } catch (const std::runtime_error& error) {
-            LOG_WARNING("{}: An error occurred while deleting bucket [{}]: {}",
-                        connection.getId(),
-                        nm,
-                        error.what());
+            LOG_WARNING_CTX("An error occurred while deleting bucket",
+                            {"conn_id", connection.getId()},
+                            {"bucket", nm},
+                            {"error", error.what()});
             status = cb::engine_errc::failed;
         }
         if (status == cb::engine_errc::would_block) {
@@ -185,8 +180,8 @@ cb::engine_errc BucketManagementCommandContext::remove() {
 cb::engine_errc BucketManagementCommandContext::pause() {
     std::string name(request.getKeyString());
     if (name == cookie.getConnection().getBucket().name) {
-        LOG_WARNING("{} Can't pause the connections' selected bucket",
-                    cookie.getConnectionId());
+        LOG_WARNING_CTX("Can't pause the connections' selected bucket",
+                        {"conn_id", cookie.getConnectionId()});
         return cb::engine_errc::invalid_arguments;
     }
     // Run a background task to perform the actual pause() of the bucket, as
@@ -204,12 +199,12 @@ cb::engine_errc BucketManagementCommandContext::pause() {
                                 status = BucketManager::instance().pause(
                                         *client, nm);
                             } catch (const std::runtime_error& error) {
-                                LOG_WARNING(
-                                        "{}: An error occurred while pausing "
-                                        "bucket [{}]: {}",
-                                        client->getConnectionId(),
-                                        nm,
-                                        error.what());
+                                LOG_WARNING_CTX(
+                                        "An error occurred while pausing "
+                                        "bucket",
+                                        {"conn_id", client->getConnectionId()},
+                                        {"bucket", nm},
+                                        {"error", error.what()});
                                 status = cb::engine_errc::failed;
                             }
                             client->notifyIoComplete(status);
@@ -231,12 +226,10 @@ cb::engine_errc BucketManagementCommandContext::resume() {
                 try {
                     status = BucketManager::instance().resume(*client, name);
                 } catch (const std::runtime_error& error) {
-                    LOG_WARNING(
-                            "{}: An error occurred while resuming "
-                            "bucket [{}]: {}",
-                            client->getConnectionId(),
-                            name,
-                            error.what());
+                    LOG_WARNING_CTX("An error occurred while resuming bucket",
+                                    {"conn_id", client->getConnectionId()},
+                                    {"bucket", name},
+                                    {"error", error.what()});
                 }
             };
     if (!session_cas.execute(request.getCas(), resumeFunc)) {

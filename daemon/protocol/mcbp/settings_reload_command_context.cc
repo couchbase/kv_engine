@@ -203,7 +203,8 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
 
 cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
     try {
-        LOG_INFO("Reloading config file {}", get_config_file());
+        LOG_INFO_CTX("Reloading config file",
+                     {"config_file", get_config_file()});
         const auto content =
                 cb::dek::Manager::instance().load(cb::dek::Entity::Config,
                                                   get_config_file(),
@@ -237,13 +238,13 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
         Settings::instance().updateSettings(new_settings, true);
         return cb::engine_errc::success;
     } catch (const std::bad_alloc&) {
-        LOG_WARNING("{}: Failed reloading config file. not enough memory",
-                    cookie.getConnectionId());
+        LOG_WARNING_CTX("Failed reloading config file. not enough memory",
+                        {"conn_id", cookie.getConnectionId()});
         return cb::engine_errc::no_memory;
     } catch (const std::system_error& error) {
         if (error.code() == std::errc::too_many_files_open) {
-            LOG_WARNING("{}: Failed reloading config file. too many files open",
-                        cookie.getConnectionId());
+            LOG_WARNING_CTX("Failed reloading config file. too many files open",
+                            {"conn_id", cookie.getConnectionId()});
             return cb::engine_errc::temporary_failure;
         }
         cookie.setErrorContext(error.what());
@@ -255,13 +256,11 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
         // Lets just put it in details for now
         extras["details"] = exception.error;
         cookie.setErrorJsonExtras(extras);
-        LOG_WARNING(
-                "{}: {} - Failed reloading config file. Error: \"{}\". Extra: "
-                "{}",
-                cookie.getConnectionId(),
-                cookie.getEventId(),
-                cookie.getErrorContext(),
-                extras.dump());
+        LOG_WARNING_CTX("Failed reloading config file",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"event_id", cookie.getEventId()},
+                        {"error_context", cookie.getErrorContext()},
+                        {"extras", extras});
         return cb::engine_errc::failed;
     } catch (const std::exception& exception) {
         cookie.setErrorContext(exception.what());
@@ -269,11 +268,11 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
         cookie.setErrorContext("Unknown error");
     }
 
-    LOG_WARNING("{}: {} - Failed reloading config file '{}'. Error: {}",
-                cookie.getConnectionId(),
-                cookie.getEventId(),
-                get_config_file(),
-                cookie.getErrorContext());
+    LOG_WARNING_CTX("Failed reloading config file",
+                    {"conn_id", cookie.getConnectionId()},
+                    {"event_id", cookie.getEventId()},
+                    {"config_file", get_config_file()},
+                    {"error_context", cookie.getErrorContext()});
     return cb::engine_errc::failed;
 }
 
