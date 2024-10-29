@@ -114,6 +114,17 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
         NonBucketAllocationGuard guard;
 
         auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
+
+        if (!prefixContext.empty()) {
+            const auto& prefixObject =
+                    prefixContext.get_ref<const nlohmann::json::object_t&>();
+            for (auto it = prefixObject.crbegin(); it != prefixObject.crend();
+                 ++it) {
+                object.insert(object.begin(),
+                              cb::logger::Json{it->first, it->second});
+            }
+        }
+
         // Write the bucket
         if (engine) {
             object.insert(object.begin(), {"bucket", engine->getName()});

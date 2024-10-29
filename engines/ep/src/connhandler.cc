@@ -389,8 +389,10 @@ void ConnHandler::pause(ConnHandler::PausedReason r) {
     });
 }
 
-void ConnHandler::setLogHeader(const std::string& header) {
+void ConnHandler::setLogContext(const std::string& header,
+                                const nlohmann::json& ctx) {
     logger->prefix = header;
+    logger->prefixContext = ctx;
 }
 
 const char* ConnHandler::logHeader() const {

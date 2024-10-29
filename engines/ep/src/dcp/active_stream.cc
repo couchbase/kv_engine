@@ -2993,8 +2993,6 @@ void ActiveStream::logWithContext(spdlog::level::level_enum severity,
         object.insert(object.begin(), {"sid", sid.to_string()});
     }
     object.insert(object.begin(), {"vb", getVBucket()});
-    object.insert(object.begin(), {"stream", getName()});
-    object.insert(object.begin(), {"dcp", "Producer"});
 
     auto producer = producerPtr.lock();
     if (producer) {

@@ -191,7 +191,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 
     setSupportAck(true);
     pause(PausedReason::Initializing);
-    setLogHeader("DCP (Producer) " + getName() + " -");
+    setLogContext("DCP (Producer) " + getName() + " -",
+                  {{"dcp", "producer"}, {"dcp_name", getName()}});
 
     // Reduce the minimum log level of view engine DCP streams as they are
     // extremely noisy due to creating new stream, per vbucket,per design doc

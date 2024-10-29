@@ -256,7 +256,12 @@ public:
 
     const char* logHeader() const;
 
-    void setLogHeader(const std::string& header);
+    /**
+     * Sets context which will be appended to all log lines.
+     * @param header Prefixed to non-JSON logs
+     * @param ctx Merged into JSON logs
+     */
+    void setLogContext(const std::string& header, const nlohmann::json& ctx);
 
     BucketLogger& getLogger();
 

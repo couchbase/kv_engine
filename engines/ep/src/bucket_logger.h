@@ -192,6 +192,9 @@ public:
     /// The prefix printed before the log message contents
     std::string prefix;
 
+    /// Context to merge into logs.
+    nlohmann::json prefixContext;
+
     /// Unregisters the BucketLogger in the logger library registry.
     void unregister();
 

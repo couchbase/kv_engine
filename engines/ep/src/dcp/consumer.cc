@@ -155,7 +155,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       flowControl(engine, *this) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
-    setLogHeader("DCP (Consumer) " + getName() + " -");
+    setLogContext("DCP (Consumer) " + getName() + " -",
+                  {{"dcp", "consumer"}, {"dcp_name", getName()}});
 
     pendingEnableNoop = config.isDcpEnableNoop();
     getErrorMapState = pendingEnableNoop ? GetErrorMapState::PendingRequest

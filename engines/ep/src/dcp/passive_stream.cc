@@ -1236,8 +1236,6 @@ void PassiveStream::logWithContext(spdlog::level::level_enum severity,
     // Format: {"dcp":"consumer", "stream": "name", vb:"vb:X", ...}
     auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
     object.insert(object.begin(), {"vb", getVBucket()});
-    object.insert(object.begin(), {"stream", getName()});
-    object.insert(object.begin(), {"dcp", "consumer"});
 
     auto consumer = consumerPtr.lock();
     if (consumer) {
