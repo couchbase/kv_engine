@@ -3474,6 +3474,14 @@
         "added": "7.0.0"
     },
     {
+        "key": "ep_pending_disk_ops_max_time",
+        "unit": "microseconds",
+        "type": "gauge",
+        "description": "The longest time spent in a disk operation that is currently executing",
+        "cbstat": "ep_pending_disk_{type}_max_time",
+        "added": "8.0.0"
+    },
+    {
         "key": "ep_ht_item_memory",
         "unit": "bytes",
         "description": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected. Tracks the same value as ep_total_cache_size",

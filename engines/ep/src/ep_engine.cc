@@ -3521,6 +3521,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     const auto start = std::chrono::steady_clock::now();
 
     doDiskFailureStats(collector);
+    doDiskSlownessStats(collector);
     doContinuousBackupStats(collector);
 
     kvBucket->getFileStats(collector);
@@ -5331,6 +5332,32 @@ void EventuallyPersistentEngine::doContinuousBackupStats(
     }
 }
 
+void EventuallyPersistentEngine::iteratePendingDiskOps(
+        const std::function<void(bool isDataWrite,
+                                 std::chrono::microseconds adjustedElapsed)>&
+                callback) {
+    // Current point in time.
+    auto now = ep_uptime_now();
+    fileOpsTracker->visitThreads(
+            [this, now, &callback](auto type, auto thread, const auto& op) {
+                if (type != TaskType::Reader && type != TaskType::Writer) {
+                    return;
+                }
+                auto elapsed = now - op.startTime;
+
+                // For large operations, scale the duration by a factor based
+                // on the maximum item size, to handle cases where we're writing
+                // more than 20 MiB in one operation.
+                double elapsedScalingFactor = std::max(
+                        1.0, static_cast<double>(op.nbytes) / maxItemSize);
+                auto effectiveElapsed = elapsed / elapsedScalingFactor;
+
+                callback(op.isDataWrite(),
+                         std::chrono::duration_cast<std::chrono::microseconds>(
+                                 effectiveElapsed));
+            });
+}
+
 cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
         CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     using namespace cb::stats;
@@ -5353,32 +5380,17 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
     OpCounts readCounts;
     OpCounts writeCounts;
 
-    // Current point in time.
-    auto now = ep_uptime_now();
     std::chrono::seconds threshold(thresholdSeconds);
     // Visit all threads performing IO and record any file ops taking longer
     // than the threshold.
-    fileOpsTracker->visitThreads(
-            [this, now, threshold, &readCounts, &writeCounts](
-                    auto type, auto thread, const auto& op) {
-                if (type != TaskType::Reader && type != TaskType::Writer) {
-                    return;
-                }
-                auto elapsed = now - op.startTime;
-
-                // For large operations, scale the threshold by a factor based
-                // on the maximum item size, to handle cases where we're writing
-                // more than 20 MiB in one operation.
-                double thresholdScalingFactor = std::max(
-                        1.0, static_cast<double>(op.nbytes) / maxItemSize);
-                auto effectiveThreshold = threshold * thresholdScalingFactor;
-
-                auto& c = op.isDataWrite() ? writeCounts : readCounts;
-                ++c.numTotal;
-                if (elapsed >= effectiveThreshold) {
-                    ++c.numSlow;
-                }
-            });
+    iteratePendingDiskOps([&writeCounts, &readCounts, &threshold](
+                                  bool isDataWrite, auto elapsed) {
+        auto& c = isDataWrite ? writeCounts : readCounts;
+        ++c.numTotal;
+        if (elapsed >= threshold) {
+            ++c.numSlow;
+        }
+    });
 
     add_stat("pending_disk_read_num", to_string(readCounts.numTotal), cookie);
     add_stat("pending_disk_read_slow_num",
@@ -5389,6 +5401,26 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
              to_string(writeCounts.numSlow),
              cookie);
     return cb::engine_errc::success;
+}
+
+void EventuallyPersistentEngine::doDiskSlownessStats(
+        const BucketStatCollector& collector) {
+    std::chrono::microseconds writeMaxTime{};
+    std::chrono::microseconds readMaxTime{};
+
+    iteratePendingDiskOps(
+            [&writeMaxTime, &readMaxTime](bool isDataWrite, auto elapsed) {
+                auto& t = isDataWrite ? writeMaxTime : readMaxTime;
+                t = std::max(t, elapsed);
+            });
+
+    using namespace cb::stats;
+    collector.addStat(Key::ep_pending_disk_ops_max_time,
+                      writeMaxTime.count(),
+                      {{"type", "write"}});
+    collector.addStat(Key::ep_pending_disk_ops_max_time,
+                      readMaxTime.count(),
+                      {{"type", "read"}});
 }
 
 cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(

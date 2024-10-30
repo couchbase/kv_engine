@@ -1266,9 +1266,13 @@ protected:
 
     void doDiskFailureStats(const BucketStatCollector& collector);
 
+    /// Collect disk slowness stats based on the provided threshold.
     cb::engine_errc doDiskSlownessStats(CookieIface& cookie,
                                         const AddStatFn& add_stat,
                                         std::string_view key);
+
+    /// Collect disk slowness stats for Prometheus.
+    void doDiskSlownessStats(const BucketStatCollector& collector);
 
     void doContinuousBackupStats(const BucketStatCollector& collector);
 
@@ -1533,6 +1537,11 @@ protected:
                                           CollectionID cid);
 
 private:
+    void iteratePendingDiskOps(
+            const std::function<
+                    void(bool isDataWrite,
+                         std::chrono::microseconds adjustedElapsed)>& callback);
+
     void doEngineStatsCouchDB(const StatCollector& collector,
                               const EPStats& epstats);
     void doEngineStatsMagma(const StatCollector& collector);

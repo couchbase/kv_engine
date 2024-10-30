@@ -6915,6 +6915,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_pager_sleep_time_ms",
               "ep_paging_visitor_pause_check_count",
               "ep_pending_compactions",
+              "ep_pending_disk_read_max_time",
+              "ep_pending_disk_write_max_time",
               "ep_pending_ops",
               "ep_pending_ops_max",
               "ep_pending_ops_max_duration",
