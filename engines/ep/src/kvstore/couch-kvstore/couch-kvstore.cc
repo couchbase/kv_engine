@@ -534,6 +534,14 @@ void CouchKVStore::initialize(
             throw std::runtime_error(msg);
         }
 
+        if (cb::couchstore::isEncrypted(*db)) {
+            vbucketEncryptionKeysManager.setCurrentKey(
+                    vbid, std::string(cb::couchstore::getEncryptionKeyId(*db)));
+        } else {
+            vbucketEncryptionKeysManager.setCurrentKey(
+                    vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+        }
+
         const auto [readRes, state] = readVBStateAndUpdateCache(db, vbid);
 
         switch (readRes) {
@@ -849,6 +857,11 @@ void CouchKVStore::del(TransactionContext& txnCtx, queued_item item) {
 
 void CouchKVStore::delVBucket(Vbid vbucket,
                               std::unique_ptr<KVStoreRevision> fileRev) {
+    if (fileRev->getRevision() ==
+        (*dbFileRevMap->rlock()).at(getCacheSlot(vbucket))) {
+        vbucketEncryptionKeysManager.removeCurrentKey(vbucket);
+    }
+
     unlinkCouchFile(vbucket, fileRev->getRevision());
 }
 
@@ -1145,6 +1158,9 @@ CompactDBStatus CouchKVStore::compactDB(
             st.compactHisto.add(
                     std::chrono::duration_cast<std::chrono::microseconds>(
                             std::chrono::steady_clock::now() - start));
+            vbucketEncryptionKeysManager.promoteNextKey(vbid);
+        } else {
+            vbucketEncryptionKeysManager.removeNextKey(vbid);
         }
     } catch (const std::exception& le) {
         logger.error(
@@ -1515,7 +1531,17 @@ CompactDBStatus CouchKVStore::compactDBInternal(
                 *sourceDb,
                 compact_file.c_str(),
                 flags,
-                getEncryptionLookupFunction(),
+                [this, vbid](auto id) {
+                    auto ret = encryptionKeyProvider
+                                       ? encryptionKeyProvider->lookup(id)
+                                       : cb::crypto::SharedEncryptionKey{};
+                    if (ret) {
+                        vbucketEncryptionKeysManager.setNextKey(vbid, ret->id);
+                    } else {
+                        vbucketEncryptionKeysManager.removeNextKey(vbid);
+                    }
+                    return ret;
+                },
                 [hook_ctx](Db& db, DocInfo* docInfo, sized_buf value) -> int {
                     return time_purge_hook(db, docInfo, value, *hook_ctx);
                 },
@@ -2041,26 +2067,7 @@ StorageProperties CouchKVStore::getStorageProperties() const {
 
 std::pair<cb::engine_errc, nlohmann::json>
 CouchKVStore::getVbucketEncryptionKeyIds(Vbid vb) const {
-    DbHolder db(*this);
-    couchstore_error_t err = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (err != COUCHSTORE_SUCCESS) {
-        logOpenError(__func__,
-                     spdlog::level::level_enum::warn,
-                     err,
-                     vb,
-                     db.getFilename(),
-                     COUCHSTORE_OPEN_FLAG_RDONLY);
-        return {cb::engine_errc::failed, {}};
-    }
-
-    if (cb::couchstore::isEncrypted(*db)) {
-        return {cb::engine_errc::success,
-                cb::couchstore::getEncryptionKeyId(*db)};
-    }
-
-    // Not encrypted
-    cb::crypto::DataEncryptionKey unencrypted;
-    return {cb::engine_errc::success, {unencrypted.getId()}};
+    return {cb::engine_errc::success, vbucketEncryptionKeysManager.getKeys()};
 }
 
 cb::engine_errc CouchKVStore::prepareSnapshot(
@@ -4552,6 +4559,14 @@ std::optional<DbHolder> CouchKVStore::openOrCreate(Vbid vbid) noexcept {
                 std::string(couchstore_strerror(res)),
                 getDBFileName(dbname, vbid, db.getFileRev()));
         return {};
+    }
+
+    if (cb::couchstore::isEncrypted(*db)) {
+        vbucketEncryptionKeysManager.setCurrentKey(
+                vbid, std::string(cb::couchstore::getEncryptionKeyId(*db)));
+    } else {
+        vbucketEncryptionKeysManager.setCurrentKey(
+                vbid, cb::crypto::DataEncryptionKey::UnencryptedKeyId);
     }
 
     return std::move(db);

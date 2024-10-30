@@ -16,6 +16,7 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_priv.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "vbucket_encryption_keys_manager.h"
 #include "vbucket_state.h"
 
 #include <folly/SharedMutex.h>
@@ -1001,6 +1002,8 @@ protected:
     /// may set the element to true if it runs at the same time as
     /// compaction is running (and we just need to abort the compaction)
     std::vector<std::atomic_bool> vbAbortCompaction;
+
+    VBucketEncryptionKeysManager vbucketEncryptionKeysManager;
 
     BucketLogger& logger;
 
