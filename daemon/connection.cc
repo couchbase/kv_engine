@@ -20,6 +20,7 @@
 #include "mcaudit.h"
 #include "memcached.h"
 #include "network_interface_manager.h"
+#include "sdk_connection_manager.h"
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -1121,6 +1122,11 @@ void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
             cb::rbac::createContext(getUser(), ""));
     updatePrivilegeContext();
     thread.onConnectionAuthenticated(*this);
+    if (!isInternal() && !registeredSdk && agentName.front() != '\0') {
+        SdkConnectionManager::instance().registerSdk(
+                std::string_view(agentName.data()));
+        registeredSdk = true;
+    }
 }
 
 const cb::rbac::UserIdent& Connection::getUser() const {
@@ -1291,6 +1297,13 @@ void Connection::setAgentName(std::string_view name) {
     auto size = std::min(name.size(), agentName.size() - 1);
     std::copy(name.begin(), name.begin() + size, agentName.begin());
     agentName[size] = '\0';
+
+    if (isAuthenticated() && !isInternal() && !registeredSdk &&
+        agentName.front() != '\0') {
+        SdkConnectionManager::instance().registerSdk(
+                std::string_view(agentName.data()));
+        registeredSdk = true;
+    }
 }
 
 void Connection::setConnectionId(std::string_view uuid) {

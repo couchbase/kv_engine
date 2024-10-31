@@ -1184,6 +1184,9 @@ protected:
      */
     bool saslAuthEnabled = true;
 
+    /// is the sdk registered
+    bool registeredSdk = false;
+
     /// The type of connection this is
     Type type = Type::Normal;
 

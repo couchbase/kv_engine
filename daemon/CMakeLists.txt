@@ -71,6 +71,8 @@ add_library(memcached_daemon STATIC
             nobucket_taskable.h
             resource_allocation_domain.cc
             resource_allocation_domain.h
+            sdk_connection_manager.cc
+            sdk_connection_manager.h
             sendbuffer.cc
             sendbuffer.h
             server_api.cc
@@ -202,6 +204,7 @@ cb_add_test_executable(memcached_unit_tests
                        mc_time_test.cc
                        network_interface_description_test.cc
                        network_interface_test.cc
+                       sdk_connection_manager_test.cc
                        settings_test.cc
                        sloppy_gauge_test.cc
                        ssl_utils_test.cc

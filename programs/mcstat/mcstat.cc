@@ -379,7 +379,7 @@ int main(int argc, char** argv) {
         getopt.assemble();
         auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
-        connection->setAgentName("mcstat " MEMCACHED_VERSION);
+        connection->setAgentName("mcstat/" PRODUCT_VERSION);
         connection->setFeatures(
                 {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
 
