@@ -97,13 +97,10 @@ def print_event(event):
     print(json.dumps(event))
 
 
-def parse_slow_operation(node, m):
+def parse_slow_operation(node, time, fd, slow_op):
     """Parses a log line for a 'Slow operation', outputting to stdout a Google
      Chrome tracing event for each span parsed.
     """
-    time = m.group(1)
-    fd = m.group(2)
-    slow_op = parse_slow_op(m.group(3))
 
     # Set the common fields for all events for this operation
     common = dict()
@@ -167,6 +164,19 @@ def parse_slow_operation(node, m):
                 event['args'] = dict()
             event['args']['node'] = node
         print_event(event)
+
+
+def parse_slow_operation_legacy(node, m):
+    time = m.group(1)
+    fd = m.group(2)
+    slow_op = parse_slow_op(m.group(3))
+    parse_slow_operation(node, time, fd, slow_op)
+
+
+def parse_slow_operation_json(node, m):
+    (time, ctx) = m.groups()
+    data = json.loads(ctx)
+    parse_slow_operation(node, time, data['conn_id'], slow_op=data)
 
 
 def parse_slow_task_runtime(time, bucket, task, thread, runtime_sec):
@@ -326,7 +336,15 @@ def main(file):
             " WARNING (\\d+): Slow operation. (.*)",
             line)
         if m:
-            parse_slow_operation(node, m)
+            parse_slow_operation_legacy(node, m)
+            continue
+
+        m = re.search(
+            time_regex +
+            " WARNING Slow operation ({.*})",
+            line)
+        if m:
+            parse_slow_operation_json(node, m)
             continue
 
         # Check for "Slow runtime" messages from tasks, e.g.

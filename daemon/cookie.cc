@@ -32,6 +32,7 @@
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
 #include <platform/histogram.h>
+#include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
@@ -428,19 +429,20 @@ void Cookie::maybeLogSlowCommand(
                               "connection_id",
                               c.getId());
 
-        nlohmann::json details = {{"cid",
-                                   fmt::format("{}/{:x}",
-                                               c.getConnectionId().data(),
-                                               getHeader().getOpaque())},
-                                  {"duration", cb::time2text(timings)},
-                                  {"trace", tracer.to_string()},
-                                  {"command", opcode},
-                                  {"peer", c.getPeername()},
-                                  {"bucket", c.getBucket().name},
-                                  {"packet", getHeader().to_json(validated)},
-                                  {"worker_tid", folly::getCurrentThreadID()}};
+        cb::logger::Json details{{"conn_id", c.getId()},
+                                 {"bucket", c.getBucket().name},
+                                 {"command", opcode},
+                                 {"duration", timings},
+                                 {"trace", tracer.to_string()},
+                                 {"cid",
+                                  fmt::format("{}/{:x}",
+                                              c.getConnectionId().data(),
+                                              getHeader().getOpaque())},
+                                 {"peer", c.getPeername()},
+                                 {"packet", getHeader().to_json(validated)},
+                                 {"worker_tid", folly::getCurrentThreadID()}};
         if (responseStatus != cb::mcbp::Status::COUNT) {
-            details["response"] = to_string(responseStatus);
+            details["status"] = to_string(responseStatus);
         }
 
         const auto [read, write] = getDocumentRWBytes();
@@ -451,7 +453,7 @@ void Cookie::maybeLogSlowCommand(
             details["document_bytes_write"] = write;
         }
 
-        LOG_WARNING(R"({}: Slow operation: {})", c.getId(), details.dump());
+        LOG_WARNING_CTX("Slow operation", details);
     }
 }
 

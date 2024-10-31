@@ -117,11 +117,11 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
     });
 
     // "grep" like function to pick out the lines in all the log files
-    // containing ": Slow operation: "
+    // containing " Slow operation {"
     auto findLogLines = []() {
         std::vector<std::string> ret;
         mcd_env->iterateLogLines([&ret](auto line) {
-            if (line.find(": Slow operation: ") != std::string::npos) {
+            if (line.find(" Slow operation {") != std::string::npos) {
                 // The line may be partial!
                 auto idx = line.find('{');
                 if (idx != std::string::npos) {
@@ -160,7 +160,7 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
                     auto index = cid.find("/");
                     ASSERT_NE(std::string::npos, index);
                     EXPECT_EQ("deadbeef", cid.substr(index + 1));
-                    EXPECT_EQ("Success", json["response"].get<std::string>());
+                    EXPECT_EQ("Success", json["status"].get<std::string>());
                     auto workerTid = json.find("worker_tid");
                     ASSERT_NE(workerTid, json.end());
                     EXPECT_TRUE(workerTid->is_number());
