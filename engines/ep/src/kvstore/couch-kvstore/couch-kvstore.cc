@@ -52,21 +52,19 @@ static int scanCallback(Db* db, DocInfo* docinfo, void* ctx);
 
 static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx);
 
-static bool endWithCompact(const std::string &filename) {
-    const std::string suffix{".compact"};
-    const auto pos = filename.rfind(suffix);
-    return pos != std::string::npos && (pos + suffix.size()) == filename.size();
+static bool endWithCompact(const std::filesystem::path& filename) {
+    return filename.extension() == ".compact";
 }
 
 static std::vector<std::string> discoverDbFiles(const std::string& dir) {
     auto files = cb::io::findFilesContaining(dir, ".couch.");
-    std::vector<std::string>::iterator ii;
     std::vector<std::string> filenames;
-    for (ii = files.begin(); ii != files.end(); ++ii) {
-        if (!endWithCompact(*ii)) {
-            filenames.push_back(*ii);
+    for (const auto& file : files) {
+        if (!endWithCompact(file)) {
+            filenames.push_back(file);
         }
     }
+
     return filenames;
 }
 
