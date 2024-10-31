@@ -363,9 +363,10 @@ class MemcachedClient(object):
             opaque,
             extraHeader=b'',
             cas=0,
-            collection=None):
-        self._sendMsg(cmd, key, val, opaque, extraHeader=extraHeader, cas=cas,
-                      vbucketId=self.vbucketId, collection=collection)
+            collection=None,
+            dtype=DTYPE_RAW):
+        self._sendMsg(cmd, key, val, opaque, extraHeader, cas, dtype,
+                      self.vbucketId, collection=collection)
 
     def _sendAltCmd(self, cmd, flex, key, val, opaque, extras=b'', cas=0,
                     dtype=0, collection=None):
@@ -450,10 +451,19 @@ class MemcachedClient(object):
             myopaque)
         return opaque, cas, data
 
-    def _doCmd(self, cmd, key, val, extraHeader=b'', cas=0, collection=None):
+    def _doCmd(
+            self,
+            cmd,
+            key,
+            val,
+            extraHeader=b'',
+            cas=0,
+            collection=None,
+            dtype=DTYPE_RAW):
         """Send a command and await its response."""
         opaque = self.r.randint(0, 2**32)
-        self._sendCmd(cmd, key, val, opaque, extraHeader, cas, collection)
+        self._sendCmd(cmd, key, val, opaque, extraHeader, cas, collection,
+                      dtype)
         return self._handleSingleResponse(opaque)
 
     def _doAltCmd(self, cmd, flex, key, val, extraHeader=b'', cas=0,
@@ -809,14 +819,6 @@ class MemcachedClient(object):
         type = struct.pack(memcacheConstants.SET_PARAM_FMT, type)
         return self._doCmd(memcacheConstants.CMD_SET_PARAM, key, val, type)
 
-    def set_vbucket_state(self, vbucket, stateName):
-        assert isinstance(vbucket, int)
-        self.vbucketId = vbucket
-        state = struct.pack(memcacheConstants.VB_SET_PKT_FMT,
-                            memcacheConstants.VB_STATE_NAMES[stateName])
-        return self._doCmd(memcacheConstants.CMD_SET_VBUCKET_STATE, '', '',
-                           state)
-
     def compact_db(self, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
         assert isinstance(vbucket, int)
         assert isinstance(purgeBeforeTs, int)
@@ -827,6 +829,28 @@ class MemcachedClient(object):
                               purgeBeforeTs, purgeBeforeSeq, dropDeletes)
         return self._doCmd(memcacheConstants.CMD_COMPACT_DB, '', '',
                            compact)
+
+    def mount_vbucket(self, vbucket, value):
+        assert isinstance(vbucket, int)
+        self.vbucketId = vbucket
+        return self._doCmd(
+            memcacheConstants.CMD_MOUNT_VBUCKET,
+            '',
+            value,
+            dtype=DTYPE_JSON)
+
+    def set_vbucket_state(self, vbucket, stateName, value=''):
+        assert isinstance(vbucket, int)
+        self.vbucketId = vbucket
+        dtype = DTYPE_RAW if len(value) == 0 else DTYPE_JSON
+        state = struct.pack(memcacheConstants.VB_SET_PKT_FMT,
+                            memcacheConstants.VB_STATE_NAMES[stateName])
+        return self._doCmd(
+            memcacheConstants.CMD_SET_VBUCKET_STATE,
+            '',
+            value,
+            extraHeader=state,
+            dtype=dtype)
 
     def get_vbucket_state(self, vbucket):
         assert isinstance(vbucket, int)

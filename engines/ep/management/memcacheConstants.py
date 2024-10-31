@@ -70,6 +70,7 @@ CMD_DELETEQ_WITH_META = 0xa9
 CMD_SET_VBUCKET_STATE = 0x3d
 CMD_GET_VBUCKET_STATE = 0x3e
 CMD_DELETE_VBUCKET = 0x3f
+CMD_MOUNT_VBUCKET = 0x9a
 
 CMD_GET_LOCKED = 0x94
 CMD_COMPACT_DB = 0xb3
@@ -156,8 +157,8 @@ GETL_PKT_FMT = ">I"
 # set param command
 SET_PARAM_FMT = ">I"
 
-# 2 bit integer.  :/
-VB_SET_PKT_FMT = ">I"
+# set vbucket state
+VB_SET_PKT_FMT = ">B"
 
 # 8b: purge_before_ts, purge_before_seq, 1b: drop_deletes, spare1, 2b: spare2
 COMPACT_DB_PKT_FMT = ">QQBxxxxxxx"
