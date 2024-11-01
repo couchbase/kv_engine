@@ -31,18 +31,25 @@ parser.add_argument(
     type=int,
     default=2,
     help='Threshold in work days for considering a change stale')
+parser.add_argument(
+    '-r', '--reviewer',
+    action='append',
+    type=str,
+    required=True,
+    help=('The change must have the following reviewer or owner to be '
+          'considered')
+)
+parser.add_argument(
+    '-p', '--project',
+    action='append',
+    type=str,
+    required=True,
+    help='Search changes in the following projects'
+)
 parser.add_argument('--webhook', help='URL to post the output')
 
 # Gerrit instance
 base_url = 'https://review.couchbase.com'
-# Changes which have multiple members of KV-Engine as reviewers
-query_reviewers = ' '.join(
-    f'(reviewer:{user} or owner:{user})'
-    for user in ('jim@couchbase.com', 'trond.norbye@couchbase.com'))
-# Relevant projects
-query_projects = ('(project:kv_engine or project:platform or '
-                  'project:couchstore or project:tlm or '
-                  'project:sigar)')
 # Un-reviewed, but passed CV
 query_ready_to_review = ('status:open label:Verified+1 '
                          '(label:Code-Review+0 or label:Code-Review+1)')
@@ -51,7 +58,6 @@ query_ready_to_review = ('status:open label:Verified+1 '
 ssl_context = ssl.create_default_context()
 ssl_context.check_hostname = False
 ssl_context.verify_mode = ssl.CERT_NONE
-
 
 @lru_cache
 def gerrit_request(*args, **kwargs):
@@ -70,8 +76,22 @@ def get_change_url(change: dict) -> str:
         change['_number'])
 
 
+def create_reviewer_query(users: list) -> str:
+    """Query changes which have multiple reviewers."""
+    return ' '.join(
+        f'(reviewer:{user} or owner:{user})'
+        for user in users)
+
+
+def create_project_query(projects: list) -> str:
+    """Query multiple projects."""
+    q = ' or '.join(f'project:{project}' for project in projects)
+    return f'({q})'
+
+
 def query_changes(*params: list) -> str:
     """Query for changes using a query string"""
+    print('Query:', *params)
     q_value = quote_plus(' '.join(params))
     url = f'{base_url}/changes/?q={q_value}'
     return gerrit_request(url)
@@ -111,10 +131,13 @@ def count_weekend_days(start: datetime, end: datetime) -> int:
     return weekend_days
 
 
-def find_stale_ready_for_review_changes(threshold: timedelta):
+def find_stale_ready_for_review_changes(
+        threshold: timedelta, projects: list, reviewers: list):
     reference_time = datetime.now(timezone.utc)
     changes = query_changes(
-        query_reviewers, query_projects, query_ready_to_review)
+        create_project_query(projects),
+        create_reviewer_query(reviewers),
+        query_ready_to_review)
 
     for change in changes:
         last_update = parse_gerrit_datetime(change['updated'])
@@ -125,10 +148,13 @@ def find_stale_ready_for_review_changes(threshold: timedelta):
             yield elapsed_time, change
 
 
-def main(webhook: Optional[str], threshold_stale: int):
+def main(
+        webhook: Optional[str],
+        threshold_stale: int, project: list, reviewer: list):
     message_text = ''
     for wait_time, change in find_stale_ready_for_review_changes(
-            timedelta(days=threshold_stale)):
+            timedelta(days=threshold_stale),
+            projects=project, reviewers=reviewer):
         timestr = f'{wait_time.days} days {wait_time.seconds // 3600} hours'
         if wait_time > timedelta(days=5):
             timestr += '❗'
