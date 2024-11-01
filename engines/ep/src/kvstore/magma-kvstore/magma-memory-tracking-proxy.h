@@ -257,8 +257,7 @@ public:
 
     void setActiveEncryptionKeys(const cb::crypto::KeyStore& keyStore);
 
-    nlohmann::json getVbucketEncryptionKeyIds(
-            magma::Magma::KVStoreID kvId) const;
+    nlohmann::json getVbucketEncryptionKeyIds() const;
 
 private:
     std::unique_ptr<magma::Magma> magma;
