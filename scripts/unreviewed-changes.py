@@ -79,7 +79,7 @@ def get_change_url(change: dict) -> str:
 def create_reviewer_query(users: list) -> str:
     """Query changes which have multiple reviewers."""
     return ' '.join(
-        f'(reviewer:{user} or owner:{user})'
+        f'(reviewer:{user} or owner:{user} or cc:{user})'
         for user in users)
 
 
