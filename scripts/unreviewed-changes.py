@@ -52,7 +52,8 @@ parser.add_argument('--webhook', help='URL to post the output')
 base_url = 'https://review.couchbase.com'
 # Un-reviewed, but passed CV
 query_ready_to_review = ('status:open label:Verified+1 '
-                         '(label:Code-Review+0 or label:Code-Review+1)')
+                         '-(label:Code-Review-2 or label:Code-Review-1 '
+                         'or label:Code-Review+2)')
 
 # Allow insecure TLS
 ssl_context = ssl.create_default_context()
