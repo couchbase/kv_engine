@@ -175,6 +175,13 @@ public:
     nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
         return {};
     }
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid,
+            std::time_t validity) override {
+        return {};
+    }
 
     /**
      * Unit test only hook called before we compact the first KVStore. Public as

@@ -399,6 +399,12 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::PrepareSnapshot:
         case ClientOpcode::ReleaseSnapshot:
         case ClientOpcode::DownloadSnapshot:
+        case ClientOpcode::GetFusionStorageSnapshot:
+        case ClientOpcode::ReservedFusion1:
+        case ClientOpcode::ReservedFusion2:
+        case ClientOpcode::ReservedFusion3:
+        case ClientOpcode::ReservedFusion4:
+        case ClientOpcode::ReservedFusion5:
             // The command don't take (or we don't support decoding) extras
             break;
 

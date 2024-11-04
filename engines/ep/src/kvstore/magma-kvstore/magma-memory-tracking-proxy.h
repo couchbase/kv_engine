@@ -270,6 +270,12 @@ public:
     std::tuple<magma::Status, nlohmann::json> GetFusionActiveGuestVolumes(
             const magma::Magma::KVStoreID kvID);
 
+    std::tuple<magma::Status, nlohmann::json> getFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            magma::Magma::KVStoreID kvID,
+            std::string_view snapshotUuid,
+            std::time_t validity);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

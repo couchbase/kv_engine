@@ -812,6 +812,8 @@ public:
               {"EWB_CTL"sv, {Attribute::Supported}});
         setup(ClientOpcode::GetErrorMap,
               {"GET_ERROR_MAP"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetFusionStorageSnapshot,
+              {"FUSION_GET_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
     }
 
 protected:

@@ -104,4 +104,41 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     ASSERT_TRUE(res.is_array());
 }
 
+TEST_P(FusionTest, GetStorageSnapshot) {
+    const auto snapshotUuid = "some-snapshot-uuid";
+    const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
+    const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
+    const auto validity = secs.time_since_epoch().count();
+
+    BinprotResponse resp;
+    adminConnection->executeInBucket(
+            bucketName, [&resp, &snapshotUuid, validity](auto& conn) {
+                auto cmd = BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::GetFusionStorageSnapshot};
+                cmd.setVBucket(Vbid(0));
+                nlohmann::json json;
+                json["snapshotUuid"] = snapshotUuid;
+                json["validity"] = validity;
+                cmd.setValue(json.dump());
+                cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                resp = conn.execute(cmd);
+            });
+
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    const auto& res = resp.getDataJson();
+    ASSERT_FALSE(res.empty());
+    ASSERT_TRUE(res.contains("createdAt"));
+    EXPECT_NE(0, res["createdAt"]);
+    ASSERT_TRUE(res.contains("logFiles"));
+    ASSERT_TRUE(res["logFiles"].is_array());
+    ASSERT_TRUE(res.contains("logManifestName"));
+    ASSERT_TRUE(res.contains("snapshotUUID"));
+    EXPECT_EQ(snapshotUuid, res["snapshotUUID"].get<std::string>());
+    ASSERT_TRUE(res.contains("validTill"));
+    ASSERT_TRUE(res.contains("version"));
+    EXPECT_EQ(1, res["version"]);
+    ASSERT_TRUE(res.contains("volumeID"));
+    EXPECT_FALSE(res["volumeID"].empty());
+}
+
 #endif // USE_FUSION

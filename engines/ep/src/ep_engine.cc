@@ -7759,6 +7759,13 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
     return cb::engine_errc::success;
 }
 
+std::pair<cb::engine_errc, nlohmann::json>
+EventuallyPersistentEngine::getFusionStorageSnapshot(
+        Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
+    return acquireEngine(this)->getFusionStorageSnapshotInner(
+            vbid, snapshotUuid, validity);
+}
+
 cb::engine_errc EventuallyPersistentEngine::pause(
         folly::CancellationToken cancellationToken) {
     return kvBucket->prepareForPause(cancellationToken);
@@ -7926,8 +7933,23 @@ cb::engine_errc EventuallyPersistentEngine::maybeRemapStatus(
         return cb::engine_errc::temporary_failure;
     }
     if (status == cb::engine_errc::no_such_key && isDegradedMode() &&
-               kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
+        kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
         return cb::engine_errc::temporary_failure;
     }
     return status;
+}
+
+std::pair<cb::engine_errc, nlohmann::json>
+EventuallyPersistentEngine::getFusionStorageSnapshotInner(
+        Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
+    Expects(kvBucket);
+    if (!kvBucket->getStorageProperties().supportsFusion()) {
+        return {cb::engine_errc::not_supported, {}};
+    }
+
+    const auto fusionNamespace =
+            configuration.getCouchBucket() + "/" + configuration.getUuid();
+
+    return kvBucket->getRWUnderlying(vbid)->getFusionStorageSnapshot(
+            fusionNamespace, vbid, snapshotUuid, validity);
 }

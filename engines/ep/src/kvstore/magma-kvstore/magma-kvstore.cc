@@ -4512,3 +4512,25 @@ nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
 
     folly::assume_unreachable();
 }
+
+std::pair<cb::engine_errc, nlohmann::json>
+MagmaKVStore::getFusionStorageSnapshot(std::string_view fusionNamespace,
+                                       Vbid vbid,
+                                       std::string_view snapshotUuid,
+                                       std::time_t validity) {
+    const auto res =
+            magma->getFusionStorageSnapshot(fusionNamespace,
+                                            Magma::KVStoreID(vbid.get()),
+                                            snapshotUuid,
+                                            validity);
+    if (std::get<Status>(res).ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::getFusionStorageSnapshot: ",
+                        {"vb", vbid.get()},
+                        {"status", std::get<Status>(res).String()},
+                        {"fusion_namespace", fusionNamespace},
+                        {"snapshot_uuid", snapshotUuid},
+                        {"validity", validity});
+        return {cb::engine_errc::failed, {}};
+    }
+    return {cb::engine_errc::success, std::get<nlohmann::json>(res)};
+}

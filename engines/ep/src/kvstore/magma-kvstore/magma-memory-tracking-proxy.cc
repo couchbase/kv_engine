@@ -678,3 +678,17 @@ MagmaMemoryTrackingProxy::GetFusionActiveGuestVolumes(
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->GetActiveFusionGuestVolumes(kvID);
 }
+
+std::tuple<magma::Status, nlohmann::json>
+MagmaMemoryTrackingProxy::getFusionStorageSnapshot(
+        std::string_view fusionNamespace,
+        magma::Magma::KVStoreID kvID,
+        std::string_view snapshotUuid,
+        std::time_t validity) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetFusionStorageSnapshot(
+            std::string(fusionNamespace),
+            kvID,
+            std::string(snapshotUuid),
+            std::chrono::system_clock::from_time_t(validity));
+}

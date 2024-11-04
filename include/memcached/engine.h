@@ -845,6 +845,14 @@ struct EngineIface {
             CookieIface& cookie, Vbid vbid, cb::rangescan::Id uuid);
 
     /**
+     * Proxy to magma->GetFusionStorageSnapshot. See magma's API for details.
+     */
+    [[nodiscard]] virtual std::pair<cb::engine_errc, nlohmann::json>
+    getFusionStorageSnapshot(Vbid vbid,
+                             std::string_view snapshotUuid,
+                             std::time_t validity);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

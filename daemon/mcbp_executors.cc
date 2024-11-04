@@ -718,6 +718,21 @@ static void auth_provider_executor(Cookie& cookie) {
     }
 }
 
+static void get_fusion_storage_snapshot_executor(Cookie& cookie) {
+    const auto vbid = cookie.getRequest().getVBucket();
+    auto& engine = cookie.getConnection().getBucketEngine();
+    const auto inJson =
+            nlohmann::json::parse(cookie.getRequest().getValueString());
+    const auto res = engine.getFusionStorageSnapshot(
+            vbid,
+            inJson["snapshotUuid"].get<std::string>(),
+            inJson["validity"]);
+    Ensures(res.first != cb::engine_errc::would_block);
+    Ensures(res.first != cb::engine_errc::disconnect);
+    cookie.sendResponse(
+            res.first, {}, {}, res.second.dump(), cb::mcbp::Datatype::JSON, 0);
+}
+
 static void process_bin_dcp_response(Cookie& cookie) {
     auto& c = cookie.getConnection();
 
@@ -984,6 +999,8 @@ void initialize_mbcp_lookup_map() {
                   range_scan_continue_executor);
     setup_handler(cb::mcbp::ClientOpcode::RangeScanCancel,
                   range_scan_cancel_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetFusionStorageSnapshot,
+                  get_fusion_storage_snapshot_executor);
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);
     setup_handler(cb::mcbp::ClientOpcode::StopPersistence,

@@ -13,6 +13,7 @@
 #include <memcached/collections.h>
 #include <memcached/engine.h>
 #include <memcached/range_scan_optional_configuration.h>
+#include <nlohmann/json.hpp>
 
 cb::engine_errc EngineIface::get_stats(CookieIface& cookie,
                                        std::string_view key,
@@ -51,6 +52,13 @@ cb::engine_errc EngineIface::cancelRangeScan(CookieIface& cookie,
                                              Vbid vbid,
                                              cb::rangescan::Id uuid) {
     return cb::engine_errc::not_supported;
+}
+
+std::pair<cb::engine_errc, nlohmann::json>
+EngineIface::getFusionStorageSnapshot(Vbid vbid,
+                                      std::string_view snapshotUuid,
+                                      std::time_t validity) {
+    return {cb::engine_errc::not_supported, {}};
 }
 
 cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {

@@ -177,6 +177,14 @@ enum class ClientOpcode : uint8_t {
      */
     LastClosedCheckpoint_Unsupported = 0x97,
 
+    // Fusion
+    GetFusionStorageSnapshot = 0x98,
+    ReservedFusion1 = 0x99,
+    ReservedFusion2 = 0x9a,
+    ReservedFusion3 = 0x9b,
+    ReservedFusion4 = 0x9c,
+    ReservedFusion5 = 0x9d,
+
     /**
      * Close the TAP connection for the registered TAP client and
      * remove the checkpoint cursors from its registered vbuckets.

@@ -910,7 +910,13 @@ public:
     virtual std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) = 0;
 
     /// Fusion API, supported only by MagmaKVStore
+
     virtual nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) = 0;
+    virtual std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid,
+            std::time_t validity) = 0;
 };
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status);

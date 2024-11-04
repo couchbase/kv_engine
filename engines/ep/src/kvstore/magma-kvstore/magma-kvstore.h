@@ -654,6 +654,12 @@ public:
 
     nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override;
 
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid,
+            std::time_t validity) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

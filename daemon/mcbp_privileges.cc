@@ -426,6 +426,9 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::RangeScanContinue, empty);
     setup(cb::mcbp::ClientOpcode::RangeScanCancel, empty);
 
+    setup(cb::mcbp::ClientOpcode::GetFusionStorageSnapshot,
+          require<Privilege::NodeSupervisor>);
+
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension
         setup(cb::mcbp::ClientOpcode::AdjustTimeofday, empty);

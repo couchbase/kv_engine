@@ -297,6 +297,10 @@ public:
     cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
+            Vbid vbid,
+            std::string_view snapshotUuid,
+            std::time_t validity) override;
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
@@ -1503,6 +1507,9 @@ protected:
     cb::engine_errc processUnknownCommandInner(CookieIface& cookie,
                                                const cb::mcbp::Request& request,
                                                const AddResponseFn& response);
+
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshotInner(
+            Vbid vbid, std::string_view snapshotUuid, std::time_t validity);
 
     /**
      * Get the configured shard count for the bucket

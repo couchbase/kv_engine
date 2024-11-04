@@ -22,9 +22,10 @@
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
 
+#include <hdrhistogram/hdrhistogram.h>
 #include <memcached/engine_common.h>
 #include <memcached/thread_pool_config.h>
-#include <hdrhistogram/hdrhistogram.h>
+#include <nlohmann/json.hpp>
 
 #include <platform/atomic_duration.h>
 #include <relaxed_atomic.h>
@@ -980,6 +981,16 @@ public:
         // Only supported by backends which report
         // StorageProperties::Fusion::Yes
         return {};
+    }
+
+    std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid,
+            std::time_t validity) override {
+        // Only supported by backends which report
+        // StorageProperties::Fusion::Yes
+        return {cb::engine_errc::not_supported, {}};
     }
 
     /**
