@@ -152,6 +152,8 @@ IF(EP_USE_MAGMA)
             module_tests/magma_bucket_tests.cc
             module_tests/magma-kvstore_test.cc)
 ENDIF()
+cb_enable_unity_build(ep-engine_ep_unit_tests)
+set_target_properties(ep-engine_ep_unit_tests PROPERTIES UNITY_BUILD_BATCH_SIZE 4)
 
 TARGET_INCLUDE_DIRECTORIES(ep-engine_ep_unit_tests
         PUBLIC
@@ -174,7 +176,6 @@ if (NUMA_FOUND)
 endif()
 
 add_sanitizers(ep-engine_ep_unit_tests)
-kv_enable_pch(ep-engine_ep_unit_tests)
 
 cb_add_test_executable(ep-engine_couch-fs-stats_test
         module_tests/couch-fs-stats_test.cc
