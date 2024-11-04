@@ -442,6 +442,15 @@ void Cookie::maybeLogSlowCommand(
         if (responseStatus != cb::mcbp::Status::COUNT) {
             details["response"] = to_string(responseStatus);
         }
+
+        const auto [read, write] = getDocumentRWBytes();
+        if (read > 0) {
+            details["document_bytes_read"] = read;
+        }
+        if (write > 0) {
+            details["document_bytes_write"] = write;
+        }
+
         LOG_WARNING(R"({}: Slow operation: {})", c.getId(), details.dump());
     }
 }
