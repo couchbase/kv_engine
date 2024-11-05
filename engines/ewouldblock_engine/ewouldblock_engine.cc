@@ -237,6 +237,21 @@ public:
     cb::engine_errc wait_for_seqno_persistence(CookieIface& cookie,
                                                uint64_t seqno,
                                                Vbid vbid) override;
+    cb::engine_errc prepare_snapshot(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::function<void(const nlohmann::json&)>& callback)
+            override;
+    cb::engine_errc download_snapshot(CookieIface& cookie,
+                                      std::string_view metadata) override;
+    cb::engine_errc get_snapshot_file_info(
+            CookieIface& cookie,
+            std::string_view uuid,
+            std::size_t file_id,
+            const std::function<void(const nlohmann::json&)>& callback)
+            override;
+    cb::engine_errc release_snapshot(CookieIface& cookie,
+                                     std::string_view uuid) override;
 
     ///////////////////////////////////////////////////////////////////////////
     //             All of the methods used in the DCP interface              //
@@ -1357,6 +1372,27 @@ cb::engine_errc EWB_Engine::wait_for_seqno_persistence(CookieIface& cookie,
                                                        uint64_t seqno,
                                                        Vbid vbid) {
     return real_engine->wait_for_seqno_persistence(cookie, seqno, vbid);
+}
+cb::engine_errc EWB_Engine::prepare_snapshot(
+        CookieIface& cookie,
+        Vbid vbid,
+        const std::function<void(const nlohmann::json&)>& callback) {
+    return real_engine->prepare_snapshot(cookie, vbid, callback);
+}
+cb::engine_errc EWB_Engine::download_snapshot(CookieIface& cookie,
+                                              std::string_view metadata) {
+    return real_engine->download_snapshot(cookie, metadata);
+}
+cb::engine_errc EWB_Engine::get_snapshot_file_info(
+        CookieIface& cookie,
+        std::string_view uuid,
+        std::size_t file_id,
+        const std::function<void(const nlohmann::json&)>& callback) {
+    return real_engine->get_snapshot_file_info(cookie, uuid, file_id, callback);
+}
+cb::engine_errc EWB_Engine::release_snapshot(CookieIface& cookie,
+                                             std::string_view uuid) {
+    return real_engine->release_snapshot(cookie, uuid);
 }
 
 cb::engine_errc EWB_Engine::step(CookieIface& cookie,

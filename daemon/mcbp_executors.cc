@@ -29,13 +29,16 @@
 #include "protocol/mcbp/executors.h"
 #include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
+#include "protocol/mcbp/get_file_fragment_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/getex_context.h"
 #include "protocol/mcbp/ifconfig_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/observe_context.h"
+#include "protocol/mcbp/prepare_snapshot_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
+#include "protocol/mcbp/release_snapshot_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
 #include "protocol/mcbp/sasl_start_command_context.h"
@@ -254,6 +257,43 @@ static void verbosity_executor(Cookie& cookie) {
     }
     Settings::instance().setVerbose(level);
     cookie.sendResponse(cb::mcbp::Status::Success);
+}
+
+static void get_file_fragment_executor(Cookie& cookie) {
+    if (cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.obtainContext<GetFileFragmentContext>(cookie).drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
+}
+
+static void prepare_snapshot_executor(Cookie& cookie) {
+    if (cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.obtainContext<PrepareSnapshotContext>(cookie).drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
+}
+static void release_snapshot_executor(Cookie& cookie) {
+    if (cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.obtainContext<ReleaseSnapshotContext>(cookie).drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
+}
+static void download_snapshot_executor(Cookie& cookie) {
+    if (cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+                  return c.getConnection().getBucketEngine().download_snapshot(
+                          c, c.getRequest().getValueString());
+              }).drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
 }
 
 static void version_executor(Cookie& cookie) {
@@ -948,6 +988,14 @@ void initialize_mbcp_lookup_map() {
                   disable_traffic_control_mode_executor);
     setup_handler(cb::mcbp::ClientOpcode::EvictKey, evict_key_executor);
     setup_handler(cb::mcbp::ClientOpcode::Observe, observe_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetFileFragment,
+                  get_file_fragment_executor);
+    setup_handler(cb::mcbp::ClientOpcode::PrepareSnapshot,
+                  prepare_snapshot_executor);
+    setup_handler(cb::mcbp::ClientOpcode::ReleaseSnapshot,
+                  release_snapshot_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DownloadSnapshot,
+                  download_snapshot_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

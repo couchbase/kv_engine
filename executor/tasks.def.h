@@ -66,6 +66,10 @@ TASK(BackfillManagerTask, TaskType::AuxIO, 4)
 TASK(CompactVBucketTask, TaskType::AuxIO, 5)
 TASK(RangeScanCreateTask, TaskType::AuxIO, 6)
 TASK(RangeScanContinueTask, TaskType::AuxIO, 6)
+TASK(Core_PrepareSnapshotTask, TaskType::AuxIO, 0)
+TASK(Core_ReleaseSnapshotTask, TaskType::AuxIO, 6)
+TASK(Core_ReadFileFragmentTask, TaskType::AuxIO, 0)
+TASK(DownloadSnapshotTask, TaskType::AuxIO, 6)
 
 // Read/Write IO tasks
 TASK(RollbackTask, TaskType::Writer, 1)

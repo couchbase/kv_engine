@@ -47,6 +47,9 @@ public:
     ///    (which could result in keys being removed)
     /// 2. we don't want multiple snapshots to be created in parallel
     cb::AwaitableSemaphore encryption_and_snapshot_management{1};
+    /// We don't want to be able to run too many tasks to read chunks
+    /// off disk in parallel (each task may read up to 50MB of data)
+    cb::AwaitableSemaphore read_vbucket_chunk{4};
 
 protected:
     ConcurrencySemaphores();

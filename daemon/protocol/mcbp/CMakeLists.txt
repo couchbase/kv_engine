@@ -48,6 +48,8 @@ add_library(memcached_daemon_mcbp OBJECT
         get_cmd_timer_executor.cc
         get_context.cc
         get_context.h
+        get_file_fragment_context.cc
+        get_file_fragment_context.h
         get_locked_context.cc
         get_locked_context.h
         get_meta_context.cc
@@ -62,11 +64,15 @@ add_library(memcached_daemon_mcbp OBJECT
         mutation_context.h
         observe_context.cc
         observe_context.h
+        prepare_snapshot_context.cc
+        prepare_snapshot_context.h
         range_scan_cancel_executor.cc
         range_scan_continue_executor.cc
         range_scan_create_executor.cc
         rbac_reload_command_context.cc
         rbac_reload_command_context.h
+        release_snapshot_context.cc
+        release_snapshot_context.h
         remove_context.cc
         remove_context.h
         sasl_auth_command_context.cc

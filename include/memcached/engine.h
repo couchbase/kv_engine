@@ -893,6 +893,64 @@ struct EngineIface {
             const nlohmann::json& json) {
         return cb::engine_errc::not_supported;
     }
+
+    /**
+     * Prepare a snapshot. Should *not* be called from a front-end
+     * worker thread as it may involve file IO
+     *
+     * @param cookie the cookie requesting the snapshot to be created
+     * @param vbid the vbucket to snaphot
+     * @param callback a callback which is called with the snapshot manifest
+     * @return error code for the operation
+     */
+    [[nodiscard]] virtual cb::engine_errc prepare_snapshot(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::function<void(const nlohmann::json&)>& callback) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Download a snapshot. The provided metadata is a JSON encoded object
+     * containing the all properties required to identify the upstream server;
+     * credentials to connect to the upstream server; all information
+     * related to the snapshot etc.
+     *
+     * @return the error code for the operation.
+     */
+    [[nodiscard]] virtual cb::engine_errc download_snapshot(
+            CookieIface& cookie, std::string_view metadata) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Get information for a file in a snapshot
+     *
+     * @param cookie the cookie requesting the file information
+     * @param uuid the snapshot uuid
+     * @param file_id the file id within the snapshot
+     * @param callback the callback to call with the file information
+     * @return error code for the operation
+     */
+    [[nodiscard]] virtual cb::engine_errc get_snapshot_file_info(
+            CookieIface& cookie,
+            std::string_view uuid,
+            std::size_t file_id,
+            const std::function<void(const nlohmann::json&)>& callback) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
+     * Request the snapshot with the UUID to be released
+     *
+     * @param cookie the cookie requesting the snapshot to be deleted
+     * @param uuid the uuid for the snapshot to delete
+     * @return error code for the operation
+     */
+    [[nodiscard]] virtual cb::engine_errc release_snapshot(
+            CookieIface& cookie, std::string_view uuid) {
+        return cb::engine_errc::not_supported;
+    }
 };
 
 namespace cb {
