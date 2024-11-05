@@ -611,6 +611,22 @@ uint64_t tls_protocol_to_options(TlsVersion protocol) {
     return disallow;
 }
 
+static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
+    if (!userdata) {
+        throw std::logic_error("my_pem_password_cb called without userdata");
+    }
+
+    auto instance = static_cast<MemcachedConnection*>(userdata);
+    const auto passphrase = instance->getPemPassphrase();
+    if (passphrase.size() > std::size_t(size)) {
+        std::cerr << "my_pem_password_cb: passphrase too long" << std::endl;
+        return 0;
+    }
+
+    std::copy(passphrase.begin(), passphrase.end(), buf);
+    return passphrase.size();
+}
+
 void MemcachedConnection::connect() {
     if (asyncSocket) {
         // drop the previous one
@@ -666,6 +682,8 @@ void MemcachedConnection::connect() {
         }
 
         if (ssl_cert_file && ssl_key_file) {
+            SSL_CTX_set_default_passwd_cb(context, my_pem_password_cb);
+            SSL_CTX_set_default_passwd_cb_userdata(context, this);
             if (!SSL_CTX_use_certificate_chain_file(
                         context, ssl_cert_file->generic_string().c_str()) ||
                 !SSL_CTX_use_PrivateKey_file(

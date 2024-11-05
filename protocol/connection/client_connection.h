@@ -392,6 +392,15 @@ public:
     /// Set the ciphers to use for TLS >= 1.3
     void setTls13Ciphers(std::string ciphers);
 
+    /// Set the passphrase to use for decoding the PEM file
+    void setPemPassphrase(std::string pass) {
+        pem_passphrase = std::move(pass);
+    }
+
+    std::string_view getPemPassphrase() const {
+        return pem_passphrase;
+    }
+
     /**
      * Try to establish a connection to the server.
      *
@@ -1172,6 +1181,7 @@ protected:
     std::optional<std::filesystem::path> ssl_cert_file;
     std::optional<std::filesystem::path> ssl_key_file;
     std::optional<std::filesystem::path> ca_file;
+    std::string pem_passphrase;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     AsyncSocketUniquePtr asyncSocket;
     std::shared_ptr<folly::EventBase> eventBase;
