@@ -23,7 +23,7 @@
 #include <map>
 #include <string>
 
-#define check(expr, msg)                               \
+#define check_expression(expr, msg)                    \
     do {                                               \
         if (!(expr)) {                                 \
             abort_msg(#expr, msg, __FILE__, __LINE__); \

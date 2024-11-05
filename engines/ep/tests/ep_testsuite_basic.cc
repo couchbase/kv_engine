@@ -73,10 +73,10 @@ static enum test_result test_memory_tracking(EngineIface* h) {
 
 static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
-    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
-          "Incorrect initial low wat.");
-    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
-          "Incorrect initial high wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
+                     "Incorrect initial low wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
+                     "Incorrect initial high wat.");
     checkeq(0.75f,
             get_float_stat(h, "ep_mem_low_wat_percent"),
             "Incorrect initial low wat. percent");
@@ -86,10 +86,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
 
     setAndWaitForQuotaChange(h, 10000000);
 
-    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 7500000),
-          "Incorrect larger low wat.");
-    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 8500000),
-          "Incorrect larger high wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_low_wat"), 7500000),
+                     "Incorrect larger low wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_high_wat"), 8500000),
+                     "Incorrect larger high wat.");
     checkeq(0.75f,
             get_float_stat(h, "ep_mem_low_wat_percent"),
             "Incorrect larger low wat. percent");
@@ -114,10 +114,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
             "Incorrect even larger high wat. percent");
     setAndWaitForQuotaChange(h, 5000000);
 
-    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 3500000),
-          "Incorrect smaller low wat.");
-    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 4000000),
-          "Incorrect smaller high wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_low_wat"), 3500000),
+                     "Incorrect smaller low wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_high_wat"), 4000000),
+                     "Incorrect smaller high wat.");
     checkeq(0.7f,
             get_float_stat(h, "ep_mem_low_wat_percent"),
             "Incorrect smaller low wat. percent");
@@ -166,10 +166,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
-    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
-          "Incorrect intial low wat.");
-    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
-          "Incorrect initial high wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_low_wat"), 750),
+                     "Incorrect intial low wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_high_wat"), 850),
+                     "Incorrect initial high wat.");
     checkeq(0.75f, get_float_stat(h, "ep_mem_low_wat_percent"),
             "Incorrect initial low wat. percent");
     checkeq(0.85f, get_float_stat(h, "ep_mem_high_wat_percent"),
@@ -185,10 +185,10 @@ static enum test_result test_max_size_and_water_marks_settings(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     checkeq(1000, get_int_stat(h, "ep_max_size"), "Incorrect initial size.");
-    check(epsilon(get_int_stat(h, "ep_mem_low_wat"), 550),
-          "Incorrect intial low wat.");
-    check(epsilon(get_int_stat(h, "ep_mem_high_wat"), 660),
-          "Incorrect initial high wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_low_wat"), 550),
+                     "Incorrect intial low wat.");
+    check_expression(epsilon(get_int_stat(h, "ep_mem_high_wat"), 660),
+                     "Incorrect initial high wat.");
     checkeq(0.55f,
             get_float_stat(h, "ep_mem_low_wat_percent"),
             "Incorrect initial low wat. percent");
@@ -234,7 +234,8 @@ static enum test_result test_whitespace_db(EngineIface* h) {
         return FAIL;
     }
 
-    check(cb::io::isDirectory(dbname), "I expected the whitespace db to exist");
+    check_expression(cb::io::isDirectory(dbname),
+                     "I expected the whitespace db to exist");
     return SUCCESS;
 }
 
@@ -420,7 +421,8 @@ static enum test_result test_getl_delete_with_cas(EngineIface* h) {
             ret.first,
             "Expected getl to succeed on key");
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Failed to get item info");
 
     checkeq(cb::engine_errc::success,
             del(h, "key", info.cas, Vbid(0)),
@@ -459,7 +461,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
             "Expected getl to succeed on key");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, key, errorMetaPair), "Expected to get meta");
+    check_expression(get_meta(h, key, errorMetaPair), "Expected to get meta");
 
     //init some random metadata
     ItemMetaData itm_meta(0xdeadbeef, 10, 0xdeadbeef, time(nullptr) + 300);
@@ -512,7 +514,8 @@ static enum test_result test_getl(EngineIface* h) {
             "Expected to be able to getl on first try");
 
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Failed to get item info");
 
     checkeq(std::string{"{\"lock\":\"data\"}"},
             std::string((const char*)info.value[0].iov_base,
@@ -566,7 +569,8 @@ static enum test_result test_getl(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             ret.first,
             "Acquire lock should have succeeded");
-    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Failed to get item info");
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES), info.datatype,
             "Expected datatype to be RAW BYTES");
 
@@ -621,7 +625,8 @@ static enum test_result test_getl(EngineIface* h) {
                    Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "Allocation Failed");
 
-    check(h->get_item_info(*ret.second.get(), info), "Failed to get item info");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Failed to get item info");
 
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
@@ -812,7 +817,7 @@ static enum test_result test_set_change_flags(EngineIface* h) {
 
     item_info info;
     uint32_t flags = 828258;
-    check(get_item_info(h, &info, "key"), "Failed to get value.");
+    check_expression(get_item_info(h, &info, "key"), "Failed to get value.");
     cb_assert(info.flags != flags);
 
     checkeq(cb::engine_errc::success,
@@ -827,7 +832,7 @@ static enum test_result test_set_change_flags(EngineIface* h) {
                     .first,
             "Failed to set again.");
 
-    check(get_item_info(h, &info, "key"), "Failed to get value.");
+    check_expression(get_item_info(h, &info, "key"), "Failed to get value.");
 
     return info.flags == flags ? SUCCESS : FAIL;
 }
@@ -844,7 +849,7 @@ static enum test_result test_add(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Add, "key", "somevalue"),
             "Failed to add value.");
 
-    check(get_item_info(h, &info, "key"), "Error getting item info");
+    check_expression(get_item_info(h, &info, "key"), "Error getting item info");
     checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
@@ -873,7 +878,7 @@ static enum test_result test_add_add_with_cas(EngineIface* h) {
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
-    check(h->get_item_info(*i, info), "Should be able to get info");
+    check_expression(h->get_item_info(*i, info), "Should be able to get info");
 
     checkeq(cb::engine_errc::key_already_exists,
             store(h,
@@ -902,8 +907,8 @@ static enum test_result test_cas(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value.");
 
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info),
-          "Failed to get item info.");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Failed to get item info.");
 
     checkeq(cb::engine_errc::success,
             store(h,
@@ -949,7 +954,7 @@ static enum test_result test_replace(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Replace, "key", "somevalue"),
             "Failed to replace existing value.");
 
-    check(get_item_info(h, &info, "key"), "Error getting item info");
+    check_expression(get_item_info(h, &info, "key"), "Error getting item info");
 
     checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
@@ -978,7 +983,7 @@ static enum test_result test_touch(EngineIface* h) {
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
-    check(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
 
     item_info currMeta = errorMetaPair.second;
 
@@ -989,7 +994,7 @@ static enum test_result test_touch(EngineIface* h) {
             currMeta.cas,
             "touch should have returned an updated CAS");
 
-    check(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "mykey", errorMetaPair), "Get meta failed");
 
     checkne(errorMetaPair.second.cas, currMeta.cas,
           "touch should have updated the CAS");
@@ -1085,17 +1090,18 @@ static enum test_result test_gat(EngineIface* h) {
     checkeq(cb::engine_errc::success, ret.first, "gat mykey");
 
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info),
-          "Getting item info failed");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Getting item info failed");
 
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
             info.datatype, "Expected datatype to be JSON");
 
     std::string body{static_cast<char*>(info.value[0].iov_base),
     info.value[0].iov_len};
-    check(body.compare(0, sizeof("{\"some\":\"value\"}"),
-                       "{\"some\":\"value\"}") == 0,
-          "Invalid data returned");
+    check_expression(body.compare(0,
+                                  sizeof("{\"some\":\"value\"}"),
+                                  "{\"some\":\"value\"}") == 0,
+                     "Invalid data returned");
 
     // time-travel 9 secs..
     testHarness->time_travel(9);
@@ -1352,7 +1358,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     cb::EngineErrorMetadataPair errorMetaPair;
 
-    check(get_meta(h, "key1", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key1", errorMetaPair), "Get meta failed");
 
     uint64_t curr_revseqno = errorMetaPair.second.seqno;
 
@@ -1371,7 +1377,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
                   DocumentState::Deleted),
             "Failed delete with value");
 
-    check(get_meta(h, "key1", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key1", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1383,11 +1389,11 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
             "Failed set");
 
     item_info info;
-    check(h->get_item_info(*i, info), "Getting item info failed");
+    check_expression(h->get_item_info(*i, info), "Getting item info failed");
 
     h->release(*i);
 
-    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     curr_revseqno = errorMetaPair.second.seqno;
 
@@ -1408,7 +1414,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1432,7 +1438,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     wait_for_flusher_to_settle(h);
 
-    check(h->get_item_info(*i, info), "Getting item info failed");
+    check_expression(h->get_item_info(*i, info), "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
             "Incorrect DocState for deleted item");
@@ -1440,7 +1446,7 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
 
     h->release(*i);
 
-    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
@@ -1484,14 +1490,14 @@ static enum test_result test_delete_with_value_cas(EngineIface* h) {
     auto ret = get(h, nullptr, "key2", Vbid(0), DocStateFilter::AliveOrDeleted);
     checkeq(cb::engine_errc::success, ret.first, "Failed to get value");
 
-    check(get_meta(h, "key2", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key2", errorMetaPair), "Get meta failed");
 
     checkeq(errorMetaPair.second.seqno,
             curr_revseqno + 1,
             "rev seqno should have incremented");
 
-    check(h->get_item_info(*ret.second.get(), info),
-          "Getting item info failed");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Getting item info failed");
     checkeq(int(DocumentState::Deleted),
             int(info.document_state),
             "Incorrect DocState for deleted item");
@@ -1583,7 +1589,7 @@ static enum test_result test_set_delete_invalid_cas(EngineIface* h) {
             "Failed set.");
     check_key_value(h, "key", "somevalue", 9);
     item_info info;
-    check(h->get_item_info(*i, info), "Should be able to get info");
+    check_expression(h->get_item_info(*i, info), "Should be able to get info");
     h->release(*i);
 
     checkeq(cb::engine_errc::key_already_exists,
@@ -1681,13 +1687,13 @@ static enum test_result test_bug7023(EngineIface* h) {
 
     std::vector<std::string>::iterator it;
     for (int j = 0; j < iterations; ++j) {
-        check(set_vbucket_state(h, Vbid(0), vbucket_state_dead),
-              "Failed set set vbucket 0 dead.");
+        check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_dead),
+                         "Failed set set vbucket 0 dead.");
         checkeq(cb::engine_errc::success,
                 vbucketDelete(h, Vbid(0)),
                 "Expected vbucket deletion to work.");
-        check(set_vbucket_state(h, Vbid(0), vbucket_state_active),
-              "Failed set set vbucket 0 active.");
+        check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+                         "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             checkeq(cb::engine_errc::success,
                     store(h, nullptr, StoreSemantics::Set, *it, *it),
@@ -1798,8 +1804,8 @@ static enum test_result test_mb5172(EngineIface* h) {
 }
 
 static enum test_result test_set_vbucket_out_of_range(EngineIface* h) {
-    check(!set_vbucket_state(h, Vbid(10000), vbucket_state_active),
-          "Shouldn't have been able to set vbucket 10000");
+    check_expression(!set_vbucket_state(h, Vbid(10000), vbucket_state_active),
+                     "Shouldn't have been able to set vbucket 10000");
     return SUCCESS;
 }
 
@@ -1848,10 +1854,10 @@ static enum test_result warmup_mb21769(EngineIface* h) {
     // VB 1 will not be empty
     // VB 2 will not be empty and will have had set_state as the final ops
 
-    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
-          "Failed to set vbucket state for vb1");
-    check(set_vbucket_state(h, Vbid(2), vbucket_state_active),
-          "Failed to set vbucket state for vb2");
+    check_expression(set_vbucket_state(h, Vbid(1), vbucket_state_active),
+                     "Failed to set vbucket state for vb1");
+    check_expression(set_vbucket_state(h, Vbid(2), vbucket_state_active),
+                     "Failed to set vbucket state for vb2");
 
     const int num_items = 10;
     write_items(h, num_items, 0, "vb1", "value", 0 /*expiry*/, Vbid(1));
@@ -1859,12 +1865,12 @@ static enum test_result warmup_mb21769(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // flip replica to active to drive more _local writes
-    check(set_vbucket_state(h, Vbid(2), vbucket_state_replica),
-          "Failed to set vbucket state (replica) for vb2");
+    check_expression(set_vbucket_state(h, Vbid(2), vbucket_state_replica),
+                     "Failed to set vbucket state (replica) for vb2");
     wait_for_flusher_to_settle(h);
 
-    check(set_vbucket_state(h, Vbid(2), vbucket_state_active),
-          "Failed to set vbucket state (replica) for vb2");
+    check_expression(set_vbucket_state(h, Vbid(2), vbucket_state_active),
+                     "Failed to set vbucket state (replica) for vb2");
     wait_for_flusher_to_settle(h);
 
     // Force a shutdown so the warmup will create failover entries
@@ -1955,8 +1961,8 @@ static test_result pre_link_document(EngineIface* h) {
     // Fetch the value and verify that the callback was called!
     auto ret = get(h, nullptr, "key", Vbid(0));
     checkeq(cb::engine_errc::success, ret.first, "get failed");
-    check(h->get_item_info(*ret.second.get(), info),
-          "Failed to get item info.");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Failed to get item info.");
     checkeq(0, memcmp(info.value[0].iov_base, "valuesome", 9),
            "Expected value to be modified");
     checkeq(pre_link_seqno, info.seqno, "Sequence numbers should match");
@@ -1984,19 +1990,19 @@ static test_result get_if(EngineIface* h) {
                          DocKeyView(key, DocKeyEncodesCollectionId::No),
                          Vbid(0),
                          [](const item_info&) { return true; });
-    check(doc.second, "document should be found");
+    check_expression(doc.second, "document should be found");
 
     doc = h->get_if(*cookie,
                     DocKeyView(key, DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return false; });
-    check(!doc.second, "document should not be found");
+    check_expression(!doc.second, "document should not be found");
 
     doc = h->get_if(*cookie,
                     DocKeyView("no", DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return true; });
-    check(!doc.second, "non-existing document should not be found");
+    check_expression(!doc.second, "non-existing document should not be found");
 
     checkeq(cb::engine_errc::success,
             del(h, key, 0, Vbid(0)),
@@ -2006,7 +2012,7 @@ static test_result get_if(EngineIface* h) {
                     DocKeyView(key, DocKeyEncodesCollectionId::No),
                     Vbid(0),
                     [](const item_info&) { return true; });
-    check(!doc.second, "deleted document should not be found");
+    check_expression(!doc.second, "deleted document should not be found");
 
     testHarness->destroy_cookie(cookie);
 
@@ -2061,7 +2067,7 @@ static test_result max_ttl(EngineIface* h) {
             "Failed set.");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, "key-abs", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key-abs", errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2097,7 +2103,7 @@ static test_result max_ttl(EngineIface* h) {
                   0 /*exp*/),
             "Failed set.");
 
-    check(get_meta(h, "key-rel", errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, "key-rel", errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2144,7 +2150,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
             "Expected to store item");
 
     cb::EngineErrorMetadataPair errorMetaPair;
-    check(get_meta(h, keyAbs, errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, keyAbs, errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2171,7 +2177,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
             set_with_meta(h, keyRel, keyRel, Vbid(0), &itemMeta, 0 /*cas*/),
             "Expected to store item");
 
-    check(get_meta(h, keyRel, errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, keyRel, errorMetaPair), "Get meta failed");
     checkne(time_t(0),
             errorMetaPair.second.exptime,
             "expiry should not be zero");
@@ -2201,7 +2207,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
                           0 /*cas*/),
             "Expected to store item");
 
-    check(get_meta(h, keyRel.c_str(), errorMetaPair), "Get meta failed");
+    check_expression(get_meta(h, keyRel.c_str(), errorMetaPair), "Get meta failed");
     checkne(itemMeta.exptime,
             errorMetaPair.second.exptime,
             "expiry should have been changed/capped");

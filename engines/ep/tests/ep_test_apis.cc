@@ -8,23 +8,17 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-// mock_cookie.h must be included before ep_test_apis.h as ep_test_apis.h
-// define a macro named check and some of the folly headers also use the
-// name check
-#include <programs/engine_testapp/mock_cookie.h>
-
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
-
 #include <fmt/format.h>
 #include <folly/portability/SysStat.h>
-#include <mcbp/protocol/framebuilder.h>
 #include <memcached/engine_error.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <programs/engine_testapp/mock_cookie.h>
 
 #include <algorithm>
 #include <chrono>
@@ -476,8 +470,8 @@ cb::EngineErrorItemPair gat(EngineIface* h,
 
     if (ret.first == cb::engine_errc::success) {
         item_info info;
-        check(h->get_item_info(*ret.second.get(), info),
-              "gat Failed to get item info");
+        check_expression(h->get_item_info(*ret.second.get(), info),
+                         "gat Failed to get item info");
 
         last_body.assign((const char*)info.value[0].iov_base,
                          info.value[0].iov_len);
@@ -964,7 +958,8 @@ cb::engine_errc storeCasOut(EngineIface* h,
     auto ret = allocate(h, cookie, key, value.size(), 0, 0, datatype, vb);
     checkeq(cb::engine_errc::success, ret.first, "Allocation failed.");
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info), "Unable to get item_info");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "Unable to get item_info");
     memcpy(info.value[0].iov_base, value.data(), value.size());
     cb::engine_errc res = h->store(*cookie,
                                    *ret.second,
@@ -1081,8 +1076,8 @@ cb::engine_errc touch(EngineIface* h,
     // Update the global cas value (used by some tests)
     if (result.first == cb::engine_errc::success) {
         item_info info{};
-        check(h->get_item_info(*result.second.get(), info),
-              "Failed to get item info");
+        check_expression(h->get_item_info(*result.second.get(), info),
+                         "Failed to get item info");
         last_cas.store(info.cas);
     }
 
@@ -1539,10 +1534,11 @@ void validate_store_resp(cb::engine_errc ret, int& num_items) {
         /* TMPFAIL means we are hitting high memory usage; retry */
         break;
     default:
-        check(false,
-              ("validate_store_resp: Unexpected response from store(): " +
-               cb::to_string(ret))
-                      .c_str());
+        check_expression(
+                false,
+                ("validate_store_resp: Unexpected response from store(): " +
+                 cb::to_string(ret))
+                        .c_str());
         break;
     }
 }
@@ -1614,8 +1610,8 @@ uint64_t get_CAS(EngineIface* h, std::string_view key) {
     checkeq(cb::engine_errc::success, ret.first, "get_CAS: Failed to get key");
 
     item_info info;
-    check(h->get_item_info(*ret.second.get(), info),
-          "get_CAS: Failed to get item info for key");
+    check_expression(h->get_item_info(*ret.second.get(), info),
+                     "get_CAS: Failed to get item info for key");
 
     return info.cas;
 }

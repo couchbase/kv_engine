@@ -21,16 +21,11 @@
  *
  * Note this is designed as a relatively quick micro-benchmark suite; tests
  * are tuned to complete in <2 seconds to maintain the quick turnaround.
-**/
+ **/
 
-// clang-format off
-// ep_testsuite_common.h/ep_test_apis.h must come after mock_dcp.h as it defined
-// the check macro. That macro will cause a compilation failure when
-// folly/Synchronized.h is later included
-#include "mock/mock_dcp.h"
-#include "ep_testsuite_common.h"
 #include "ep_test_apis.h"
-// clang-format on
+#include "ep_testsuite_common.h"
+#include "mock/mock_dcp.h"
 
 #include "module_tests/test_helpers.h"
 #include "module_tests/thread_gate.h"
@@ -765,7 +760,7 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
             }
             break;
         default:
-            check(false, "Unknown DATA requested!");
+            check_expression(false, "Unknown DATA requested!");
     }
     return vals;
 }
@@ -1015,8 +1010,8 @@ single_dcp_latency_bw_test(EngineIface* h,
                            bool retrieveCompressed) {
     std::vector<size_t> received;
 
-    check(set_vbucket_state(h, vb, vbucket_state_active),
-          "Failed set_vbucket_state for vbucket");
+    check_expression(set_vbucket_state(h, vb, vbucket_state_active),
+                     "Failed set_vbucket_state for vbucket");
     wait_for_flusher_to_settle(h);
 
     std::vector<hrtime_t> insert_times;
@@ -1144,8 +1139,8 @@ static enum test_result perf_dcp_consumer_snap_end_mutation_latency(
     const Vbid vbid = Vbid(0);
     const uint32_t opaque = 1;
 
-    check(set_vbucket_state(h, vbid, vbucket_state_replica),
-          "set_vbucket_state failed");
+    check_expression(set_vbucket_state(h, vbid, vbucket_state_replica),
+                     "set_vbucket_state failed");
 
     auto& dcp = dynamic_cast<DcpIface&>(*h);
 
@@ -1384,8 +1379,8 @@ static enum test_result perf_stat_latency(EngineIface* h,
     insert_timings.reserve(iterations_for_fast_stats);
 
     for (int vb = 0; vb < active_vbuckets; vb++) {
-        check(set_vbucket_state(h, Vbid(vb), vbucket_state_active),
-              "Failed set_vbucket_state for vbucket");
+        check_expression(set_vbucket_state(h, Vbid(vb), vbucket_state_active),
+                         "Failed set_vbucket_state for vbucket");
     }
     if (isPersistentBucket(h)) {
         wait_for_stat_to_be(h, "ep_persist_vbstate_total", active_vbuckets);
@@ -1540,8 +1535,8 @@ static enum test_result perf_bucket_warmup(EngineIface* h) {
     std::string keyBase("key");
     for (size_t i = 0; i < numVbucket; i++) {
         Vbid vb(i);
-        check(set_vbucket_state(h, vb, vbucket_state_active),
-              "Failed to set vbucket state for vb");
+        check_expression(set_vbucket_state(h, vb, vbucket_state_active),
+                         "Failed to set vbucket state for vb");
         write_items(h,
                     numDocs,
                     0,
