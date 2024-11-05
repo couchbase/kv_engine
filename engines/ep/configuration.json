@@ -1141,8 +1141,8 @@
             }
         },
         "dcp_backfill_idle_limit_seconds" : {
-            "default": "120",
-            "descr": "How long (in seconds) a DCP Backfill can be held open with no progress being made. When this limit is exceeded the stream is force ended (reason Slow) releasing the resources being held by the stream.",
+            "default": "720",
+            "descr": "How long (in seconds) a DCP Backfill can be held open with no progress being made. When this limit is exceeded the stream is force ended (reason Slow) releasing the resources being held by the stream. The default value is 2x of dcp_idle_timeout",
             "dynamic": true,
             "type": "size_t"
         },
