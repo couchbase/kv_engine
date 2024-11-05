@@ -2504,6 +2504,96 @@ static Status cancel_range_scan_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+static Status get_file_fragment_validator(Cookie& cookie) {
+    const auto status =
+            McbpValidator::verify_header(cookie,
+                                         0,
+                                         ExpectedKeyLen::NonZero,
+                                         ExpectedValueLen::NonZero,
+                                         ExpectedCas::NotSet,
+                                         GeneratesDocKey::No,
+                                         PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    try {
+        const auto json =
+                nlohmann::json::parse(cookie.getRequest().getValueString());
+        if (!json.contains("id") || !json["id"].is_number()) {
+            cookie.setErrorContext(
+                    "id must be provided and must be a numeric value");
+            return Status::Einval;
+        }
+        if (!json.contains("offset") || !json["offset"].is_string()) {
+            cookie.setErrorContext(
+                    "offset be provided and must be a string value");
+            return Status::Einval;
+        }
+        if (!json.contains("length") || !json["length"].is_string()) {
+            cookie.setErrorContext(
+                    "length be provided and must be a string value");
+            return Status::Einval;
+        }
+        if (json.contains("checksum") && !json["checksum"].is_string()) {
+            cookie.setErrorContext(
+                    "If checksum is provided it has to be a string");
+            return Status::Einval;
+        }
+    } catch (const std::exception&) {
+        cookie.setErrorContext("Invalid json provided");
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
+static Status prepare_snapshot_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
+static Status release_snapshot_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
+static Status download_snapshot_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto& request = cookie.getHeader();
+    if (!cb::mcbp::datatype::is_json(request.getDatatype())) {
+        cookie.setErrorContext("Datatype must be JSON");
+        return Status::Einval;
+    }
+
+    if (!cookie.isValidJson(request.getValueString())) {
+        cookie.setErrorContext("Provided value is not JSON");
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -2794,4 +2884,10 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::RangeScanContinue,
           continue_range_scan_validator);
     setup(cb::mcbp::ClientOpcode::RangeScanCancel, cancel_range_scan_validator);
+
+    setup(cb::mcbp::ClientOpcode::GetFileFragment, get_file_fragment_validator);
+    setup(cb::mcbp::ClientOpcode::PrepareSnapshot, prepare_snapshot_validator);
+    setup(cb::mcbp::ClientOpcode::ReleaseSnapshot, release_snapshot_validator);
+    setup(cb::mcbp::ClientOpcode::DownloadSnapshot,
+          download_snapshot_validator);
 }

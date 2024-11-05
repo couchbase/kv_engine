@@ -271,6 +271,15 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::EvictKey, require<Privilege::Administrator>);
     setup(cb::mcbp::ClientOpcode::GetLocked, requireReadOnCurrentDocument);
     setup(cb::mcbp::ClientOpcode::UnlockKey, requireReadOnCurrentDocument);
+    // we probably want a new privilege?
+    setup(cb::mcbp::ClientOpcode::GetFileFragment,
+          require<Privilege::Administrator>);
+    setup(cb::mcbp::ClientOpcode::PrepareSnapshot,
+          require<Privilege::Administrator>);
+    setup(cb::mcbp::ClientOpcode::ReleaseSnapshot,
+          require<Privilege::Administrator>);
+    setup(cb::mcbp::ClientOpcode::DownloadSnapshot,
+          require<Privilege::Administrator>);
 
     /**
      * CMD_GET_META is used to retrieve the meta section for an item.

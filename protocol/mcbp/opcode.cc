@@ -779,6 +779,14 @@ public:
                 Attribute::MustPreserveBuffer}});
         setup(ClientOpcode::RangeScanCancel,
               {"RANGE_SCAN_CANCEL"sv, {Attribute::Supported}});
+        setup(ClientOpcode::PrepareSnapshot,
+              {"PREPARE_SNAPSHOT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ReleaseSnapshot,
+              {"RELEASE_SNAPSHOT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::DownloadSnapshot,
+              {"DOWNLOAD_SNAPSHOT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::GetFileFragment,
+              {"GET_FILE_FRAGMENT"sv, {Attribute::Supported}});
         setup(ClientOpcode::Scrub_Unsupported, {"SCRUB"sv, {}});
         setup(ClientOpcode::IsaslRefresh,
               {"ISASL_REFRESH"sv, {Attribute::Supported}});

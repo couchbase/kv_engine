@@ -395,6 +395,10 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::EwouldblockCtl:
         case ClientOpcode::Invalid:
         case ClientOpcode::RangeScanCreate:
+        case ClientOpcode::GetFileFragment:
+        case ClientOpcode::PrepareSnapshot:
+        case ClientOpcode::ReleaseSnapshot:
+        case ClientOpcode::DownloadSnapshot:
             // The command don't take (or we don't support decoding) extras
             break;
 
