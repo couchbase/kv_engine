@@ -995,7 +995,7 @@ public:
     size_t getRequiredCMMemoryReduction() const;
 
     /**
-     * Check if checkpoint memory usage in CM exceeds the high mark.
+     * Return true if memory reduction is required to reach the lower mark.
      */
     bool isCMMemoryReductionRequired() const;
 
