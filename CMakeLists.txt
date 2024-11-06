@@ -189,6 +189,7 @@ add_subdirectory(xattr)
 add_subdirectory(logger)
 add_subdirectory(daemon)
 add_subdirectory(tracing)
+add_subdirectory(snapshot_download)
 add_subdirectory(statistics)
 add_subdirectory(cluster_framework)
 
