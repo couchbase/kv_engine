@@ -1949,7 +1949,10 @@ cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
     // guard regardless to make this explicit because we only call this once per
     // bucket creation
     NonBucketAllocationGuard guard;
-    return {cb::engine::Feature::Collections};
+    if (configuration.getBucketTypeString() == "ephemeral") {
+        return {cb::engine::Feature::Collections};
+    }
+    return {cb::engine::Feature::Collections, cb::engine::Feature::Persistence};
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled() {
