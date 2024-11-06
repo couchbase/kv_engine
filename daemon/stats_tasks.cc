@@ -232,8 +232,8 @@ std::string StatsTaskEncryptionKeyIds::getDescription() const {
 
 void StatsTaskEncryptionKeyIds::getStats(cb::engine_errc& command_error,
                                          const AddStatFn& add_stat_callback) {
-    auto& semaphore =
-            ConcurrencySemaphores::instance().set_active_encryption_keys;
+    auto& semaphore = ConcurrencySemaphores::instance()
+                              .encryption_and_snapshot_management;
     if (semaphore.try_acquire()) {
         cb::SemaphoreGuard<> semaphoreGuard(&semaphore, cb::adopt_token_t{});
         StatsTaskBucketStats::getStats(command_error, add_stat_callback);

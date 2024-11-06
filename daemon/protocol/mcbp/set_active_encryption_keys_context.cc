@@ -39,8 +39,8 @@ cb::engine_errc SetActiveEncryptionKeysContext::step() {
 }
 
 cb::engine_errc SetActiveEncryptionKeysContext::scheduleTask() {
-    auto& semaphore =
-            ConcurrencySemaphores::instance().set_active_encryption_keys;
+    auto& semaphore = ConcurrencySemaphores::instance()
+                              .encryption_and_snapshot_management;
 
     ExecutorPool::get()->schedule(
             std::make_shared<OneShotLimitedConcurrencyTask>(

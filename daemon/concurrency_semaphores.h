@@ -42,8 +42,11 @@ public:
     cb::AwaitableSemaphore settings{1};
     /// Compress Cluster Config should be serialized.
     cb::AwaitableSemaphore compress_cluster_config{1};
-    /// SetActiveCompressionKeys should be serialized.
-    cb::AwaitableSemaphore set_active_encryption_keys{1};
+    /// Encryption key and snapshot management must be serialized as:
+    /// 1. we don't want key rotation to happen while generating snapshots
+    ///    (which could result in keys being removed)
+    /// 2. we don't want multiple snapshots to be created in parallel
+    cb::AwaitableSemaphore encryption_and_snapshot_management{1};
 
 protected:
     ConcurrencySemaphores();
