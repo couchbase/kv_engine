@@ -126,10 +126,8 @@ void ScramShaBackend::addAttribute(std::ostream& out,
         break;
 
     case 'i': // iterator count
-        // validate that it is an integer value
-        try {
-            std::stoi(value);
-        } catch (...) {
+              // validate that it is an integer value
+        if (!std::all_of(value.begin(), value.end(), ::isdigit)) {
             throw std::invalid_argument(
                     "ScramShaBackend::addAttribute: "
                     "Iteration count must be a numeric"
