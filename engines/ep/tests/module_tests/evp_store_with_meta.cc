@@ -133,10 +133,12 @@ public:
         ASSERT_EQ(expectedGetReturnValue, result.getStatus());
 
         if (expectedGetReturnValue == cb::engine_errc::success) {
-            EXPECT_EQ(0,
-                      strncmp(expectedValue.data(),
-                              result.item->getData(),
-                              result.item->getNBytes()));
+            if (!expectedValue.empty()) {
+                EXPECT_EQ(0,
+                          strncmp(expectedValue.data(),
+                                  result.item->getData(),
+                                  result.item->getNBytes()));
+            }
             EXPECT_EQ(expectedMeta.cas, result.item->getCas());
             EXPECT_EQ(expectedMeta.revSeqno, result.item->getRevSeqno());
             EXPECT_EQ(expectedMeta.flags, result.item->getFlags());
@@ -431,15 +433,15 @@ TEST_F(WithMetaTest, DelWithMetaXattrWithEmptyPayload) {
 
 TEST_P(DelWithMetaTest, basic) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
-    // A delete_w_meta against an empty bucket queues a BGFetch (get = ewblock)
+    // A delete_w_meta against an empty bucket does not queue a BGFetch (get =
+    // success)
     // A delete_w_meta(with_value) sets the new value (get = success)
     oneOpAndCheck(op,
                   itemMeta,
                   0, // no-options
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? cb::engine_errc::success
-                            : cb::engine_errc::would_block);
+                  cb::engine_errc::success);
 }
 
 TEST_P(AllWithMetaTest, invalidCas) {
@@ -685,8 +687,7 @@ TEST_P(DelWithMetaLwwTest, allowForceAccept) {
                   FORCE_ACCEPT_WITH_META_OPS,
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? cb::engine_errc::success
-                            : cb::engine_errc::would_block);
+                  cb::engine_errc::success);
 }
 
 TEST_P(AllWithMetaTest, regenerateCASInvalid) {
@@ -1600,8 +1601,7 @@ TEST_P(DelWithMetaTest, setting_deleteTime) {
                   0, // no-options
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? cb::engine_errc::success
-                            : cb::engine_errc::would_block);
+                  cb::engine_errc::success);
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -1636,8 +1636,7 @@ TEST_P(DelWithMetaTest, setting_zero_deleteTime) {
                   0, // no-options
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? cb::engine_errc::success
-                            : cb::engine_errc::would_block);
+                  cb::engine_errc::success);
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -1667,14 +1666,13 @@ TEST_P(DelWithMetaTest, MB_31141) {
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
     // Do a delete with valid extended meta
     // see - ep-engine/docs/protocol/del_with_meta.md
-    oneOpAndCheck(
-            op,
-            itemMeta,
-            0, // no-options
-            withValue,
-            cb::mcbp::Status::Success,
-            withValue ? cb::engine_errc::success : cb::engine_errc::would_block,
-            {0x01, 0x01, 0x00, 0x01, 0x01});
+    oneOpAndCheck(op,
+                  itemMeta,
+                  0, // no-options
+                  withValue,
+                  cb::mcbp::Status::Success,
+                  cb::engine_errc::success,
+                  {0x01, 0x01, 0x00, 0x01, 0x01});
 
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
@@ -1726,15 +1724,15 @@ TEST_P(AddSetWithMetaTest, MB_31141) {
 TEST_P(DelWithMetaTest, isExpirationOption) {
     // Trigger the basic DelWithMetaTest with the IS_EXPIRATION option
     ItemMetaData itemMeta{0xdeadbeef, 0xf00dcafe, 0xfacefeed, expiry};
-    // A delete_w_meta against an empty bucket queues a BGFetch (get = ewblock)
+    // A delete_w_meta against an empty bucket does not queue a BGFetch (get =
+    // success)
     // A delete_w_meta(with_value) sets the new value (get = success)
     oneOpAndCheck(op,
                   itemMeta,
                   IS_EXPIRATION,
                   withValue,
                   cb::mcbp::Status::Success,
-                  withValue ? cb::engine_errc::success
-                            : cb::engine_errc::would_block);
+                  cb::engine_errc::success);
 }
 
 auto opcodeValues = ::testing::Values(cb::mcbp::ClientOpcode::SetWithMeta,

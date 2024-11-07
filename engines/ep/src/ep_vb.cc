@@ -45,6 +45,7 @@
 #include <memcached/range_scan_optional_configuration.h>
 #include <platform/histogram.h>
 #include <statistics/collector.h>
+#include <utilities/logtags.h>
 
 EPVBucket::EPVBucket(Vbid i,
                      vbucket_state_t newState,
@@ -219,24 +220,27 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                 if (status == cb::engine_errc::success) {
                     ht.unlocked_restoreValue(res.lock, *fetchedValue, *v);
                     if (!v->isResident()) {
-                        throw std::logic_error(
+                        std::stringstream ss;
+                        ss << *v;
+                        throw std::logic_error(fmt::format(
                                 "VBucket::completeBGFetchForSingleItem: "
-                                "storedvalue (which has seqno " +
-                                std::to_string(v->getBySeqno()) +
-                                ") should be resident after calling "
-                                "restoreValue()");
+                                "storedvalue (which has seqno {}) should be"
+                                "resident after calling restoreValue(). v:{}",
+                                std::to_string(v->getBySeqno()),
+                                cb::UserDataView(ss.str())));
                     }
                 } else if (status == cb::engine_errc::no_such_key) {
                     if (!v->isTempItem()) {
+                        std::stringstream ss;
+                        ss << *v;
                         throw std::logic_error(fmt::format(
                                 "({}) VBucket::completeBGFetchForSingleItem: "
                                 "non-temp non-resident StoredValue should "
                                 "always exist on disk, but doesn't. Will not"
                                 "change non-temp item to temp non-existent. "
-                                "seqno:{} isDeleted:{} ",
+                                "v:{}",
                                 getId(),
-                                v->getBySeqno(),
-                                v->isDeleted()));
+                                cb::UserDataView(ss.str())));
                     }
                     v->setNonExistent();
                     if (eviction == EvictionPolicy::Full) {
