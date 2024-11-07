@@ -69,6 +69,7 @@ protected:
      *  where Stream features are enabled depending on the flags passed from
      *  Producer.
      * @param jsonFilter JSON representing the collections filter for the stream
+     * @param flags Flags to pass to the stream
      *
      *  @todo: Currently we use some arg-defaults which would be nice to remove,
      *  but that needs a general refactor and touching many tests unrelated from
@@ -76,7 +77,8 @@ protected:
      */
     void recreateStream(VBucket& vb,
                         bool enforceProducerFlags = false,
-                        std::optional<std::string_view> jsonFilter = {});
+                        std::optional<std::string_view> jsonFilter = {},
+                        cb::mcbp::DcpAddStreamFlag flags = {});
 
     /**
      * Verify that a DCP Producer sends user-xattrs in Normal (DCP_DELETE) and

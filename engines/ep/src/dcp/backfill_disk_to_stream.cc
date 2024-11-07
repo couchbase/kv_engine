@@ -286,6 +286,11 @@ void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
 }
 
 bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
+    // Takeover streams are immune to this. Ns_server does not handle the stream
+    // close gracefully in some cases.
+    if (stream.isTakeoverStream()) {
+        return false;
+    }
     // If history scan, care only about the progress of that, as
     if (historyScan && historyScan->scanCtx &&
         isProgressStalled(historyScan->scanCtx->getPosition())) {

@@ -1699,10 +1699,11 @@ void SingleThreadedActiveStreamTest::recreateProducerAndStream(
 void SingleThreadedActiveStreamTest::recreateStream(
         VBucket& vb,
         bool enforceProducerFlags,
-        std::optional<std::string_view> jsonFilter) {
+        std::optional<std::string_view> jsonFilter,
+        cb::mcbp::DcpAddStreamFlag flags) {
     if (enforceProducerFlags) {
         stream = producer->mockActiveStreamRequest(
-                {} /*flags*/,
+                flags,
                 0 /*opaque*/,
                 vb,
                 0 /*st_seqno*/,
@@ -1716,7 +1717,7 @@ void SingleThreadedActiveStreamTest::recreateStream(
                 producer->public_getIncludePurgeSeqno(),
                 jsonFilter);
     } else {
-        stream = producer->mockActiveStreamRequest({} /*flags*/,
+        stream = producer->mockActiveStreamRequest(flags,
                                                    0 /*opaque*/,
                                                    vb,
                                                    0 /*st_seqno*/,
@@ -9038,9 +9039,14 @@ TEST_P(STParameterizedBucketTest, EmptySnapshotMustNotTriggerSeqnoAdvance) {
     destroy_mock_cookie(cookie);
 }
 
-// Test related to MB-62703, check stream ends and backfill cancels if no
-// progress can be made.
-TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
+class SlowBackfillTest : public SingleThreadedActiveStreamTest {
+protected:
+    /// Sets up a stream in the backfilling state and sets the idle timeout such
+    /// that the backfill is considered idle and can be closed with status Slow.
+    void setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags = {});
+};
+
+void SlowBackfillTest::setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags) {
     auto vb = engine->getVBucket(vbid);
     // Remove the initial stream, we want to force it to backfill.
     stream.reset();
@@ -9051,7 +9057,7 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
     flushVBucketToDiskIfPersistent(vbid, 2);
     producer->setBackfillBufferSize(1);
     engine->getConfiguration().setDcpBackfillIdleLimitSeconds(0);
-    recreateStream(*vb);
+    recreateStream(*vb, false, {}, flags);
     ASSERT_TRUE(stream->isBackfilling());
 
     auto& bfm = producer->getBFM();
@@ -9060,8 +9066,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
     bfm.backfill();
     EXPECT_TRUE(producer->getBackfillBufferFullStatus());
 
-    // Next attempt will enter shouldCancel checking because the buffer is full.
-    // This first attempt will setup Position tracking.
+    // Next attempt will enter shouldCancel checking because the buffer is
+    // full. This first attempt will setup Position tracking.
     EXPECT_EQ(backfill_snooze, bfm.backfill());
     EXPECT_EQ(1, bfm.getNumBackfills());
     ASSERT_EQ(2, stream->public_readyQSize());
@@ -9069,12 +9075,17 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
               stream->public_nextQueuedItem(*producer)->getEvent());
     EXPECT_EQ(DcpResponse::Event::Mutation,
               stream->public_nextQueuedItem(*producer)->getEvent());
+}
 
+// Test related to MB-62703, check stream ends and backfill cancels if no
+// progress can be made.
+TEST_P(SlowBackfillTest, BackfillCancelsWhenNoProgress) {
+    setupIdleBackfill();
+    auto& bfm = producer->getBFM();
     // Next attempt will see no change in Position within the time (0s).
     // backfill cancels and stream ends.
     EXPECT_EQ(backfill_success, bfm.backfill());
     EXPECT_EQ(0, bfm.getNumBackfills());
-
     // Stream is set to dead, so has all messages cleared and then 1 StreamEnd
     // will be queued
     ASSERT_TRUE(stream->isDead());
@@ -9085,6 +9096,24 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillCancelsWhenNoProgress) {
     auto& endStream = dynamic_cast<StreamEndResponse&>(*resp);
     EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Slow, endStream.getFlags());
 }
+
+// Test related to MB-62703, check takeover streams cannot be ended even when
+// slow accoriding to the idle timeout.
+TEST_P(SlowBackfillTest, TakeoverBackfillDoesNotCancelWhenNoProgress) {
+    setupIdleBackfill(cb::mcbp::DcpAddStreamFlag::TakeOver);
+    auto& bfm = producer->getBFM();
+    // Next attempt process one item and snooze. It should not be cancelled.
+    EXPECT_EQ(backfill_snooze, bfm.backfill());
+    EXPECT_EQ(1, bfm.getNumBackfills());
+    ASSERT_FALSE(stream->isDead())
+            << "Expected stream to still be alive, but it was marked dead";
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        PersistentBuckets,
+        SlowBackfillTest,
+        STParameterizedBucketTest::persistentAllBackendsNoNexusConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 TEST_P(SingleThreadedPassiveStreamTest,
        SkipBloomFilterWhenProcessingDcpMutation) {
