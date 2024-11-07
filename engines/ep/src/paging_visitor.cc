@@ -32,8 +32,6 @@
 #include <memory>
 #include <utility>
 
-static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
-
 PagingVisitor::PagingVisitor(KVBucket& s,
                              EPStats& st,
                              std::shared_ptr<cb::Semaphore> pagerSemaphore,
@@ -200,10 +198,6 @@ InterruptableVBucketVisitor::ExecutionState
 ExpiredPagingVisitor::shouldInterrupt() {
     if (!canPause()) {
         return ExecutionState::Continue;
-    }
-
-    if (stats.getDiskQueueSize() >= MAX_PERSISTENCE_QUEUE_SIZE) {
-        return ExecutionState::Pause;
     }
 
     return CappedDurationVBucketVisitor::shouldInterrupt();
