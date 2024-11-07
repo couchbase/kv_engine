@@ -320,6 +320,7 @@ bool StoredValue::deleteImpl(DeleteSource delSource) {
 
     setDeletedPriv(true);
     setDeletionSource(delSource);
+    setResident(true);
     markDirty();
 
     return true;
