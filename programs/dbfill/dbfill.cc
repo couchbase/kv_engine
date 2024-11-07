@@ -28,6 +28,10 @@ extern "C" {
 uint32_t crc32buf(const uint8_t* buf, size_t len);
 }
 
+/// Set to true when all consumers should drain their spooled data and
+/// not expect new data to arrive
+std::atomic_bool done = false;
+
 /// The document value to store
 std::string document_value;
 
@@ -88,11 +92,11 @@ public:
     }
 
     bool isIdle() const {
-        return command_queue.isEmpty() && active_commands.rlock()->empty();
+        return command_queue.isEmpty() && idle.load();
     }
 
 protected:
-    static void event_callback(bufferevent* bev, short event, void* ctx) {
+    static void event_callback(bufferevent*, short event, void*) {
         fmt::println("{}Event error: {}{}",
                      TerminalColor::Red,
                      event,
@@ -101,34 +105,35 @@ protected:
     }
 
     void onResponseReceived(const cb::mcbp::Response& response) {
-        active_commands.withWLock([&response, this](auto& commands) {
-            auto iter = commands.find(response.getOpaque());
+        auto iter = active_commands.find(response.getOpaque());
 
-            if (iter == commands.end()) {
-                fmt::println("{}Received response with unknown opaque: {}{}",
-                             TerminalColor::Red,
-                             response.to_json(false).dump(),
-                             TerminalColor::Reset);
-                return;
-            }
+        if (iter == active_commands.end()) {
+            fmt::println("{}Received response with unknown opaque: {}{}",
+                         TerminalColor::Red,
+                         response.to_json(false).dump(),
+                         TerminalColor::Reset);
+            return;
+        }
 
-            if (response.getStatus() == cb::mcbp::Status::Etmpfail) {
-                sendCommand(iter->second.first,
-                            iter->second.second,
-                            response.getOpaque());
-                return;
-            }
+        if (response.getStatus() == cb::mcbp::Status::Etmpfail) {
+            // Back off to let the server move ahead
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            sendCommand(iter->second.first,
+                        iter->second.second,
+                        response.getOpaque());
+            return;
+        }
 
-            if (response.getStatus() != cb::mcbp::Status::Success) {
-                fmt::println("{}Command returned error: {}{}",
-                             TerminalColor::Red,
-                             response.to_json(false).dump(),
-                             TerminalColor::Reset);
-            }
-            // remove the command
-            commands.erase(iter);
-        });
+        if (response.getStatus() != cb::mcbp::Status::Success) {
+            fmt::println("{}Command returned error: {}{}",
+                         TerminalColor::Red,
+                         response.to_json(false).dump(),
+                         TerminalColor::Reset);
+        }
+        // remove the command
+        active_commands.erase(iter);
     }
+
     void onFrameReceived(const cb::mcbp::Header& header) {
         if (header.isResponse()) {
             onResponseReceived(header.getResponse());
@@ -189,14 +194,17 @@ protected:
     }
 
     void fill_command_pipeline() {
-        active_commands.withWLock([this](auto& commands) {
+        do {
             std::pair<std::string, Vbid> element;
-            while (commands.size() < 500 && command_queue.read(element)) {
+            while (active_commands.size() < 100 &&
+                   command_queue.read(element)) {
                 sendCommand(element.first, element.second, opaque);
-                commands[opaque] = {std::move(element.first), element.second};
+                active_commands[opaque] = {std::move(element.first),
+                                           element.second};
                 ++opaque;
             }
-        });
+            idle = active_commands.empty();
+        } while (idle && !done);
     }
 
     void run() {
@@ -243,10 +251,9 @@ protected:
     const std::string host;
     const in_port_t port;
     const bool tls;
+    std::atomic_bool idle = false;
     folly::MPMCQueue<std::pair<std::string, Vbid>> command_queue;
-    folly::Synchronized<
-            std::unordered_map<uint32_t, std::pair<std::string, Vbid>>>
-            active_commands;
+    std::unordered_map<uint32_t, std::pair<std::string, Vbid>> active_commands;
     std::shared_ptr<folly::EventBase> event_base =
             std::make_shared<folly::EventBase>();
     std::unique_ptr<std::thread> thread;
@@ -361,6 +368,8 @@ int main(int argc, char** argv) {
                 fmt::print("\rQueued: {}", ii);
             }
         }
+
+        done = true;
 
         // Now wait for all of them to complete its work,..
         node_locator->iterate([](auto& node) {
