@@ -5719,6 +5719,31 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
     return SUCCESS;
 }
 
+static enum test_result test_delWithMeta_and_subdoc_get_non_existent_value(
+        EngineIface* h) {
+    std::string key = "delete_with_meta_key";
+    ItemMetaData itemMeta;
+    // put some random meta data
+    itemMeta.revSeqno = 10;
+    itemMeta.cas = 0xdeadbeef;
+    itemMeta.exptime = 0;
+    itemMeta.flags = 0xdeadbeef;
+
+    // persistence is stopped to retain the deleted item in cache, otherwise it
+    // will be removed by the flusher
+    stop_persistence(h);
+
+    // delete an item with meta data
+    checkeq(cb::engine_errc::success,
+            del_with_meta(h, key.data(), key.size(), Vbid(0), &itemMeta),
+            "Expected delete success");
+    // force get to retrieve value of deleted item
+    checkeq(cb::engine_errc::success,
+            get(h, nullptr, key, Vbid(0), DocStateFilter::AliveOrDeleted).first,
+            "Expected success even though value does not exist.");
+    return SUCCESS;
+}
+
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         EngineIface* h) {
     checkeq(cb::engine_errc::success,
@@ -9675,6 +9700,13 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  // Skipping for MB-29182
                  prepare_full_eviction_skip_under_rocks,
+                 cleanup),
+        TestCase("test del_with_meta and subdoc get non-existent value",
+                 test_delWithMeta_and_subdoc_get_non_existent_value,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare_ep_bucket,
                  cleanup),
         TestCase("test add with item_eviction",
                  test_add_with_item_eviction,
