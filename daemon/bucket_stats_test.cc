@@ -138,3 +138,10 @@ TEST_F(BucketStatsTest, BucketStats) {
     EXPECT_TRUE(noBucketHigh.count({"kv_cmd_duration_seconds"sv, "HELLO"sv}));
     EXPECT_TRUE(bucketHigh.count({"kv_cmd_duration_seconds"sv, "GET"sv}));
 }
+
+TEST_F(BucketStatsTest, WatermarkStats) {
+    MetricFamilies high;
+    server_prometheus_stats({high}, cb::prometheus::MetricGroup::High);
+    EXPECT_TRUE(high.count("kv_ep_mem_low_wat"));
+    EXPECT_TRUE(high.count("kv_ep_mem_high_wat"));
+}

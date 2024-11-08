@@ -1214,21 +1214,15 @@
     },
     {
         "key": "ep_mem_low_wat",
-        "unit": "bytes",
+        "unit": "none",
         "description": "The bucket's memory used low watermark.",
-        "added": "7.0.0",
-        "prometheus": {
-            "family": "ep_mem_low_wat"
-        }
+        "added": "7.0.0"
     },
     {
         "key": "ep_mem_high_wat",
-        "unit": "bytes",
+        "unit": "none",
         "description": "The bucket's memory used high watermark.",
-        "added": "7.0.0",
-        "prometheus": {
-            "family": "ep_mem_high_wat"
-        }
+        "added": "7.0.0"
     },
 /* Magma stats */
     {
