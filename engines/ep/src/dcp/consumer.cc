@@ -847,6 +847,7 @@ cb::engine_errc DcpConsumer::step(bool throttled,
     }
 
     cb::engine_errc ret;
+    // Note: calling handleFlowCtl may update pendingControls
     if ((ret = flowControl.handleFlowCtl(producers)) !=
         cb::engine_errc::failed) {
         return ret;
@@ -1228,7 +1229,10 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
         addStat("pending_control", control.key, add_stat, c);
         addStat("pending_control_value", control.value, add_stat, c);
         if (control.opaque) {
-            addStat("pending_control_opaque", control.opaque.value(), add_stat, c);
+            addStat("pending_control_opaque",
+                    control.opaque.value(),
+                    add_stat,
+                    c);
         }
     }
 }
@@ -1781,4 +1785,9 @@ void DcpConsumer::addNoopSecondsPendingControl(Controls& controls) {
                 /* we really want noop, so on failure force disconnect */;
                 return true;
             });
+}
+
+void DcpConsumer::addBufferSizeControl(size_t bufferSize) {
+    pendingControls.lock()->emplace_back(DcpControlKeys::ConnBufferSize,
+                                         std::to_string(bufferSize));
 }

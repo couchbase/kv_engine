@@ -366,6 +366,13 @@ public:
 
     void incrFlowControlFreedBytes(uint32_t bytes);
 
+    /**
+     * Adds to the pendingControl container the control to change the flow
+     * control buffer size.
+     * @param bufferSize the value to send to the producer
+     */
+    void addBufferSizeControl(size_t bufferSize);
+
 protected:
     /**
      * Records when the consumer last received a message from producer.

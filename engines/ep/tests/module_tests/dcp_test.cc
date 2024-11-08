@@ -1327,14 +1327,6 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         ASSERT_EQ(1 /*PendingRequest*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
 
-        // If Flow Control is enabled, then the first call to step() will handle
-        // the Flow Control negotiation. We do not want to test that here, so
-        // this is just to let the test to work with all EP configurations.
-        if (engine->getConfiguration().isDcpConsumerFlowControlEnabled()) {
-            ASSERT_EQ(cb::engine_errc::success,
-                      consumer.step(false, producers));
-        }
-
         // The next call to step() is expected to start the GetErrorMap
         // negotiation
         ASSERT_EQ(cb::engine_errc::success, consumer.step(false, producers));

@@ -54,11 +54,10 @@ cb::engine_errc FlowControl::handleFlowCtl(
             lockedBuffer->clearPendingControl();
             const auto bufferSize = lockedBuffer->getSize();
             lockedBuffer.unlock();
-
-            NonBucketAllocationGuard guard;
-            return producers.control(consumerConn.incrOpaqueCounter(),
-                                     DcpControlKeys::ConnBufferSize,
-                                     std::to_string(bufferSize));
+            consumerConn.addBufferSizeControl(bufferSize);
+            // return failed so that the DcpConsumer::step continues and may
+            // send this control in this step
+            return cb::engine_errc::failed;
         }
     }
 

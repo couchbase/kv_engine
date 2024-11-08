@@ -90,6 +90,33 @@ static auto pauseNonIoPool() {
     });
 }
 
+/**
+ * Part of the Consumer-Producer negotiation happens over DCP_CONTROL and
+ * introduces a blocking step, so we have to simulate the Producer response for
+ * letting dcp_step() proceed.
+ * Note that the blocking DCP_CONTROL request is signed at Consumer by
+ * tracking the opaque value sent to the Producer, so we need to set the
+ * proper opaque.
+ *
+ * At the time of writing, the SyncReplication and the IncludeDeletedUserXattrs
+ * negotiations follow the described pattern.
+ *
+ * @param engine The engine interface
+ * @param cookie The cookie representing the DCP Consumer into the engine
+ * @param producers The MockDcpMessageProducers used by the Consumer
+ */
+static void simulateProdRespToDcpControlBlockingNegotiation(
+        EngineIface* engine,
+        CookieIface* cookie,
+        MockDcpMessageProducers& producers) {
+    cb::mcbp::Response resp{};
+    resp.setMagic(cb::mcbp::Magic::ClientResponse);
+    resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    resp.setStatus(cb::mcbp::Status::Success);
+    resp.setOpaque(producers.last_opaque);
+    dcpHandleResponse(engine, cookie, resp, producers);
+}
+
 struct SeqnoRange {
     uint64_t start;
     uint64_t end;
@@ -1454,12 +1481,21 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
                     get_ull_stat(h, stat.c_str(), "dcp"),
                     "Flow Control Buffer Size not correct");
 
-            checkeq(cb::engine_errc::success,
-                    dcp->step(*cookie[i], false, producers),
-                    "Pending flow control buffer change not processed");
-            checkeq(cb::mcbp::ClientOpcode::DcpControl,
-                    producers.last_op,
-                    "Flow ctl buf size change control message not received");
+            // When flow-control is negotiated it comes last when the consumer
+            // is first starting up, thus we should keep stepping until flow
+            // control is the "last_key" and then validate the value.
+
+            do {
+                checkeq(cb::engine_errc::success,
+                        dcp->step(*cookie[i], false, producers),
+                        "DcpControl not initiated");
+                checkeq(cb::mcbp::ClientOpcode::DcpControl,
+                        producers.last_op,
+                        "Expected DcpControl to be initiated");
+                simulateProdRespToDcpControlBlockingNegotiation(
+                        h, cookie[i], producers);
+            } while (producers.last_key != "connection_buffer_size");
+
             checkeq(0,
                     producers.last_key.compare("connection_buffer_size"),
                     "Flow ctl buf size change control message key error");
@@ -1481,6 +1517,26 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
         checkeq(cb::engine_errc::success,
                 dcp->add_stream(*cookie[i], 0, Vbid(i), {}),
                 "Failed to set up stream");
+
+        MockDcpMessageProducers producers;
+
+        checkeq(cb::engine_errc::success,
+                dcp->step(*cookie[i], false, producers),
+                "GetErrorMap not processed");
+        checkeq(cb::mcbp::ClientOpcode::GetErrorMap,
+                producers.last_op,
+                "Unexpected last_op");
+        checkeq(""s, producers.last_key, "Unexpected non-empty key");
+
+        // Simulate that the GetErrorMap response has been received.
+        // This step is necessary, as a pending GetErrorMap response would
+        // not let the next dcp_step() to execute the
+        // DcpControl/set_noop_interval call.
+        cb::mcbp::Response resp{};
+        resp.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
+        resp.setStatus(cb::mcbp::Status::Success);
+        dcpHandleResponse(h, cookie[i], resp, producers);
 
         checkBufferSize(i + 1);
     }
@@ -3013,33 +3069,6 @@ static test_result test_dcp_takeover_no_items(EngineIface* h) {
     return SUCCESS;
 }
 
-/**
- * Part of the Consumer-Producer negotiation happens over DCP_CONTROL and
- * introduces a blocking step, so we have to simulate the Producer response for
- * letting dcp_step() proceed.
- * Note that the blocking DCP_CONTROL request is signed at Consumer by
- * tracking the opaque value sent to the Producer, so we need to set the
- * proper opaque.
- *
- * At the time of writing, the SyncReplication and the IncludeDeletedUserXattrs
- * negotiations follow the described pattern.
- *
- * @param engine The engine interface
- * @param cookie The cookie representing the DCP Consumer into the engine
- * @param producers The MockDcpMessageProducers used by the Consumer
- */
-static void simulateProdRespToDcpControlBlockingNegotiation(
-        EngineIface* engine,
-        CookieIface* cookie,
-        MockDcpMessageProducers& producers) {
-    cb::mcbp::Response resp{};
-    resp.setMagic(cb::mcbp::Magic::ClientResponse);
-    resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
-    resp.setStatus(cb::mcbp::Status::Success);
-    resp.setOpaque(producers.last_opaque);
-    dcpHandleResponse(engine, cookie, resp, producers);
-}
-
 static uint32_t add_stream_for_consumer(EngineIface* engine,
                                         CookieIface* cookie,
                                         uint32_t opaque,
@@ -3070,10 +3099,6 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
                         engine, cookie, producers);
 
             };
-
-    if (get_bool_stat(engine, "ep_dcp_consumer_flow_control_enabled")) {
-        dcpStepAndExpectControlMsg("connection_buffer_size"s);
-    }
 
     if (get_bool_stat(engine, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
@@ -3119,6 +3144,9 @@ static uint32_t add_stream_for_consumer(EngineIface* engine,
     dcpStepAndExpectControlMsg(
             std::string{DcpControlKeys::FlatBuffersSystemEvents});
     dcpStepAndExpectControlMsg(std::string(DcpControlKeys::ChangeStreams));
+    if (get_bool_stat(engine, "ep_dcp_consumer_flow_control_enabled")) {
+        dcpStepAndExpectControlMsg("connection_buffer_size"s);
+    }
 
     dcp_step(engine, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
