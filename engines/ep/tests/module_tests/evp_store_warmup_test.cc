@@ -3351,3 +3351,59 @@ TEST_F(WarmupTest, DoNotWarmupIntoNewVbucket) {
                                  deleted,
                                  dtype));
 }
+
+TEST_F(WarmupTest, ChangeConfig) {
+    auto& config = engine->getConfiguration();
+    EXPECT_EQ(0, config.getPrimaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(0, config.getPrimaryWarmupMinItemsThreshold());
+    EXPECT_EQ(100, config.getSecondaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(100, config.getSecondaryWarmupMinItemsThreshold());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->setParameter(*cookie,
+                                   EngineParamCategory::Flush,
+                                   "warmup_behavior",
+                                   "none",
+                                   Vbid{0}));
+
+    EXPECT_EQ(0, config.getPrimaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(0, config.getPrimaryWarmupMinItemsThreshold());
+    EXPECT_EQ(0, config.getSecondaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(0, config.getSecondaryWarmupMinItemsThreshold());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->setParameter(*cookie,
+                                   EngineParamCategory::Flush,
+                                   "warmup_behavior",
+                                   "blocking",
+                                   Vbid{0}));
+
+    EXPECT_EQ(100, config.getPrimaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(100, config.getPrimaryWarmupMinItemsThreshold());
+    EXPECT_EQ(0, config.getSecondaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(0, config.getSecondaryWarmupMinItemsThreshold());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->setParameter(*cookie,
+                                   EngineParamCategory::Flush,
+                                   "warmup_behavior",
+                                   "background",
+                                   Vbid{0}));
+
+    EXPECT_EQ(0, config.getPrimaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(0, config.getPrimaryWarmupMinItemsThreshold());
+    EXPECT_EQ(100, config.getSecondaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(100, config.getSecondaryWarmupMinItemsThreshold());
+
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setParameter(*cookie,
+                                   EngineParamCategory::Flush,
+                                   "warmup_behavior",
+                                   "invalid",
+                                   Vbid{0}));
+
+    EXPECT_EQ(0, config.getPrimaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(0, config.getPrimaryWarmupMinItemsThreshold());
+    EXPECT_EQ(100, config.getSecondaryWarmupMinMemoryThreshold());
+    EXPECT_EQ(100, config.getSecondaryWarmupMinItemsThreshold());
+}

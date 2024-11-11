@@ -252,21 +252,6 @@ public:
             if (warmup) {
                 warmup->setItemThreshold(value);
             }
-        } else if (key == "warmup_behavior") {
-            bucket.setupWarmupConfig(key);
-            auto& config = bucket.getConfiguration();
-            if (auto* warmup = bucket.getPrimaryWarmup()) {
-                warmup->setMemoryThreshold(
-                        config.getPrimaryWarmupMinMemoryThreshold());
-                warmup->setItemThreshold(
-                        config.getPrimaryWarmupMinItemsThreshold());
-            }
-            if (auto* warmup = bucket.getSecondaryWarmup()) {
-                warmup->setMemoryThreshold(
-                        config.getSecondaryWarmupMinMemoryThreshold());
-                warmup->setItemThreshold(
-                        config.getSecondaryWarmupMinItemsThreshold());
-            }
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -283,6 +268,28 @@ public:
             bucket.setRetainErroneousTombstones(value);
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
+        }
+    }
+
+    void stringValueChanged(std::string_view key, const char* value) override {
+        if (key == "warmup_behavior") {
+            bucket.setupWarmupConfig(std::string_view{value});
+            auto& config = bucket.getConfiguration();
+            if (auto* warmup = bucket.getPrimaryWarmup()) {
+                warmup->setMemoryThreshold(
+                        config.getPrimaryWarmupMinMemoryThreshold());
+                warmup->setItemThreshold(
+                        config.getPrimaryWarmupMinItemsThreshold());
+            }
+            if (auto* warmup = bucket.getSecondaryWarmup()) {
+                warmup->setMemoryThreshold(
+                        config.getSecondaryWarmupMinMemoryThreshold());
+                warmup->setItemThreshold(
+                        config.getSecondaryWarmupMinItemsThreshold());
+            }
+        } else {
+            EP_LOG_WARN("Failed to change value for unknown string key:{}",
+                        key);
         }
     }
 
