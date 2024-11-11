@@ -69,6 +69,8 @@ add_library(memcached_daemon STATIC
             resource_allocation_domain.h
             sasl_auth_task.cc
             sasl_auth_task.h
+            sdk_connection_manager.cc
+            sdk_connection_manager.h
             sendbuffer.cc
             sendbuffer.h
             server_api.cc
@@ -199,6 +201,7 @@ cb_add_test_executable(memcached_unit_tests
                        memcached_unit_test_main.cc
                        network_interface_description_test.cc
                        network_interface_test.cc
+                       sdk_connection_manager_test.cc
                        settings_test.cc
                        sloppy_gauge_test.cc
                        ssl_utils_test.cc

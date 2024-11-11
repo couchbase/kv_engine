@@ -16,6 +16,7 @@
 #include "mcaudit.h"
 #include "memcached.h"
 #include "network_interface_manager.h"
+#include "sdk_connection_manager.h"
 #include "settings.h"
 #include <fmt/chrono.h>
 #include <folly/Chrono.h>
@@ -63,6 +64,12 @@ static void server_global_stats(const StatCollector& collector) {
         collector.addStat(Key::connection_structures, stats.conn_structs);
         collector.addStat(Key::curr_connections_closing,
                           stats.curr_conn_closing);
+
+        auto sdks = SdkConnectionManager::instance().getConnectedSdks();
+        for (const auto& [key, value] : sdks) {
+            collector.withLabels({{"sdk", key}})
+                    .addStat(Key::current_external_client_connections, value);
+        }
 
         std::unordered_map<std::string, size_t> allocStats;
         cb::ArenaMalloc::getGlobalStats(allocStats);

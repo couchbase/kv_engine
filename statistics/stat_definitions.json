@@ -2228,6 +2228,13 @@
         "added": "7.0.0"
     },
     {
+        "key": "current_external_client_connections",
+        "description": "The current number of authenticated connections using the labelled SDK",
+        "cbstat": "current_sdk_connections:{sdk}",
+        "unit": "none",
+        "added": "7.6.5"
+    },
+    {
         "key": "connection_structures",
         "description": "Current number of allocated connection structures",
         "unit": "none",

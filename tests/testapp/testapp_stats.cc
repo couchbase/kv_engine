@@ -88,7 +88,7 @@ private:
                         std::cout << obj.dump(2) << std::endl;
                     }
                     for (const auto& macro :
-                         {"{tid}", ":{name}", "{stat_key}"}) {
+                         {"{tid}", ":{name}", "{stat_key}", "{sdk}"}) {
                         auto idx = v.find(macro);
                         if (idx != std::string::npos) {
                             v.resize(idx);
@@ -170,9 +170,19 @@ TEST_P(StatsTest, TestDefaultStats) {
     };
 
     validatePrivilegedStats(false, stats);
+
+    auto conn = userConnection->clone();
+    conn->setAgentName("cb-internal/" PRODUCT_VERSION);
+    conn->setFeature(cb::mcbp::Feature::XERROR, true);
+    conn->authenticate("Luke");
+
     adminConnection->executeInBucket(
             bucketName, [&validatePrivilegedStats](auto& conn) {
-                validatePrivilegedStats(true, conn.stats(""));
+                std::string_view keyname =
+                        "current_sdk_connections:cb-internal/" PRODUCT_VERSION;
+                const auto stats = conn.stats("");
+                validatePrivilegedStats(true, stats);
+                EXPECT_TRUE(stats.contains(keyname));
             });
 }
 

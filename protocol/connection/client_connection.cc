@@ -409,7 +409,7 @@ MemcachedConnection::MemcachedConnection(std::string host,
         timeout = std::chrono::minutes{30};
     }
 
-    agentInfo["a"] = "MemcachedConnection";
+    agentInfo["a"] = "cb-internal/" PRODUCT_VERSION;
 
     if (packet_dump) {
         packet_dump_callback =
