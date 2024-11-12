@@ -206,6 +206,11 @@ public:
         return cb::engine_errc::success;
     }
 
+    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid, const std::vector<std::string>& paths) override {
+        return {cb::engine_errc::not_supported, {}};
+    }
+
     /**
      * Unit test only hook called before we compact the first KVStore. Public as
      * we want to use this in full bucket unit tests as it's non-trivial to run

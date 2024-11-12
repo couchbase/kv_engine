@@ -1008,6 +1008,11 @@ public:
         return {};
     }
 
+    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid, const std::vector<std::string>& paths) override {
+        return {cb::engine_errc::not_supported, {}};
+    }
+
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
             const std::filesystem::path& snapshotDirectory, Vbid vb) override;
 

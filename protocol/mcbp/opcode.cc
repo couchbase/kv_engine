@@ -813,9 +813,11 @@ public:
         setup(ClientOpcode::GetErrorMap,
               {"GET_ERROR_MAP"sv, {Attribute::Supported}});
         setup(ClientOpcode::GetFusionStorageSnapshot,
-              {"FUSION_GET_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
+              {"GET_FUSION_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
         setup(ClientOpcode::ReleaseFusionStorageSnapshot,
-              {"FUSION_RELEASE_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
+              {"RELEASE_FUSION_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::MountFusionVbucket,
+              {"MOUNT_FUSION_VBUCKET"sv, {Attribute::Supported}});
     }
 
 protected:

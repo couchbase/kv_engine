@@ -168,4 +168,38 @@ TEST_P(FusionTest, SetMetadataAuthToken) {
     });
 }
 
+TEST_P(FusionTest, MountFusionVbucket) {
+    BinprotResponse resp;
+
+    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::MountFusionVbucket};
+        cmd.setVBucket(Vbid(1));
+        nlohmann::json json;
+        json["mountPaths"] = {1, 2};
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        resp = conn.execute(cmd);
+
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+
+    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::MountFusionVbucket};
+        cmd.setVBucket(Vbid(1));
+        nlohmann::json json;
+        json["mountPaths"] = {"path1", "path2"};
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        resp = conn.execute(cmd);
+    });
+
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    const auto& res = resp.getDataJson();
+    ASSERT_FALSE(res.empty());
+    ASSERT_TRUE(res.contains("deks"));
+    ASSERT_TRUE(res["deks"].is_array());
+}
+
 #endif // USE_FUSION

@@ -712,3 +712,15 @@ std::string MagmaMemoryTrackingProxy::getFusionMetadataAuthToken() const {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->GetFusionMetadataStoreAuthToken();
 }
+
+std::tuple<magma::Status, std::vector<std::string>>
+MagmaMemoryTrackingProxy::MountKVStore(
+        magma::Magma::KVStoreID kvId,
+        magma::Magma::KVStoreRevision kvsRev,
+        const magma::Magma::KVStoreMountConfig& config) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    const auto res = magma->MountKVStore(kvId, kvsRev, config);
+    // @todo MB-63974, MB-64494: magma has not implemented returing DEKS yet,
+    // plus we need to handle arena allocs properly.
+    return {std::get<magma::Status>(res), {}};
+}

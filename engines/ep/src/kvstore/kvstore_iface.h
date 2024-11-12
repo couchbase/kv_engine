@@ -919,6 +919,8 @@ public:
     virtual cb::engine_errc setFusionMetadataAuthToken(
             std::string_view token) = 0;
     virtual std::string getFusionMetadataAuthToken() const = 0;
+    virtual std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid, const std::vector<std::string>& paths) = 0;
 
     /**
      * Prepare a snapshot - backend implementation

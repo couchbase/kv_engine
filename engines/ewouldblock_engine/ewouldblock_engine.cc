@@ -236,6 +236,9 @@ public:
             std::time_t validity) override;
     cb::engine_errc releaseFusionStorageSnapshot(
             Vbid vbid, std::string_view snapshotUuid) override;
+    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid, const std::vector<std::string>& paths) override;
+
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
@@ -1367,6 +1370,11 @@ std::pair<cb::engine_errc, nlohmann::json> EWB_Engine::getFusionStorageSnapshot(
 cb::engine_errc EWB_Engine::releaseFusionStorageSnapshot(
         Vbid vbid, std::string_view snapshotUuid) {
     return real_engine->releaseFusionStorageSnapshot(vbid, snapshotUuid);
+}
+
+std::pair<cb::engine_errc, std::vector<std::string>> EWB_Engine::mountVBucket(
+        Vbid vbid, const std::vector<std::string>& paths) {
+    return real_engine->mountVBucket(vbid, paths);
 }
 
 cb::engine_errc EWB_Engine::pause(folly::CancellationToken cancellationToken) {

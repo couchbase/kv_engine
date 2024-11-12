@@ -4555,3 +4555,28 @@ cb::engine_errc MagmaKVStore::setFusionMetadataAuthToken(
 std::string MagmaKVStore::getFusionMetadataAuthToken() const {
     return magma->getFusionMetadataAuthToken();
 }
+
+std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
+        Vbid vbid, const std::vector<std::string>& paths) {
+    // Note: Creating a fusion vbucket is a 2-step operation, ie Mount + Create
+    // (in order). So we have to bump the revision here only.
+    const auto rev = ++kvstoreRevList[getCacheSlot(vbid)];
+
+    magma::Magma::KVStoreMountConfig config;
+    // @todo: Type::Local will be used for FBR. Source here will be set based on
+    //  the bucket configuration
+    config.Source = magma::Magma::KVStoreMountConfig::Type::Fusion;
+    config.MountPaths = paths;
+
+    const auto res = magma->MountKVStore(Magma::KVStoreID(vbid.get()),
+                                         magma::Magma::KVStoreRevision(rev),
+                                         config);
+    const auto status = std::get<Status>(res);
+    if (status.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::mountVBucket: ",
+                        {"vb", vbid},
+                        {"status", status.String()});
+        return {cb::engine_errc::failed, {}};
+    }
+    return {cb::engine_errc::success, std::get<std::vector<std::string>>(res)};
+}

@@ -66,6 +66,11 @@ cb::engine_errc EngineIface::releaseFusionStorageSnapshot(
     return cb::engine_errc::not_supported;
 }
 
+std::pair<cb::engine_errc, std::vector<std::string>> EngineIface::mountVBucket(
+        Vbid vbid, const std::vector<std::string>& paths) {
+    return {cb::engine_errc::not_supported, {}};
+}
+
 cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {
     return cb::engine_errc::not_supported;
 }

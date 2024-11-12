@@ -745,6 +745,20 @@ static void release_fusion_storage_snapshot_executor(Cookie& cookie) {
     cookie.sendResponse(res);
 }
 
+static void mount_vbucket_executor(Cookie& cookie) {
+    const auto vbid = cookie.getRequest().getVBucket();
+    auto& engine = cookie.getConnection().getBucketEngine();
+    const auto inJson =
+            nlohmann::json::parse(cookie.getRequest().getValueString());
+    const auto res = engine.mountVBucket(vbid, inJson["mountPaths"]);
+    Ensures(res.first != cb::engine_errc::would_block);
+    Ensures(res.first != cb::engine_errc::disconnect);
+    nlohmann::json json;
+    json["deks"] = res.second;
+    cookie.sendResponse(
+            res.first, {}, {}, json.dump(), cb::mcbp::Datatype::JSON, 0);
+}
+
 static void process_bin_dcp_response(Cookie& cookie) {
     auto& c = cookie.getConnection();
 
@@ -1011,10 +1025,14 @@ void initialize_mbcp_lookup_map() {
                   range_scan_continue_executor);
     setup_handler(cb::mcbp::ClientOpcode::RangeScanCancel,
                   range_scan_cancel_executor);
+
     setup_handler(cb::mcbp::ClientOpcode::GetFusionStorageSnapshot,
                   get_fusion_storage_snapshot_executor);
     setup_handler(cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot,
                   release_fusion_storage_snapshot_executor);
+    setup_handler(cb::mcbp::ClientOpcode::MountFusionVbucket,
+                  mount_vbucket_executor);
+
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);
     setup_handler(cb::mcbp::ClientOpcode::StopPersistence,

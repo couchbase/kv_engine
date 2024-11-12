@@ -180,7 +180,7 @@ enum class ClientOpcode : uint8_t {
     // Fusion
     GetFusionStorageSnapshot = 0x98,
     ReleaseFusionStorageSnapshot = 0x99,
-    ReservedFusion2 = 0x9a,
+    MountFusionVbucket = 0x9a,
     ReservedFusion3 = 0x9b,
     ReservedFusion4 = 0x9c,
     ReservedFusion5 = 0x9d,

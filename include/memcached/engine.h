@@ -860,6 +860,12 @@ struct EngineIface {
             Vbid vbid, std::string_view snapshotUuid);
 
     /**
+     * Proxy to magma->mountVBucket. See magma's API for details.
+     */
+    [[nodiscard]] virtual std::pair<cb::engine_errc, std::vector<std::string>>
+    mountVBucket(Vbid vbid, const std::vector<std::string>& paths);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

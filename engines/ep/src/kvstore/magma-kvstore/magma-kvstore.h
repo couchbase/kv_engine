@@ -666,6 +666,9 @@ public:
     cb::engine_errc setFusionMetadataAuthToken(std::string_view token) override;
     std::string getFusionMetadataAuthToken() const override;
 
+    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid, const std::vector<std::string>& paths) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

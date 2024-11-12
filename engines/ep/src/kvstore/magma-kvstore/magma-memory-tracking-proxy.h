@@ -285,6 +285,11 @@ public:
     void setFusionMetadataAuthToken(std::string_view token);
     std::string getFusionMetadataAuthToken() const;
 
+    std::tuple<magma::Status, std::vector<std::string>> MountKVStore(
+            magma::Magma::KVStoreID kvID,
+            magma::Magma::KVStoreRevision kvsRev,
+            const magma::Magma::KVStoreMountConfig& config);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };
