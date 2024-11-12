@@ -36,7 +36,16 @@ static const std::vector<std::string_view> IGNORED_WORDS = {
         "cd",
 };
 
-void processFile(std::istream& s);
+enum class LogFormat {
+    /// Format: <json>
+    Json,
+    /// Format: <TS> <LEVEL> message <json>
+    JsonLog,
+};
+
+LogFormat parseLogFormat(std::string_view logFormat);
+
+void processFile(std::istream& s, LogFormat output);
 
 int main(int argc, char** argv) {
     // Make sure that we dump callstacks on the console
@@ -46,6 +55,7 @@ int main(int argc, char** argv) {
     cb::getopt::CommandLineOptionsParser parser;
 
     std::optional<std::string> input;
+    LogFormat outputMode{LogFormat::Json};
     parser.addOption({
             [&input](auto value) { input = std::string{value}; },
             'i',
@@ -54,6 +64,14 @@ int main(int argc, char** argv) {
             "filename",
             "Specify an input filename. Use - for stdin. If not specified, all "
             "memcached log files in the current directory are used as input.",
+    });
+    parser.addOption({
+            [&outputMode](auto value) { outputMode = parseLogFormat(value); },
+            'o',
+            "output",
+            Argument::Required,
+            "mode",
+            "Specify an output mode. Options: json (default), json-log (>=8.0)",
     });
     parser.addOption({[&parser](auto) {
                           std::cerr << "mclogcat [options]" << std::endl;
@@ -99,17 +117,58 @@ int main(int argc, char** argv) {
 
     for (auto& p : files) {
         if (p.empty()) {
-            processFile(std::cin);
+            processFile(std::cin, outputMode);
         } else {
             std::ifstream s(p);
-            processFile(s);
+            processFile(s, outputMode);
         }
     }
 
     return EXIT_SUCCESS;
 }
 
-void processFile(std::istream& s) {
+LogFormat parseLogFormat(std::string_view output) {
+    if (output == "json") {
+        return LogFormat::Json;
+    }
+    if (output == "json-log") {
+        return LogFormat::JsonLog;
+    }
+    throw std::invalid_argument(
+            fmt::format("Unexpected log format: '{}'", output));
+}
+
+void processLine(std::string_view timestamp,
+                 std::string_view severity,
+                 std::string_view message,
+                 std::string_view context,
+                 LogFormat output) {
+    switch (output) {
+    case LogFormat::Json:
+        if (context.empty()) {
+            fmt::println(R"({{"ts":"{}","lvl":"{}","msg":{}}})",
+                         timestamp,
+                         severity,
+                         nlohmann::json(message).dump());
+        } else {
+            fmt::println(R"({{"ts":"{}","lvl":"{}","msg":{},"ctx":{}}})",
+                         timestamp,
+                         severity,
+                         nlohmann::json(message).dump(),
+                         context);
+        }
+        break;
+    case LogFormat::JsonLog:
+        if (context.empty()) {
+            fmt::println("{} {} {}", timestamp, severity, message);
+        } else {
+            fmt::println("{} {} {} {}", timestamp, severity, message, context);
+        }
+        break;
+    }
+}
+
+void processFile(std::istream& s, LogFormat output) {
     for (std::string line; std::getline(s, line);) {
         if (std::find(IGNORED_LINES.begin(), IGNORED_LINES.end(), line) !=
             IGNORED_LINES.end()) {
@@ -117,6 +176,17 @@ void processFile(std::istream& s) {
         }
 
         std::string_view lineView = line;
+        if (lineView.at(0) == '{') {
+            auto parsedLog = nlohmann::ordered_json::parse(lineView);
+            auto contextString = parsedLog["ctx"].dump();
+            processLine(parsedLog.at("ts").template get_ref<std::string&>(),
+                        parsedLog.at("lvl").template get_ref<std::string&>(),
+                        parsedLog.at("msg").template get_ref<std::string&>(),
+                        contextString,
+                        output);
+            continue;
+        }
+
         auto timestampEnd = line.find(' ');
         if (timestampEnd == std::string::npos) {
             continue;
@@ -136,24 +206,21 @@ void processFile(std::istream& s) {
 
         auto contextBegin = line.find(" {\"");
 
-        if (contextBegin != std::string::npos && line.back() == '}') {
-            auto context = lineView.substr(contextBegin);
-            auto message = lineView.substr(severityEnd + 1,
-                                           contextBegin - severityEnd - 1);
+        try {
+            if (contextBegin != std::string::npos && line.back() == '}') {
+                auto context = lineView.substr(contextBegin + 1);
+                auto message = lineView.substr(severityEnd + 1,
+                                               contextBegin - severityEnd - 1);
 
-            { auto validJson = nlohmann::json::parse(context); }
-            fmt::println(R"({{"ts":"{}","lvl":"{}","msg":{},"ctx":{}}})",
-                         timestamp,
-                         severity,
-                         nlohmann::json(message).dump(),
-                         context);
-            continue;
+                { auto validJson = nlohmann::json::parse(context); }
+                processLine(timestamp, severity, message, context, output);
+                continue;
+            }
+        } catch (const nlohmann::json::exception& e) {
+            // Proceed without context.
         }
 
         auto message = lineView.substr(severityEnd + 1);
-        fmt::println(R"({{"ts":"{}","lvl":"{}","msg":{}}})",
-                     timestamp,
-                     severity,
-                     nlohmann::json(message).dump());
+        processLine(timestamp, severity, message, {}, output);
     }
 }
