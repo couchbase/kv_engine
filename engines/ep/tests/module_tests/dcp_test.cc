@@ -1887,8 +1887,9 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     MockDcpConnMap& connMap = *connMapPtr;
     engine->setDcpConnMap(std::move(connMapPtr));
 
+    constexpr size_t ProducerCount = 5;
     // create cookies
-    std::array<MockCookie*, 4> producerCookies;
+    std::array<MockCookie*, ProducerCount> producerCookies;
     for (auto& cookie : producerCookies) {
         cookie = create_mock_cookie(engine.get());
     }
@@ -1896,13 +1897,14 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     auto* statsCookie = create_mock_cookie(engine.get());
 
     // create producers
-    std::array<std::shared_ptr<MockDcpProducer>, 4> producers;
+    std::array<std::shared_ptr<MockDcpProducer>, ProducerCount> producers;
     size_t idx = 0;
     for (const char* name :
          {"eq_dcpq:fts:foo",
           "eq_dcpq:views:bar",
           R"(eq_dcpq:"i":"123/abc","a":"kafka-connector/1.0 (baz) 2")",
-          R"(eq_dcpq:"i":"789","a":"bad-connector x)"}) {
+          R"(eq_dcpq:"i":"789","a":"bad-connector x)",
+          "eq_dcpq:bad-client"}) {
         producers.at(idx) =
                 std::make_shared<MockDcpProducer>(*engine,
                                                   producerCookies.at(idx),
@@ -1925,16 +1927,13 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
 
     // manufacture specific stats to test they are aggregated
     // correctly
-    auto producerBytes0 = 1234;
-    auto producerBytes1 = 4321;
-    auto producerBytes2 = 5678;
-    auto producerBytes3 = 8765;
+    std::array<size_t, ProducerCount> producerBytes{
+            {1234, 4321, 5678, 8765, 4567}};
     auto consumerBackoffs = 1991;
 
-    producers[0]->setTotalBtyesSent(producerBytes0);
-    producers[1]->setTotalBtyesSent(producerBytes1);
-    producers[2]->setTotalBtyesSent(producerBytes2);
-    producers[3]->setTotalBtyesSent(producerBytes3);
+    for (idx = 0; idx < producers.size(); ++idx) {
+        producers[idx]->setTotalBtyesSent(producerBytes[idx]);
+    }
     consumer->setNumBackoffs(consumerBackoffs);
 
     std::unordered_map<std::string, std::string> statsOutput;
@@ -1953,33 +1952,37 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
     // a total output.
     std::unordered_map<std::string, std::string> expected{
             {"replication:total_bytes", "0"},
-            {"fts:total_bytes", std::to_string(producerBytes0)},
-            {"views:total_bytes", std::to_string(producerBytes1)},
-            {"kafka-connector:total_bytes", std::to_string(producerBytes2)},
-            {"bad-connector x:total_bytes", std::to_string(producerBytes3)},
+            {"fts:total_bytes", std::to_string(producerBytes[0])},
+            {"views:total_bytes", std::to_string(producerBytes[1])},
+            {"kafka-connector:total_bytes", std::to_string(producerBytes[2])},
+            {"bad-connector x:total_bytes", std::to_string(producerBytes[3])},
+            {"_unknown:total_bytes", std::to_string(producerBytes[4])},
             {":total:total_bytes",
-             std::to_string(producerBytes0 + producerBytes1 + producerBytes2 +
-                            producerBytes3)},
+             std::to_string(std::accumulate(
+                     producerBytes.begin(), producerBytes.end(), size_t(0)))},
 
             {"replication:producer_count", "0"},
             {"fts:producer_count", "1"},
             {"views:producer_count", "1"},
             {"kafka-connector:producer_count", "1"},
             {"bad-connector x:producer_count", "1"},
-            {":total:producer_count", "4"},
+            {"_unknown:producer_count", "1"},
+            {":total:producer_count", std::to_string(ProducerCount)},
 
             {"replication:count", "1"},
             {"fts:count", "1"},
             {"views:count", "1"},
             {"kafka-connector:count", "1"},
             {"bad-connector x:count", "1"},
-            {":total:count", "5"},
+            {"_unknown:count", "1"},
+            {":total:count", std::to_string(ProducerCount + 1)},
 
             {"replication:backoff", std::to_string(consumerBackoffs)},
             {"fts:backoff", "0"},
             {"views:backoff", "0"},
             {"kafka-connector:backoff", "0"},
             {"bad-connector x:backoff", "0"},
+            {"_unknown:backoff", "0"},
             {":total:backoff", std::to_string(consumerBackoffs)},
     };
 
