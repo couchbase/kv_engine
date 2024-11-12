@@ -14,13 +14,10 @@
 #include <platform/dirutils.h>
 #include <platform/terminal_color.h>
 #include <utilities/terminate_handler.h>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <istream>
 #include <vector>
-
-namespace fs = std::filesystem;
 
 // Ingore the following lines.
 // Those match the output appended by cbcollect_info.
@@ -62,8 +59,7 @@ int main(int argc, char** argv) {
             "input",
             Argument::Required,
             "filename",
-            "Specify an input filename. Use - for stdin. If not specified, all "
-            "memcached log files in the current directory are used as input.",
+            "Specify an input filename. Reads from stdin if not specified.",
     });
     parser.addOption({
             [&outputMode](auto value) { outputMode = parseLogFormat(value); },
@@ -87,41 +83,11 @@ int main(int argc, char** argv) {
         std::exit(EXIT_FAILURE);
     });
 
-    // Construct list of input files.
-    std::vector<fs::path> files;
-    if (input) {
-        if (*input == "-") {
-            files.emplace_back();
-        } else {
-            files.emplace_back(*input);
-        }
+    if (!input.has_value()) {
+        processFile(std::cin, outputMode);
     } else {
-        for (auto&& it : fs::directory_iterator(fs::current_path())) {
-            auto filename = it.path().filename();
-            auto ext = filename.extension().generic_string();
-            if ((ext == ".log" || ext == ".txt") &&
-                filename.filename().generic_string().find("memcached.") == 0) {
-                files.emplace_back(std::move(filename));
-            }
-        }
-    }
-
-    if (files.empty()) {
-        fmt::println("{}Fatal: Could not find any memcached log files{}",
-                     cb::terminal::TerminalColor::Red,
-                     cb::terminal::TerminalColor::Reset);
-        return EXIT_FAILURE;
-    }
-
-    std::sort(files.begin(), files.end());
-
-    for (auto& p : files) {
-        if (p.empty()) {
-            processFile(std::cin, outputMode);
-        } else {
-            std::ifstream s(p);
-            processFile(s, outputMode);
-        }
+        std::ifstream s(*input);
+        processFile(s, outputMode);
     }
 
     return EXIT_SUCCESS;
