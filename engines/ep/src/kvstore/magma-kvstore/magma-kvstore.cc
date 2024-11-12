@@ -4535,6 +4535,23 @@ MagmaKVStore::getFusionStorageSnapshot(std::string_view fusionNamespace,
     return {cb::engine_errc::success, std::get<nlohmann::json>(res)};
 }
 
+cb::engine_errc MagmaKVStore::releaseFusionStorageSnapshot(
+        std::string_view fusionNamespace,
+        Vbid vbid,
+        std::string_view snapshotUuid) {
+    const auto res = magma->releaseFusionStorageSnapshot(
+            fusionNamespace, Magma::KVStoreID(vbid.get()), snapshotUuid);
+    if (res.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::releaseFusionStorageSnapshot: ",
+                        {"vb", vbid.get()},
+                        {"status", res.String()},
+                        {"fusion_namespace", fusionNamespace},
+                        {"snapshot_uuid", snapshotUuid});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc MagmaKVStore::setFusionMetadataAuthToken(
         std::string_view token) {
     magma->setFusionMetadataAuthToken(token);

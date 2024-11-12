@@ -2646,6 +2646,48 @@ static Status get_fusion_storage_snapshot_validator(Cookie& cookie) {
     return status;
 }
 
+static Status release_fusion_storage_snapshot_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto value = cookie.getRequest().getValueString();
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(value);
+    } catch (const nlohmann::json::exception& e) {
+        const auto msg = fmt::format(
+                "release_fusion_storage_snapshot_validator: Invalid json '{}' "
+                "{}",
+                value,
+                e.what());
+        cookie.setErrorContext(msg);
+        return Status::Einval;
+    }
+
+    if (!json.contains("snapshotUuid")) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: Missing "
+                "snapshotUuid");
+        return Status::Einval;
+    }
+    if (!json["snapshotUuid"].is_string()) {
+        cookie.setErrorContext(
+                "release_fusion_storage_snapshot_validator: snapshotUuid not "
+                "string");
+        return Status::Einval;
+    }
+
+    return status;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -2945,4 +2987,6 @@ McbpValidator::McbpValidator() {
 
     setup(cb::mcbp::ClientOpcode::GetFusionStorageSnapshot,
           get_fusion_storage_snapshot_validator);
+    setup(cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot,
+          release_fusion_storage_snapshot_validator);
 }

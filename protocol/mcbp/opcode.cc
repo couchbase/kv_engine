@@ -814,6 +814,8 @@ public:
               {"GET_ERROR_MAP"sv, {Attribute::Supported}});
         setup(ClientOpcode::GetFusionStorageSnapshot,
               {"FUSION_GET_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
+        setup(ClientOpcode::ReleaseFusionStorageSnapshot,
+              {"FUSION_RELEASE_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
     }
 
 protected:

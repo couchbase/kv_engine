@@ -660,6 +660,11 @@ public:
             std::string_view snapshotUuid,
             std::time_t validity) override;
 
+    cb::engine_errc releaseFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid) override;
+
     cb::engine_errc setFusionMetadataAuthToken(std::string_view token) override;
     std::string getFusionMetadataAuthToken() const override;
 

@@ -853,6 +853,13 @@ struct EngineIface {
                              std::time_t validity);
 
     /**
+     * Proxy to magma->releaseFusionStorageSnapshot. See magma's API for
+     * details.
+     */
+    [[nodiscard]] virtual cb::engine_errc releaseFusionStorageSnapshot(
+            Vbid vbid, std::string_view snapshotUuid);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

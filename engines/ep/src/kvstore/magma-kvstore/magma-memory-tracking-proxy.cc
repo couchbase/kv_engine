@@ -693,6 +693,15 @@ MagmaMemoryTrackingProxy::getFusionStorageSnapshot(
             std::chrono::system_clock::from_time_t(validity));
 }
 
+magma::Status MagmaMemoryTrackingProxy::releaseFusionStorageSnapshot(
+        std::string_view fusionNamespace,
+        magma::Magma::KVStoreID kvID,
+        std::string_view snapshotUuid) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->ReleaseFusionStorageSnapshot(
+            std::string(fusionNamespace), kvID, std::string(snapshotUuid));
+}
+
 void MagmaMemoryTrackingProxy::setFusionMetadataAuthToken(
         std::string_view token) {
     cb::UseArenaMallocSecondaryDomain domainGuard;

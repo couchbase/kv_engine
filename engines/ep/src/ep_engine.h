@@ -301,6 +301,8 @@ public:
             Vbid vbid,
             std::string_view snapshotUuid,
             std::time_t validity) override;
+    cb::engine_errc releaseFusionStorageSnapshot(
+            Vbid vbid, std::string_view snapshotUuid) override;
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
@@ -1510,6 +1512,8 @@ protected:
 
     std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshotInner(
             Vbid vbid, std::string_view snapshotUuid, std::time_t validity);
+    cb::engine_errc releaseFusionStorageSnapshotInner(
+            Vbid vbid, std::string_view snapshotUuid);
 
     cb::engine_errc setFusionMetadataAuthToken(std::string_view token);
     std::string getFusionMetadataAuthToken() const;

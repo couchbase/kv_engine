@@ -917,6 +917,10 @@ public:
             Vbid vbid,
             std::string_view snapshotUuid,
             std::time_t validity) = 0;
+    virtual cb::engine_errc releaseFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid) = 0;
     virtual cb::engine_errc setFusionMetadataAuthToken(
             std::string_view token) = 0;
     virtual std::string getFusionMetadataAuthToken() const = 0;

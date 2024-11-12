@@ -234,6 +234,8 @@ public:
             Vbid vbid,
             std::string_view snapshotUuid,
             std::time_t validity) override;
+    cb::engine_errc releaseFusionStorageSnapshot(
+            Vbid vbid, std::string_view snapshotUuid) override;
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
@@ -1360,6 +1362,11 @@ cb::engine_errc EWB_Engine::cancelRangeScan(CookieIface& cookie,
 std::pair<cb::engine_errc, nlohmann::json> EWB_Engine::getFusionStorageSnapshot(
         Vbid vbid, std::string_view snapshotUuid, std::time_t validity) {
     return real_engine->getFusionStorageSnapshot(vbid, snapshotUuid, validity);
+}
+
+cb::engine_errc EWB_Engine::releaseFusionStorageSnapshot(
+        Vbid vbid, std::string_view snapshotUuid) {
+    return real_engine->releaseFusionStorageSnapshot(vbid, snapshotUuid);
 }
 
 cb::engine_errc EWB_Engine::pause(folly::CancellationToken cancellationToken) {

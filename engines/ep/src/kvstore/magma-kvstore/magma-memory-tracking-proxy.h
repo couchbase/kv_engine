@@ -276,6 +276,10 @@ public:
             std::string_view snapshotUuid,
             std::time_t validity);
 
+    magma::Status releaseFusionStorageSnapshot(std::string_view fusionNamespace,
+                                               magma::Magma::KVStoreID kvID,
+                                               std::string_view snapshotUuid);
+
     void setFusionMetadataAuthToken(std::string_view token);
     std::string getFusionMetadataAuthToken() const;
 

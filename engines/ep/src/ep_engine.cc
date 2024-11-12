@@ -7771,6 +7771,12 @@ EventuallyPersistentEngine::getFusionStorageSnapshot(
             vbid, snapshotUuid, validity);
 }
 
+cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshot(
+        Vbid vbid, std::string_view snapshotUuid) {
+    return acquireEngine(this)->releaseFusionStorageSnapshotInner(vbid,
+                                                                  snapshotUuid);
+}
+
 cb::engine_errc EventuallyPersistentEngine::pause(
         folly::CancellationToken cancellationToken) {
     return kvBucket->prepareForPause(cancellationToken);
@@ -7957,6 +7963,19 @@ EventuallyPersistentEngine::getFusionStorageSnapshotInner(
 
     return kvBucket->getRWUnderlying(vbid)->getFusionStorageSnapshot(
             fusionNamespace, vbid, snapshotUuid, validity);
+}
+
+cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshotInner(
+        Vbid vbid, std::string_view snapshotUuid) {
+    Expects(kvBucket);
+    if (!kvBucket->getStorageProperties().supportsFusion()) {
+        return cb::engine_errc::not_supported;
+    }
+
+    const auto fusionNamespace =
+            configuration.getCouchBucket() + "/" + configuration.getUuid();
+    return kvBucket->getRWUnderlying(vbid)->releaseFusionStorageSnapshot(
+            fusionNamespace, vbid, snapshotUuid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setFusionMetadataAuthToken(

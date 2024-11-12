@@ -400,7 +400,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::ReleaseSnapshot:
         case ClientOpcode::DownloadSnapshot:
         case ClientOpcode::GetFusionStorageSnapshot:
-        case ClientOpcode::ReservedFusion1:
+        case ClientOpcode::ReleaseFusionStorageSnapshot:
         case ClientOpcode::ReservedFusion2:
         case ClientOpcode::ReservedFusion3:
         case ClientOpcode::ReservedFusion4:

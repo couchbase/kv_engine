@@ -104,7 +104,8 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     ASSERT_TRUE(res.is_array());
 }
 
-TEST_P(FusionTest, GetStorageSnapshot) {
+TEST_P(FusionTest, GetReleaseStorageSnapshot) {
+    // Create a snapshot first
     const auto snapshotUuid = "some-snapshot-uuid";
     const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
@@ -139,6 +140,21 @@ TEST_P(FusionTest, GetStorageSnapshot) {
     EXPECT_EQ(1, res["version"]);
     ASSERT_TRUE(res.contains("volumeID"));
     EXPECT_FALSE(res["volumeID"].empty());
+
+    // Then release it
+    adminConnection->executeInBucket(
+            bucketName, [&resp, &snapshotUuid](auto& conn) {
+                auto cmd = BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
+                cmd.setVBucket(Vbid(0));
+                nlohmann::json json;
+                json["snapshotUuid"] = snapshotUuid;
+                cmd.setValue(json.dump());
+                cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                resp = conn.execute(cmd);
+            });
+
+    EXPECT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
 }
 
 TEST_P(FusionTest, SetMetadataAuthToken) {

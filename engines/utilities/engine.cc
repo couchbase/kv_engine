@@ -61,6 +61,11 @@ EngineIface::getFusionStorageSnapshot(Vbid vbid,
     return {cb::engine_errc::not_supported, {}};
 }
 
+cb::engine_errc EngineIface::releaseFusionStorageSnapshot(
+        Vbid vbid, std::string_view snapshotUuid) {
+    return cb::engine_errc::not_supported;
+}
+
 cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {
     return cb::engine_errc::not_supported;
 }

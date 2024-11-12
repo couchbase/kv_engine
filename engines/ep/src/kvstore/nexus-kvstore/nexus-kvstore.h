@@ -172,6 +172,9 @@ public:
     std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override {
         return std::nullopt;
     }
+
+    // Fusion not supported on nexus
+
     nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
         return {};
     }
@@ -182,6 +185,14 @@ public:
             std::time_t validity) override {
         return {};
     }
+
+    cb::engine_errc releaseFusionStorageSnapshot(
+            std::string_view fusionNamespace,
+            Vbid vbid,
+            std::string_view snapshotUuid) override {
+        return cb::engine_errc::not_supported;
+    }
+
     cb::engine_errc setFusionMetadataAuthToken(
             std::string_view token) override {
         return cb::engine_errc::not_supported;
