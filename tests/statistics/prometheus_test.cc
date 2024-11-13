@@ -182,7 +182,7 @@ TEST_F(PrometheusStatTest, metricType) {
     using namespace ::testing;
 
     // check that a selection of the collected metrics match the definitions
-    EXPECT_EQ(::prometheus::MetricType::Untyped,
+    EXPECT_EQ(::prometheus::MetricType::Gauge,
               metrics.low.at("kv_audit_enabled").type);
 
     EXPECT_EQ(::prometheus::MetricType::Counter,
@@ -198,7 +198,7 @@ TEST_F(PrometheusStatTest, metricType) {
 
     // it's a little brittle to expect an exact string value
     // but it's a simple test and will show up any unexpected changes
-    std::string expected = R"(# TYPE kv_audit_enabled untyped
+    std::string expected = R"(# TYPE kv_audit_enabled gauge
 kv_audit_enabled 0
 # TYPE kv_audit_dropped_events counter
 kv_audit_dropped_events 0

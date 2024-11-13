@@ -108,7 +108,7 @@ protected:
                          const Labels& additionalLabels,
                          prometheus::ClientMetric metric,
                          prometheus::MetricType metricType =
-                                 prometheus::MetricType::Untyped) const;
+                                 prometheus::MetricType::Gauge) const;
 
     std::unordered_map<std::string, prometheus::MetricFamily>& metricFamilies;
     const std::string prefix;

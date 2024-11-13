@@ -117,7 +117,7 @@ struct StatDef {
     StatDef(CBStatsKey cbstatsKey,
             cb::stats::Unit unit = cb::stats::units::none,
             std::string_view metricFamilyKey = "",
-            ::prometheus::MetricType type = ::prometheus::MetricType::Untyped,
+            ::prometheus::MetricType type = ::prometheus::MetricType::Gauge,
             Labels&& labels = {});
 
     /**
@@ -181,7 +181,7 @@ struct StatDef {
     std::string metricFamily;
 
     // type of the metric for exposition for Prometheus
-    const ::prometheus::MetricType type = ::prometheus::MetricType::Untyped;
+    const ::prometheus::MetricType type = ::prometheus::MetricType::Gauge;
 
     // Labels for this metric. Labels set here will
     // override defaults labels set in the StatCollector

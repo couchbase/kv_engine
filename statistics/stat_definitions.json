@@ -56,11 +56,11 @@
  *
  * * "type"
  *    Prometheus metric type, one of:
- *        "untyped", "counter", "gauge", "histogram", "summary"
+ *        "counter", "gauge", "histogram", "summary"
  *    Optional.
  *    If specified, Prometheus exposition will verify that a metric declared
  *    as a counter/gauge is not provided e.g., a HdrHistogram to expose.
- *    If not specified, defaults to "untyped" or "histogram", based on the
+ *    If not specified, defaults to "gauge" or "histogram", based on the
  *    actual datatype added to the StatCollector.
  *    Can typically be omitted, as it is largely informational in Prometheus
  *    anyway.

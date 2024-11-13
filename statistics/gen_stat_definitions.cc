@@ -30,7 +30,7 @@ namespace prometheus {
 // inject json deserialisation def as it needs to be in the same namespace
 // as MetricType.
 // maps MetricType enum to/from json strings
-// default to "untyped"
+// default to "gauge"
 // ignore linting, can't correct the macro.
 // NOLINTNEXTLINE(modernize-avoid-c-arrays)
 NLOHMANN_JSON_SERIALIZE_ENUM(MetricType,
@@ -154,7 +154,7 @@ struct Spec {
     std::string enumKey;
     std::string cbstat;
     std::string unit;
-    ::prometheus::MetricType type = ::prometheus::MetricType::Untyped;
+    ::prometheus::MetricType type = ::prometheus::MetricType::Gauge;
 
     struct Prometheus {
         std::string family;
@@ -194,6 +194,12 @@ struct Spec {
                     "match regex:{}",
                     enumKey,
                     metricFamilyRegexStr));
+        }
+
+        if (type == ::prometheus::MetricType::Untyped) {
+            fail(fmt::format(
+                    "'{}' untyped metrics are not allowed, use gauge instead\n",
+                    enumKey));
         }
 
         if (!(stability == "committed" || stability == "volatile" ||
@@ -406,16 +412,9 @@ nlohmann::json readJsonFile(const char* filename) {
 std::pair<std::string, nlohmann::json> generateDocEntry(const Spec& spec) {
     using namespace nlohmann;
 
-    // documentation specification does not allow for untyped metrics.
-    // If a type has not been provided, assume a gauge - this is the
-    // most generic option.
-    auto type = spec.type == prometheus::MetricType::Untyped
-                        ? prometheus::MetricType::Gauge
-                        : spec.type;
-
     // begin building json representation matching the format
     // documentation requires
-    json statDoc{{"type", type}, {"stability", spec.stability}};
+    json statDoc{{"type", spec.type}, {"stability", spec.stability}};
 
     if (!spec.added.empty()) {
         statDoc["added"] = spec.added;

@@ -1642,7 +1642,7 @@ TEST_F(StatTest, testConnAggStats) {
             EXPECT_EQ(2, metricFamily.metric.size());
             for (const auto& metric : metricFamily.metric) {
                 // The raw value set in the metric.
-                EXPECT_EQ(1, metric.untyped.value);
+                EXPECT_EQ(1, metric.gauge.value);
             }
         }
     }
@@ -1687,7 +1687,7 @@ TEST_F(CheckpointMemQuotaTest, CheckpointMemQuotaStat) {
               statsMap.find("ep_checkpoint_consumer_limit_bytes"));
     auto metricValue = statsMap["ep_checkpoint_consumer_limit_bytes"]
                                .metric[0]
-                               .untyped.value;
+                               .gauge.value;
     auto checkpointMemRatio = store->getCheckpointMemoryRatio();
     auto consumerBufferRatio = engine->getDcpConsumerBufferRatio();
     EXPECT_EQ(quota * (checkpointMemRatio + consumerBufferRatio), metricValue);
