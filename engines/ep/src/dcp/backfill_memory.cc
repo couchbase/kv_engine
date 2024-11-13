@@ -29,15 +29,15 @@ DCPBackfillMemoryBuffered::DCPBackfillMemoryBuffered(
         EphemeralVBucketPtr evb,
         std::shared_ptr<ActiveStream> s,
         uint64_t startSeqno,
-        uint64_t endSeqno,
-        std::chrono::seconds maxNoProgressDuration)
+        uint64_t endSeqno)
     : DCPBackfillToStream(s),
       DCPBackfillBySeqno(startSeqno, endSeqno),
       evb(evb),
       rangeItr(nullptr),
       backfillMaxDuration(
               evb->getConfiguration().getDcpBackfillRunDurationLimit()),
-      maxNoProgressDuration(maxNoProgressDuration) {
+      maxNoProgressDuration(
+              getBackfillIdleLimitSeconds(evb->getConfiguration())) {
     TRACE_ASYNC_START1("dcp/backfill",
                        "DCPBackfillMemoryBuffered",
                        this,
@@ -366,8 +366,9 @@ DCPBackfill::State DCPBackfillMemoryBuffered::getNextScanState(
 
 bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     // Takeover streams are immune to this. Ns_server does not handle the stream
-    // close gracefully in some cases.
-    if (stream.isTakeoverStream()) {
+    // close gracefully in some cases. The optional also controls if this
+    // feature is enabled
+    if (!maxNoProgressDuration || stream.isTakeoverStream()) {
         return false;
     }
 
@@ -386,15 +387,16 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
 
     // No change in position, check if the limit we are within limit
     if ((std::chrono::steady_clock::now() - lastPositionChangedTime) <
-        maxNoProgressDuration) {
+        *maxNoProgressDuration) {
         return false;
     }
 
     // No change and outside of threshold.
     stream.logWithContext(spdlog::level::level_enum::warn,
-                          "DCPBackfillMemoryBuffered no progress has been made "
-                          "on the scan for more than s. seqno",
-                          {{"max_no_progress_duration", maxNoProgressDuration},
+                          "DCPBackfillMemoryBuffered::isSlow true, no progress"
+                          " has been made on the scan for more than the no "
+                          "progress duration",
+                          {{"max_no_progress_duration", *maxNoProgressDuration},
                            {"tracked_position", trackedPosition}});
     return true;
 }

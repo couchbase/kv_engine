@@ -2863,6 +2863,7 @@ ScanStatus NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     // lastReadSeqno gets checked by backfill so we need to set it in the
     // Nexus ctx.
     nexusCtx.lastReadSeqno = primaryCtx.lastReadSeqno;
+    nexusCtx.keysScanned = primaryCtx.keysScanned;
 
     return primaryScanResult;
 }

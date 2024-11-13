@@ -24,8 +24,8 @@ DCPBackfillDiskToStream::DCPBackfillDiskToStream(
         KVBucket& bucket, std::shared_ptr<ActiveStream> s)
     : DCPBackfillToStream(std::move(s)),
       bucket(bucket),
-      maxNoProgressDuration(std::chrono::seconds{
-              bucket.getConfiguration().getDcpBackfillIdleLimitSeconds()}) {
+      maxNoProgressDuration(
+              getBackfillIdleLimitSeconds(bucket.getConfiguration())) {
 }
 
 DCPBackfillDiskToStream::~DCPBackfillDiskToStream() = default;
@@ -285,8 +285,9 @@ void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
 
 bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
     // Takeover streams are immune to this. Ns_server does not handle the stream
-    // close gracefully in some cases.
-    if (stream.isTakeoverStream()) {
+    // close gracefully in some cases. The optional also controls if this
+    // feature is enabled
+    if (!maxNoProgressDuration || stream.isTakeoverStream()) {
         return false;
     }
     // If history scan, care only about the progress of that, as
@@ -296,7 +297,7 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
                 spdlog::level::level_enum::warn,
                 "Backfill task cancelled as no progress has been made on the "
                 "history-scan for more than the no progress duration",
-                {{"max_no_progress_duration", maxNoProgressDuration},
+                {{"max_no_progress_duration", *maxNoProgressDuration},
                  {"position", historyScan->scanCtx->getPosition().getValue()},
                  {"trackedPosition", trackedPosition->getValue()}});
         return true;
@@ -306,7 +307,7 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
                 spdlog::level::level_enum::warn,
                 "Backfill task cancelled as no progress has been made on the "
                 "scan for more than the no progress duration",
-                {{"max_no_progress_duration", maxNoProgressDuration},
+                {{"max_no_progress_duration", *maxNoProgressDuration},
                  {"position", scanCtx->getPosition().getValue()},
                  {"trackedPosition", trackedPosition->getValue()}});
         return true;
@@ -332,7 +333,7 @@ bool DCPBackfillDiskToStream::isProgressStalled(
 
     // No change in position, check if the limit we are within limit
     if ((std::chrono::steady_clock::now() - lastPositionChangedTime) <
-        maxNoProgressDuration) {
+        *maxNoProgressDuration) {
         return false;
     }
 

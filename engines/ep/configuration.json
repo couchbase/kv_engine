@@ -1140,6 +1140,20 @@
                 }
             }
         },
+        "dcp_backfill_idle_protection_enabled" : {
+            "default": {
+                "if": {
+                    "bucket_type": {
+                        "equals": "ephemeral",
+                        "then": "false"
+                    },
+                    "else": "true"
+                }
+            },
+            "descr": "Enables protection against idle DCP backfills. This means the server will end DCP streams which have been idle for dcp_backfill_idle_limit_seconds.",
+            "dynamic": true,
+            "type": "bool"
+        },
         "dcp_backfill_idle_limit_seconds" : {
             "default": "720",
             "descr": "How long (in seconds) a DCP Backfill can be held open with no progress being made. When this limit is exceeded the stream is force ended (reason Slow) releasing the resources being held by the stream. The default value is 2x of dcp_idle_timeout",

@@ -9087,10 +9087,12 @@ void SlowBackfillTest::setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags) {
     stream.reset();
     store_item(vbid, makeStoredDocKey("k0"), "v");
     store_item(vbid, makeStoredDocKey("k1"), "v");
-    // Ensure mutation is on disk; no longer present in CheckpointManager.
+    // Ensure mutation is no longer present in CheckpointManager.
     vb->checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 2);
     producer->setBackfillBufferSize(1);
+    // Force idle protection on for testing all bucket types
+    engine->getConfiguration().setDcpBackfillIdleProtectionEnabled(true);
     engine->getConfiguration().setDcpBackfillIdleLimitSeconds(0);
     recreateStream(*vb, false, {}, flags);
     ASSERT_TRUE(stream->isBackfilling());
@@ -9167,6 +9169,8 @@ TEST_P(SlowBackfillTest, BackfillCancelsWhenNoProgress) {
     validateStream();
 
     auto& bfm = producer->getBFM();
+    EXPECT_EQ(1, bfm.getNumBackfills());
+
     // Next attempt will see no change in Position within the time (0s).
     // backfill cancels and stream ends.
     EXPECT_EQ(backfill_success, bfm.backfill());
@@ -9196,11 +9200,10 @@ TEST_P(SlowBackfillTest, TakeoverBackfillDoesNotCancelWhenNoProgress) {
             << "Expected stream to still be alive, but it was marked dead";
 }
 
-INSTANTIATE_TEST_SUITE_P(
-        PersistentBuckets,
-        SlowBackfillTest,
-        STParameterizedBucketTest::persistentAllBackendsNoNexusConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         SlowBackfillTest,
+                         STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 TEST_P(SingleThreadedPassiveStreamTest,
        SkipBloomFilterWhenProcessingDcpMutation) {

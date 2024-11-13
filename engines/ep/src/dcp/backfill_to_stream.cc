@@ -10,6 +10,7 @@
  */
 
 #include "dcp/backfill_to_stream.h"
+#include "configuration.h"
 #include "dcp/active_stream.h"
 
 DCPBackfillToStream::DCPBackfillToStream(std::shared_ptr<ActiveStream> s)
@@ -40,4 +41,13 @@ void DCPBackfillToStream::cancel() {
             stream->setDead(status);
         }
     }
+}
+
+std::optional<std::chrono::seconds>
+DCPBackfillToStream::getBackfillIdleLimitSeconds(const Configuration& config) {
+    if (config.isDcpBackfillIdleProtectionEnabled()) {
+        return std::chrono::seconds{config.getDcpBackfillIdleLimitSeconds()};
+    }
+    // Return nothing disables the feature.
+    return {};
 }

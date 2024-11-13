@@ -1041,6 +1041,9 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
                     std::stoull(val));
         } else if (key == "dcp_backfill_run_duration_limit") {
             getConfiguration().setDcpBackfillRunDurationLimit(std::stoull(val));
+        } else if (key == "dcp_backfill_idle_protection_enabled") {
+            getConfiguration().setDcpBackfillIdleProtectionEnabled(
+                    cb_stob(val));
         } else if (key == "dcp_backfill_idle_limit_seconds") {
             getConfiguration().setDcpBackfillIdleLimitSeconds(std::stoull(val));
         } else {

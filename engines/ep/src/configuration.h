@@ -370,6 +370,11 @@ private:
     void initialize();
 
     /**
+     * Run any generated conditional init statements.
+     */
+    void runConditionalInitialize();
+
+    /**
      * Add a listener calling the provided std::function when the value for the
      * given config key changes.
      */

@@ -405,6 +405,12 @@ bool Configuration::parseConfiguration(std::string_view str) {
         }
     });
 
+    if (!failed) {
+        // Now do the conditional init, which is last so it can read all current
+        // state.
+        runConditionalInitialize();
+    }
+
     return !failed;
 }
 

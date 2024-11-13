@@ -15,9 +15,12 @@
 
 #include <mcbp/protocol/dcp_stream_end_status.h>
 
+#include <chrono>
 #include <memory>
+#include <optional>
 
 class ActiveStream;
+class Configuration;
 
 /**
  * Concrete class that does backfill from the disk and informs the DCP stream
@@ -48,6 +51,10 @@ public:
      * Sub-class can check for progress
      */
     virtual bool isSlow(const ActiveStream&) = 0;
+
+    /// @return a limit value if the feature is enabled, nullopt if disabled
+    static std::optional<std::chrono::seconds> getBackfillIdleLimitSeconds(
+            const Configuration&);
 
 protected:
     /**

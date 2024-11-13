@@ -29,8 +29,7 @@ public:
     DCPBackfillMemoryBuffered(EphemeralVBucketPtr evb,
                               std::shared_ptr<ActiveStream> s,
                               uint64_t startSeqno,
-                              uint64_t endSeqno,
-                              std::chrono::seconds maxNoProgressDuration);
+                              uint64_t endSeqno);
 
     std::chrono::milliseconds getBackfillMaxDuration() const {
         return backfillMaxDuration;
@@ -81,5 +80,5 @@ private:
     // For MB-62703 track the seqno of the scan and see if it changes over time
     std::optional<seqno_t> trackedPosition;
     std::chrono::steady_clock::time_point lastPositionChangedTime;
-    std::chrono::seconds maxNoProgressDuration;
+    std::optional<std::chrono::seconds> maxNoProgressDuration;
 };

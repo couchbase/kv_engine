@@ -20,6 +20,7 @@
 
 std::string prototypes;
 std::string initialization;
+std::string conditionalInitialization;
 std::string implementation;
 std::string addStatImplementation;
 std::string enumPrototypes;
@@ -464,6 +465,97 @@ static std::string_view trimLeft(std::string_view input,
     return input.substr(idx);
 }
 
+static bool isOnPremOrServerless(const nlohmann::json& defaultVal) {
+    // Both keys must be defined when defaulting via on-prem/serverless
+    if (defaultVal.count("on-prem") && defaultVal.count("serverless")) {
+        return true;
+    }
+
+    return false;
+}
+
+struct KeyMatch {
+    std::string key;
+    nlohmann::json keyObject;
+    std::string matches;
+    std::string then;
+};
+
+struct ConditionalDefault {
+    KeyMatch ifMatch;
+    std::vector<KeyMatch> elseIfs;
+    std::string elseValue;
+};
+
+static ConditionalDefault getConditionalDefault(
+        const nlohmann::json& params, const nlohmann::json& defaultVal) {
+    auto conditional = defaultVal.find("if");
+    if (conditional == defaultVal.end() || defaultVal.size() > 1) {
+        fmt::print(stderr,
+                   "Error: default object does not define a valid \"if\": {}\n",
+                   defaultVal.dump());
+        exit(1);
+    }
+
+    // Build the conditional up, which has the if condition, an optional series
+    // of elif statements and a final else.
+    ConditionalDefault rv;
+    auto entry = conditional->begin();
+    if (params.count(entry.key()) == 0) {
+        fmt::print(stderr,
+                   "if condition {} refers to an unknown parameter {}\n",
+                   conditional->dump(),
+                   entry.key());
+        exit(1);
+    }
+
+    rv.ifMatch = KeyMatch{entry.key(),
+                          *params.find(entry.key()),
+                          entry.value().at("equals").get<std::string>(),
+                          entry.value().at("then").get<std::string>()};
+
+    // Look for the optional array of elif conditions
+    if (entry.value().count("elif")) {
+        for (const auto& elif : entry.value().at("elif")) {
+            if (elif.size() != 1) {
+                fmt::print(stderr,
+                           "Error: \"elif\" must have 1 key {}\n",
+                           elif.dump());
+                exit(1);
+            }
+
+            // The elif is a key:value where key is the parameter to test.
+            auto parameter = elif.begin();
+            if (params.count(parameter.key()) == 0) {
+                fmt::print(stderr,
+                           "Error: elif {} refers to an unknown "
+                           "parameter {}\n",
+                           elif.dump(),
+                           parameter.key());
+                exit(1);
+            }
+
+            rv.elseIfs.emplace_back(
+                    KeyMatch{parameter.key(),
+                             *params.find(parameter.key()),
+                             parameter.value().at("equals").get<std::string>(),
+                             parameter.value().at("then").get<std::string>()});
+        }
+    }
+
+    // finally require an else
+    if (conditional->count("else")) {
+        rv.elseValue = conditional->at("else").get<std::string>();
+    } else {
+        fmt::print(stderr,
+                   "Error: else condition is not found {}\n",
+                   conditional->dump());
+        exit(1);
+    }
+
+    return rv;
+}
+
 static void generate(const nlohmann::json& params, const std::string& key) {
     auto cppName = getCppName(key);
 
@@ -475,29 +567,18 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     std::string defaultValStr;
     std::string defaultValServerless;
     std::optional<std::string> defaultValTSAN;
+    std::optional<ConditionalDefault> conditionalDefault;
     if (defaultVal.is_object()) {
-        if (defaultVal.find("on-prem") == defaultVal.end()) {
-            fmt::print(stderr,
-                       "Default is an object but no \"on-prem\" key found for "
-                       "entry:'{}' raw_json:'{}'\n",
-                       key,
-                       json.dump());
-            exit(1);
-        }
-        if (defaultVal.find("serverless") == defaultVal.end()) {
-            fmt::print(stderr,
-                       "Default is an object but no \"serverless\" key found "
-                       "for entry:'{}' raw_json:'{}'\n",
-                       key,
-                       json.dump());
-            exit(1);
-        }
-
-        defaultValStr = defaultVal["on-prem"].get<std::string>();
-        defaultValServerless = defaultVal["serverless"].get<std::string>();
-        if (auto tsanFound = defaultVal.find("tsan");
-            tsanFound != defaultVal.end()) {
+        if (isOnPremOrServerless(defaultVal)) {
+            defaultValStr = defaultVal["on-prem"].get<std::string>();
+            defaultValServerless = defaultVal["serverless"].get<std::string>();
+        } else if (auto tsanFound = defaultVal.find("tsan");
+                   tsanFound != defaultVal.end()) {
             defaultValTSAN = tsanFound->get<std::string>();
+        } else {
+            // No on-prem/serverless, no tsan - must be a condional. This call
+            // will terminate if there is no "if" key defining the condition
+            conditionalDefault = getConditionalDefault(params, defaultVal);
         }
     } else {
         defaultValStr = defaultVal.get<std::string>();
@@ -551,9 +632,60 @@ static void generate(const nlohmann::json& params, const std::string& key) {
                                 cppName);
         }
     }
-
     // Generate initialization code
-    if (defaultVal.is_object()) {
+    if (conditionalDefault) {
+        // Generates if/else if/else code to set the parameter based on the
+        // value of other parameters. This code will be emitted last to ensure
+        // it reads the current value of the input parameters.
+        auto& conditional = *conditionalDefault;
+        conditionalInitialization += fmt::format(
+                "    if (getParameter<{}>(\"{}\") == {})",
+                conditional.ifMatch.keyObject["type"].get<std::string>(),
+                conditional.ifMatch.key,
+                formatValue(conditional.ifMatch.matches,
+                            conditional.ifMatch.keyObject["type"]
+                                    .get<std::string>()));
+        conditionalInitialization += "{\n    ";
+        conditionalInitialization +=
+                fmt::format("    setParameter(\"{}\", {});\n",
+                            key,
+                            formatValue(conditional.ifMatch.then, type));
+
+        for (const auto& elif : conditional.elseIfs) {
+            conditionalInitialization += "    } else if (";
+            conditionalInitialization += fmt::format(
+                    "getParameter<{}>(\"{}\") == {})",
+                    elif.keyObject["type"].get<std::string>(),
+                    elif.key,
+                    formatValue(elif.matches,
+                                elif.keyObject["type"].get<std::string>()));
+            conditionalInitialization += "{\n    ";
+            conditionalInitialization +=
+                    fmt::format("    setParameter(\"{}\", {});\n",
+                                key,
+                                formatValue(elif.then, type));
+        }
+
+        if (!conditional.elseValue.empty()) {
+            conditionalInitialization += "    } else {\n    ";
+            conditionalInitialization +=
+                    fmt::format("    setParameter(\"{}\", {});\n",
+                                key,
+                                formatValue(conditional.elseValue, type));
+            conditionalInitialization += "    }\n";
+        } else {
+            conditionalInitialization += "    }\n    ";
+        }
+
+        // And still need to add "this" parameter, otherwise it cannot be
+        // written to by the conditional init
+        initialization +=
+                fmt::format("   /*1*/ addParameter(\"{}\", {}, {});\n",
+                            key,
+                            formatValue(conditional.elseValue, type),
+                            dynamic);
+
+    } else if (defaultVal.is_object()) {
         initialization += fmt::format(
                 "    addParameter(\"{}\", {}, {}, {{{}}}, {});\n",
                 key,
@@ -717,6 +849,10 @@ int main(int argc, char **argv) {
                  << "    using namespace std::string_view_literals;"
                  << std::endl
                  << addStatImplementation << "}" << std::endl;
+
+        implfile << "void Configuration::runConditionalInitialize() {"
+                 << std::endl
+                 << conditionalInitialization << "}" << std::endl;
         implfile.close();
     }
 

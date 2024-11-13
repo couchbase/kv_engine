@@ -183,6 +183,7 @@ protected:
     std::optional<ScanContext::Position> trackedPosition;
     // time when the Position last changed
     std::chrono::steady_clock::time_point lastPositionChangedTime;
-    // the maximum duration that the scan is permitted no Position change
-    std::chrono::seconds maxNoProgressDuration;
+    // the maximum duration that the scan is permitted no Position change. This
+    // is optional, std::nullopt disables any slow scan detection
+    std::optional<std::chrono::seconds> maxNoProgressDuration;
 };

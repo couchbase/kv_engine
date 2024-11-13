@@ -305,12 +305,7 @@ std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
     EphemeralVBucketPtr evb =
             std::static_pointer_cast<EphemeralVBucket>(shared_from_this());
     return std::make_unique<DCPBackfillMemoryBuffered>(
-            evb,
-            stream,
-            startSeqno,
-            endSeqno,
-            std::chrono::seconds{
-                    e.getConfiguration().getDcpBackfillIdleLimitSeconds()});
+            evb, stream, startSeqno, endSeqno);
 }
 
 std::unique_ptr<DCPBackfillIface> EphemeralVBucket::createDCPBackfill(
