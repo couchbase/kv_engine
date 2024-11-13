@@ -286,6 +286,20 @@ public:
         return db.getDb();
     }
 
+    // Returns how many bytes could be released by closing this snapshot
+    size_t getHowManyBytesCouldBeFreed() const override {
+        if (db.isHoldingCurrentRevision()) {
+            // closing the file will not free anything
+            return 0;
+        }
+        auto* handle = db.getDb();
+        if (!handle) {
+            return 0;
+        }
+        // Closing the file should free this amount
+        return cb::couchstore::getHeader(*handle).fileSize;
+    }
+
 private:
     DbHolder db;
 };
@@ -2504,6 +2518,7 @@ couchstore_error_t CouchKVStore::openSpecificDBFile(
     // Save some info for the caller log them
     db.setFileRev(fileRev);
     db.setFilename(dbFileName);
+    db.setVBucket(vbucketId);
 
     if(ops == nullptr) {
         ops = statCollectingFileOps.get();

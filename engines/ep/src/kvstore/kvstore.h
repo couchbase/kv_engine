@@ -399,6 +399,13 @@ struct vbucket_state;
 class KVFileHandle {
 public:
     virtual ~KVFileHandle() = default;
+
+    // @returns how many bytes could be freed by closing this hndle. This
+    // occurs when the open snapshot is not current, i.e. we're holding a delete
+    // snapshot which is "inflating" disk usage.
+    virtual size_t getHowManyBytesCouldBeFreed() const {
+        return 0; // default implementation is to say nothing.
+    }
 };
 
 class ScanContext {

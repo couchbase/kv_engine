@@ -29,3 +29,8 @@ void DbHolder::close() {
         kvstore.get().closeDatabaseHandle(releaseDb());
     }
 }
+
+bool DbHolder::isHoldingCurrentRevision() const {
+    Expects(vb);
+    return kvstore.get().getDbRevision(*vb) == getFileRev();
+}

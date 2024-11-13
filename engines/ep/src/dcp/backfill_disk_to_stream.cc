@@ -290,23 +290,28 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
     if (!maxNoProgressDuration || stream.isTakeoverStream()) {
         return false;
     }
+
     // If history scan, care only about the progress of that, as
     if (historyScan && historyScan->scanCtx &&
-        isProgressStalled(historyScan->scanCtx->getPosition())) {
+        isProgressStalled(historyScan->scanCtx->getPosition()) &&
+        shouldEndStreamToReclaimDisk(*historyScan->scanCtx, stream)) {
         stream.logWithContext(
                 spdlog::level::level_enum::warn,
                 "Backfill task cancelled as no progress has been made on the "
-                "history-scan for more than the no progress duration",
+                "history-scan for more than the no progress duration and disk "
+                "space should be reclaimed",
                 {{"max_no_progress_duration", *maxNoProgressDuration},
                  {"position", historyScan->scanCtx->getPosition().getValue()},
                  {"trackedPosition", trackedPosition->getValue()}});
         return true;
     }
-    if (scanCtx && isProgressStalled(scanCtx->getPosition())) {
+    if (scanCtx && isProgressStalled(scanCtx->getPosition()) &&
+        shouldEndStreamToReclaimDisk(*scanCtx, stream)) {
         stream.logWithContext(
                 spdlog::level::level_enum::warn,
                 "Backfill task cancelled as no progress has been made on the "
-                "scan for more than the no progress duration",
+                "scan for more than the no progress duration and disk "
+                "space should be reclaimed",
                 {{"max_no_progress_duration", *maxNoProgressDuration},
                  {"position", scanCtx->getPosition().getValue()},
                  {"trackedPosition", trackedPosition->getValue()}});
@@ -315,28 +320,93 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
     return false;
 }
 
+static std::optional<float> diskUsagePercent(
+        const std::filesystem::space_info& si) noexcept {
+    // space_info is -1 when filesystem::space could not determine a value.
+    // if capacity is 0 also chicken out
+    if (constexpr std::uintmax_t X(-1); si.capacity == 0 || si.capacity == X ||
+                                        si.free == X || si.available == X) {
+        return {};
+    }
+    const auto used{si.capacity - si.free};
+    return 100.0 * used / si.capacity;
+}
+
 bool DCPBackfillDiskToStream::isProgressStalled(
         const ScanContext::Position& position) {
-    if (!trackedPosition) {
-        // Begin tracking for changes and return true.
+    if (!trackedPosition || *trackedPosition != position) {
+        // Begin tracking or save the new position. Both cases record current
+        // time for the next check.
         lastPositionChangedTime = std::chrono::steady_clock::now();
         trackedPosition = position;
         return false;
     }
 
-    if (*trackedPosition != position) {
-        // The position has changed, save new position and the time.
-        trackedPosition = position;
-        lastPositionChangedTime = std::chrono::steady_clock::now();
+    // *trackedPosition == position, are we within the time limit?
+    const auto now = std::chrono::steady_clock::now();
+    if ((now - lastPositionChangedTime) < *maxNoProgressDuration) {
         return false;
     }
 
-    // No change in position, check if the limit we are within limit
-    if ((std::chrono::steady_clock::now() - lastPositionChangedTime) <
-        *maxNoProgressDuration) {
+    // The backfill has been idle for longer than maxNoProgressDuration
+    return true;
+}
+
+bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
+        const ScanContext& scan, const ActiveStream& stream) {
+    auto bytesToFree = scan.handle->getHowManyBytesCouldBeFreed();
+    if (bytesToFree == 0) {
+        // Bytes to free is zero, ending the stream and closing the scan will
+        // have no effect on free-space so don't bother with disrupting the
+        // client.
         return false;
     }
 
-    // No change and outside of threshold.
+    // bytesToFree is > 0, ending the scan could reclaim diskspace. Next check
+    // actual disk space to decide if the disruption to the client is worth it.
+    std::error_code ec;
+    const auto& config = bucket.getConfiguration();
+    // copy required config so logging and checks are consistent
+    const auto dbname = config.getDbname();
+    const auto threshold = config.getDcpBackfillIdleDiskThreshold();
+    std::filesystem::space_info si = std::filesystem::space(dbname, ec);
+
+    if (ec) {
+        // Could not get disk usage, not much we can do here
+        stream.logWithContext(spdlog::level::level_enum::warn,
+                              "DCPBackfillDiskToStream::"
+                              "shouldEndStreamToReclaimDisk filesystem::space",
+                              {{"error", ec.message()}});
+        return false;
+    }
+
+    auto usage = diskUsagePercent(si);
+    if (!usage) {
+        // space_info not usable, log it
+        stream.logWithContext(
+                spdlog::level::level_enum::warn,
+                "DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk cannot "
+                "get disk usage",
+                {{"directory", dbname},
+                 {"capacity", si.capacity},
+                 {"free", si.free},
+                 {"available", si.available}});
+        return false;
+    }
+
+    // Only end if usage exceeds the configured threshold
+    if (*usage < threshold) {
+        return false;
+    }
+    stream.logWithContext(spdlog::level::level_enum::warn,
+                          "DCPBackfillDiskToStream::"
+                          "shouldEndStreamToReclaimDisk and usage >= threshold",
+                          {{"directory", dbname},
+                           {"capacity", si.capacity},
+                           {"free", si.free},
+                           {"available", si.available},
+                           {"percent_used", *usage},
+                           {"threshold", threshold},
+                           {"bytes_to_free", bytesToFree}});
     return true;
 }

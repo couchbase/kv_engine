@@ -12,6 +12,7 @@
 #pragma once
 
 #include "libcouchstore/couch_db.h"
+#include "memcached/vbucket.h"
 
 class CouchKVStore;
 
@@ -72,6 +73,12 @@ public:
         return filename;
     }
 
+    void setVBucket(Vbid vbucket) {
+        vb = vbucket;
+    }
+
+    bool isHoldingCurrentRevision() const;
+
     // Allow a non-RAII close, needed for some use-cases.
     // Note non-const; when this method returns it no longer owns the
     // Db.
@@ -86,4 +93,7 @@ protected:
     Db* db = nullptr;
     uint64_t fileRev = 0;
     std::string filename;
+    // This is defined optional as DbHolder requires post construction
+    // setVBucket/setFileRev - optional so we can detect if set was missed.
+    std::optional<Vbid> vb;
 };

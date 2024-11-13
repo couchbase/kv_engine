@@ -1110,12 +1110,20 @@
                 "if": {
                     "bucket_type": {
                         "equals": "ephemeral",
-                        "then": "false"
+                        "then": "false",
+                        "elif": [
+                            {
+                                "backend": {
+                                    "equals": "magma",
+                                    "then": "false"
+                                }
+                            }
+                        ]
                     },
                     "else": "true"
                 }
             },
-            "descr": "Enables protection against idle DCP backfills. This means the server will end DCP streams which have been idle for dcp_backfill_idle_limit_seconds.",
+            "descr": "When true, DCP backfills will be checked for progress. Any backfill which makes no progress for dcp_backfill_idle_limit_seconds will be subject to further checks. If the directory referenced by dbname is over dcp_backfill_idle_disk_threshold percent used and cancelling the backfill will free disk space, the scan cancels and the associated DCP stream will end with reason slow.",
             "dynamic": true,
             "type": "bool"
         },
@@ -1124,6 +1132,12 @@
             "descr": "How long (in seconds) a DCP Backfill can be held open with no progress being made. When this limit is exceeded the stream is force ended (reason Slow) releasing the resources being held by the stream. The default value is 2x of dcp_idle_timeout",
             "dynamic": true,
             "type": "size_t"
+        },
+        "dcp_backfill_idle_disk_threshold" : {
+            "default": "90.0",
+            "descr": "The percentage of disk usage at which DCP backfills would be ended when no progress is made for dcp_backfill_idle_limit_seconds",
+            "dynamic": true,
+            "type": "float"
         },
         "dcp_backfill_in_progress_per_connection_limit": {
             "default": "64",

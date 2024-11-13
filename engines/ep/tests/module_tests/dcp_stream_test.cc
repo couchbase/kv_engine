@@ -9094,6 +9094,8 @@ void SlowBackfillTest::setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags) {
     // Force idle protection on for testing all bucket types
     engine->getConfiguration().setDcpBackfillIdleProtectionEnabled(true);
     engine->getConfiguration().setDcpBackfillIdleLimitSeconds(0);
+    engine->getConfiguration().setDcpBackfillIdleDiskThreshold(0.0);
+
     recreateStream(*vb, false, {}, flags);
     ASSERT_TRUE(stream->isBackfilling());
 
@@ -9168,6 +9170,9 @@ TEST_P(SlowBackfillTest, BackfillCancelsWhenNoProgress) {
     setupIdleBackfill();
     validateStream();
 
+    // Run compaction so disk space to free is not 0
+    runCompaction(vbid);
+
     auto& bfm = producer->getBFM();
     EXPECT_EQ(1, bfm.getNumBackfills());
 
@@ -9200,10 +9205,12 @@ TEST_P(SlowBackfillTest, TakeoverBackfillDoesNotCancelWhenNoProgress) {
             << "Expected stream to still be alive, but it was marked dead";
 }
 
-INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
-                         SlowBackfillTest,
-                         STParameterizedBucketTest::allConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
+// Don't run magma. Without MB-64220 the code will think nothing could be freed
+INSTANTIATE_TEST_SUITE_P(
+        AllBucketTypes,
+        SlowBackfillTest,
+        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 TEST_P(SingleThreadedPassiveStreamTest,
        SkipBloomFilterWhenProcessingDcpMutation) {

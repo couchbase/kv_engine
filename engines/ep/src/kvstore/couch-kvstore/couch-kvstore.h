@@ -431,6 +431,9 @@ public:
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;
 
+    /// @return the current file revision for the vbucket
+    uint64_t getDbRevision(Vbid vbucketId) const;
+
 protected:
     /**
      * RAII holder for a couchstore LocalDoc object
@@ -528,9 +531,6 @@ protected:
      * @param newFileRev new value
      */
     void updateDbFileMap(Vbid vbucketId, uint64_t newFileRev);
-
-    /// @return the current file revision for the vbucket
-    uint64_t getDbRevision(Vbid vbucketId) const;
 
     couchstore_error_t openDB(Vbid vbucketId,
                               DbHolder& db,

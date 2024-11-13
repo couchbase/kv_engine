@@ -122,9 +122,20 @@ protected:
      * When shouldCancel is called, backfill progress tracking begins. This
      * works by keeping a copy of the ScanContext::Position and verifying that
      * it is changing with a configurable threshold.
+     *
+     * @param position The current position of the scan
      * @return true if no progress has been made within the threshold
      */
     bool isProgressStalled(const ScanContext::Position& position);
+
+    /**
+     * @param scan The current scan
+     * @param stream The associated DCP stream
+     * @return true if disk space is critical and closing the scan may release
+     * disk space.
+     */
+    bool shouldEndStreamToReclaimDisk(const ScanContext& scan,
+                                      const ActiveStream& stream);
 
     struct HistoryScanCtx {
         /**
