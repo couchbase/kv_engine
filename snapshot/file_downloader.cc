@@ -9,7 +9,7 @@
  */
 
 #include "file_downloader.h"
-
+#include "manifest.h"
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_utilities.h>
@@ -19,6 +19,7 @@
 
 using namespace spdlog::level;
 
+namespace cb::snapshot {
 FileDownloader::FileDownloader(
         std::filesystem::path directory,
         std::string uuid,
@@ -243,11 +244,10 @@ std::unique_ptr<FileDownloader> FileDownloader::create(
             std::move(log_callback));
 }
 
-void FileDownloader::download(const nlohmann::json& meta) {
-    std::filesystem::path path = meta["path"];
-    std::size_t size = std::stoull(meta["size"].get<std::string>());
+void FileDownloader::download(const FileInfo& meta) {
+    std::size_t size = meta.size;
 
-    std::filesystem::path local = directory / path;
+    std::filesystem::path local = directory / meta.path;
     if (local.has_parent_path()) {
         create_directories(local.parent_path());
     }
@@ -259,16 +259,16 @@ void FileDownloader::download(const nlohmann::json& meta) {
             // we already have the file
             log_callback(info,
                          "Skipping file; already downloaded",
-                         {{"path", path.string()}, {"size", size}});
+                         {{"path", meta.path.string()}, {"size", size}});
             return;
         }
     }
 
-    log_callback(info, "Fetch file", {{"path", path.string()}});
+    log_callback(info, "Fetch file", {{"path", meta.path.string()}});
     auto* fp = openFile(local);
     fseek(fp, 0, SEEK_END);
 
-    nlohmann::json file_meta{{"id", meta["id"].get<int>()}};
+    nlohmann::json file_meta{{"id", meta.id}};
     std::size_t chunksize = getMaxChunkSize();
 
     const auto start = std::chrono::steady_clock::now();
@@ -279,7 +279,7 @@ void FileDownloader::download(const nlohmann::json& meta) {
 
         log_callback(info,
                      "Request fragment",
-                     {{"path", path.string()},
+                     {{"path", meta.path.string()},
                       {"offset", offset},
                       {"chunk", chunk}});
 
@@ -299,7 +299,7 @@ void FileDownloader::download(const nlohmann::json& meta) {
     const auto end = std::chrono::steady_clock::now();
     log_callback(info,
                  "Fetch file complete",
-                 {{"path", path.string()},
+                 {{"path", meta.path.string()},
                   {"duration", cb::time2text(end - start)},
                   {"throughput", cb::calculateThroughput(size, end - start)}});
     (void)fclose(fp);
@@ -325,3 +325,4 @@ FILE* FileDownloader::openFile(const std::filesystem::path& filename) const {
     }
     return fp;
 }
+} // namespace cb::snapshot

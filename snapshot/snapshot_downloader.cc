@@ -10,45 +10,27 @@
 
 #include "snapshot_downloader.h"
 #include "file_downloader.h"
+#include "manifest.h"
 
-namespace snapshot {
+namespace cb::snapshot {
 void download(std::unique_ptr<MemcachedConnection> connection,
               const std::filesystem::path& directory,
-              const nlohmann::json& snapshot,
+              const Manifest& snapshot,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback) {
-    if (!exists(directory)) {
-        create_directories(directory);
-    }
-
-    if (!exists(directory / "manifest.json")) {
-        FILE* fp = fopen((directory / "manifest.json").string().c_str(), "w");
-        if (!fp) {
-            throw std::system_error(
-                    std::make_error_code(static_cast<std::errc>(errno)),
-                    fmt::format("Failed to open file {}",
-                                (directory / "manifest.json").string()));
-        }
-        fprintf(fp, "%s\n", snapshot.dump().c_str());
-        fflush(fp);
-        fclose(fp);
-    }
-
     auto downloader = FileDownloader::create(std::move(connection),
                                              std::move(directory),
-                                             snapshot.value("uuid", ""),
+                                             snapshot.uuid,
                                              50 * 1024 * 1024,
                                              log_callback);
 
-    for (const auto& file : snapshot["files"]) {
+    for (const auto& file : snapshot.files) {
         downloader->download(file);
     }
 
-    if (snapshot.contains("deks")) {
-        for (const auto& file : snapshot["deks"]) {
-            downloader->download(file);
-        }
+    for (const auto& file : snapshot.deks) {
+        downloader->download(file);
     }
 }
-} // namespace snapshot
+} // namespace cb::snapshot

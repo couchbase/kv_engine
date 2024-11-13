@@ -16,7 +16,9 @@
 #include <spdlog/spdlog.h>
 #include <filesystem>
 
-namespace snapshot {
+namespace cb::snapshot {
+struct Manifest;
+
 /**
  * Use the provided connection and download the snapshot provided in
  * the provided manifest into the the provided directory
@@ -25,8 +27,8 @@ namespace snapshot {
  */
 void download(std::unique_ptr<MemcachedConnection> connection,
               const std::filesystem::path& directory,
-              const nlohmann::json& snapshot,
+              const Manifest& snapshot,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback);
-} // namespace snapshot
+} // namespace cb::snapshot

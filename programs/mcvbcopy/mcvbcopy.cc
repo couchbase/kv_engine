@@ -18,6 +18,7 @@
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <snapshot/manifest.h>
 #include <snapshot/snapshot_downloader.h>
 #include <spdlog/logger.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -205,16 +206,17 @@ int main(int argc, char** argv) {
         download->selectBucket(bucket);
 
         // check for manifest and fetch if we don't have it
-        nlohmann::json manifest = getVbucketManifest(*connection, *vbid);
-        const auto uuid = manifest["uuid"].get<std::string>();
+        cb::snapshot::Manifest manifest =
+                getVbucketManifest(*connection, *vbid);
 
-        snapshot::download(std::move(download),
-                           std::filesystem::current_path(),
-                           manifest,
-                           [](auto level, auto msg, auto json) {
-                               cb::logger::logWithContext(
-                                       *logger, level, msg, std::move(json));
-                           });
+        cb::snapshot::download(
+                std::move(download),
+                std::filesystem::current_path(),
+                manifest,
+                [](auto level, auto msg, auto json) {
+                    cb::logger::logWithContext(
+                            *logger, level, msg, std::move(json));
+                });
 
         logger->info("All files successfully downloaded");
         logger->info("Close snapshot");
@@ -223,7 +225,7 @@ int main(int argc, char** argv) {
         // close manifest
         logger->debug("Close on server");
         connection->execute(BinprotGenericCommand(
-                cb::mcbp::ClientOpcode::ReleaseSnapshot, uuid));
+                cb::mcbp::ClientOpcode::ReleaseSnapshot, manifest.uuid));
     } catch (const std::exception& ex) {
         logger->critical("Failure: {}", ex.what());
         logger->flush();

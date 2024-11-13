@@ -17,6 +17,9 @@
 class MemcachedConnection;
 class BinprotGenericCommand;
 
+namespace cb::snapshot {
+struct FileInfo;
+
 /**
  * The file downloader class is responsible for downloading files over
  * the MCBP protocol by using GetFileFragment opcode.
@@ -59,7 +62,7 @@ public:
      *
      * @param meta The meta information describing the file to download
      */
-    void download(const nlohmann::json& meta);
+    void download(const FileInfo& meta);
 
 protected:
     /**
@@ -125,3 +128,4 @@ protected:
             spdlog::level::level_enum, std::string_view, cb::logger::Json json)>
             log_callback;
 };
+} // namespace cb::snapshot
