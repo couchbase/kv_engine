@@ -571,7 +571,7 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
                 "Stream request requires rollback to seqno",
                 {{"vb", vbucket},
                  {"rollback_seqno", *rollback_seqno},
-                 {"ollback_reason", needsRollback->rollbackReason},
+                 {"rollback_reason", needsRollback->rollbackReason},
                  {"start_seqno", req.start_seqno},
                  {"end_seqno", req.end_seqno},
                  {"snapshot", {req.snap_start_seqno, req.snap_end_seqno}},
