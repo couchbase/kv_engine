@@ -453,7 +453,7 @@ void Cookie::maybeLogSlowCommand(
             details["document_bytes_write"] = write;
         }
 
-        LOG_WARNING_CTX("Slow operation", details);
+        LOG_WARNING_CTX("Slow operation", std::move(details));
     }
 }
 
