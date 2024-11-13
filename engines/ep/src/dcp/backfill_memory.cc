@@ -365,6 +365,12 @@ DCPBackfill::State DCPBackfillMemoryBuffered::getNextScanState(
 }
 
 bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
+    // Takeover streams are immune to this. Ns_server does not handle the stream
+    // close gracefully in some cases.
+    if (stream.isTakeoverStream()) {
+        return false;
+    }
+
     if (!trackedPosition) {
         lastPositionChangedTime = ep_uptime_now();
         trackedPosition = rangeItr.curr();
