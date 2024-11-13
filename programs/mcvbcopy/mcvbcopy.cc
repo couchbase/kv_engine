@@ -18,7 +18,7 @@
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <snapshot_download/snapshot_downloader.h>
+#include <snapshot/snapshot_downloader.h>
 #include <spdlog/logger.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
