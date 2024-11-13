@@ -989,7 +989,7 @@ int memcached_main(int argc, char** argv) {
 
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected (now the logger is available).
-    LOG_INFO("NUMA: {}", numa_status);
+    LOG_INFO_CTX("NUMA", {"policy", numa_status});
 #endif
 
     if (!Settings::instance().has.rbac_file) {

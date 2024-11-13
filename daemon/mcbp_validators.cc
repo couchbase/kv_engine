@@ -109,10 +109,6 @@ static bool may_accept_dcp_deleteV2(const Cookie& cookie) {
     return cookie.getConnection().isDcpDeleteV2();
 }
 
-static std::string get_peer_description(const Cookie& cookie) {
-    return std::string{cookie.getConnection().getDescription().dump()};
-}
-
 using ExpectedKeyLen = McbpValidator::ExpectedKeyLen;
 using ExpectedValueLen = McbpValidator::ExpectedValueLen;
 using ExpectedCas = McbpValidator::ExpectedCas;
@@ -474,10 +470,10 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
     }
 
     if (connection.allowUnorderedExecution()) {
-        LOG_WARNING(
-                "DCP on a connection with unordered execution is currently "
-                "not supported: {}",
-                get_peer_description(cookie));
+        LOG_WARNING_CTX(
+                "DCP on a connection with unordered execution is currently not "
+                "supported",
+                {"description", cookie.getConnection().getDescription()});
         cookie.setErrorContext(
                 "DCP on connections with unordered execution is not supported");
         return Status::NotSupported;
@@ -524,18 +520,18 @@ static Status verify_common_dcp_stream_restrictions(
         if (isFlagSet(unknown, DcpAddStreamFlag::NoValue)) {
             // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
             if (cookie.getConnection().isAuthenticated()) {
-                LOG_INFO("Client trying to add stream with NO VALUE {}",
-                         get_peer_description(cookie));
+                LOG_INFO_CTX("Client trying to add stream with NO VALUE",
+                             {"description",
+                              cookie.getConnection().getDescription()});
             }
             cookie.setErrorContext(
                     "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
         } else {
             if (cookie.getConnection().isAuthenticated()) {
-                LOG_INFO(
-                        "Client trying to add stream with unknown flags "
-                        "({}) {}",
-                        unknown,
-                        get_peer_description(cookie));
+                LOG_INFO_CTX("Client trying to add stream with unknown flags",
+                             {"flags", flags},
+                             {"description",
+                              cookie.getConnection().getDescription()});
             }
             cookie.setErrorContext(
                     fmt::format("Request contains invalid flags: {}", flags));
@@ -574,11 +570,10 @@ static Status dcp_open_validator(Cookie& cookie) {
 
     if (unknown != DcpOpenFlag::None) {
         if (cookie.getConnection().isAuthenticated()) {
-            LOG_INFO(
-                    "Client trying to open dcp stream with unknown flags ({}) "
-                    "{}",
-                    unknown,
-                    get_peer_description(cookie));
+            LOG_INFO_CTX(
+                    "Client trying to open dcp stream with unknown flags",
+                    {"unknown", flags},
+                    {"description", cookie.getConnection().getDescription()});
         }
         cookie.setErrorContext(
                 fmt::format("Request contains invalid flags: {}", unknown));
@@ -588,12 +583,12 @@ static Status dcp_open_validator(Cookie& cookie) {
     if (isFlagSet(flags, DcpOpenFlag::NoValue) &&
         isFlagSet(flags, DcpOpenFlag::NoValueWithUnderlyingDatatype)) {
         if (cookie.getConnection().isAuthenticated()) {
-            LOG_INFO(
-                    "Invalid flags combination ({}) specified for a DCP "
-                    "consumer {} - cannot specify NO_VALUE with "
+            LOG_INFO_CTX(
+                    "Invalid flags combination specified for a DCP consumer - "
+                    "cannot specify NO_VALUE with "
                     "NO_VALUE_WITH_UNDERLYING_DATATYPE",
-                    flags,
-                    get_peer_description(cookie));
+                    {"flags", flags},
+                    {"description", cookie.getConnection().getDescription()});
         }
         cookie.setErrorContext(
                 "Request contains invalid flags combination (NO_VALUE && "
@@ -604,11 +599,11 @@ static Status dcp_open_validator(Cookie& cookie) {
     if (isFlagSet(flags, DcpOpenFlag::IncludeDeletedUserXattrs) &&
         !isFlagSet(flags, DcpOpenFlag::IncludeXattrs)) {
         if (cookie.getConnection().isAuthenticated()) {
-            LOG_INFO(
-                    "Invalid DcpOpen flags combination ({}) specified for {} - "
-                    "Must specify IncludeXattrs for IncludeDeletedUserXattrs",
-                    flags,
-                    get_peer_description(cookie));
+            LOG_INFO_CTX(
+                    "Invalid DcpOpen flags combination specified - Must "
+                    "specify IncludeXattrs for IncludeDeletedUserXattrs",
+                    {"flags", flags},
+                    {"description", cookie.getConnection().getDescription()});
         }
         cookie.setErrorContext(
                 "Request contains invalid flags combination - "

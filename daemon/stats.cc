@@ -310,7 +310,7 @@ cb::engine_errc server_prometheus_stats(
                                          {"domain", "system"}});
                 });
             } catch (const std::exception& e) {
-                LOG_WARNING("sigar::iterate_threads: {}", e.what());
+                LOG_WARNING_CTX("sigar::iterate_threads", {"error", e.what()});
             }
         }
         BucketManager::instance().forEach([&kvCollector,
@@ -335,11 +335,11 @@ cb::engine_errc server_prometheus_stats(
             const auto err = bucket.getEngine().get_prometheus_stats(
                     bucketC, metricGroup);
             if (err != cb::engine_errc::success) {
-                LOG_WARNING(
+                LOG_WARNING_CTX(
                         "server_prometheus_stats(): Failed to get prometheus "
-                        "stats for bucket [{}]: {}",
-                        bucket.name,
-                        err);
+                        "stats",
+                        {"bucket", bucket.name},
+                        {"error", err});
             }
 
             if (metricGroup == MetricGroup::Low) {

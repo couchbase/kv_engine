@@ -13,6 +13,7 @@
 
 #include "memcached.h"
 #include <logger/logger.h>
+#include <platform/json_log_conversions.h>
 
 using namespace std::chrono_literals;
 
@@ -54,22 +55,23 @@ cb::engine_errc BucketDestroyer::drive() {
 
 cb::engine_errc BucketDestroyer::start() {
     if (bucket.type != BucketType::ClusterConfigOnly) {
-        LOG_INFO(
-                "{}: Delete bucket [{}]. Notifying engine", connectionId, name);
+        LOG_INFO_CTX("Delete bucket. Notifying engine",
+                     {"conn_id", connectionId},
+                     {"bucket", name});
         bucket.getEngine().initiate_shutdown();
         bucket.getEngine().cancel_all_operations_in_ewb_state();
     }
 
-    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown",
-             connectionId,
-             name);
+    LOG_INFO_CTX("Delete bucket. Engine ready for shutdown",
+                 {"conn_id", connectionId},
+                 {"bucket", name});
 
     std::unique_lock<std::mutex> guard(bucket.mutex);
     if (bucket.clients > 0) {
-        LOG_INFO("{}: Delete bucket [{}]. Wait for {} clients to disconnect",
-                 connectionId,
-                 name,
-                 bucket.clients);
+        LOG_INFO_CTX("Delete bucket. Wait for clients to disconnect",
+                     {"conn_id", connectionId},
+                     {"bucket", name},
+                     {"clients", bucket.clients});
         guard.unlock();
         bucket.deleteThrottledCommands();
         iterate_all_connections([&bucket = bucket](Connection& connection) {
@@ -120,13 +122,11 @@ cb::engine_errc BucketDestroyer::waitForConnections() {
             }
         });
 
-        LOG_INFO(
-                "{}: Delete bucket [{}].Still waiting: {} clients connected: "
-                "{}",
-                connectionId,
-                name,
-                bucket.clients,
-                currConns.dump());
+        LOG_INFO_CTX("Delete bucket. Still waiting: clients connected",
+                     {"conn_id", connectionId},
+                     {"bucket", name},
+                     {"clients", bucket.clients},
+                     {"description", currConns});
 
         // we need to wait more
         return cb::engine_errc::would_block;
@@ -140,12 +140,12 @@ cb::engine_errc BucketDestroyer::waitForItemsInTransit() {
     auto num = bucket.items_in_transit.load();
     if (num != 0) {
         if (++itemsInTransitCheckCounter % 100 == 0) {
-            LOG_INFO(
-                    "{}: Delete bucket [{}]. Still waiting: {} items still "
-                    "stuck in transfer.",
-                    connectionId,
-                    name,
-                    num);
+            LOG_INFO_CTX(
+                    "Delete bucket. Still waiting: items still stuck in "
+                    "transfer",
+                    {"conn_id", connectionId},
+                    {"bucket", name},
+                    {"items_in_transit", num});
         }
         return cb::engine_errc::would_block;
     }
@@ -155,16 +155,19 @@ cb::engine_errc BucketDestroyer::waitForItemsInTransit() {
 }
 
 cb::engine_errc BucketDestroyer::cleanup() {
-    LOG_INFO(
-            "{}: Delete bucket [{}]. Shut down the bucket", connectionId, name);
+    LOG_INFO_CTX("Delete bucket. Shut down the bucket",
+                 {"conn_id", connectionId},
+                 {"bucket", name});
     bucket.destroyEngine(force);
 
-    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
-             connectionId,
-             name);
+    LOG_INFO_CTX("Delete bucket. Clean up allocated resources",
+                 {"conn_id", connectionId},
+                 {"bucket", name});
     bucket.reset();
 
-    LOG_INFO("{}: Delete bucket [{}] complete", connectionId, name);
+    LOG_INFO_CTX("Delete bucket complete",
+                 {"conn_id", connectionId},
+                 {"bucket", name});
     state = State::Done;
     return cb::engine_errc::success;
 }

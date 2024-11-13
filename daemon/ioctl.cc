@@ -51,7 +51,8 @@ static cb::engine_errc setReleaseFreeMemory(Cookie& cookie,
                                             const std::string& value) {
     cb::ArenaMalloc::releaseMemory();
     auto& c = cookie.getConnection();
-    LOG_INFO("{}: IOCTL_SET: release_free_memory called", c.getId());
+    LOG_INFO_CTX("IOCTL_SET: release_free_memory called",
+                 {"conn_id", c.getId()});
     return cb::engine_errc::success;
 }
 
@@ -70,11 +71,11 @@ static cb::engine_errc setJemallocProfActive(Cookie& cookie,
     int res = cb::ArenaMalloc::setProperty(
             "prof.active", &enable, sizeof(enable));
     auto& c = cookie.getConnection();
-    LOG_INFO("{}: {} IOCTL_SET: setJemallocProfActive:{} called, result:{}",
-             c.getId(),
-             c.getDescription().dump(),
-             value,
-             (res == 0) ? "success" : "failure");
+    LOG_INFO_CTX("IOCTL_SET: setJemallocProfActive called",
+                 {"conn_id", c.getId()},
+                 {"description", c.getDescription()},
+                 {"value", value},
+                 {"result", (res == 0) ? "success" : "failure"});
 
     return (res == 0) ? cb::engine_errc::success
                       : cb::engine_errc::invalid_arguments;
@@ -85,10 +86,10 @@ static cb::engine_errc setJemallocProfDump(Cookie& cookie,
                                            const std::string&) {
     int res = cb::ArenaMalloc::setProperty("prof.dump", nullptr, 0);
     auto& c = cookie.getConnection();
-    LOG_INFO("{}: {} IOCTL_SET: setJemallocProfDump called, result:{}",
-             c.getId(),
-             c.getDescription().dump(),
-             (res == 0) ? "success" : "failure");
+    LOG_INFO_CTX("IOCTL_SET: setJemallocProfDump called",
+                 {"conn_id", c.getId()},
+                 {"description", c.getDescription()},
+                 {"result", (res == 0) ? "success" : "failure"});
 
     return (res == 0) ? cb::engine_errc::success
                       : cb::engine_errc::invalid_arguments;
@@ -161,15 +162,15 @@ static cb::engine_errc ioctlSetMcbpSla(Cookie& cookie,
                                        const std::string& value) {
     try {
         cb::mcbp::sla::reconfigure(nlohmann::json::parse(value));
-        LOG_INFO("SLA configuration changed to: {}",
-                 cb::mcbp::sla::to_json().dump());
+        LOG_INFO_CTX("SLA configuration changed",
+                     {"to", cb::mcbp::sla::to_json()});
     } catch (const std::exception& e) {
         cookie.getEventId();
         auto& c = cookie.getConnection();
-        LOG_WARNING("{}: Failed to set MCBP SLA. UUID:[{}]: {}",
-                    c.getId(),
-                    cookie.getEventId(),
-                    e.what());
+        LOG_WARNING_CTX("Failed to set MCBP SLA",
+                        {"conn_id", c.getId()},
+                        {"event_id", cookie.getEventId()},
+                        {"error", e.what()});
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -189,7 +190,7 @@ static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
             }
             config.maxConnectionsPerBucket.store(val,
                                                  std::memory_order_release);
-            LOG_INFO("Set maximum connections to a bucket to {}", val);
+            LOG_INFO_CTX("Set maximum connections to a bucket", {"to", val});
         } catch (const std::exception& e) {
             cookie.setErrorContext(
                     "Failed to convert the provided value to an integer");
@@ -216,14 +217,18 @@ static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
             auto& config = cb::serverless::Config::instance();
             auto val = std::stoul(value);
             if (id == cb::ioctl::Id::ServerlessReadUnitSize) {
-                LOG_INFO("Change RCU size from {} to {}",
-                         config.readUnitSize.load(std::memory_order_acquire),
-                         val);
+                LOG_INFO_CTX(
+                        "Change RCU size",
+                        {"from",
+                         config.readUnitSize.load(std::memory_order_acquire)},
+                        {"to", val});
                 config.readUnitSize.store(val, std::memory_order_release);
             } else if (id == cb::ioctl::Id::ServerlessWriteUnitSize) {
-                LOG_INFO("Change WCU size from {} to {}",
-                         config.writeUnitSize.load(std::memory_order_acquire),
-                         val);
+                LOG_INFO_CTX(
+                        "Change WCU size",
+                        {"from",
+                         config.writeUnitSize.load(std::memory_order_acquire)},
+                        {"to", val});
                 config.writeUnitSize.store(val, std::memory_order_release);
             } else {
                 LOG_WARNING_RAW(

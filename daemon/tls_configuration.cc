@@ -123,9 +123,9 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
     }
     auto& password = *static_cast<std::string*>(userdata);
     if (password.size() > std::size_t(size)) {
-        LOG_WARNING("The provided password is too long for OpenSSL: ({} > {})",
-                    password.size(),
-                    size);
+        LOG_WARNING_CTX("The provided password is too long for OpenSSL",
+                        {"input_size", password.size()},
+                        {"max_size", size});
         return 0;
     }
 

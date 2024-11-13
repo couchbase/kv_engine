@@ -80,9 +80,9 @@ LibeventConnection::~LibeventConnection() {
                      {"reason", terminationReason});
     }
     if (isDCP() && getSendQueueSizeImpl() > 0) {
-        LOG_INFO("{}: Releasing DCP connection: {}",
-                 socketDescriptor,
-                 to_json_tcp().dump());
+        LOG_INFO_CTX("Releasing DCP connection",
+                     {"conn_id", socketDescriptor},
+                     {"description", to_json_tcp()});
     }
 }
 
@@ -132,9 +132,9 @@ void LibeventConnection::read_callback() {
     if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
-            LOG_INFO("{} - read_callback OpenSSL errors reported: {}",
-                     this->getId(),
-                     ssl_errors);
+            LOG_INFO_CTX("read_callback OpenSSL errors reported",
+                         {"conn_id", this->getId()},
+                         {"error", ssl_errors});
         }
     }
 
@@ -156,9 +156,9 @@ void LibeventConnection::write_callback() {
     if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
-            LOG_INFO("{} - write_callback OpenSSL errors reported: {}",
-                     getId(),
-                     ssl_errors);
+            LOG_INFO_CTX("write_callback OpenSSL errors reported",
+                         {"conn_id", getId()},
+                         {"error", ssl_errors});
         }
     }
 
@@ -254,32 +254,32 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
         const auto sockErr = EVUTIL_SOCKET_ERROR();
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
-            LOG_WARNING(
-                    "{}: {} Unrecoverable error encountered: {}, "
-                    "socket_error: {}:{}, shutting down connection",
-                    instance.getId(),
-                    instance.getDescription().dump(),
-                    BevEvent2Json(event).dump(),
-                    sockErr,
-                    errStr);
+            LOG_WARNING_CTX(
+                    "Unrecoverable error encountered, socket_error, "
+                    "shutting down connection",
+                    {"conn_id", instance.getId()},
+                    {"description", instance.getDescription()},
+                    {"event", BevEvent2Json(event)},
+                    {"error_code", sockErr},
+                    {"error", errStr});
             instance.setTerminationReason(
                     fmt::format("socket_error: {}: {}", sockErr, errStr));
         } else if (!ssl_errors.empty()) {
-            LOG_WARNING(
-                    "{}: {} Unrecoverable error encountered: {}, ssl_error: "
-                    "{}, shutting down connection",
-                    instance.getId(),
-                    instance.getDescription().dump(),
-                    BevEvent2Json(event).dump(),
-                    ssl_errors);
+            LOG_WARNING_CTX(
+                    "Unrecoverable error encountered, ssl_error, shutting "
+                    "down connection",
+                    {"conn_id", instance.getId()},
+                    {"description", instance.getDescription()},
+                    {"event", BevEvent2Json(event)},
+                    {"error", ssl_errors});
             instance.setTerminationReason("ssl_error: " + ssl_errors);
         } else {
-            LOG_WARNING(
-                    "{}: {} Unrecoverable error encountered: {}, shutting down "
+            LOG_WARNING_CTX(
+                    "Unrecoverable error encountered, shutting down "
                     "connection",
-                    instance.getId(),
-                    instance.getDescription().dump(),
-                    BevEvent2Json(event).dump());
+                    {"conn_id", instance.getId()},
+                    {"description", instance.getDescription()},
+                    {"event", BevEvent2Json(event)});
             instance.setTerminationReason("Network error");
         }
 
@@ -320,9 +320,9 @@ void LibeventConnection::ssl_read_callback(bufferevent* bev, void* ctx) {
 
     const auto ssl_errors = instance.getOpenSSLErrors();
     if (!ssl_errors.empty()) {
-        LOG_INFO("{} - ssl_read_callback OpenSSL errors reported: {}",
-                 instance.getId(),
-                 ssl_errors);
+        LOG_INFO_CTX("ssl_read_callback OpenSSL errors reported",
+                     {"conn_id", instance.getId()},
+                     {"error", ssl_errors});
     }
 
     // Let's inspect the certificate before we'll do anything further

@@ -18,6 +18,7 @@
 #include <phosphor/trace_config.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
+#include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
 #include <utilities/json_utilities.h>
 #include <utilities/logtags.h>
@@ -488,27 +489,27 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     // Ok, go ahead and update the settings!!
     if (other.has.tcp_keepalive_idle) {
         if (other.getTcpKeepAliveIdle() != getTcpKeepAliveIdle()) {
-            LOG_INFO("Change TCP_KEEPIDLE time from {}s to {}s",
-                     getTcpKeepAliveIdle().count(),
-                     other.getTcpKeepAliveIdle().count());
+            LOG_INFO_CTX("Change TCP_KEEPIDLE time",
+                         {"from", getTcpKeepAliveIdle()},
+                         {"to", other.getTcpKeepAliveIdle()});
             setTcpKeepAliveIdle(other.getTcpKeepAliveIdle());
         }
     }
 
     if (other.has.tcp_keepalive_interval) {
         if (other.getTcpKeepAliveInterval() != getTcpKeepAliveInterval()) {
-            LOG_INFO("Change TCP_KEEPINTVL interval from {}s to {}s",
-                     getTcpKeepAliveInterval().count(),
-                     other.getTcpKeepAliveInterval().count());
+            LOG_INFO_CTX("Change TCP_KEEPINTVL interval",
+                         {"from", getTcpKeepAliveInterval()},
+                         {"to", other.getTcpKeepAliveInterval()});
             setTcpKeepAliveInterval(other.getTcpKeepAliveInterval());
         }
     }
 
     if (other.has.tcp_keepalive_probes) {
         if (other.tcp_keepalive_probes != tcp_keepalive_probes) {
-            LOG_INFO("Change TCP_KEEPCNT from {} to {}",
-                     getTcpKeepAliveProbes(),
-                     other.getTcpKeepAliveProbes());
+            LOG_INFO_CTX("Change TCP_KEEPCNT",
+                         {"from", getTcpKeepAliveProbes()},
+                         {"to", other.getTcpKeepAliveProbes()});
             setTcpKeepAliveProbes(other.getTcpKeepAliveProbes());
         }
     }
@@ -516,9 +517,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.tcp_user_timeout) {
         if (other.getTcpUserTimeout() != getTcpUserTimeout()) {
             using namespace std::chrono;
-            LOG_INFO("Change TCP_USER_TIMEOUT from {}s to {}s",
-                     duration_cast<seconds>(getTcpUserTimeout()).count(),
-                     duration_cast<seconds>(other.getTcpUserTimeout()).count());
+            LOG_INFO_CTX("Change TCP_USER_TIMEOUT",
+                         {"from", getTcpUserTimeout()},
+                         {"to", other.getTcpUserTimeout()});
             setTcpUserTimeout(other.getTcpUserTimeout());
         }
     }
@@ -527,14 +528,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.getTcpUnauthenticatedUserTimeout() !=
             getTcpUnauthenticatedUserTimeout()) {
             using namespace std::chrono;
-            LOG_INFO(
-                    "Change TCP_USER_TIMEOUT for unauthenticated users from "
-                    "{}s to {}s",
-                    duration_cast<seconds>(getTcpUnauthenticatedUserTimeout())
-                            .count(),
-                    duration_cast<seconds>(
-                            other.getTcpUnauthenticatedUserTimeout())
-                            .count());
+            LOG_INFO_CTX("Change TCP_USER_TIMEOUT for unauthenticated users",
+                         {"from", getTcpUnauthenticatedUserTimeout()},
+                         {"to", other.getTcpUnauthenticatedUserTimeout()});
             setTcpUnauthenticatedUserTimeout(
                     other.getTcpUnauthenticatedUserTimeout());
         }
@@ -544,9 +540,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.datatype_snappy != datatype_snappy) {
             std::string curr_val_str = datatype_snappy ? "true" : "false";
             std::string other_val_str = other.datatype_snappy ? "true" : "false";
-            LOG_INFO("Change datatype_snappy from {} to {}",
-                     curr_val_str,
-                     other_val_str);
+            LOG_INFO_CTX("Change datatype_snappy",
+                         {"from", curr_val_str},
+                         {"to", other_val_str});
             setDatatypeSnappyEnabled(other.datatype_snappy);
         }
     }
@@ -554,17 +550,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.enable_deprecated_bucket_autoselect &&
         other.enable_deprecated_bucket_autoselect !=
                 enable_deprecated_bucket_autoselect) {
-        LOG_INFO("{}able deprecated bucket autoselect",
-                 other.enable_deprecated_bucket_autoselect ? "En" : "Dis");
+        LOG_INFO_CTX("Change deprecated bucket autoselect",
+                     {"enabled", other.enable_deprecated_bucket_autoselect});
         setDeprecatedBucketAutoselectEnabled(
                 other.enable_deprecated_bucket_autoselect);
     }
 
     if (other.has.verbose) {
         if (other.verbose != verbose) {
-            LOG_INFO("Change verbosity level from {} to {}",
-                     verbose.load(),
-                     other.verbose.load());
+            LOG_INFO_CTX("Change verbosity level",
+                         {"from", verbose.load()},
+                         {"to", other.verbose.load()});
             setVerbose(other.verbose.load());
         }
     }
@@ -572,37 +568,36 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.reqs_per_event_high_priority) {
         if (other.reqs_per_event_high_priority !=
             reqs_per_event_high_priority) {
-            LOG_INFO("Change high priority iterations per event from {} to {}",
-                     reqs_per_event_high_priority,
-                     other.reqs_per_event_high_priority);
+            LOG_INFO_CTX("Change high priority iterations per event",
+                         {"from", reqs_per_event_high_priority},
+                         {"to", other.reqs_per_event_high_priority});
             setRequestsPerEventNotification(other.reqs_per_event_high_priority,
                                             EventPriority::High);
         }
     }
     if (other.has.reqs_per_event_med_priority) {
         if (other.reqs_per_event_med_priority != reqs_per_event_med_priority) {
-            LOG_INFO(
-                    "Change medium priority iterations per event from {} to {}",
-                    reqs_per_event_med_priority,
-                    other.reqs_per_event_med_priority);
+            LOG_INFO_CTX("Change medium priority iterations per event",
+                         {"from", reqs_per_event_med_priority},
+                         {"to", other.reqs_per_event_med_priority});
             setRequestsPerEventNotification(other.reqs_per_event_med_priority,
                                             EventPriority::Medium);
         }
     }
     if (other.has.reqs_per_event_low_priority) {
         if (other.reqs_per_event_low_priority != reqs_per_event_low_priority) {
-            LOG_INFO("Change low priority iterations per event from {} to {}",
-                     reqs_per_event_low_priority,
-                     other.reqs_per_event_low_priority);
+            LOG_INFO_CTX("Change low priority iterations per event",
+                         {"from", reqs_per_event_low_priority},
+                         {"to", other.reqs_per_event_low_priority});
             setRequestsPerEventNotification(other.reqs_per_event_low_priority,
                                             EventPriority::Low);
         }
     }
     if (other.has.default_reqs_per_event) {
         if (other.default_reqs_per_event != default_reqs_per_event) {
-            LOG_INFO("Change default iterations per event from {} to {}",
-                     default_reqs_per_event,
-                     other.default_reqs_per_event);
+            LOG_INFO_CTX("Change default iterations per event",
+                         {"from", default_reqs_per_event},
+                         {"to", other.default_reqs_per_event});
             setRequestsPerEventNotification(other.default_reqs_per_event,
                                             EventPriority::Default);
         }
@@ -610,43 +605,43 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.command_time_slice) {
         if (other.getCommandTimeSlice() != getCommandTimeSlice()) {
-            LOG_INFO("Change command time slize from {} to {}",
-                     getCommandTimeSlice(),
-                     other.getCommandTimeSlice());
+            LOG_INFO_CTX("Change command time slice",
+                         {"from", getCommandTimeSlice()},
+                         {"to", other.getCommandTimeSlice()});
             setCommandTimeSlice(other.getCommandTimeSlice());
         }
     }
 
     if (other.has.connection_idle_time) {
         if (other.connection_idle_time != connection_idle_time) {
-            LOG_INFO("Change connection idle time from {} to {}",
-                     connection_idle_time.load(),
-                     other.connection_idle_time.load());
+            LOG_INFO_CTX("Change connection idle time",
+                         {"from", connection_idle_time.load()},
+                         {"to", other.connection_idle_time.load()});
             setConnectionIdleTime(other.connection_idle_time);
         }
     }
     if (other.has.max_packet_size) {
         if (other.max_packet_size != max_packet_size) {
-            LOG_INFO("Change max packet size from {} to {}",
-                     max_packet_size,
-                     other.max_packet_size);
+            LOG_INFO_CTX("Change max packet size",
+                         {"from", max_packet_size},
+                         {"to", other.max_packet_size});
             setMaxPacketSize(other.max_packet_size);
         }
     }
     if (other.has.max_send_queue_size) {
         if (other.max_send_queue_size != max_send_queue_size) {
-            LOG_INFO("Change max packet size from {}MB to {}MB",
-                     max_send_queue_size / (1024 * 1024),
-                     other.max_send_queue_size / (1024 * 1024));
+            LOG_INFO_CTX("Change max packet size",
+                         {"from", max_send_queue_size / (1024 * 1024)},
+                         {"to", other.max_send_queue_size / (1024 * 1024)});
             setMaxSendQueueSize(other.max_send_queue_size);
         }
     }
 
     if (other.has.max_so_sndbuf_size) {
         if (other.max_so_sndbuf_size != max_so_sndbuf_size) {
-            LOG_INFO("Change max SO_SNDBUF from {} to {}",
-                     max_so_sndbuf_size,
-                     other.max_so_sndbuf_size);
+            LOG_INFO_CTX("Change max SO_SNDBUF",
+                         {"from", max_so_sndbuf_size},
+                         {"to", other.max_so_sndbuf_size});
             setMaxSoSndbufSize(other.max_so_sndbuf_size);
         }
     }
@@ -667,8 +662,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.dedupe_nmvb_maps) {
         if (other.dedupe_nmvb_maps != dedupe_nmvb_maps) {
-            LOG_INFO("{} deduplication of NMVB maps",
-                     other.dedupe_nmvb_maps.load() ? "Enable" : "Disable");
+            LOG_INFO_CTX("Change deduplication of NMVB maps",
+                         {"enabled", other.dedupe_nmvb_maps.load()});
             setDedupeNmvbMaps(other.dedupe_nmvb_maps.load());
         }
     }
@@ -694,9 +689,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.max_client_connection_details) {
         if (other.max_client_connection_details !=
             max_client_connection_details) {
-            LOG_INFO("Change max client connection details from {} to {}",
-                     max_client_connection_details,
-                     other.max_client_connection_details);
+            LOG_INFO_CTX("Change max client connection details",
+                         {"from", max_client_connection_details},
+                         {"to", other.max_client_connection_details});
             setMaxClientConnectionDetails(other.max_client_connection_details);
         }
     }
@@ -704,9 +699,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.max_concurrent_authentications) {
         if (other.max_concurrent_authentications !=
             max_concurrent_authentications) {
-            LOG_INFO("Change max concurrent authentications from {} to {}",
-                     max_concurrent_authentications,
-                     other.max_concurrent_authentications);
+            LOG_INFO_CTX("Change max concurrent authentications",
+                         {"from", max_concurrent_authentications},
+                         {"to", other.max_concurrent_authentications});
             setMaxConcurrentAuthentications(
                     other.max_concurrent_authentications);
         }
@@ -714,16 +709,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.xattr_enabled) {
         if (other.xattr_enabled != xattr_enabled) {
-            LOG_INFO("{} XATTR",
-                     other.xattr_enabled.load() ? "Enable" : "Disable");
+            LOG_INFO_CTX("Change XATTR",
+                         {"enabled", other.xattr_enabled.load()});
             setXattrEnabled(other.xattr_enabled.load());
         }
     }
 
     if (other.has.collections_enabled) {
         if (other.collections_enabled != collections_enabled) {
-            LOG_INFO("{} collections_enabled",
-                     other.collections_enabled.load() ? "Enable" : "Disable");
+            LOG_INFO_CTX("Change collections_enabled",
+                         {"enabled", other.collections_enabled.load()});
             setCollectionsEnabled(other.collections_enabled.load());
         }
     }
@@ -734,7 +729,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto& b2 = other.breakpad;
 
         if (b2.enabled != b1.enabled) {
-            LOG_INFO("{} breakpad", b2.enabled ? "Enable" : "Disable");
+            LOG_INFO_CTX("Change breakpad", {"enabled", b2.enabled});
             b1.enabled = b2.enabled;
             changed = true;
         }
@@ -749,9 +744,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
 
         if (b2.content != b1.content) {
-            LOG_INFO("Change minidump content from {} to {}",
-                     b1.content,
-                     b2.content);
+            LOG_INFO_CTX("Change minidump content",
+                         {"from", b1.content},
+                         {"to", b2.content});
             b1.content = b2.content;
             changed = true;
         }
@@ -766,18 +761,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         auto proposed = other.getOpcodeAttributesOverride();
 
         if (proposed != current) {
-            LOG_INFO(
-                    R"(Change opcode attributes from "{}" to "{}")",
-                    current,
-                    proposed);
+            LOG_INFO_CTX("Change opcode attributes",
+                         {"from", current},
+                         {"to", proposed});
             setOpcodeAttributesOverride(proposed);
         }
     }
 
     if (other.has.tracing_enabled) {
         if (other.isTracingEnabled() != isTracingEnabled()) {
-            LOG_INFO("{} tracing support",
-                     other.isTracingEnabled() ? "Enable" : "Disable");
+            LOG_INFO_CTX("Change tracing support",
+                         {"enabled", other.isTracingEnabled()});
         }
         setTracingEnabled(other.isTracingEnabled());
     }
@@ -798,9 +792,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto o = other.getScramshaFallbackIterationCount();
         const auto m = getScramshaFallbackIterationCount();
         if (o != m) {
-            LOG_INFO("Change scram fallback iteration count from {} to {}",
-                     m,
-                     o);
+            LOG_INFO_CTX("Change scram fallback iteration count",
+                         {"from", m},
+                         {"to", o});
             setScramshaFallbackIterationCount(o);
         }
     }
@@ -915,11 +909,10 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.max_concurrent_commands_per_connection) {
         if (other.getMaxConcurrentCommandsPerConnection() !=
             getMaxConcurrentCommandsPerConnection()) {
-            LOG_INFO(
-                    "Change max number of concurrent commands per connection "
-                    "from {} to {}",
-                    other.getMaxConcurrentCommandsPerConnection(),
-                    getMaxConcurrentCommandsPerConnection());
+            LOG_INFO_CTX(
+                    "Change max number of concurrent commands per connection",
+                    {"from", getMaxConcurrentCommandsPerConnection()},
+                    {"to", other.getMaxConcurrentCommandsPerConnection()});
             setMaxConcurrentCommandsPerConnection(
                     other.getMaxConcurrentCommandsPerConnection());
         }
@@ -927,33 +920,33 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.num_reader_threads &&
         other.getNumReaderThreads() != getNumReaderThreads()) {
-        LOG_INFO("Change number of reader threads from: {} to {}",
-                 threadConfig2String(getNumReaderThreads()),
-                 threadConfig2String(other.getNumReaderThreads()));
+        LOG_INFO_CTX("Change number of reader threads",
+                     {"from", threadConfig2String(getNumReaderThreads())},
+                     {"to", threadConfig2String(other.getNumReaderThreads())});
         setNumReaderThreads(other.getNumReaderThreads());
     }
 
     if (other.has.num_writer_threads &&
         other.getNumWriterThreads() != getNumWriterThreads()) {
-        LOG_INFO("Change number of writer threads from: {} to {}",
-                 threadConfig2String(getNumWriterThreads()),
-                 threadConfig2String(other.getNumWriterThreads()));
+        LOG_INFO_CTX("Change number of writer threads",
+                     {"from", threadConfig2String(getNumWriterThreads())},
+                     {"to", threadConfig2String(other.getNumWriterThreads())});
         setNumWriterThreads(other.getNumWriterThreads());
     }
 
     if (other.has.num_auxio_threads &&
         other.getNumAuxIoThreads() != getNumAuxIoThreads()) {
-        LOG_INFO("Change number of AuxIO threads from: {} to {}",
-                 getNumAuxIoThreads(),
-                 other.getNumAuxIoThreads());
+        LOG_INFO_CTX("Change number of AuxIO threads",
+                     {"from", getNumAuxIoThreads()},
+                     {"to", other.getNumAuxIoThreads()});
         setNumAuxIoThreads(other.getNumAuxIoThreads());
     }
 
     if (other.has.num_nonio_threads &&
         other.getNumNonIoThreads() != getNumNonIoThreads()) {
-        LOG_INFO("Change number of NonIO threads from: {} to {}",
-                 getNumNonIoThreads(),
-                 other.getNumNonIoThreads());
+        LOG_INFO_CTX("Change number of NonIO threads",
+                     {"from", getNumNonIoThreads()},
+                     {"to", other.getNumNonIoThreads()});
         setNumNonIoThreads(other.getNumNonIoThreads());
     }
 
@@ -961,9 +954,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto oldTPC = getNumIOThreadsPerCore();
         const auto newTPC = other.getNumIOThreadsPerCore();
         if (oldTPC != newTPC) {
-            LOG_INFO("Change number of IO threads per core from: {} to {}",
-                     oldTPC,
-                     newTPC);
+            LOG_INFO_CTX("Change number of IO threads per core",
+                         {"from", oldTPC},
+                         {"to", newTPC});
             setNumIOThreadsPerCore(newTPC);
         }
     }
@@ -971,11 +964,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.quota_sharing_pager_concurrency_percentage &&
         other.getQuotaSharingPagerConcurrencyPercentage() !=
                 getQuotaSharingPagerConcurrencyPercentage()) {
-        LOG_INFO(
-                "Change pager concurrency percentage for quota sharing from: "
-                "{} to {}",
-                getQuotaSharingPagerConcurrencyPercentage(),
-                other.getQuotaSharingPagerConcurrencyPercentage());
+        LOG_INFO_CTX("Change pager concurrency percentage for quota sharing",
+                     {"from", getQuotaSharingPagerConcurrencyPercentage()},
+                     {"to", other.getQuotaSharingPagerConcurrencyPercentage()});
         setQuotaSharingPagerConcurrencyPercentage(
                 other.getQuotaSharingPagerConcurrencyPercentage());
     }
@@ -983,11 +974,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.quota_sharing_pager_sleep_time_ms &&
         other.getQuotaSharingPagerSleepTime() !=
                 getQuotaSharingPagerSleepTime()) {
-        LOG_INFO(
-                "Change pager sleep time for quota sharing from: "
-                "{} ms to {} ms",
-                getQuotaSharingPagerSleepTime().count(),
-                other.getQuotaSharingPagerSleepTime().count());
+        LOG_INFO_CTX("Change pager sleep time for quota sharing",
+                     {"from", getQuotaSharingPagerSleepTime()},
+                     {"to", other.getQuotaSharingPagerSleepTime()});
         setQuotaSharingPagerSleepTime(other.getQuotaSharingPagerSleepTime());
     }
 
@@ -996,10 +985,14 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (nval != *prometheus_config.rlock()) {
             switch (nval.second) {
             case AF_INET:
-                LOG_INFO("Change prometheus port to IPv4 port {}", nval.first);
+                LOG_INFO_CTX("Change prometheus port",
+                             {"protocol", "IPv4"},
+                             {"to", nval.first});
                 break;
             case AF_INET6:
-                LOG_INFO("Change prometheus port to IPv6 port {}", nval.first);
+                LOG_INFO_CTX("Change prometheus port",
+                             {"protocol", "IPv6"},
+                             {"to", nval.first});
                 break;
             default:
                 LOG_INFO_RAW("Disable prometheus port");
@@ -1012,9 +1005,11 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.num_storage_threads &&
         other.getNumStorageThreads() != getNumStorageThreads()) {
-        LOG_INFO("Change number of storage threads from: {} to {}",
-                 storageThreadConfig2String(getNumStorageThreads()),
-                 storageThreadConfig2String(other.getNumStorageThreads()));
+        LOG_INFO_CTX(
+                "Change number of storage threads",
+                {"from", storageThreadConfig2String(getNumStorageThreads())},
+                {"to",
+                 storageThreadConfig2String(other.getNumStorageThreads())});
         setNumStorageThreads(other.getNumStorageThreads());
 
     }
@@ -1032,13 +1027,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         getSlowPrometheusScrapeDuration()) {
         const auto o = getSlowPrometheusScrapeDuration();
         const auto n = other.getSlowPrometheusScrapeDuration();
-        LOG_INFO("Changing slow prometheus scrape duration from {} to {}",
-                 cb::time2text(
-                         std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 o)),
-                 cb::time2text(
-                         std::chrono::duration_cast<std::chrono::milliseconds>(
-                                 n)));
+        LOG_INFO_CTX("Changing slow prometheus scrape duration",
+                     {"from", o},
+                     {"to", n});
         setSlowPrometheusScrapeDuration(n);
     }
 }

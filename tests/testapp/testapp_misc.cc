@@ -338,7 +338,7 @@ TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
 TEST_F(TestappTest, TuneMaxConcurrentAuth) {
     auto waitfor = [](int prev, int next) {
         auto message = fmt::format(
-                "Change max concurrent authentications from {} to {}",
+                R"(Change max concurrent authentications {{"from":{},"to":{}}})",
                 prev,
                 next);
         bool found = false;

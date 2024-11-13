@@ -14,16 +14,15 @@
 #include "external_auth_manager_thread.h"
 #include "log_macros.h"
 #include "memcached.h"
+#include <platform/json_log_conversions.h>
 #include <platform/timeutils.h>
 
 void GetAuthorizationTask::logIfSlowResponse() const {
     auto duration = std::chrono::steady_clock::now() - getStartTime();
     if (duration > externalAuthManager->getExternalAuthSlowDuration()) {
-        LOG_WARNING(
-                "Slow external user authorization took {}, with "
-                "username:",
-                cb::time2text(duration),
-                cb::tagUserData(getUsername()));
+        LOG_WARNING_CTX("Slow external user authorization",
+                        {"duration", duration},
+                        {"username", cb::tagUserData(getUsername())});
     }
 }
 

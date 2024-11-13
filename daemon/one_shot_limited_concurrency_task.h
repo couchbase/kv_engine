@@ -58,11 +58,11 @@ protected:
         try {
             function();
         } catch (const std::exception& e) {
-            LOG_CRITICAL(
-                    "OneShotLimitedConcurrencyTask::run(\"{}\"):"
-                    " received exception: {})",
-                    name,
-                    e.what());
+            LOG_CRITICAL_CTX(
+                    "OneShotLimitedConcurrencyTask::run():"
+                    " received exception",
+                    {"task", name},
+                    {"error", e.what()});
         }
         return false;
     }

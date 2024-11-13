@@ -112,9 +112,9 @@ void LibeventServerSocketImpl::listen_event_handler(evutil_socket_t,
     try {
         c.acceptNewClient();
     } catch (std::invalid_argument& e) {
-        LOG_WARNING("{}: exception occurred while accepting clients: {}",
-                    c.getSocket(),
-                    e.what());
+        LOG_WARNING_CTX("exception occurred while accepting clients",
+                        {"socket", c.getSocket()},
+                        {"error", e.what()});
     }
 }
 
@@ -142,10 +142,11 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
                 Settings::instance().getTcpUnauthenticatedUserTimeout().count();
         if (!cb::net::setSocketOption<uint32_t>(
                     sfd, IPPROTO_TCP, TCP_USER_TIMEOUT, timeout)) {
-            LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
-                        sfd,
-                        timeout,
-                        cb_strerror(cb::net::get_socket_error()));
+            LOG_WARNING_CTX(
+                    "Failed to set TCP_USER_TIMEOUT",
+                    {"socket", sfd},
+                    {"to", timeout},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
     }
 #endif
@@ -155,21 +156,22 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
         properties["tag"] = interface->tag;
     }
 
-    LOG_INFO("{} Listen on IPv{}: {}{} Properties: {}",
-             sfd,
-             interface->family == AF_INET ? "4" : "6",
-             sockname,
-             interface->tls ? " (TLS)" : "",
-             properties.dump());
+    LOG_INFO_CTX("Listen",
+                 {"protocol", interface->family == AF_INET ? "IPv4" : "IPv6"},
+                 {"socket", sfd},
+                 {"address", sockname},
+                 {"tls", interface->tls},
+                 {"properties", properties});
     if (cb::net::listen(sfd, backlog) == SOCKET_ERROR) {
-        LOG_WARNING("{}: Failed to listen on {}: {}",
-                    sfd,
-                    sockname,
-                    cb_strerror(cb::net::get_socket_error()));
+        LOG_WARNING_CTX("Failed to listen",
+                        {"socket", sfd},
+                        {"address", sockname},
+                        {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (event_add(ev.get(), nullptr) == -1) {
-        LOG_WARNING("Failed to add connection to libevent: {}", cb_strerror());
+        LOG_WARNING_CTX("Failed to add connection to libevent",
+                        {"error", cb_strerror()});
         ev.reset();
     }
     numInstances++;
@@ -181,15 +183,15 @@ LibeventServerSocketImpl::~LibeventServerSocketImpl() {
     if (!interface->tag.empty()) {
         tagstr = " \"" + interface->tag + "\"";
     }
-    LOG_INFO("Shutting down IPv{} interface{}: {}",
-             interface->family == AF_INET ? "4" : "6",
-             tagstr,
-             sockname);
+    LOG_INFO_CTX("Shutting down interface",
+                 {"protocol", interface->family == AF_INET ? "IPv4" : "IPv6"},
+                 {"tag", tagstr},
+                 {"address", sockname});
 
     if (ev) {
         if (event_del(ev.get()) == -1) {
-            LOG_WARNING("Failed to remove connection to libevent: {}",
-                        cb_strerror());
+            LOG_WARNING_CTX("Failed to remove connection from libevent",
+                            {"error", cb_strerror()});
         }
     }
     close_server_socket(sfd);
@@ -204,7 +206,8 @@ void LibeventServerSocketImpl::acceptNewClient() {
 
     if (client == INVALID_SOCKET) {
         auto error = cb::net::get_socket_error();
-        LOG_WARNING("Failed to accept new client: {}", cb_strerror(error));
+        LOG_WARNING_CTX("Failed to accept new client",
+                        {"error", cb_strerror(error)});
         return;
     }
 
@@ -269,12 +272,11 @@ void LibeventServerSocketImpl::acceptNewClient() {
 
     if (current > limit) {
         stats.rejected_conns++;
-        LOG_WARNING(
-                "Shutting down client as we're running "
-                "out of connections{}: {} of {}",
-                interface->system ? " on system interface" : "",
-                current,
-                limit);
+        LOG_WARNING_CTX(
+                "Shutting down client as we're running out of connections",
+                {"system", interface->system},
+                {"current", current},
+                {"limit", limit});
         close_client_socket(client);
         if (interface->system) {
             --stats.system_conns;
@@ -293,10 +295,11 @@ void LibeventServerSocketImpl::acceptNewClient() {
                 Settings::instance().getTcpUnauthenticatedUserTimeout().count();
         if (!cb::net::setSocketOption<uint32_t>(
                     sfd, IPPROTO_TCP, TCP_USER_TIMEOUT, timeout)) {
-            LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
-                        sfd,
-                        timeout,
-                        cb_strerror(cb::net::get_socket_error()));
+            LOG_WARNING_CTX(
+                    "Failed to set TCP_USER_TIMEOUT",
+                    {"socket", sfd},
+                    {"to", timeout},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
 #endif
     }
@@ -320,9 +323,10 @@ void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
         uint32_t t = idle.count();
         if (cb::net::setsockopt(
                     client, IPPROTO_TCP, TCP_KEEPIDLE, &t, sizeof(t)) == -1) {
-            LOG_WARNING("{} Failed to set TCP_KEEPIDLE: {}",
-                        client,
-                        cb_strerror(cb::net::get_socket_error()));
+            LOG_WARNING_CTX(
+                    "Failed to set TCP_KEEPIDLE",
+                    {"conn_id", client},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
     }
     const auto interval = settings.getTcpKeepAliveInterval();
@@ -331,9 +335,10 @@ void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
         if (cb::net::setsockopt(
                     client, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) ==
             -1) {
-            LOG_WARNING("{} Failed to set TCP_KEEPINTVL: {}",
-                        client,
-                        cb_strerror(cb::net::get_socket_error()));
+            LOG_WARNING_CTX(
+                    "Failed to set TCP_KEEPINTVL",
+                    {"conn_id", client},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
     }
     const auto probes = settings.getTcpKeepAliveProbes();
@@ -343,9 +348,10 @@ void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
                                 TCP_KEEPCNT,
                                 &probes,
                                 sizeof(probes)) == -1) {
-            LOG_WARNING("{} Failed to set TCP_KEEPCNT: {}",
-                        client,
-                        cb_strerror(cb::net::get_socket_error()));
+            LOG_WARNING_CTX(
+                    "Failed to set TCP_KEEPCNT",
+                    {"conn_id", client},
+                    {"error", cb_strerror(cb::net::get_socket_error())});
         }
     }
 }

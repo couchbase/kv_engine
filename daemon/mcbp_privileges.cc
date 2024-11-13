@@ -36,11 +36,13 @@ PrivilegeAccess McbpPrivilegeChains::invoke(cb::mcbp::ClientOpcode command,
     try {
         return chain.invoke(cookie);
     } catch (const std::bad_function_call&) {
-        LOG_WARNING(
-                "{}: bad_function_call caught while evaluating access "
-                "control for opcode: {:x}",
-                cookie.getConnectionId(),
-                std::underlying_type<cb::mcbp::ClientOpcode>::type(command));
+        LOG_WARNING_CTX(
+                "bad_function_call caught while evaluating access control",
+                {"conn_id", cookie.getConnectionId()},
+                {"opcode_number",
+                 fmt::format("{:#x}",
+                             std::underlying_type<cb::mcbp::ClientOpcode>::type(
+                                     command))});
         // Let the connection catch the exception and shut down the
         // connection
         throw;

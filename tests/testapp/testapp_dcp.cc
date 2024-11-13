@@ -210,7 +210,7 @@ TEST_P(DcpTest, MB60706) {
             std::chrono::steady_clock::now() + std::chrono::seconds{10};
     bool found = false;
     std::string search_prefix =
-            fmt::format(R"(INFO {}: Releasing DCP connection: )", id);
+            fmt::format(R"(INFO Releasing DCP connection )", id);
     json.clear();
     do {
         bool found_hello = false;
@@ -224,7 +224,7 @@ TEST_P(DcpTest, MB60706) {
                 found = idx != std::string_view::npos;
                 if (found) {
                     std::string info(line.substr(idx + search_prefix.length()));
-                    json = nlohmann::json::parse(info);
+                    json = nlohmann::json::parse(info)["description"];
                     // stop searching
                     return false;
                 }

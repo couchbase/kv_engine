@@ -26,9 +26,9 @@ void NetworkInterfaceManagerThread::run() {
     try {
         base->loopForever();
     } catch (const std::exception& exception) {
-        LOG_ERROR(
-                "NetworkInterfaceManagerThread::run(): received exception: {}",
-                exception.what());
+        LOG_ERROR_CTX(
+                "NetworkInterfaceManagerThread::run(): received exception",
+                {"error", exception.what()});
     }
 
     LOG_INFO_RAW("Releasing server sockets");

@@ -129,7 +129,8 @@ static void do_audit(Cookie* cookie,
     getAuditHandle().withRLock([id, warn, &event](auto& handle) {
         if (handle) {
             if (!handle->put_event(id, event)) {
-                LOG_WARNING("{}: {}", warn, event.dump());
+                LOG_WARNING_CTX(
+                        "put_event failed", {"error", warn}, {"event", event});
             }
         }
     });
@@ -294,12 +295,11 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
     try {
         descr = &AuditDescriptorManager::lookup(audit_eventid);
     } catch (const std::out_of_range&) {
-        LOG_WARNING("{}: Unknown event id ({}) provided with content {}{}{}",
-                    connection.getDescription().dump(),
-                    audit_eventid,
-                    cb::userdataStartTag,
-                    buffer,
-                    cb::userdataEndTag);
+        LOG_WARNING_CTX("Unknown event id provided with content",
+                        {"conn_id", connection.getConnectionId()},
+                        {"description", connection.getDescription()},
+                        {"event_id", audit_eventid},
+                        {"buffer", cb::UserDataView{buffer}});
         cookie.setErrorContext("Unknown event id");
         return cb::engine_errc::invalid_arguments;
     }
@@ -314,15 +314,13 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
         try {
             json = nlohmann::json::parse(buffer);
         } catch (const std::exception& e) {
-            LOG_WARNING(
-                    "{}: Failed to parse provided JSON. Audit event {} "
-                    "dropped: {}. provided json: {}{}{}",
-                    connection.getDescription().dump(),
-                    audit_eventid,
-                    e.what(),
-                    cb::userdataStartTag,
-                    buffer,
-                    cb::userdataEndTag);
+            LOG_WARNING_CTX(
+                    "Failed to parse provided JSON. Audit event dropped",
+                    {"conn_id", connection.getConnectionId()},
+                    {"description", connection.getDescription()},
+                    {"event_id", audit_eventid},
+                    {"error", e.what()},
+                    {"buffer", cb::UserDataView{buffer}});
             cookie.setErrorContext("Failed to parse JSON");
             return cb::engine_errc::invalid_arguments;
         }
@@ -340,12 +338,12 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
             }
         }
         if (!missing.empty()) {
-            LOG_WARNING(
-                    "{}: Audit event {} is missing mandatory elements {} and "
-                    "is dropped.",
-                    connection.getDescription().dump(),
-                    audit_eventid,
-                    missing.dump());
+            LOG_WARNING_CTX(
+                    "Audit event is missing mandatory elements and is dropped",
+                    {"conn_id", connection.getConnectionId()},
+                    {"description", connection.getDescription()},
+                    {"event_id", audit_eventid},
+                    {"missing_keys", missing});
             cookie.setErrorContext(
                     "Audit event is missing elements specified as "
                     "mandatory");
@@ -363,13 +361,12 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
         try {
             uid = cb::rbac::UserIdent(*iter);
         } catch (const std::exception& exception) {
-            LOG_WARNING(
-                    "{}: Audit event: {} Illegal value for 'real_user': {}. "
-                    "Error: {}",
-                    connection.getDescription().dump(),
-                    audit_eventid,
-                    cb::UserDataView(iter->dump()),
-                    exception.what());
+            LOG_WARNING_CTX("Audit event: Illegal value for 'real_user'",
+                            {"conn_id", connection.getConnectionId()},
+                            {"description", connection.getDescription()},
+                            {"event_id", audit_eventid},
+                            {"real_userid", cb::UserDataView(iter->dump())},
+                            {"error", exception.what()});
             cookie.setErrorContext(fmt::format(
                     "Failed to parse 'real_userid': {}", exception.what()));
             return cb::engine_errc::invalid_arguments;
@@ -384,13 +381,13 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
                 euid = &euid_holder;
             }
         } catch (const std::exception& exception) {
-            LOG_WARNING(
-                    "{}: Audit event: {} Illegal value for 'effective_userid': "
-                    "{}. Error: {}",
-                    connection.getDescription().dump(),
-                    audit_eventid,
-                    cb::UserDataView(iter->dump()),
-                    exception.what());
+            LOG_WARNING_CTX(
+                    "Audit event: Illegal value for 'effective_userid'",
+                    {"conn_id", connection.getConnectionId()},
+                    {"description", connection.getDescription()},
+                    {"event_id", audit_eventid},
+                    {"effective_userid", cb::UserDataView(iter->dump())},
+                    {"error", exception.what()});
             cookie.setErrorContext(
                     fmt::format("Failed to parse 'effective_userid': {}",
                                 exception.what()));
@@ -419,12 +416,11 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
                 return cb::engine_errc::success;
             }
         } catch (const std::exception& e) {
-            LOG_WARNING(
-                    "{}: Got exception during filtering of audit event id:{} "
-                    " error: {}",
-                    connection.getDescription().dump(),
-                    audit_eventid,
-                    e.what());
+            LOG_WARNING_CTX("Got exception during filtering of audit event id",
+                            {"conn_id", connection.getConnectionId()},
+                            {"description", connection.getDescription()},
+                            {"event_id", audit_eventid},
+                            {"error", e.what()});
             throw;
         }
     }

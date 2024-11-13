@@ -522,11 +522,11 @@ cb::mcbp::Status Cookie::validate() {
             allowed.end()) {
 #if CB_DEVELOPMENT_ASSERTS
             if (cb::mcbp::is_valid_opcode(opcode)) {
-                LOG_WARNING(
-                        "{}: Trying to execute {} before authentication. "
-                        "Returning eaccess",
-                        getConnectionId(),
-                        opcode);
+                LOG_WARNING_CTX(
+                        "Trying to execute before authentication. Returning "
+                        "eaccess",
+                        {"conn_id", getConnectionId()},
+                        {"opcode", opcode});
             }
 #endif
             return cb::mcbp::Status::Eaccess;
@@ -566,14 +566,11 @@ cb::mcbp::Status Cookie::validate() {
             result != Status::BucketResidentRatioTooLow &&
             result != Status::BucketDataSizeTooBig &&
             result != Status::BucketDiskSpaceTooLow) {
-            LOG_WARNING(
-                    "{}: Packet validation failed for \"{}\" - Status: \"{}\" "
-                    "- Packet:[{}] - Returned payload:[{}]",
-                    connection.getId(),
-                    opcode,
-                    to_string(result),
-                    request.to_json(false).dump(),
-                    getErrorJson());
+            LOG_WARNING_CTX("Packet validation failed",
+                            {"conn_id", connection.getId()},
+                            {"request", request.to_json(false)},
+                            {"error", error_json},
+                            {"status", result});
             audit_invalid_packet(getConnection(), getPacket());
         }
         return result;
@@ -600,13 +597,12 @@ cb::mcbp::Status Cookie::validate() {
 
 Cookie::~Cookie() {
     if (ewouldblock) {
-        LOG_CRITICAL(
-                "{} ewouldblock should NOT be set in the destructor as that "
-                "indicates that someone is using the cookie. This cookie: {}, "
-                "Connection: {}",
-                connection.getId(),
-                to_json().dump(),
-                connection.to_json().dump());
+        LOG_CRITICAL_CTX(
+                "Ewouldblock should NOT be set in the destructor as that "
+                "indicates that someone is using the cookie",
+                {"conn_id", connection.getId()},
+                {"cookie", to_json()},
+                {"description", connection.to_json()});
         cb::logger::flush();
         std::terminate();
     }
@@ -762,10 +758,10 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
     auto json = getPrivilegeFailedErrorMessage(command, privilege, sid, cid);
 
     audit_command_access_failed(*this);
-    LOG_WARNING("{} RBAC {} missing privilege: {}",
-                connection.getId(),
-                connection.getDescription().dump(),
-                json.dump());
+    LOG_WARNING_CTX("RBAC missing privilege",
+                    {"conn_id", connection.getId()},
+                    {"description", connection.getDescription()},
+                    {"error", json});
 
     // Add a textual error as well
     setErrorContext(
@@ -836,10 +832,10 @@ bool Cookie::fetchEuidPrivilegeSet() {
         auto json = getPrivilegeFailedErrorMessage(
                 command, cb::rbac::Privilege::Impersonate, {}, {});
         audit_command_access_failed(*this);
-        LOG_WARNING("{} RBAC {} missing privilege: {}",
-                    connection.getId(),
-                    connection.getDescription().dump(),
-                    json.dump());
+        LOG_WARNING_CTX("RBAC missing privilege",
+                        {"conn_id", connection.getId()},
+                        {"description", connection.getDescription()},
+                        {"error", json});
         // Add a textual error as well
         setErrorContext(
                 fmt::format("Authorization failure: can't execute {} operation "

@@ -214,7 +214,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
         fclose(file);
         std::filesystem::remove(filename);
 
-        LOG_INFO("Port numbers available in {}", filename);
+        LOG_INFO_CTX("Port numbers available in file", {"filename", filename});
         if (rename(tempname.c_str(), filename.c_str()) == -1) {
             LOG_CRITICAL(R"(Failed to rename "{}" to "{}": {})",
                          tempname,
@@ -249,7 +249,8 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
         error = cb::net::setsockopt(
                 sfd, IPPROTO_IPV6, IPV6_V6ONLY, &flags, sizeof(flags));
         if (error != 0) {
-            LOG_WARNING("setsockopt(IPV6_V6ONLY): {}", strerror(errno));
+            LOG_WARNING_CTX("setsockopt(IPV6_V6ONLY)",
+                            {"error", strerror(errno)});
             close_server_socket(sfd);
             return INVALID_SOCKET;
         }
@@ -258,26 +259,26 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
 
     if (cb::net::setsockopt(
                 sfd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(flags)) != 0) {
-        LOG_WARNING("setsockopt(SO_REUSEADDR): {}",
-                    cb_strerror(cb::net::get_socket_error()));
+        LOG_WARNING_CTX("setsockopt(SO_REUSEADDR)",
+                        {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (cb::net::setsockopt(
                 sfd, SOL_SOCKET, SO_REUSEPORT, &flags, sizeof(flags)) != 0) {
-        LOG_WARNING("setsockopt(SO_REUSEPORT): {}",
-                    cb_strerror(cb::net::get_socket_error()));
+        LOG_WARNING_CTX("setsockopt(SO_REUSEPORT)",
+                        {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (cb::net::setsockopt(
                 sfd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof(flags)) != 0) {
-        LOG_WARNING("setsockopt(SO_KEEPALIVE): {}",
-                    cb_strerror(cb::net::get_socket_error()));
+        LOG_WARNING_CTX("setsockopt(SO_KEEPALIVE)",
+                        {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling)) !=
         0) {
-        LOG_WARNING("setsockopt(SO_LINGER): {}",
-                    cb_strerror(cb::net::get_socket_error()));
+        LOG_WARNING_CTX("setsockopt(SO_LINGER)",
+                        {"error", cb_strerror(cb::net::get_socket_error())});
     }
 
     return sfd;
@@ -526,12 +527,12 @@ std::pair<cb::mcbp::Status, std::string>
 NetworkInterfaceManager::reconfigureTlsConfig(const nlohmann::json& spec) {
     try {
         auto next = std::make_unique<TlsConfiguration>(spec);
-        auto desc = next->to_json().dump();
+        auto desc = next->to_json();
         tlsConfiguration.wlock()->swap(next);
-        LOG_INFO("TLS configuration changed to: {}", desc);
-        return {cb::mcbp::Status::Success, std::move(desc)};
+        LOG_INFO_CTX("TLS configuration changed", desc);
+        return {cb::mcbp::Status::Success, desc.dump()};
     } catch (const std::exception& e) {
-        LOG_WARNING("TLS configuration failed: {}", e.what());
+        LOG_WARNING_CTX("TLS configuration failed", {"error", e.what()});
         return {cb::mcbp::Status::Einternal, e.what()};
     }
 }

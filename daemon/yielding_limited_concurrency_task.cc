@@ -41,11 +41,11 @@ bool YieldingLimitedConcurrencyTask::runInner() {
             return true;
         }
     } catch (const std::exception& e) {
-        LOG_CRITICAL(
-                "YieldingLimitedConcurrencyTask::runInner(\"{}\"):"
-                " received exception: {}",
-                name,
-                e.what());
+        LOG_CRITICAL_CTX(
+                "YieldingLimitedConcurrencyTask::runInner(): received "
+                "exception",
+                {"task", name},
+                {"error", e.what()});
     }
 
     // Not running again

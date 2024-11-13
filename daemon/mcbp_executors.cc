@@ -416,11 +416,11 @@ static void ioctl_get_executor(Cookie& cookie) {
         break;
     case cb::engine_errc::disconnect:
         if (ret == cb::engine_errc::disconnect) {
-            LOG_WARNING(
-                    "{}: ioctl_get_executor - ioctl_get_property returned "
-                    "cb::engine_errc::disconnect - closing connection {}",
-                    connection.getId(),
-                    connection.getDescription().dump());
+            LOG_WARNING_CTX(
+                    "ioctl_get_executor - ioctl_get_property returned "
+                    "cb::engine_errc::disconnect - closing connection",
+                    {"conn_id", connection.getId()},
+                    {"description", connection.getDescription()});
             connection.setTerminationReason(
                     "ioctl_get_executor forced disconnect");
         }
@@ -450,11 +450,11 @@ static void ioctl_set_executor(Cookie& cookie) {
         break;
     case cb::engine_errc::disconnect:
         if (ret == cb::engine_errc::disconnect) {
-            LOG_WARNING(
-                    "{}: ioctl_set_executor - ioctl_set_property returned "
-                    "cb::engine_errc::disconnect - closing connection {}",
-                    connection.getId(),
-                    connection.getDescription().dump());
+            LOG_WARNING_CTX(
+                    "ioctl_set_executor - ioctl_set_property returned "
+                    "cb::engine_errc::disconnect - closing connection",
+                    {"conn_id", connection.getId()},
+                    {"description", connection.getDescription()});
             connection.setTerminationReason(
                     "ioctl_set_executor forced disconnect");
         }
@@ -528,7 +528,8 @@ static void shutdown_executor(Cookie& cookie) {
     if (session_cas.increment_session_counter(cookie.getRequest().getCas())) {
         session_cas.decrement_session_counter();
         cookie.sendResponse(cb::mcbp::Status::Success);
-        LOG_INFO("{} Shutdown server requested", cookie.getConnectionId());
+        LOG_INFO_CTX("Shutdown server requested",
+                     {"conn_id", cookie.getConnectionId()});
         shutdown_server();
     } else {
         cookie.sendResponse(cb::mcbp::Status::KeyEexists);
@@ -608,29 +609,26 @@ static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
                 }
 
                 if (!access) {
-                    LOG_WARNING(
-                            "{} The regulator can't set client document "
-                            "ingress for bucket {} from {} to {} as the node "
-                            "supervisor locked the value",
-                            cookie.getConnectionId(),
-                            name,
-                            bucket.data_ingress_status.load(),
-                            payload->getStatus());
+                    LOG_WARNING_CTX(
+                            "The regulator can't set client document ingress "
+                            "as the node supervisor locked the value",
+                            {"conn_id", cookie.getConnectionId()},
+                            {"bucket", name},
+                            {"from", bucket.data_ingress_status.load()},
+                            {"to", payload->getStatus()});
                     status = Status::Locked;
                     return false;
                 }
 
                 if (payload->getStatus() == Status::Success) {
-                    LOG_INFO("{} Enable client document ingress for bucket {}",
-                             cookie.getConnectionId(),
-                             name);
+                    LOG_INFO_CTX("Enable client document ingress for bucket",
+                                 {"conn_id", cookie.getConnectionId()},
+                                 {"bucket", name});
                 } else {
-                    LOG_INFO(
-                            "{} Disable client document ingress for bucket {} "
-                            "with error code {}",
-                            cookie.getConnectionId(),
-                            name,
-                            to_string(payload->getStatus()));
+                    LOG_INFO_CTX("Disable client document ingress for bucket",
+                                 {"conn_id", cookie.getConnectionId()},
+                                 {"bucket", name},
+                                 {"status", payload->getStatus()});
                 }
                 bucket.data_ingress_status = payload->getStatus();
             }
@@ -709,9 +707,9 @@ static void auth_provider_executor(Cookie& cookie) {
     if (connection.isDuplexSupported()) {
         externalAuthManager->add(connection);
         cookie.sendResponse(cb::mcbp::Status::Success);
-        LOG_INFO("{}: Registered as authentication provider: {}",
-                 connection.getId(),
-                 connection.getDescription().dump());
+        LOG_INFO_CTX("Registered as authentication provider",
+                     {"conn_id", connection.getId()},
+                     {"description", connection.getDescription()});
     } else {
         cookie.setErrorContext("Connection is not in duplex mode");
         cookie.sendResponse(cb::mcbp::Status::Einval);
@@ -766,11 +764,11 @@ static void process_bin_dcp_response(Cookie& cookie) {
 
     auto* dcp = c.getBucket().getDcpIface();
     if (!dcp) {
-        LOG_WARNING(
-                "{}: process_bin_dcp_response - DcpIface is nullptr - "
-                "closing connection {}",
-                c.getId(),
-                c.getDescription().dump());
+        LOG_WARNING_CTX(
+                "process_bin_dcp_response - DcpIface is nullptr - closing "
+                "connection",
+                {"conn_id", c.getId()},
+                {"description", c.getDescription()});
         c.shutdown();
         c.setTerminationReason("Connected engine does not support DCP");
         return;
@@ -781,11 +779,11 @@ static void process_bin_dcp_response(Cookie& cookie) {
 
     if (remapErr == cb::engine_errc::disconnect) {
         if (ret == cb::engine_errc::disconnect) {
-            LOG_WARNING(
-                    "{}: process_bin_dcp_response - response_handler returned "
-                    "cb::engine_errc::disconnect - closing connection {}",
-                    c.getId(),
-                    c.getDescription().dump());
+            LOG_WARNING_CTX(
+                    "process_bin_dcp_response - response_handler returned "
+                    "cb::engine_errc::disconnect - closing connection",
+                    {"conn_id", c.getId()},
+                    {"description", c.getDescription()});
             c.setTerminationReason(
                     "process_bin_dcp_response forced disconnect");
         }
@@ -1129,13 +1127,13 @@ void execute_client_response_packet(Cookie& cookie,
         handler(cookie);
     } else {
         auto& c = cookie.getConnection();
-        LOG_WARNING(
-                "{}: Unsupported response packet received with opcode: {:#x} "
-                "({})",
-                c.getId(),
-                uint32_t(opcode),
-                is_valid_opcode(opcode) ? to_string(opcode)
-                                        : "<invalid opcode>");
+        LOG_WARNING_CTX(
+                "Unsupported response packet received",
+                {"conn_id", c.getId()},
+                {"opcode_number", fmt::format("{:#x}", uint32_t(opcode))},
+                {"opcode",
+                 is_valid_opcode(opcode) ? to_string(opcode)
+                                         : "<invalid opcode>"});
         c.shutdown();
         c.setTerminationReason("Unsupported response packet received");
     }
@@ -1156,10 +1154,10 @@ void execute_server_response_packet(Cookie& cookie,
         return;
     }
 
-    LOG_INFO(
-            "{}: Ignoring unsupported server response packet received with "
-            "opcode: {:#x} ({})",
-            c.getId(),
-            uint32_t(opcode),
-            is_valid_opcode(opcode) ? to_string(opcode) : "<invalid opcode>");
+    LOG_INFO_CTX(
+            "Ignoring unsupported server response packet received",
+            {"conn_id", c.getId()},
+            {"opcode_number", fmt::format("{:#x}", uint32_t(opcode))},
+            {"opcode",
+             is_valid_opcode(opcode) ? to_string(opcode) : "<invalid opcode>"});
 }

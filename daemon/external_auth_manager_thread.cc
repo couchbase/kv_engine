@@ -276,8 +276,8 @@ void ExternalAuthManagerThread::processResponseQueue() {
         auto iter = requestMap.find(entry->opaque);
         if (iter == requestMap.end()) {
             // Unknown id.. ignore
-            LOG_WARNING("processResponseQueue(): Ignoring unknown opaque: {}",
-                        entry->opaque);
+            LOG_WARNING_CTX("processResponseQueue(): Ignoring unknown opaque",
+                            {"opaque", entry->opaque});
         } else {
             auto* task = iter->second.second;
             auto* startSaslTask = dynamic_cast<SaslAuthTask*>(task);
@@ -316,10 +316,11 @@ void ExternalAuthManagerThread::handleTimeoutRequest() {
             // externalAuthRequestTimeout duration
             // We need to fix this if we want to redistribute them over to
             // another provider
-            LOG_WARNING(
+            LOG_WARNING_CTX(
                     "Request timed out, external authentication manager did "
-                    "not respond in {}",
-                    cb::time2text(getExternalAuthRequestTimeout()));
+                    "not respond in",
+                    {"external_auth_request_timeout",
+                     getExternalAuthRequestTimeout()});
             const std::string msg =
                     R"({"error":{"context":"No response from external auth service"}})";
             incommingResponse.emplace_back(

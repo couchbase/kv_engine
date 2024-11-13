@@ -25,6 +25,7 @@
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
 #include <platform/histogram.h>
+#include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 
 static const std::array<SubdocExecutionContext::Phase, 2> phases{
@@ -421,15 +422,16 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
 
             // Hit maximum attempts - this theoretically could happen but
             // shouldn't in reality.
-            LOG_WARNING(
-                    "{}: Subdoc: Hit maximum number of auto-retry attempts "
-                    "({}) when attempting to perform op {} on doc {} - "
-                    "returning TMPFAIL",
-                    cookie.getConnectionId(),
-                    cb::limits::SubdocMaxAutoRetries,
-                    cookie.getRequest().getClientOpcode(),
-                    cb::UserDataView(
-                            cookie.getRequestKey().toPrintableString()));
+            LOG_WARNING_CTX(
+                    "Subdoc: Hit maximum number of auto-retry attempts when "
+                    "attempting to perform op on doc - returning TMPFAIL",
+                    {"conn_id", cookie.getConnectionId()},
+                    {"subdoc_max_auto_retries",
+                     cb::limits::SubdocMaxAutoRetries},
+                    {"opcode", cookie.getRequest().getClientOpcode()},
+                    {"key",
+                     cb::UserDataView(
+                             cookie.getRequestKey().toPrintableString())});
             cookie.sendResponse(cb::mcbp::Status::Etmpfail);
             return false;
         }
@@ -675,8 +677,8 @@ cb::engine_errc SubdocCommandContext::update_document(cb::engine_errc ret) {
             } else {
                 item_info info;
                 if (!bucket_get_item_info(connection, *context.out_doc, info)) {
-                    LOG_WARNING("{}: Subdoc: Failed to get item info",
-                                connection.getId());
+                    LOG_WARNING_CTX("Subdoc: Failed to get item info",
+                                    {"conn_id", connection.getId()});
                     cookie.sendResponse(cb::mcbp::Status::Einternal);
                     return cb::engine_errc::failed;
                 }

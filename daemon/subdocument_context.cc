@@ -627,7 +627,7 @@ cb::engine_errc SubdocExecutionContext::get_document_for_searching(
     auto& c = connection;
 
     if (!bucket_get_item_info(connection, *fetchedItem, info)) {
-        LOG_WARNING("{}: Failed to get item info", c.getId());
+        LOG_WARNING_CTX("Failed to get item info", {"conn_id", c.getId()});
         return cb::engine_errc::failed;
     }
     if (info.cas == LOCKED_CAS) {
@@ -655,14 +655,14 @@ cb::engine_errc SubdocExecutionContext::get_document_for_searching(
         try {
             inflated_doc = cookie.inflateSnappy(in_doc.view);
         } catch (const std::runtime_error&) {
-            LOG_ERROR(
-                    "<{} Failed to inflate body, Key: {} may have an "
-                    "incorrect datatype. Datatype indicates that document "
-                    "is {}",
-                    cookie.getConnectionId(),
-                    cb::UserDataView(
-                            cookie.getRequestKey().toPrintableString()),
-                    cb::mcbp::datatype::to_string(info.datatype));
+            LOG_ERROR_CTX(
+                    "Failed to inflate body, key may have an incorrect "
+                    "datatype",
+                    {"conn_id", cookie.getConnectionId()},
+                    {"key",
+                     cb::UserDataView(
+                             cookie.getRequestKey().toPrintableString())},
+                    {"datatype", info.datatype});
             return cb::engine_errc::failed;
         } catch (const std::bad_alloc&) {
             return cb::engine_errc::no_memory;

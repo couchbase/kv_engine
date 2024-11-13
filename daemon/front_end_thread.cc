@@ -326,7 +326,8 @@ void FrontEndThread::dispatch_new_connections() {
         } catch (const std::bad_alloc&) {
             LOG_WARNING_RAW("Failed to allocate memory for connection");
         } catch (const std::exception& error) {
-            LOG_WARNING("Failed to create connection: {}", error.what());
+            LOG_WARNING_CTX("Failed to create connection",
+                            {"error", error.what()});
         } catch (...) {
             LOG_WARNING_RAW("Failed to create connection");
         }
@@ -377,7 +378,9 @@ int FrontEndThread::signal_idle_clients(bool dumpConnection) {
                 ++connected;
                 if (!connection.signalIfIdle() && dumpConnection) {
                     auto details = connection.to_json().dump();
-                    LOG_INFO("Worker thread {}: {}", index, details);
+                    LOG_INFO_CTX("Worker thread",
+                                 {"index", index},
+                                 {"details", details});
                 }
             });
     return connected;
@@ -396,7 +399,8 @@ void FrontEndThread::dispatch(SOCKET sfd,
         thread.eventBase.runInEventBaseThread([&thread]() {
             if (is_memcached_shutting_down()) {
                 if (thread.signal_idle_clients(false) == 0) {
-                    LOG_INFO("Stopping worker thread {}", thread.index);
+                    LOG_INFO_CTX("Stopping worker thread",
+                                 {"index", thread.index});
                     thread.eventBase.terminateLoopSoon();
                     return;
                 }
@@ -404,8 +408,8 @@ void FrontEndThread::dispatch(SOCKET sfd,
             thread.dispatch_new_connections();
         });
     } catch (const std::bad_alloc& e) {
-        LOG_WARNING("dispatch_conn_new: Failed to dispatch new connection: {}",
-                    e.what());
+        LOG_WARNING_CTX("dispatch_conn_new: Failed to dispatch new connection",
+                        {"error", e.what()});
 
         if (descr->system) {
             --stats.system_conns;
@@ -476,7 +480,7 @@ void threads_shutdown() {
     for (auto& thread : threads) {
         thread.eventBase.runInEventBaseThread([&thread]() {
             if (thread.signal_idle_clients(false) == 0) {
-                LOG_INFO("Stopping worker thread {}", thread.index);
+                LOG_INFO_CTX("Stopping worker thread", {"index", thread.index});
                 thread.eventBase.terminateLoopSoon();
             }
         });
@@ -491,7 +495,8 @@ void threads_shutdown() {
         while (thread.running) {
             thread.eventBase.runInEventBaseThread([&thread]() {
                 if (thread.signal_idle_clients(false) == 0) {
-                    LOG_INFO("Stopping worker thread {}", thread.index);
+                    LOG_INFO_CTX("Stopping worker thread",
+                                 {"index", thread.index});
                     thread.eventBase.terminateLoopSoon();
                 }
             });

@@ -181,8 +181,8 @@ public:
             formatted.resize(formatted.size() - (chunksize - last_wrote));
             cookie.notifyIoComplete(cb::engine_errc::success);
         } catch (const std::exception& e) {
-            LOG_WARNING("TraceFormatterTask::execute: Received exception: {}",
-                        e.what());
+            LOG_WARNING_CTX("TraceFormatterTask::execute: Received exception",
+                            {"error", e.what()});
             cookie.notifyIoComplete(cb::engine_errc::failed);
         }
         return false;

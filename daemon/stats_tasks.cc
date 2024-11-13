@@ -184,11 +184,10 @@ void StatsTaskConnectionStats::getStats(cb::engine_errc& command_error,
                     }
                 });
     } catch (const std::exception& exception) {
-        LOG_WARNING(
-                "{}: StatsTaskConnectionStats::getStats(): An exception "
-                "occurred: {}",
-                cookie.getConnectionId(),
-                exception.what());
+        LOG_WARNING_CTX(
+                "StatsTaskConnectionStats::getStats(): An exception occurred",
+                {"conn_id", cookie.getConnectionId()},
+                {"error", exception.what()});
         cookie.setErrorContext("An exception occurred");
         command_error = cb::engine_errc::failed;
     }
