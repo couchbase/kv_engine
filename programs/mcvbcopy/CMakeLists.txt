@@ -1,5 +1,0 @@
-add_executable(mcvbcopy mcvbcopy.cc)
-kv_enable_pch(mcvbcopy)
-target_link_libraries(mcvbcopy PRIVATE snapshot mc_client_connection mc_program_utils platform spdlog::spdlog)
-add_sanitizers(mcvbcopy)
-install(TARGETS mcvbcopy RUNTIME DESTINATION bin)
