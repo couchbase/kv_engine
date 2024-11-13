@@ -595,6 +595,8 @@ public:
      */
     virtual uint64_t getHistoryDiskSize() = 0;
 
+    virtual void setKvStoreBfilterEnabled() {}
+
     /// Reset all statistics assocated with this vBucket.
     virtual void resetStats();
 

@@ -101,18 +101,6 @@ EPVBucket::EPVBucket(Vbid i,
               maxPrepareSeqno),
       shard(kvshard),
       rangeScans(static_cast<EPBucket*>(bucket), *this) {
-    const std::string backend = config.getBackendString();
-    if (config.isBfilterEnabled()) {
-        if (backend == "couchdb" ||
-            (backend == "nexus" &&
-             config.getNexusPrimaryBackendString() == "couchdb")) {
-            // Initialize bloom filters upon vbucket creation during
-            // bucket creation and rebalance
-            createFilter(config.getBfilterKeyCount(),
-                         config.getBfilterFpProb());
-        }
-        setKvStoreBfilterEnabled();
-    }
 }
 
 EPVBucket::~EPVBucket() {

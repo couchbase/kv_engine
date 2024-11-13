@@ -510,7 +510,7 @@ private:
     /**
      * When set to true, we check if a key exists in kvstore'es bloom-filter.
      */
-    void setKvStoreBfilterEnabled();
+    void setKvStoreBfilterEnabled() override;
 
     /**
      * Sets the collection info on the cookie for the given scan.

@@ -1093,6 +1093,24 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
     newvb->setFreqSaturatedCallback(
             [this] { itemFrequencyCounterSaturated(); });
 
+    const auto& config = engine.getConfiguration();
+    const std::string backend = config.getBackendString();
+    if (config.isBfilterEnabled()) {
+        if (backend == "couchdb" ||
+            (backend == "nexus" &&
+             config.getNexusPrimaryBackendString() == "couchdb")) {
+            // Initialize bloom filters upon vbucket creation during bucket
+            // creation and rebalance. We avoid creating this during warmup for
+            // couchstore, since the bloomfilter isn't saved to disk & we don't
+            // have a view of all the keys on disk until the next compaction
+            // runs.  When the next compaction runs, we'll create this bloom
+            // filter.
+            newvb->createFilter(config.getBfilterKeyCount(),
+                         config.getBfilterFpProb());
+        }
+        newvb->setKvStoreBfilterEnabled();
+    }
+
     // Before adding the VB to the map, notify KVStore of the create
     vbMap.getShardByVbId(vbid)->forEachKVStore(
             [vbid](KVStoreIface* kvs) { kvs->prepareToCreate(vbid); });

@@ -153,6 +153,23 @@ TEST_F(WarmupTest, hlcEpoch) {
     EXPECT_TRUE(info2.cas_is_hlc);
 }
 
+TEST_F(WarmupTest, BloomFilterUnintialized) {
+    if (!isCouchstore()) {
+        GTEST_SKIP() << "Couchstore only test!";
+    }
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    flush_vbucket_to_disk(vbid);
+
+    resetEngineAndWarmup();
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    // The bloomfilter was not initialized, when the vbucket was created during
+    // warmup.
+    ASSERT_EQ("DOESN'T EXIST", vb->getFilterStatusString());
+}
+
 TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
