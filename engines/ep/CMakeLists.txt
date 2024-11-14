@@ -386,6 +386,8 @@ ADD_LIBRARY(ep STATIC
             src/seqlist.cc
             src/seqno_persistence_notify_task.cc
             src/serialised_dockey.cc
+            src/snapshots/cache.cc
+            src/snapshots/cache.h
             src/stats.cc
             src/string_utils.cc
             src/stored-value.cc
@@ -428,10 +430,12 @@ target_link_libraries(ep
         engine_utilities
         ep-engine_collections
         mcbp
+        mc_client_connection
         mcd_executor
         mcd_tracing
         mcd_util
         phosphor
+        snapshot
         xattr)
 kv_enable_pch(ep)
 
