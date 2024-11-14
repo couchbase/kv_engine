@@ -11,11 +11,11 @@ cb_add_test_executable(memcached_mcbp_test
                mcbp_test_subdoc.cc
                mcbp_test_subdoc_xattr.cc
                mcbp_mock_connection.h
-               set_vbucket_validator_test.cc
-               ${PROJECT_SOURCE_DIR}/protocol/connection/client_mcbp_commands.cc)
+               set_vbucket_validator_test.cc)
 target_link_libraries(memcached_mcbp_test
         PRIVATE
                 memcached_daemon
+                mc_client_connection
                 platform
                 hdrhistogram
                 GTest::gtest)
