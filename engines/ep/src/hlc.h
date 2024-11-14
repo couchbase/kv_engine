@@ -156,9 +156,7 @@ public:
     }
 
     bool isValidHLC(uint64_t hlc) const {
-        int64_t difference = getMasked48(hlc) - getMaskedTime();
-        uint64_t abs_diff = std::abs(difference);
-        return abs_diff < hlcMaxFutureThreshold;
+        return hlc < uint64_t(getMaskedTime() + hlcMaxFutureThreshold);
     }
 
     uint64_t getMaxHLC() const {
@@ -255,7 +253,7 @@ protected:
     std::atomic<uint32_t> driftBehindExceeded;
     std::atomic<uint64_t> driftAheadThreshold;
     std::atomic<uint64_t> driftBehindThreshold;
-    std::atomic<uint64_t> hlcMaxFutureThreshold;
+    std::atomic<int64_t> hlcMaxFutureThreshold;
 
     /**
      * Documents with a seqno >= epochSeqno have a HLC generated CAS.

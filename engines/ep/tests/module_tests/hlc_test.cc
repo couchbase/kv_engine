@@ -67,7 +67,7 @@ protected:
         // Currently don't care what threshold we have for ours tests,
         std::chrono::microseconds threshold;
         testHLC = std::make_unique<MockHLC<MockClock>>(
-                0, 0, threshold, threshold, threshold);
+                0, 0, threshold, threshold, std::chrono::microseconds{1000});
     }
 
     std::unique_ptr<MockHLC<MockClock>> testHLC;
@@ -102,6 +102,26 @@ TEST_F(HLCTest, RaceSameClockTime) {
 
     EXPECT_NE(threadCas, thisCas);
     EXPECT_EQ(1, testHLC->getLogicalClockTicks());
+}
+
+TEST_F(HLCTest, IsValidCas) {
+    // cas is ns
+    auto ts = testHLC->nextHLC();
+
+    auto thresholdNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                               std::chrono::microseconds{1000})
+                               .count();
+
+    // CAS of now and past is valid
+    EXPECT_TRUE(testHLC->isValidHLC(ts));
+    EXPECT_TRUE(testHLC->isValidHLC(ts - 1));
+
+    // CAS in slight future is tolerated
+    EXPECT_TRUE(testHLC->isValidHLC(ts + 1));
+
+    // But threshold cannot be exceeded
+    EXPECT_FALSE(testHLC->isValidHLC(ts + thresholdNs));
+    EXPECT_FALSE(testHLC->isValidHLC(std::numeric_limits<uint64_t>::max()));
 }
 
 class HLCBucketTest : public STParameterizedBucketTest {
