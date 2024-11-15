@@ -776,6 +776,14 @@ public:
         return numTempItemsAllowed;
     }
 
+    /**
+     * @returns true if the number of temp items stored is more than the
+     * allowed.
+     */
+    bool hasTooManyTempItems() const {
+        return getNumTempItems() > getNumTempItemsAllowed();
+    }
+
     void updateNumTempItemsAllowed() {
         const auto newValue = getSize() * tempItemsAllowedPercent() / 100;
         numTempItemsAllowed.store(newValue);

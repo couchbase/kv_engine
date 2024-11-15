@@ -2288,8 +2288,9 @@ cb::engine_errc VBucket::deleteItem(
             }
 
             // Non-existent or deleted key.
-            if (htRes.committed->isTempNonExistentItem() ||
-                htRes.committed->isTempDeletedItem()) {
+            if ((htRes.committed->isTempNonExistentItem() ||
+                 htRes.committed->isTempDeletedItem()) &&
+                ht.hasTooManyTempItems()) {
                 // Delete a temp non-existent item to ensure that
                 // if a delete were issued over an item that doesn't
                 // exist, then we don't preserve a temp item.
@@ -2962,8 +2963,7 @@ GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
         // should cleanup the SV (if requested) before returning ENOENT (so we
         // don't keep temp items in HT).
         if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
-            if ((options & DELETE_TEMP) ||
-                ht.getNumTempItems() > ht.getNumTempItemsAllowed()) {
+            if ((options & DELETE_TEMP) || ht.hasTooManyTempItems()) {
                 deleteStoredValue(res.lock, *v);
             }
             return {};
@@ -3110,7 +3110,9 @@ cb::engine_errc VBucket::getKeyStats(
         }
 
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-            deleteStoredValue(res.lock, *v);
+            if (ht.hasTooManyTempItems()) {
+                deleteStoredValue(res.lock, *v);
+            }
             return cb::engine_errc::no_such_key;
         }
         if (eviction == EvictionPolicy::Full && v->isTempInitialItem()) {

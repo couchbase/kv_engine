@@ -2153,6 +2153,69 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, RaceyFetchingDeletedMetaBgFetch) {
     EXPECT_FALSE(res.committed->isTempNonExistentItem());
 }
 
+/// MB-64150: Keep tempNonExistent and tempNonDeleted items in the HT
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, GetKeyStatsTempPreserved) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto key = makeStoredDocKey("key");
+    key_stats kstats;
+
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->getKeyStats(key, vbid, *cookie, kstats, WantsDeleted::Yes))
+            << "Expected to need to go to disk to get key stats";
+
+    // Manually run the BGFetcher task; creates tempNonExistent item.
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::no_such_key,
+              store->getKeyStats(key, vbid, *cookie, kstats, WantsDeleted::Yes))
+            << "Expected to not find the key";
+
+    // Keep the temp item in the HT.
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->getKeyStats(key, vbid, *cookie, kstats, WantsDeleted::Yes))
+            << "Expected to not find the key and not require BGFetch";
+}
+
+/// MB-64150: Keep tempNonExistent and tempNonDeleted items in the HT
+TEST_P(EPBucketFullEvictionNoBloomFilterTest, DeleteTempPreserved) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    const auto key = makeStoredDocKey("key");
+
+    uint64_t cas = 0;
+    mutation_descr_t mutation_descr;
+    ASSERT_EQ(cb::engine_errc::would_block,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                /*cookie*/ cookie,
+                                {},
+                                /*itemMeta*/ nullptr,
+                                mutation_descr))
+            << "Expected to need to go to disk to get key stats";
+
+    // Manually run the BGFetcher task; creates tempNonExistent item.
+    runBGFetcherTask();
+    ASSERT_EQ(cb::engine_errc::no_such_key,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                /*cookie*/ cookie,
+                                {},
+                                /*itemMeta*/ nullptr,
+                                mutation_descr))
+            << "Expected to not find the key";
+
+    // Keep the temp item in the HT.
+    ASSERT_EQ(cb::engine_errc::no_such_key,
+              store->deleteItem(key,
+                                cas,
+                                vbid,
+                                /*cookie*/ cookie,
+                                {},
+                                /*itemMeta*/ nullptr,
+                                mutation_descr))
+            << "Expected to not find the key and not require BGFetch";
+}
+
 TEST_P(EPBucketFullEvictionNoBloomFilterTest,
        DeletedMetaBgFetchCreatesTempDeletedItem) {
     // MB-50461: Verify that meta-only bgfetching a deleted item creates a
