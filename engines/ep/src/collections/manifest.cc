@@ -536,11 +536,6 @@ void Manifest::addCollectionStats(KVBucket& bucket,
 
                 collectionC.addStat(Key::collection_name, entry.name);
 
-                if (entry.maxTtl) {
-                    collectionC.addStat(Key::collection_maxTTL,
-                                        entry.maxTtl->count());
-                }
-
                 if (entry.metered == Metered::No) {
                     collectionC.addStat(Key::collection_metered, "no");
                 }

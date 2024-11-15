@@ -32,6 +32,7 @@
 #include "tests/module_tests/lambda_task.h"
 #include "thread_utilities.h"
 #include "trace_helpers.h"
+#include "utilities/test_manifest.h"
 #include "warmup.h"
 #include <gtest/gtest.h>
 #include <platform/semaphore.h>
@@ -1661,6 +1662,43 @@ TEST_F(StatTest, testConnAggStats) {
     }
 
     destroy_mock_cookie(mCookie);
+}
+
+/// Formats the labels into a string.
+std::string formatLabels(const ::prometheus::ClientMetric& metric) {
+    std::string selector{"{"};
+    auto it = std::back_inserter(selector);
+    for (auto& label : metric.label) {
+        it = fmt::format_to(it, "{}={},", label.name, label.value);
+    }
+    selector.push_back('}');
+    return selector;
+}
+
+/// Checks that metrics in the low and high groups are unique.
+TEST_F(StatTest, EngineMetricsAreUnique) {
+    CollectionsManifest cm;
+    // MB-64247: Ensure collection TTL is not duplcated.
+    cm.add(CollectionEntry::fruit, cb::ExpiryLimit(10), true);
+    setCollections(cookie, cm);
+
+    std::unordered_map<std::string, prometheus::MetricFamily> all;
+    PrometheusStatCollector collector(all);
+    BucketStatCollector bucketCollector(collector, "bucket");
+    engine->get_prometheus_stats(bucketCollector,
+                                 cb::prometheus::MetricGroup::High);
+    engine->get_prometheus_stats(bucketCollector,
+                                 cb::prometheus::MetricGroup::Low);
+
+    for (const auto& [name, family] : all) {
+        // Use a set of seen labels to find duplicates.
+        std::unordered_set<std::string> seenLabels;
+        for (const auto& metric : family.metric) {
+            auto labels = formatLabels(metric);
+            EXPECT_TRUE(seenLabels.insert(labels).second)
+                    << "Duplicate metric " << name << labels;
+        }
+    }
 }
 
 class CheckpointMemQuotaTest : public StatTest {
