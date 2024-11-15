@@ -1159,6 +1159,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                 OutstandingItemsResult::DiskCheckpointState();
         result.diskCheckpointState->highCompletedSeqno =
                 *itemsForCursor.highCompletedSeqno;
+        result.diskCheckpointState->purgeSeqno = itemsForCursor.purgeSeqno;
     }
 
     return result;
@@ -1645,7 +1646,6 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
 
         uint64_t snapStart = *seqnoStart;
         uint64_t snapEnd = *seqnoEnd;
-        uint64_t purgeSeqno = vb->getPurgeSeqno();
 
         // MB-50333: Pin the snapshot start seqno to the start seqno of the
         // checkpoint that the items we are processing belong to.
@@ -1708,9 +1708,14 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                        ? std::make_optional(maxVisibleSeqno)
                                        : std::nullopt;
 
-        const auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
-                                      ? std::make_optional(purgeSeqno)
-                                      : std::nullopt;
+        const auto sendPurgeSeqno = (maxMarkerVersion == MarkerVersion::V2_2) &&
+                                    isDiskCheckpointType(meta.checkpointType);
+
+        std::optional<uint64_t> psToSend;
+        if (sendPurgeSeqno) {
+            Expects(meta.diskCheckpointState);
+            psToSend = meta.diskCheckpointState->purgeSeqno;
+        }
 
         pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                       vb_,
@@ -2736,9 +2741,15 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
     start = adjustStartIfFirstSnapshot(start, true);
     const auto flags = getMarkerFlags(meta);
     const auto vb = engine->getVBucket(vb_);
-    const auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
-                                  ? std::make_optional(vb->getPurgeSeqno())
-                                  : std::nullopt;
+
+    const auto sendPurgeSeqno = (maxMarkerVersion == MarkerVersion::V2_2) &&
+                                isDiskCheckpointType(meta.checkpointType);
+
+    std::optional<uint64_t> psToSend;
+    if (sendPurgeSeqno) {
+        Expects(meta.diskCheckpointState);
+        psToSend = meta.diskCheckpointState->purgeSeqno;
+    }
 
     pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                   vb_,

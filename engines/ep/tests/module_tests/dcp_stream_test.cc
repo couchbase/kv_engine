@@ -6421,7 +6421,7 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_InMemory) {
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 }
 
 TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
@@ -6556,8 +6556,7 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_TRUE(snapMarker.getPurgeSeqno().has_value());
-    EXPECT_EQ(purgeSeqno, snapMarker.getPurgeSeqno());
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 }
 
 TEST_P(SingleThreadedActiveStreamTest,
@@ -6637,7 +6636,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
@@ -6695,7 +6694,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
@@ -6760,7 +6759,7 @@ TEST_P(SingleThreadedActiveStreamTest,
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-    EXPECT_EQ(0, snapMarker.getPurgeSeqno());
+    EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
 
     resp = stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
@@ -6955,6 +6954,122 @@ TEST_P(SingleThreadedActiveStreamTest, backfillYieldsAfterDurationLimit) {
     EXPECT_EQ(DcpResponse::Event::Mutation,
               stream->public_nextQueuedItem(*producer)->getEvent());
     EXPECT_EQ(1, stream->getNumBackfillPauses());
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, PurgeSeqnoInDiskCheckpoint) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    const auto& ckptList = manager.getCheckpointList();
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_EQ(CheckpointType::Memory, ckptList.front()->getCheckpointType());
+    ASSERT_EQ(0, ckptList.front()->getSnapshotStartSeqno());
+    ASSERT_EQ(0, ckptList.front()->getSnapshotEndSeqno());
+    // cs, vbs
+    ASSERT_EQ(2, ckptList.front()->getNumItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    // Replica receives a complete disk snapshot {keyA:1, keyB:2}
+    const uint32_t opaque = 1;
+    const uint64_t snapStart = 1;
+    const uint64_t snapEnd = 3;
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            consumer->snapshotMarker(opaque,
+                                     vbid,
+                                     snapStart,
+                                     snapEnd,
+                                     DcpSnapshotMarkerFlag::Disk |
+                                             DcpSnapshotMarkerFlag::Checkpoint,
+                                     {} /*HCS*/,
+                                     {} /*maxVisibleSeqno*/,
+                                     2));
+
+    const auto keyA = makeStoredDocKey("keyA");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 keyA,
+                                 {},
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 snapStart,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+    const auto keyB = makeStoredDocKey("keyB");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 keyB,
+                                 {},
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 snapEnd,
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    ASSERT_EQ(1, ckptList.size());
+    ASSERT_TRUE(ckptList.front()->isDiskCheckpoint());
+    ASSERT_EQ(1, ckptList.front()->getSnapshotStartSeqno());
+    ASSERT_EQ(3, ckptList.front()->getSnapshotEndSeqno());
+    ASSERT_EQ(3, ckptList.front()->getNumItems());
+    ASSERT_EQ(3, manager.getHighSeqno());
+
+    consumer->closeStream(opaque, vbid);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto* cookie1 = create_mock_cookie();
+    cookie1->setCollectionsSupport(true);
+    auto producer = std::make_shared<MockDcpProducer>(*engine,
+                                                 cookie1,
+                                                 "test_producer->test_consumer",
+                                                 cb::mcbp::DcpOpenFlag::None,
+                                                 false /*startTask*/);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0 /*opaque*/, "max_marker_version", "2.2"));
+
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    const auto& activeStream = producer->mockActiveStreamRequest(
+            {},
+            0 /*opaque*/,
+            vb,
+            0 /*st_seqno*/,
+            ~0 /*en_seqno*/,
+            0x0 /*vb_uuid*/,
+            0 /*snap_start_seqno*/,
+            ~0 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            producer->public_getMaxMarkerVersion(),
+            {});
+
+    ASSERT_TRUE(activeStream->isInMemory());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    MockDcpMessageProducers producers;
+    runCheckpointProcessor(*producer, producers);
+
+    // One snapshot marker & two mutation.
+    EXPECT_EQ(3, activeStream->public_readyQSize());
+
+    auto resp = activeStream->next(*producer);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    // Expect to find the purgeSeqno set on the initial disk checkpoint.
+    EXPECT_EQ(2, snapMarker.getPurgeSeqno());
+    destroy_mock_cookie(cookie1);
 }
 
 TEST_P(SingleThreadedActiveStreamTest, backfillCompletesWithoutYielding) {

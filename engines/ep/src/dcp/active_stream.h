@@ -397,6 +397,10 @@ public:
              * The HCS of the original disk snapshot
              */
             uint64_t highCompletedSeqno;
+            /**
+             * The Purge Seqno of the original disk snapshot
+             */
+            uint64_t purgeSeqno;
         };
 
         /**

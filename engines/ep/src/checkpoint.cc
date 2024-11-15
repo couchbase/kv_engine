@@ -773,6 +773,7 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
        << " type:" << to_string(c.getCheckpointType());
     const auto hps = c.getHighPreparedSeqno();
     os << " hps:" << (hps ? std::to_string(hps.value()) : "none ");
+    os << " purgeSeqno:" << c.getPurgeSeqno();
     const auto hcs = c.getHighCompletedSeqno();
     os << " hcs:" << (hcs ? std::to_string(hcs.value()) : "none ") << " items:["
        << std::endl;
