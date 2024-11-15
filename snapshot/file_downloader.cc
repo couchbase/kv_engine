@@ -12,6 +12,7 @@
 #include "manifest.h"
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <platform/crc32c.h>
 #include <platform/string_utilities.h>
 #include <platform/timeutils.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -63,6 +64,10 @@ public:
         return getMaxChunkSizeImpl(fsync_size);
     }
 
+    [[nodiscard]] bool supportsChecksum() const override {
+        return true;
+    }
+
 protected:
     static std::size_t getMaxChunkSizeImpl(std::size_t fsync_size) {
         return std::min(static_cast<std::size_t>(50 * 1024 * 1024), fsync_size);
@@ -77,6 +82,16 @@ size_t MemcachedClientFileDownloader::downloadFileFragment(
         throw ConnectionError("Failed to fetch fragment", rsp);
     }
     auto data = rsp.getDataView();
+    Expects(data.size() >= sizeof(uint32_t));
+    auto checksum_view = data.substr(data.size() - sizeof(uint32_t));
+    data.remove_suffix(sizeof(uint32_t));
+    uint32_t checksum;
+    std::copy(checksum_view.begin(), checksum_view.end(), &checksum);
+    checksum = ntohl(checksum);
+    if (crc32c(data, 0) != checksum) {
+        throw std::runtime_error("Invalid checksum");
+    }
+
     fwriteData(fp, data);
     fsync(fileno(fp));
     return data.size();
@@ -111,6 +126,10 @@ protected:
         // (we could probably go up to uint32_t max, but ehh.. do we
         // really need to?)
         return std::numeric_limits<int32_t>::max();
+    }
+
+    [[nodiscard]] bool supportsChecksum() const override {
+        return false;
     }
 
     void sendBinprotCommand(const BinprotGenericCommand& cmd) const;

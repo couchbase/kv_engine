@@ -100,7 +100,8 @@ protected:
     /// implementation which copies the entire response packet into memory
     /// don't want to allocate lets say 2GB of memory ;)
     [[nodiscard]] virtual std::size_t getMaxChunkSize() const = 0;
-
+    /// Does the downloader support requesting checksum?
+    [[nodiscard]] virtual bool supportsChecksum() const = 0;
     /**
      * Protected constructor as this is a pure virtual class which needs to
      * be created from the factory method
