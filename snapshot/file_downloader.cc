@@ -10,11 +10,13 @@
 
 #include "file_downloader.h"
 #include "manifest.h"
+
+#include <cbcrypto/digest.h>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <platform/crc32c.h>
+#include <platform/json_log_conversions.h>
 #include <platform/string_utilities.h>
-#include <platform/timeutils.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <filesystem>
 
@@ -263,7 +265,7 @@ std::unique_ptr<FileDownloader> FileDownloader::create(
             std::move(log_callback));
 }
 
-void FileDownloader::download(const FileInfo& meta) {
+bool FileDownloader::download(const FileInfo& meta) {
     std::size_t size = meta.size;
 
     std::filesystem::path local = directory / meta.path;
@@ -275,11 +277,15 @@ void FileDownloader::download(const FileInfo& meta) {
     if (exists(local)) {
         offset = file_size(local);
         if (size == offset) {
-            // we already have the file
-            log_callback(info,
-                         "Skipping file; already downloaded",
-                         {{"path", meta.path.string()}, {"size", size}});
-            return;
+            if (validateChecksum(local, meta)) {
+                // we already have the file
+                log_callback(info,
+                             "Skipping file; already downloaded",
+                             {{"path", meta.path.string()}, {"size", size}});
+                return true;
+            }
+            // Checksum error.. Remove the file and try again
+            remove(local);
         }
     }
 
@@ -289,18 +295,18 @@ void FileDownloader::download(const FileInfo& meta) {
 
     nlohmann::json file_meta{{"id", meta.id}};
     std::size_t chunksize = getMaxChunkSize();
+    bool checksum = supportsChecksum();
 
     const auto start = std::chrono::steady_clock::now();
     while (offset < size) {
         std::size_t chunk = std::min(size - offset, chunksize);
         file_meta["offset"] = std::to_string(offset);
         file_meta["length"] = std::to_string(chunk);
+        if (checksum) {
+            file_meta["checksum"] = "crc32c";
+        }
 
-        log_callback(info,
-                     "Request fragment",
-                     {{"path", meta.path.string()},
-                      {"offset", offset},
-                      {"chunk", chunk}});
+        log_callback(info, "Request fragment", {{"chunk", file_meta}});
 
         try {
             downloadFileFragment(
@@ -315,13 +321,26 @@ void FileDownloader::download(const FileInfo& meta) {
         }
         offset += chunk;
     }
+    (void)fclose(fp);
     const auto end = std::chrono::steady_clock::now();
+
+    if (!validateChecksum(local, meta)) {
+        log_callback(
+                warn,
+                "Fetch file complete invalid checksum",
+                {{"path", meta.path.string()},
+                 {"duration", end - start},
+                 {"throughput", cb::calculateThroughput(size, end - start)}});
+        remove(local);
+        return false;
+    }
+
     log_callback(info,
                  "Fetch file complete",
                  {{"path", meta.path.string()},
-                  {"duration", cb::time2text(end - start)},
+                  {"duration", end - start},
                   {"throughput", cb::calculateThroughput(size, end - start)}});
-    (void)fclose(fp);
+    return true;
 }
 
 void FileDownloader::fwriteData(FILE* fp, std::string_view data) const {
@@ -330,6 +349,29 @@ void FileDownloader::fwriteData(FILE* fp, std::string_view data) const {
                 std::make_error_code(static_cast<std::errc>(errno)),
                 "fwrite failed");
     }
+}
+bool FileDownloader::validateChecksum(const std::filesystem::path& file,
+                                      const FileInfo& meta) const {
+    if (meta.sha512.empty()) {
+        return true;
+    }
+
+    try {
+        auto generated = cb::crypto::sha512sum(file, meta.size);
+        if (meta.sha512 == generated) {
+            return true;
+        }
+        log_callback(warn,
+                     "File checksum failed",
+                     {{"path", file.string()},
+                      {"expected", meta.sha512},
+                      {"calculated", generated}});
+    } catch (const std::exception& e) {
+        log_callback(warn,
+                     "Failed to calculate SHA-512",
+                     {{"path", file.string()}, {"error", e.what()}});
+    }
+    return false;
 }
 
 FILE* FileDownloader::openFile(const std::filesystem::path& filename) const {

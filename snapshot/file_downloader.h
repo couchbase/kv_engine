@@ -62,7 +62,7 @@ public:
      *
      * @param meta The meta information describing the file to download
      */
-    void download(const FileInfo& meta);
+    bool download(const FileInfo& meta);
 
 protected:
     /**
@@ -84,6 +84,17 @@ protected:
      * @throws std::exception for file write errors
      */
     void fwriteData(FILE* fp, std::string_view data) const;
+
+    /**
+     * Validate the checksum for the provided file as match the checksum
+     * in the provided meta.
+     *
+     * @param file the file to check
+     * @param meta the metadata for the file (size and checksum)
+     * @return true if the file match the checksum, false otherwise
+     */
+    bool validateChecksum(const std::filesystem::path& file,
+                          const FileInfo& meta) const;
 
     /**
      * Open a file stream for appending for the provided path and create

@@ -25,12 +25,25 @@ void download(std::unique_ptr<MemcachedConnection> connection,
                                              50 * 1024 * 1024,
                                              log_callback);
 
+    auto download_with_retry = [&downloader](auto& file) -> void {
+        int retry = 5;
+        while (retry > 0) {
+            if (downloader->download(file)) {
+                return;
+            }
+            --retry;
+        }
+        throw std::runtime_error(fmt::format(
+                "Failed to download \"{}\" after 5 attempts. Giving up.",
+                file.path.string()));
+    };
+
     for (const auto& file : snapshot.files) {
-        downloader->download(file);
+        download_with_retry(file);
     }
 
     for (const auto& file : snapshot.deks) {
-        downloader->download(file);
+        download_with_retry(file);
     }
 }
 } // namespace cb::snapshot
