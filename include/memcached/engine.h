@@ -919,7 +919,7 @@ struct EngineIface {
      * @return the error code for the operation.
      */
     [[nodiscard]] virtual cb::engine_errc download_snapshot(
-            CookieIface& cookie, std::string_view metadata) {
+            CookieIface& cookie, Vbid vbid, std::string_view metadata) {
         return cb::engine_errc::not_supported;
     }
 

@@ -9,15 +9,18 @@
  */
 
 #include "clustertest.h"
-
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <cluster_framework/node.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <platform/base64.h>
+#include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <snapshot/download_properties.h>
+#include <snapshot/manifest.h>
 #include <tests/testapp/testapp_subdoc_common.h>
 
 #include <string>
@@ -698,4 +701,25 @@ TEST_F(BasicClusterTest, DISABLED_OAUTHBEARER) {
 
     // now that we've waited the "not before time" should have passed
     notReadyConn->selectBucket("default");
+}
+
+TEST_F(BasicClusterTest, Snapshots) {
+    auto bucket = cluster->getBucket("default");
+    auto conn = bucket->getAuthedConnection(Vbid(0));
+    auto replica = bucket->getAuthedConnection(Vbid(0), vbucket_state_replica);
+
+    cb::snapshot::DownloadProperties properties;
+    properties.hostname = conn->getFamily() == AF_INET ? "127.0.0.1" : "::1";
+    properties.port = conn->getPort();
+    properties.bucket = "default";
+    properties.sasl = {"PLAIN", "@admin", "password"};
+
+    BinprotGenericCommand download(ClientOpcode::DownloadSnapshot,
+                                   {},
+                                   nlohmann::json(properties).dump());
+    download.setVBucket(Vbid{0});
+    download.setDatatype(cb::mcbp::Datatype::JSON);
+
+    auto rsp = replica->execute(download);
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
 }

@@ -243,6 +243,7 @@ public:
             const std::function<void(const nlohmann::json&)>& callback)
             override;
     cb::engine_errc download_snapshot(CookieIface& cookie,
+                                      Vbid vbid,
                                       std::string_view metadata) override;
     cb::engine_errc get_snapshot_file_info(
             CookieIface& cookie,
@@ -1380,8 +1381,9 @@ cb::engine_errc EWB_Engine::prepare_snapshot(
     return real_engine->prepare_snapshot(cookie, vbid, callback);
 }
 cb::engine_errc EWB_Engine::download_snapshot(CookieIface& cookie,
+                                              Vbid vbid,
                                               std::string_view metadata) {
-    return real_engine->download_snapshot(cookie, metadata);
+    return real_engine->download_snapshot(cookie, vbid, metadata);
 }
 cb::engine_errc EWB_Engine::get_snapshot_file_info(
         CookieIface& cookie,

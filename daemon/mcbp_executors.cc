@@ -287,10 +287,18 @@ static void release_snapshot_executor(Cookie& cookie) {
 static void download_snapshot_executor(Cookie& cookie) {
     if (cookie.getConnection().getBucket().supports(
                 cb::engine::Feature::Persistence)) {
-        cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
-                  return c.getConnection().getBucketEngine().download_snapshot(
-                          c, c.getRequest().getValueString());
-              }).drive();
+        cookie.obtainContext<SingleStateCommandContext>(
+                      cookie,
+                      [](Cookie& c) {
+                          return c.getConnection()
+                                  .getBucketEngine()
+                                  .download_snapshot(
+                                          c,
+                                          c.getRequest().getVBucket(),
+                                          c.getRequest().getValueString());
+                      },
+                      cb::mcbp::Datatype::JSON)
+                .drive();
     } else {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
     }

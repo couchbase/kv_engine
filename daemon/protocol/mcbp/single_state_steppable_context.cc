@@ -14,15 +14,22 @@
  *   limitations under the License.
  */
 #include "single_state_steppable_context.h"
+
+#include <daemon/connection.h>
 #include <daemon/cookie.h>
 
 SingleStateCommandContext::SingleStateCommandContext(
-        Cookie& cookie, std::function<cb::engine_errc(Cookie&)> handler)
-    : SteppableCommandContext(cookie), handler(std::move(handler)) {
+        Cookie& cookie,
+        std::function<cb::engine_errc(Cookie&)> handler,
+        cb::mcbp::Datatype successDatatype)
+    : SteppableCommandContext(cookie),
+      handler(std::move(handler)),
+      successDatatype(successDatatype) {
 }
 
 cb::engine_errc SingleStateCommandContext::step() {
     auto ret = cb::engine_errc::success;
+    std::string blob;
     do {
         switch (state) {
         case State::Wait:
@@ -32,8 +39,14 @@ cb::engine_errc SingleStateCommandContext::step() {
             }
             break;
         case State::Done:
+            blob = cookie.getErrorContext();
             cookie.sendResponse(
-                    cb::engine_errc::success, {}, cookie.getErrorContext());
+                    cb::engine_errc::success,
+                    {},
+                    {},
+                    cookie.getErrorContext(),
+                    blob.empty() ? cb::mcbp::Datatype::Raw : successDatatype,
+                    cookie.getCas());
             return cb::engine_errc::success;
         }
     } while (ret == cb::engine_errc::success);

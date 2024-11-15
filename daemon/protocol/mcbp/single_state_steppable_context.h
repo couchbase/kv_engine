@@ -10,6 +10,7 @@
 #pragma once
 
 #include "steppable_command_context.h"
+#include <mcbp/protocol/datatype.h>
 #include <functional>
 
 /**
@@ -29,11 +30,14 @@
 class SingleStateCommandContext : public SteppableCommandContext {
 public:
     explicit SingleStateCommandContext(
-            Cookie& cookie, std::function<cb::engine_errc(Cookie&)> handler);
+            Cookie& cookie,
+            std::function<cb::engine_errc(Cookie&)> handler,
+            cb::mcbp::Datatype successDatatype = cb::mcbp::Datatype::Raw);
 
 protected:
     cb::engine_errc step() override;
     const std::function<cb::engine_errc(Cookie&)> handler;
+    const cb::mcbp::Datatype successDatatype;
     enum class State { Wait, Done };
     State state = State::Wait;
 };
