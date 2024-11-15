@@ -709,6 +709,14 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     ASSERT_EQ(3, resp->getBySeqno());
 }
 
+TEST_F(SingleThreadedEphemeralTest, no_prepare_snapshot) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    nlohmann::json manifest;
+    EXPECT_EQ(cb::engine_errc::not_supported,
+              engine->prepare_snapshot(
+                      *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
+}
+
 class SingleThreadedEphemeralPurgerTest : public SingleThreadedKVBucketTest {
 protected:
     void SetUp() override {

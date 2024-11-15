@@ -68,6 +68,10 @@ namespace cb::audit::document {
 enum class Operation;
 }
 
+namespace cb::snapshot {
+class Cache;
+}
+
 /**
     To allow Engines to run tasks.
 **/
@@ -309,6 +313,21 @@ public:
                               Vbid vbucket) override;
     [[nodiscard]] cb::engine_errc set_active_encryption_keys(
             const nlohmann::json& json) override;
+    [[nodiscard]] cb::engine_errc prepare_snapshot(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::function<void(const nlohmann::json&)>& callback)
+            override;
+    [[nodiscard]] cb::engine_errc download_snapshot(
+            CookieIface& cookie, Vbid vbid, std::string_view metadata) override;
+    [[nodiscard]] cb::engine_errc get_snapshot_file_info(
+            CookieIface& cookie,
+            std::string_view uuid,
+            std::size_t file_id,
+            const std::function<void(const nlohmann::json&)>& callback)
+            override;
+    [[nodiscard]] cb::engine_errc release_snapshot(
+            CookieIface& cookie, std::string_view uuid) override;
 
     /////////////////////////////////////////////////////////////
     // DcpIface implementation //////////////////////////////////
@@ -888,7 +907,20 @@ public:
 
     [[nodiscard]] cb::engine_errc setActiveEncryptionKeys(
             const nlohmann::json& json);
-
+    [[nodiscard]] cb::engine_errc prepareSnapshot(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::function<void(const nlohmann::json&)>& callback);
+    [[nodiscard]] cb::engine_errc downloadSnapshot(CookieIface& cookie,
+                                                   Vbid vbid,
+                                                   std::string_view metadata);
+    [[nodiscard]] cb::engine_errc getSnapshotFileInfo(
+            CookieIface& cookie,
+            std::string_view uuid,
+            std::size_t file_id,
+            const std::function<void(const nlohmann::json&)>& callback);
+    [[nodiscard]] cb::engine_errc releaseSnapshot(CookieIface& cookie,
+                                                  std::string_view uuid);
     /**
      * Create an Item with the following parameters if the mutation watermark
      * will not be exceeded. If successful, the engine error code is set to
@@ -1670,6 +1702,10 @@ protected:
      * be incorrect.
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
+
+    /// The snapshot manager responsible for keeping track of all snapshots
+    /// for this bucket
+    std::unique_ptr<cb::snapshot::Cache> snapshotCache;
 
     /// The encryption key provider used to store keys and notify others when
     /// the list of keys change

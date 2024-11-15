@@ -721,5 +721,38 @@ TEST_F(BasicClusterTest, Snapshots) {
     download.setDatatype(cb::mcbp::Datatype::JSON);
 
     auto rsp = replica->execute(download);
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
+                                 << rsp.getDataView();
+
+    cb::snapshot::Manifest snapshotManifest = rsp.getDataJson();
+
+    // try to locate the vbucket snapshot and verify that all files exists
+    const auto nodeid = fmt::format("n_{}", bucket->getVbucketMap()[0][1]);
+    std::optional<std::filesystem::path> path;
+    cluster->iterateNodes([nodeid, &path](const auto& node) {
+        if (node.getId() == nodeid) {
+            path = node.directory;
+        }
+    });
+
+    EXPECT_TRUE(path.has_value())
+            << "Failed to locate directory for " << nodeid;
+
+    std::filesystem::path snapshot =
+            *path / "default" / "snapshots" / snapshotManifest.uuid;
+    EXPECT_TRUE(std::filesystem::exists(snapshot));
+
+    cb::snapshot::Manifest manifestOnDisk =
+            nlohmann::json::parse(cb::io::loadFile(snapshot / "manifest.json"));
+    EXPECT_EQ(snapshotManifest, manifestOnDisk);
+
+    for (auto& file : snapshotManifest.files) {
+        EXPECT_TRUE(exists(snapshot / file.path));
+        EXPECT_EQ(file.size, file_size(snapshot / file.path));
+    }
+    for (auto& file : snapshotManifest.deks) {
+        EXPECT_TRUE(exists(snapshot / file.path));
+        EXPECT_EQ(file.size, file_size(snapshot / file.path));
+    }
+    // @todo promote the snapshots
 }

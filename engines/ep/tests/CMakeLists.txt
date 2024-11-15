@@ -124,6 +124,8 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/range_scan_test.cc
         module_tests/secondary_warmup_test.cc
         module_tests/snapshots/cache_test.cc
+        module_tests/snapshots/snapshot_engine_test.cc
+        module_tests/snapshots/snapshots_test.cc
         module_tests/stats_test.cc
         module_tests/storeddockey_test.cc
         module_tests/stored_value_test.cc

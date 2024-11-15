@@ -146,7 +146,15 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
     manifest.uuid = ::to_string(cb::uuid::random());
     manifest.vbid = vbid;
     create_directories(path / manifest.uuid);
-    auto rv = executor(path / manifest.uuid, vbid, manifest);
+    cb::engine_errc rv;
+    try {
+        rv = executor(path / manifest.uuid, vbid, manifest);
+    } catch (const std::exception&) {
+        std::error_code ec;
+        remove_all(path / manifest.uuid, ec);
+        throw;
+    }
+
     if (rv == engine_errc::success) {
         // Add checksums for all files in the snapshot
         for (auto& file : manifest.files) {

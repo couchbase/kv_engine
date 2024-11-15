@@ -21,6 +21,7 @@
 #include "mock_ep_bucket.h"
 #include "mock_ephemeral_bucket.h"
 #include "objectregistry.h"
+#include "snapshots/cache.h"
 #include <executor/executorpool.h>
 #include <fmt/format.h>
 #include <platform/cb_arena_malloc.h>
@@ -143,6 +144,8 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
                             dbName,
                             error.code().message()));
     }
+
+    engine->snapshotCache = std::make_unique<cb::snapshot::Cache>(dbName);
 
     // Make sure the cached configuration parameters normally initialised in
     // EPEngine::initialise() are also initialised.
