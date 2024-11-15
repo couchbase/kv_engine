@@ -23,8 +23,8 @@ struct FileInfo {
     FileInfo(std::filesystem::path p,
              std::size_t s,
              std::size_t i,
-             std::optional<uint32_t> crc = std::nullopt)
-        : path(std::move(p)), size(s), id(i), crc32c(std::move(crc)) {
+             std::string sha512 = {})
+        : path(std::move(p)), size(s), id(i), sha512(std::move(sha512)) {
         // Empty
     }
     /// The relative path of the file within the snapshot
@@ -35,12 +35,12 @@ struct FileInfo {
     std::size_t size = 0;
     /// A number identifying this file within the snapshot
     std::size_t id = 0;
-    /// An optional crc32c (or should we use a different checksum?)
-    std::optional<uint32_t> crc32c;
+    /// An optional SHA-512
+    std::string sha512;
 
     friend bool operator==(const FileInfo& lhs, const FileInfo& rhs) {
         return lhs.path == rhs.path && lhs.size == rhs.size &&
-               lhs.id == rhs.id && lhs.crc32c == rhs.crc32c;
+               lhs.id == rhs.id && lhs.sha512 == rhs.sha512;
     }
     friend bool operator!=(const FileInfo& lhs, const FileInfo& rhs) {
         return !(lhs == rhs);
