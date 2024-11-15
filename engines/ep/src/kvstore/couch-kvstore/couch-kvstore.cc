@@ -40,6 +40,7 @@
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
+#include <snapshot/manifest.h>
 #include <spdlog/common.h>
 #include <charconv>
 #include <memory>
@@ -2058,6 +2059,43 @@ CouchKVStore::getVbucketEncryptionKeyIds(Vbid vb) const {
     // Not encrypted
     cb::crypto::DataEncryptionKey unencrypted;
     return {cb::engine_errc::success, {unencrypted.getId()}};
+}
+
+cb::engine_errc CouchKVStore::prepareSnapshot(
+        const std::filesystem::path& snapshotDirectory,
+        Vbid vb,
+        cb::snapshot::Manifest& manifest) {
+    DbHolder db(*this);
+    couchstore_error_t err = openDB(vb, db, COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (err != COUCHSTORE_SUCCESS) {
+        logOpenError(__func__,
+                     spdlog::level::level_enum::warn,
+                     err,
+                     vb,
+                     db.getFilename(),
+                     COUCHSTORE_OPEN_FLAG_RDONLY);
+        return cb::engine_errc::failed;
+    }
+
+    std::size_t fileid = 1;
+    std::filesystem::path path = db.getFilename();
+    std::filesystem::path root = dbname;
+    auto source = root / path.filename();
+    auto target = snapshotDirectory / source.filename();
+    create_hard_link(source, target);
+    manifest.files.emplace_back(target.filename(), file_size(target), fileid++);
+
+    if (cb::couchstore::isEncrypted(*db)) {
+        const auto id = cb::couchstore::getEncryptionKeyId(*db);
+        source = root / "deks" / id;
+        target = snapshotDirectory / "deks" / id;
+        create_directories(snapshotDirectory / "deks");
+        copy_file(source, target);
+        manifest.deks.emplace_back(
+                fmt::format("deks/{}", id), file_size(target), fileid++);
+    }
+
+    return cb::engine_errc::success;
 }
 
 bool CouchKVStore::getStat(std::string_view name, size_t& value) const {

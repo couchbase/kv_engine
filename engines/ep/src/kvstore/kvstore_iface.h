@@ -51,6 +51,10 @@ namespace VB {
 class Commit;
 }
 
+namespace cb::snapshot {
+struct Manifest;
+} // namespace cb::snapshot
+
 /**
  * When fetching documents from disk, what form should the value be returned?
  */
@@ -174,6 +178,24 @@ public:
     getVbucketEncryptionKeyIds(Vbid vb) const {
         return {cb::engine_errc::not_supported, {}};
     }
+
+    /**
+     * Prepare a snapshot.
+     *
+     * All files in the snapshot should be relative to the snapshot directory.
+     * If the method fails (or an exception is thrown) the information in
+     * the manifest will be discarded and the snapshot directory will be
+     * removed by the caller.
+     *
+     * @param snapshotDirectory the destination directory for the snapshot
+     * @param vb The vbucket to create the snapshot for
+     * @param manifest The snapshot manifest to populate with information
+     * @return status of the operation
+     */
+    virtual cb::engine_errc prepareSnapshot(
+            const std::filesystem::path& snapshotDirectory,
+            Vbid vb,
+            cb::snapshot::Manifest& manifest);
 
     /**
      * Request the specified statistic name from the kvstore.
