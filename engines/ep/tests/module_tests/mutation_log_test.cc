@@ -398,7 +398,7 @@ TEST_F(MutationLogTest, YUNOOPEN) {
     set_file_perms(FilePerms::Read | FilePerms::Write);
 }
 
-class MockFileIface : public mlog::FileIface {
+class MockFileIface : public mlog::DefaultFileIface {
 public:
     MOCK_METHOD(
             ssize_t,

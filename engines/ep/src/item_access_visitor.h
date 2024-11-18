@@ -67,4 +67,6 @@ private:
     uint64_t items_scanned = 0;
     // The number of items to scan before we pause
     const uint64_t items_to_scan;
+    // Write to disk, while persisting mutation log failed?
+    bool writeFailed = false;
 };

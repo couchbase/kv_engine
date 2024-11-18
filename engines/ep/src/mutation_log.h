@@ -95,6 +95,14 @@ struct FileIface {
                            const void* buf,
                            size_t nbyte,
                            uint64_t offset) = 0;
+
+    /**
+     * Write `nbytes` of data from `buf` to the specified 'fd' at the current
+     * offset.
+     */
+    virtual ssize_t doWrite(file_handle_t fd,
+                            const uint8_t* buf,
+                            size_t nbytes) = 0;
 };
 
 /**
@@ -107,6 +115,9 @@ struct DefaultFileIface : public FileIface {
                    const void* buf,
                    size_t nbyte,
                    uint64_t offset) override;
+    ssize_t doWrite(file_handle_t fd,
+                    const uint8_t* buf,
+                    size_t nbytes) override;
 };
 
 } // namespace mlog
@@ -251,6 +262,13 @@ public:
      * This is used by the loader as part of initialization.
      */
     void resetCounts(size_t *);
+
+    /**
+     * Write `nbytes` of data from `buf` to the specified 'fd' at the current
+     * offset.
+     */
+
+    bool writeFully(file_handle_t fd, const uint8_t* buf, size_t nbytes);
 
     /**
      * Exception thrown upon failure to write a mutation log.

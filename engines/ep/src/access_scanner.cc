@@ -88,25 +88,48 @@ void ItemAccessVisitor::update(Vbid vbid) {
 }
 
 void ItemAccessVisitor::visitBucket(VBucket& vb) {
-    update(vb.getId());
+    try {
+        update(vb.getId());
 
-    HashTable::Position ht_start;
-    if (vBucketFilter(vb.getId())) {
-        while (ht_start != vb.ht.endPosition()) {
-            ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
-            update(vb.getId());
-            log->commit1();
-            log->commit2();
-            items_scanned = 0;
+        HashTable::Position ht_start;
+        if (vBucketFilter(vb.getId())) {
+            while (ht_start != vb.ht.endPosition()) {
+                ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
+                update(vb.getId());
+                log->commit1();
+                log->commit2();
+                items_scanned = 0;
+            }
         }
+    } catch (const MutationLog::WriteException& e) {
+        EP_LOG_WARN_CTX("Failed to write new access log to disk",
+                        {"path", next},
+                        {"error", e.what()});
+        writeFailed = true;
+        log->disable();
     }
 }
 
 void ItemAccessVisitor::complete() {
     size_t num_items = log->itemsLogged[int(MutationLogType::New)];
-    log->commit1();
-    log->commit2();
-    log.reset();
+    try {
+        log->commit1();
+        log->commit2();
+        log.reset();
+    } catch (const MutationLog::WriteException& e) {
+        EP_LOG_WARN_CTX("Failed to write new access log to disk",
+                        {"path", next},
+                        {"error", e.what()});
+        writeFailed = true;
+        log->disable();
+    }
+
+    // Writing the new access log to disk failed, skip replacing the current
+    // access log.
+    if (writeFailed) {
+        remove(next.c_str());
+        return;
+    }
 
     stats.alogRuntime.store(ep_real_time() - startTime);
     stats.alogNumItems.store(num_items);
