@@ -34,7 +34,9 @@ public:
                       uint16_t sh,
                       std::atomic<bool>& sfin,
                       AccessScanner& aS,
-                      uint64_t items_to_scan);
+                      uint64_t items_to_scan,
+                      std::unique_ptr<mlog::FileIface> fileIface =
+                              std::make_unique<mlog::DefaultFileIface>());
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
     void visitBucket(VBucket& vb) override;
     void complete() override;
@@ -83,4 +85,6 @@ private:
     uint64_t items_scanned;
     // The number of items to scan before we pause
     const uint64_t items_to_scan;
+    // Write to disk, while persisting mutation log failed?
+    bool writeFailed = false;
 };

@@ -64,8 +64,9 @@ ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
     return byteswritten;
 }
 
-static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
-                              size_t nbytes) {
+ssize_t mlog::DefaultFileIface::doWrite(file_handle_t fd,
+                                        const uint8_t* buf,
+                                        size_t nbytes) {
     DWORD byteswritten;
     if (!WriteFile(fd, buf, nbytes, &byteswritten, NULL)) {
         /* luckily we don't check errno so we don't need to care about that */
@@ -157,8 +158,9 @@ ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
     return ::pwrite(fd, buf, nbyte, offset);
 }
 
-static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
-                              size_t nbytes) {
+ssize_t mlog::DefaultFileIface::doWrite(file_handle_t fd,
+                                        const uint8_t* buf,
+                                        size_t nbytes) {
     ssize_t ret;
     while ((ret = write(fd, buf, nbytes)) == -1 && (errno == EINTR)) {
         /* Retry */
@@ -238,11 +240,12 @@ int64_t getFileSize(file_handle_t fd) {
 }
 #endif
 
-
-static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
+bool MutationLog::writeFully(file_handle_t fd,
+                             const uint8_t* buf,
+                             size_t nbytes) {
     while (nbytes > 0) {
         try {
-            ssize_t written = doWrite(fd, buf, nbytes);
+            ssize_t written = fileIface->doWrite(fd, buf, nbytes);
             nbytes -= written;
             buf += written;
         } catch (std::system_error&) {
@@ -700,7 +703,11 @@ void MutationLog::writeEntry(MutationLogEntry *mle) {
 
     size_t len(mle->len());
     if (blockPos + len > blockSize) {
-        flush();
+        if (!flush()) {
+            throw WriteException(
+                    "MutationLog::writeEntry - Failed flushing mutation log "
+                    "buffer to disk");
+        }
     }
 
     memcpy(blockBuffer.get() + blockPos, mle, len);

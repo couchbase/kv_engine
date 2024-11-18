@@ -36,6 +36,8 @@
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
+#include "item_access_visitor.h"
+#include "item_compressor.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "lambda_task.h"
@@ -1843,6 +1845,71 @@ TEST_P(KVBucketParamTest, AccessScannerInvalidLogLocation) {
             << "Access Scanner threw unexpected "
                "exception where log location does "
                "not exist";
+}
+
+TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
+    std::string key(50, 'x');
+    for (int i = 0; i < 100; i++) {
+        store_item(Vbid(0), makeStoredDocKey(key + std::to_string(i)), "value");
+    }
+
+    const auto shard = store->getShardId(vbid);
+    std::atomic_bool sfin{false};
+
+    class MockFileIface : public mlog::DefaultFileIface {
+    public:
+        MOCK_METHOD(ssize_t,
+                    doWrite,
+                    (file_handle_t fd, const uint8_t* buf, size_t nbytes),
+                    (override));
+    };
+
+    auto mockFileIface = std::make_unique<MockFileIface>();
+
+    using namespace ::testing;
+    EXPECT_CALL(*mockFileIface, doWrite(_, _, _))
+            .WillOnce([mockFileIface = mockFileIface.get()](file_handle_t fd,
+                                                            const uint8_t* buf,
+                                                            size_t nbytes) {
+                return mockFileIface->DefaultFileIface::doWrite(
+                        fd, buf, nbytes);
+            })
+            .WillOnce([mockFileIface = mockFileIface.get()](file_handle_t fd,
+                                                            const uint8_t* buf,
+                                                            size_t nbytes) {
+                return mockFileIface->DefaultFileIface::doWrite(
+                        fd, buf, nbytes);
+            })
+            .WillRepeatedly(
+                    [](file_handle_t fd, const uint8_t* buf, size_t nbytes) {
+                        throw std::system_error(errno,
+                                                std::system_category(),
+                                                "doWrite: failed");
+                        return 0;
+                    });
+
+    auto as = std::make_unique<AccessScanner>(*(engine->getKVBucket()),
+                                              engine->getConfiguration(),
+                                              engine->getEpStats(),
+                                              0);
+
+    auto pv = std::make_unique<ItemAccessVisitor>(
+            *store,
+            engine->getConfiguration(),
+            engine->getEpStats(),
+            shard,
+            sfin,
+            *as,
+            engine->getConfiguration().getAlogMaxStoredItems(),
+            std::move(mockFileIface));
+
+    store->visitAsync(std::move(pv),
+                      "Item Access Scanner",
+                      TaskId::AccessScannerVisitor,
+                      500ms);
+
+    EXPECT_NO_THROW(task_executor->runNextTask(
+            AUXIO_TASK_IDX, "Item Access Scanner no vbucket assigned"));
 }
 
 // Check that getRandomKey works correctly when given a random value of zero
