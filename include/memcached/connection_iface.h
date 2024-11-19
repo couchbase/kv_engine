@@ -95,12 +95,12 @@ public:
      *       of this as ep-engine will not try to set the memory
      *       allocation guard before calling it
      *
-     * @param handler The new handler (may be nullptr to clear the handler)
+     * @param handler The new handler
      */
-    void setDcpConnHandler(DcpConnHandlerIface* handler) {
-        dcpConnHandler.withLock([handler](DcpConn& dcpConn) {
+    void setDcpConnHandler(std::shared_ptr<DcpConnHandlerIface> handler) {
+        dcpConnHandler.withLock([&handler](DcpConn& dcpConn) {
             dcpConn.isDcp = true;
-            dcpConn.dcpConnHandlerIface = handler;
+            dcpConn.dcpConnHandlerIface = std::move(handler);
         });
     }
 
@@ -112,11 +112,11 @@ public:
      *       of this as ep-engine will not try to set the memory
      *       allocation guard before calling it
      *
-     * @return The handler stored for the connection (may be nullptr if
-     *         none is specified)
+     * @return The handler stored for the connection, by weak_ptr promotion.
+     *         Caller must check for a valid pointer.
      */
-    DcpConnHandlerIface* getDcpConnHandler() const {
-        return dcpConnHandler.lock()->dcpConnHandlerIface;
+    std::shared_ptr<DcpConnHandlerIface> getDcpConnHandler() const {
+        return dcpConnHandler.lock()->dcpConnHandlerIface.lock();
     }
 
     /**
@@ -142,7 +142,7 @@ protected:
     /// The stored DCP Connection Interface
     struct DcpConn {
         bool isDcp{false};
-        DcpConnHandlerIface* dcpConnHandlerIface{nullptr};
+        std::weak_ptr<DcpConnHandlerIface> dcpConnHandlerIface;
     };
     folly::Synchronized<DcpConn, std::mutex> dcpConnHandler;
 };

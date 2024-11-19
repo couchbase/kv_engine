@@ -830,14 +830,15 @@ public:
      * Get the connection handler for the provided cookie
      *
      * @param cookie the cookie to look up
-     * @return the pointer to the connection handler if found, nullptr otherwise
+     * @return the shared_ptr to the connection handler (can be null)
      */
-    static ConnHandler* tryGetConnHandler(CookieIface& cookie);
+    static std::shared_ptr<ConnHandler> getSharedPtrConnHandler(
+            CookieIface& cookie);
 
     /**
      * Get the connection handler for the provided cookie. This method differs
-     * from the tryGetConnHandler that it expects the conn handler to exist
-     * and will throw an exception if there isn't.
+     * from the getSharedPtrConnHandler that it expects the conn handler to
+     * exist and will throw an exception if there isn't.
      *
      * In most cases where we want to get the connection handlers we're called
      * as part of the command handler for DCP, and the core has already
@@ -845,10 +846,10 @@ public:
      * be there) and return an error back to the caller if it isn't
      *
      * @param cookie the cookie to look up
-     * @return the connection handler
+     * @return the connection handler as shared_ptr, cannot be null.
      * @throws std::logic_error if the cookie don't have a connection handler
      */
-    static ConnHandler& getConnHandler(CookieIface& cookie);
+    static std::shared_ptr<ConnHandler> getConnHandler(CookieIface& cookie);
 
     /*
      * Explicitly trigger the defragmenter task. Provided to facilitate

@@ -36,8 +36,7 @@ class Filter;
 
 struct DCPBackfillIface;
 
-class DcpProducer : public ConnHandler,
-                    public std::enable_shared_from_this<DcpProducer> {
+class DcpProducer : public ConnHandler {
 public:
     /**
      * The StreamContainer stores the ActiveStream via a shared_ptr, this is

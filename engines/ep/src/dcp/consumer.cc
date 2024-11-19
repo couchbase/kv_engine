@@ -328,12 +328,12 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     bool exp = false;
     if (processorTaskRunning.compare_exchange_strong(exp, true)) {
         ExTask task = std::make_shared<DcpConsumerTask>(
-                engine_, shared_from_this(), 1);
+                engine_, shared_from_base<DcpConsumer>(), 1);
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
     stream = makePassiveStream(engine_,
-                               shared_from_this(),
+                               shared_from_base<DcpConsumer>(),
                                getName(),
                                flags,
                                new_opaque,
@@ -1151,8 +1151,12 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
 
     logger->infoWithContext("Received rollback request. Rolling back",
                             {{"vb", vbid}, {"rollback_seqno", rollbackSeqno}});
-    ExTask task = std::make_shared<RollbackTask>(
-            engine_, opaque, vbid, rollbackSeqno, shared_from_this());
+    ExTask task =
+            std::make_shared<RollbackTask>(engine_,
+                                           opaque,
+                                           vbid,
+                                           rollbackSeqno,
+                                           shared_from_base<DcpConsumer>());
     ExecutorPool::get()->schedule(task);
     return true;
 }

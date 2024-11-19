@@ -346,7 +346,7 @@ cb::engine_errc DcpProducer::streamRequest(
     std::shared_ptr<ActiveStream> stream;
     try {
         stream = std::make_shared<ActiveStream>(&engine_,
-                                                shared_from_this(),
+                                                shared_from_base<DcpProducer>(),
                                                 getName(),
                                                 req.flags,
                                                 opaque,
@@ -2289,7 +2289,7 @@ void DcpProducer::createCheckpointProcessorTask() {
     std::lock_guard<std::mutex> guard(checkpointCreator->mutex);
     checkpointCreator->task =
             std::make_shared<ActiveStreamCheckpointProcessorTask>(
-                    engine_, shared_from_this());
+                    engine_, shared_from_base<DcpProducer>());
 }
 
 void DcpProducer::scheduleCheckpointProcessorTask() {

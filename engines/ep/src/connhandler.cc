@@ -60,9 +60,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
     logger = BucketLogger::createBucketLogger(
             std::to_string(reinterpret_cast<uintptr_t>(this)));
 
-    c->getConnectionIface().setDcpConnHandler(this);
     logger->setConnectionId(c->getConnectionId());
-
     engine_.reserveCookie(*cookie);
 }
 

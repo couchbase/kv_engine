@@ -186,9 +186,9 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
                               cb::mcbp::DcpOpenFlag::Producer,
                               "producer",
                               {}));
-
-    auto* producer = dynamic_cast<DcpProducer*>(
-            engine->tryGetConnHandler(*producerCookie));
+    auto conn = engine->getSharedPtrConnHandler(*producerCookie);
+    Expects(conn);
+    auto* producer = dynamic_cast<DcpProducer*>(conn.get());
 
     GMockDcpMsgProducers producers; // no expectations set.
     ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
@@ -222,8 +222,9 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
                               "producer",
                               {}));
 
-    auto* producer = dynamic_cast<DcpProducer*>(
-            engine->tryGetConnHandler(*producerCookie));
+    auto conn = engine->getSharedPtrConnHandler(*producerCookie);
+    Expects(conn);
+    auto* producer = dynamic_cast<DcpProducer*>(conn.get());
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(0, "enable_sync_writes", "true"));
 

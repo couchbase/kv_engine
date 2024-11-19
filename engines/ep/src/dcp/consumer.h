@@ -37,8 +37,7 @@ class UpdateFlowControl;
  * A DCP Consumer object represents a DCP connection which receives streams
  * of mutations from another source and ingests those mutations.
  */
-class DcpConsumer : public ConnHandler,
-                    public std::enable_shared_from_this<DcpConsumer> {
+class DcpConsumer : public ConnHandler {
     using opaque_map = std::map<uint32_t, std::pair<uint32_t, Vbid>>;
 
 public:

@@ -62,6 +62,8 @@ DcpConsumer* DcpConnMap::newConsumer(CookieIface& cookie,
     conn_name.append(name);
 
     auto consumer = makeConsumer(engine, &cookie, conn_name, consumerName);
+    cookie.getConnectionIface().setDcpConnHandler(consumer);
+
     EP_LOG_DEBUG_CTX("Connection created", {"consumer", consumer->logHeader()});
     auto* rawPtr = consumer.get();
 
@@ -141,6 +143,8 @@ DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
 
     auto producer = std::make_shared<DcpProducer>(
             engine, &cookie, conn_name, flags, true /*startTask*/);
+    cookie.getConnectionIface().setDcpConnHandler(producer);
+
     EP_LOG_DEBUG_CTX("Connection created",
                      {"dcp", "producer"},
                      {"dcp_name", producer->getName()}, );
@@ -178,7 +182,7 @@ DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
         // here will lead to issues described MB-36451.
     }
 
-    handle->addConnByCookie(&cookie, producer);
+    handle->addConnByCookie(&cookie, std::move(producer));
     return result;
 }
 
@@ -311,9 +315,6 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
                 conn->flagDisconnect();
             }
 
-            // Clear the raw pointer that the Connection holds, do this now
-            // as true destruction of the ConnHandler can happen on a BG task.
-            cookie->getConnectionIface().setDcpConnHandler(nullptr);
             handle->removeConnByCookie(cookie);
         }
     }

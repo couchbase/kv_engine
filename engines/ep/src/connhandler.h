@@ -77,7 +77,8 @@ struct ConnCounter {
     size_t conn_unpaused{0};
 };
 
-class ConnHandler : public DcpConnHandlerIface {
+class ConnHandler : public DcpConnHandlerIface,
+                    public std::enable_shared_from_this<ConnHandler> {
 public:
     enum class PausedReason : uint8_t {
         BufferLogFull,
@@ -437,6 +438,11 @@ protected:
     void doStreamStatsJson(const std::vector<std::shared_ptr<Stream>>& streams,
                            const AddStatFn& add_stat,
                            CookieIface& c);
+
+    template <typename Derived>
+    std::shared_ptr<Derived> shared_from_base() {
+        return std::static_pointer_cast<Derived>(shared_from_this());
+    }
 
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
