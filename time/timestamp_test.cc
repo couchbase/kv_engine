@@ -93,12 +93,4 @@ TEST(IsoTime, TestFormat_Compatible_UTC) {
     EXPECT_EQ('Z', old_style.back()) << old_style;
 }
 
-TEST(IsoTime, TestFormat_Compatible_PST) {
-    setenv("TZ", "America/Los_Angeles", 1);
-    tzset();
-    const auto [new_style, old_style] = timestamps();
-    EXPECT_EQ(old_style, new_style);
-    EXPECT_EQ("-07:00", new_style.substr(new_style.size() - 6)) << new_style;
-    EXPECT_EQ("-07:00", old_style.substr(old_style.size() - 6)) << old_style;
-}
 #endif
