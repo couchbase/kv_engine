@@ -1339,8 +1339,14 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         return cb::engine_errc::success;
     } else if (key == DcpControlKeys::SnapshotMaxMarkerVersion &&
                valueStr == "2.2") {
+        // Only allow this snapshot marker if collections are enabled. This is
+        // primarily to avoid having to deal with purge-seqno from
+        // markLegacyDiskSnapshot
         if (!collectionsEnabled) {
-            logger->warn("Rejected control {}={} because collections are disabled", key, valueStr);
+            logger->warn(
+                    "Rejected control {}={} because collections are disabled",
+                    key,
+                    valueStr);
             return cb::engine_errc::not_supported;
         }
         maxMarkerVersion = MarkerVersion::V2_2;

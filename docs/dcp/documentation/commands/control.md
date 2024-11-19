@@ -73,6 +73,7 @@ from v1 to v2.2. Enabling this will expose the client to new features in the
 server, like tracking the purge-seqno which can be used to mitigate rollbacks on
 re-connect see [stream-request-value.md](./stream-request-value.md). The format
 of snapshot markers is described in [snapshot-marker.md](./snapshot-marker.md).
+Collections must be enabled to use the 2.2 marker feature.
 
 Note that the only value is "2.2", but the server can send 1.0 (by default) and
 2.0 if sync-replication is enabled (which has a different enablement path).
