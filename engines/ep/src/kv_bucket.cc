@@ -1108,7 +1108,6 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
             newvb->createFilter(config.getBfilterKeyCount(),
                          config.getBfilterFpProb());
         }
-        newvb->setKvStoreBfilterEnabled();
     }
 
     // Before adding the VB to the map, notify KVStore of the create

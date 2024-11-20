@@ -101,6 +101,9 @@ EPVBucket::EPVBucket(Vbid i,
               maxPrepareSeqno),
       shard(kvshard),
       rangeScans(static_cast<EPBucket*>(bucket), *this) {
+    if (config.isBfilterEnabled()) {
+        bFilterData.lock()->kvStoreBfilterEnabled = true;
+    }
 }
 
 EPVBucket::~EPVBucket() {
@@ -1585,10 +1588,6 @@ void EPVBucket::createFilter(size_t key_count, double probability) {
     } else {
         EP_LOG_WARN("({}) Bloom filter / Temp filter already exist!", id);
     }
-}
-
-void EPVBucket::setKvStoreBfilterEnabled() {
-    bFilterData.lock()->kvStoreBfilterEnabled = true;
 }
 
 void EPVBucket::initTempFilter(size_t key_count, double probability) {

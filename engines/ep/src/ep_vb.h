@@ -508,11 +508,6 @@ private:
     bool isBfilterEnabled();
 
     /**
-     * When set to true, we check if a key exists in kvstore'es bloom-filter.
-     */
-    void setKvStoreBfilterEnabled() override;
-
-    /**
      * Sets the collection info on the cookie for the given scan.
      * @return no_such_key if the scan does not exist, unknown_collection if the
      *         scan's collection no longer exists or success.

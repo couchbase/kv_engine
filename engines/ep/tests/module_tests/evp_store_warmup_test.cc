@@ -154,20 +154,29 @@ TEST_F(WarmupTest, hlcEpoch) {
 }
 
 TEST_F(WarmupTest, BloomFilterUnintialized) {
-    if (!isCouchstore()) {
+    if (!isPersistent()) {
         GTEST_SKIP() << "Couchstore only test!";
     }
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    store_item(vbid, makeStoredDocKey("key1"), "value");
+    const auto & docKey = makeStoredDocKey("key1");
+    store_item(vbid, docKey, "value");
     flush_vbucket_to_disk(vbid);
 
     resetEngineAndWarmup();
 
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    // The bloomfilter was not initialized, when the vbucket was created during
-    // warmup.
-    ASSERT_EQ("DOESN'T EXIST", vb->getFilterStatusString());
+    // The bloomfilter is not initialized for couchstore, when the vbucket was
+    // created during warmup.
+    if (isCouchstore()) {
+        ASSERT_EQ("DOESN'T EXIST", vb->getFilterStatusString());
+    } else if (isMagma()) {
+        // Set the expectation keyMayExist in magma is called.
+        using namespace ::testing;
+        auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);
+        EXPECT_CALL(mockKVStore, keyMayExist(_, _)).Times(1);
+        EXPECT_TRUE(vb->maybeKeyExistsInFilter(docKey));
+    }
 }
 
 TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
