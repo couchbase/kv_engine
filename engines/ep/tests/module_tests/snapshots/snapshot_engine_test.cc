@@ -19,7 +19,6 @@ class SnapshotEngineTest : public SingleThreadedEPBucketTest,
 public:
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
-        getEPBucket().initialize(); // snapshot cache needs creating
     }
 };
 

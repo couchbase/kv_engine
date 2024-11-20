@@ -300,7 +300,9 @@ private:
 };
 
 EPBucket::EPBucket(EventuallyPersistentEngine& engine)
-    : KVBucket(engine), rangeScans(engine.getConfiguration()) {
+    : KVBucket(engine),
+      rangeScans(engine.getConfiguration()),
+      snapshotCache(engine.getConfiguration().getDbname()) {
     auto& config = engine.getConfiguration();
     const std::string& policy = config.getItemEvictionPolicyString();
     if (policy == "value_only") {
@@ -383,10 +385,9 @@ bool EPBucket::initialize() {
         return false;
     }
 
-    // @todo: Make this a member with a .init(dbname) function - so there's no
-    // chance of nullptr issues
-    snapshotCache = std::make_unique<cb::snapshot::Cache>(
-            getConfiguration().getDbname());
+    if (snapshotCache.initialise() != cb::engine_errc::success) {
+        EP_LOG_WARN_RAW("EPBucket::initialize: Failed init snapshot cache");
+    }
 
     return true;
 }
@@ -2876,7 +2877,7 @@ cb::engine_errc EPBucket::prepareSnapshot(
         return cb::engine_errc::not_my_vbucket;
     }
 
-    auto rv = snapshotCache->prepare(
+    auto rv = snapshotCache.prepare(
             vbid,
             [this](const std::filesystem::path& path,
                    Vbid vb,
@@ -2909,7 +2910,7 @@ cb::engine_errc EPBucket::downloadSnapshot(CookieIface& cookie,
         return status;
     }
     auto downloader = DownloadSnapshotTask::create(
-            cookie, getEPEngine(), *snapshotCache, vbid, metadata);
+            cookie, getEPEngine(), snapshotCache, vbid, metadata);
     getEPEngine().storeEngineSpecific(cookie, downloader);
     ExecutorPool::get()->schedule(downloader);
     return cb::engine_errc::would_block;
@@ -2920,7 +2921,7 @@ cb::engine_errc EPBucket::getSnapshotFileInfo(
         std::string_view uuid,
         std::size_t file_id,
         const std::function<void(const nlohmann::json&)>& callback) {
-    auto manifest = snapshotCache->lookup(std::string(uuid));
+    auto manifest = snapshotCache.lookup(std::string(uuid));
     if (!manifest) {
         return cb::engine_errc::no_such_key;
     }
@@ -2929,7 +2930,7 @@ cb::engine_errc EPBucket::getSnapshotFileInfo(
         if (file.id == file_id) {
             nlohmann::json full = file;
             full["path"] =
-                    snapshotCache->make_absolute(file.path, manifest->uuid)
+                    snapshotCache.make_absolute(file.path, manifest->uuid)
                             .string();
             callback(full);
             return cb::engine_errc::success;
@@ -2939,7 +2940,7 @@ cb::engine_errc EPBucket::getSnapshotFileInfo(
         if (file.id == file_id) {
             nlohmann::json full = file;
             full["path"] =
-                    snapshotCache->make_absolute(file.path, manifest->uuid)
+                    snapshotCache.make_absolute(file.path, manifest->uuid)
                             .string();
             callback(full);
             return cb::engine_errc::success;
@@ -2953,9 +2954,9 @@ cb::engine_errc EPBucket::releaseSnapshot(
         CookieIface& cookie,
         std::variant<Vbid, std::string_view> snapshotToRelease) {
     if (std::holds_alternative<Vbid>(snapshotToRelease)) {
-        snapshotCache->release(std::get<Vbid>(snapshotToRelease));
+        snapshotCache.release(std::get<Vbid>(snapshotToRelease));
     } else {
-        snapshotCache->release(
+        snapshotCache.release(
                 std::string{std::get<std::string_view>(snapshotToRelease)});
     }
     return cb::engine_errc::success;

@@ -52,11 +52,14 @@ namespace cb::snapshot {
  */
 class Cache {
 public:
+    Cache(const std::filesystem::path& path) : path(path / "snapshots") {
+    }
+
     /**
-     * Create a new instance of the snapshot manager which operates on the
-     * persistent snapshots located in the provided directory
+     * Initialise instance of the snapshot cache which operates on the
+     * persistent snapshots located in ::path  directory
      */
-    Cache(const std::filesystem::path& path_);
+    cb::engine_errc initialise();
 
     /// Look up a snapshot with the provided UUID
     std::optional<Manifest> lookup(const std::string& uuid) const;
@@ -79,7 +82,7 @@ public:
                     const std::filesystem::path&, Vbid, Manifest&)>& executor);
 
     /**
-     * Prepeare a remote snapshot. This involves preparing the snapshot
+     * Prepare a remote snapshot. This involves preparing the snapshot
      * on the remote node (if we don't have a local copy), download all files
      * and finally release the snapshot on the remote host.
      *
@@ -124,8 +127,8 @@ protected:
     /// Nuke a manifest from disk
     void remove(const Manifest& manifest) const;
 
-    /// The location of the cache
-    const std::filesystem::path path;
+    /// The location of the snapshots
+    std::filesystem::path path;
 
     /**
      * Calculate the SHA-512 sum for the provided file. If an error

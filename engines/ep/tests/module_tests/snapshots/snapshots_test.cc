@@ -11,15 +11,17 @@
 #include "../kvstore_test.h"
 #include "kvstore/kvstore_config.h"
 #include "snapshots/cache.h"
+
+#include <platform/dirutils.h>
+
 #include <filesystem>
 
 class SnapshotsTests : public KVStoreParamTest {
 public:
     void SetUp() override {
         KVStoreParamTest::SetUp();
-        snapshotdir = std::filesystem::path{config.getDbname()} / "snapshots";
         create_directories(snapshotdir);
-        cache = std::make_unique<cb::snapshot::Cache>(config.getDbname());
+        cache.initialise();
     }
 
     void TearDown() override {
@@ -41,21 +43,21 @@ public:
         return kvstore->prepareSnapshot(directory, vbid, manifest);
     }
 
-    std::filesystem::path snapshotdir;
-    std::unique_ptr<cb::snapshot::Cache> cache;
+    std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};
+    cb::snapshot::Cache cache{snapshotdir};
 };
 
 TEST_P(SnapshotsTests, prepare) {
-    auto rv = cache->prepare(vbid,
-                             [this](const auto& dir, auto vb, auto& manifest) {
-                                 return doPrepareSnapshot(dir, vb, manifest);
-                             });
+    auto rv = cache.prepare(vbid,
+                            [this](const auto& dir, auto vb, auto& manifest) {
+                                return doPrepareSnapshot(dir, vb, manifest);
+                            });
     auto manifest = std::get<cb::snapshot::Manifest>(rv);
     EXPECT_FALSE(manifest.uuid.empty());
     EXPECT_FALSE(manifest.files.empty());
     for (const auto& file : manifest.files) {
-        EXPECT_TRUE(exists(cache->make_absolute(file.path, manifest.uuid)));
-        EXPECT_EQ(file_size(cache->make_absolute(file.path, manifest.uuid)),
+        EXPECT_TRUE(exists(cache.make_absolute(file.path, manifest.uuid)));
+        EXPECT_EQ(file_size(cache.make_absolute(file.path, manifest.uuid)),
                   file.size);
     }
 }

@@ -20,7 +20,7 @@
 
 namespace cb::snapshot {
 
-Cache::Cache(const std::filesystem::path& path_) : path(path_ / "snapshots") {
+cb::engine_errc Cache::initialise() {
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
         if (is_directory(entry.path(), ec) &&
@@ -34,9 +34,11 @@ Cache::Cache(const std::filesystem::path& path_) : path(path_ / "snapshots") {
             } catch (const std::exception&) {
                 // We failed to parse the entry.. just remove it.
                 remove_all(entry.path(), ec);
+                return cb::engine_errc::failed;
             }
         }
     }
+    return cb::engine_errc::success;
 }
 
 std::optional<Manifest> Cache::lookup(const std::string& uuid) const {

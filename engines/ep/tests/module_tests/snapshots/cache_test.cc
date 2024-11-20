@@ -19,8 +19,7 @@ using namespace cb::snapshot;
 class CacheTest : public ::testing::Test {
 public:
     void SetUp() override {
-        test_dir = cb::io::mkdtemp("snapshot_test");
-        cache = std::make_unique<Cache>(test_dir);
+        cache.initialise();
     }
 
     void TearDown() override {
@@ -43,19 +42,19 @@ protected:
         return cb::engine_errc::success;
     }
 
-    std::filesystem::path test_dir;
-    std::unique_ptr<Cache> cache;
+    std::filesystem::path test_dir{cb::io::mkdtemp("snapshot_test")};
+    Cache cache{test_dir};
 };
 
 TEST_F(CacheTest, PrepareFailed) {
-    const auto rv = cache->prepare(Vbid{0}, [this](const auto&, auto, auto&) {
+    const auto rv = cache.prepare(Vbid{0}, [this](const auto&, auto, auto&) {
         return cb::engine_errc::not_supported;
     });
     EXPECT_EQ(cb::engine_errc::not_supported, std::get<cb::engine_errc>(rv));
 }
 
 TEST_F(CacheTest, Prepare) {
-    auto rv = cache->prepare(
+    auto rv = cache.prepare(
             Vbid{0}, [this](const auto& directory, auto vb, auto& manifest) {
                 return doCreateSnapshot(directory, vb, manifest);
             });
@@ -63,56 +62,56 @@ TEST_F(CacheTest, Prepare) {
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
     for (const auto& file : manifest.files) {
         EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid / file.path));
-        EXPECT_TRUE(exists(cache->make_absolute(file.path, manifest.uuid)));
-        EXPECT_EQ(file_size(cache->make_absolute(file.path, manifest.uuid)),
+        EXPECT_TRUE(exists(cache.make_absolute(file.path, manifest.uuid)));
+        EXPECT_EQ(file_size(cache.make_absolute(file.path, manifest.uuid)),
                   file.size);
     }
     for (const auto& file : manifest.deks) {
         EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid / file.path));
-        EXPECT_TRUE(exists(cache->make_absolute(file.path, manifest.uuid)));
-        EXPECT_EQ(file_size(cache->make_absolute(file.path, manifest.uuid)),
+        EXPECT_TRUE(exists(cache.make_absolute(file.path, manifest.uuid)));
+        EXPECT_EQ(file_size(cache.make_absolute(file.path, manifest.uuid)),
                   file.size);
     }
 
     // Verify that it may be looked up
-    auto searched = cache->lookup(manifest.uuid);
+    auto searched = cache.lookup(manifest.uuid);
     EXPECT_EQ(searched, manifest);
 }
 
 TEST_F(CacheTest, ReleaseByVb) {
-    auto rv = cache->prepare(
+    auto rv = cache.prepare(
             Vbid{0}, [this](const auto& directory, auto vb, auto& manifest) {
                 return doCreateSnapshot(directory, vb, manifest);
             });
     auto manifest = std::get<Manifest>(rv);
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
 
-    cache->release(Vbid{0});
+    cache.release(Vbid{0});
     EXPECT_FALSE(exists(test_dir / "snapshots" / manifest.uuid));
-    EXPECT_EQ(std::nullopt, cache->lookup(manifest.uuid));
+    EXPECT_EQ(std::nullopt, cache.lookup(manifest.uuid));
 }
 
 TEST_F(CacheTest, ReleaseByUuid) {
-    auto rv = cache->prepare(
+    auto rv = cache.prepare(
             Vbid{0}, [this](const auto& directory, auto vb, auto& manifest) {
                 return doCreateSnapshot(directory, vb, manifest);
             });
     auto manifest = std::get<Manifest>(rv);
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
-    cache->release(manifest.uuid);
+    cache.release(manifest.uuid);
     EXPECT_FALSE(exists(test_dir / "snapshots" / manifest.uuid));
-    EXPECT_EQ(std::nullopt, cache->lookup(manifest.uuid));
+    EXPECT_EQ(std::nullopt, cache.lookup(manifest.uuid));
 }
 
 TEST_F(CacheTest, InitializeFromDiskSnapshots) {
-    auto rv = cache->prepare(
+    auto rv = cache.prepare(
             Vbid{0}, [this](const auto& directory, auto vb, auto& manifest) {
                 return doCreateSnapshot(directory, vb, manifest);
             });
     auto manifest = std::get<Manifest>(rv);
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
 
-    cache = std::make_unique<Cache>(test_dir);
-    auto searched = cache->lookup(manifest.uuid);
+    cache.initialise();
+    auto searched = cache.lookup(manifest.uuid);
     EXPECT_EQ(searched, manifest);
 }

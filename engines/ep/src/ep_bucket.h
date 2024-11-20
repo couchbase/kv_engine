@@ -14,6 +14,7 @@
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_owner.h"
+#include "snapshots/cache.h"
 #include "utilities/testing_hook.h"
 
 class BgFetcher;
@@ -32,10 +33,6 @@ class CompactTask;
 struct CompactionContext;
 struct CompactionStats;
 class SeqnoPersistenceNotifyTask;
-
-namespace cb::snapshot {
-class Cache;
-}
 
 /**
  * Eventually Persistent Bucket
@@ -615,7 +612,7 @@ protected:
 
     /// The snapshot manager responsible for keeping track of all snapshots
     /// for this bucket
-    std::unique_ptr<cb::snapshot::Cache> snapshotCache;
+    cb::snapshot::Cache snapshotCache;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);
