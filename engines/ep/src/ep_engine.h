@@ -327,7 +327,8 @@ public:
             const std::function<void(const nlohmann::json&)>& callback)
             override;
     [[nodiscard]] cb::engine_errc release_snapshot(
-            CookieIface& cookie, std::string_view uuid) override;
+            CookieIface& cookie,
+            std::variant<Vbid, std::string_view> snap) override;
 
     /////////////////////////////////////////////////////////////
     // DcpIface implementation //////////////////////////////////
@@ -919,8 +920,9 @@ public:
             std::string_view uuid,
             std::size_t file_id,
             const std::function<void(const nlohmann::json&)>& callback);
-    [[nodiscard]] cb::engine_errc releaseSnapshot(CookieIface& cookie,
-                                                  std::string_view uuid);
+    [[nodiscard]] cb::engine_errc releaseSnapshot(
+            CookieIface& cookie,
+            std::variant<Vbid, std::string_view> snapshotToRelease);
     /**
      * Create an Item with the following parameters if the mutation watermark
      * will not be exceeded. If successful, the engine error code is set to

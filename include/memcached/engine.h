@@ -23,6 +23,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 
 namespace cb {
 struct EngineErrorGetCollectionIDResult;
@@ -941,14 +942,15 @@ struct EngineIface {
     }
 
     /**
-     * Request the snapshot with the UUID to be released
+     * Request the snapshot for the VB (any) or with UUID to be released
      *
      * @param cookie the cookie requesting the snapshot to be deleted
-     * @param uuid the uuid for the snapshot to delete
+     * @param snapshotToRelease uuid or vbid for the snapshot to delete
      * @return error code for the operation
      */
     [[nodiscard]] virtual cb::engine_errc release_snapshot(
-            CookieIface& cookie, std::string_view uuid) {
+            CookieIface& cookie,
+            std::variant<Vbid, std::string_view> snapshotToRelease) {
         return cb::engine_errc::not_supported;
     }
 };

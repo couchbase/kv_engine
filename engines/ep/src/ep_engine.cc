@@ -7831,8 +7831,9 @@ cb::engine_errc EventuallyPersistentEngine::get_snapshot_file_info(
 }
 
 cb::engine_errc EventuallyPersistentEngine::release_snapshot(
-        CookieIface& cookie, std::string_view uuid) {
-    return acquireEngine(this)->releaseSnapshot(cookie, uuid);
+        CookieIface& cookie,
+        std::variant<Vbid, std::string_view> snapshotToRelease) {
+    return acquireEngine(this)->releaseSnapshot(cookie, snapshotToRelease);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
@@ -7934,8 +7935,13 @@ cb::engine_errc EventuallyPersistentEngine::getSnapshotFileInfo(
 }
 
 cb::engine_errc EventuallyPersistentEngine::releaseSnapshot(
-        CookieIface&, std::string_view uuid) {
-    snapshotCache->release(std::string(uuid));
+        CookieIface&, std::variant<Vbid, std::string_view> snapshotToRelease) {
+    if (std::holds_alternative<Vbid>(snapshotToRelease)) {
+        snapshotCache->release(std::get<Vbid>(snapshotToRelease));
+    } else {
+        snapshotCache->release(
+                std::string{std::get<std::string_view>(snapshotToRelease)});
+    }
     return cb::engine_errc::success;
 }
 

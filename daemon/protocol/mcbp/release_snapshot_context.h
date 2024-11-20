@@ -15,7 +15,7 @@
 /**
  * Implementation of the "ReleaseSnapshot" command.
  *
- * The command takes the UUID for the snapshot in the key and removes
+ * The command takes the UUID or VB for the snapshot and removes
  * the on-disk knowledge of the snapshot. Given that we don't want
  * file IO from the worker threads it'll schedule a task to run
  * in the thread pool to perform the actual IO before being rescheduled
@@ -32,5 +32,6 @@ protected:
     cb::engine_errc initialize();
 
     const std::string uuid;
+    const Vbid vbid;
     State state = State::Initialize;
 };

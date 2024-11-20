@@ -2560,7 +2560,7 @@ static Status prepare_snapshot_validator(Cookie& cookie) {
 static Status release_snapshot_validator(Cookie& cookie) {
     return McbpValidator::verify_header(cookie,
                                         0,
-                                        ExpectedKeyLen::NonZero,
+                                        ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
                                         GeneratesDocKey::No,

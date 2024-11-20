@@ -20,7 +20,8 @@
 
 ReleaseSnapshotContext::ReleaseSnapshotContext(Cookie& cookie)
     : SteppableCommandContext(cookie),
-      uuid(cookie.getRequest().getKeyString()) {
+      uuid(cookie.getRequest().getKeyString()),
+      vbid(cookie.getRequest().getVBucket()) {
 }
 
 cb::engine_errc ReleaseSnapshotContext::step() {
@@ -46,10 +47,20 @@ cb::engine_errc ReleaseSnapshotContext::initialize() {
                     [this]() {
                         try {
                             state = State::Done;
-                            cookie.notifyIoComplete(
-                                    connection.getBucket()
-                                            .getEngine()
-                                            .release_snapshot(cookie, uuid));
+                            // release by vbid or uuid?
+                            if (uuid.empty()) {
+                                cookie.notifyIoComplete(
+                                        connection.getBucket()
+                                                .getEngine()
+                                                .release_snapshot(cookie,
+                                                                  vbid));
+                            } else {
+                                cookie.notifyIoComplete(
+                                        connection.getBucket()
+                                                .getEngine()
+                                                .release_snapshot(cookie,
+                                                                  uuid));
+                            }
                         } catch (const std::exception& e) {
                             cookie.setErrorContext(
                                     fmt::format("Failed: {}", e.what()));
