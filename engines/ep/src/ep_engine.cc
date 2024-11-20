@@ -2541,15 +2541,8 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
     cb::engine_errc ret = kvBucket->deleteItem(
             key, cas, vbucket, &cookie, durability, nullptr, mut_info);
 
+    ret = maybeRemapStatus(ret);
     switch (ret) {
-    case cb::engine_errc::no_such_key:
-        // FALLTHROUGH
-    case cb::engine_errc::not_my_vbucket:
-        if (isDegradedMode()) {
-            return cb::engine_errc::temporary_failure;
-        }
-        break;
-
     case cb::engine_errc::sync_write_pending:
         if (durability) {
             // Record the fact that we are blocking to wait for SyncDelete
@@ -2596,15 +2589,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
         return cb::makeEngineErrorItemPair(
                 cb::engine_errc::success, gv.item.release(), this);
     }
-    if (ret == cb::engine_errc::no_such_key ||
-        ret == cb::engine_errc::not_my_vbucket) {
-        if (isDegradedMode()) {
-            return cb::makeEngineErrorItemPair(
-                    cb::engine_errc::temporary_failure);
-        }
-    }
 
-    return cb::makeEngineErrorItemPair(ret);
+    return cb::makeEngineErrorItemPair(maybeRemapStatus(ret));
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
@@ -2624,17 +2610,10 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
                 cb::engine_errc::success, gv.item.release(), this);
     }
 
-    if (isDegradedMode()) {
-        // Remap all some of the error codes
-        switch (rv) {
-        case cb::engine_errc::key_already_exists:
-        case cb::engine_errc::no_such_key:
-        case cb::engine_errc::not_my_vbucket:
-            rv = cb::engine_errc::temporary_failure;
-            break;
-        default:
-            break;
-        }
+    if (rv == cb::engine_errc::key_already_exists && isDegradedMode()) {
+        rv = cb::engine_errc::temporary_failure;
+    } else {
+        rv = maybeRemapStatus(rv);
     }
 
     if (rv == cb::engine_errc::key_already_exists) {
@@ -2678,18 +2657,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         GetValue gv(kvBucket->get(key, vbucket, &cookie, options));
         cb::engine_errc status = gv.getStatus();
 
-        switch (status) {
-        case cb::engine_errc::success:
-            break;
-
-        case cb::engine_errc::no_such_key: // FALLTHROUGH
-        case cb::engine_errc::not_my_vbucket: // FALLTHROUGH
-            if (isDegradedMode()) {
-                status = cb::engine_errc::temporary_failure;
-            }
-            // FALLTHROUGH
-        default:
-            return cb::makeEngineErrorItemPair(status);
+        if (status != cb::engine_errc::success) {
+            return cb::makeEngineErrorItemPair(maybeRemapStatus(status));
         }
 
         const VBucketPtr vb = getKVBucket()->getVBucket(vbucket);
@@ -2747,15 +2716,8 @@ cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface& cookie,
                                                         const DocKeyView& key,
                                                         Vbid vbucket,
                                                         uint64_t cas) {
-    auto ret =
-            kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), &cookie);
-    if (ret == cb::engine_errc::no_such_key ||
-        ret == cb::engine_errc::not_my_vbucket) {
-        if (isDegradedMode()) {
-            return cb::engine_errc::temporary_failure;
-        }
-    }
-    return ret;
+    return maybeRemapStatus(
+            kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), &cookie));
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
@@ -4651,14 +4613,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
     // fetch task is scheduled by statsVKey(). fetchLookupResult will succeed
     // in returning the item once the fetch task has completed.
     if (validate && !fetchLookupResult(cookie, it)) {
-        rv = kvBucket->statsVKey(key, vbid, cookie);
-        if (rv == cb::engine_errc::not_my_vbucket ||
-            rv == cb::engine_errc::no_such_key) {
-            if (isDegradedMode()) {
-                return cb::engine_errc::temporary_failure;
-            }
-        }
-        return rv;
+        return maybeRemapStatus(kvBucket->statsVKey(key, vbid, cookie));
     }
 
     rv = kvBucket->getKeyStats(key, vbid, cookie, kstats, WantsDeleted::No);
@@ -6127,14 +6082,9 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
 
     if (ret == cb::engine_errc::success) {
         metadata = to_item_info(itemMeta, datatype, deleted);
-    } else if (ret == cb::engine_errc::no_such_key ||
-               ret == cb::engine_errc::not_my_vbucket) {
-        if (isDegradedMode()) {
-            ret = cb::engine_errc::temporary_failure;
-        }
     }
 
-    return std::make_pair(ret, metadata);
+    return std::make_pair(maybeRemapStatus(ret), metadata);
 }
 
 bool EventuallyPersistentEngine::decodeSetWithMetaOptions(
@@ -7901,4 +7851,16 @@ void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
     if (dcpConnMap_) {
         dcpConnMap_->setBackfillByteLimit(bytes);
     }
+}
+
+cb::engine_errc EventuallyPersistentEngine::maybeRemapStatus(
+        cb::engine_errc status) {
+    if (status == cb::engine_errc::not_my_vbucket && isDegradedMode()) {
+        return cb::engine_errc::temporary_failure;
+    }
+    if (status == cb::engine_errc::no_such_key && isDegradedMode() &&
+               kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
+        return cb::engine_errc::temporary_failure;
+    }
+    return status;
 }

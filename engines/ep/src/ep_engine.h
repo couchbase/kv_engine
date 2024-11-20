@@ -1525,6 +1525,15 @@ protected:
             CookieIface& cookie, std::optional<CollectionID> collection);
 
     /**
+     * Return a status code for most READ operations. This remaps some status
+     * codes to temporary_failure.
+     *    status == not_my_vbucket && isDegradedMode => tmp_fail
+     *    status == no_such_key && isDegradedMode && ValueEvict => tmp_fail
+     * @return status remapped based on isDegradedMode and/or eviction policy
+     */
+    cb::engine_errc maybeRemapStatus(cb::engine_errc status);
+
+    /**
      * Check the access for the given privilege for the
      * bucket.scope.collection
      *

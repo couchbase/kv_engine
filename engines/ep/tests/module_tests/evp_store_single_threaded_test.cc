@@ -6504,6 +6504,49 @@ TEST_P(WarmupSTSingleShardTest, DeleteVBWhilstPaused) {
     EXPECT_EQ(2, vb1->ht.getNumInMemoryItems());
 }
 
+// Test for MB-34909: Fails full-eviction because the unknown key is temp-fail
+TEST_P(WarmupSTSingleShardTest, isDegraded_GET) {
+    setVBucketToActiveWithValidTopology();
+
+    resetEngineAndEnableWarmup("bfilter_enabled=false");
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
+    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
+    ASSERT_TRUE(warmup);
+
+    // Warmup so that the vbucket exists, but no further (isDegraded)
+    do {
+        runNextTask(readerQueue);
+    } while (warmup->getWarmupState() !=
+             WarmupState::State::PopulateVBucketMap);
+    runNextTask(readerQueue);
+
+    ASSERT_TRUE(engine->isDegradedMode());
+    auto expectedStatus1 = fullEviction() ? cb::engine_errc::would_block
+                                          : cb::engine_errc::temporary_failure;
+    auto options =
+            static_cast<get_options_t>(TRACK_STATISTICS | QUEUE_BG_FETCH);
+
+    {
+        auto [status, item] = engine->getInner(
+                *cookie, makeStoredDocKey("NotHere"), vbid, options);
+        EXPECT_EQ(expectedStatus1, status);
+        EXPECT_FALSE(item);
+    }
+    if (fullEviction()) {
+        runBGFetcherTask();
+    }
+    // FE: Expect no_such_key because we have genuinely done all steps to
+    // determine the key does not exist.
+    auto expectedStatus2 = fullEviction() ? cb::engine_errc::no_such_key
+                                          : cb::engine_errc::temporary_failure;
+    {
+        auto [status, item] = engine->getInner(
+                *cookie, makeStoredDocKey("NotHere"), vbid, options);
+        EXPECT_EQ(expectedStatus2, status);
+        EXPECT_FALSE(item);
+    }
+}
+
 MutationStatus STParameterizedBucketTest::public_processSet(
         VBucket& vb, Item& item, const VBQueueItemCtx& ctx) {
     auto htRes = vb.ht.findForUpdate(item.getKey());
