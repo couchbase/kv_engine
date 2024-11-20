@@ -9213,12 +9213,10 @@ TEST_P(SlowBackfillTest, TakeoverBackfillDoesNotCancelWhenNoProgress) {
             << "Expected stream to still be alive, but it was marked dead";
 }
 
-// Don't run magma. Without MB-64220 the code will think nothing could be freed
-INSTANTIATE_TEST_SUITE_P(
-        AllBucketTypes,
-        SlowBackfillTest,
-        STParameterizedBucketTest::ephAndCouchstoreConfigValues(),
-        STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
+                         SlowBackfillTest,
+                         STParameterizedBucketTest::allConfigValuesNoNexus(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 TEST_P(SingleThreadedPassiveStreamTest,
        SkipBloomFilterWhenProcessingDcpMutation) {

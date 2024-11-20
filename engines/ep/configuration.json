@@ -1110,15 +1110,7 @@
                 "if": {
                     "bucket_type": {
                         "equals": "ephemeral",
-                        "then": "false",
-                        "elif": [
-                            {
-                                "backend": {
-                                    "equals": "magma",
-                                    "then": "false"
-                                }
-                            }
-                        ]
+                        "then": "false"
                     },
                     "else": "true"
                 }

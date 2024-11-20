@@ -140,6 +140,8 @@ public:
                       magma::Slice& value);
     bool KeyMayExist(const magma::Magma::KVStoreID kvID,
                      const magma::Slice& key);
+    size_t GetDiskSizeOverhead(magma::Magma::Snapshot&);
+
     magma::Status GetDiskSnapshot(
             const magma::Magma::KVStoreID kvID,
             DomainAwareUniquePtr<magma::Magma::Snapshot>& snap);

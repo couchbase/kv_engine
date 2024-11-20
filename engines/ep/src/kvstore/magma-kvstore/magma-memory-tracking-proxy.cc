@@ -238,6 +238,12 @@ bool MagmaMemoryTrackingProxy::KeyMayExist(const magma::Magma::KVStoreID kvID,
     );
 }
 
+size_t MagmaMemoryTrackingProxy::GetDiskSizeOverhead(
+        magma::Magma::Snapshot& snapshot) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetDiskSizeOverhead(snapshot);
+}
+
 magma::Status MagmaMemoryTrackingProxy::GetDiskSnapshot(
         const magma::Magma::KVStoreID kvID,
         DomainAwareUniquePtr<magma::Magma::Snapshot>& snap) {

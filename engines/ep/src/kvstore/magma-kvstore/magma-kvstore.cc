@@ -284,12 +284,19 @@ cb::engine_errc magmaErr2EngineErr(Status::Code result) {
 class MagmaKVFileHandle : public KVFileHandle {
 public:
     MagmaKVFileHandle(Vbid vbid,
-                      DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot)
-        : vbid(vbid), snapshot(std::move(snapshot)) {
+                      DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot,
+                      MagmaMemoryTrackingProxy& magma)
+        : vbid(vbid), snapshot(std::move(snapshot)), magma(magma) {
         Expects(this->snapshot);
     }
+
+    size_t getHowManyBytesCouldBeFreed() const override {
+        return magma.GetDiskSizeOverhead(*snapshot);
+    }
+
     Vbid vbid;
     DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
+    MagmaMemoryTrackingProxy& magma;
 };
 
 MagmaKVStore::MagmaCompactionCB::MagmaCompactionCB(
@@ -3359,7 +3366,8 @@ std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
         return nullptr;
     }
 
-    return std::make_unique<MagmaKVFileHandle>(vbid, std::move(snapshot));
+    return std::make_unique<MagmaKVFileHandle>(
+            vbid, std::move(snapshot), *magma);
 }
 
 RollbackResult MagmaKVStore::rollback(Vbid vbid,
