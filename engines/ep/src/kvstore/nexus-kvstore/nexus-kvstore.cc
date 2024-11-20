@@ -568,12 +568,17 @@ StorageProperties NexusKVStore::getStorageProperties() const {
         canRetainHistory = StorageProperties::HistoryRetentionAvailable::Yes;
     }
 
+    auto hasBloomFilter = primaryProperties.hasBloomFilter()
+                                  ? StorageProperties::BloomFilterAvailable::Yes
+                                  : StorageProperties::BloomFilterAvailable::No;
+
     return {byIdScan,
             autoDedupe,
             prepareCounting,
             compactionStaleItemCallbacks,
             canRetainHistory,
-            StorageProperties::ContinuousBackupAvailable::No};
+            StorageProperties::ContinuousBackupAvailable::No,
+            hasBloomFilter};
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

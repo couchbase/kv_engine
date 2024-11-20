@@ -387,18 +387,26 @@ public:
      */
     enum class ContinuousBackupAvailable : bool { Yes, No };
 
+    /**
+     * Does the KVStore have a bloomFilter?
+     */
+
+    enum class BloomFilterAvailable : bool { Yes, No };
+
     StorageProperties(ByIdScan byIdScan,
                       AutomaticDeduplication automaticDeduplication,
                       PrepareCounting prepareCounting,
                       CompactionStaleItemCallbacks compactionStaleItemCallbacks,
                       HistoryRetentionAvailable historyRetentionAvailable,
-                      ContinuousBackupAvailable continuousBackupAvailable)
+                      ContinuousBackupAvailable continuousBackupAvailable,
+                      BloomFilterAvailable bloomFilterAvailable)
         : byIdScan(byIdScan),
           automaticDeduplication(automaticDeduplication),
           prepareCounting(prepareCounting),
           compactionStaleItemCallbacks(compactionStaleItemCallbacks),
           historyRetentionAvailable(historyRetentionAvailable),
-          continuousBackupAvailable(continuousBackupAvailable) {
+          continuousBackupAvailable(continuousBackupAvailable),
+          bloomFilterAvailable(bloomFilterAvailable) {
     }
 
     bool hasByIdScan() const {
@@ -426,6 +434,10 @@ public:
         return continuousBackupAvailable == ContinuousBackupAvailable::Yes;
     }
 
+    bool hasBloomFilter() const {
+        return bloomFilterAvailable == BloomFilterAvailable::Yes;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
@@ -433,6 +445,7 @@ private:
     CompactionStaleItemCallbacks compactionStaleItemCallbacks;
     HistoryRetentionAvailable historyRetentionAvailable;
     ContinuousBackupAvailable continuousBackupAvailable;
+    BloomFilterAvailable bloomFilterAvailable;
 };
 
 // The type of the snapshot

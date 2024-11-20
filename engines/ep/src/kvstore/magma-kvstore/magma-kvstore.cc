@@ -1103,13 +1103,14 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
 
 StorageProperties MagmaKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::ByIdScan::Yes,
-                         // @TODO MB-33784: Enable auto de-dupe if/when magma
+                         // @TODO MB-33784 Enable auto de-dupe if/when magma
                          // supports it
                          StorageProperties::AutomaticDeduplication::No,
                          StorageProperties::PrepareCounting::No,
                          StorageProperties::CompactionStaleItemCallbacks::Yes,
                          StorageProperties::HistoryRetentionAvailable::Yes,
-                         StorageProperties::ContinuousBackupAvailable::Yes);
+                         StorageProperties::ContinuousBackupAvailable::Yes,
+                         StorageProperties::BloomFilterAvailable::Yes);
     return rv;
 }
 

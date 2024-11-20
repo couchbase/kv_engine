@@ -2647,19 +2647,18 @@ TEST_P(KVBucketParamTest, HashTableMinimumSize) {
     EXPECT_EQ(47, ht.getSize());
 }
 
-#ifdef EP_USE_MAGMA
 TEST_P(KVBucketParamTest, BloomFilter) {
-    if (!isMagma()) {
-        GTEST_SKIP_("magma only");
+    if (ephemeral() || !fullEviction()) {
+        GTEST_SKIP_("Applicable to only full-eviction buckets");
     }
     auto docKey = makeStoredDocKey("foo");
     auto item = store_item(vbid, docKey, "bar");
     auto vb = store->getVBucket(vbid);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
+    evict_key(vbid, docKey);
     EXPECT_TRUE(vb->maybeKeyExistsInFilter(docKey));
 }
-#endif
 
 TEST_P(KVBucketParamTest, HashTableTempItemAllowed) {
     auto& config = engine->getConfiguration();
