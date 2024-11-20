@@ -145,8 +145,6 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
                             error.code().message()));
     }
 
-    engine->snapshotCache = std::make_unique<cb::snapshot::Cache>(dbName);
-
     // Make sure the cached configuration parameters normally initialised in
     // EPEngine::initialise() are also initialised.
     engine->isCrossBucketHtQuotaSharing =

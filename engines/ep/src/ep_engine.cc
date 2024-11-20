@@ -43,7 +43,6 @@
 #include "kvstore/kvstore.h"
 #include "quota_sharing_item_pager.h"
 #include "range_scans/range_scan_callbacks.h"
-#include "snapshots/cache.h"
 #include "stats-info.h"
 #include "string_utils.h"
 #include "trace_helpers.h"
@@ -2239,8 +2238,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
                         {"error", error.code().message()});
         return cb::engine_errc::failed;
     }
-
-    snapshotCache = std::make_unique<cb::snapshot::Cache>(dbName);
 
     auto& env = Environment::get();
     env.engineFileDescriptors = serverApi->core->getMaxEngineFileDescriptors();
@@ -7806,12 +7803,14 @@ cb::engine_errc EventuallyPersistentEngine::prepare_snapshot(
                 NonBucketAllocationGuard guard;
                 callback(json);
             };
-    return acquireEngine(this)->prepareSnapshot(cookie, vbid, non_alloc);
+    return acquireEngine(this)->getKVBucket()->prepareSnapshot(
+            cookie, vbid, non_alloc);
 }
 
 cb::engine_errc EventuallyPersistentEngine::download_snapshot(
         CookieIface& cookie, Vbid vbid, std::string_view metadata) {
-    return acquireEngine(this)->downloadSnapshot(cookie, vbid, metadata);
+    return acquireEngine(this)->getKVBucket()->downloadSnapshot(
+            cookie, vbid, metadata);
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_snapshot_file_info(
@@ -7824,14 +7823,15 @@ cb::engine_errc EventuallyPersistentEngine::get_snapshot_file_info(
                 NonBucketAllocationGuard guard;
                 callback(json);
             };
-    return acquireEngine(this)->getSnapshotFileInfo(
+    return acquireEngine(this)->getKVBucket()->getSnapshotFileInfo(
             cookie, uuid, file_id, non_alloc);
 }
 
 cb::engine_errc EventuallyPersistentEngine::release_snapshot(
         CookieIface& cookie,
         std::variant<Vbid, std::string_view> snapshotToRelease) {
-    return acquireEngine(this)->releaseSnapshot(cookie, snapshotToRelease);
+    return acquireEngine(this)->getKVBucket()->releaseSnapshot(
+            cookie, snapshotToRelease);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
@@ -7841,105 +7841,6 @@ cb::engine_errc EventuallyPersistentEngine::setActiveEncryptionKeys(
         ks = json;
     }
     encryptionKeyProvider.setKeys(std::move(ks));
-    return cb::engine_errc::success;
-}
-
-cb::engine_errc EventuallyPersistentEngine::prepareSnapshot(
-        CookieIface& cookie,
-        Vbid vbid,
-        const std::function<void(const nlohmann::json&)>& callback) {
-    if (!dynamic_cast<EPBucket*>(getKVBucket())) {
-        return cb::engine_errc::not_supported;
-    }
-
-    VBucketPtr vb = kvBucket->getVBucket(vbid);
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-    std::shared_lock rlh(vb->getStateLock());
-    if (vb->getState() != vbucket_state_active) {
-        return cb::engine_errc::not_my_vbucket;
-    }
-
-    auto rv = snapshotCache->prepare(
-            vbid,
-            [this](const std::filesystem::path& path,
-                   Vbid vb,
-                   cb::snapshot::Manifest& manifest) {
-                return kvBucket->getRWUnderlying(vb)->prepareSnapshot(
-                        path, vb, manifest);
-            });
-    if (std::holds_alternative<cb::engine_errc>(rv)) {
-        EP_LOG_WARN_CTX("Snapshots::prepare failed",
-                        {"conn_id", cookie.getConnectionId()},
-                        {"vb", vbid},
-                        {"error", std::get<cb::engine_errc>(rv)});
-        return std::get<cb::engine_errc>(rv);
-    }
-
-    callback(std::get<cb::snapshot::Manifest>(rv));
-    return cb::engine_errc::success;
-}
-
-cb::engine_errc EventuallyPersistentEngine::downloadSnapshot(
-        CookieIface& cookie, Vbid vbid, std::string_view metadata) {
-    auto task =
-            takeEngineSpecific<std::shared_ptr<DownloadSnapshotTask>>(cookie);
-    if (task) {
-        auto [status, message] = (*task)->getResult();
-        NonBucketAllocationGuard guard;
-        cookie.setErrorContext(message);
-        return status;
-    }
-    auto downloader = DownloadSnapshotTask::create(
-            cookie, *this, *snapshotCache, vbid, metadata);
-    storeEngineSpecific(cookie, downloader);
-    ExecutorPool::get()->schedule(downloader);
-    return cb::engine_errc::would_block;
-}
-
-cb::engine_errc EventuallyPersistentEngine::getSnapshotFileInfo(
-        CookieIface&,
-        std::string_view uuid,
-        std::size_t file_id,
-        const std::function<void(const nlohmann::json&)>& callback) {
-    auto manifest = snapshotCache->lookup(std::string(uuid));
-    if (!manifest) {
-        return cb::engine_errc::no_such_key;
-    }
-
-    for (const auto& file : manifest->files) {
-        if (file.id == file_id) {
-            nlohmann::json full = file;
-            full["path"] =
-                    snapshotCache->make_absolute(file.path, manifest->uuid)
-                            .string();
-            callback(full);
-            return cb::engine_errc::success;
-        }
-    }
-    for (const auto& file : manifest->deks) {
-        if (file.id == file_id) {
-            nlohmann::json full = file;
-            full["path"] =
-                    snapshotCache->make_absolute(file.path, manifest->uuid)
-                            .string();
-            callback(full);
-            return cb::engine_errc::success;
-        }
-    }
-
-    return cb::engine_errc::no_such_key;
-}
-
-cb::engine_errc EventuallyPersistentEngine::releaseSnapshot(
-        CookieIface&, std::variant<Vbid, std::string_view> snapshotToRelease) {
-    if (std::holds_alternative<Vbid>(snapshotToRelease)) {
-        snapshotCache->release(std::get<Vbid>(snapshotToRelease));
-    } else {
-        snapshotCache->release(
-                std::string{std::get<std::string_view>(snapshotToRelease)});
-    }
     return cb::engine_errc::success;
 }
 

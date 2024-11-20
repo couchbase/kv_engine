@@ -33,6 +33,10 @@ struct CompactionContext;
 struct CompactionStats;
 class SeqnoPersistenceNotifyTask;
 
+namespace cb::snapshot {
+class Cache;
+}
+
 /**
  * Eventually Persistent Bucket
  *
@@ -397,6 +401,27 @@ public:
 
     bool disconnectReplicationAtOOM() const override;
 
+    cb::engine_errc prepareSnapshot(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::function<void(const nlohmann::json&)>& callback)
+            override;
+
+    cb::engine_errc downloadSnapshot(CookieIface& cookie,
+                                     Vbid vbid,
+                                     std::string_view metadata) override;
+
+    cb::engine_errc getSnapshotFileInfo(
+            CookieIface& cookie,
+            std::string_view uuid,
+            std::size_t file_id,
+            const std::function<void(const nlohmann::json&)>& callback)
+            override;
+
+    cb::engine_errc releaseSnapshot(
+            CookieIface& cookie,
+            std::variant<Vbid, std::string_view> snapshotToRelease) override;
+
     /// Hook that gets called from prepareForPause. Phase of prepareForPause()
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;
@@ -587,6 +612,10 @@ protected:
      * client
      */
     ReadyRangeScans rangeScans;
+
+    /// The snapshot manager responsible for keeping track of all snapshots
+    /// for this bucket
+    std::unique_ptr<cb::snapshot::Cache> snapshotCache;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

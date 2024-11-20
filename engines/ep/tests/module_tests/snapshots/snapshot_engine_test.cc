@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "ep_bucket.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
 
 #include <gtest/gtest.h>
@@ -18,6 +19,7 @@ class SnapshotEngineTest : public SingleThreadedEPBucketTest,
 public:
     void SetUp() override {
         SingleThreadedEPBucketTest::SetUp();
+        getEPBucket().initialize(); // snapshot cache needs creating
     }
 };
 
