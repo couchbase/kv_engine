@@ -1131,3 +1131,9 @@ class MemcachedClient(object):
             return struct.pack(">BBH", ((1 << 4) | 3), level, timeout)
         else:
             return struct.pack(">BB", ((1 << 4) | 1), level)
+
+    def prepare_snapshot(self):
+        rv = self._doCmd(memcacheConstants.CMD_PREPARE_SNAPSHOT,
+                         '',
+                         '')
+        return rv[2]
