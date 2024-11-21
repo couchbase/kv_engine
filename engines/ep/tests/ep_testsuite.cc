@@ -7298,6 +7298,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_bytes_per_read",
                           "ep_magma_checkpoint_disk_usage",
                           "ep_magma_compactions",
+                          "ep_magma_drop_encryption_keys_compactions",
                           "ep_magma_data_blocks_compressed_size",
                           "ep_magma_data_blocks_compression_ratio",
                           "ep_magma_data_blocks_space_reduction_estimate_pct",

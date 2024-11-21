@@ -2936,10 +2936,11 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 69> statNames = {
+    constexpr std::array<std::string_view, 70> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
+             "magma_NDropEncryptionKeysCompacts",
              "magma_NDataLevelCompacts",
              "magma_KeyIndex_NCompacts",
              "magma_SeqIndex_NCompacts",
@@ -3048,6 +3049,8 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
 
     // Compaction counter stats.
     addStat(Key::ep_magma_compactions, "magma_NCompacts");
+    addStat(Key::ep_magma_drop_encryption_keys_compactions,
+            "magma_NDropEncryptionKeysCompacts");
     addStat(Key::ep_magma_keyindex_compactions, "magma_KeyIndex_NCompacts");
     addStat(Key::ep_magma_seqindex_compactions, "magma_SeqIndex_NCompacts");
     addStat(Key::ep_magma_seqindex_data_compactions,

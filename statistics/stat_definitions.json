@@ -1321,6 +1321,12 @@
         "description": "Count of Magma compactions in key, seq and local index."
     },
     {
+        "key": "ep_magma_drop_encryption_keys_compactions",
+        "unit": "none",
+        "added": "8.0.0",
+        "description": "Count of Magma compactions issued to drop older encryption keys."
+    },
+    {
         "family": "magma_compactions",
         "unit": "none",
         "description": "Count of Magma compactions"

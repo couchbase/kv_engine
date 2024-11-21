@@ -3931,6 +3931,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);
     fill("magma_WriteCacheQuota", magmaStats->WriteCacheQuota);
     fill("magma_NCompacts", magmaStats->NCompacts);
+    fill("magma_NDropEncryptionKeysCompacts",
+         magmaStats->NDropEncryptionKeysCompacts);
     fill("magma_NDataLevelCompacts", magmaStats->NDataLevelCompacts);
     fill("magma_KeyIndex_NCompacts", magmaStats->KeyStats.NCompacts);
     fill("magma_SeqIndex_NCompacts", magmaStats->SeqStats.NCompacts);
