@@ -254,9 +254,10 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
-                    EP_LOG_WARN("Failed background fetch for {}, seqno:{}",
-                                getId(),
-                                v->getBySeqno());
+                    EP_LOG_WARN_CTX("Failed background fetch",
+                                    {"vb", getId()},
+                                    {"seqno", v->getBySeqno()},
+                                    {"status", status});
                     status = cb::engine_errc::temporary_failure;
                 }
             }
