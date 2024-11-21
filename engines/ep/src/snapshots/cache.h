@@ -123,6 +123,9 @@ public:
     /// Remove all snapshots older than the provided age
     void purge(std::chrono::seconds age);
 
+    /// produce stats for the cache which may be useful for debugging/cbcollect
+    void addDebugStats(const StatCollector& collector) const;
+
 protected:
     /// Nuke a manifest from disk
     void remove(const Manifest& manifest) const;
@@ -145,6 +148,7 @@ protected:
         mutable std::chrono::steady_clock::time_point timestamp =
                 std::chrono::steady_clock::now();
         Manifest manifest;
+        void addDebugStats(const StatCollector& collector) const;
     };
     folly::Synchronized<std::map<std::string, Entry>, std::mutex> snapshots;
 };

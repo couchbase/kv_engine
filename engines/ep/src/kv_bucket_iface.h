@@ -963,6 +963,11 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    [[nodiscard]] virtual cb::engine_errc doSnapshotDebugStats(
+            const StatCollector&) {
+        return cb::engine_errc::not_supported;
+    }
+
     /**
      * Result of the loadPreparedSyncWrites function
      */

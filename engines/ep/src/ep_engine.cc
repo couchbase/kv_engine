@@ -5668,6 +5668,9 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (cb_isPrefix(key, "fusion")) {
         return doFusionStats(c, add_stat, key);
     }
+    if (key == "snapshot-details"sv) {
+        return getKVBucket()->doSnapshotDebugStats(bucketCollector);
+    }
 
     // Unknown stat requested
     return cb::engine_errc::no_such_key;

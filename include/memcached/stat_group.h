@@ -81,6 +81,7 @@ enum class StatGroupId {
     Uuid,
     RangeScans,
     Fusion,
+    SnapshotDetails,
 
     // stat command timings
 

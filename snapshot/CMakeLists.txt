@@ -10,7 +10,11 @@ add_library(snapshot STATIC
 )
 kv_enable_pch(snapshot)
 cb_enable_unity_build(snapshot)
-target_link_libraries(snapshot PUBLIC mc_client_connection platform spdlog::spdlog)
+target_link_libraries(snapshot PUBLIC
+        mc_client_connection
+        platform
+        spdlog::spdlog
+        statistics)
 add_sanitizers(snapshot)
 
 cb_add_test_executable(snapshot_tests

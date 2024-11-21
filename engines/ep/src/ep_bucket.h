@@ -419,6 +419,8 @@ public:
             CookieIface& cookie,
             std::variant<Vbid, std::string_view> snapshotToRelease) override;
 
+    cb::engine_errc doSnapshotDebugStats(const StatCollector&) override;
+
     /// Hook that gets called from prepareForPause. Phase of prepareForPause()
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;

@@ -328,7 +328,11 @@ StatsGroupManager::StatsGroupManager()
                 false,
                 true},
                {StatGroupId::Fusion, "fusion", "Get Fusion state", false, true},
-
+               {StatGroupId::SnapshotDetails,
+                "snapshot-details",
+                "Get detailed information about vbucket disk snapshots",
+                true,
+                true},
                {StatGroupId::StatTimings,
                 "stat-timings",
                 "Get timing information for stat commands",
@@ -338,7 +342,8 @@ StatsGroupManager::StatsGroupManager()
                 "threads",
                 "Get information about thread numbers",
                 true,
-                false}}) {
+                false},
+            }) {
 }
 
 StatsGroupManager& StatsGroupManager::getInstance() {

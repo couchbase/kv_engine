@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <optional>
 
+class StatCollector;
+
 namespace cb::snapshot {
 
 /// The information tracked for a given file in the snapshot
@@ -45,6 +47,9 @@ struct FileInfo {
     friend bool operator!=(const FileInfo& lhs, const FileInfo& rhs) {
         return !(lhs == rhs);
     }
+
+    /// Add the state of this FileInfo to the collector
+    void addDebugStats(std::string_view label, const StatCollector&) const;
 };
 
 /// The snapshot manifest
@@ -67,6 +72,9 @@ struct Manifest {
     friend bool operator!=(const Manifest& lhs, const Manifest& rhs) {
         return !(lhs == rhs);
     }
+
+    /// Add the state of this Manifest to the collector
+    void addDebugStats(const StatCollector&) const;
 };
 
 void to_json(nlohmann::json& json, const FileInfo& info);

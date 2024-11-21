@@ -10,6 +10,7 @@
 
 #include "manifest.h"
 #include <nlohmann/json.hpp>
+#include <statistics/collector.h>
 
 namespace cb::snapshot {
 
@@ -80,6 +81,27 @@ void from_json(const nlohmann::json& json, Manifest& manifest) {
     if (json.contains("deks")) {
         manifest.deks = json["deks"].get<std::vector<FileInfo>>();
     }
+}
+
+void Manifest::addDebugStats(const StatCollector& collector) const {
+    collector.addStat(std::string_view{fmt::format("vb_{}:uuid", vbid.get())},
+                      uuid);
+    for (const auto& file : files) {
+        file.addDebugStats(fmt::format("vb_{}", vbid.get()), collector);
+    }
+    for (const auto& dek : deks) {
+        dek.addDebugStats(fmt::format("vb_{}:dek:", vbid.get()), collector);
+    }
+}
+
+void FileInfo::addDebugStats(std::string_view label,
+                             const StatCollector& collector) const {
+    collector.addStat(std::string_view{fmt::format("{}:path", label)},
+                      path.string());
+    collector.addStat(std::string_view{fmt::format("{}:size", label)}, size);
+    collector.addStat(std::string_view{fmt::format("{}:id", label)}, id);
+    collector.addStat(std::string_view{fmt::format("{}:sha512", label)},
+                      sha512);
 }
 
 } // namespace cb::snapshot
