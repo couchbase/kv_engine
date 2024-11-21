@@ -141,4 +141,15 @@ TEST_P(FusionTest, GetStorageSnapshot) {
     EXPECT_FALSE(res["volumeID"].empty());
 }
 
+TEST_P(FusionTest, SetMetadataAuthToken) {
+    adminConnection->executeInBucket(bucketName, [](auto& connection) {
+        const auto setParam = BinprotSetParamCommand(
+                cb::mcbp::request::SetParamPayload::Type::Flush,
+                "fusion_metadata_auth_token",
+                "some-token");
+        const auto resp = BinprotMutationResponse(connection.execute(setParam));
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
 #endif // USE_FUSION

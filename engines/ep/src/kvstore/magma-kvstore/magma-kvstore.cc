@@ -4534,3 +4534,13 @@ MagmaKVStore::getFusionStorageSnapshot(std::string_view fusionNamespace,
     }
     return {cb::engine_errc::success, std::get<nlohmann::json>(res)};
 }
+
+cb::engine_errc MagmaKVStore::setFusionMetadataAuthToken(
+        std::string_view token) {
+    magma->setFusionMetadataAuthToken(token);
+    return cb::engine_errc::success;
+}
+
+std::string MagmaKVStore::getFusionMetadataAuthToken() const {
+    return magma->getFusionMetadataAuthToken();
+}

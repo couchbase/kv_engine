@@ -276,6 +276,9 @@ public:
             std::string_view snapshotUuid,
             std::time_t validity);
 
+    void setFusionMetadataAuthToken(std::string_view token);
+    std::string getFusionMetadataAuthToken() const;
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

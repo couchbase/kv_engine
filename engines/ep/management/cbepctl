@@ -290,6 +290,7 @@ Available params for "set":
     seqno_persistence_timeout    - Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed
     history_retention_seconds    - Seconds of history a bucket should aim to retain on disk.
     history_retention_bytes      - Max bytes of history a bucket should aim to retain on disk.
+    fusion_metadata_auth_token   - Authorization token for the Chronical service
 
   Available params for "set replication_param":
     <empty>

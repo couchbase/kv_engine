@@ -1220,6 +1220,15 @@ TEST_P(STMagmaFusionTest, Config) {
     EXPECT_EQ(fusionNamespace, kvstoreConfig.getFusionNamespace());
 }
 
+TEST_P(STMagmaFusionTest, MetadataAuthToken) {
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    ASSERT_TRUE(kvstore.getFusionMetadataAuthToken().empty());
+    const auto token = "some-token";
+    EXPECT_EQ(cb::engine_errc::success,
+              kvstore.setFusionMetadataAuthToken(token));
+    EXPECT_EQ(token, kvstore.getFusionMetadataAuthToken());
+}
+
 INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,
                          STMagmaFusionTest,
                          STParameterizedBucketTest::magmaConfigValues(),

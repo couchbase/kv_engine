@@ -182,6 +182,13 @@ public:
             std::time_t validity) override {
         return {};
     }
+    cb::engine_errc setFusionMetadataAuthToken(
+            std::string_view token) override {
+        return cb::engine_errc::not_supported;
+    }
+    std::string getFusionMetadataAuthToken() const override {
+        return {};
+    }
 
     /**
      * Unit test only hook called before we compact the first KVStore. Public as

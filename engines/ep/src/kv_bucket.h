@@ -1186,6 +1186,11 @@ public:
      */
     size_t getMemAvailableForReplication();
 
+    template <class Predicate>
+    void forEachShard(Predicate p) {
+        vbMap.forEachShard(p);
+    }
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the

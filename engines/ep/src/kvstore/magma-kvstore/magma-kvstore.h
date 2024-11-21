@@ -660,6 +660,9 @@ public:
             std::string_view snapshotUuid,
             std::time_t validity) override;
 
+    cb::engine_errc setFusionMetadataAuthToken(std::string_view token) override;
+    std::string getFusionMetadataAuthToken() const override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

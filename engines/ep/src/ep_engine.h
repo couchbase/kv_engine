@@ -1511,6 +1511,9 @@ protected:
     std::pair<cb::engine_errc, nlohmann::json> getFusionStorageSnapshotInner(
             Vbid vbid, std::string_view snapshotUuid, std::time_t validity);
 
+    cb::engine_errc setFusionMetadataAuthToken(std::string_view token);
+    std::string getFusionMetadataAuthToken() const;
+
     /**
      * Get the configured shard count for the bucket
      * @return shard count

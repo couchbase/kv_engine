@@ -963,6 +963,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupEnabled(cb_stob(val));
         } else if (key == "continuous_backup_interval") {
             configuration.setContinuousBackupInterval(std::stoull(val));
+        } else if (key == "fusion_metadata_auth_token") {
+            setFusionMetadataAuthToken(val);
         } else {
             EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                             {"key", key},
@@ -7955,4 +7957,23 @@ EventuallyPersistentEngine::getFusionStorageSnapshotInner(
 
     return kvBucket->getRWUnderlying(vbid)->getFusionStorageSnapshot(
             fusionNamespace, vbid, snapshotUuid, validity);
+}
+
+cb::engine_errc EventuallyPersistentEngine::setFusionMetadataAuthToken(
+        std::string_view token) {
+    Expects(kvBucket);
+    if (!kvBucket->getStorageProperties().supportsFusion()) {
+        return cb::engine_errc::not_supported;
+    }
+
+    kvBucket->forEachShard([&token](KVShard& shard) {
+        shard.getRWUnderlying()->setFusionMetadataAuthToken(token);
+    });
+
+    return cb::engine_errc::success;
+}
+
+std::string EventuallyPersistentEngine::getFusionMetadataAuthToken() const {
+    Expects(kvBucket);
+    return kvBucket->getOneRWUnderlying()->getFusionMetadataAuthToken();
 }

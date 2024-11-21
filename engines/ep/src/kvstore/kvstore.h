@@ -977,9 +977,10 @@ public:
         return std::nullopt;
     }
 
+    // Fusion
+    // Only supported by backends which report StorageProperties::Fusion::Yes
+
     nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
-        // Only supported by backends which report
-        // StorageProperties::Fusion::Yes
         return {};
     }
 
@@ -988,9 +989,16 @@ public:
             Vbid vbid,
             std::string_view snapshotUuid,
             std::time_t validity) override {
-        // Only supported by backends which report
-        // StorageProperties::Fusion::Yes
         return {cb::engine_errc::not_supported, {}};
+    }
+
+    cb::engine_errc setFusionMetadataAuthToken(
+            std::string_view token) override {
+        return cb::engine_errc::not_supported;
+    }
+
+    std::string getFusionMetadataAuthToken() const override {
+        return {};
     }
 
     /**
