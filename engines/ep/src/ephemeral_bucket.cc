@@ -146,60 +146,49 @@ size_t EphemeralBucket::getPageableMemCurrent() const {
     // be freed - only active items can (potentially) be directly deleted
     // (auto-delete or items which have expired) - given that the replica
     // must be an exact copy of the active.
-    // As such, 'pageable' memory is non-replica memmory.
 
-    // We don't directly track "active_mem_used", but we can roughtly estimate
-    // it from mem_used - replica_ht_mem - replica_checkpoint_mem
+    // We don't directly track "active_mem_used", but we can roughly estimate
+    // by subtracting the mem used for HT and checkpoint items in inactive
+    // (replica, dead) vBuckets from the total.
     const auto estimatedActiveMemory =
             int64_t(stats.getEstimatedTotalMemoryUsed()) -
-            stats.replicaHTMemory - stats.replicaCheckpointOverhead;
+            stats.inactiveHTMemory - stats.inactiveCheckpointOverhead;
     return std::max(estimatedActiveMemory, int64_t(0));
 }
 
 size_t EphemeralBucket::getPageableMemHighWatermark() const {
-    // Ephemeral buckets can only page out non-replica memory (see comments
-    // in getPageableMemCurrent). As such, set pagable high watermark to
+    // Ephemeral buckets can only page out active memory (see comments
+    // in getPageableMemCurrent). As such, set pageable high watermark to
     // a fraction of the overall high watermark based on what faction of
-    // vBuckets are active. Memory used by any dead vbs should be reclaimed
-    // soon, so ignore them here; they don't need to be allocated a portion
-    // of the quota.
-    const double activeVBCount = vbMap.getVBStateCount(vbucket_state_active);
-    const double pendingVBCount = vbMap.getVBStateCount(vbucket_state_pending);
-    const double replicaVBCount = vbMap.getVBStateCount(vbucket_state_replica);
-    const double totalVBCount = activeVBCount + pendingVBCount + replicaVBCount;
+    // vBuckets are active or pending (as those will soon be active).
+    const auto activeVBCount = vbMap.getVBStateCount(vbucket_state_active);
+    const auto pendingVBCount = vbMap.getVBStateCount(vbucket_state_pending);
+    const auto replicaVBCount = vbMap.getVBStateCount(vbucket_state_replica);
+    const auto deadVBCount = vbMap.getVBStateCount(vbucket_state_dead);
+    // Pending VBuckets are not actually pageable, but will soon be.
+    const auto pageableVBCount = activeVBCount + pendingVBCount;
+    const double totalVBCount =
+            activeVBCount + pendingVBCount + replicaVBCount + deadVBCount;
 
-    if (totalVBCount <= 0) {
-        // not an expected situation, bail out and return the full high
-        // watermark
+    if (totalVBCount <= 0 || pageableVBCount <= 0) {
+        // Bail out if total is 0.
+        // If the high watermark was 0 without active or pending VBuckets,
+        // memory reclamation could be attempted without that being possible.
         return stats.mem_high_wat.load();
     }
 
-    // How many vBuckets are pagable. If this is zero (unlikely, but possible
-    // if only replica vBuckets exist - say test scenarios of after failover),
-    // then we don't want to return a value of zero as that could imply that
-    // memory reclation should be attemted - just return entire watermark.
-    const double pageableVBCount = activeVBCount + pendingVBCount;
-    if (pageableVBCount == 0) {
-        return stats.mem_high_wat.load();
-    }
-
-    const double activePendingHighWat =
-            (stats.mem_high_wat.load() / totalVBCount) * pageableVBCount;
-
-    return activePendingHighWat;
+    return (stats.mem_high_wat.load() / totalVBCount) * pageableVBCount;
 }
 
 size_t EphemeralBucket::getPageableMemLowWatermark() const {
-    // Ephemeral buckets can only page out non-replica memory (see comments
-    // in getPageableMemCurrent). As such, set pagable low watermark to
-    // a fraction of the overall low watermark based on what faction of
-    // vBuckets are active. Memory used by any dead vbs should be reclaimed
-    // soon, so ignore them here; they don't need to be allocated a portion
-    // of the quota.
-    const double activeVBCount = vbMap.getVBStateCount(vbucket_state_active);
-    const double pendingVBCount = vbMap.getVBStateCount(vbucket_state_pending);
-    const double replicaVBCount = vbMap.getVBStateCount(vbucket_state_replica);
-    const double totalVBCount = activeVBCount + pendingVBCount + replicaVBCount;
+    const auto activeVBCount = vbMap.getVBStateCount(vbucket_state_active);
+    const auto pendingVBCount = vbMap.getVBStateCount(vbucket_state_pending);
+    const auto replicaVBCount = vbMap.getVBStateCount(vbucket_state_replica);
+    const auto deadVBCount = vbMap.getVBStateCount(vbucket_state_dead);
+    // Pending VBuckets are not actually pageable, but will soon be.
+    const auto pageableVBCount = activeVBCount + pendingVBCount;
+    const double totalVBCount =
+            activeVBCount + pendingVBCount + replicaVBCount + deadVBCount;
 
     if (totalVBCount <= 0) {
         // not an expected situation, bail out and return the full low
@@ -207,10 +196,7 @@ size_t EphemeralBucket::getPageableMemLowWatermark() const {
         return stats.mem_low_wat.load();
     }
 
-    const double activeLowWat = (stats.mem_low_wat.load() / totalVBCount) *
-                                (activeVBCount + pendingVBCount);
-
-    return activeLowWat;
+    return (stats.mem_low_wat.load() / totalVBCount) * pageableVBCount;
 }
 
 void EphemeralBucket::attemptToFreeMemory() {
@@ -295,16 +281,18 @@ VBucketPtr EphemeralBucket::makeVBucket(
                                     replicationTopology);
 
     vb->ht.setMemChangedCallback([vb, &stats = stats](int64_t delta) {
-        if (vb->getState() == vbucket_state_replica) {
-            stats.replicaHTMemory += delta;
+        auto state = vb->getState();
+        if (state == vbucket_state_replica || state == vbucket_state_dead) {
+            stats.inactiveHTMemory += delta;
         }
     });
-    vb->checkpointManager->setOverheadChangedCallback(
-            [vb, &stats = stats](int64_t delta) {
-                if (vb->getState() == vbucket_state_replica) {
-                    stats.replicaCheckpointOverhead += delta;
-                }
-            });
+    vb->checkpointManager->setOverheadChangedCallback([vb, &stats = stats](
+                                                              int64_t delta) {
+        auto state = vb->getState();
+        if (state == vbucket_state_replica || state == vbucket_state_dead) {
+            stats.inactiveCheckpointOverhead += delta;
+        }
+    });
     return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
 }
 

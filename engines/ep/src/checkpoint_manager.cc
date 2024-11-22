@@ -1877,14 +1877,13 @@ bool CheckpointManager::isOpenCheckpointInitialDisk() {
 void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
                                                   vbucket_state_t to) {
     std::lock_guard<std::mutex> lh(queueLock);
-    if (from == vbucket_state_replica && to != vbucket_state_replica) {
-        // vbucket is changing state away from replica, it's memory usage
-        // should no longer be accounted for as a replica.
-        stats.replicaCheckpointOverhead -= getMemOverheadAllocatorBytes(lh);
-    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
-        // vbucket is changing state to _become_ a replica, it's memory usage
-        // _should_ be accounted for as a replica.
-        stats.replicaCheckpointOverhead += getMemOverheadAllocatorBytes(lh);
+    auto isInactive = [](vbucket_state_t state) {
+        return state == vbucket_state_replica || state == vbucket_state_dead;
+    };
+    if (!isInactive(from) && isInactive(to)) {
+        stats.inactiveCheckpointOverhead += getMemOverheadAllocatorBytes(lh);
+    } else if (isInactive(from) && !isInactive(to)) {
+        stats.inactiveCheckpointOverhead -= getMemOverheadAllocatorBytes(lh);
     }
 }
 

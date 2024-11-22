@@ -1692,6 +1692,16 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_64008) {
     EXPECT_TRUE(softDeleteCalled) << "Nothing was deleted";
 }
 
+// Dead vBuckets should not be counted as pageable.
+TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_64092) {
+    setVBucketState(Vbid(1), vbucket_state_active);
+    double prevPageableHWM = store->getPageableMemHighWatermark();
+    double prevPageableLWM = store->getPageableMemLowWatermark();
+    setVBucketState(Vbid(1), vbucket_state_dead);
+    EXPECT_LT(store->getPageableMemHighWatermark() / prevPageableHWM, 0.6);
+    EXPECT_LT(store->getPageableMemLowWatermark() / prevPageableLWM, 0.6);
+}
+
 // Test covers MB-60046. A pending and committed key must not find itself auto
 // deleted, else the delete of the commit will be rejected by the DCP replica
 // and cause disconnects.

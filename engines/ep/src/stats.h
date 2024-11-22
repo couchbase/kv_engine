@@ -337,11 +337,11 @@ public:
     //! Core-local statistics
     CoreStore<folly::cacheline_aligned<CoreLocalStats>> coreLocal;
 
-    // Total memory used by hashtable items for replica vbuckets.
-    cb::RelaxedAtomic<int64_t> replicaHTMemory;
+    //! Total memory used by hashtable items for replica or dead vbuckets.
+    cb::RelaxedAtomic<int64_t> inactiveHTMemory;
 
-    // Total memory used by checkpoints for replica vbuckets.
-    cb::RelaxedAtomic<int64_t> replicaCheckpointOverhead;
+    //! Total memory used by checkpoints for replica or dead vbuckets.
+    cb::RelaxedAtomic<int64_t> inactiveCheckpointOverhead;
 
     //! Whether or not to force engine shutdown.
     std::atomic<bool> forceShutdown;
