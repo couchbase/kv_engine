@@ -727,6 +727,11 @@ GetValue NexusKVStore::getWithHeader(const KVFileHandle& kvFileHandle,
     return primaryGetValue;
 }
 
+void NexusKVStore::setAliveVBucketRatio(double ratio) {
+    primary->setAliveVBucketRatio(ratio);
+    secondary->setAliveVBucketRatio(ratio);
+}
+
 void NexusKVStore::setMaxDataSize(size_t size) {
     primary->setMaxDataSize(size);
     secondary->setMaxDataSize(size);

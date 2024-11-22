@@ -1114,10 +1114,16 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
     return rv;
 }
 
+void MagmaKVStore::setAliveVBucketRatio(double ratio) {
+    if (aliveVBucketRatio.exchange(ratio) != ratio) {
+        setMaxDataSize(configuration.getBucketQuota());
+    }
+}
+
 void MagmaKVStore::setMaxDataSize(size_t size) {
     configuration.setBucketQuota(size);
-    const size_t memoryQuota = (size / configuration.getMaxShards()) *
-                               configuration.getMagmaMemQuotaRatio();
+    const size_t memoryQuota =
+            size * configuration.getMagmaMemQuotaRatio() * aliveVBucketRatio;
     magma->SetMemoryQuota(memoryQuota);
 }
 

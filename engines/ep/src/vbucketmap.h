@@ -188,6 +188,16 @@ public:
             std::unique_lock<folly::SharedMutex>& vbStateLock);
 
     /**
+     * Call the function p and supply each shard as a parameter (const).
+     */
+    template <class Predicate>
+    void forEachShard(Predicate p) const {
+        for (auto& shard : shards) {
+            p(*shard);
+        }
+    }
+
+    /**
      * Call the function p and supply each shard as a parameter.
      */
     template <class Predicate>
@@ -202,6 +212,11 @@ public:
      * Note: Different than VBucketMap::size that stores the capacity of the map
      */
     size_t getNumAliveVBuckets() const;
+
+    /**
+     * @return the number of vBuckets per KVShard.
+     */
+    std::vector<std::pair<KVShard*, size_t>> getNumVBucketsPerShard() const;
 
 private:
 

@@ -116,6 +116,8 @@ public:
 
     StorageProperties getStorageProperties() const override;
 
+    void setAliveVBucketRatio(double ratio) override;
+
     void setMaxDataSize(size_t size) override;
 
     std::pair<cb::engine_errc, nlohmann::json> getVbucketEncryptionKeyIds(
@@ -936,6 +938,9 @@ protected:
 
     // Keep track of the vbucket revision
     std::vector<Monotonic<uint64_t>> kvstoreRevList;
+
+    // Keep track of the ratio of vbuckets in this shard to all vbuckets.
+    std::atomic<double> aliveVBucketRatio{1.0};
 
     // For testing, we need to simulate couchstore where every batch
     // is a potential rollback point. We do this by Syncing after every batch

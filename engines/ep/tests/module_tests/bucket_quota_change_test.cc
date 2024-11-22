@@ -165,15 +165,25 @@ public:
     void checkStorageEngineQuota(size_t quotaValue) {
 #ifdef EP_USE_MAGMA
         if (STParameterizedBucketTest::isMagma()) {
-            auto& magmaKVStoreConfig = static_cast<const MagmaKVStoreConfig&>(
-                    engine->getKVBucket()->getOneRWUnderlying()->getConfig());
-            size_t magmaQuota;
-            engine->getKVBucket()->getOneRWUnderlying()->getStat("memory_quota",
-                                                                 magmaQuota);
-            EXPECT_EQ(
-                    cb::fractionOf(quotaValue,
-                                   magmaKVStoreConfig.getMagmaMemQuotaRatio()),
-                    magmaQuota * engine->getConfiguration().getMaxNumShards());
+            store->getVBuckets().forEachShard([this, &quotaValue](auto& shard) {
+                auto& magmaKVStoreConfig =
+                        static_cast<const MagmaKVStoreConfig&>(
+                                shard.getRWUnderlying()->getConfig());
+                size_t magmaQuota = 0;
+                shard.getRWUnderlying()->getStat("memory_quota", magmaQuota);
+
+                auto vbCountPerShard =
+                        store->getVBuckets().getNumVBucketsPerShard();
+                auto shardMemRatio =
+                        vbCountPerShard[shard.getId()].second /
+                        static_cast<double>(
+                                store->getVBuckets().getNumAliveVBuckets());
+
+                EXPECT_EQ(magmaQuota,
+                          quotaValue *
+                                  magmaKVStoreConfig.getMagmaMemQuotaRatio() *
+                                  shardMemRatio);
+            });
         }
 #endif
     }
