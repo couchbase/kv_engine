@@ -305,10 +305,10 @@ public:
             Vbid vb) const override;
 
     /// Create a snapshot in the provided directory for the provided vbucket
-    cb::engine_errc prepareSnapshot(
+    std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshotImpl(
             const std::filesystem::path& snapshotDirectory,
             Vbid vb,
-            cb::snapshot::Manifest& manifest) override;
+            std::string_view uuid) override;
 
     bool getStat(std::string_view name, size_t& value) const override;
 

@@ -1008,6 +1008,9 @@ public:
         return {};
     }
 
+    std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
+            const std::filesystem::path& snapshotDirectory, Vbid vb) override;
+
     /**
      * Check if the specified document metadata is /potentially/ affected
      * by a datatype corruption issue (MB-52793) - a deleted document with

@@ -35,9 +35,3 @@ KVStoreIface::CreateItemCB KVStoreIface::getDefaultCreateItemCallback() {
         return std::make_pair(cb::engine_errc::success, std::move(item));
     };
 }
-
-cb::engine_errc KVStoreIface::prepareSnapshot(const std::filesystem::path&,
-                                              Vbid,
-                                              cb::snapshot::Manifest&) {
-    return cb::engine_errc::not_supported;
-}

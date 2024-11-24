@@ -52,9 +52,9 @@ public:
     }
 
 protected:
-    cb::engine_errc doDownloadManifest(cb::snapshot::Manifest& manifest);
+    std::variant<cb::engine_errc, cb::snapshot::Manifest> doDownloadManifest();
     cb::engine_errc doDownloadFiles(std::filesystem::path dir,
-                                    cb::snapshot::Manifest& manifest);
+                                    const cb::snapshot::Manifest& manifest);
     void doReleaseSnapshot(std::string_view uuid);
 
     MemcachedConnection& getConnection();
@@ -113,8 +113,8 @@ MemcachedConnection& DownloadSnapshotTaskImpl::getConnection() {
     return *connection;
 }
 
-cb::engine_errc DownloadSnapshotTaskImpl::doDownloadManifest(
-        cb::snapshot::Manifest& manifest) {
+std::variant<cb::engine_errc, cb::snapshot::Manifest>
+DownloadSnapshotTaskImpl::doDownloadManifest() {
     auto& conn = getConnection();
     BinprotGenericCommand prepare(cb::mcbp::ClientOpcode::PrepareSnapshot);
     prepare.setVBucket(vbid);
@@ -138,9 +138,11 @@ cb::engine_errc DownloadSnapshotTaskImpl::doDownloadManifest(
                         {"conn_id", cookie.getConnectionId()},
                         {"vb", vbid},
                         {"error", e.what()});
+        return cb::engine_errc::failed;
     }
+
     try {
-        manifest = json;
+        return cb::snapshot::Manifest{json};
     } catch (const std::exception& e) {
         EP_LOG_WARN_CTX("Failed to parse snapshot manifest",
                         {"conn_id", cookie.getConnectionId()},
@@ -150,17 +152,12 @@ cb::engine_errc DownloadSnapshotTaskImpl::doDownloadManifest(
         result = {
                 cb::engine_errc::failed,
                 fmt::format("Failed to parse snapshot manifest: {}", e.what())};
-        return cb::engine_errc::failed;
     }
-    EP_LOG_INFO_CTX("Downloaded snapshot manifest",
-                    {"conn_id", cookie.getConnectionId()},
-                    {"vb", vbid},
-                    {"uuid", manifest.uuid});
-    return cb::engine_errc::success;
+    return cb::engine_errc::failed;
 }
 
 cb::engine_errc DownloadSnapshotTaskImpl::doDownloadFiles(
-        std::filesystem::path dir, cb::snapshot::Manifest& manifest) {
+        std::filesystem::path dir, const cb::snapshot::Manifest& manifest) {
     auto dconn = connection->clone();
 
     if (properties.sasl.has_value()) {
@@ -219,7 +216,7 @@ bool DownloadSnapshotTaskImpl::run() {
     try {
         auto rv = manager.download(
                 vbid,
-                [this](auto& manifest) { return doDownloadManifest(manifest); },
+                [this]() { return doDownloadManifest(); },
                 [this](const auto& dir, auto& manifest) {
                     doDownloadFiles(dir, manifest);
                     return cb::engine_errc::success;

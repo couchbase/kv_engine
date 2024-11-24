@@ -37,7 +37,9 @@
 #include "magma-kvstore/magma-kvstore_config.h"
 #endif /* EP_USE_MAGMA */
 
+#include <cbcrypto/digest.h>
 #include <platform/dirutils.h>
+#include <platform/uuid.h>
 #include <statistics/cbstat_collector.h>
 #include <sys/stat.h>
 #include <utilities/logtags.h>
@@ -714,6 +716,80 @@ bool KVStore::checkAndFixKVStoreCreatedItem(Item& item) {
         return true;
     }
     return false;
+}
+
+static std::string calculateSha512sum(const std::filesystem::path& path,
+                                      std::size_t size) {
+    try {
+        return cb::crypto::sha512sum(path, size);
+    } catch (const std::exception& e) {
+        EP_LOG_WARN_CTX("Failed calculating sha512",
+                        {"path", path.string()},
+                        {"size", size},
+                        {"error", e.what()});
+    }
+    return {};
+}
+static void maybeUpdateSha512Sum(const std::filesystem::path& root,
+                                 cb::snapshot::FileInfo& info) {
+    if (info.sha512.empty()) {
+        auto sum = calculateSha512sum(root / info.path, info.size);
+        if (!sum.empty()) {
+            info.sha512 = sum;
+        }
+    }
+}
+
+std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
+        const std::filesystem::path& path, Vbid vbid) {
+    // Generate a path/uuid for the snapshot
+    auto uuid = ::to_string(cb::uuid::random());
+    const auto snapshotPath = path / uuid;
+    create_directories(snapshotPath);
+
+    auto removePath = folly::makeGuard([&snapshotPath] {
+        std::error_code ec;
+        remove_all(snapshotPath, ec);
+    });
+
+    // Call implementation to get backend specifc snapshot prepared
+    auto prepared = prepareSnapshotImpl(snapshotPath, vbid, uuid);
+    if (std::holds_alternative<cb::engine_errc>(prepared)) {
+        return std::get<cb::engine_errc>(prepared);
+    }
+    auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
+
+    // Add checksums for all files in the snapshot
+    for (auto& file : manifest.files) {
+        maybeUpdateSha512Sum(path / manifest.uuid, file);
+    }
+    for (auto& file : manifest.deks) {
+        maybeUpdateSha512Sum(path / manifest.uuid, file);
+    }
+
+    auto* fp = fopen((snapshotPath / "manifest.json").string().c_str(), "w");
+    if (fp) {
+        const auto s1 =
+                fprintf(fp, "%s\n", nlohmann::json(manifest).dump().c_str());
+        const auto s2 = fclose(fp);
+        if (s1 > 0 && s2 == 0) {
+            // Success - remove the clean-up guard and return the manifest
+            removePath.dismiss();
+            return manifest;
+        }
+        EP_LOG_WARN_CTX("prepareSnapshot fprintf/fclose fail for manifest.json",
+                        {"errno", errno},
+                        {"fprintf", s1},
+                        {"fclose", s2},
+                        {"vb", vbid},
+                        {"path", snapshotPath});
+    } else {
+        EP_LOG_WARN_CTX("prepareSnapshot fopen fail for manifest.json",
+                        {"errno", errno},
+                        {"vb", vbid},
+                        {"path", snapshotPath});
+    }
+    return cb::engine_errc::failed;
 }
 
 std::string format_as(const ValueFilter vf) {

@@ -54,11 +54,15 @@ struct FileInfo {
 
 /// The snapshot manifest
 struct Manifest {
+    Manifest(const nlohmann::json& json);
+
+    Manifest(Vbid vbid, std::string_view uuid) : vbid(vbid), uuid(uuid) {
+    }
+    /// The vbucket this snapshot belongs to
+    Vbid vbid;
     /// The uuid of the snapshot used to separate two different snapshots
     /// for the same vbucket from eachother
     std::string uuid;
-    /// The vbucket this snapshot belongs to
-    Vbid vbid;
     /// A vector of files containing the database files in the snapshot
     std::vector<FileInfo> files;
     /// A vector of files containing the data encryption keys used within the

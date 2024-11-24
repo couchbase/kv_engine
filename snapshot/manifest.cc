@@ -83,6 +83,10 @@ void from_json(const nlohmann::json& json, Manifest& manifest) {
     }
 }
 
+Manifest::Manifest(const nlohmann::json& json) {
+    from_json(json, *this);
+}
+
 void Manifest::addDebugStats(const StatCollector& collector) const {
     collector.addStat(std::string_view{fmt::format("vb_{}:uuid", vbid.get())},
                       uuid);

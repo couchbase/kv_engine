@@ -2894,11 +2894,8 @@ cb::engine_errc EPBucket::prepareSnapshot(
     }
 
     auto rv = snapshotCache.prepare(
-            vbid,
-            [this](const std::filesystem::path& path,
-                   Vbid vb,
-                   cb::snapshot::Manifest& manifest) {
-                return getRWUnderlying(vb)->prepareSnapshot(path, vb, manifest);
+            vbid, [this](const std::filesystem::path& path, Vbid vb) {
+                return getRWUnderlying(vb)->prepareSnapshot(path, vb);
             });
     if (std::holds_alternative<cb::engine_errc>(rv)) {
         EP_LOG_WARN_CTX("EPBucket::prepareSnapshot failed",

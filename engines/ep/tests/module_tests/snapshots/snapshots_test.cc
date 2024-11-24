@@ -37,10 +37,8 @@ public:
         return !exists(p1) && !exists(p2);
     }
 
-    cb::engine_errc doPrepareSnapshot(const std::filesystem::path& directory,
-                                      Vbid vbid,
-                                      cb::snapshot::Manifest& manifest) {
-        return kvstore->prepareSnapshot(directory, vbid, manifest);
+    auto doPrepareSnapshot(const std::filesystem::path& directory, Vbid vbid) {
+        return kvstore->prepareSnapshot(directory, vbid);
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};
@@ -48,10 +46,9 @@ public:
 };
 
 TEST_P(SnapshotsTests, prepare) {
-    auto rv = cache.prepare(vbid,
-                            [this](const auto& dir, auto vb, auto& manifest) {
-                                return doPrepareSnapshot(dir, vb, manifest);
-                            });
+    auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
+        return doPrepareSnapshot(dir, vb);
+    });
     auto manifest = std::get<cb::snapshot::Manifest>(rv);
     EXPECT_FALSE(manifest.uuid.empty());
     EXPECT_FALSE(manifest.files.empty());
