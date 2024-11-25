@@ -419,7 +419,20 @@ bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
             timer(getTraceable(), "pager.evict");
 
     auto policy = store.getItemEvictionPolicy();
-    StoredDocKey key(v->getKey());
+
+    // We need the key to add to the bloom filter on successful eviction.
+    // However, if pageOut returns true, the SV might be deallocated and should
+    // not be accessed. Here we create a copy of the key on the stack, avoiding
+    // heap allocation, which was shown to be expensive when profiling.
+    std::array<uint8_t, MaxCollectionsKeyLen> keyBuf;
+    size_t keySize;
+    DocKeyEncodesCollectionId keyEncoding;
+    if (policy == ::EvictionPolicy::Full) {
+        const auto& vk = v->getKey();
+        keySize = vk.size();
+        keyEncoding = vk.getEncoding();
+        std::copy_n(vk.data(), keySize, keyBuf.begin());
+    }
 
     // We take a copy of the freqCounterValue because pageOut may modify the
     // stored value.
@@ -434,7 +447,8 @@ bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
          * dropped items as they cannot be read back.
          */
         if (!isDropped && policy == ::EvictionPolicy::Full) {
-            currentBucket->addToFilter(key);
+            currentBucket->addToFilter(
+                    DocKeyView(keyBuf.data(), keySize, keyEncoding));
         }
 
         /**

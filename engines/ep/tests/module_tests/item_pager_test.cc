@@ -1417,6 +1417,33 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     }
 }
 
+TEST_P(STItemPagerTest, AddToFilter) {
+    if (!(isFullEviction() && bloomFilterEnabled())) {
+        GTEST_SKIP();
+    }
+    // Test that the bloom filter is updated when evicting
+
+    const std::string value(512, 'x');
+    const auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, value, 0);
+    auto vb = store->getVBucket(vbid);
+    storeItem(item);
+    EXPECT_FALSE(vb->maybeKeyExistsInFilter(key));
+    flushVBucket(vbid);
+    if (isCouchstore()) { // We use the magma bloom filter in magma
+        EXPECT_FALSE(vb->maybeKeyExistsInFilter(key));
+    }
+    ASSERT_EQ(0, mockVisitor->getEjected());
+
+    for (auto ii = Item::initialFreqCount + 1;
+         ii-- && mockVisitor->getEjected() == 0;) {
+        vb->ht.visit(*mockVisitor);
+    }
+
+    EXPECT_TRUE(vb->maybeKeyExistsInFilter(key));
+    EXPECT_EQ(1, mockVisitor->getEjected());
+}
+
 /**
  * MB-38315 found that when we BG Fetch a deleted item it can end up "stuck" in
  * the HashTable until the compactor removes the tombstone for it. This

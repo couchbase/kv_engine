@@ -34,8 +34,10 @@ public:
         engine->getKVBucket()->createAndScheduleCheckpointDestroyerTasks();
         engine->getKVBucket()->createAndScheduleCheckpointRemoverTasks();
 
+        // Run with different key sizes
+        minKeySize = state.range(0);
         // Run with a few different quotas
-        quotaMB = state.range(0);
+        quotaMB = state.range(1);
         engine->setMaxDataSize(quotaMB * 1_MiB);
 
         // Disable the pager as we'll run things manually
@@ -123,8 +125,13 @@ public:
         std::mt19937 freqMt;
         std::mt19937 casMt;
 
-        for (auto i = 0;; i++) {
-            auto key = std::string("key") + std::to_string(i);
+        for (size_t ii = 0;; ++ii) {
+            auto prefixSize = minKeySize;
+            if (prefixSize > 3) {
+                // Generate a range of key sizes to stress the memory allocator
+                prefixSize += ii & 15;
+            }
+            auto key = std::string(prefixSize, 'k') + std::to_string(ii);
             cb::engine_errc ret;
             {
                 auto item = make_item(vbid, key, value);
@@ -162,6 +169,7 @@ public:
         Expects(vBucket->ht.getSize() < vBucket->ht.getNumItems() * 2);
     }
 
+    size_t minKeySize;
     size_t quotaMB;
 };
 
@@ -373,30 +381,23 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, EvictAllWithoutPager)
     }
 }
 
+static void pagingVisitorBenchArgs(benchmark::internal::Benchmark* bench) {
+    for (auto minKey : {3, 24}) { // Small keys and heap-allocated keys
+        for (auto memory : {10, 128, 256}) {
+            bench->Args({minKey, memory});
+        }
+    }
+    bench->Threads(1)->Unit(benchmark::kMillisecond);
+}
+
 BENCHMARK_REGISTER_F(PagingVisitorBench, SingleVBucket)
-        ->Threads(1)
-        ->Arg(10)
-        ->Arg(128)
-        ->Arg(256)
-        ->Unit(benchmark::kMillisecond);
+        ->Apply(pagingVisitorBenchArgs);
 
 BENCHMARK_REGISTER_F(PagingVisitorBench, PagerIteration)
-        ->Threads(1)
-        ->Arg(10)
-        ->Arg(128)
-        ->Arg(256)
-        ->Unit(benchmark::kMillisecond);
+        ->Apply(pagingVisitorBenchArgs);
 
 BENCHMARK_REGISTER_F(PagingVisitorBench, NoopIterationWithTracing)
-        ->Threads(1)
-        ->Arg(10)
-        ->Arg(128)
-        ->Arg(256)
-        ->Unit(benchmark::kMillisecond);
+        ->Apply(pagingVisitorBenchArgs);
 
 BENCHMARK_REGISTER_F(PagingVisitorBench, EvictAllWithoutPager)
-        ->Threads(1)
-        ->Arg(10)
-        ->Arg(128)
-        ->Arg(256)
-        ->Unit(benchmark::kMillisecond);
+        ->Apply(pagingVisitorBenchArgs);
