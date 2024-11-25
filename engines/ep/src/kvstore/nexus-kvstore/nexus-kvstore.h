@@ -201,6 +201,12 @@ public:
         return {};
     }
 
+    cb::engine_errc processSnapshots(
+            const std::filesystem::path& path,
+            cb::snapshot::Cache& cache) const override {
+        return cb::engine_errc::success;
+    }
+
     /**
      * Unit test only hook called before we compact the first KVStore. Public as
      * we want to use this in full bucket unit tests as it's non-trivial to run

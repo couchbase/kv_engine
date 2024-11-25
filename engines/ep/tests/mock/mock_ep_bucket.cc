@@ -156,3 +156,7 @@ const std::unordered_map<Vbid, std::shared_ptr<CompactTask>>&
 MockEPBucket::public_getCompactionTasks() const {
     return *compactionTasks.rlock();
 }
+
+const cb::snapshot::Cache& MockEPBucket::public_getSnapshotCache() const {
+    return snapshotCache;
+}

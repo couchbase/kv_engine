@@ -248,6 +248,12 @@ public:
                 (Vbid vbid, const DocKeyView& key),
                 (const, override));
 
+    cb::engine_errc processSnapshots(
+            const std::filesystem::path& path,
+            cb::snapshot::Cache& cache) const override {
+        return cb::engine_errc::success;
+    }
+
     /**
      * Helper function to replace the existing read-write KVStore in the given
      * bucket & shard with a new MockKVStore instance. Returns a reference to

@@ -29,6 +29,7 @@
 #include "kvstore_config.h"
 #include "mcbp/protocol/datatype.h"
 #include "persistence_callback.h"
+#include "snapshots/cache.h"
 #include "vbucket.h"
 #include "vbucket_state.h"
 
@@ -40,6 +41,7 @@
 #include <cbcrypto/digest.h>
 #include <platform/dirutils.h>
 #include <platform/uuid.h>
+#include <snapshot/manifest.h>
 #include <statistics/cbstat_collector.h>
 #include <sys/stat.h>
 #include <utilities/logtags.h>
@@ -747,6 +749,7 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     const auto snapshotPath = path / uuid;
     create_directories(snapshotPath);
 
+    // Create a guard to clean-up on failure.
     auto removePath = folly::makeGuard([&snapshotPath] {
         std::error_code ec;
         remove_all(snapshotPath, ec);
@@ -790,6 +793,160 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
                         {"path", snapshotPath});
     }
     return cb::engine_errc::failed;
+}
+
+// Look for valid snapshots and push to cache or remove
+cb::engine_errc KVStore::processSnapshots(const std::filesystem::path& path,
+                                          cb::snapshot::Cache& cache) const {
+    if (!exists(path)) {
+        return cb::engine_errc::success;
+    }
+
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
+        if (is_directory(entry.path(), ec)) {
+            processSnapshot(entry.path(), cache);
+        } else {
+            EP_LOG_WARN_CTX("processSnapshots path is not directory",
+                            {"path", path},
+                            {"error", ec.message()});
+            remove_all(entry.path(), ec);
+            if (ec) {
+                EP_LOG_WARN_CTX(
+                        "processSnapshots failed remove_all of non directory",
+                        {"path", entry.path()},
+                        {"error", ec.message()});
+            }
+        }
+    }
+
+    if (ec) {
+        EP_LOG_WARN_CTX("processSnapshots failed directory_iterator",
+                        {"path", path},
+                        {"error", ec.message()});
+        return cb::engine_errc::failed;
+    }
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc KVStore::processSnapshot(const std::filesystem::path& path,
+                                         cb::snapshot::Cache& cache) {
+    auto removeSnapshot = folly::makeGuard([path]() {
+        std::error_code ec;
+        remove_all(path, ec);
+        if (ec) {
+            EP_LOG_WARN_CTX("processSnapshot failed remove_all",
+                            {"path", path},
+                            {"error", ec.message()});
+        } else {
+            EP_LOG_WARN_CTX("processSnapshot removed an invalid snapshot",
+                            {"path", path});
+        }
+    });
+
+    if (exists(path / "manifest.json")) {
+        std::variant<cb::engine_errc, cb::snapshot::Manifest> m;
+        try {
+            m = getValidatedManifest(path);
+            if (std::holds_alternative<cb::engine_errc>(m)) {
+                return std::get<cb::engine_errc>(m);
+            }
+        } catch (const std::exception& e) {
+            EP_LOG_WARN_CTX("processSnapshot failed getValidatedManifest",
+                            {"path", path},
+                            {"error", e.what()});
+            return cb::engine_errc::failed;
+        }
+
+        // attempt to push to cache
+        if (cache.insert(std::get<cb::snapshot::Manifest>(m))) {
+            removeSnapshot.dismiss();
+            return cb::engine_errc::success;
+        }
+        EP_LOG_WARN_CTX("processSnapshot failed cache.insert",
+                        {"uuid", std::get<cb::snapshot::Manifest>(m).uuid},
+                        {"path", path});
+    }
+    return cb::engine_errc::failed;
+}
+
+// Snapshots can be partial if download is interrupted. This function will
+// return succes but log INFO about any detected "partial" snapshot.
+// 1) A file may not exist
+// 2) A file can be less than the manifest size
+//
+// The only case we can be defensive against, return failed when size is equal
+// but sha512 mismatch (size can be greater because a snapshot may contain
+// hardlinks to real datafile).
+//
+// We're not defensive for tampering as the manifest can be tampered.
+//
+cb::engine_errc checkSnapshotFile(const std::filesystem::path& path,
+                                  std::string_view uuid,
+                                  cb::snapshot::FileInfo& info,
+                                  std::string_view type) {
+    auto target = path / info.path;
+    if (exists(target)) {
+        auto size = file_size(target);
+
+        if (!info.sha512.empty() && size >= info.size) {
+            // Expect sha512 to match for the info.size chunk
+            auto sha512 = calculateSha512sum(target, info.size);
+            if (sha512 != info.sha512) {
+                EP_LOG_WARN_CTX("getValidatedManifest sha512 mismatch",
+                                {"uuid", uuid},
+                                {"target", target},
+                                {"sha512", sha512},
+                                {"expectedSha512", info.sha512},
+                                {"type", type});
+                return cb::engine_errc::failed;
+            }
+
+            info.status = cb::snapshot::FileStatus::Present;
+            return cb::engine_errc::success;
+        }
+
+        if (size < info.size) {
+            EP_LOG_INFO_CTX("getValidatedManifest snapshot has truncated file",
+                            {"uuid", uuid},
+                            {"target", target},
+                            {"size", size},
+                            {"expectedSize", info.size},
+                            {"type", type});
+            info.status = cb::snapshot::FileStatus::Truncated;
+        }
+        return cb::engine_errc::success;
+    }
+    EP_LOG_INFO_CTX("getValidatedManifest snapshot missing a file",
+                    {"uuid", uuid},
+                    {"target", target},
+                    {"type", type});
+    info.status = cb::snapshot::FileStatus::Absent;
+    return cb::engine_errc::success;
+}
+
+std::variant<cb::engine_errc, cb::snapshot::Manifest>
+KVStore::getValidatedManifest(const std::filesystem::path& path) {
+    cb::snapshot::Manifest m =
+            nlohmann::json::parse(cb::io::loadFile(path / "manifest.json"));
+
+    // Validate all files, do they exist? Are they truncated?
+    for (auto& file : m.files) {
+        if (checkSnapshotFile(path, m.uuid, file, "FILE") !=
+            cb::engine_errc::success) {
+            return cb::engine_errc::failed;
+        }
+    }
+
+    for (auto& file : m.deks) {
+        if (checkSnapshotFile(path, m.uuid, file, "DEK") !=
+            cb::engine_errc::success) {
+            return cb::engine_errc::failed;
+        }
+    }
+
+    return m;
 }
 
 std::string format_as(const ValueFilter vf) {

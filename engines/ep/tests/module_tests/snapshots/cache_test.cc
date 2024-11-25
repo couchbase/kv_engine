@@ -20,7 +20,6 @@ using namespace cb::snapshot;
 class CacheTest : public ::testing::Test {
 public:
     void SetUp() override {
-        cache.initialise();
     }
 
     void TearDown() override {
@@ -105,16 +104,4 @@ TEST_F(CacheTest, ReleaseByUuid) {
     cache.release(manifest.uuid);
     EXPECT_FALSE(exists(test_dir / "snapshots" / manifest.uuid));
     EXPECT_EQ(std::nullopt, cache.lookup(manifest.uuid));
-}
-
-TEST_F(CacheTest, InitializeFromDiskSnapshots) {
-    auto rv = cache.prepare(Vbid{0}, [this](const auto& directory, auto vb) {
-        return doCreateSnapshot(directory, vb);
-    });
-    auto manifest = std::get<Manifest>(rv);
-    EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
-
-    cache.initialise();
-    auto searched = cache.lookup(manifest.uuid);
-    EXPECT_EQ(searched, manifest);
 }

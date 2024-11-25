@@ -21,25 +21,12 @@
 
 namespace cb::snapshot {
 
-cb::engine_errc Cache::initialise() {
-    std::error_code ec;
-    for (const auto& entry : std::filesystem::directory_iterator(path, ec)) {
-        if (is_directory(entry.path(), ec) &&
-            exists(entry.path() / "manifest.json", ec)) {
-            try {
-                Manifest manifest = nlohmann::json::parse(
-                        cb::io::loadFile(entry.path() / "manifest.json"));
-                snapshots.withLock([&manifest](auto& map) {
-                    map.emplace(manifest.uuid, Entry(manifest));
-                });
-            } catch (const std::exception&) {
-                // We failed to parse the entry.. just remove it.
-                remove_all(entry.path(), ec);
-                return cb::engine_errc::failed;
-            }
-        }
-    }
-    return cb::engine_errc::success;
+bool Cache::insert(Manifest manifest) {
+    return snapshots
+            .withLock([&manifest](auto& map) {
+                return map.try_emplace(manifest.uuid, Entry(manifest));
+            })
+            .second;
 }
 
 std::optional<Manifest> Cache::lookup(const std::string& uuid) const {
@@ -216,6 +203,16 @@ void Cache::addDebugStats(const StatCollector& collector) const {
     });
 }
 
+void Cache::dump(std::ostream& os) const {
+    snapshots.withLock([&os](auto& map) {
+        for (const auto& [uuid, entry] : map) {
+            nlohmann::json json;
+            to_json(json, entry.manifest);
+            os << json.dump() << std::endl;
+        }
+    });
+}
+
 void Cache::Entry::addDebugStats(const StatCollector& collector) const {
     collector.addStat(
             std::string_view{fmt::format("vb_{}:age", manifest.vbid.get())},
@@ -223,6 +220,11 @@ void Cache::Entry::addDebugStats(const StatCollector& collector) const {
                     std::chrono::steady_clock::now() - timestamp)
                     .count());
     manifest.addDebugStats(collector);
+}
+
+std::ostream& operator<<(std::ostream& os, const Cache& cache) {
+    cache.dump(os);
+    return os;
 }
 
 } // namespace cb::snapshot

@@ -385,8 +385,8 @@ bool EPBucket::initialize() {
         return false;
     }
 
-    if (snapshotCache.initialise() != cb::engine_errc::success) {
-        EP_LOG_WARN_RAW("EPBucket::initialize: Failed init snapshot cache");
+    if (initialiseSnapshots() != cb::engine_errc::success) {
+        return false;
     }
 
     return true;
@@ -2978,4 +2978,17 @@ cb::engine_errc EPBucket::releaseSnapshot(
 cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector) {
     snapshotCache.addDebugStats(collector);
     return cb::engine_errc::success;
+}
+
+cb::engine_errc EPBucket::initialiseSnapshots() {
+    auto path =
+            std::filesystem::path{getConfiguration().getDbname()} / "snapshots";
+    cb::engine_errc status{cb::engine_errc::success};
+    if (status = getOneROUnderlying()->processSnapshots(path, snapshotCache);
+        status != cb::engine_errc::success) {
+        EP_LOG_WARN_CTX("EPBucket::initialize: processSnapshots failed.",
+                        {"path", path},
+                        {"status", status});
+    }
+    return status;
 }

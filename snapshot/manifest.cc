@@ -106,6 +106,21 @@ void FileInfo::addDebugStats(std::string_view label,
     collector.addStat(std::string_view{fmt::format("{}:id", label)}, id);
     collector.addStat(std::string_view{fmt::format("{}:sha512", label)},
                       sha512);
+    collector.addStat(std::string_view{fmt::format("{}:status", label)},
+                      format_as(status));
+}
+
+std::string format_as(FileStatus status) {
+    switch (status) {
+    case FileStatus::Present:
+        return "present";
+    case FileStatus::Absent:
+        return "absent";
+    case FileStatus::Truncated:
+        return "truncated";
+    }
+    throw std::invalid_argument(
+            fmt::format("Invalid FileStatus:{}", int(status)));
 }
 
 } // namespace cb::snapshot

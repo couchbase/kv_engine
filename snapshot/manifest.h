@@ -19,6 +19,14 @@ class StatCollector;
 
 namespace cb::snapshot {
 
+enum class FileStatus {
+    Present, // file exists
+    Absent, // file !exists
+    Truncated // file exists but smaller than size
+};
+
+std::string format_as(FileStatus status);
+
 /// The information tracked for a given file in the snapshot
 struct FileInfo {
     FileInfo() = default;
@@ -39,6 +47,8 @@ struct FileInfo {
     std::size_t id = 0;
     /// An optional SHA-512
     std::string sha512;
+    /// status of this file - assume exists unless detected otherwise
+    FileStatus status{FileStatus::Present};
 
     friend bool operator==(const FileInfo& lhs, const FileInfo& rhs) {
         return lhs.path == rhs.path && lhs.size == rhs.size &&

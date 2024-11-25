@@ -61,6 +61,10 @@ namespace cb::mcbp {
 class Request;
 } // namespace cb::mcbp
 
+namespace cb::snapshot {
+struct Manifest;
+}
+
 enum class GetMetaOnly { Yes, No };
 
 using BloomFilterCBPtr =
@@ -1010,6 +1014,14 @@ public:
 
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
             const std::filesystem::path& snapshotDirectory, Vbid vb) override;
+
+    cb::engine_errc processSnapshots(const std::filesystem::path& path,
+                                     cb::snapshot::Cache& cache) const override;
+
+    static cb::engine_errc processSnapshot(const std::filesystem::path& path,
+                                           cb::snapshot::Cache& cache);
+    static std::variant<cb::engine_errc, cb::snapshot::Manifest>
+    getValidatedManifest(const std::filesystem::path& path);
 
     /**
      * Check if the specified document metadata is /potentially/ affected

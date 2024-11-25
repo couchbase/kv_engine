@@ -21,7 +21,6 @@ public:
     void SetUp() override {
         KVStoreParamTest::SetUp();
         create_directories(snapshotdir);
-        cache.initialise();
     }
 
     void TearDown() override {

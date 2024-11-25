@@ -13,6 +13,7 @@
 #include <folly/Synchronized.h>
 #include <memcached/engine_error.h>
 #include <snapshot/manifest.h>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <variant>
@@ -55,11 +56,8 @@ public:
     Cache(const std::filesystem::path& path) : path(path / "snapshots") {
     }
 
-    /**
-     * Initialise instance of the snapshot cache which operates on the
-     * persistent snapshots located in ::path  directory
-     */
-    cb::engine_errc initialise();
+    /// @return true if the manifest was added to cache (fail means duplicate)
+    bool insert(Manifest manifest);
 
     /// Look up a snapshot with the provided UUID
     std::optional<Manifest> lookup(const std::string& uuid) const;
@@ -128,6 +126,8 @@ public:
     /// produce stats for the cache which may be useful for debugging/cbcollect
     void addDebugStats(const StatCollector& collector) const;
 
+    void dump(std::ostream& os = std::cerr) const;
+
 protected:
     /// Nuke a manifest from disk
     void remove(const Manifest& manifest) const;
@@ -150,5 +150,7 @@ protected:
     };
     folly::Synchronized<std::map<std::string, Entry>, std::mutex> snapshots;
 };
+
+std::ostream& operator<<(std::ostream& os, const Cache& version);
 
 } // namespace cb::snapshot
