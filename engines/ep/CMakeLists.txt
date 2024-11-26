@@ -65,10 +65,8 @@ ENDIF (WIN32)
 
 add_executable(gencode tools/gencode.cc)
 target_link_libraries(gencode PRIVATE nlohmann_json::nlohmann_json)
-kv_enable_pch(gencode)
 add_executable(genconfig tools/genconfig.cc)
 target_link_libraries(genconfig PRIVATE fmt::fmt nlohmann_json::nlohmann_json)
-kv_enable_pch(genconfig)
 if (WIN32)
     # windows need getopt
     target_link_libraries(gencode PRIVATE platform)
