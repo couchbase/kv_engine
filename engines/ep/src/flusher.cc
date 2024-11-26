@@ -299,12 +299,12 @@ size_t Flusher::getLPQueueSize() const {
     return lpVbs.size();
 }
 
-void Flusher::notifyFlushEvent(VBucketPtr vb) {
+void Flusher::notifyFlushEvent(const VBucket& vb) {
     auto shouldWake = false;
-    if (vb->getHighPriorityChkSize() > 0) {
-        shouldWake = hpVbs.pushUnique(vb->getId());
+    if (vb.getHighPriorityChkSize() > 0) {
+        shouldWake = hpVbs.pushUnique(vb.getId());
     } else {
-        shouldWake = lpVbs.pushUnique(vb->getId());
+        shouldWake = lpVbs.pushUnique(vb.getId());
     }
 
     if (shouldWake) {

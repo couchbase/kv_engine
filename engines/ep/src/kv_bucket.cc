@@ -2795,7 +2795,7 @@ void KVBucket::notifyFlusher(const Vbid vbid) {
         // Can't assert flusher here as this may be called for ephemeral
         // VBuckets which do not have a flusher
         if (flusher) {
-            flusher->notifyFlushEvent(vb);
+            flusher->notifyFlushEvent(*vb);
         }
     }
 }

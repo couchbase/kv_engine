@@ -41,7 +41,7 @@ public:
 
     const char * stateName() const;
 
-    void notifyFlushEvent(VBucketPtr vb);
+    void notifyFlushEvent(const VBucket& vb);
 
     // Testing hook - if non-empty, called from step() just before snoozing
     // the task.

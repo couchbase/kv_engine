@@ -712,7 +712,7 @@ public:
      */
     bool doesSeqnoSatisfyAnySeqnoPersistenceRequest(uint64_t seqno);
 
-    size_t getHighPriorityChkSize() {
+    size_t getHighPriorityChkSize() const {
         return numHpVBReqs.load();
     }
 

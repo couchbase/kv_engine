@@ -216,7 +216,7 @@ private:
 void NotifyFlusherCB::callback(Vbid& vbid) {
     auto vb = shard->getBucket(vbid);
     if (vb) {
-        vb->getFlusher()->notifyFlushEvent(vb);
+        vb->getFlusher()->notifyFlushEvent(*vb);
     }
 }
 

@@ -1263,8 +1263,10 @@ void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
 void EPVBucket::notifyFlusher() {
     auto shard = getShard();
     if (shard) {
-        auto ptr = shard->getBucket(getId());
-        getFlusher()->notifyFlushEvent(ptr);
+        auto vb = shard->getBucket(getId());
+        if (vb) {
+            getFlusher()->notifyFlushEvent(*vb);
+        }
     }
 }
 
