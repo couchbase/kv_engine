@@ -153,7 +153,7 @@ void custom_rotating_file_sink<Mutex>::scanExistingLogFiles() {
                         tail_file_id = next_file_id;
                         found = true;
                     }
-                    tail_file_id = std::max(tail_file_id, *value);
+                    tail_file_id = std::min(tail_file_id, *value);
                     if (value > next_file_id) {
                         next_file_id = *value;
                     }
