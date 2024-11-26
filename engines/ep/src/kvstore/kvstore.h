@@ -246,7 +246,7 @@ struct CompactionContext {
         : compactConfig(std::move(config)),
           timeToExpireFrom(timeToExpireFrom),
           purgedItemCtx(std::make_unique<PurgedItemCtx>(purgeSeq)),
-          vb(vb) {
+          vb(std::move(vb)) {
         isShuttingDown = []() { return false; };
     }
 
