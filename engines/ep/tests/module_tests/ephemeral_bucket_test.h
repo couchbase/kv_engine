@@ -28,8 +28,8 @@ protected:
     /// Add a number of documents to allow testing of sequence list stats.
     void addDocumentsForSeqListTesting(Vbid vbid);
 
-    /// Common setup for replica memory tracking tests
-    void replicaMemoryTrackingTestSetup();
+    /// Common setup for inactive (replica, dead) memory tracking tests
+    void inactiveMemoryTrackingTestSetup();
 };
 
 /**

@@ -176,7 +176,8 @@ bool EphemeralVBucket::isEligibleForEviction(
 }
 
 size_t EphemeralVBucket::getPageableMemUsage() {
-    if (getState() == vbucket_state_replica) {
+    auto state = getState();
+    if (state == vbucket_state_replica || state == vbucket_state_dead) {
         // Ephemeral buckets are not backed by disk - nothing can be evicted
         // from a replica as deleting from replicas would cause inconsistency
         // with the active. When the active vb evicts items deletions will be
@@ -342,17 +343,17 @@ uint64_t EphemeralVBucket::getMaxVisibleSeqno() const {
 void EphemeralVBucket::updateStatsForStateChange(vbucket_state_t from,
                                                  vbucket_state_t to) {
     checkpointManager->updateStatsForStateChange(from, to);
-    if (from == vbucket_state_replica && to != vbucket_state_replica) {
-        // vbucket is changing state away from replica, it's memory usage
-        // should no longer be accounted for as a replica.
-        stats.replicaHTMemory -= ht.getItemMemory();
-    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
-        // vbucket is changing state to _become_ a replica, it's memory usage
-        // _should_ be accounted for as a replica.
-        stats.replicaHTMemory += ht.getItemMemory();
-        // It should not be possible to auto delete items on a replica vbucket,
-        // so it doesn't make sense for the autoDeleteCount to be non-zero
+    auto isInactive = [](vbucket_state_t state) {
+        return state == vbucket_state_replica || state == vbucket_state_dead;
+    };
+    if (!isInactive(from) && isInactive(to)) {
+        stats.inactiveHTMemory += ht.getItemMemory();
+        // It should not be possible to auto delete items on a replica (or dead)
+        // vbucket, so it doesn't make sense for the autoDeleteCount to be
+        // non-zero
         autoDeleteCount.reset();
+    } else if (isInactive(from) && !isInactive(to)) {
+        stats.inactiveHTMemory -= ht.getItemMemory();
     }
 }
 

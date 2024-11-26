@@ -66,6 +66,16 @@ protected:
     virtual PageableMemInfo getPageableMemInfo() const = 0;
 
     /**
+     * Returns true if the memory condition requires paging.
+     */
+    virtual bool shouldPage(const PageableMemInfo&) const;
+
+    /**
+     * Returns true if memory usage is low enough to stop paging.
+     */
+    virtual bool shouldStopPaging(const PageableMemInfo&) const;
+
+    /**
      * Schedules paging visitor tasks to run immediately.
      */
     virtual void schedulePagingVisitors(std::size_t bytesToEvict) = 0;
@@ -160,6 +170,16 @@ public:
     void wakeUp() override;
 
     PageableMemInfo getPageableMemInfo() const override;
+
+    /**
+     * Returns true if total memory is above the HWM.
+     */
+    bool shouldPage(const PageableMemInfo&) const override;
+
+    /**
+     * Returns true if total memory is below the LWM.
+     */
+    bool shouldStopPaging(const PageableMemInfo&) const override;
 
     EvictionRatios getEvictionRatios(
             const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,

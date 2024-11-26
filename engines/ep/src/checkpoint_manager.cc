@@ -726,15 +726,19 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
 
 CheckpointManager::ReleaseResult
 CheckpointManager::expelUnreferencedCheckpointItems() {
-    // Update EPStats::replicaCheckpointOverhead if the overhead is different
+    // Update EPStats::inactiveCheckpointOverhead if the overhead is different
     // when this helper is destroyed - which occurs _after_ the destruction
     // of expelledItems (declared below)
-    auto overheadCheck = gsl::finally([pre = getMemOverhead(), this]() {
-        const auto post = getMemOverhead();
-        if (vb.getState() == vbucket_state_replica && pre != post) {
-            stats.replicaCheckpointOverhead += (post - pre);
-        }
-    });
+    auto overheadCheck = gsl::finally(
+            [pre = static_cast<int64_t>(getMemOverhead()), this]() {
+                auto post = static_cast<int64_t>(getMemOverhead());
+                auto state = vb.getState();
+                if ((state == vbucket_state_replica ||
+                     state == vbucket_state_dead) &&
+                    pre != post) {
+                    stats.inactiveCheckpointOverhead += post - pre;
+                }
+            });
 
     ExtractItemsResult extractRes;
     {
@@ -1770,14 +1774,13 @@ bool CheckpointManager::isOpenCheckpointInitialDisk() {
 void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
                                                   vbucket_state_t to) {
     std::lock_guard<std::mutex> lh(queueLock);
-    if (from == vbucket_state_replica && to != vbucket_state_replica) {
-        // vbucket is changing state away from replica, it's memory usage
-        // should no longer be accounted for as a replica.
-        stats.replicaCheckpointOverhead -= getMemOverhead(lh);
-    } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
-        // vbucket is changing state to _become_ a replica, it's memory usage
-        // _should_ be accounted for as a replica.
-        stats.replicaCheckpointOverhead += getMemOverhead(lh);
+    auto isInactive = [](vbucket_state_t state) {
+        return state == vbucket_state_replica || state == vbucket_state_dead;
+    };
+    if (!isInactive(from) && isInactive(to)) {
+        stats.inactiveCheckpointOverhead += getMemOverhead(lh);
+    } else if (isInactive(from) && !isInactive(to)) {
+        stats.inactiveCheckpointOverhead -= getMemOverhead(lh);
     }
 }
 

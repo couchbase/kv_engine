@@ -3653,10 +3653,10 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
             cookie);
 
     add_casted_stat(
-            "ht_mem_used_replica", stats.replicaHTMemory, add_stat, cookie);
+            "ht_mem_used_inactive", stats.inactiveHTMemory, add_stat, cookie);
 
-    add_casted_stat("replica_checkpoint_memory_overhead",
-                    stats.replicaCheckpointOverhead,
+    add_casted_stat("checkpoint_memory_overhead_inactive",
+                    stats.inactiveCheckpointOverhead,
                     add_stat,
                     cookie);
 

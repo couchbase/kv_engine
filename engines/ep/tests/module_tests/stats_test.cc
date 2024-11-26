@@ -1352,8 +1352,8 @@ protected:
         stats.numValueEjects.store(nonDefaultCounterValue);
         stats.numFailedEjects.store(nonDefaultCounterValue);
         stats.numNotMyVBuckets.store(nonDefaultCounterValue);
-        stats.replicaHTMemory.store(nonDefaultCounterValue);
-        stats.replicaCheckpointOverhead.store(nonDefaultCounterValue);
+        stats.inactiveHTMemory.store(nonDefaultCounterValue);
+        stats.inactiveCheckpointOverhead.store(nonDefaultCounterValue);
         stats.bg_fetched.store(nonDefaultCounterValue);
         stats.bgNumOperations.store(nonDefaultCounterValue);
         stats.bgWait.store(nonDefaultCounterValue);
@@ -1440,8 +1440,8 @@ protected:
         EXPECT_EQ(nonStatValue, stats.pendingOps);
         EXPECT_EQ(nonStatValue, stats.numRemainingBgItems);
         EXPECT_EQ(nonStatValue, stats.numRemainingBgJobs);
-        EXPECT_EQ(nonStatValue, stats.replicaCheckpointOverhead);
-        EXPECT_EQ(nonStatValue, stats.replicaHTMemory);
+        EXPECT_EQ(nonStatValue, stats.inactiveCheckpointOverhead);
+        EXPECT_EQ(nonStatValue, stats.inactiveHTMemory);
 
         EXPECT_EQ(initializedValue, stats.warmedUpKeys);
         EXPECT_EQ(initializedValue, stats.warmedUpValues);

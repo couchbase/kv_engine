@@ -116,8 +116,8 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
     EXPECT_EQ("5", stats.at("vb_0:seqlist_high_seqno"));
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
-    // test that replicaHTMemory is correctly updated for
+TEST_F(EphemeralBucketStatTest, InctiveMemoryTracking) {
+    // test that inactiveHTMemory is correctly updated for
     // inserts/updates/deletes/tombstone removal.
     auto replicaVB = Vbid(0);
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
@@ -125,14 +125,14 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
     auto cookie = create_mock_cookie();
 
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(0, stats.replicaHTMemory);
+    EXPECT_EQ(0, stats.inactiveHTMemory);
 
     auto key = makeStoredDocKey("item2");
 
     std::string value = "value";
     auto item = make_item(replicaVB, key, value);
 
-    // Store an item in a replica VB and confirm replicaHTMemory increases
+    // Store an item in a replica VB and confirm inactiveHTMemory increases
     item.setCas(1);
     uint64_t seqno;
     ASSERT_EQ(cb::engine_errc::success,
@@ -146,11 +146,11 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
 
     // avoids checking exact values to be resilient to changes (e.g.) in stored
     // value size.
-    auto smallItemMem = stats.replicaHTMemory;
+    auto smallItemMem = stats.inactiveHTMemory;
     EXPECT_GT(smallItemMem, 80);
 
     // Replace the existing item with a _larger_ item and confirm
-    // replicaHTMemory increases further
+    // inactiveHTMemory increases further
     std::string largerValue = "valuevaluevaluevaluevaluevalue";
     auto largerItem = make_item(replicaVB, key, largerValue);
     largerItem.setCas(1);
@@ -164,9 +164,9 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
                                  /*allowExisting*/ true));
 
     auto largerItemMem = smallItemMem + largerValue.size() - value.size();
-    EXPECT_EQ(largerItemMem, stats.replicaHTMemory);
+    EXPECT_EQ(largerItemMem, stats.inactiveHTMemory);
 
-    // Delete the item, confirm replicaHTMemory decreases (tombstone
+    // Delete the item, confirm inactiveHTMemory decreases (tombstone
     // remains).
     ItemMetaData meta;
     uint64_t cas = 1;
@@ -188,10 +188,10 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
                       DeleteSource::Explicit,
                       EnforceMemCheck::Yes));
 
-    EXPECT_LT(stats.replicaHTMemory, largerItemMem);
-    EXPECT_GT(stats.replicaHTMemory, 0);
+    EXPECT_LT(stats.inactiveHTMemory, largerItemMem);
+    EXPECT_GT(stats.inactiveHTMemory, 0);
 
-    // now remove the tombstone and confirm the replicaHTMemory is now 0
+    // now remove the tombstone and confirm the inactiveHTMemory is now 0
     auto& replica = *store->getVBucket(replicaVB);
 
     EphemeralVBucket::HTTombstonePurger purger(
@@ -199,63 +199,63 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTracking) {
     purger.setCurrentVBucket(replica);
     replica.ht.visit(purger);
 
-    EXPECT_EQ(0, stats.replicaHTMemory);
+    EXPECT_EQ(0, stats.inactiveHTMemory);
 
     destroy_mock_cookie(cookie);
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingNotUpdatedForActive) {
-    // replicaHTMemory should not be updated by storing items in active
+TEST_F(EphemeralBucketStatTest, InactiveMemoryTrackingNotUpdatedForActive) {
+    // inactiveHTMemory should not be updated by storing items in active
     // vbuckets
     auto activeVB = Vbid(0);
     setVBucketStateAndRunPersistTask(activeVB, vbucket_state_active);
 
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+    EXPECT_EQ(0, stats.inactiveHTMemory);
+    EXPECT_EQ(0, stats.inactiveCheckpointOverhead);
 
-    // Confirm replicaHTMemory is _not_ affected by storing an item to an
+    // Confirm inactiveHTMemory is _not_ affected by storing an item to an
     // active vb.
     store_item(activeVB, makeStoredDocKey("item"), "value");
-    EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+    EXPECT_EQ(0, stats.inactiveHTMemory);
+    EXPECT_EQ(0, stats.inactiveCheckpointOverhead);
 }
 
-void EphemeralBucketStatTest::replicaMemoryTrackingTestSetup() {
+void EphemeralBucketStatTest::inactiveMemoryTrackingTestSetup() {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto& stats = engine->getEpStats();
-    ASSERT_EQ(0, stats.replicaHTMemory);
-    ASSERT_EQ(0, stats.replicaCheckpointOverhead);
+    ASSERT_EQ(0, stats.inactiveHTMemory);
+    ASSERT_EQ(0, stats.inactiveCheckpointOverhead);
 
     auto key = makeStoredDocKey("item");
     store_item(vbid, key, "value");
 
-    ASSERT_EQ(0, stats.replicaHTMemory);
-    ASSERT_EQ(0, stats.replicaCheckpointOverhead);
+    ASSERT_EQ(0, stats.inactiveHTMemory);
+    ASSERT_EQ(0, stats.inactiveCheckpointOverhead);
     ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     // check that the mem usage has gone up by some amount - not
     // checking it is an exact value to avoid a brittle test
-    ASSERT_GT(stats.replicaHTMemory, 0);
-    ASSERT_GT(stats.replicaCheckpointOverhead, 0);
+    ASSERT_GT(stats.inactiveHTMemory, 0);
+    ASSERT_GT(stats.inactiveCheckpointOverhead, 0);
     ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
+TEST_F(EphemeralBucketStatTest, InactiveMemoryTrackingStateChange) {
     {
         CB_SCOPED_TRACE("");
-        replicaMemoryTrackingTestSetup();
+        inactiveMemoryTrackingTestSetup();
     }
 
-    // changing back to active should return replicaHTMemory to 0
+    // changing back to active should return inactiveHTMemory to 0
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+    EXPECT_EQ(0, stats.inactiveHTMemory);
+    EXPECT_EQ(0, stats.inactiveCheckpointOverhead);
 
     // Now check what happens when we delete a vBucket, we first need to change
     // back to replica though to start tracking memory against the replica
@@ -264,21 +264,28 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
 
     // Check that the replica mem usage has gone up by some amount - not
     // checking it is an exact value to avoid a brittle test
-    EXPECT_GT(stats.replicaHTMemory, 80);
-    EXPECT_GT(stats.replicaCheckpointOverhead, 80);
+    EXPECT_GT(stats.inactiveHTMemory, 80);
+    EXPECT_GT(stats.inactiveCheckpointOverhead, 80);
 
     // Deleting a vBucket should also reset the tracked value.
     EXPECT_EQ(cb::engine_errc::success,
               engine->deleteVBucket(*cookie, vbid, false));
 
-    EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+    // Dead vBucket should still be accounted until it is removed
+    EXPECT_GT(stats.inactiveHTMemory, 80);
+    EXPECT_GT(stats.inactiveCheckpointOverhead, 80);
+
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(lpNonioQ, "Removing (dead) vb:0 from memory");
+
+    EXPECT_EQ(0, stats.inactiveHTMemory);
+    EXPECT_EQ(0, stats.inactiveCheckpointOverhead);
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStats) {
+TEST_F(EphemeralBucketStatTest, InactiveMemoryTrackingStats) {
     {
         CB_SCOPED_TRACE("");
-        replicaMemoryTrackingTestSetup();
+        inactiveMemoryTrackingTestSetup();
     }
 
     using namespace ::testing;
@@ -293,13 +300,13 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStats) {
     NiceMock<MockStatCollector> collector;
     EXPECT_CALL(collector,
                 addStat(StatDefNameMatcher("ephemeral_vb_ht_memory_bytes"),
-                        Matcher<int64_t>(stats.replicaHTMemory),
+                        Matcher<int64_t>(stats.inactiveHTMemory),
                         Contains(Pair("state"sv, "replica"))));
     EXPECT_CALL(
             collector,
             addStat(StatDefNameMatcher(
                             "ephemeral_vb_checkpoint_memory_overhead_bytes"),
-                    Matcher<int64_t>(stats.replicaCheckpointOverhead),
+                    Matcher<int64_t>(stats.inactiveCheckpointOverhead),
                     Contains(Pair("state"sv, "replica"))));
 
     store->getAggregatedVBucketStats(collector.forBucket("foobar"),
@@ -333,10 +340,10 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
     EXPECT_EQ(0, vb.getAutoDeleteCount());
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
+TEST_F(EphemeralBucketStatTest, InactiveMemoryTrackingRollback) {
     {
         CB_SCOPED_TRACE("");
-        replicaMemoryTrackingTestSetup();
+        inactiveMemoryTrackingTestSetup();
     }
 
     store->rollback(vbid, 0 /* rollbackSeqno */);
@@ -349,15 +356,15 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
     ASSERT_EQ(0, vb->getNumItems());
     ASSERT_EQ(0, vb->ht.getItemMemory());
 
-    // Now the replica memory stats should reflect the current state
+    // Now the inactive memory stats should reflect the current state
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(0, stats.replicaHTMemory);
+    EXPECT_EQ(0, stats.inactiveHTMemory);
     EXPECT_EQ(vb->checkpointManager->getMemOverhead(),
-              stats.replicaCheckpointOverhead);
+              stats.inactiveCheckpointOverhead);
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
-    // test that replicaCheckpointOverhead is correctly updated
+TEST_F(EphemeralBucketStatTest, InactiveCheckpointMemoryTracking) {
+    // test that inactiveCheckpointOverhead is correctly updated
     auto replicaVB = Vbid(0);
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
 
@@ -371,7 +378,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     cpm.createNewCheckpoint();
 
     auto& stats = engine->getEpStats();
-    const auto initialMem = stats.replicaCheckpointOverhead;
+    const auto initialMem = stats.inactiveCheckpointOverhead;
 
     const auto keyA = makeStoredDocKey("itemA");
     const auto keyB = makeStoredDocKey("itemB");
@@ -379,7 +386,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     const std::string value = "value";
     auto item1 = make_item(replicaVB, keyA, value);
 
-    // Store an item in a replica VB and confirm replicaCheckpointOverhead
+    // Store an item in a replica VB and confirm inactiveCheckpointOverhead
     // increases
     item1.setCas(1);
     uint64_t seqno;
@@ -394,10 +401,10 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
 
     // avoids checking exact values to be resilient to changes (e.g.) in stored
     // value size.
-    const auto item1Mem = stats.replicaCheckpointOverhead;
+    const auto item1Mem = stats.inactiveCheckpointOverhead;
     EXPECT_GT(item1Mem, initialMem + 20);
 
-    // Store the item again and confirm replicaCheckpointOverhead
+    // Store the item again and confirm inactiveCheckpointOverhead
     // _does not increase_. This matches existing checkpoint memory tracking;
     // in the event of an existing item, checkpoint memory usage is _not_
     // adjusted, even though the old and new item could be of different sizes
@@ -413,7 +420,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
                                  CheckConflicts::No,
                                  /*allowExisting*/ true));
     // tracked memory unchanged
-    EXPECT_EQ(item1Mem, stats.replicaCheckpointOverhead);
+    EXPECT_EQ(item1Mem, stats.inactiveCheckpointOverhead);
 
     // Store an item with a different key, confirm checkpoint mem increases
     auto item3 = make_item(replicaVB, keyB, value);
@@ -427,14 +434,14 @@ TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
                                  CheckConflicts::No,
                                  /*allowExisting*/ true));
 
-    const auto item3Mem = stats.replicaCheckpointOverhead;
+    const auto item3Mem = stats.inactiveCheckpointOverhead;
     EXPECT_GT(item3Mem, item1Mem);
 
-    // now remove the checkpoint and confirm the replicaCheckpointOverhead is
+    // now remove the checkpoint and confirm the inactiveCheckpointOverhead is
     // now back to the initial value.
     cpm.createNewCheckpoint();
 
-    EXPECT_EQ(initialMem, stats.replicaCheckpointOverhead);
+    EXPECT_EQ(initialMem, stats.inactiveCheckpointOverhead);
 
     destroy_mock_cookie(cookie);
 }
