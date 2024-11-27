@@ -114,11 +114,21 @@ public:
     std::filesystem::path make_absolute(const std::filesystem::path& relative,
                                         std::string_view uuid) const;
 
-    /// Release (and delete) a snapshot identified with the provided UUID
-    void release(const std::string& uuid);
+    /**
+     * Release (and delete) a snapshot identified with the provided UUID
+     * @param uuid of snapshot to release
+     * @return success if found and released, no_such_key if not found. failed
+     *         returned if remove_all(path) failed.
+     */
+    cb::engine_errc release(const std::string& uuid);
 
-    /// Release (and delete) a snapshot for the VB
-    void release(Vbid vbid);
+    /**
+     * Release (and delete) a snapshot for the VB
+     * @param vbid of snapshot to release
+     * @return success if found and released, no_such_key if not found. failed
+     *         returned if remove_all(path) failed.
+     */
+    cb::engine_errc release(Vbid vbid);
 
     /// Remove all snapshots older than the provided age
     void purge(std::chrono::seconds age);
@@ -129,13 +139,14 @@ public:
     void dump(std::ostream& os = std::cerr) const;
 
 protected:
-    /// Nuke a manifest from disk
-    void remove(const Manifest& manifest) const;
+    /// remove a snapshot with uuid from disk
+    cb::engine_errc remove(std::string_view uuid) const;
 
     std::variant<cb::engine_errc, Manifest> lookupOrFetch(
             Vbid vbid,
             const std::function<std::variant<cb::engine_errc, Manifest>()>&
-                    fetch_manifest);
+                    fetch_manifest,
+            const std::function<void(std::string_view)>& release_snapshot);
 
     /// The location of the snapshots
     std::filesystem::path path;

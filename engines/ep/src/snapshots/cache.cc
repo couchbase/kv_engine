@@ -12,6 +12,7 @@
 
 #include <bucket_logger.h>
 #include <cbcrypto/digest.h>
+#include <folly/ScopeGuard.h>
 #include <folly/Synchronized.h>
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
@@ -52,33 +53,37 @@ std::optional<Manifest> Cache::lookup(const Vbid vbid) const {
     });
 }
 
-void Cache::remove(const Manifest& manifest) const {
+cb::engine_errc Cache::remove(std::string_view uuid) const {
     std::error_code ec;
-    if (!remove_all(path / manifest.uuid, ec)) {
-        EP_LOG_WARN_CTX("Failed to remove snapshot",
-                        {{"uuid", manifest.uuid}, {"error", ec.message()}});
+    if (!remove_all(path / uuid, ec)) {
+        EP_LOG_WARN_CTX("Cache::remove failed to remove snapshot",
+                        {{"uuid", uuid}, {"error", ec.message()}});
+        return cb::engine_errc::failed;
     }
+    return cb::engine_errc::success;
 }
 
-void Cache::release(const std::string& uuid) {
-    snapshots.withLock([&uuid, this](auto& map) {
+cb::engine_errc Cache::release(const std::string& uuid) {
+    return snapshots.withLock([&uuid, this](auto& map) {
         auto iter = map.find(uuid);
         if (iter != map.end()) {
-            remove(iter->second.manifest);
             map.erase(iter);
+            return remove(uuid);
         }
+        return cb::engine_errc::no_such_key;
     });
 }
 
-void Cache::release(Vbid vbid) {
-    snapshots.withLock([vbid, this](auto& map) {
+cb::engine_errc Cache::release(Vbid vbid) {
+    return snapshots.withLock([vbid, this](auto& map) {
         for (const auto& [uuid, entry] : map) {
             if (entry.manifest.vbid == vbid) {
-                remove(entry.manifest);
-                map.erase(uuid);
-                return;
+                auto victim = entry.manifest.uuid;
+                map.erase(victim);
+                return remove(victim);
             }
         }
+        return cb::engine_errc::no_such_key;
     });
 }
 
@@ -89,7 +94,7 @@ void Cache::purge(std::chrono::seconds age) {
 
         for (auto& [uuid, entry] : map) {
             if (entry.timestamp > tp) {
-                remove(entry.manifest);
+                remove(entry.manifest.uuid);
                 uuids.emplace_back(entry.manifest.uuid);
             }
         }
@@ -121,6 +126,7 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
         })) {
         EP_LOG_WARN_CTX("Cache::prepare try_emplace failed",
                         {{"uuid", manifest.uuid}});
+        remove(manifest.uuid);
         return cb::engine_errc::failed;
     }
     return prepared;
@@ -129,7 +135,8 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
 std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
         Vbid vbid,
         const std::function<std::variant<cb::engine_errc, Manifest>()>&
-                fetch_manifest) {
+                fetch_manifest,
+        const std::function<void(std::string_view)>& release_snapshot) {
     auto existing = lookup(vbid);
     if (existing.has_value()) {
         return *existing;
@@ -147,15 +154,37 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
     std::error_code ec;
     remove_all(path / manifest.uuid, ec);
     create_directories(path / manifest.uuid);
+
+    // If failing in this scope clean-up
+    auto removeSnapshot =
+            folly::makeGuard([this, &manifest, &release_snapshot]() {
+                release_snapshot(manifest.uuid);
+                remove(manifest.uuid);
+            });
+
     FILE* fp = fopen((path / manifest.uuid / "manifest.json").string().c_str(),
                      "w");
     if (!fp) {
         return cb::engine_errc::failed;
-        }
+    }
+    const auto s1 =
+            fprintf(fp, "%s\n", nlohmann::json(manifest).dump().c_str());
+    const auto s2 = fclose(fp);
+    if (s1 < 0 || s2 != 0) {
+        EP_LOG_WARN_CTX("Cache::lookupOrFetch fprintf/fclose manifest failed",
+                        {"vbid", vbid},
+                        {"fprintf", s1},
+                        {"fclose", s2},
+                        {"errno", errno},
+                        {"uuid", manifest.uuid});
+        return cb::engine_errc::failed;
+    }
 
-        fprintf(fp, "%s\n", nlohmann::json(manifest).dump().c_str());
-        fclose(fp);
-        return rv;
+    // At this point we have a snapshot dir and manifest.json, we can
+    // consider this a "valid" snapshot. Crash here and we would re-add
+    // to the Cache but with the files marked Present/Absent/Truncated
+    removeSnapshot.dismiss();
+    return rv;
 }
 
 std::variant<cb::engine_errc, Manifest> Cache::download(
@@ -165,7 +194,7 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
         const std::function<cb::engine_errc(const std::filesystem::path&,
                                             const Manifest&)>& download_files,
         const std::function<void(std::string_view)>& release_snapshot) {
-    auto fetched = lookupOrFetch(vbid, fetch_manifest);
+    auto fetched = lookupOrFetch(vbid, fetch_manifest, release_snapshot);
     if (std::holds_alternative<cb::engine_errc>(fetched)) {
         return fetched;
     }
@@ -178,11 +207,16 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
         return cb::engine_errc::failed;
     }
 
-    snapshots.withLock([&manifest](auto& map) {
-        map.emplace(manifest.uuid, Entry(manifest));
-    });
-
     release_snapshot(manifest.uuid);
+
+    if (!snapshots.withLock([&manifest](auto& map) {
+            return map.try_emplace(manifest.uuid, Entry(manifest)).second;
+        })) {
+        EP_LOG_WARN_CTX("Cache::download try_emplace failed",
+                        {{"uuid", manifest.uuid}});
+        return cb::engine_errc::failed;
+    }
+
     return manifest;
 }
 

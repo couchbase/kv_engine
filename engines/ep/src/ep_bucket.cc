@@ -2967,12 +2967,10 @@ cb::engine_errc EPBucket::releaseSnapshot(
         CookieIface& cookie,
         std::variant<Vbid, std::string_view> snapshotToRelease) {
     if (std::holds_alternative<Vbid>(snapshotToRelease)) {
-        snapshotCache.release(std::get<Vbid>(snapshotToRelease));
-    } else {
-        snapshotCache.release(
-                std::string{std::get<std::string_view>(snapshotToRelease)});
+        return snapshotCache.release(std::get<Vbid>(snapshotToRelease));
     }
-    return cb::engine_errc::success;
+    return snapshotCache.release(
+            std::string{std::get<std::string_view>(snapshotToRelease)});
 }
 
 cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector) {
