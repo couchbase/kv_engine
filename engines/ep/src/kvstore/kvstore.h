@@ -447,6 +447,11 @@ public:
             return !(*this == other);
         }
 
+        // @return the position's value which is intended for logging only
+        uint64_t getValue() const {
+            return pos;
+        }
+
     private:
         uint64_t pos{0};
     };

@@ -2264,6 +2264,8 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx,
 
     for (itr->Initialize(startSeqno, ctx.maxSeqno, mode); itr->Valid();
          itr->Next()) {
+        ++ctx.keysScanned;
+
         Slice keySlice, metaSlice, valSlice;
         uint64_t seqno;
         itr->GetRecord(keySlice, metaSlice, valSlice, seqno);

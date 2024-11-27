@@ -9078,6 +9078,7 @@ protected:
     /// Sets up a stream in the backfilling state and sets the idle timeout such
     /// that the backfill is considered idle and can be closed with status Slow.
     void setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags = {});
+    void validateStream();
 };
 
 void SlowBackfillTest::setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags) {
@@ -9104,6 +9105,9 @@ void SlowBackfillTest::setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags) {
     // full. This first attempt will setup Position tracking.
     EXPECT_EQ(backfill_snooze, bfm.backfill());
     EXPECT_EQ(1, bfm.getNumBackfills());
+}
+
+void SlowBackfillTest::validateStream() {
     ASSERT_EQ(2, stream->public_readyQSize());
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker,
               stream->public_nextQueuedItem(*producer)->getEvent());
@@ -9111,10 +9115,57 @@ void SlowBackfillTest::setupIdleBackfill(cb::mcbp::DcpAddStreamFlag flags) {
               stream->public_nextQueuedItem(*producer)->getEvent());
 }
 
+TEST_P(SlowBackfillTest, BackfillCompletesWithProgress) {
+    setupIdleBackfill();
+    // This test skip validateStream because it wants to drain the stream via
+    // DcpProducer::step which will free up buffer space allowing the scan to
+    // progress.
+
+    MockDcpMessageProducers producers;
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(
+                      producers, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_EQ("k0", producers.last_key);
+
+    // producer drained
+    EXPECT_FALSE(producer->getBackfillBufferFullStatus());
+
+    auto& bfm = producer->getBFM();
+
+    // Now step backfill, it can load k1 and returns yield (puts backfill on
+    // snooze list)
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_TRUE(producer->getBackfillBufferFullStatus());
+
+    // Stepping backfill whilst buffer full and when on snooze list result in a
+    // call to shouldCancel - which will return false because progress was made
+    EXPECT_EQ(backfill_snooze, bfm.backfill());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepAndExpect(producers,
+                                      cb::mcbp::ClientOpcode::DcpMutation));
+    EXPECT_FALSE(producer->getBackfillBufferFullStatus());
+
+    EXPECT_EQ("k1", producers.last_key);
+
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_EQ(0, bfm.getNumBackfills());
+    EXPECT_EQ(backfill_finished, bfm.backfill());
+
+    // Stream is set to dead, so has all messages cleared and then 1 StreamEnd
+    // will be queued
+    ASSERT_FALSE(stream->isDead());
+}
+
 // Test related to MB-62703, check stream ends and backfill cancels if no
 // progress can be made.
 TEST_P(SlowBackfillTest, BackfillCancelsWhenNoProgress) {
     setupIdleBackfill();
+    validateStream();
+
     auto& bfm = producer->getBFM();
     // Next attempt will see no change in Position within the time (0s).
     // backfill cancels and stream ends.
@@ -9135,6 +9186,8 @@ TEST_P(SlowBackfillTest, BackfillCancelsWhenNoProgress) {
 // slow accoriding to the idle timeout.
 TEST_P(SlowBackfillTest, TakeoverBackfillDoesNotCancelWhenNoProgress) {
     setupIdleBackfill(cb::mcbp::DcpAddStreamFlag::TakeOver);
+    validateStream();
+
     auto& bfm = producer->getBFM();
     // Next attempt process one item and snooze. It should not be cancelled.
     EXPECT_EQ(backfill_snooze, bfm.backfill());

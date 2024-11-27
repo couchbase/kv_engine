@@ -296,7 +296,9 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
                 spdlog::level::level_enum::warn,
                 "Backfill task cancelled as no progress has been made on the "
                 "history-scan for more than the no progress duration",
-                {{"max_no_progress_duration", maxNoProgressDuration}});
+                {{"max_no_progress_duration", maxNoProgressDuration},
+                 {"position", historyScan->scanCtx->getPosition().getValue()},
+                 {"trackedPosition", trackedPosition->getValue()}});
         return true;
     }
     if (scanCtx && isProgressStalled(scanCtx->getPosition())) {
@@ -304,7 +306,9 @@ bool DCPBackfillDiskToStream::isSlow(const ActiveStream& stream) {
                 spdlog::level::level_enum::warn,
                 "Backfill task cancelled as no progress has been made on the "
                 "scan for more than the no progress duration",
-                {{"max_no_progress_duration", maxNoProgressDuration}});
+                {{"max_no_progress_duration", maxNoProgressDuration},
+                 {"position", scanCtx->getPosition().getValue()},
+                 {"trackedPosition", trackedPosition->getValue()}});
         return true;
     }
     return false;
@@ -314,7 +318,7 @@ bool DCPBackfillDiskToStream::isProgressStalled(
         const ScanContext::Position& position) {
     if (!trackedPosition) {
         // Begin tracking for changes and return true.
-        lastPositionChangedTime = ep_uptime_now();
+        lastPositionChangedTime = std::chrono::steady_clock::now();
         trackedPosition = position;
         return false;
     }
@@ -322,12 +326,13 @@ bool DCPBackfillDiskToStream::isProgressStalled(
     if (*trackedPosition != position) {
         // The position has changed, save new position and the time.
         trackedPosition = position;
-        lastPositionChangedTime = ep_uptime_now();
+        lastPositionChangedTime = std::chrono::steady_clock::now();
         return false;
     }
 
     // No change in position, check if the limit we are within limit
-    if ((ep_uptime_now() - lastPositionChangedTime) < maxNoProgressDuration) {
+    if ((std::chrono::steady_clock::now() - lastPositionChangedTime) <
+        maxNoProgressDuration) {
         return false;
     }
 

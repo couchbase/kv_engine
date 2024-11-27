@@ -372,7 +372,7 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     }
 
     if (!trackedPosition) {
-        lastPositionChangedTime = ep_uptime_now();
+        lastPositionChangedTime = std::chrono::steady_clock::now();
         trackedPosition = rangeItr.curr();
         return false;
     }
@@ -380,12 +380,13 @@ bool DCPBackfillMemoryBuffered::isSlow(const ActiveStream& stream) {
     if (*trackedPosition != rangeItr.curr()) {
         // The position has changed, save new position and the time.
         trackedPosition = rangeItr.curr();
-        lastPositionChangedTime = ep_uptime_now();
+        lastPositionChangedTime = std::chrono::steady_clock::now();
         return false;
     }
 
     // No change in position, check if the limit we are within limit
-    if ((ep_uptime_now() - lastPositionChangedTime) < maxNoProgressDuration) {
+    if ((std::chrono::steady_clock::now() - lastPositionChangedTime) <
+        maxNoProgressDuration) {
         return false;
     }
 
