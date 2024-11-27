@@ -46,7 +46,7 @@ static std::string getDatatype(const std::string& key,
                    "Invalid datatype specified for \"{}\": {}\n",
                    key,
                    ret);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     return iter->second;
@@ -66,7 +66,7 @@ static std::string getRangeValidatorCode(const std::string& key,
                 "Incorrect syntax for a range validator specified for\"{}\".\n"
                 "You need at least one of a min or a max clause.\n",
                 key);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // If min exists and is not a numeric type
@@ -78,7 +78,7 @@ static std::string getRangeValidatorCode(const std::string& key,
                    "Incorrect datatype for the range validator specified for "
                    "\"{}\"\nOnly numbers are supported.\n",
                    key);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // If max exists and is not of the correct type
@@ -92,7 +92,7 @@ static std::string getRangeValidatorCode(const std::string& key,
                    "Incorrect datatype for the range validator specified for "
                    "\"{}\"\nOnly numbers are supported.\n",
                    key);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     std::string validator_type;
@@ -156,14 +156,14 @@ static std::string getEnumValidatorCode(const std::string& key,
                 stderr,
                 "Incorrect enum value for {}.  Array of values is required.\n",
                 key);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     if (first->empty()) {
         fmt::print(stderr,
                    "At least one validator enum element is required ({})\n",
                    key);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     return fmt::format("(new TypedEnumValidator<cb::config::{}>())",
@@ -221,7 +221,7 @@ static bool isReadOnly(const nlohmann::json& json) {
         return !cb::jsonGet<bool>(json, "dynamic");
     } catch (const nlohmann::json::exception& e) {
         fmt::print(stderr, "{}\n", e.what());
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     return false;
 }
@@ -270,7 +270,7 @@ static std::pair<std::string, std::string> getValidatorAndCode(
     // Abort early if the validator is bad
     if (validator->size() != 1) {
         fmt::print(stderr, "Only one validator can be specified for {}\n", key);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Get the validator json (first element)
@@ -284,7 +284,7 @@ static std::pair<std::string, std::string> getValidatorAndCode(
                    "Unknown validator specified for \"{}\": \"{}\"\n",
                    key,
                    first->get<std::string>());
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     return {first.key(), (iter->second)(key, json)};
@@ -321,7 +321,7 @@ static std::string getRequirements(const std::string& key,
                        "not exist\n",
                        reqKey,
                        key);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
 
         auto type = datatypes[getDatatype(reqKey, params[reqKey])];
@@ -494,7 +494,7 @@ static ConditionalDefault getConditionalDefault(
         fmt::print(stderr,
                    "Error: default object does not define a valid \"if\": {}\n",
                    defaultVal.dump());
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     // Build the conditional up, which has the if condition, an optional series
@@ -506,7 +506,7 @@ static ConditionalDefault getConditionalDefault(
                    "if condition {} refers to an unknown parameter {}\n",
                    conditional->dump(),
                    entry.key());
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     rv.ifMatch = KeyMatch{entry.key(),
@@ -521,7 +521,7 @@ static ConditionalDefault getConditionalDefault(
                 fmt::print(stderr,
                            "Error: \"elif\" must have 1 key {}\n",
                            elif.dump());
-                exit(1);
+                exit(EXIT_FAILURE);
             }
 
             // The elif is a key:value where key is the parameter to test.
@@ -532,7 +532,7 @@ static ConditionalDefault getConditionalDefault(
                            "parameter {}\n",
                            elif.dump(),
                            parameter.key());
-                exit(1);
+                exit(EXIT_FAILURE);
             }
 
             rv.elseIfs.emplace_back(
@@ -550,7 +550,7 @@ static ConditionalDefault getConditionalDefault(
         fmt::print(stderr,
                    "Error: else condition is not found {}\n",
                    conditional->dump());
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     return rv;
