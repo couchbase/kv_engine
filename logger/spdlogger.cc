@@ -13,7 +13,10 @@
 #include "logger.h"
 #include "logger_config.h"
 
+#include <cbcrypto/encrypted_file_header.h>
+#include <cbcrypto/file_utilities.h>
 #include <cbcrypto/file_writer.h>
+#include <dek/manager.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
 #include <spdlog/async.h>
@@ -26,6 +29,7 @@
 #include <cstdio>
 #include <iterator>
 #include <stdexcept>
+
 static const std::string logger_name{"spdlog_file_logger"};
 
 /**
@@ -46,6 +50,9 @@ static const std::string log_pattern{"%^%Y-%m-%dT%T.%f%z %l %v%$"};
  * to stream etc.) or further processing.
  */
 static std::shared_ptr<spdlog::logger> file_logger;
+
+static std::shared_ptr<std::filesystem::path> log_directory;
+static std::shared_ptr<std::string> log_file_prefix;
 
 void cb::logger::flush() {
     NoArenaGuard guard;
@@ -89,6 +96,9 @@ std::optional<std::string> cb::logger::initialize(
     NoArenaGuard guard;
 
     auto fname = logger_settings.filename;
+    std::filesystem::path path = fname;
+    log_directory = std::make_shared<std::filesystem::path>(path.parent_path());
+    log_file_prefix = std::make_shared<std::string>(path.filename().string());
     auto buffersz = logger_settings.buffersize;
     auto cyclesz = logger_settings.cyclesize;
     auto max_aggregated_size = logger_settings.max_aggregated_size;
@@ -305,4 +315,29 @@ void cb::logger::logWithContext(spdlog::logger& logger,
     fmt::memory_buffer formatted;
     fmt::format_to(std::back_inserter(formatted), "{} {}", msg, ctx);
     logger.log(lvl, {formatted.data(), formatted.size()});
+}
+
+std::unordered_set<std::string> cb::logger::getDeksInUse() {
+    if (!log_directory || !log_file_prefix) {
+        throw std::logic_error(
+                "cb::logger::getDeksInUse(): The file logger must be "
+                "initialized before calling getDeksInUse()");
+    }
+
+    auto deks = cb::crypto::findDeksInUse(
+            *log_directory,
+            [](const auto& path) {
+                return path.extension() == ".cef" &&
+                       path.filename().string().rfind(*log_file_prefix, 0) == 0;
+            },
+            [](auto message, const auto& ctx) {
+                LOG_WARNING_CTX(message, ctx);
+            });
+    // Add the "current" key as it is always supposed to be "in use"
+    auto& manager = cb::dek::Manager::instance();
+    auto key = manager.lookup(cb::dek::Entity::Logs);
+    if (key) {
+        deks.insert(std::string{key->getId()});
+    }
+    return deks;
 }

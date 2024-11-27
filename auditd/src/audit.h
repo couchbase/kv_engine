@@ -35,6 +35,7 @@ public:
     void stats(const StatCollector& collector) override;
     bool configure_auditdaemon(std::string config,
                                CookieIface& cookie) override;
+    std::unordered_set<std::string> get_deks_in_use() const override;
     // End public API
 
     explicit AuditImpl(std::string config_file, std::string host);
@@ -116,6 +117,13 @@ protected:
 
     /// The event filter currently in use by the audit daemon
     folly::SynchronizedPtr<std::unique_ptr<AuditEventFilter>> event_filter;
+
+    /// The log directory. It is a copy of whatever the auditfile is using,
+    /// but given that this is to be used from a different thread we
+    /// keep a copy in a Synchronized object to avoid having to synchronize
+    /// access to the auditfile object (as thats primarily used from a
+    /// single thread)
+    folly::Synchronized<std::filesystem::path, std::mutex> log_directory;
 
 private:
     const size_t max_audit_queue = 50000;

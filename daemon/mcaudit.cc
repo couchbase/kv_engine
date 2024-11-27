@@ -441,6 +441,10 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
 }
 
 namespace cb::audit {
+std::unordered_set<std::string> getDeksInUse() {
+    return getAuditHandle().withRLock(
+            [](auto& handle) { return handle->get_deks_in_use(); });
+}
 
 void addSessionTerminated(const Connection& c) {
     if (!c.isAuthenticated() ||

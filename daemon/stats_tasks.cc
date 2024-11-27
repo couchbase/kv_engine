@@ -10,6 +10,7 @@
 
 #include "stats_tasks.h"
 
+#include "buckets.h"
 #include "concurrency_semaphores.h"
 #include "connection.h"
 #include "cookie.h"
@@ -17,10 +18,13 @@
 #include "daemon/sendbuffer.h"
 #include "daemon/settings.h"
 #include "front_end_thread.h"
+#include "mcaudit.h"
 #include "mcbp/codec/stats_codec.h"
 #include "memcached.h"
 #include "memcached/engine_error.h"
 #include "nobucket_taskable.h"
+
+#include <dek/manager.h>
 #include <logger/logger.h>
 #include <statistics/cbstat_collector.h>
 
@@ -236,7 +240,14 @@ void StatsTaskEncryptionKeyIds::getStats(cb::engine_errc& command_error,
                               .encryption_and_snapshot_management;
     if (semaphore.try_acquire()) {
         cb::SemaphoreGuard<> semaphoreGuard(&semaphore, cb::adopt_token_t{});
-        StatsTaskBucketStats::getStats(command_error, add_stat_callback);
+        if (cookie.getConnection().getBucket().type == BucketType::NoBucket) {
+            nlohmann::json json = {{"@audit", cb::audit::getDeksInUse()},
+                                   {"@logs", cb::logger::getDeksInUse()}};
+            add_stat_callback("encryption-key-ids", json.dump(), cookie);
+            command_error = cb::engine_errc::success;
+        } else {
+            StatsTaskBucketStats::getStats(command_error, add_stat_callback);
+        }
     } else {
         command_error = cb::engine_errc::temporary_failure;
     }

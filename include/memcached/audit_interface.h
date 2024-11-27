@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -13,6 +12,7 @@
 #include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
+#include <unordered_set>
 
 class StatCollector;
 class CookieIface;
@@ -65,6 +65,10 @@ public:
     /// filtering without having to obtain any locks in the case where
     /// an event should be filtered out.
     virtual std::unique_ptr<AuditEventFilter> createAuditEventFilter() = 0;
+
+    /// Iterate over the audit trail on disk and generate a list of the DEKs
+    /// in use in any of the files
+    virtual std::unordered_set<std::string> get_deks_in_use() const = 0;
 
 protected:
     Audit() = default;

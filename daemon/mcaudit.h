@@ -15,6 +15,7 @@
 #include <memcached/rbac/privilege_database.h>
 #include <cstdint>
 #include <string>
+#include <unordered_set>
 
 class Cookie;
 class Connection;
@@ -82,6 +83,9 @@ void audit_command_access_failed(Cookie& cookie);
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet);
 
 namespace cb::audit {
+/// Iterate over the audit trail on disk and generate a list of the DEKs
+/// in use in any of the files
+std::unordered_set<std::string> getDeksInUse();
 
 /**
  *  Add an audit event that the connection is terminated

@@ -75,6 +75,25 @@ TEST_P(EncryptionTest, RotateEncryptionKeys) {
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 }
 
+TEST_P(EncryptionTest, TestAuditAndLogDeksInUse) {
+    // @todo the test needs to be updated once we add test cases for key
+    //       rotation
+    nlohmann::json stats;
+    adminConnection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+    ASSERT_TRUE(stats.contains("@audit"));
+    ASSERT_TRUE(stats["@audit"].is_array());
+    ASSERT_EQ(stats["@audit"].size(), 1);
+    ASSERT_EQ(stats["@audit"].front().get<std::string>(),
+              mcd_env->getDekManager().lookup(cb::dek::Entity::Audit)->getId());
+    ASSERT_TRUE(stats.contains("@logs"));
+    ASSERT_TRUE(stats["@logs"].is_array());
+    ASSERT_EQ(stats["@logs"].size(), 1);
+    ASSERT_EQ(stats["@logs"].front().get<std::string>(),
+              mcd_env->getDekManager().lookup(cb::dek::Entity::Logs)->getId());
+}
+
 TEST_P(EncryptionTest, TestEncryptionKeyIds) {
     nlohmann::json stats;
     adminConnection->executeInBucket(bucketName, [&stats](auto& conn) {

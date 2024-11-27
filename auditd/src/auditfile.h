@@ -99,6 +99,10 @@ public:
 
     void prune_old_audit_files();
 
+    [[nodiscard]] auto get_log_directory() const {
+        return log_directory;
+    }
+
 protected:
     [[nodiscard]] bool open();
     [[nodiscard]] bool time_to_rotate_log() const;

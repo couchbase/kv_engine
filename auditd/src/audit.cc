@@ -14,6 +14,7 @@
 #include "event.h"
 
 #include <auditd/couchbase_audit_events.h>
+#include <cbcrypto/file_utilities.h>
 #include <dek/manager.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
@@ -188,6 +189,8 @@ bool AuditImpl::configure() {
         }
     }
 
+    log_directory = auditfile.get_log_directory();
+
     if (enabled) {
         // If the write_event_to_disk function returns false then it is
         // possible the audit file has been closed.  Therefore ensure
@@ -199,6 +202,29 @@ bool AuditImpl::configure() {
     }
 
     return true;
+}
+
+std::unordered_set<std::string> AuditImpl::get_deks_in_use() const {
+    auto deks = log_directory.withLock([this](auto& dir) {
+        return cb::crypto::findDeksInUse(
+                dir,
+                [](const auto& path) {
+                    return path.string().find("-audit.cef") !=
+                           std::string::npos;
+                },
+                [](auto message, const auto& ctx) {
+                    LOG_WARNING_CTX(message, ctx);
+                });
+    });
+
+    // Add the "current" key as it is always supposed to be "in use"
+    auto& manager = cb::dek::Manager::instance();
+    auto key = manager.lookup(cb::dek::Entity::Audit);
+    if (key) {
+        deks.insert(std::string{key->getId()});
+    }
+
+    return deks;
 }
 
 bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {

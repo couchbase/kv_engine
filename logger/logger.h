@@ -30,8 +30,8 @@
 #include <spdlog/logger.h>
 
 #include <optional>
-
 #include <string>
+#include <unordered_set>
 
 namespace cb::logger {
 
@@ -158,6 +158,10 @@ void logWithContext(spdlog::logger& logger,
                     spdlog::level::level_enum lvl,
                     std::string_view msg,
                     Json ctx);
+
+/// Iterate over the log files on disk and generate a list of the DEKs
+/// in use in any of the files
+std::unordered_set<std::string> getDeksInUse();
 
 } // namespace cb::logger
 
