@@ -746,6 +746,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
             configuration.getFusionLogstoreURI();
     configuration.magmaCfg.FusionMetadataStoreURI =
             configuration.getFusionMetadatastoreURI();
+    configuration.magmaCfg.FusionNamespace = configuration.getFusionNamespace();
 
     configuration.setStore(this);
 

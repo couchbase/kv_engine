@@ -1205,10 +1205,17 @@ protected:
 
 TEST_P(STMagmaFusionTest, Config) {
     auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
-    const auto& config =
+    const auto& kvstoreConfig =
             dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
-    EXPECT_EQ(fusionLogstoreURI, config.getFusionLogstoreURI());
-    EXPECT_EQ(fusionMetadatastoreURI, config.getFusionMetadatastoreURI());
+    EXPECT_EQ(fusionLogstoreURI, kvstoreConfig.getFusionLogstoreURI());
+    EXPECT_EQ(fusionMetadatastoreURI,
+              kvstoreConfig.getFusionMetadatastoreURI());
+    // Note: namespace not in bucket config, set internally at MagmaKVStore
+    // init
+    const auto& bucketConfig = engine->getConfiguration();
+    const auto fusionNamespace =
+            bucketConfig.getCouchBucket() + "/" + bucketConfig.getUuid();
+    EXPECT_EQ(fusionNamespace, kvstoreConfig.getFusionNamespace());
 }
 
 INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,

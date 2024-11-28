@@ -287,6 +287,10 @@ public:
         return fusionMetadatastoreURI;
     }
 
+    std::string getFusionNamespace() const {
+        return fusionNamespace;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -561,4 +565,7 @@ private:
 
     // Fusion Metadatastore URI.
     std::string fusionMetadatastoreURI;
+
+    // Fusion Namespace.
+    std::string fusionNamespace;
 };
