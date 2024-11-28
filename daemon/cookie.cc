@@ -214,8 +214,17 @@ bool Cookie::execute(bool useStartTime) {
     tracer.record(cb::tracing::Code::Execute, ts, te);
 
     if (done) {
+        static const bool command_log_enabled =
+                getenv("MEMCACHED_ENABLE_COMMAND_LOGGING");
         collectTimings(te);
         connection.commandExecuted(*this);
+        if (command_log_enabled && getHeader().isRequest()) {
+            LOG_INFO_CTX("Command executed",
+                         {"conn_id", getConnectionId()},
+                         {"time", te - ts},
+                         {"command", getRequest().to_json(true)});
+        }
+
         return true;
     }
     return false;
