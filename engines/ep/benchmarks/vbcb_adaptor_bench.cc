@@ -30,7 +30,7 @@ protected:
         EngineFixture::SetUp(state);
 
         // We need some extra quota to store the required items here
-        engine->setMaxDataSize(200 * 1024 * 1024);
+        engine->setMaxDataSize(400 * 1024 * 1024);
 
         if (state.thread_index() == 0) {
             const auto vbCount = state.range(0);
