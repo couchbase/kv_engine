@@ -893,8 +893,7 @@ int main(int argc, char** argv) {
                 c.setFeatures(features);
                 c.selectBucket(bucket);
 
-                std::string nm =
-                        (idx++ == 0) ? name : name + ":" + std::to_string(idx);
+                std::string nm = name + ":" + std::to_string(idx++);
                 auto rsp = c.execute(BinprotDcpOpenCommand{
                         std::move(nm),
                         cb::mcbp::request::DcpOpenPayload::Producer});
