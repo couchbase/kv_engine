@@ -117,8 +117,7 @@ public:
     }
 
     /**
-     * Get the item and check its value, if called for a delete, assuming
-     * delete with value
+     * Get the item and check its value
      */
     void checkGetItem(
             const std::string& key,

@@ -167,12 +167,31 @@ ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
     return {current, upper, lower};
 }
 
+bool StrictQuotaItemPager::shouldPage(const ItemPager::PageableMemInfo&) const {
+    return stats.getEstimatedTotalMemoryUsed() > stats.mem_high_wat;
+}
+
+bool StrictQuotaItemPager::shouldStopPaging(
+        const ItemPager::PageableMemInfo& memInfo) const {
+    return memInfo.current <= memInfo.lower ||
+           stats.getEstimatedTotalMemoryUsed() <= stats.mem_low_wat;
+}
+
+bool ItemPager::shouldPage(const ItemPager::PageableMemInfo& memInfo) const {
+    return memInfo.current > memInfo.upper;
+}
+
+bool ItemPager::shouldStopPaging(
+        const ItemPager::PageableMemInfo& memInfo) const {
+    return memInfo.current <= memInfo.lower;
+}
+
 bool ItemPager::runPager(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
     const auto memInfo = getPageableMemInfo();
 
-    if (memInfo.current <= memInfo.lower) {
+    if (shouldStopPaging(memInfo)) {
         // doEvict may have been set to ensure eviction would continue until the
         // low watermark was reached - it now has, so clear the flag.
         doEvict = false;
@@ -185,7 +204,7 @@ bool ItemPager::runPager(bool manuallyNotified) {
     // then came back down (e.g. 1 byte under HWM), we should still page in this
     // scenario. wasNotified would be false if we were woken by the
     // periodic scheduler.
-    if ((memInfo.current > memInfo.upper) || doEvict || manuallyNotified) {
+    if (manuallyNotified || doEvict || shouldPage(memInfo)) {
         if (!pagerSemaphore->try_acquire(numConcurrentPagers)) {
             // could not acquire the required number of tokens, so there's
             // still a paging visitor running. Don't create more.
