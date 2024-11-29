@@ -15,9 +15,9 @@
 #include "../mock/mock_magma_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
-
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "kvstore_test.h"
+#include "programs/engine_testapp/mock_cookie.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/thread_gate.h"
@@ -1161,7 +1161,8 @@ INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
 class STMagmaFusionTest : public STParamMagmaBucketTest {
 public:
     void SetUp() override {
-        config_string += "magma_fusion_logstore_uri=" + fusionLogstoreURI;
+        config_string += "magma_sync_every_batch=true";
+        config_string += ";magma_fusion_logstore_uri=" + fusionLogstoreURI;
         config_string +=
                 ";magma_fusion_metadatastore_uri=" + fusionMetadatastoreURI;
         config_string += ";magma_fusion_upload_interval=" +
@@ -1176,10 +1177,12 @@ public:
     }
 
 protected:
-    const std::string dbPath = std::filesystem::absolute(test_dbname);
-    const std::string fusionLogstoreURI = "local://" + dbPath + "/logstore";
+    const std::filesystem::path dbPath = std::filesystem::absolute(test_dbname);
+    const std::string dbPathString = dbPath.string();
+    const std::string fusionLogstoreURI =
+            "local://" + dbPathString + "/logstore";
     const std::string fusionMetadatastoreURI =
-            "local://" + dbPath + "/metadatastore";
+            "local://" + dbPathString + "/metadatastore";
     const size_t fusionUploadInterval = 1234;
     const size_t fusionLogCheckpointInterval = 5678;
     const size_t fusionMigrationRateLimit = 9101112;
@@ -1261,10 +1264,134 @@ TEST_P(STMagmaFusionTest, MetadataAuthToken) {
 }
 
 TEST_P(STMagmaFusionTest, MountVbucket) {
-    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
-    const auto res =
-            kvstore.mountVBucket(vbid, VBucketSnapshotSource::Fusion, {});
-    EXPECT_EQ(cb::engine_errc::success, res.first);
+    auto* cookie2 = create_mock_cookie(engine.get());
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        auto ret = engine->mountVBucket(*cookie, vbid, {}, [](const auto&) {});
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        auto retDup =
+                engine->mountVBucket(*cookie2, vbid, {}, [](const auto&) {});
+        EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
+        runNextTask(auxIoQ, "Mounting VBucket vb:0");
+    }
+    destroy_mock_cookie(cookie2);
+}
+
+TEST_P(STMagmaFusionTest, LoadEmptyVBucket) {
+    if (!isFullEviction()) {
+        GTEST_SKIP();
+    }
+    setVBucketState(vbid, vbucket_state_active);
+    flushVBucket(vbid);
+
+    shutdownAndPurgeTasks(engine.get());
+    std::filesystem::remove_all(dbPath / "magma.0");
+    std::filesystem::remove_all(dbPath / "magma.1");
+    reinitialise(buildNewWarmupConfig(config_string), false);
+
+    auto* cookie2 = create_mock_cookie(engine.get());
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        auto ret = engine->mountVBucket(*cookie, vbid, {}, [](const auto&) {});
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(auxIoQ, "Mounting VBucket vb:0");
+    }
+    const nlohmann::json meta{{"use_snapshot", "fusion"}};
+    for (;;) {
+        auto ret = store->setVBucketState(
+                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        auto retDup =
+                engine->mountVBucket(*cookie2, vbid, {}, [](const auto&) {});
+        EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
+        runNextTask(auxIoQ, "Loading VBucket vb:0");
+    }
+    EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active));
+
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    const auto docKey = makeStoredDocKey("key");
+    for (;;) {
+        auto getValue = store->get(docKey, vbid, cookie, options);
+        const auto status = getValue.getStatus();
+        if (status != cb::engine_errc::would_block) {
+            ASSERT_EQ(cb::engine_errc::no_such_key, status);
+            break;
+        }
+        runBGFetcherTask();
+    }
+    destroy_mock_cookie(cookie2);
+}
+
+TEST_P(STMagmaFusionTest, LoadVBucket) {
+    if (!isFullEviction()) {
+        GTEST_SKIP();
+    }
+    const auto docKey = makeStoredDocKey("key");
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, docKey, "value");
+    flushVBucket(vbid);
+
+    shutdownAndPurgeTasks(engine.get());
+    std::filesystem::remove_all(dbPath / "magma.0");
+    std::filesystem::remove_all(dbPath / "magma.1");
+    reinitialise(buildNewWarmupConfig(config_string), false);
+
+    auto* cookie2 = create_mock_cookie(engine.get());
+    auto& auxIoQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        auto ret = engine->mountVBucket(*cookie, vbid, {}, [](const auto&) {});
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(auxIoQ, "Mounting VBucket vb:0");
+    }
+    const nlohmann::json meta{{"use_snapshot", "fusion"}};
+    for (;;) {
+        auto ret = store->setVBucketState(
+                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        auto retDup = store->setVBucketState(
+                vbid, vbucket_state_replica, &meta, TransferVB::No, cookie2);
+        EXPECT_EQ(cb::engine_errc::key_already_exists, retDup);
+        runNextTask(auxIoQ, "Loading VBucket vb:0");
+    }
+    EXPECT_EQ(vbucket_state_replica, store->getVBucket(vbid)->getState());
+    EXPECT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active));
+
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    for (;;) {
+        auto getValue = store->get(docKey, vbid, cookie, options);
+        const auto status = getValue.getStatus();
+        if (status != cb::engine_errc::would_block) {
+            ASSERT_EQ(cb::engine_errc::success, status);
+            ASSERT_TRUE(getValue.item);
+            EXPECT_EQ(std::string_view("value"),
+                      getValue.item->getValue()->to_string_view());
+            break;
+        }
+        runBGFetcherTask();
+    }
+    destroy_mock_cookie(cookie2);
 }
 
 INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,

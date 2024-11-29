@@ -226,6 +226,15 @@ magma::Status MagmaMemoryTrackingProxy::RunImplicitCompactKVStore(
     return magma->RunImplicitCompactKVStore(kvID);
 }
 
+magma::Status MagmaMemoryTrackingProxy::CreateKVStore(
+        const magma::Magma::KVStoreID kvID,
+        const magma::Magma::KVStoreRevision kvsRev,
+        std::optional<magma::Magma::CreateUsingMountConfig>
+                createUsingMountConfig) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->CreateKVStore(kvID, kvsRev, createUsingMountConfig);
+}
+
 magma::Status MagmaMemoryTrackingProxy::DeleteKVStore(
         const magma::Magma::KVStoreID kvID,
         const magma::Magma::KVStoreRevision kvsRev) {
@@ -516,9 +525,9 @@ void MagmaMemoryTrackingProxy::SetHistoryRetentionTime(
     magma->SetHistoryRetentionTime(historySeconds);
 }
 
-magma::Status MagmaMemoryTrackingProxy::Sync(bool flushAll) {
+magma::Status MagmaMemoryTrackingProxy::Sync(bool flushAll, bool fusion) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->Sync(flushAll);
+    return magma->Sync(flushAll, fusion);
 }
 
 magma::Status MagmaMemoryTrackingProxy::SyncKVStore(

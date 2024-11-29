@@ -1995,7 +1995,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
 
     // Only used for unit testing
     if (doSyncEveryBatch) {
-        auto chkStatus = magma->Sync(true);
+        auto chkStatus = magma->Sync(true, true /*fusion*/);
         if (!chkStatus) {
             logger->critical(
                     "MagmaKVStore::saveDocs {} Unable to create checkpoint. "
@@ -2812,6 +2812,98 @@ void MagmaKVStore::addVBStateUpdateToLocalDbReqs(LocalDbReqs& localDbReqs,
                   vbstateString);
     localDbReqs.emplace_back(
             MagmaLocalReq(LocalDocKey::vbstate, std::move(vbstateString)));
+}
+
+KVStoreIface::ReadVBStateResult MagmaKVStore::loadVBucketSnapshot(
+        Vbid vbid, vbucket_state_t state, const nlohmann::json& topology) {
+    ReadVBStateResult ret{ReadVBStateStatus::Error, {}};
+    magma::Magma::CreateUsingMountConfig createUsingMountConfig;
+    createUsingMountConfig.CreateCallback =
+            [this, vbid, state, &topology, out = &ret](
+                    const magma::Magma::GetLocalDoc& getLocalDoc,
+                    const magma::Magma::UpdateLocalDoc& updateLocalDoc)
+            -> magma::Status {
+        // We are in secondary domain
+        const Slice keySlice(LocalDocKey::vbstate);
+        std::string valString;
+        auto magmaStatus = getLocalDoc(keySlice, valString);
+        if (!magmaStatus.IsOkDocFound()) {
+            {
+                cb::UseArenaMallocPrimaryDomain primaryDomain;
+                logger->warn(
+                        "MagmaKVStore::loadVBucketSnapshot: {} "
+                        "readLocalDoc returned status {}",
+                        vbid,
+                        magmaStatus);
+            }
+            if (magmaStatus.IsOkDocNotFound()) {
+                out->status = ReadVBStateStatus::NotFound;
+                // Return OK as we will create an empty VBucket
+                return magma::Status::OK();
+            }
+            out->status = ReadVBStateStatus::Error;
+            return magmaStatus;
+        }
+        std::string encodedVBState;
+        {
+            // Back to primary domain to call KVStore methods
+            cb::UseArenaMallocPrimaryDomain primaryDomain;
+            try {
+                auto& vbstate = out->state;
+                vbstate = nlohmann::json::parse(valString);
+                mergeMagmaDbStatsIntoVBState(vbstate, vbid);
+                bool snapshotValid;
+                std::tie(snapshotValid,
+                         vbstate.lastSnapStart,
+                         vbstate.lastSnapEnd) =
+                        processVbstateSnapshot(vbid, vbstate);
+                if (!snapshotValid) {
+                    out->status = ReadVBStateStatus::CorruptSnapshot;
+                    return {magma::Status::Corruption,
+                            "Corrupt vbstate snapshot"};
+                }
+                vbstate.transition.replicationTopology = topology;
+                vbstate.transition.state = state;
+                auto primaryEncodedVBState = encodeVBState(out->state);
+                {
+                    cb::UseArenaMallocSecondaryDomain secondaryDomain;
+                    // Copy into secondary domain
+                    encodedVBState = primaryEncodedVBState;
+                }
+                out->status = ReadVBStateStatus::Success;
+            } catch (const nlohmann::json::exception& ex) {
+                out->status = ReadVBStateStatus::JsonInvalid;
+                return {magma::Status::Corruption, ex.what()};
+            } catch (const std::exception& ex) {
+                out->status = ReadVBStateStatus::Error;
+                return {magma::Status::Internal, ex.what()};
+            }
+            if (out->status != ReadVBStateStatus::Success) {
+                return {magma::Status::Internal, "CreateCallback failure"};
+            }
+        }
+        // Back to secondary domain to call magma callback
+        magmaStatus =
+                updateLocalDoc(magma::Magma::WriteOperation::NewLocalDocUpdate(
+                        keySlice, encodedVBState));
+        return magmaStatus;
+    };
+    auto status = magma->CreateKVStore(vbid.get(),
+                                       kvstoreRevList[getCacheSlot(vbid)],
+                                       {std::move(createUsingMountConfig)});
+    if (ret.status == ReadVBStateStatus::Success && !status) {
+        ret.status = ReadVBStateStatus::Error;
+    }
+    if (ret.status != ReadVBStateStatus::Success) {
+        logger->warn(
+                "MagmaKVStore::loadVBucketSnapshot: {} "
+                "CreateKVStore returned status {}",
+                vbid,
+                status);
+        return ret;
+    }
+    updateCachedVBState(vbid, ret.state);
+    return ret;
 }
 
 std::pair<Status, std::string> MagmaKVStore::processReadLocalDocResult(

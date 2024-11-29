@@ -132,6 +132,11 @@ public:
             const magma::Magma::CompactionCallbackBuilder& makeCallback,
             const std::vector<std::string>& obsoleteKeys);
     magma::Status RunImplicitCompactKVStore(const magma::Magma::KVStoreID kvID);
+    magma::Status CreateKVStore(
+            const magma::Magma::KVStoreID kvID,
+            const magma::Magma::KVStoreRevision kvsRev = 1,
+            std::optional<magma::Magma::CreateUsingMountConfig>
+                    createUsingMountConfig = std::nullopt);
     magma::Status DeleteKVStore(const magma::Magma::KVStoreID kvID,
                                 const magma::Magma::KVStoreRevision kvsRev = 1);
     magma::Status Get(const magma::Magma::KVStoreID kvID,
@@ -228,7 +233,7 @@ public:
     void SetHistoryRetentionSize(size_t historyBytes);
     void SetHistoryRetentionTime(std::chrono::seconds historySeconds);
 
-    magma::Status Sync(bool flushAll);
+    magma::Status Sync(bool flushAll, bool fusion = false);
     magma::Status SyncKVStore(const magma::Magma::KVStoreID kvID, bool fusion);
 
     magma::Status WriteDocs(

@@ -557,6 +557,11 @@ public:
     ReadVBStateResult getPersistedVBucketState(KVFileHandle& handle,
                                                Vbid vbid) const override;
 
+    ReadVBStateResult loadVBucketSnapshot(
+            Vbid vbid,
+            vbucket_state_t state,
+            const nlohmann::json& topology) override;
+
     /**
      * Populate kvstore stats with magma specific stats
      */
