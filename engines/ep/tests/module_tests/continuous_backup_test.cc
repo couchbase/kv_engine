@@ -17,6 +17,7 @@
 #include "statistics/tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_magma_kvstore.h"
 #include "tests/module_tests/evp_store_single_threaded_test.h"
+#include "utilities/test_manifest.h"
 #include "vbucket.h"
 #include <folly/portability/GMock.h>
 #include <gtest/gtest.h>
@@ -137,6 +138,48 @@ TEST_P(ContinousBackupTest, CallbackInitialSnapshot) {
     EXPECT_EQ(1, metadata.failovers()->size());
     EXPECT_EQ(1, metadata.openCollections()->entries()->size());
     EXPECT_EQ(1, metadata.scopes()->entries()->size());
+}
+
+TEST_P(ContinousBackupTest, CallbackOldSnapshot) {
+    auto& store = getMockKVStore(vbid);
+
+    auto initialSnapshot = store.makeFileHandle(vbid);
+    ASSERT_TRUE(initialSnapshot.get());
+
+    auto initialMetadataString =
+            runContinuousBackupCallback(vbid, *initialSnapshot);
+    auto& initialMetadata = Backup::decodeBackupMetadata(initialMetadataString);
+
+    {
+        CollectionsManifest cm;
+        setCollections(
+                cookie,
+                cm.add(ScopeEntry::shop1)
+                        .add(CollectionEntry::vegetable, ScopeEntry::shop1)
+                        .add(CollectionEntry::fruit)
+                        .add(CollectionEntry::dairy));
+        flush_vbucket_to_disk(vbid, 4);
+    }
+
+    auto latestSnapshot = store.makeFileHandle(vbid);
+    auto latestMetadataString =
+            runContinuousBackupCallback(vbid, *latestSnapshot);
+    auto& latestMetadata = Backup::decodeBackupMetadata(latestMetadataString);
+
+    // Expect the manifest to have changed.
+    ASSERT_EQ(initialMetadata.failovers()->size(),
+              latestMetadata.failovers()->size());
+    ASSERT_NE(initialMetadata.maxCas(), latestMetadata.maxCas());
+    ASSERT_NE(initialMetadata.openCollections()->entries()->size(),
+              latestMetadata.openCollections()->entries()->size());
+    ASSERT_NE(initialMetadata.scopes()->entries()->size(),
+              latestMetadata.scopes()->entries()->size());
+    ASSERT_NE(initialMetadata.manifest()->uid(),
+              latestMetadata.manifest()->uid());
+
+    EXPECT_EQ(initialMetadataString,
+              runContinuousBackupCallback(vbid, *initialSnapshot))
+            << "Expected to read the same metadata from the initial snapshot.";
 }
 
 TEST_P(ContinousBackupTest, StartBackup) {

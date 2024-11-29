@@ -3502,7 +3502,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid,
 
     std::string openCollections;
     std::tie(status, openCollections) =
-            readLocalDoc(vbid, LocalDocKey::openCollections);
+            readLocalDoc(vbid, snapshot, LocalDocKey::openCollections);
     if (!status) {
         return {status,
                 Collections::KVStore::Manifest{
@@ -3510,7 +3510,8 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid,
     }
 
     std::string openScopes;
-    std::tie(status, openScopes) = readLocalDoc(vbid, LocalDocKey::openScopes);
+    std::tie(status, openScopes) =
+            readLocalDoc(vbid, snapshot, LocalDocKey::openScopes);
     if (!status) {
         return {status,
                 Collections::KVStore::Manifest{
@@ -3519,7 +3520,7 @@ MagmaKVStore::getCollectionsManifest(Vbid vbid,
 
     std::string droppedCollections;
     std::tie(status, droppedCollections) =
-            readLocalDoc(vbid, LocalDocKey::droppedCollections);
+            readLocalDoc(vbid, snapshot, LocalDocKey::droppedCollections);
     if (!status) {
         return {status,
                 Collections::KVStore::Manifest{
