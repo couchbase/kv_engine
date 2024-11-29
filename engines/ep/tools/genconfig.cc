@@ -569,15 +569,24 @@ static void generate(const nlohmann::json& params, const std::string& key) {
     std::optional<std::string> defaultValTSAN;
     std::optional<ConditionalDefault> conditionalDefault;
     if (defaultVal.is_object()) {
+        if (auto tsanFound = defaultVal.find("tsan");
+            tsanFound != defaultVal.end()) {
+            defaultValTSAN = tsanFound->get<std::string>();
+        }
         if (isOnPremOrServerless(defaultVal)) {
             defaultValStr = defaultVal["on-prem"].get<std::string>();
             defaultValServerless = defaultVal["serverless"].get<std::string>();
-        } else if (auto tsanFound = defaultVal.find("tsan");
-                   tsanFound != defaultVal.end()) {
-            defaultValTSAN = tsanFound->get<std::string>();
-        } else {
-            // No on-prem/serverless, no tsan - must be a condional. This call
-            // will terminate if there is no "if" key defining the condition
+        }
+        if (defaultVal.count("if")) {
+            // Either a conditional if or serverless/tsan
+            if (defaultValTSAN || defaultValStr.size() ||
+                defaultValServerless.size()) {
+                fmt::println(stderr,
+                             "Error: if condition with tsan/server/on-prem "
+                             "keys not supported {}",
+                             defaultVal.dump());
+                exit(EXIT_FAILURE);
+            }
             conditionalDefault = getConditionalDefault(params, defaultVal);
         }
     } else {
