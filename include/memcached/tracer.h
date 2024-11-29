@@ -231,7 +231,7 @@ public:
             const auto waitTime = lockedAt - start;
             const auto heldTime = releasedAt - lockedAt;
             if (waitTime > threshold || heldTime > threshold) {
-                auto tracer = traceable->getTracer();
+                auto& tracer = traceable->getTracer();
                 tracer.record(wait, start, lockedAt);
                 tracer.record(held, lockedAt, releasedAt);
             }
