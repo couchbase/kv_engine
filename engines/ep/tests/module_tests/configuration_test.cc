@@ -496,3 +496,16 @@ TEST(ConfigurationTest, TsanOverride) {
         }
     }
 }
+
+TEST(ConfigurationTest, conditionals) {
+    ConfigurationShim configuration1, configuration2;
+    configuration1.parseConfiguration("bucket_type=ephemeral");
+    configuration2.parseConfiguration("bucket_type=persistent");
+    if (folly::kIsSanitizeThread) {
+        // ht_locks is reduced for TSAN
+        ASSERT_EQ(23, configuration1.getHtLocks());
+    }
+
+    ASSERT_FALSE(configuration1.isDcpBackfillIdleProtectionEnabled());
+    ASSERT_TRUE(configuration2.isDcpBackfillIdleProtectionEnabled());
+}
