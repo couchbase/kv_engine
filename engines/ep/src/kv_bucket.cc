@@ -2312,8 +2312,7 @@ bool KVBucket::isMemUsageAboveBackfillThreshold() {
     return !engine.getMemoryTracker().isBelowBackfillThreshold();
 }
 
-// Trigger memory reduction (ItemPager) if we've exceeded the pageable high
-// watermark.
+// Trigger memory reduction (ItemPager) if we've exceeded the high watermark.
 void KVBucket::checkAndMaybeFreeMemory() {
     if (engine.getMemoryTracker().needsToFreeMemory()) {
         attemptToFreeMemory();

@@ -7156,11 +7156,11 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_storedval_size",
               "ep_tmp_oom_errors",
               "ep_value_size",
-              "ht_mem_used_replica",
+              "ht_mem_used_inactive",
               "mem_used",
               "mem_used_estimate",
               "mem_used_merge_threshold",
-              "replica_checkpoint_memory_overhead"}}};
+              "checkpoint_memory_overhead_inactive"}}};
 
     if (isWarmupEnabled(h)) {
         // Add stats which are only available if warmup is enabled:

@@ -91,8 +91,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
 
     this->highPreparedSeqno.reset(highPreparedSeqno);
 
-    if (manager.getVBState() == vbucket_state_replica) {
-        stats.replicaCheckpointOverhead += getMemOverhead();
+    auto state = manager.getVBState();
+    if (state == vbucket_state_replica || state == vbucket_state_dead) {
+        stats.inactiveCheckpointOverhead += getMemOverhead();
     }
 }
 
@@ -116,14 +117,18 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
     Expects(manager);
     QueueDirtyResult rv;
-    // Update EPStats::replicaCheckpointOverhead if the overhead is different
+    // Update EPStats::inactiveCheckpointOverhead if the overhead is different
     // when this helper is destroyed
-    auto overheadCheck = gsl::finally([pre = getMemOverhead(), this]() {
-        auto post = getMemOverhead();
-        if (manager->getVBState() == vbucket_state_replica && pre != post) {
-            stats.replicaCheckpointOverhead += (post - pre);
-        }
-    });
+    auto overheadCheck = gsl::finally(
+            [pre = static_cast<int64_t>(getMemOverhead()), this]() {
+                auto post = static_cast<int64_t>(getMemOverhead());
+                auto state = manager->getVBState();
+                if ((state == vbucket_state_replica ||
+                     state == vbucket_state_dead) &&
+                    pre != post) {
+                    stats.inactiveCheckpointOverhead += post - pre;
+                }
+            });
 
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {
@@ -698,8 +703,9 @@ void Checkpoint::detachFromManager() {
 
     // In EPStats we track the mem used by checkpoints owned by CM, so we need
     // to decrease those stats when we detach a checkpoint from the CM.
-    if (manager->getVBState() == vbucket_state_replica) {
-        stats.replicaCheckpointOverhead -= getMemOverhead();
+    auto state = manager->getVBState();
+    if (state == vbucket_state_replica || state == vbucket_state_dead) {
+        stats.inactiveCheckpointOverhead -= getMemOverhead();
     }
     stats.checkpointManagerEstimatedMemUsage->fetch_sub(getMemUsage());
 
