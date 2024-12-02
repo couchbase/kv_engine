@@ -6440,7 +6440,11 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
 
     //! 1. Recreate the stream without MarkerVersion::V2_2 & expect the
     //! purgeSeqno is not included.
-    recreateProducerAndStream(vb, cb::mcbp::DcpOpenFlag::None);
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())));
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6460,10 +6464,12 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
 
     //! 2. Recreate the stream with max_marker_version=2.2 & expect the
     //! purgeSeqno is included.
-    recreateProducerAndStream(vb,
-                              cb::mcbp::DcpOpenFlag::None,
-                              {},
-                              {{"max_marker_version", "2.2"}});
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())),
+            {{"max_marker_version", "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());
@@ -6502,10 +6508,12 @@ TEST_P(SingleThreadedActiveStreamTest, PurgeSeqnoInSnapshotMarker_Backfill) {
 
     //! 3. Recreate the stream with max_marker_version=2.2 & expect the
     //! purgeSeqno is included and it set to 3.
-    recreateProducerAndStream(vb,
-                              cb::mcbp::DcpOpenFlag::None,
-                              {},
-                              {{"max_marker_version", "2.2"}});
+    recreateProducerAndStream(
+            vb,
+            cb::mcbp::DcpOpenFlag::None,
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(CollectionEntry::defaultC.getId())),
+            {{"max_marker_version", "2.2"}});
 
     stream->transitionStateToBackfilling();
     ASSERT_TRUE(stream->isBackfilling());

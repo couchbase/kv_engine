@@ -378,7 +378,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.maxSeqno,
                                        scanCtx.persistedCompletedSeqno,
                                        scanCtx.maxVisibleSeqno,
-                                       scanCtx.purgeSeqno,
+                                       0,
                                        SnapshotType::NoHistory);
     }
 
@@ -465,7 +465,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                            stats.highSeqno,
                                            {},
                                            stats.highSeqno,
-                                           scanCtx.purgeSeqno,
+                                           0,
                                            SnapshotType::NoHistory);
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
@@ -582,7 +582,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        cb.maxVisibleSeqno,
                                        {},
                                        cb.maxVisibleSeqno,
-                                       scanCtx.purgeSeqno,
+                                       0,
                                        SnapshotType::NoHistory);
     }
     endStreamIfNeeded();

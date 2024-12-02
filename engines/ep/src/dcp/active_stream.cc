@@ -396,6 +396,12 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
+
+        // The endSeqno & purgeSeqno are derived from the same
+        // BySeqnoScanContext and therefore purge seqno will always be <= end
+        // seqno. Expect the same to true.
+        Expects(purgeSeqno <= endSeqno);
+
         auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
                                 ? std::make_optional(purgeSeqno)
                                 : std::nullopt;
