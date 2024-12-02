@@ -319,7 +319,7 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
 
     auto key = makeStoredDocKey("item");
     auto vbucket = store->getVBucket(vbid);
-    ASSERT(vbucket);
+    ASSERT_TRUE(vbucket);
     auto& vb = dynamic_cast<EphemeralVBucket&>(*vbucket);
     store_item(vbid, key, "value");
     {
@@ -329,7 +329,7 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
         auto result = vb.ht.findForUpdate(key);
 
         auto* storedVal = result.committed;
-        ASSERT(storedVal);
+        ASSERT_NE(nullptr, storedVal);
         ASSERT_FALSE(storedVal->isDeleted());
 
         // Page out the item (once).
