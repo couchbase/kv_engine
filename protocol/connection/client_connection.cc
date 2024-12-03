@@ -13,6 +13,7 @@
 #include <cbsasl/client.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <json/syntax_validator.h>
