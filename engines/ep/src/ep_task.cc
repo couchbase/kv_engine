@@ -96,3 +96,24 @@ EpLimitedConcurrencyTask::EpLimitedConcurrencyTask(
 void EpLimitedConcurrencyTask::signal() {
     wakeup();
 }
+
+bool EpSignalTask::run() {
+    bool res = EpNotifiableTask::run();
+    signalWaiters();
+    return res;
+}
+
+void EpSignalTask::wakeupAndGetNotified(
+        const std::shared_ptr<cb::Waiter>& waiter) {
+    waiters.lock()->pushUnique(waiter);
+    wakeup();
+}
+
+void EpSignalTask::signalWaiters() {
+    auto prevWaiters = waiters.exchange({});
+    for (auto& waiter : prevWaiters.getWaiters()) {
+        if (auto w = waiter.lock()) {
+            w->signal();
+        }
+    }
+}

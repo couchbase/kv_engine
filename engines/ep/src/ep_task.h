@@ -78,11 +78,11 @@ public:
 
     /**
      * Implementation of run() virtual method, which will call derived class'
-     * runInner(), informing if if a manual notification has occurred.
-     * Marked as final as subclasses should not override this, but instead
+     * runInner(), informing if a manual notification has occurred.
+     * Subclasses should not override this, but instead
      * should implement runInner().
      */
-    bool run() final;
+    bool run() override;
 
     /**
      * Wake up the task and schedule it to run again, if there isn't already
@@ -182,4 +182,51 @@ public:
      * Implements the cb::Waiter interface.
      */
     void signal() override;
+};
+
+/**
+ * Base type for ep tasks which need to notify/signal when they have completed.
+ *
+ * The task can be woken up with either a wakeup() call or a
+ * wakeupAndGetNotified(). The second takes a waiter argument which is added
+ * to waiters list. On completion of the task, all waiters are notified by
+ * calling their respective signal() functions.
+ *
+ * Note: A waiter may be notified after the completion of the current in
+ * progress execution. It may wake up again but waiter will not be notified
+ * See test `WakeupAndGetNotifiedOnceWhileRunning`
+ * E.g.
+ *  1. Task is mid execution after a wakeup/wakeupAndGetNotified.
+ *  2. A call to wakeupAndGetNotified(w) to schedule a future execution.
+ *  3. Execution (1) completes, notifying w of completion (and other waiters).
+ *  4. Execution (2) begins and completes however waiters list is empty now,
+ *      so no waiters are notified.
+ */
+class EpSignalTask : public EpNotifiableTask {
+public:
+    using EpNotifiableTask::EpNotifiableTask;
+
+    /**
+     * Implementation of run(), which will call derived class'
+     * runInner(), informing if a manual notification has occurred.
+     * Will signal waiters on completion of runInner(). Subclasses should not
+     * override this, but instead should implement runInner().
+     */
+    bool run() final;
+
+    /**
+     * Schedule task to run if there isn't a pending run already scheduled.
+     *
+     * Takes a waiter which will be notified on completion of a run.
+     * On completion, all waiters will have their signal() function called.
+     *
+     * @param waiter waiter which will be signaled on completion
+     */
+    void wakeupAndGetNotified(const std::shared_ptr<cb::Waiter>& waiter);
+
+protected:
+    void signalWaiters();
+
+    // Signalled on completion of task
+    folly::Synchronized<cb::UniqueWaiterQueue, std::mutex> waiters;
 };
