@@ -90,11 +90,21 @@ protected:
  * Anything which can provide a TraceRecorder to record event timing
  * information.
  */
-template <typename EventId>
+template <typename EventId_>
 class Traceable {
 public:
+    using EventId = EventId_;
+
     virtual ~Traceable() = default;
+    /**
+     * Returns a TraceRecorder which is valid only within the current thread and
+     * for the lifetime of this object.
+     */
     virtual TraceRecorder<EventId>& getTracer() = 0;
+    /**
+     * Returns a TraceRecorder which is valid only within the current thread and
+     * for the lifetime of this object.
+     */
     virtual const TraceRecorder<EventId>& getTracer() const = 0;
 };
 

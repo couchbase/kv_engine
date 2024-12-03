@@ -195,6 +195,7 @@ cb_add_test_executable(memcached_unit_tests
                        connection_unit_tests.cc
                        datatype_filter_test.cc
                        error_map_manager_test.cc
+                       executor_tracing_test.cc
                        function_chain_test.cc
                        json_validator_test.cc
                        mc_time_test.cc

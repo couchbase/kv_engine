@@ -13,6 +13,21 @@
 #include "objectregistry.h"
 #include <executor/executorpool.h>
 #include <folly/lang/Hint.h>
+#include <platform/cb_arena_malloc.h>
+
+static cb::executor::Tracer& getThreadLocalTracer() {
+    cb::NoArenaGuard guard;
+    thread_local cb::executor::Tracer tracer;
+    return tracer;
+}
+
+cb::executor::Tracer& EpTaskTracerMixin::getTracer() {
+    return getThreadLocalTracer();
+}
+
+const cb::executor::Tracer& EpTaskTracerMixin::getTracer() const {
+    return getThreadLocalTracer();
+}
 
 EpTask::EpTask(EventuallyPersistentEngine& e,
                TaskId taskId,
@@ -35,11 +50,16 @@ EpTask::~EpTask() {
     }
 }
 
+const cb::executor::Profile* EpTask::getRuntimeProfile() const {
+    return &getTracer().getProfile();
+}
+
 bool EpTask::execute(std::string_view threadName) {
     // Invoke the parent execute() method with the engine as the target for
     // alloc/dalloc
     BucketAllocationGuard guard(engine);
-
+    // Clear the profiling data from the previous execution.
+    getTracer().clear();
     return GlobalTask::execute(threadName);
 }
 

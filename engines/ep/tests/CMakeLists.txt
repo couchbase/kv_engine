@@ -189,6 +189,7 @@ cb_add_test_executable(ep-engine_couch-fs-stats_test
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/file_ops_tracker.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/kvstore/couch-kvstore/couch-fs-stats.cc
         ${Memcached_SOURCE_DIR}/executor/globaltask.cc
+        ${Memcached_SOURCE_DIR}/executor/tracer.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
 kv_enable_pch(ep-engine_couch-fs-stats_test)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test

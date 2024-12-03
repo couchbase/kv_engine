@@ -12,8 +12,18 @@
 
 #include "executor/globaltask.h"
 #include "executor/limited_concurrency_task.h"
+#include "executor/tracer.h"
 
 class EventuallyPersistentEngine;
+
+/**
+ * Base class for EpTask which allows profiling of the task execution.
+ */
+class EpTaskTracerMixin : public cb::executor::Traceable {
+public:
+    cb::executor::Tracer& getTracer() override;
+    const cb::executor::Tracer& getTracer() const override;
+};
 
 /**
  * EpTask is a subclass of GlobalTask which owned by a specific
@@ -24,7 +34,7 @@ class EventuallyPersistentEngine;
  *   (de)allocated while they are running is accounted to the appropriate
  *   bucket.
  */
-class EpTask : public GlobalTask {
+class EpTask : public GlobalTask, public EpTaskTracerMixin {
 public:
     EpTask(EventuallyPersistentEngine& e,
            TaskId taskId,
@@ -32,6 +42,8 @@ public:
            bool completeBeforeShutdown = true);
 
     ~EpTask() override;
+
+    const cb::executor::Profile* getRuntimeProfile() const override;
 
     bool execute(std::string_view threadName) override;
 

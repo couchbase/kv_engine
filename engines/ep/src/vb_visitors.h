@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "executor/tracer.h"
 #include "hash_table.h"
 #include "vb_filter.h"
 #include "vbucket_fwd.h"
@@ -57,6 +58,14 @@ public:
         vBucketFilter = std::move(filter);
     }
 
+    void setTraceable(cb::executor::Traceable* t) {
+        traceable = t;
+    }
+
+    cb::executor::Traceable* getTraceable() const {
+        return traceable;
+    }
+
     /**
      * Get a comparator used to order the vbucket IDs based on visitor-specific
      * criteria, if necessary. This can be used to specify the order the visitor
@@ -71,6 +80,7 @@ public:
 
 protected:
     VBucketFilter vBucketFilter;
+    cb::executor::Traceable* traceable{nullptr};
 };
 
 /**

@@ -55,6 +55,7 @@
 #include <platform/json_log_conversions.h>
 
 #include <folly/CancellationToken.h>
+#include <folly/container/F14Map.h>
 #include <memcached/collections.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/document_expired.h>
@@ -739,10 +740,28 @@ void KVBucket::logRunTime(const GlobalTask& task,
                           std::chrono::steady_clock::duration runTime) {
     // Check if exceeded expected duration; and if so log.
     if (runTime > task.maxExpectedDuration()) {
-        EP_LOG_WARN_CTX("Slow runtime",
-                        {"task", task.getDescription()},
-                        {"thread", threadName},
-                        {"runtime", runTime});
+        cb::logger::Json ctx{{"task", task.getDescription()},
+                             {"thread", threadName},
+                             {"runtime", runTime}};
+
+        // Print the profiling information (if any).
+        auto* profile = task.getRuntimeProfile();
+        if (profile && !profile->empty()) {
+            auto j = cb::logger::Json::object();
+            for (auto& p : *profile) {
+                // Durations less than 5% of the total runtime are hidden to
+                // avoid logging uninteresting entries.
+                if (p.second.second < (runTime / 20)) {
+                    continue;
+                }
+
+                j[static_cast<std::string_view>(p.first)] = {p.second.first,
+                                                             p.second.second};
+            }
+            ctx["profile"] = std::move(j);
+        }
+
+        EP_LOG_WARN_CTX("Slow runtime", std::move(ctx));
     }
 
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(runTime);

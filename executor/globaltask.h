@@ -12,6 +12,7 @@
 #pragma once
 
 #include "task_type.h"
+#include "tracer.h"
 #include <platform/atomic.h>
 #include <platform/processclock.h>
 #include <array>
@@ -205,6 +206,14 @@ public:
 
     queue_priority_t getQueuePriority() const {
         return static_cast<queue_priority_t>(priority);
+    }
+
+    /**
+     * Returns the latest runtime profile.
+     * @returns pointer to the latest profile or nullptr if none is available.
+     */
+    virtual const cb::executor::Profile* getRuntimeProfile() const {
+        return nullptr;
     }
 
     /*

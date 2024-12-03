@@ -81,7 +81,13 @@ bool VBCBAdaptor::run() {
 
         // MB-61220: This used to be set before pausing.
         currentvb = vbid.get();
-        visitor->visitBucket(*vb);
+
+        {
+            auto guard = folly::makeGuard(
+                    [this]() { visitor->setTraceable(nullptr); });
+            visitor->setTraceable(this);
+            visitor->visitBucket(*vb);
+        }
 
         switch (visitor->needsToRevisitLast()) {
         case NeedsRevisit::No:
