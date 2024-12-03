@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "auto_refreshed_value.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_owner.h"
@@ -424,6 +425,12 @@ public:
 
     cb::engine_errc doSnapshotDebugStats(const StatCollector&) override;
 
+    /**
+     * @return the cached disk space info (non-const as this call may change the
+     *         cached value as time progresses)
+     */
+    std::filesystem::space_info getCachedDiskSpaceInfo();
+
     /// Hook that gets called from prepareForPause. Phase of prepareForPause()
     /// specified by the single string_view arg
     TestingHook<std::string_view> prepareForPauseTestingHook;
@@ -558,6 +565,11 @@ protected:
     void setupWarmupConfig(std::string_view behavior);
 
     /**
+     * @return space_info for the config.getDbname directory
+     */
+    std::filesystem::space_info getDiskSpaceUsed() const;
+
+    /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
      * split Memory Checkpoints, a hard limit is only imposed for Disk
@@ -625,6 +637,12 @@ protected:
     /// The snapshot controller responsible for keeping track of snapshot
     /// download tasks for this bucket
     cb::snapshot::DownloadSnapshotController snapshotController;
+
+    /// A cached (refresh by elapsed time) space_info for the db_name directory
+    /// lock ensures only one update when expired and safe read/write of data
+    folly::Synchronized<AutoRefreshedValue<std::filesystem::space_info>,
+                        std::mutex>
+            diskSpaceInfo;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

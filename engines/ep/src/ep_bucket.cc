@@ -299,6 +299,16 @@ private:
     EPBucket& bucket;
 };
 
+std::filesystem::space_info EPBucket::getDiskSpaceUsed() const {
+    std::error_code ec;
+    auto si = std::filesystem::space(engine.getConfiguration().getDbname(), ec);
+    if (ec) {
+        EP_LOG_WARN_CTX("EPBucket::getDiskSpaceUsed: std::filesystem::space.",
+                        {"error", ec.message()});
+    }
+    return si;
+}
+
 EPBucket::EPBucket(EventuallyPersistentEngine& engine)
     : KVBucket(engine),
       rangeScans(engine.getConfiguration()),
@@ -3008,4 +3018,11 @@ cb::engine_errc EPBucket::initialiseSnapshots() {
                         {"status", status});
     }
     return status;
+}
+
+std::filesystem::space_info EPBucket::getCachedDiskSpaceInfo() {
+    return diskSpaceInfo.withLock([this](auto& info) {
+        return info.getAndMaybeRefreshValue(
+                [this]() { return getDiskSpaceUsed(); });
+    });
 }

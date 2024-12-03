@@ -14,7 +14,7 @@
 #include "backfill_disk.h"
 #include "bucket_logger.h"
 #include "dcp/active_stream.h"
-#include "kv_bucket.h"
+#include "ep_bucket.h"
 #include "kvstore/kvstore.h"
 
 #include <platform/json_log_conversions.h>
@@ -25,7 +25,8 @@ DCPBackfillDiskToStream::DCPBackfillDiskToStream(
     : DCPBackfillToStream(std::move(s)),
       bucket(bucket),
       maxNoProgressDuration(
-              getBackfillIdleLimitSeconds(bucket.getConfiguration())) {
+              getBackfillIdleLimitSeconds(bucket.getConfiguration())),
+      bytesToFree(std::chrono::seconds{10}) {
 }
 
 DCPBackfillDiskToStream::~DCPBackfillDiskToStream() = default;
@@ -359,7 +360,8 @@ bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
         return false;
     }
 
-    auto bytesToFree = scan.handle->getHowManyBytesCouldBeFreed();
+    auto bytesToFree = this->bytesToFree.getAndMaybeRefreshValue(
+            [&scan]() { return scan.handle->getHowManyBytesCouldBeFreed(); });
     if (bytesToFree == 0) {
         // Bytes to free is zero, ending the stream and closing the scan will
         // have no effect on free-space so don't bother with disrupting the
@@ -367,24 +369,10 @@ bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
         return false;
     }
 
-    // bytesToFree is > 0, ending the scan could reclaim diskspace. Next check
-    // actual disk space to decide if the disruption to the client is worth it.
-    std::error_code ec;
     const auto& config = bucket.getConfiguration();
-    // copy required config so logging and checks are consistent
-    const auto dbname = config.getDbname();
     const auto threshold = config.getDcpBackfillIdleDiskThreshold();
-    std::filesystem::space_info si = std::filesystem::space(dbname, ec);
-
-    if (ec) {
-        // Could not get disk usage, not much we can do here
-        stream.logWithContext(spdlog::level::level_enum::warn,
-                              "DCPBackfillDiskToStream::"
-                              "shouldEndStreamToReclaimDisk filesystem::space",
-                              {{"error", ec.message()}});
-        return false;
-    }
-
+    auto& epBucket = dynamic_cast<EPBucket&>(bucket);
+    auto si = epBucket.getCachedDiskSpaceInfo();
     auto usage = diskUsagePercent(si);
     if (!usage) {
         // space_info not usable, log it
@@ -392,7 +380,7 @@ bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
                 spdlog::level::level_enum::warn,
                 "DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk cannot "
                 "get disk usage",
-                {{"directory", dbname},
+                {{"directory", config.getDbname()},
                  {"capacity", si.capacity},
                  {"free", si.free},
                  {"available", si.available}});
@@ -406,7 +394,7 @@ bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
     stream.logWithContext(spdlog::level::level_enum::warn,
                           "DCPBackfillDiskToStream::"
                           "shouldEndStreamToReclaimDisk and usage >= threshold",
-                          {{"directory", dbname},
+                          {{"directory", config.getDbname()},
                            {"capacity", si.capacity},
                            {"free", si.free},
                            {"available", si.available},

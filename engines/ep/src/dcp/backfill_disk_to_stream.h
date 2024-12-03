@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "auto_refreshed_value.h"
 #include "dcp/backfill_to_stream.h"
 #include "ep_types.h"
 #include "kvstore/kvstore.h"
@@ -197,4 +198,9 @@ protected:
     // the maximum duration that the scan is permitted no Position change. This
     // is optional, std::nullopt disables any slow scan detection
     std::optional<std::chrono::seconds> maxNoProgressDuration;
+
+    /// A cached (refresh by elapsed time) copy of the underlying
+    /// KVFileHandle::getHowManyBytesCouldBeFreed which maybe costly to
+    /// calculate for magma
+    AutoRefreshedValue<size_t> bytesToFree;
 };
