@@ -59,7 +59,6 @@ public:
                            const DiskDocKey& key,
                            Vbid vb,
                            ValueFilter filter) const override;
-    void setAliveVBucketRatio(double ratio) override;
     void setMaxDataSize(size_t size) override;
     void getMulti(Vbid vb,
                   vb_bgfetch_queue_t& itms,

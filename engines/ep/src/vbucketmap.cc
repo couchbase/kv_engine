@@ -214,12 +214,18 @@ void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(
 
 void VBucketMap::decVBStateCount(vbucket_state_t state) {
     --vbStateCount[state - vbucket_state_active];
-    bucket.notifyVBMapChange();
+
+    if (bucket.isCheckpointMaxSizeAutoConfig()) {
+        bucket.autoConfigCheckpointMaxSize();
+    }
 }
 
 void VBucketMap::incVBStateCount(vbucket_state_t state) {
     ++vbStateCount[state - vbucket_state_active];
-    bucket.notifyVBMapChange();
+
+    if (bucket.isCheckpointMaxSizeAutoConfig()) {
+        bucket.autoConfigCheckpointMaxSize();
+    }
 }
 
 uint16_t VBucketMap::getVBStateCount(vbucket_state_t state) const {
@@ -257,13 +263,4 @@ size_t VBucketMap::getNumAliveVBuckets() const {
         res += getVBStateCount(state);
     }
     return res;
-}
-
-std::vector<std::pair<KVShard*, size_t>> VBucketMap::getNumVBucketsPerShard()
-        const {
-    std::vector<std::pair<KVShard*, size_t>> vbuckets;
-    for (auto& shard : shards) {
-        vbuckets.emplace_back(shard.get(), shard->getVBuckets().size());
-    }
-    return vbuckets;
 }

@@ -830,11 +830,6 @@ public:
     KVShard::id_type getShardId(Vbid vbid) const;
 
     /**
-     * Called whenever a vBucket changes state.
-     */
-    void notifyVBMapChange();
-
-    /**
      * Set the max ratio of bucket quota that can be allocated in checkpoints.
      *
      * @param ratio

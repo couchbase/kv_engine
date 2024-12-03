@@ -821,10 +821,6 @@ public:
         return true;
     };
 
-    void setAliveVBucketRatio(double ratio) override {
-        // Do nothing.
-    }
-
     /**
      * Set the max bucket quota to the given size.
      *

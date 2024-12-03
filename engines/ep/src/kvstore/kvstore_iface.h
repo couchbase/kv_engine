@@ -290,17 +290,6 @@ public:
                                    ValueFilter filter) const = 0;
 
     /**
-     * Updates the ratio of alive vbuckets in this shard to alive vbuckets in
-     * all shards.
-     *
-     * This is used to determine what fraction of the memory quota each shards
-     * can use.
-     *
-     * @param ratio the new ratio
-     */
-    virtual void setAliveVBucketRatio(double ratio) = 0;
-
-    /**
      * Set the max bucket quota to the given size.
      *
      * @param size  The new max bucket quota size.

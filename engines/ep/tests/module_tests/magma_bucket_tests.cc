@@ -1151,38 +1151,6 @@ TEST_P(STParamMagmaBucketTest, getDbFileInfo_MemoryDomainLeak) {
 }
 #endif
 
-TEST_P(STParamMagmaBucketTest, QuotaDependsOnVBucketRatio) {
-    setVBucketStateAndRunPersistTask(Vbid(0), vbucket_state_active);
-    setVBucketStateAndRunPersistTask(Vbid(1), vbucket_state_active);
-    setVBucketStateAndRunPersistTask(Vbid(2), vbucket_state_replica);
-
-    auto& rw0 = *store->getRWUnderlyingByShard(0);
-    auto& rw1 = *store->getRWUnderlyingByShard(1);
-
-    constexpr auto getAliveVBuckets = [](auto& kvs) {
-        auto states = kvs.listPersistedVbuckets();
-        return std::count_if(states.begin(), states.end(), folly::identity);
-    };
-    ASSERT_EQ(2, getAliveVBuckets(rw0));
-    ASSERT_EQ(1, getAliveVBuckets(rw1));
-
-    size_t rw0Quota = 0;
-    rw0.getStat("memory_quota", rw0Quota);
-
-    size_t rw1Quota = 0;
-    rw1.getStat("memory_quota", rw1Quota);
-
-    // Since we have 2 vBuckets in shard 0, and 1 vBucket in shard 1, we should
-    // have 2/3 of the Magma quota allocated to shard 0.
-
-    const auto& c = engine->getConfiguration();
-    const auto totalMagmaQuota = c.getMagmaMemQuotaRatio() * c.getMaxSize();
-    EXPECT_EQ(totalMagmaQuota * 2.0 / 3.0, rw0Quota)
-            << "totalMagmaQuota=" << totalMagmaQuota;
-    EXPECT_EQ(totalMagmaQuota - rw0Quota, rw1Quota)
-            << "totalMagmaQuota=" << totalMagmaQuota;
-}
-
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
                          STParameterizedBucketTest::magmaConfigValues(),

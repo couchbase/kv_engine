@@ -3102,24 +3102,6 @@ cb::engine_errc KVBucket::setCheckpointMaxSize(size_t size) {
     return cb::engine_errc::success;
 }
 
-void KVBucket::notifyVBMapChange() {
-    if (isCheckpointMaxSizeAutoConfig()) {
-        autoConfigCheckpointMaxSize();
-    }
-
-    auto vbCountPerShard = vbMap.getNumVBucketsPerShard();
-    size_t vbTotal = std::accumulate(
-            vbCountPerShard.begin(),
-            vbCountPerShard.end(),
-            0,
-            [](auto acc, const auto& x) { return acc + x.second; });
-
-    for (auto& [shard, vbCount] : vbCountPerShard) {
-        auto ratio = vbTotal == 0 ? 0 : vbCount / static_cast<double>(vbTotal);
-        shard->getRWUnderlying()->setAliveVBucketRatio(ratio);
-    }
-}
-
 cb::engine_errc KVBucket::autoConfigCheckpointMaxSize() {
     // Note: We don't account dead vbuckets as that identifies VBucket objects
     // set-up for deferred deletion on disk but that have already been destroyed
