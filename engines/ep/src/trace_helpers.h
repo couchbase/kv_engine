@@ -23,21 +23,24 @@
  *     ....
  *    }
  */
+template <typename EventId>
 class ScopedTracer {
 public:
-    ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::Code code)
-        : traceable(traceable), start(cb::tracing::Clock::now()), code(code) {
+    ScopedTracer(cb::tracing::Traceable<EventId>& traceable, EventId eventId)
+        : traceable(traceable),
+          start(cb::tracing::Clock::now()),
+          eventId(eventId) {
     }
 
     ~ScopedTracer() {
         NonBucketAllocationGuard guard;
-        traceable.getTracer().record(code, start, cb::tracing::Clock::now());
+        traceable.getTracer().record(eventId, start, cb::tracing::Clock::now());
     }
 
 protected:
-    cb::tracing::Traceable& traceable;
+    cb::tracing::Traceable<EventId>& traceable;
     cb::tracing::Clock::time_point start;
-    cb::tracing::Code code;
+    EventId eventId;
 };
 
 /**
@@ -48,22 +51,23 @@ protected:
  * The start and stop methods record the duration of the span and it is
  * injected into the provided traceable object as part of object destruction.
  */
+template <typename EventId>
 class TracerStopwatch {
 public:
-    TracerStopwatch(cb::tracing::Traceable& traceable,
-                    const cb::tracing::Code code)
+    TracerStopwatch(cb::tracing::Traceable<EventId>& traceable,
+                    const EventId code)
         : TracerStopwatch(&traceable, code) {
     }
-    TracerStopwatch(cb::tracing::Traceable* traceable,
-                    const cb::tracing::Code code)
-        : traceable(traceable), code(code) {
+    TracerStopwatch(cb::tracing::Traceable<EventId>* traceable,
+                    const EventId eventId)
+        : traceable(traceable), eventId(eventId) {
     }
 
     ~TracerStopwatch() {
         if (traceable) {
             NonBucketAllocationGuard guard;
             auto& tracer = traceable->getTracer();
-            tracer.record(code, startTime, stopTime);
+            tracer.record(eventId, startTime, stopTime);
         }
     }
 
@@ -76,8 +80,8 @@ public:
     }
 
 protected:
-    cb::tracing::Traceable* const traceable;
-    const cb::tracing::Code code;
+    cb::tracing::Traceable<EventId>* const traceable;
+    const EventId eventId;
 
     cb::tracing::Clock::time_point startTime;
     cb::tracing::Clock::time_point stopTime;

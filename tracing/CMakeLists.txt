@@ -1,4 +1,4 @@
-add_library(mcd_tracing STATIC tracer.cc)
+add_library(mcd_tracing STATIC tracer.cc tracecode.cc)
 set_property(TARGET mcd_tracing PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(mcd_tracing PRIVATE engine_utilities platform)
 add_sanitizers(mcd_tracing)

@@ -424,7 +424,7 @@ bool FrontEndThread::isValidJson(Cookie& cookie, std::string_view view) const {
     // Record how long JSON checking takes to both Tracer and bucket-level
     // histogram.
     using namespace cb::tracing;
-    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch<Code>> timer(
             std::forward_as_tuple(
                     cookie.getConnection().getBucket().jsonValidateTimes),
             std::forward_as_tuple(cookie, Code::JsonValidate));

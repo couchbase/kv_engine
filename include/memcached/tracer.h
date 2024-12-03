@@ -10,86 +10,14 @@
  */
 #pragma once
 
+#include <memcached/tracecode.h>
+
 #include <folly/Synchronized.h>
 #include <chrono>
 #include <string>
 #include <vector>
 
 namespace cb::tracing {
-
-enum class Code : uint8_t {
-    /// Time spent in the entire request
-    Request,
-    /// Time spent throttled
-    Throttled,
-    /// The time spent during execution on front end thread
-    Execute,
-    /// The time spent associating a bucket
-    AssociateBucket,
-    /// The time spent disassociating a bucket
-    DisassociateBucket,
-    /// The time spent waiting to acquire the bucket lock
-    BucketLockWait,
-    /// The time spent holding the bucket lock
-    BucketLockHeld,
-    /// Time spent creating the RBAC context
-    CreateRbacContext,
-    /// Time spent updating privilege context when toggling buckets
-    UpdatePrivilegeContext,
-    /// Time spent generating audit event
-    Audit,
-    /// Time spent reconfiguring audit daemon
-    AuditReconfigure,
-    /// Time spent generating audit stats
-    AuditStats,
-    /// Time spend validating audit input
-    AuditValidate,
-    /// Time spent decompressing Snappy data.
-    SnappyDecompress,
-    /// Time spent validating if incoming value is JSON.
-    JsonValidate,
-    /// Time spent parsing JSON.
-    JsonParse,
-    /// Time spent performing subdoc lookup / mutation (all paths).
-    SubdocOperate,
-    /// Time spent waiting for a background fetch operation to be scheduled.
-    BackgroundWait,
-    /// Time spent performing the actual background load from disk.
-    BackgroundLoad,
-    /// Time spent in EngineIface::get
-    Get,
-    /// Time spent in EngineIface::get_if
-    GetIf,
-    /// Time spent in EngineIface::getStats
-    GetStats,
-    /// Time spent in EngineIface::setWithMeta
-    SetWithMeta,
-    /// Time spent in EngineIface::store and EngineIface::store_if
-    Store,
-    /// Time spent by a SyncWrite in Prepared state before being completed.
-    SyncWritePrepare,
-    /// Time when a SyncWrite local ACK is received by the Active.
-    SyncWriteAckLocal,
-    /// Time when a SyncWrite replica ACK is received by the Active.
-    SyncWriteAckRemote,
-    /// Time spent in Select Bucket
-    SelectBucket,
-    /// Time spent building a DCP stream filter
-    StreamFilterCreate,
-    /// Time spent checking for rollback
-    StreamCheckRollback,
-    /// Time spent looking for the high-seqno of a collection
-    StreamGetCollectionHighSeq,
-    /// Time spent looking for an existing stream in map
-    StreamFindMap,
-    /// Time spent updating stream map
-    StreamUpdateMap,
-    /// Time spent in running the SASL start/step call on the executor
-    /// thread
-    Sasl,
-    /// Time spent looking up stats from the underlying Storage engine
-    StorageEngineStats,
-};
 
 using Clock = std::chrono::steady_clock;
 
@@ -110,16 +38,33 @@ public:
 };
 
 /**
+ * A TraceRecorer can record the event timing information.
+ * @tparam EventId identifier for the event
+ */
+template <typename EventId>
+class TraceRecorder {
+public:
+    /// Record a complete span (when both start and end are already known).
+    virtual void record(EventId id,
+                        Clock::time_point start,
+                        Clock::time_point end) = 0;
+
+    virtual ~TraceRecorder() = default;
+};
+
+/**
  * Tracer maintains an ordered vector of tracepoints
  * with name:time(micros)
  */
-class Tracer {
+class Tracer : public TraceRecorder<Code> {
 public:
     /// The maximum number of trace spans added (in addition to the entire
     /// Request span)
     static constexpr const std::size_t MaxTraceSpans = 500;
-    // Record a complete Span (when both start and end are already known).
-    void record(Code code, Clock::time_point start, Clock::time_point end);
+
+    void record(Code code,
+                Clock::time_point start,
+                Clock::time_point end) override;
 
     Span::Duration getTotalMicros() const;
 
@@ -141,13 +86,28 @@ protected:
     folly::Synchronized<std::vector<Span>, std::mutex> vecSpans;
 };
 
+/**
+ * Anything which can provide a TraceRecorder to record event timing
+ * information.
+ */
+template <typename EventId>
 class Traceable {
 public:
     virtual ~Traceable() = default;
-    Tracer& getTracer() {
+    virtual TraceRecorder<EventId>& getTracer() = 0;
+    virtual const TraceRecorder<EventId>& getTracer() const = 0;
+};
+
+/**
+ * Base class for a Traceable type. The type of event ID is cb::tracing::Code
+ * and is suitable for command tracing.
+ */
+class TracerMixin : public Traceable<Code> {
+public:
+    Tracer& getTracer() override {
         return tracer;
     }
-    const Tracer& getTracer() const {
+    const Tracer& getTracer() const override {
         return tracer;
     }
 
@@ -167,18 +127,19 @@ protected:
  * a client-specific context it is possible to specify nullptr as the traceable
  * and this is a "noop".
  */
+template <typename EventId>
 class SpanStopwatch {
 public:
-    SpanStopwatch(Traceable& traceable, Code code)
-        : traceable(&traceable), code(code) {
+    SpanStopwatch(Traceable<EventId>& traceable, EventId eventId)
+        : traceable(&traceable), eventId(eventId) {
     }
-    SpanStopwatch(Traceable* traceable, Code code)
-        : traceable(traceable), code(code) {
+    SpanStopwatch(Traceable<EventId>* traceable, EventId eventId)
+        : traceable(traceable), eventId(eventId) {
     }
 
     ~SpanStopwatch() {
         if (traceable) {
-            traceable->getTracer().record(code, startTime, stopTime);
+            traceable->getTracer().record(eventId, startTime, stopTime);
         }
     }
 
@@ -191,13 +152,13 @@ public:
     }
 
 private:
-    Traceable* const traceable;
+    Traceable<EventId>* const traceable;
     Clock::time_point startTime;
     Clock::time_point stopTime;
-    const Code code;
+    const EventId eventId;
 };
 
-template <class Mutex>
+template <typename EventId, typename Mutex>
 class MutexSpan {
 public:
     /**
@@ -205,10 +166,10 @@ public:
      * waiting for acquire the mutex and one span for how long it was held
      * if one of the values exceeds the provided threshold
      */
-    MutexSpan(Traceable* traceable,
+    MutexSpan(Traceable<EventId>* traceable,
               Mutex& mutex_,
-              Code wait,
-              Code held,
+              EventId wait,
+              EventId held,
               Clock::duration threshold_ = Clock::duration::zero())
         : traceable(traceable),
           mutex(mutex_),
@@ -239,7 +200,7 @@ public:
     }
 
 private:
-    Traceable* const traceable;
+    Traceable<EventId>* const traceable;
     Mutex& mutex;
     const Clock::duration threshold;
     const Code wait;
@@ -252,4 +213,3 @@ private:
 } // namespace cb::tracing
 
 std::ostream& operator<<(std::ostream& os, const cb::tracing::Tracer& tracer);
-std::string to_string(cb::tracing::Code tracecode);

@@ -124,7 +124,7 @@ static void do_audit(Cookie* cookie,
                      const char* warn) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie, Code::Audit);
 
     getAuditHandle().withRLock([id, warn, &event](auto& handle) {
         if (handle) {
@@ -309,7 +309,8 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
     using cb::tracing::SpanStopwatch;
 
     {
-        ScopeTimer1<SpanStopwatch> timer(cookie, Code::JsonParse);
+        ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
+                                                            Code::JsonParse);
         try {
             json = nlohmann::json::parse(buffer);
         } catch (const std::exception& e) {
@@ -330,7 +331,8 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
 #ifdef CB_DEVELOPMENT_ASSERTS
     const auto& mandatory = descr->getMandatoryFields();
     if (!mandatory.empty()) {
-        ScopeTimer1<SpanStopwatch> timer(cookie, Code::AuditValidate);
+        ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
+                cookie, Code::AuditValidate);
         nlohmann::json missing = nlohmann::json::array();
         for (auto it = mandatory.begin(); it != mandatory.end(); ++it) {
             if (json.find(it.key()) == json.end()) {
@@ -429,7 +431,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
     json["id"] = audit_eventid;
     json["name"] = descr->getName();
     json["description"] = descr->getDescription();
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie, Code::Audit);
     return getAuditHandle().withRLock([audit_eventid, &json](auto& handle) {
         if (!handle) {
             return cb::engine_errc::too_busy;
@@ -551,7 +553,8 @@ void shutdown_audit() {
 cb::engine_errc reconfigure_audit(Cookie& cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::AuditReconfigure);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
+                                                        Code::AuditReconfigure);
 
     return getAuditHandle().withRLock([&cookie](auto& handle) {
         if (!handle) {
@@ -568,7 +571,8 @@ cb::engine_errc reconfigure_audit(Cookie& cookie) {
 void stats_audit(const StatCollector& collector, Cookie* cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::AuditStats);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
+                                                        Code::AuditStats);
     getAuditHandle().withRLock([&collector](auto& handle) {
         if (handle) {
             handle->stats(collector);

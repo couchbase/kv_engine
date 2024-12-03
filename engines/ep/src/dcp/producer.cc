@@ -496,7 +496,7 @@ std::pair<cb::engine_errc, bool> DcpProducer::shouldAddVBToProducerConnection(
     // Check if this vbid can be added to this producer connection, and if
     // the vb connection map needs updating (if this is a new VB).
     using cb::tracing::Code;
-    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamFindMap);
+    ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(), Code::StreamFindMap);
     bool callAddVBConnByVBId = true;
     auto found = streams->find(vbucket.get());
     if (found != streams->end()) {
@@ -536,7 +536,8 @@ cb::engine_errc DcpProducer::checkStreamRequestNeedsRollback(
         uint64_t* rollback_seqno) {
     // Timing for failover table as this has an internal mutex
     using cb::tracing::Code;
-    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamCheckRollback);
+    ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(),
+                                             Code::StreamCheckRollback);
     const Vbid vbucket = vb.getId();
 
     auto purgeSeqno = vb.getPurgeSeqno();
@@ -2339,7 +2340,8 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
                                    std::shared_ptr<ActiveStream>& stream) {
     using cb::tracing::Code;
-    ScopeTimer1<TracerStopwatch> timer(*getCookie(), Code::StreamUpdateMap);
+    ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(),
+                                             Code::StreamUpdateMap);
 
     updateStreamsMapHook();
 
@@ -2431,8 +2433,8 @@ bool DcpProducer::isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() const {
 std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
         const Collections::VB::Filter& filter, VBucket& vbucket) {
     using cb::tracing::Code;
-    ScopeTimer1<TracerStopwatch> timer(*getCookie(),
-                                       Code::StreamGetCollectionHighSeq);
+    ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(),
+                                             Code::StreamGetCollectionHighSeq);
 
     return vbucket.getHighSeqnoOfCollections(filter);
 }

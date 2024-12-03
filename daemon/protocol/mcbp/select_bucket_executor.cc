@@ -81,7 +81,8 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 void select_bucket_executor(Cookie& cookie) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, Code::SelectBucket);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(cookie,
+                                                        Code::SelectBucket);
 
     // Unfortunately we need to copy it over to a std::string as the
     // internal methods expects the string to be terminated with '\0'

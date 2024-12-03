@@ -56,7 +56,7 @@ class IOBuf;
  * method to switch to the core's memory allocation domain if memory needs
  * to be allocated.
  */
-class CookieIface : public cb::tracing::Traceable {
+class CookieIface : public cb::tracing::TracerMixin {
 public:
     /// Get the Connection this cookie belongs to
     virtual ConnectionIface& getConnectionIface() = 0;

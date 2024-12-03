@@ -35,7 +35,7 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
                CookieIface& cookie,
                const EventuallyPersistentEngine& engine) {
     using cb::tracing::Code;
-    ScopeTimer1<TracerStopwatch> timer(cookie, Code::StreamFilterCreate);
+    ScopeTimer1<TracerStopwatch<Code>> timer(cookie, Code::StreamFilterCreate);
     cb::engine_errc status = cb::engine_errc::success;
     uint64_t manifestUid{0};
     // If the jsonFilter is not initialised we are building a filter for a

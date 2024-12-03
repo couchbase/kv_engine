@@ -75,7 +75,8 @@ cb::engine_errc SaslStartCommandContext::initial() {
 
 void SaslStartCommandContext::doSaslStart() {
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(cookie, cb::tracing::Code::Sasl);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
+            cookie, cb::tracing::Code::Sasl);
 
     auto& server = *connection.getSaslServerContext();
     try {

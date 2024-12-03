@@ -22,6 +22,8 @@
 
 #define TRACE_SCOPE(ck, code) ScopedTracer __st__##__LINE__(ck, code)
 
+using namespace cb::tracing;
+
 void SessionTracingRecordMutationSpan(benchmark::State& state) {
     auto* cookie = create_mock_cookie();
     while (state.KeepRunning()) {
@@ -41,12 +43,12 @@ void SessionTracingScopeTimer(benchmark::State& state) {
     while (state.KeepRunning()) {
         // Representative set of scopes for recording a mutation's work.
         {
-            ScopeTimer1<TracerStopwatch> timer(cookie,
-                                               cb::tracing::Code::Request);
+            ScopeTimer1<TracerStopwatch<Code>> timer(
+                    cookie, cb::tracing::Code::Request);
         }
         {
-            ScopeTimer1<TracerStopwatch> timer(cookie,
-                                               cb::tracing::Code::Store);
+            ScopeTimer1<TracerStopwatch<Code>> timer(cookie,
+                                                     cb::tracing::Code::Store);
         }
 
         cookie_to_mock_cookie(cookie)->getTracer().clear();
@@ -64,7 +66,7 @@ void SessionTracingEncode(benchmark::State& state) {
     // away the encoding below.
     auto& traceable = *cookie_to_mock_cookie(cookie);
     {
-        ScopeTimer1<TracerStopwatch> timer(
+        ScopeTimer1<TracerStopwatch<Code>> timer(
                 TracerStopwatch(cookie, cb::tracing::Code::Request));
     }
 

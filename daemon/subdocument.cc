@@ -250,12 +250,12 @@ private:
 
     void execute_subdoc_spec() {
         {
-            ScopeTimer2<HdrMicroSecStopwatch, cb::tracing::SpanStopwatch> timer(
+            using namespace cb::tracing;
+            ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch<Code>> timer(
                     std::forward_as_tuple(cookie.getConnection()
                                                   .getBucket()
                                                   .subjson_operation_times),
-                    std::forward_as_tuple(cookie,
-                                          cb::tracing::Code::SubdocOperate));
+                    std::forward_as_tuple(cookie, Code::SubdocOperate));
             execution_context->execute_subdoc_spec();
         }
 

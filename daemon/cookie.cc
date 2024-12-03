@@ -712,7 +712,7 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
 
 std::unique_ptr<folly::IOBuf> Cookie::inflateSnappy(std::string_view input) {
     using namespace cb::tracing;
-    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch> timer(
+    ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch<Code>> timer(
             std::forward_as_tuple(
                     getConnection().getBucket().snappyDecompressionTimes),
             std::forward_as_tuple(*this, Code::SnappyDecompress));
@@ -997,7 +997,8 @@ bool Cookie::sendResponse(cb::engine_errc status,
 bool Cookie::mayAccessBucket(std::string_view bucket) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
-    ScopeTimer1<SpanStopwatch> timer(*this, Code::CreateRbacContext);
+    ScopeTimer1<SpanStopwatch<cb::tracing::Code>> timer(
+            *this, Code::CreateRbacContext);
     return connection.mayAccessBucket(bucket);
 }
 
