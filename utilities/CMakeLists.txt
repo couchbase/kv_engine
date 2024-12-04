@@ -97,5 +97,5 @@ cb_add_test_executable(string_utilities_benchmark
         string_utilities_benchmark.cc)
 target_link_libraries(string_utilities_benchmark PRIVATE
         benchmark::benchmark mcd_util)
-platform_enable_pch(string_utilities_benchmark)
+kv_enable_pch(string_utilities_benchmark)
 add_sanitizers(string_utilities_benchmark)
