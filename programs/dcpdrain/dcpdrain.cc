@@ -885,7 +885,7 @@ int main(int argc, char** argv) {
                 c.setFeatures(features);
                 c.selectBucket(bucket);
 
-                std::string nm = name + "_" + std::to_string(idx++);
+                std::string nm = name + ":" + std::to_string(idx++);
                 auto rsp = c.execute(BinprotDcpOpenCommand{
                         std::move(nm), cb::mcbp::DcpOpenFlag::Producer});
                 if (!rsp.isSuccess()) {
