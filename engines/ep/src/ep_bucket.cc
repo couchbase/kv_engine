@@ -885,8 +885,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
         if (!rwUnderlying->snapshotVBucket(vb.getId(), commitData)) {
-            flushFailureEpilogue(*vbPtr, toFlush);
-
+            flushFailureEpilogue(vb, toFlush);
             return {MoreAvailable::Yes, 0};
         }
 
@@ -922,8 +921,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
 
     // Persist the flush-batch.
     if (!commit(*rwUnderlying, std::move(ctx), commitData)) {
-        flushFailureEpilogue(*vbPtr, toFlush);
-
+        flushFailureEpilogue(vb, toFlush);
         return {MoreAvailable::Yes, 0};
     }
 
@@ -1026,12 +1024,30 @@ void EPBucket::flushSuccessEpilogue(
     getRWUnderlying(vb.getId())->pendingTasks();
 }
 
-void EPBucket::flushFailureEpilogue(VBucket& vb, ItemsToFlush& flush) {
+void EPBucket::flushFailureEpilogue(EPVBucket& vb, ItemsToFlush& flush) {
     // Flush failed, we need to reset the pcursor to the original
     // position. At the next run the flusher will re-attempt by retrieving
     // all the items from the disk queue again.
     flush.flushHandle->markFlushFailed(vb);
-
+    if (vb.shouldWarnForFlushFailure()) {
+        std::string snapStart{"none"}, snapEnd{"none"};
+        if (!flush.ranges.empty()) {
+            snapStart = std::to_string(flush.ranges.front().getStart());
+            snapEnd = std::to_string(flush.ranges.back().getEnd());
+        }
+        EP_LOG_WARN_CTX(
+                "EPBucket::flushVBucket: failed",
+                {"vb", vb.getId()},
+                {"items", flush.items.size()},
+                {"snap_start", snapStart},
+                {"snap_end", snapEnd},
+                {"more_available", flush.moreAvailable},
+                {"max_deleted_rev_seqno", flush.maxDeletedRevSeqno.value_or(0)},
+                {"checkpoint_type", to_string(flush.checkpointType)},
+                {"historical", to_string(flush.historical)},
+                {"max_cas", flush.maxCas},
+                {"purge_seqno", flush.purgeSeqno});
+    }
     ++stats.commitFailed;
 }
 

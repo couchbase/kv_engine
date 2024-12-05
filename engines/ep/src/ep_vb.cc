@@ -1785,3 +1785,15 @@ void EPVBucket::addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
             c);
     addStat("bloom_filter_memory", filter.getMemoryFootprint(), add_stat, c);
 }
+
+// Slow down frequency of vbucket flush logging, often when flush fails it stays
+// failed and can quickly fill logs with failure messages. Here logging per
+// vbucket is reduced to every 30 seconds.
+bool EPVBucket::shouldWarnForFlushFailure() {
+    const auto now = std::chrono::steady_clock::now();
+    if ((now - flushFailedLogTime) > std::chrono::seconds{30}) {
+        flushFailedLogTime = now;
+        return true;
+    }
+    return false;
+}

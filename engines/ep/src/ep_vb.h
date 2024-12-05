@@ -384,6 +384,9 @@ public:
 
     size_t getFilterMemoryFootprint() override;
 
+    /// @return true if we should log a flush failure
+    bool shouldWarnForFlushFailure();
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -555,6 +558,8 @@ private:
     };
 
     folly::Synchronized<BfilterData, std::mutex> bFilterData;
+
+    std::chrono::steady_clock::time_point flushFailedLogTime;
 
     friend class EPVBucketTest;
 };

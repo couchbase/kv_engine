@@ -503,7 +503,7 @@ protected:
      *
      * @param itemsToFlush Used for performing post-flush operations
      */
-    void flushFailureEpilogue(VBucket& vb, ItemsToFlush& itemsToFlush);
+    void flushFailureEpilogue(EPVBucket& vb, ItemsToFlush& itemsToFlush);
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

@@ -90,7 +90,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
         return;
     }
     case FlushStateMutation::Failed:
-        EP_LOG_WARN(
+        EP_LOG_DEBUG(
                 "PersistenceCallback::set: Fatal error in persisting "
                 "SET on {} seqno:{}",
                 queuedItem.getVBucketId(),
@@ -122,7 +122,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
         return;
     }
     case FlushStateDeletion::Failed:
-        EP_LOG_WARN(
+        EP_LOG_DEBUG(
                 "PersistenceCallback::del: Fatal error in persisting "
                 "DELETE on {} seqno:{}",
                 queuedItem.getVBucketId(),
