@@ -1616,6 +1616,12 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "magma_fusion_namespace_suffix": {
+            "default": "kv",
+            "descr": "The fusion namespace format is <bucket_name>/<bucket_uuid>/<service_suffix>. This parameter encodes the <service_suffix> for KV.",
+            "dynamic": false,
+            "type": "std::string"
+        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",

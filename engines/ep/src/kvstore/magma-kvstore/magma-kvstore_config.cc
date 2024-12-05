@@ -219,7 +219,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
 
     fusionLogstoreURI = config.getMagmaFusionLogstoreUri();
     fusionMetadatastoreURI = config.getMagmaFusionMetadatastoreUri();
-    fusionNamespace = config.getCouchBucket() + "/" + config.getUuid();
+    fusionNamespace = config.getCouchBucket() + "/" + config.getUuid() + "/" +
+                      config.getMagmaFusionNamespaceSuffix();
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {

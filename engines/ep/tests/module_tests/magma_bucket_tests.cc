@@ -1215,8 +1215,9 @@ TEST_P(STMagmaFusionTest, Config) {
     // Note: namespace not in bucket config, set internally at MagmaKVStore
     // init
     const auto& bucketConfig = engine->getConfiguration();
-    const auto fusionNamespace =
-            bucketConfig.getCouchBucket() + "/" + bucketConfig.getUuid();
+    const auto fusionNamespace = bucketConfig.getCouchBucket() + "/" +
+                                 bucketConfig.getUuid() + "/" +
+                                 bucketConfig.getMagmaFusionNamespaceSuffix();
     EXPECT_EQ(fusionNamespace, kvstoreConfig.getFusionNamespace());
 }
 
