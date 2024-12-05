@@ -900,7 +900,8 @@ MagmaKVStore::~MagmaKVStore() {
 }
 
 void MagmaKVStore::deinitialize() {
-    logger->info("MagmaKVStore: {} deinitializing", configuration.getShardId());
+    logger->debug("MagmaKVStore: {} deinitializing",
+                  configuration.getShardId());
 
     // Close shuts down all of the magma background threads (compaction is the
     // one that we care about here). The compaction callbacks require the magma
@@ -911,21 +912,25 @@ void MagmaKVStore::deinitialize() {
     // the magma instance now
     magma.reset();
 
-    logger->info("MagmaKVStore: {} deinitialized", configuration.getShardId());
+    logger->debug("MagmaKVStore: {} deinitialized", configuration.getShardId());
 }
 
 bool MagmaKVStore::pause() {
-    logger->info("MagmaKVStore:pause() shard:{}", configuration.getShardId());
+    logger->infoWithContext("MagmaKVStore:pause()",
+                            {{"shard", configuration.getShardId()}});
     auto status = magma->Pause();
     if (!status.IsOK()) {
-        logger->warn("MagmaKVStore::pause() shard:{} failed - {}", status);
+        logger->warnWithContext("MagmaKVStore::pause() ailed",
+                                {{"shard", configuration.getShardId()},
+                                 {"error", status.String()}});
         return false;
     }
     return true;
 }
 
 void MagmaKVStore::resume() {
-    logger->info("MagmaKVStore:resume() shard:{}", configuration.getShardId());
+    logger->infoWithContext("MagmaKVStore:resume()",
+                            {{"shard", configuration.getShardId()}});
     magma->Resume();
 }
 
@@ -1416,12 +1421,12 @@ void MagmaKVStore::delVBucket(Vbid vbid,
     auto status = magma->DeleteKVStore(
             vbid.get(),
             static_cast<Magma::KVStoreRevision>(kvstoreRev->getRevision()));
-    logger->info(
-            "MagmaKVStore::delVBucket DeleteKVStore {} kvstoreRev:{}. "
-            "status:{}",
-            vbid,
-            kvstoreRev->getRevision(),
-            status.String());
+    if (!status.IsOK()) {
+        logger->warnWithContext("MagmaKVStore::delVBucket DeleteKVStore",
+                                {{"vb", vbid},
+                                 {"kvstoreRev", kvstoreRev->getRevision()},
+                                 {"error", status.String()}});
+    }
 }
 
 void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
@@ -1430,10 +1435,9 @@ void MagmaKVStore::prepareToCreateImpl(Vbid vbid) {
         vbstate->reset();
     }
     kvstoreRevList[getCacheSlot(vbid)]++;
-
-    logger->info("MagmaKVStore::prepareToCreateImpl {} kvstoreRev:{}",
-                 vbid,
-                 kvstoreRevList[getCacheSlot(vbid)]);
+    logger->debug("MagmaKVStore::prepareToCreateImpl {} kvstoreRev:{}",
+                  vbid,
+                  kvstoreRevList[getCacheSlot(vbid)]);
 }
 
 std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
@@ -1447,12 +1451,13 @@ std::unique_ptr<KVStoreRevision> MagmaKVStore::prepareToDeleteImpl(Vbid vbid) {
     // get the revision of the KVStore if we've not persited any documents yet
     // for this vbid.
     auto rev = kvstoreRevList[getCacheSlot(vbid)];
-    logger->info(
-            "MagmaKVStore::prepareToDeleteImpl: {} magma didn't find "
-            "kvstore for getRevision, status: {} using cached revision:{}",
-            vbid,
-            status.String(),
-            rev);
+    logger->infoWithContext(
+            "MagmaKVStore::prepareToDeleteImpl: magma didn't find kvstore for "
+            "getRevision. Using cached revision",
+            {{"vb", vbid},
+             {"error", status.String()},
+             {"cached_revision", rev.load()}});
+
     return std::make_unique<KVStoreRevision>(rev);
 }
 
@@ -2125,8 +2130,8 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
     }
 
     auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
-    if (logger->should_log(spdlog::level::info)) {
-        logger->info(
+    if (logger->should_log(spdlog::level::debug)) {
+        logger->debug(
                 "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
                 " purgeSeqno:{}, historyStartSeqno:{} nDocsToRead:{}"
                 " docFilter:{} valFilter:{}",
@@ -2231,9 +2236,9 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     }
 
     auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
-    logger->info("MagmaKVStore::initByIdScanContext {} historyStartSeqno:{} ",
-                 vbid,
-                 historyStartSeqno);
+    logger->debugWithContext(
+            "MagmaKVStore::initByIdScanContext",
+            {{"vb", vbid}, {"historyStartSeqno", historyStartSeqno}});
     return std::make_unique<MagmaByIdScanContext>(std::move(cb),
                                                   std::move(cl),
                                                   vbid,
@@ -2960,7 +2965,7 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
     std::chrono::steady_clock::time_point start =
             std::chrono::steady_clock::now();
     auto vbid = ctx->getVBucket()->getId();
-    logger->info(
+    logger->debug(
             "MagmaKVStore::compactDBInternal: {} purge_before_ts:{} "
             "purge_before_seq:{} drop_deletes:{} "
             "retain_erroneous_tombstones:{}",
@@ -4276,12 +4281,7 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
         compactors = 1;
     }
 
-    logger->info(
-            "MagmaKVStore::calculateAndSetMagmaThreads: Flushers:{} "
-            "Compactors:{}",
-            flushers,
-            compactors);
-
+    // magma will log the number of threads it uses
     magma->SetNumThreads(Magma::ThreadType::Flusher, flushers);
     magma->SetNumThreads(Magma::ThreadType::Compactor, compactors);
 }
