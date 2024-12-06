@@ -289,6 +289,12 @@ public:
     // purgeTombstones runs.
     TestingHook<> postPurgeTombstonesHook;
 
+    /**
+     * Ephemeral vbuckets process failover from data that the CheckpointManager
+     * maintains
+     */
+    failover_entry_t processFailover() override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

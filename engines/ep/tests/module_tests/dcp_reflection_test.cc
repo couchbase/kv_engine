@@ -578,6 +578,10 @@ DCPLoopbackTestHelper::DcpRoute::doStreamRequest(int flags) {
     EXPECT_TRUE(streamRequest);
     EXPECT_EQ(DcpResponse::Event::StreamReq, streamRequest->getEvent());
     auto* sr = static_cast<StreamRequest*>(streamRequest.get());
+    auto producerVb = producerNode->getVBucket(vbid);
+    const auto cursorCount = static_cast<MockCheckpointManager*>(
+                          producerVb->checkpointManager.get())
+                          ->getNumOfCursors();
     // Create an active stream against the producing node
     uint64_t rollbackSeqno = 0;
     auto error = producer->streamRequest(sr->getFlags(),
@@ -592,13 +596,12 @@ DCPLoopbackTestHelper::DcpRoute::doStreamRequest(int flags) {
                                          fakeDcpAddFailoverLog,
                                          {});
     if (error == cb::engine_errc::success) {
-        auto producerVb = producerNode->getVBucket(vbid);
-        EXPECT_GE(static_cast<MockCheckpointManager*>(
+        EXPECT_GT(static_cast<MockCheckpointManager*>(
                           producerVb->checkpointManager.get())
                           ->getNumOfCursors(),
-                  2)
-                << "Should have both persistence and DCP producer cursor on "
-                   "producer VB";
+                  cursorCount)
+                << "Expected cursor count to increase for "
+                << "successful streamRequest";
         EXPECT_GE(getLpNonIoQ()->getFutureQueueSize(), 1);
         // Finally the stream-request response sends the failover table back
         // to the consumer... simulate that
@@ -764,7 +767,9 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // The next cursor move will remove the first checkpoint. That will force a
     // DCP backfill in the next steps.
     auto& manager = *vb->checkpointManager;
-    ASSERT_EQ(2, manager.getNumCheckpoints());
+    // ephemeral has no cursor, so CPs disappear without flush...
+    const auto cpCount = isPersistent() ? 2 : 1;
+    ASSERT_EQ(cpCount, manager.getNumCheckpoints());
     const auto openCkptId = manager.getOpenCheckpointId();
 
     // Flush up to seqno:3 to disk. Closed checkpoint removed.
@@ -779,49 +784,78 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
     // No new checkpoint created
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(openCkptId, manager.getOpenCheckpointId());
-    /* State is now:
+    /* Persistent bucet state is now:
      *  Disk:
      *      1:PRE(a), 2:CMT(a), 3:SET(b)
      *
      *  Memory:
      *                          3:CKPT_START
      *                          3:SET(b),     4:PRE(a), 5:SET(c), 6:SET(d)
+     *
+     * But for ephemeral the linked list has everything available (no flush).
+     * Thus the initial backfill will be 0 to 6
      */
 
     // Setup: Create DCP producer and consumer connections.
     auto route0_1 = createDcpRoute(Node0, Node1);
     EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest(flags).first);
 
+    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+    ASSERT_TRUE(replicaVB);
+    auto& rManager = *replicaVB->checkpointManager;
+
+    const auto end = isPersistent() ? 3 : 6;
     // Test: Transfer 5 messages between Producer and Consumer
     // (SNAP_MARKER, CMT, SET), (SNAP_MARKER, PRE), with a flush after the
     // first 4. No prepare is sent at seqno 1 as we do not send completed
     // prepares when backfilling.
-    route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_CHK | MARKER_FLAG_DISK);
+    route0_1.transferSnapshotMarker(0, end, MARKER_FLAG_CHK | MARKER_FLAG_DISK);
     route0_1.transferMutation(makeStoredDocKey("a"), 2);
     route0_1.transferMutation(makeStoredDocKey("b"), 3);
 
-    flushNodeIfPersistent(Node1);
+    if (!isPersistent()) {
+        EXPECT_EQ(0, rManager.getFailoverSeqno());
+        route0_1.transferMessage(DcpResponse::Event::Prepare); // seq:4
+        EXPECT_EQ(0, rManager.getFailoverSeqno());
+    } else {
+        // Persistent a second snapshot occurs as the initial "disk" stores less
+        // than the ephemeral in-memory linked-list
+        // But the first snapshot has been procssed so we now have 3 as a
+        // failover seqno.
+        EXPECT_EQ(3, rManager.getFailoverSeqno());
 
-    // Transfer 2 more messages (SNAP_MARKER, PRE)
-    int takeover = flags & DCP_ADD_STREAM_FLAG_TAKEOVER ? MARKER_FLAG_ACK : 0;
-    route0_1.transferSnapshotMarker(
-            4, 6, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
-    auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-    ASSERT_TRUE(replicaVB);
-    // If only the snapshot marker has been received, but no mutations we're in
-    // the previous snap
-    EXPECT_EQ(3,
-              replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
-    EXPECT_EQ(3, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
+        flushNodeIfPersistent(Node1);
 
-    route0_1.transferMessage(DcpResponse::Event::Prepare);
+        // Transfer 2 more messages (SNAP_MARKER, PRE)
+        int takeover =
+                flags & DCP_ADD_STREAM_FLAG_TAKEOVER ? MARKER_FLAG_ACK : 0;
+        route0_1.transferSnapshotMarker(
+                4, 6, MARKER_FLAG_CHK | MARKER_FLAG_MEMORY | takeover);
 
-    flushNodeIfPersistent(Node1);
+        // If only the snapshot marker has been received, but no mutations we're
+        // in the previous snap
+        EXPECT_EQ(
+                3,
+                replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
+        EXPECT_EQ(3,
+                  replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
 
-    //  Following code/checks are for MB-35003
-    uint64_t expectedFailoverSeqno = 3;
+        route0_1.transferMessage(DcpResponse::Event::Prepare);
+
+        flushNodeIfPersistent(Node1);
+        // No change in failover seqno for this partially received snapshot
+        EXPECT_EQ(3, rManager.getFailoverSeqno());
+    }
+
+    // Following code/checks are for MB-35003
+    // The expected failover point currenty differs for persistent as the first
+    // full snapshot has been received. Ephemeral is still receiving 0,6
+    uint64_t expectedFailoverSeqno = isPersistent() ? 3 : 0;
 
     if (completeFinalSnapshot) {
+        // When rx of the full snapshot - failover point moves and is same for
+        // persistent or ephemeral.
+        expectedFailoverSeqno = 6;
         // The prepare @ seq:4 was sent, now expect to see the snapend of 6
         EXPECT_EQ(
                 6,
@@ -829,21 +863,27 @@ void DCPLoopbackStreamTest::testBackfillAndInMemoryDuplicatePrepares(
         EXPECT_EQ(6,
                   replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
 
-        expectedFailoverSeqno = 6;
         route0_1.transferMutation(makeStoredDocKey("c"), 5);
         flushNodeIfPersistent(Node1);
-        auto range = replicaVB->getPersistedSnapshot();
-        EXPECT_EQ(3, range.getStart());
-        EXPECT_EQ(6, range.getEnd());
+        if (isPersistent()) {
+            auto range = replicaVB->getPersistedSnapshot();
+            EXPECT_EQ(3, range.getStart());
+            EXPECT_EQ(6, range.getEnd());
+            EXPECT_EQ(3, rManager.getFailoverSeqno());
+        } else {
+            EXPECT_EQ(0, rManager.getFailoverSeqno());
+        }
 
         route0_1.transferMutation(makeStoredDocKey("d"), 6);
+        EXPECT_EQ(6, rManager.getFailoverSeqno());
+
         flushNodeIfPersistent(Node1);
-        range = replicaVB->getPersistedSnapshot();
 
         // Note with MB-35003, each time the flusher reaches the end seqno, it
         // sets the start=end, this ensures subsequent flush runs have the start
         // on a start of a partial snapshot or the end of complete snapshot
     }
+
     EXPECT_EQ(6,
               replicaVB->checkpointManager->getSnapshotInfo().range.getEnd());
     EXPECT_EQ(6, replicaVB->checkpointManager->getVisibleSnapshotEndSeqno());
@@ -944,32 +984,40 @@ TEST_P(DCPLoopbackStreamTest, InMemoryAndBackfillDuplicatePrepares) {
     // Test: Transfer next 2 messages from Producer to Consumer which
     // should be from backfill (after cursor dropping):
     // SNAP_MARKER (disk), 2:CMT
-    route0_1.transferSnapshotMarker(2, 3, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+    const auto end = isPersistent() ? 3 : 5;
+    route0_1.transferSnapshotMarker(2, end, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
     // Note: This was originally a Commit but because it has come from disk
     // it's sent as a Mutation (as backfill in general doesn't know if consumer
     // received the prior prepare so must send as Mutation).
     route0_1.transferMutation(makeStoredDocKey("a"), 2);
     route0_1.transferMutation(makeStoredDocKey("b"), 3);
 
-    // Transfer 2 memory messages - should be:
-    // SNAP_MARKER (mem), 4:PRE
-    route0_1.transferSnapshotMarker(4, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    if (isPersistent()) {
+        // Transfer 2 memory messages - should be:
+        // SNAP_MARKER (mem), 4:PRE
+        route0_1.transferSnapshotMarker(
+                4, 5, MARKER_FLAG_MEMORY | MARKER_FLAG_CHK);
+    }
     route0_1.transferMessage(DcpResponse::Event::Prepare);
 
     // Flush through the snapshots, mem->disk->mem requires 3 flushes
     auto node1VB = engines[Node1]->getKVBucket()->getVBucket(vbid);
-    flushNodeIfPersistent(Node1);
-    EXPECT_EQ(1, node1VB->getPersistenceSeqno());
-    flushNodeIfPersistent(Node1);
-    EXPECT_EQ(3, node1VB->getPersistenceSeqno());
-    flushNodeIfPersistent(Node1);
-    EXPECT_EQ(4, node1VB->getPersistenceSeqno());
+    if (isPersistent()) {
+        flushNodeIfPersistent(Node1);
+        EXPECT_EQ(1, node1VB->getPersistenceSeqno());
+        flushNodeIfPersistent(Node1);
+        EXPECT_EQ(3, node1VB->getPersistenceSeqno());
+        flushNodeIfPersistent(Node1);
+        EXPECT_EQ(4, node1VB->getPersistenceSeqno());
+    }
 
     // Switch to active and validate failover table seqno is @ 3
     engines[Node1]->getKVBucket()->setVBucketState(vbid, vbucket_state_active);
     auto newActiveVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
     ASSERT_TRUE(newActiveVB);
-    EXPECT_EQ(3, newActiveVB->failovers->getLatestEntry().by_seqno);
+    // seq:5 not received yet.
+    const auto seqno = isPersistent() ? 3 : 1;
+    EXPECT_EQ(seqno, newActiveVB->failovers->getLatestEntry().by_seqno);
 }
 
 // This test is validating that a replica which recevies a partial disk snapshot
@@ -1141,6 +1189,9 @@ TEST_P(DCPLoopbackStreamTest, MB_36948_SnapshotEndsOnPrepare) {
  * up throwing an exception in the Flusher when we next persist anything.
  */
 TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
+    if (!isPersistent()) {
+        GTEST_SKIP();
+    }
     // We need a new checkpoint (MARKER_FLAG_CHK set) when the active node
     // generates markers - reduce checkpoint_max_size to simplify this.
     engines[Node0]->getCheckpointConfig().setCheckpointMaxSize(2048);
@@ -1203,6 +1254,10 @@ TEST_P(DCPLoopbackStreamTest, MB50874_DeDuplicatedMutationsReplicaToActive) {
 }
 
 TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
+    if (!isPersistent()) {
+        // EvictKey not supported
+        GTEST_SKIP();
+    }
     auto k1 = makeStoredDocKey("k1");
     EXPECT_EQ(cb::engine_errc::success, storeSet(k1, true /*xattr*/));
 
@@ -1229,6 +1284,51 @@ TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
     route0_1.transferSnapshotMarker(2, 2, MARKER_FLAG_MEMORY);
     // Must not fail, with MB-41255 this would error with 'would block'
     route0_1.transferDeletion(k1, 2);
+}
+
+TEST_P(DCPLoopbackStreamTest,
+       FailoverEntryAfterReplicaPromotion_PartiallyReceivedDiskSnapshot) {
+    // Add a couple of keys
+    auto k1 = makeStoredDocKey("k1");
+    auto k2 = makeStoredDocKey("k2");
+    auto k3 = makeStoredDocKey("k3");
+
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k1));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k2));
+    EXPECT_EQ(cb::engine_errc::success, storeSet(k3));
+
+    // persist them to disk
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    auto vb = engines[Node0]->getVBucket(vbid);
+    // Clear out the checkpoints to eventually forces a disk backfill on a
+    // stream connect.
+    vb->checkpointManager->clear();
+
+    // Setup: Create DCP producer and consumer connection & add a stream
+    // request.
+    auto route0_1 = createDcpRoute(Node0, Node1);
+    EXPECT_EQ(cb::engine_errc::success, route0_1.doStreamRequest().first);
+
+    runBackfill();
+
+    route0_1.transferSnapshotMarker(0, 3, MARKER_FLAG_DISK | MARKER_FLAG_CHK);
+    route0_1.transferMutation(k1, 1);
+    route0_1.transferMutation(k2, 2);
+
+    // Skip sending out k3 & disconnect the producer and promote the replica to
+    // active
+    route0_1.destroy();
+
+    // Promote the replica to active
+    EXPECT_EQ(cb::engine_errc::success,
+              engines[Node1]->getKVBucket()->setVBucketState(
+                      vbid, vbucket_state_active));
+
+    // Since the snapshot wasn't entirely process we should rollback to 0.
+    auto newActiveVB = engines[Node1]->getVBucket(vbid);
+    auto failoverEntry = newActiveVB->failovers->getLatestEntry();
+    EXPECT_EQ(0, failoverEntry.by_seqno);
 }
 
 // Ideally this class would've inherited STParameterizedBucketTest which already
@@ -1258,10 +1358,14 @@ public:
         }
 
         auto bucketType = getBucketType();
-        config_string += generateBackendConfig(bucketType);
 
-        auto evictionPolicy = getEvictionPolicy();
-        config_string += ";item_eviction_policy=" + evictionPolicy;
+        if (bucketType == "ephemeral") {
+            config_string += "bucket_type=ephemeral";
+        } else {
+            config_string += generateBackendConfig(bucketType);
+            auto evictionPolicy = getEvictionPolicy();
+            config_string += ";item_eviction_policy=" + evictionPolicy;
+        }
 
         DCPLoopbackTestHelper::SetUp();
     }
@@ -1276,10 +1380,10 @@ public:
                std::to_string(flushRatio);
     }
 
-    static auto persistentConfigValues() {
+    static auto allConfigValues() {
         using namespace std::string_literals;
         return ::testing::Combine(
-                ::testing::Values("persistent_couchstore"s
+                ::testing::Values("persistent_couchstore"s, "ephemeral"s
 #ifdef EP_USE_MAGMA
                                   ,
                                   "persistent_magma"s
@@ -1430,10 +1534,25 @@ void DCPLoopbackSnapshots::testSnapshots(int flushRatio) {
                           // from all snapshots received. Expected fail-over
                           // seqno is 6.
 
-    EXPECT_EQ(
-            expectedSeqnos[flushRatio - 1].expectedFailoverSeqno,
-            replicaKVB->getVBucket(vbid)->failovers->getLatestEntry().by_seqno);
-    const auto& expectedRange = expectedSeqnos[flushRatio - 1].expectedRange;
+    uint64_t expectedFailoverSeqno = 0;
+    snapshot_range_t expectedRange = {0, 0};
+
+    if (persistent()) {
+        expectedFailoverSeqno = expectedSeqnos[flushRatio - 1].expectedFailoverSeqno;
+        expectedRange = expectedSeqnos[flushRatio - 1].expectedRange;
+    } else {
+        // With the fix in MB-64353 - the failover entry is created based on the
+        // high seqno of the last fully processed snapshot; in the above case we
+        // have processed all the mutations in checkpoint & therefore the
+        // expectedFailoverSeqno should be 6.
+        expectedFailoverSeqno = 6;
+    }
+
+    const auto failoverSeqno =
+            replicaKVB->getVBucket(vbid)->failovers->getLatestEntry().by_seqno;
+
+    EXPECT_EQ(expectedFailoverSeqno, failoverSeqno);
+
     auto range = replicaKVB->getVBucket(vbid)->getPersistedSnapshot();
     EXPECT_EQ(expectedRange.getStart(), range.getStart());
     EXPECT_EQ(expectedRange.getEnd(), range.getEnd());
@@ -1446,10 +1565,10 @@ TEST_P(DCPLoopbackSnapshots, testSnapshots) {
 
 INSTANTIATE_TEST_SUITE_P(DCPLoopbackStreamTests,
                          DCPLoopbackStreamTest,
-                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(DCPLoopbackSnapshot,
                          DCPLoopbackSnapshots,
-                         DCPLoopbackSnapshots::persistentConfigValues(),
+                         DCPLoopbackSnapshots::allConfigValues(),
                          DCPLoopbackSnapshots::PrintToStringParamName);
