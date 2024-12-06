@@ -63,8 +63,8 @@ int main(int argc, char** argv) {
 
     ExecutorPool::create(ExecutorPool::Backend::Folly,
                          0,
-                         ThreadPoolConfig::ThreadCount::DiskIOBounded,
-                         ThreadPoolConfig::ThreadCount::DiskIOBounded,
+                         ThreadPoolConfig::ThreadCount::Balanced,
+                         ThreadPoolConfig::ThreadCount::Balanced,
                          ThreadPoolConfig::AuxIoThreadCount::Default,
                          ThreadPoolConfig::NonIoThreadCount::Default,
                          ThreadPoolConfig::IOThreadsPerCore::Default);

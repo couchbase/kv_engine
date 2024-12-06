@@ -1238,9 +1238,9 @@ TEST_F(SettingsTest, TestSettingNumThreads) {
                         config[key] = uint8_t{0};
                     } else if (key == "num_reader_threads" ||
                                key == "num_writer_threads") {
-                        // MB-63835: num_read_threads and num_writer_threads now
-                        // defaults to "disk_io_bounded" instead of "default"
-                        config[key] = "disk_io_bounded";
+                        // MB-63386: num_read_threads and num_writer_threads now
+                        // defaults to "balanced" instead of "default"
+                        config[key] = "balanced";
                     }
                 } else {
                     config[key] = std::get<std::string>(value);

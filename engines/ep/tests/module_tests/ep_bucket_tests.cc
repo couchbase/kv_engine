@@ -68,17 +68,17 @@ TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitWritersChange) {
     expected = totalLimit / writers;
     EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger());
 
-    // Change to "DiskIOBounded" Writer threads - this is calculated as 4
+    // Change to "Balanced" Writer threads - this is calculated as 4
     // threads irrespective of CPU count.
-    ExecutorPool::get()->setNumWriters(
-            ThreadPoolConfig::ThreadCount::DiskIOBounded);
+    ExecutorPool::get()->setNumWriters(ThreadPoolConfig::ThreadCount::Balanced);
     engine->notify_num_writer_threads_changed();
     writers = ExecutorPool::get()->getNumWriters();
     ASSERT_EQ(4, writers)
-            << "Setting num_writer_threads to ThreadCount::Default";
+            << "Setting num_writer_threads to ThreadCount::Balanced";
     expected = totalLimit / writers;
     EXPECT_EQ(expected, bucket.getFlusherBatchSplitTrigger())
-            << "After setting num_writer_threads to ThreadCount::Default";
+            << "After setting num_writer_threads to "
+               "ThreadCount::Balanced";
 
     // Change to DiskIOOptimized - this depends on number of CPU cores, so
     // we need to derive the expected flusher_batch_split_trigger.

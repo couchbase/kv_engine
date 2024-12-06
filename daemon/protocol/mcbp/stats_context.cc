@@ -522,8 +522,8 @@ static void stat_threads_emit_configured_and_actual(
     // Report both the number of threads configured in settings, and the
     // number actually created. This is useful because the ExecutorPool sizes
     // can (a) be changed dynamically and (b) support
-    // derived sizes (e.g. "disk_io_bounded", "disk_io_optimized" ) based on the
-    // CPU count of the machine, for these we return the _actual_ number of
+    // derived sizes (e.g. "balanced", "disk_io_optimized" ) based on
+    // the CPU count of the machine, for these we return the _actual_ number of
     // threads chosen.
 
     // For frontend threads, configured and created emit the same

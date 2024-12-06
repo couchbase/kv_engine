@@ -25,7 +25,7 @@ struct ThreadPoolConfig {
         /// based on available CPU core count.
         DiskIOOptimized = -1,
         /// pre MH compatible value.
-        DiskIOBounded = 0,
+        Balanced = 0,
         // Any other positive integer value is an explicit number of threads
         // to create.
     };
@@ -75,8 +75,8 @@ struct ThreadPoolConfig {
     ThreadPoolConfig() = default;
     ThreadPoolConfig(int nr, int nw);
 
-    ThreadCount num_readers{ThreadCount::DiskIOBounded};
-    ThreadCount num_writers{ThreadCount::DiskIOBounded};
+    ThreadCount num_readers{ThreadCount::Balanced};
+    ThreadCount num_writers{ThreadCount::Balanced};
     StorageThreadCount num_storage_threads{StorageThreadCount::Default};
 };
 

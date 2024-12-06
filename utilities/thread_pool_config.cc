@@ -34,8 +34,8 @@ std::ostream& operator<<(std::ostream& os,
     case ThreadPoolConfig::ThreadCount::DiskIOOptimized:
         os << "DiskIOOptimized";
         return os;
-    case ThreadPoolConfig::ThreadCount::DiskIOBounded:
-        os << "DiskIOBounded";
+    case ThreadPoolConfig::ThreadCount::Balanced:
+        os << "Balanced";
         return os;
     default:
         os << static_cast<int>(tc);

@@ -112,7 +112,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads,
 size_t ExecutorPool::calcNumReaders(
         ThreadPoolConfig::ThreadCount threadCount) const {
     switch (threadCount) {
-    case ThreadPoolConfig::ThreadCount::DiskIOBounded: {
+    case ThreadPoolConfig::ThreadCount::Balanced: {
         // Default: configure Reader threads based on CPU count; constraining
         // to between 4 and 16 threads (relatively conservative number).
         auto readers = maxGlobalThreads;
@@ -146,7 +146,7 @@ size_t ExecutorPool::calcNumReaders(
 size_t ExecutorPool::calcNumWriters(
         ThreadPoolConfig::ThreadCount threadCount) const {
     switch (threadCount) {
-    case ThreadPoolConfig::ThreadCount::DiskIOBounded:
+    case ThreadPoolConfig::ThreadCount::Balanced:
         // Default: configure Writer threads to 4 (default from v3.0 onwards).
         return 4;
 

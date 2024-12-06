@@ -1589,13 +1589,14 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDefault) {
     ASSERT_EQ(2, this->pool->getNumWriters());
     ASSERT_EQ(2, this->pool->getNumReaders());
 
-    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount::DiskIOBounded);
+    this->pool->setNumWriters(ThreadPoolConfig::ThreadCount::Balanced);
     EXPECT_EQ(4, this->pool->getNumWriters())
-            << "num_writers should be 4 with ThreadCount::Default";
+            << "num_writers should be 4 with ThreadCount::Balanced";
 
-    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount::DiskIOBounded);
+    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount::Balanced);
     EXPECT_EQ(16, this->pool->getNumReaders())
-            << "num_writers should be capped at 16 with ThreadCount::Default";
+            << "num_writers should be capped at 16 with "
+               "ThreadCount::Balanced";
 }
 
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDiskIOOptimized) {
@@ -1645,19 +1646,19 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, setNumReadersExactly) {
 }
 
 std::vector<ThreadCountsParams> threadCountValues = {
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 1, 4, 4, 2, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 2, 4, 4, 4, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 4, 4, 4, 8, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 8, 8, 4, 16, 2},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 10, 10, 4, 20, 3},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 14, 14, 4, 28, 4},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 20, 16, 4, 40, 6},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 24, 16, 4, 48, 7},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 32, 16, 4, 64, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 48, 16, 4, 96, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 64, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 128, 16, 4, 128, 8},
-        {ThreadPoolConfig::ThreadCount::DiskIOBounded, 256, 16, 4, 128, 8},
+        {ThreadPoolConfig::ThreadCount::Balanced, 1, 4, 4, 2, 2},
+        {ThreadPoolConfig::ThreadCount::Balanced, 2, 4, 4, 4, 2},
+        {ThreadPoolConfig::ThreadCount::Balanced, 4, 4, 4, 8, 2},
+        {ThreadPoolConfig::ThreadCount::Balanced, 8, 8, 4, 16, 2},
+        {ThreadPoolConfig::ThreadCount::Balanced, 10, 10, 4, 20, 3},
+        {ThreadPoolConfig::ThreadCount::Balanced, 14, 14, 4, 28, 4},
+        {ThreadPoolConfig::ThreadCount::Balanced, 20, 16, 4, 40, 6},
+        {ThreadPoolConfig::ThreadCount::Balanced, 24, 16, 4, 48, 7},
+        {ThreadPoolConfig::ThreadCount::Balanced, 32, 16, 4, 64, 8},
+        {ThreadPoolConfig::ThreadCount::Balanced, 48, 16, 4, 96, 8},
+        {ThreadPoolConfig::ThreadCount::Balanced, 64, 16, 4, 128, 8},
+        {ThreadPoolConfig::ThreadCount::Balanced, 128, 16, 4, 128, 8},
+        {ThreadPoolConfig::ThreadCount::Balanced, 256, 16, 4, 128, 8},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 1, 4, 4, 2, 2},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 2, 4, 4, 4, 2},
         {ThreadPoolConfig::ThreadCount::DiskIOOptimized, 4, 8, 8, 8, 2},
