@@ -36,10 +36,7 @@ protected:
 
         Manifest manifest{vb, uuid};
         for (auto f : {"1.couch.32", "dek.32"}) {
-            FILE* fp = fopen((snapshotPath / f).string().c_str(), "w");
-            EXPECT_TRUE(fp) << "fopen failed " << snapshotPath / f;
-            fprintf(fp, "%s\n", f);
-            fclose(fp);
+            cb::io::saveFile(snapshotPath / f, f);
         }
         manifest.files.emplace_back(
                 "1.couch.32", file_size(snapshotPath / "1.couch.32"), 0);

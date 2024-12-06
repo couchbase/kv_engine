@@ -770,29 +770,18 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
         maybeUpdateSha512Sum(path / manifest.uuid, file);
     }
 
-    auto* fp = fopen((snapshotPath / "manifest.json").string().c_str(), "w");
-    if (fp) {
-        const auto s1 =
-                fprintf(fp, "%s\n", nlohmann::json(manifest).dump().c_str());
-        const auto s2 = fclose(fp);
-        if (s1 > 0 && s2 == 0) {
-            // Success - remove the clean-up guard and return the manifest
-            removePath.dismiss();
-            return manifest;
-        }
-        EP_LOG_WARN_CTX("prepareSnapshot fprintf/fclose fail for manifest.json",
-                        {"errno", errno},
-                        {"fprintf", s1},
-                        {"fclose", s2},
+    const auto manifestPath = snapshotPath / "manifest.json";
+    std::error_code ec;
+    if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
+        EP_LOG_WARN_CTX("prepareSnapshot Failed to save manifest.json",
                         {"vb", vbid},
-                        {"path", snapshotPath});
-    } else {
-        EP_LOG_WARN_CTX("prepareSnapshot fopen fail for manifest.json",
-                        {"errno", errno},
-                        {"vb", vbid},
-                        {"path", snapshotPath});
+                        {"error", ec.message()},
+                        {"path", manifestPath});
+        return cb::engine_errc::failed;
     }
-    return cb::engine_errc::failed;
+    // Success - remove the clean-up guard and return the manifest
+    removePath.dismiss();
+    return manifest;
 }
 
 // Look for valid snapshots and push to cache or remove

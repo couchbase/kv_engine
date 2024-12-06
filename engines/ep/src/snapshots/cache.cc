@@ -162,21 +162,12 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
                 remove(manifest.uuid);
             });
 
-    FILE* fp = fopen((path / manifest.uuid / "manifest.json").string().c_str(),
-                     "w");
-    if (!fp) {
-        return cb::engine_errc::failed;
-    }
-    const auto s1 =
-            fprintf(fp, "%s\n", nlohmann::json(manifest).dump().c_str());
-    const auto s2 = fclose(fp);
-    if (s1 < 0 || s2 != 0) {
-        EP_LOG_WARN_CTX("Cache::lookupOrFetch fprintf/fclose manifest failed",
+    const auto manifestPath = path / manifest.uuid / "manifest.json";
+    if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
+        EP_LOG_WARN_CTX("Cache::lookupOrFetch Failed to store manifest",
                         {"vbid", vbid},
-                        {"fprintf", s1},
-                        {"fclose", s2},
-                        {"errno", errno},
-                        {"uuid", manifest.uuid});
+                        {"error", ec.message()},
+                        {"path", manifestPath});
         return cb::engine_errc::failed;
     }
 
