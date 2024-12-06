@@ -284,59 +284,43 @@ void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {
 }
 
 bool KVStore::snapshotStats(const nlohmann::json& stats) {
-    std::string dbname = getConfig().getDBName();
-    std::string next_fname = dbname + "/stats.json.new";
+    std::filesystem::path dbname = getConfig().getDBName();
+    const auto next_fname = dbname / "stats.json.new";
+    const auto old_fname = dbname / "stats.json.old";
+    const auto stats_fname = dbname / "stats.json";
+    const auto content = stats.dump();
 
-    FILE *new_stats = fopen(next_fname.c_str(), "w");
-    if (new_stats == nullptr) {
-        EP_LOG_INFO(
-                "Failed to open the engine stats "
-                "file \"{}\" due to an error \"{}\"; Not critical because new "
-                "stats will be dumped later, please ignore.",
-                next_fname.c_str(),
-                strerror(errno));
+    std::error_code ec;
+    if (!cb::io::saveFile(next_fname, content, ec)) {
+        EP_LOG_WARN_CTX("KVStore::snapshotStats: Failed to save stats snapshot",
+                        {"path", next_fname},
+                        {"error", ec.message()});
         return false;
     }
 
-    bool rv = true;
-    if (fprintf(new_stats, "%s\n", stats.dump().c_str()) < 0) {
-        EP_LOG_INFO(
-                "Failed to write the engine stats to "
-                "file \"{}\" due to an error \"{}\"; Not critical because new "
-                "stats will be dumped later, please ignore.",
-                next_fname.c_str(),
-                strerror(errno));
-        rv = false;
-    }
-    fclose(new_stats);
-
-    if (rv) {
-        std::string old_fname = dbname + "/stats.json.old";
-        std::string stats_fname = dbname + "/stats.json";
-        if (cb::io::isFile(old_fname) && remove(old_fname.c_str()) != 0) {
-            EP_LOG_WARN(
-                    "Failed to remove '{}': {}", old_fname, strerror(errno));
-            remove(next_fname.c_str());
-            rv = false;
-        } else if (cb::io::isFile(stats_fname) &&
-                   rename(stats_fname.c_str(), old_fname.c_str()) != 0) {
-            EP_LOG_WARN("Failed to rename '{}' to '{}': {}",
-                        stats_fname,
-                        old_fname,
-                        strerror(errno));
-            remove(next_fname.c_str());
-            rv = false;
-        } else if (rename(next_fname.c_str(), stats_fname.c_str()) != 0) {
-            EP_LOG_WARN("Failed to rename '{}' to '{}': {}",
-                        next_fname,
-                        stats_fname,
-                        strerror(errno));
-            remove(next_fname.c_str());
-            rv = false;
+    if (exists(stats_fname, ec)) {
+        rename(stats_fname, old_fname, ec);
+        if (ec) {
+            EP_LOG_WARN_CTX("KVStore::snapshotStats: Failed to rename",
+                            {"from", stats_fname.string()},
+                            {"to", old_fname.string()},
+                            {"error", ec.message()});
+            remove(next_fname, ec);
+            return false;
         }
     }
 
-    return rv;
+    rename(next_fname, stats_fname, ec);
+    if (ec) {
+        EP_LOG_WARN_CTX("KVStore::snapshotStats: Failed to rename",
+                        {"from", next_fname.string()},
+                        {"to", stats_fname.string()},
+                        {"error", ec.message()});
+        remove(next_fname, ec);
+        return false;
+    }
+
+    return true;
 }
 
 nlohmann::json KVStore::getPersistedStats() const {
