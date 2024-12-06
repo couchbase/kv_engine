@@ -58,10 +58,9 @@ static int parseThreadConfigSpec(const std::string& variable,
     if (spec == "disk_io_optimized") {
         return -1;
     }
-    if (spec == "default" || spec == "disk_io_bounded" || spec == "balanced") {
+    if (spec == "default" || spec == "balanced") {
         // balanced is the new name for the default value. We continue
-        // to support default for backwards compatibility and disk_io_bounded to
-        // ensure we don’t break builds during the migration to “balanced”.
+        // to support default for backwards compatibility.
         return 0;
     }
     uint64_t val;
