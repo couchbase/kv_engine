@@ -285,6 +285,12 @@ public:
     cb::engine_errc doRangeScanStats(const StatCollector&) override;
     size_t getAutoDeleteCount() const;
 
+    /**
+     * Ephemeral vbuckets process failover from data that the CheckpointManager
+     * maintains
+     */
+    failover_entry_t processFailover() override;
+
 protected:
     /* Data structure for in-memory sequential storage */
     std::unique_ptr<SequenceList> seqList;

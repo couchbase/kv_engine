@@ -1155,3 +1155,8 @@ cb::engine_errc EphemeralVBucket::doRangeScanStats(const StatCollector&) {
 size_t EphemeralVBucket::getAutoDeleteCount() const {
     return autoDeleteCount;
 }
+
+failover_entry_t EphemeralVBucket::processFailover() {
+    createFailoverEntry(checkpointManager->getFailoverSeqno());
+    return failovers->getLatestEntry();
+}

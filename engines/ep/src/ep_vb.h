@@ -351,6 +351,12 @@ public:
         return historicalItemsFlushed.load();
     }
 
+    /**
+     * Persistent buckets process failover from data that the flusher
+     * maintains
+     */
+    failover_entry_t processFailover() override;
+
 protected:
     /**
      * queue a background fetch of the specified item.

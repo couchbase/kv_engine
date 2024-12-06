@@ -82,6 +82,8 @@ struct SamplingConfiguration;
 struct SnapshotRequirements;
 }
 
+struct failover_entry_t;
+
 /**
  * SeqnoPersistence request to a vbucket.
  *
@@ -1911,6 +1913,14 @@ public:
     }
 
     bool isHistoryRetentionEnabled() const;
+
+    /**
+     * Process a failover of a replica VB and return the failover entry created
+     * by this event.
+     *
+     * @return new failover entry
+     */
+    virtual failover_entry_t processFailover() = 0;
 
 protected:
     /**
