@@ -546,9 +546,12 @@ TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
     public:
         using ExpiredPagingVisitor::ExpiredPagingVisitor;
 
+        ExecutionState shouldInterrupt() override {
+            return ExecutionState::Pause;
+        }
+
         bool visit(const HashTable::HashBucketLock& lh,
                    StoredValue& v) override {
-            chunkStart -= maxChunkDuration + 1ms;
             bool ret = ExpiredPagingVisitor::visit(lh, v);
             if (ret) {
                 ++numContinue;
@@ -566,9 +569,12 @@ TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
     public:
         using ItemPagingVisitor::ItemPagingVisitor;
 
+        ExecutionState shouldInterrupt() override {
+            return ExecutionState::Pause;
+        }
+
         bool visit(const HashTable::HashBucketLock& lh,
                    StoredValue& v) override {
-            chunkStart -= maxChunkDuration + 1ms;
             bool ret = ItemPagingVisitor::visit(lh, v);
             if (ret) {
                 ++numContinue;
