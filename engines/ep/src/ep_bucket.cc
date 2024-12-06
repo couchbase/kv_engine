@@ -2995,11 +2995,11 @@ cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector) {
 }
 
 cb::engine_errc EPBucket::initialiseSnapshots() {
-    auto path =
+    const auto path =
             std::filesystem::path{getConfiguration().getDbname()} / "snapshots";
-    cb::engine_errc status{cb::engine_errc::success};
-    if (status = getOneROUnderlying()->processSnapshots(path, snapshotCache);
-        status != cb::engine_errc::success) {
+    const auto status =
+            getOneROUnderlying()->processSnapshots(path, snapshotCache);
+    if (status != cb::engine_errc::success) {
         EP_LOG_WARN_CTX("EPBucket::initialize: processSnapshots failed.",
                         {"path", path},
                         {"status", status});
