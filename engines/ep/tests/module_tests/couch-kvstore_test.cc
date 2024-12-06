@@ -811,7 +811,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(6).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
@@ -836,7 +836,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(4).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
         kvstore->getMulti(Vbid(0), itms, defaultCreateItemCallback);
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure,
@@ -1058,7 +1058,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
                  * keep rolling back otherwise */
                 .WillOnce(Return(COUCHSTORE_ERROR_ALLOC_FAIL))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(11).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(9).RetiresOnSaturation();
 
         kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     }
@@ -1090,7 +1090,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(13).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(11).RetiresOnSaturation();
 
         kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     }
@@ -1126,7 +1126,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
                 .Times(1)
                 .WillRepeatedly(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(21).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();
 
         EXPECT_EQ(
                 false,
@@ -1257,8 +1257,6 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
             EXPECT_CALL(ops, pread(_, _, _, 8, _));
             // <variable> - byId tree root
             EXPECT_CALL(ops, pread(_, _, _, _, _));
-            // 1 byte - detect block type
-            EXPECT_CALL(ops, pread(_, _, _, 1, _));
             // 8 bytes - header
             EXPECT_CALL(ops, pread(_, _, _, 8, _));
             // <variable - seqno tree root
