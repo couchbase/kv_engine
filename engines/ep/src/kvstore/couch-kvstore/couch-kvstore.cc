@@ -42,6 +42,8 @@
 #include <platform/timeutils.h>
 #include <snapshot/manifest.h>
 #include <spdlog/common.h>
+#include <utilities/dek_file_utilities.h>
+
 #include <charconv>
 #include <memory>
 #include <shared_mutex>
@@ -2113,12 +2115,13 @@ CouchKVStore::prepareSnapshotImpl(
 
     if (cb::couchstore::isEncrypted(*db)) {
         const auto id = cb::couchstore::getEncryptionKeyId(*db);
-        source = root / "deks" / id;
-        target = snapshotDirectory / "deks" / id;
         create_directories(snapshotDirectory / "deks");
-        copy_file(source, target);
+        auto keyfile = cb::dek::util::copyKeyFile(
+                id, root / "deks", snapshotDirectory / "deks");
         manifest.deks.emplace_back(
-                fmt::format("deks/{}", id), file_size(target), fileid++);
+                fmt::format("deks/{}", keyfile.filename().string()),
+                file_size(target),
+                fileid++);
     }
 
     return manifest;

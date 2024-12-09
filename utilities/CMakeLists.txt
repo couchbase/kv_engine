@@ -21,6 +21,8 @@ add_library(mcd_util STATIC
             connection_iface.cc
             cookie_iface.cc
             dcp_stream_id.cc
+            dek_file_utilities.cc
+            dek_file_utilities.h
             dockey_view.cc
             durability_spec.cc
             engine_errc_2_mcbp.cc
@@ -76,6 +78,7 @@ kv_enable_pch(mcd_test_util)
 cb_add_test_executable(utilities_testapp
         breakpad_settings_test.cc
         config_parser_test.cc
+        dek_file_utilities_test.cc
         stat_group_test.cc
         string_utilities_test.cc
         throttle_utilities_test.cc
