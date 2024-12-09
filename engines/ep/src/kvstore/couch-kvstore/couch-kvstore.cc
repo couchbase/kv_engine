@@ -3237,6 +3237,7 @@ couchstore_error_t CouchKVStore::saveDocs(
                 txnCtx.pendingLocalReqsQ.size(),
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode));
+        return errCode;
     }
     txnCtx.pendingLocalReqsQ.clear();
 
