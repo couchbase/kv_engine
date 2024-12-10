@@ -269,21 +269,22 @@ public:
     std::tuple<magma::Status, nlohmann::json> GetFusionSyncInfo(
             const magma::Magma::KVStoreID kvID);
 
-    std::tuple<magma::Status, nlohmann::json> GetFusionActiveGuestVolumes(
+    std::tuple<magma::Status, nlohmann::json> GetActiveFusionGuestVolumes(
             const magma::Magma::KVStoreID kvID);
 
-    std::tuple<magma::Status, nlohmann::json> getFusionStorageSnapshot(
-            std::string_view fusionNamespace,
+    std::tuple<magma::Status, nlohmann::json> GetFusionStorageSnapshot(
+            const std::string& fusionNamespace,
             magma::Magma::KVStoreID kvID,
-            std::string_view snapshotUuid,
+            const std::string& snapshotUuid,
             std::time_t validity);
 
-    magma::Status releaseFusionStorageSnapshot(std::string_view fusionNamespace,
-                                               magma::Magma::KVStoreID kvID,
-                                               std::string_view snapshotUuid);
+    magma::Status ReleaseFusionStorageSnapshot(
+            const std::string& fusionNamespace,
+            magma::Magma::KVStoreID kvID,
+            const std::string& snapshotUuid);
 
-    void setFusionMetadataAuthToken(std::string_view token);
-    std::string getFusionMetadataAuthToken() const;
+    void SetFusionMetadataStoreAuthToken(const std::string& token);
+    std::string GetFusionMetadataStoreAuthToken() const;
 
     std::tuple<magma::Status, std::vector<std::string>> MountKVStore(
             magma::Magma::KVStoreID kvID,

@@ -4497,7 +4497,7 @@ nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
         return std::get<nlohmann::json>(res);
     }
     case FusionStat::ActiveGuestVolumes: {
-        const auto res = magma->GetFusionActiveGuestVolumes(
+        const auto res = magma->GetActiveFusionGuestVolumes(
                 Magma::KVStoreID(vbid.get()));
         checkError(std::get<Status>(res));
         return std::get<nlohmann::json>(res);
@@ -4513,9 +4513,9 @@ MagmaKVStore::getFusionStorageSnapshot(std::string_view fusionNamespace,
                                        std::string_view snapshotUuid,
                                        std::time_t validity) {
     const auto res =
-            magma->getFusionStorageSnapshot(fusionNamespace,
+            magma->GetFusionStorageSnapshot(std::string(fusionNamespace),
                                             Magma::KVStoreID(vbid.get()),
-                                            snapshotUuid,
+                                            std::string(snapshotUuid),
                                             validity);
     if (std::get<Status>(res).ErrorCode() != Status::Code::Ok) {
         EP_LOG_WARN_CTX("MagmaKVStore::getFusionStorageSnapshot: ",
@@ -4533,8 +4533,10 @@ cb::engine_errc MagmaKVStore::releaseFusionStorageSnapshot(
         std::string_view fusionNamespace,
         Vbid vbid,
         std::string_view snapshotUuid) {
-    const auto res = magma->releaseFusionStorageSnapshot(
-            fusionNamespace, Magma::KVStoreID(vbid.get()), snapshotUuid);
+    const auto res =
+            magma->ReleaseFusionStorageSnapshot(std::string(fusionNamespace),
+                                                Magma::KVStoreID(vbid.get()),
+                                                std::string(snapshotUuid));
     if (res.ErrorCode() != Status::Code::Ok) {
         EP_LOG_WARN_CTX("MagmaKVStore::releaseFusionStorageSnapshot: ",
                         {"vb", vbid.get()},
@@ -4548,12 +4550,12 @@ cb::engine_errc MagmaKVStore::releaseFusionStorageSnapshot(
 
 cb::engine_errc MagmaKVStore::setFusionMetadataAuthToken(
         std::string_view token) {
-    magma->setFusionMetadataAuthToken(token);
+    magma->SetFusionMetadataStoreAuthToken(std::string(token));
     return cb::engine_errc::success;
 }
 
 std::string MagmaKVStore::getFusionMetadataAuthToken() const {
-    return magma->getFusionMetadataAuthToken();
+    return magma->GetFusionMetadataStoreAuthToken();
 }
 
 std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
