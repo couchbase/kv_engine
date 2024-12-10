@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -32,10 +31,9 @@ bool cb_stob(std::string_view s);
 /**
  * Checks input to determine whether it is prefixed with 'prefix'.
  */
-bool cb_isPrefix(const std::string& input,
-                 const std::string& prefix);
-
-bool cb_isPrefix(std::string_view input, const std::string& prefix);
+constexpr bool cb_isPrefix(std::string_view input, std::string_view prefix) {
+    return input.rfind(prefix, 0) == 0;
+}
 
 class invalid_argument_bool : public std::invalid_argument {
 public:
