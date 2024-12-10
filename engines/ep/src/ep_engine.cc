@@ -24,7 +24,6 @@
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/producer.h"
 #include "dockey_validator.h"
-#include "download_snapshot_task.h"
 #include "environment.h"
 #include "ep_bucket.h"
 #include "ep_engine_group.h"

@@ -17,9 +17,9 @@ namespace cb {
 enum class engine_errc;
 }
 class CookieIface;
+
 namespace cb::snapshot {
 class Cache;
-}
 
 /**
  * DownloadSnapshotTask is used to download a full snapshot from another
@@ -57,3 +57,5 @@ public:
 protected:
     explicit DownloadSnapshotTask(EventuallyPersistentEngine& ep);
 };
+
+} // namespace cb::snapshot

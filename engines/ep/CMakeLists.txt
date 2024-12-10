@@ -314,8 +314,6 @@ ADD_LIBRARY(ep STATIC
             src/dockey_validator.cc
             src/doc_pre_expiry.cc
             src/doc_pre_expiry.h
-            src/download_snapshot_task.cc
-            src/download_snapshot_task.h
             src/durability/active_durability_monitor.cc
             src/durability/dead_durability_monitor.cc
             src/durability/durability_completion_task.cc
@@ -393,6 +391,8 @@ ADD_LIBRARY(ep STATIC
             src/serialised_dockey.cc
             src/snapshots/cache.cc
             src/snapshots/cache.h
+            src/snapshots/download_snapshot_task.cc
+            src/snapshots/download_snapshot_task.h
             src/stats.cc
             src/string_utils.cc
             src/stored-value.cc

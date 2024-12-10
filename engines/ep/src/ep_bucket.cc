@@ -18,7 +18,6 @@
 #include "collections/persist_manifest_task.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/dcpconnmap.h"
-#include "download_snapshot_task.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "ep_vb.h"
@@ -32,6 +31,7 @@
 #include "range_scans/range_scan_callbacks.h"
 #include "rollback_result.h"
 #include "snapshots/cache.h"
+#include "snapshots/download_snapshot_task.h"
 #include "tasks.h"
 #include "vb_commit.h"
 #include "vb_visitors.h"
@@ -2928,17 +2928,16 @@ cb::engine_errc EPBucket::prepareSnapshot(
 cb::engine_errc EPBucket::downloadSnapshot(CookieIface& cookie,
                                            Vbid vbid,
                                            std::string_view metadata) {
-    auto task =
-            getEPEngine()
-                    .takeEngineSpecific<std::shared_ptr<DownloadSnapshotTask>>(
-                            cookie);
+    auto task = getEPEngine()
+                        .takeEngineSpecific<std::shared_ptr<
+                                cb::snapshot::DownloadSnapshotTask>>(cookie);
     if (task) {
         auto [status, message] = (*task)->getResult();
         NonBucketAllocationGuard guard;
         cookie.setErrorContext(message);
         return status;
     }
-    auto downloader = DownloadSnapshotTask::create(
+    auto downloader = cb::snapshot::DownloadSnapshotTask::create(
             cookie, getEPEngine(), snapshotCache, vbid, metadata);
     getEPEngine().storeEngineSpecific(cookie, downloader);
     ExecutorPool::get()->schedule(downloader);

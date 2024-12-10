@@ -22,6 +22,7 @@
 #include <snapshot/snapshot_downloader.h>
 #include <snapshots/cache.h>
 
+namespace cb::snapshot {
 class DownloadSnapshotTaskImpl : public DownloadSnapshotTask {
 public:
     DownloadSnapshotTaskImpl(CookieIface& cookie,
@@ -255,3 +256,4 @@ std::shared_ptr<DownloadSnapshotTask> DownloadSnapshotTask::create(
 DownloadSnapshotTask::DownloadSnapshotTask(EventuallyPersistentEngine& ep)
     : EpTask(ep, TaskId::DownloadSnapshotTask, 0, true) {
 }
+} // namespace cb::snapshot
