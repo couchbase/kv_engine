@@ -2928,25 +2928,23 @@ cb::engine_errc EPBucket::prepareSnapshot(
 cb::engine_errc EPBucket::downloadSnapshot(CookieIface& cookie,
                                            Vbid vbid,
                                            std::string_view metadata) {
-    auto task = getEPEngine()
-                        .takeEngineSpecific<std::shared_ptr<
-                                cb::snapshot::DownloadSnapshotTask>>(cookie);
-    if (task) {
-        auto [status, message] = (*task)->getResult();
-        NonBucketAllocationGuard guard;
-        cookie.setErrorContext(message);
-        return status;
+    auto listener = snapshotController.createListener(vbid);
+    if (!listener) {
+        EP_LOG_WARN_CTX(
+                "EPBucket::downloadSnapshot failed to create listener; already "
+                "exists",
+                {"conn_id", cookie.getConnectionId()},
+                {"vb", vbid});
+        return cb::engine_errc::key_already_exists;
     }
-    auto downloader = std::make_shared<cb::snapshot::DownloadSnapshotTask>(
-            cookie,
-            getEPEngine(),
-            snapshotCache,
-            vbid,
-            nlohmann::json::parse(metadata));
-
-    getEPEngine().storeEngineSpecific(cookie, downloader);
-    ExecutorPool::get()->schedule(downloader);
-    return cb::engine_errc::would_block;
+    ExecutorPool::get()->schedule(
+            std::make_shared<cb::snapshot::DownloadSnapshotTask>(
+                    getEPEngine(),
+                    snapshotCache,
+                    std::move(listener),
+                    vbid,
+                    nlohmann::json::parse(metadata)));
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EPBucket::getSnapshotFileInfo(
@@ -2995,6 +2993,7 @@ cb::engine_errc EPBucket::releaseSnapshot(
 
 cb::engine_errc EPBucket::doSnapshotDebugStats(const StatCollector& collector) {
     snapshotCache.addDebugStats(collector);
+    snapshotController.addStats(collector);
     return cb::engine_errc::success;
 }
 

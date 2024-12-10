@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "download_snapshot_task_listener.h"
 #include "ep_task.h"
 #include <memcached/vbucket.h>
 #include <protocol/connection/client_connection.h>
@@ -31,9 +32,9 @@ class Cache;
  */
 class DownloadSnapshotTask : public EpTask {
 public:
-    DownloadSnapshotTask(CookieIface& cookie,
-                         EventuallyPersistentEngine& ep,
+    DownloadSnapshotTask(EventuallyPersistentEngine& ep,
                          Cache& manager,
+                         std::shared_ptr<DownloadSnapshotTaskListener> listener,
                          Vbid vbid,
                          const nlohmann::json& manifest);
 
@@ -44,10 +45,6 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override {
         // @todo this could be deducted from the total size
         return std::chrono::seconds(30);
-    }
-
-    std::pair<cb::engine_errc, std::string> getResult() const {
-        return result.copy();
     }
 
 protected:
@@ -63,20 +60,17 @@ protected:
     /// The description of the task to return to the framework (as it contains
     /// per-task data we don't want to have to reformat that every time)
     const std::string description;
-    /// The cookie requested the operation
-    CookieIface& cookie;
     /// The snapshot cache to help on asist in the download (in order to
     /// continue a partially downloaded snapshot etc)
     Cache& manager;
+
+    /// The listener to notify with state changes
+    std::shared_ptr<DownloadSnapshotTaskListener> listener;
+
     /// The vbucket to download the snapshot for
     const Vbid vbid;
     /// The properties to use for the download (host, credentials etc)
     const DownloadProperties properties;
-    /// The result of the operation to pass on to the front end thread when
-    /// the task is done. The pair consists of an error code and a string
-    /// which may contain extra information to pass along back to the client.
-    folly::Synchronized<std::pair<cb::engine_errc, std::string>, std::mutex>
-            result;
 };
 
 } // namespace cb::snapshot

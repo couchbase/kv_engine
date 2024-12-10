@@ -732,7 +732,35 @@ TEST_F(BasicClusterTest, Snapshots) {
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
 
-    cb::snapshot::Manifest snapshotManifest = rsp.getDataJson();
+    // ns_server don't want a blocking call to download the snapshot so
+    // we need to poll the state until it is done
+    using namespace std::chrono_literals;
+    const auto timeout = std::chrono::steady_clock::now() + 30s;
+    bool done = false;
+    std::optional<cb::snapshot::Manifest> manifest;
+    do {
+        replica->stats(
+                [&done, &manifest](auto k, auto v) {
+                    if (k == "vb_0:download") {
+                        auto json = nlohmann::json::parse(v);
+                        if (json["state"] == "Finished") {
+                            done = true;
+                        }
+                        if (json.contains("manifest")) {
+                            manifest = json["manifest"];
+                        }
+                        if (json.contains("error")) {
+                            FAIL() << "Failed to download snapshot: " << v;
+                        }
+                    }
+                },
+                "snapshot-details");
+        if (!done) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        }
+    } while (!done && std::chrono::steady_clock::now() < timeout);
+    EXPECT_TRUE(done);
+    EXPECT_TRUE(manifest.has_value());
 
     // try to locate the vbucket snapshot and verify that all files exists
     const auto nodeid = fmt::format("n_{}", bucket->getVbucketMap()[0][1]);
@@ -747,18 +775,18 @@ TEST_F(BasicClusterTest, Snapshots) {
             << "Failed to locate directory for " << nodeid;
 
     std::filesystem::path snapshot =
-            *path / "default" / "snapshots" / snapshotManifest.uuid;
+            *path / "default" / "snapshots" / manifest->uuid;
     EXPECT_TRUE(std::filesystem::exists(snapshot));
 
     cb::snapshot::Manifest manifestOnDisk =
             nlohmann::json::parse(cb::io::loadFile(snapshot / "manifest.json"));
-    EXPECT_EQ(snapshotManifest, manifestOnDisk);
+    EXPECT_EQ(*manifest, manifestOnDisk);
 
-    for (auto& file : snapshotManifest.files) {
+    for (auto& file : manifest->files) {
         EXPECT_TRUE(exists(snapshot / file.path));
         EXPECT_EQ(file.size, file_size(snapshot / file.path));
     }
-    for (auto& file : snapshotManifest.deks) {
+    for (auto& file : manifest->deks) {
         EXPECT_TRUE(exists(snapshot / file.path));
         EXPECT_EQ(file.size, file_size(snapshot / file.path));
     }

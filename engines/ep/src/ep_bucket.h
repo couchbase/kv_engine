@@ -15,6 +15,7 @@
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_owner.h"
 #include "snapshots/cache.h"
+#include "snapshots/download_snapshot_controller.h"
 #include "utilities/testing_hook.h"
 
 class BgFetcher;
@@ -620,6 +621,10 @@ protected:
     /// The snapshot manager responsible for keeping track of all snapshots
     /// for this bucket
     cb::snapshot::Cache snapshotCache;
+
+    /// The snapshot controller responsible for keeping track of snapshot
+    /// download tasks for this bucket
+    cb::snapshot::DownloadSnapshotController snapshotController;
 };
 
 std::ostream& operator<<(std::ostream& os, const EPBucket::FlushResult& res);

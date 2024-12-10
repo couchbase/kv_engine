@@ -391,8 +391,12 @@ ADD_LIBRARY(ep STATIC
             src/serialised_dockey.cc
             src/snapshots/cache.cc
             src/snapshots/cache.h
+            src/snapshots/download_snapshot_controller.cc
+            src/snapshots/download_snapshot_controller.h
             src/snapshots/download_snapshot_task.cc
             src/snapshots/download_snapshot_task.h
+            src/snapshots/download_snapshot_task_listener.cc
+            src/snapshots/download_snapshot_task_listener.h
             src/stats.cc
             src/string_utils.cc
             src/stored-value.cc
