@@ -708,6 +708,39 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
 }
 
 /**
+ * Injects error during CouchKVStore::commit/updateLocalDocuments
+ */
+TEST_F(CouchKVStoreErrorInjectionTest, commit_updateLocalDocuments) {
+    generate_items(1);
+    // Establish Logger expectation
+    EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
+    EXPECT_CALL(logger,
+                mlog(Ge(spdlog::level::level_enum::warn),
+                     VCE(COUCHSTORE_ERROR_WRITE)))
+            .RetiresOnSaturation();
+    {
+        // Establish FileOps expectation
+        InSequence s;
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(6);
+        EXPECT_CALL(ops, pwrite(_, _, _, 8, _))
+                .WillOnce(Return(COUCHSTORE_ERROR_WRITE));
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(AnyNumber());
+    }
+    {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        kvstore->set(*ctx, items.front());
+        EXPECT_FALSE(kvstore->commit(std::move(ctx), flush));
+    }
+    {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        kvstore->set(*ctx, items.front());
+        EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
+    }
+}
+
+/**
  * Injects error during CouchKVStore::commit/couchstore_commit
  */
 TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
