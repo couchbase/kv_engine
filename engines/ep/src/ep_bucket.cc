@@ -2937,8 +2937,13 @@ cb::engine_errc EPBucket::downloadSnapshot(CookieIface& cookie,
         cookie.setErrorContext(message);
         return status;
     }
-    auto downloader = cb::snapshot::DownloadSnapshotTask::create(
-            cookie, getEPEngine(), snapshotCache, vbid, metadata);
+    auto downloader = std::make_shared<cb::snapshot::DownloadSnapshotTask>(
+            cookie,
+            getEPEngine(),
+            snapshotCache,
+            vbid,
+            nlohmann::json::parse(metadata));
+
     getEPEngine().storeEngineSpecific(cookie, downloader);
     ExecutorPool::get()->schedule(downloader);
     return cb::engine_errc::would_block;

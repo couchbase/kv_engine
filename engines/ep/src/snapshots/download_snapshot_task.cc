@@ -23,65 +23,22 @@
 #include <snapshots/cache.h>
 
 namespace cb::snapshot {
-class DownloadSnapshotTaskImpl : public DownloadSnapshotTask {
-public:
-    DownloadSnapshotTaskImpl(CookieIface& cookie,
-                             EventuallyPersistentEngine& ep,
-                             cb::snapshot::Cache& manager,
-                             Vbid vbid,
-                             const nlohmann::json& manifest)
-        : DownloadSnapshotTask(ep),
-          description(fmt::format("Download vbucket snapshot for {}", vbid)),
-          cookie(cookie),
-          manager(manager),
-          vbid(vbid),
-          properties(manifest) {
-        // empty
-    }
 
-    std::string getDescription() const override {
-        return description;
-    }
+DownloadSnapshotTask::DownloadSnapshotTask(CookieIface& cookie,
+                                           EventuallyPersistentEngine& ep,
+                                           Cache& manager,
+                                           Vbid vbid,
+                                           const nlohmann::json& manifest)
+    : EpTask(ep, TaskId::DownloadSnapshotTask),
+      description(fmt::format("Download vbucket snapshot for {}", vbid)),
+      cookie(cookie),
+      manager(manager),
+      vbid(vbid),
+      properties(manifest) {
+    // empty
+}
 
-    std::chrono::microseconds maxExpectedDuration() const override {
-        // @todo this could be deducted from the total size
-        return std::chrono::seconds(30);
-    }
-
-    std::pair<cb::engine_errc, std::string> getResult() const override {
-        return result.copy();
-    }
-
-protected:
-    std::variant<cb::engine_errc, cb::snapshot::Manifest> doDownloadManifest();
-    cb::engine_errc doDownloadFiles(std::filesystem::path dir,
-                                    const cb::snapshot::Manifest& manifest);
-    void doReleaseSnapshot(std::string_view uuid);
-
-    MemcachedConnection& getConnection();
-    std::unique_ptr<MemcachedConnection> connection;
-
-    bool run() override;
-    /// The description of the task to return to the framework (as it contains
-    /// per-task data we don't want to have to reformat that every time)
-    const std::string description;
-    /// The cookie requested the operation
-    CookieIface& cookie;
-    /// The snapshot cache to help on asist in the download (in order to
-    /// continue a partially downloaded snapshot etc)
-    cb::snapshot::Cache& manager;
-    /// The vbucket to download the snapshot for
-    const Vbid vbid;
-    /// The properties to use for the download (host, credentials etc)
-    const cb::snapshot::DownloadProperties properties;
-    /// The result of the operation to pass on to the front end thread when
-    /// the task is done. The pair consists of an error code and a string
-    /// which may contain extra information to pass along back to the client.
-    folly::Synchronized<std::pair<cb::engine_errc, std::string>, std::mutex>
-            result;
-};
-
-MemcachedConnection& DownloadSnapshotTaskImpl::getConnection() {
+MemcachedConnection& DownloadSnapshotTask::getConnection() {
     if (connection) {
         return *connection;
     }
@@ -114,8 +71,8 @@ MemcachedConnection& DownloadSnapshotTaskImpl::getConnection() {
     return *connection;
 }
 
-std::variant<cb::engine_errc, cb::snapshot::Manifest>
-DownloadSnapshotTaskImpl::doDownloadManifest() {
+std::variant<cb::engine_errc, Manifest>
+DownloadSnapshotTask::doDownloadManifest() {
     auto& conn = getConnection();
     BinprotGenericCommand prepare(cb::mcbp::ClientOpcode::PrepareSnapshot);
     prepare.setVBucket(vbid);
@@ -143,7 +100,7 @@ DownloadSnapshotTaskImpl::doDownloadManifest() {
     }
 
     try {
-        return cb::snapshot::Manifest{json};
+        return Manifest{json};
     } catch (const std::exception& e) {
         EP_LOG_WARN_CTX("Failed to parse snapshot manifest",
                         {"conn_id", cookie.getConnectionId()},
@@ -157,8 +114,8 @@ DownloadSnapshotTaskImpl::doDownloadManifest() {
     return cb::engine_errc::failed;
 }
 
-cb::engine_errc DownloadSnapshotTaskImpl::doDownloadFiles(
-        std::filesystem::path dir, const cb::snapshot::Manifest& manifest) {
+cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
+        std::filesystem::path dir, const Manifest& manifest) {
     auto dconn = connection->clone();
 
     if (properties.sasl.has_value()) {
@@ -172,17 +129,17 @@ cb::engine_errc DownloadSnapshotTaskImpl::doDownloadFiles(
     dconn->selectBucket(properties.bucket);
 
     try {
-        cb::snapshot::download(std::move(dconn),
-                               dir,
-                               manifest,
-                               [this](auto level, auto msg, auto json) {
-                                   auto& logger = getGlobalBucketLogger();
-                                   logger->logWithContext(level, msg, json);
-                               });
+        download(std::move(dconn),
+                 dir,
+                 manifest,
+                 [this](auto level, auto msg, auto json) {
+                     auto& logger = getGlobalBucketLogger();
+                     logger->logWithContext(level, msg, json);
+                 });
     } catch (const std::exception& e) {
         result = {cb::engine_errc::failed,
                   fmt::format("Received exception: {}", e.what())};
-        EP_LOG_ERR_CTX("DownloadSnapshotTaskImpl::doDownloadFiles()",
+        EP_LOG_ERR_CTX("DownloadSnapshotTask::doDownloadFiles()",
                        {"conn_id", cookie.getConnectionId()},
                        {"vb", vbid},
                        {"error", e.what()});
@@ -192,7 +149,7 @@ cb::engine_errc DownloadSnapshotTaskImpl::doDownloadFiles(
     return cb::engine_errc::success;
 }
 
-void DownloadSnapshotTaskImpl::doReleaseSnapshot(std::string_view uuid) {
+void DownloadSnapshotTask::doReleaseSnapshot(std::string_view uuid) {
     try {
         BinprotGenericCommand release(cb::mcbp::ClientOpcode::ReleaseSnapshot,
                                       std::string(uuid));
@@ -213,7 +170,7 @@ void DownloadSnapshotTaskImpl::doReleaseSnapshot(std::string_view uuid) {
     }
 }
 
-bool DownloadSnapshotTaskImpl::run() {
+bool DownloadSnapshotTask::run() {
     try {
         auto rv = manager.download(
                 vbid,
@@ -228,13 +185,12 @@ bool DownloadSnapshotTaskImpl::run() {
             result = {std::get<cb::engine_errc>(rv), {}};
         } else {
             result = {cb::engine_errc::success,
-                      nlohmann::json(std::get<cb::snapshot::Manifest>(rv))
-                              .dump()};
+                      nlohmann::json(std::get<Manifest>(rv)).dump()};
         }
     } catch (const std::exception& e) {
         result = {cb::engine_errc::failed,
                   fmt::format("Received exception: {}", e.what())};
-        EP_LOG_ERR_CTX("DownloadSnapshotTaskImpl::run()",
+        EP_LOG_ERR_CTX("DownloadSnapshotTask::run()",
                        {"conn_id", cookie.getConnectionId()},
                        {"vb", vbid},
                        {"error", e.what()});
@@ -243,17 +199,4 @@ bool DownloadSnapshotTaskImpl::run() {
     return false;
 }
 
-std::shared_ptr<DownloadSnapshotTask> DownloadSnapshotTask::create(
-        CookieIface& cookie,
-        EventuallyPersistentEngine& ep,
-        cb::snapshot::Cache& manager,
-        Vbid vbid,
-        std::string_view manifest) {
-    return std::make_shared<DownloadSnapshotTaskImpl>(
-            cookie, ep, manager, vbid, nlohmann::json::parse(manifest));
-}
-
-DownloadSnapshotTask::DownloadSnapshotTask(EventuallyPersistentEngine& ep)
-    : EpTask(ep, TaskId::DownloadSnapshotTask, 0, true) {
-}
 } // namespace cb::snapshot
