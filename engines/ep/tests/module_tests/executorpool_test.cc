@@ -2021,8 +2021,20 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
             return std::chrono::microseconds(1);
         }
 
+        bool execute(std::string_view threadName) override {
+            // Do not track memory allocation inside execute, to avoid those
+            // racing with our checks on the condVar, which gets notified from
+            // run(). If we do not do this, we race when we read the total
+            // allocation stats.
+            NonBucketAllocationGuard g;
+            // Circumvent the EpTask::execute which switches into the bucket.
+            return GlobalTask::execute(threadName);
+        }
+
     protected:
         bool run() override {
+            // Put back the bucket allocation guard removed in execute().
+            BucketAllocationGuard g(engine);
             // Sleep until we are explicitly told to wake.
             this->snooze(INT_MAX);
 
