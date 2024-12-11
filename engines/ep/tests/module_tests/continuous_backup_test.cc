@@ -117,10 +117,10 @@ TEST_P(ContinousBackupTest, PathConfig) {
     }
     {
         config.parseConfiguration(
-                "uuid=123;continuous_backup_path=../@continuous_backup");
+                "uuid=123;continuous_backup_path=a/b/../@continuous_backup");
         MagmaKVStoreConfig kvStoreConfig(config, "magma", 1, 1);
         EXPECT_EQ(kvStoreConfig.getContinuousBackupPath(),
-                  dbName.parent_path() / "@continuous_backup" / bucketDirName);
+                  dbName / "a" / "@continuous_backup" / bucketDirName);
     }
 }
 
