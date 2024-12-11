@@ -64,7 +64,7 @@ private:
 /**
  * Dispatcher job responsible for ItemExpel and CursorDrop/CheckpointRemoval
  */
-class CheckpointMemRecoveryTask : public EpNotifiableTask {
+class CheckpointMemRecoveryTask : public EpSignalTask {
 public:
     /**
      * @param e the engine
