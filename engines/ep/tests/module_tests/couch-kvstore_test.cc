@@ -17,6 +17,7 @@
 #include "collections/collection_persisted_stats.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
+#include "encryption_key_provider.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
@@ -438,7 +439,9 @@ MATCHER_P(VCE, value, "is string of %(value)") {
  * CouchKVStoreErrorInjectionTest is used for tests which verify
  * log messages from error injection in couchstore.
  */
-class CouchKVStoreErrorInjectionTest : public ::testing::Test {
+class CouchKVStoreErrorInjectionTest
+    : public ::testing::Test,
+      public ::testing::WithParamInterface<bool> {
 public:
     CouchKVStoreErrorInjectionTest()
         : data_dir("CouchKVStoreErrorInjectionTest.db"),
@@ -460,7 +463,26 @@ public:
                                 data_dir,
                                 error.code().message()));
         }
-        kvstore = std::make_unique<CouchKVStore>(config, ops, nullptr);
+        if (GetParam()) {
+            auto keys = nlohmann::json::parse(R"({
+    "keys": [
+        {
+            "id": "MyActiveKey",
+            "cipher": "AES-256-GCM",
+            "key": "cXOdH9oGE834Y2rWA+FSdXXi5CN3mLJ+Z+C0VpWbOdA="
+        },
+        {
+            "id": "MyOtherKey",
+            "cipher": "AES-256-GCM",
+            "key": "hDYX36zHrP0/eApT7Gf3g2sQ9L5gubHSDeLQxg4v4kM="
+        }
+    ],
+    "active": "MyActiveKey"
+})");
+            encryptionKeyProvider.setKeys(keys);
+        }
+        kvstore = std::make_unique<CouchKVStore>(
+                config, ops, &encryptionKeyProvider);
         initialize_kv_store(kvstore.get());
         defaultCreateItemCallback = kvstore->getDefaultCreateItemCallback();
     }
@@ -527,6 +549,28 @@ protected:
     }
 
     /**
+     * Number of read calls per metadata header
+     */
+    static int numMetadataHeaderReads() {
+        // Unencrypted files don't have a metadata header
+        return GetParam() ? 3 : 0;
+    }
+
+    /**
+     * Number of write calls per data chunk
+     */
+    static int numDataChunkWrites() {
+        return GetParam() ? 1 : 2;
+    }
+
+    /**
+     * Size of data chunk header
+     */
+    static size_t dataChunkHeaderSize() {
+        return GetParam() ? 4 : 8;
+    }
+
+    /**
      * Test that CouchKVStore::compactDB performs as expected when it errors
      * during an open
      */
@@ -539,6 +583,7 @@ protected:
 
     CouchKVStoreConfig config;
     KVStoreIface::CreateItemCB defaultCreateItemCallback;
+    EncryptionKeyProvider encryptionKeyProvider;
     std::unique_ptr<CouchKVStore> kvstore;
     std::vector<queued_item> items;
     Collections::VB::Manifest manifest{
@@ -550,7 +595,7 @@ protected:
 /**
  * Injects error during CouchKVStore::writeVBucketState/couchstore_commit
  */
-TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
+TEST_P(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
     vbid = Vbid(10);
 
     // Make sure the vBucket does not exist before this test
@@ -593,7 +638,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
 
     // Recreate the kvstore and the state should equal the default constructed
     // state (and not throw an exception)
-    kvstore = std::make_unique<CouchKVStore>(config, ops, nullptr);
+    kvstore =
+            std::make_unique<CouchKVStore>(config, ops, &encryptionKeyProvider);
 
     EXPECT_FALSE(kvstore->getCachedVBucketState(vbid));
 
@@ -605,7 +651,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
 /**
  * Injects error during CouchKVStore::openDB_retry/couchstore_open_db_ex
  */
-TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
+TEST_P(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     generate_items(1);
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -624,14 +670,14 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
                 .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
                 .RetiresOnSaturation();
 
-        kvstore->commit(std::move(ctx), flush);
+        EXPECT_FALSE(kvstore->commit(std::move(ctx), flush));
     }
 }
 
 /**
  * Injects error during CouchKVStore::openDB/couchstore_open_db_ex
  */
-TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
+TEST_P(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
     generate_items(1);
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -650,14 +696,14 @@ TEST_F(CouchKVStoreErrorInjectionTest, openDB_open_db_ex) {
                 .WillRepeatedly(Return(COUCHSTORE_ERROR_OPEN_FILE))
                 .RetiresOnSaturation();
 
-        kvstore->commit(std::move(ctx), flush);
+        EXPECT_FALSE(kvstore->commit(std::move(ctx), flush));
     }
 }
 
 /**
- * Injects error during CouchKVStore::commit/couchstore_save_documents
+ * Injects error during CouchKVStore::commit/couchstore_save_documents/write_doc
  */
-TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
+TEST_P(CouchKVStoreErrorInjectionTest, commit_save_documents_write_doc) {
     generate_items(1);
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -676,14 +722,14 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_documents) {
                 .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
                 .RetiresOnSaturation();
 
-        kvstore->commit(std::move(ctx), flush);
+        EXPECT_FALSE(kvstore->commit(std::move(ctx), flush));
     }
 }
 
 /**
- * Injects error during CouchKVStore::commit/couchstore_save_local_document
+ * Injects error during CouchKVStore::commit/couchstore_save_documents/flush_mr
  */
-TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
+TEST_P(CouchKVStoreErrorInjectionTest, commit_save_documents_flush_mr) {
     generate_items(1);
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -701,16 +747,18 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_save_local_document) {
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(5).RetiresOnSaturation();
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _))
+                .Times(2 * numDataChunkWrites())
+                .RetiresOnSaturation();
 
-        kvstore->commit(std::move(ctx), flush);
+        EXPECT_FALSE(kvstore->commit(std::move(ctx), flush));
     }
 }
 
 /**
  * Injects error during CouchKVStore::commit/updateLocalDocuments
  */
-TEST_F(CouchKVStoreErrorInjectionTest, commit_updateLocalDocuments) {
+TEST_P(CouchKVStoreErrorInjectionTest, commit_updateLocalDocuments) {
     generate_items(1);
     // Establish Logger expectation
     EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -721,8 +769,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_updateLocalDocuments) {
     {
         // Establish FileOps expectation
         InSequence s;
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(6);
-        EXPECT_CALL(ops, pwrite(_, _, _, 8, _))
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(3 * numDataChunkWrites());
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_WRITE));
         EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(AnyNumber());
     }
@@ -743,7 +791,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_updateLocalDocuments) {
 /**
  * Injects error during CouchKVStore::commit/couchstore_commit
  */
-TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
+TEST_P(CouchKVStoreErrorInjectionTest, commit_commit) {
     generate_items(1);
 
     auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
@@ -761,16 +809,18 @@ TEST_F(CouchKVStoreErrorInjectionTest, commit_commit) {
         EXPECT_CALL(ops, pwrite(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_WRITE))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pwrite(_, _, _, _, _)).Times(5).RetiresOnSaturation();
+        EXPECT_CALL(ops, pwrite(_, _, _, _, _))
+                .Times(4 * numDataChunkWrites())
+                .RetiresOnSaturation();
 
-        kvstore->commit(std::move(ctx), flush);
+        EXPECT_FALSE(kvstore->commit(std::move(ctx), flush));
     }
 }
 
 /**
  * Injects error during CouchKVStore::get/couchstore_docinfo_by_id
  */
-TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
+TEST_P(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
     populate_items(1);
     GetValue gv;
     {
@@ -781,7 +831,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(3 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
@@ -795,7 +847,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
 /**
  * Injects error during CouchKVStore::get/couchstore_open_doc_with_docinfo
  */
-TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
+TEST_P(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
     populate_items(1);
     GetValue gv;
     {
@@ -811,7 +863,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(5 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
@@ -820,7 +874,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
 /**
  * Injects error during CouchKVStore::getMulti/couchstore_docinfos_by_id
  */
-TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
+TEST_P(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
     populate_items(1);
     vb_bgfetch_queue_t itms(make_bgfetch_queue());
     {
@@ -836,7 +890,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(3 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
         kvstore->getMulti(Vbid(0), itms, defaultCreateItemCallback);
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure,
@@ -851,7 +907,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
 /**
  * Injects error during CouchKVStore::getMulti/couchstore_open_doc_with_docinfo
  */
-TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
+TEST_P(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
     populate_items(1);
     vb_bgfetch_queue_t itms(make_bgfetch_queue());
     {
@@ -862,7 +918,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(5).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(5 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
         kvstore->getMulti(Vbid(0), itms, defaultCreateItemCallback);
 
         EXPECT_EQ(1, kvstore->getKVStoreStat().numGetFailure);
@@ -901,7 +959,7 @@ void CouchKVStoreErrorInjectionTest::testCompactDBCompactDBEx() {
     }
 }
 
-TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
+TEST_P(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
     testCompactDBCompactDBEx();
 }
 
@@ -909,14 +967,16 @@ TEST_F(CouchKVStoreErrorInjectionTest, compactDB_compact_db_ex) {
  * Injects error during
  * CouchKVStore::initBySeqnoScanContext/couchstore_changes_count
  */
-TEST_F(CouchKVStoreErrorInjectionTest, initBySeqnoScanContext_changes_count) {
+TEST_P(CouchKVStoreErrorInjectionTest, initBySeqnoScanContext_changes_count) {
     populate_items(1);
     {
         /* Establish FileOps expectation */
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(3 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
 
         auto scanCtx = kvstore->initBySeqnoScanContext(
                 std::make_unique<CustomCallback<GetValue>>(),
@@ -937,7 +997,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, initBySeqnoScanContext_changes_count) {
 /**
  * Injects error during CouchKVStore::scan/couchstore_changes_since
  */
-TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
+TEST_P(CouchKVStoreErrorInjectionTest, scan_changes_since) {
     populate_items(1);
     auto scan_context = kvstore->initBySeqnoScanContext(
             std::make_unique<CustomCallback<GetValue>>(),
@@ -969,7 +1029,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
  * Injects error during
  * CouchKVStore::recordDbDump/couchstore_open_doc_with_docinfo
  */
-TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
+TEST_P(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
     populate_items(1);
     auto scan_context = kvstore->initBySeqnoScanContext(
             std::make_unique<CustomCallback<GetValue>>(),
@@ -992,6 +1052,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
+        // DB already open so no metadata reads
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(2).RetiresOnSaturation();
 
         kvstore->scan(*scan_context);
@@ -1001,7 +1062,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
 /**
  * Injects error during CouchKVStore::rollback/couchstore_changes_count/1
  */
-TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
+TEST_P(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     generate_items(6);
 
     for (const auto& item : items) {
@@ -1024,7 +1085,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(3 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
 
         kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     }
@@ -1033,7 +1096,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
 /**
  * Injects error during CouchKVStore::rollback/couchstore_rewind_header
  */
-TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
+TEST_P(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     generate_items(6);
 
     for (const auto& item : items) {
@@ -1058,7 +1121,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
                  * keep rolling back otherwise */
                 .WillOnce(Return(COUCHSTORE_ERROR_ALLOC_FAIL))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(9).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(9 + 2 * numMetadataHeaderReads())
+                .RetiresOnSaturation();
 
         kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     }
@@ -1067,7 +1132,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
 /**
  * Injects error during CouchKVStore::rollback/couchstore_changes_count/2
  */
-TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
+TEST_P(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     generate_items(6);
 
     for (const auto& item : items) {
@@ -1090,7 +1155,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(11).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(11 + 2 * numMetadataHeaderReads())
+                .RetiresOnSaturation();
 
         kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     }
@@ -1099,7 +1166,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
 /**
  * Injects error during CouchKVStore::readVBState/couchstore_open_local_document
  */
-TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
+TEST_P(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     generate_items(6);
 
     for (const auto& item : items) {
@@ -1123,10 +1190,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
         /* Establish FileOps expectation */
         // Called once, when we read the vbstate in initBySeqnoScanContext.
         EXPECT_CALL(ops, pread(_, _, _, _, _))
-                .Times(1)
-                .WillRepeatedly(Return(COUCHSTORE_ERROR_READ))
+                .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(20).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(20 + 3 * numMetadataHeaderReads())
+                .RetiresOnSaturation();
 
         EXPECT_EQ(
                 false,
@@ -1139,7 +1207,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
 /**
  * Injects error during CouchKVStore::getAllKeys/couchstore_all_docs
  */
-TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
+TEST_P(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
     populate_items(1);
 
     auto adcb(std::make_shared<CustomCallback<const DiskDocKey&>>());
@@ -1157,7 +1225,9 @@ TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
         EXPECT_CALL(ops, pread(_, _, _, _, _))
                 .WillOnce(Return(COUCHSTORE_ERROR_READ))
                 .RetiresOnSaturation();
-        EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
+        EXPECT_CALL(ops, pread(_, _, _, _, _))
+                .Times(3 + numMetadataHeaderReads())
+                .RetiresOnSaturation();
 
         kvstore->getAllKeys(Vbid(0), start, 1, adcb);
     }
@@ -1166,7 +1236,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
 /**
  * Injects error during CouchKVStore::closeDB/couchstore_close_file
  */
-TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
+TEST_P(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
     {
         /* Establish Logger expectation */
         EXPECT_CALL(logger, mlog(_, _)).Times(AnyNumber());
@@ -1191,7 +1261,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, closeDB_close_file) {
 /**
  * Injects error during CouchKVStore::saveDocs/couchstore_docinfos_by_id
  */
-TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
+TEST_P(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
     // Insert some items into the B-Tree
     generate_items(6);
 
@@ -1222,7 +1292,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
                     .WillOnce(Return(COUCHSTORE_ERROR_READ))
                     .RetiresOnSaturation();
             EXPECT_CALL(ops, pread(_, _, _, _, _))
-                    .Times(6)
+                    .Times(6 + numMetadataHeaderReads())
                     .RetiresOnSaturation();
 
             kvstore->commit(std::move(ctx), flush);
@@ -1234,7 +1304,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, savedocs_doc_infos_by_id) {
  * Injects corruption (invalid header length) during
  * CouchKVStore::readVBState/couchstore_open_local_document
  */
-TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
+TEST_P(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
     // Create a couchstore file with an item in it.
     populate_items(1);
 
@@ -1257,14 +1327,23 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
             EXPECT_CALL(ops, pread(_, _, _, 8, _));
             // <variable> - byId tree root
             EXPECT_CALL(ops, pread(_, _, _, _, _));
-            // 8 bytes - header
-            EXPECT_CALL(ops, pread(_, _, _, 8, _));
+            if (GetParam()) {
+                // Metadata header
+                // 1 byte - detect block type
+                EXPECT_CALL(ops, pread(_, _, _, 1, _));
+                // 8 bytes - header
+                EXPECT_CALL(ops, pread(_, _, _, 8, _));
+                // <variable - content
+                EXPECT_CALL(ops, pread(_, _, _, _, _));
+            }
+            // 4/8 bytes - header
+            EXPECT_CALL(ops, pread(_, _, _, dataChunkHeaderSize(), _));
             // <variable - seqno tree root
             EXPECT_CALL(ops, pread(_, _, _, _, _));
 
             // chunk header - we want to corrupt the length (1st 32bit word)
             // so the checksum fails.
-            EXPECT_CALL(ops, pread(_, _, _, 8, _))
+            EXPECT_CALL(ops, pread(_, _, _, dataChunkHeaderSize(), _))
                     .WillOnce(Invoke([this](couchstore_error_info_t* errinfo,
                                             couch_file_handle handle,
                                             void* buf,
@@ -1275,17 +1354,25 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
                                 errinfo, handle, buf, nbytes, offset);
                         // Now check and modify the return value.
                         auto* length_ptr = reinterpret_cast<uint32_t*>(buf);
-                        EXPECT_EQ(0x80000007, htonl(*length_ptr))
+                        uint32_t expectedLength = 7;
+                        if (GetParam()) {
+                            // Encrypted chunks have a 16 byte MAC tag.
+                            expectedLength += 16;
+                        } else {
+                            // Unencrypted chunks have the top bit set.
+                            expectedLength |= 0x80000000;
+                        }
+                        EXPECT_EQ(expectedLength, ntohl(*length_ptr))
                                 << "Unexpected chunk.length for value chunk";
 
                         // assumptions pass; now make length too small so CRC32
                         // should mismatch.
-                        *length_ptr = ntohl(0x80000006);
+                        *length_ptr = htonl(expectedLength - 1);
                         return res;
                     }));
             // Final read of the value's data (should be size 6 given we
             // changed the chunk.length above).
-            EXPECT_CALL(ops, pread(_, _, _, 6, _));
+            EXPECT_CALL(ops, pread(_, _, _, (GetParam() ? 6 + 16 : 6), _));
         }
 
         // As a result, expect to see a CHECKSUM_FAIL log message
@@ -1301,6 +1388,14 @@ TEST_F(CouchKVStoreErrorInjectionTest, corruption_get_open_doc_with_docinfo) {
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+        CouchKVStoreErrorInjectionTest,
+        CouchKVStoreErrorInjectionTest,
+        ::testing::Bool(),
+        [](const ::testing::TestParamInfo<bool>& testInfo) -> std::string {
+            return testInfo.param ? "Encrypted" : "Unencrypted";
+        });
 
 //
 // Explicitly test couchstore (not valid for other KVStores)
