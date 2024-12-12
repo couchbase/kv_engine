@@ -2375,6 +2375,12 @@ void KVBucket::wakeUpExpiryPager() {
     }
 }
 
+void KVBucket::wakeUpStrictItemPager() {
+    auto* pager = dynamic_cast<ItemPager*>(itemPagerTask.get());
+    Expects(pager);
+    pager->wakeUp();
+}
+
 void KVBucket::wakeItemPager() {
     if (itemPagerTask->getState() == TASK_SNOOZED) {
         ExecutorPool::get()->wake(itemPagerTask->getId());
@@ -2725,9 +2731,7 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
 }
 
 void KVBucket::attemptToFreeMemory() {
-    auto* pager = dynamic_cast<ItemPager*>(itemPagerTask.get());
-    Expects(pager);
-    pager->wakeUp();
+    wakeUpStrictItemPager();
 }
 
 void KVBucket::wakeUpCheckpointMemRecoveryTask() {
@@ -2736,6 +2740,14 @@ void KVBucket::wakeUpCheckpointMemRecoveryTask() {
             task->wakeup();
         }
     }
+}
+
+size_t KVBucket::wakeUpChkRemoversAndGetNotified(
+        const std::shared_ptr<cb::Waiter>& waiter) {
+    for (const auto& task : chkRemovers) {
+        task->wakeupAndGetNotified(waiter);
+    }
+    return chkRemovers.size();
 }
 
 void KVBucket::runDefragmenterTask() {

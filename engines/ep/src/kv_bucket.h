@@ -531,6 +531,10 @@ public:
     /// Wake up the expiry pager (if enabled), scheduling it for immediate run.
     void wakeUpExpiryPager();
 
+    // Wake up pager by calling EPNotifiable::wakeUp() which sets
+    // manuallyNotified flag.
+    void wakeUpStrictItemPager();
+
     /// Wake up the item pager (if enabled), scheduling it for immediate run.
     /// Currently this is used only during testing.
     void wakeItemPager();
@@ -643,6 +647,14 @@ public:
     void attemptToFreeMemory() override;
 
     void wakeUpCheckpointMemRecoveryTask() override;
+
+    /**
+     * @return The pageable memory low watermark of the Bucket. this is the
+     * amount of bytes the ItemPager will attempt to reduce pageable memory
+     * usage to when it has exceeded the pageable high watermark.
+     */
+    size_t wakeUpChkRemoversAndGetNotified(
+            const std::shared_ptr<cb::Waiter>& waiter) override;
 
     void runDefragmenterTask() override;
 

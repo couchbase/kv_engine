@@ -63,6 +63,10 @@ class Manifest;
 }
 struct key_stats;
 
+namespace cb {
+class Waiter;
+}
+
 namespace cb::rangescan {
 struct SamplingConfiguration;
 struct SnapshotRequirements;
@@ -796,6 +800,12 @@ public:
     virtual void attemptToFreeMemory() = 0;
 
     virtual void wakeUpCheckpointMemRecoveryTask() = 0;
+
+    /**
+     * @return the number of checkpoint removers which have been woken up
+     */
+    virtual size_t wakeUpChkRemoversAndGetNotified(
+            const std::shared_ptr<cb::Waiter>& waiter) = 0;
 
     virtual void runDefragmenterTask() = 0;
 

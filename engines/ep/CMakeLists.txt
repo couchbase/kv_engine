@@ -331,6 +331,7 @@ ADD_LIBRARY(ep STATIC
             src/ep_time.cc
             src/ep_types.cc
             src/ephemeral_bucket.cc
+            src/ephemeral_mem_recovery.cc
             src/ephemeral_tombstone_purger.cc
             src/ephemeral_vb.cc
             src/ephemeral_vb_count_visitor.cc
