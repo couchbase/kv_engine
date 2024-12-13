@@ -205,17 +205,26 @@ bool AuditImpl::configure() {
 }
 
 std::unordered_set<std::string> AuditImpl::get_deks_in_use() const {
-    auto deks = log_directory.withLock([this](auto& dir) {
+    bool unencrypted = false;
+    auto deks = log_directory.withLock([&unencrypted](auto& dir) {
         return cb::crypto::findDeksInUse(
                 dir,
-                [](const auto& path) {
-                    return path.string().find("-audit.cef") !=
-                           std::string::npos;
+                [&unencrypted](const auto& path) {
+                    const auto filename = path.string();
+                    if (filename.find("-audit.log") != std::string::npos) {
+                        unencrypted = true;
+                        return false;
+                    }
+
+                    return filename.find("-audit.cef") != std::string::npos;
                 },
                 [](auto message, const auto& ctx) {
                     LOG_WARNING_CTX(message, ctx);
                 });
     });
+    if (unencrypted) {
+        deks.insert(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    }
 
     // Add the "current" key as it is always supposed to be "in use"
     auto& manager = cb::dek::Manager::instance();

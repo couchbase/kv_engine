@@ -324,15 +324,25 @@ std::unordered_set<std::string> cb::logger::getDeksInUse() {
                 "initialized before calling getDeksInUse()");
     }
 
+    bool unencrypted = false;
     auto deks = cb::crypto::findDeksInUse(
             *log_directory,
-            [](const auto& path) {
+            [&unencrypted](const auto& path) {
+                if (path.extension() == ".txt" &&
+                    path.filename().string().rfind(*log_file_prefix, 0) == 0) {
+                    unencrypted = true;
+                    return false;
+                }
+
                 return path.extension() == ".cef" &&
                        path.filename().string().rfind(*log_file_prefix, 0) == 0;
             },
             [](auto message, const auto& ctx) {
                 LOG_WARNING_CTX(message, ctx);
             });
+    if (unencrypted) {
+        deks.insert(cb::crypto::DataEncryptionKey::UnencryptedKeyId);
+    }
     // Add the "current" key as it is always supposed to be "in use"
     auto& manager = cb::dek::Manager::instance();
     auto key = manager.lookup(cb::dek::Entity::Logs);
