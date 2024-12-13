@@ -477,6 +477,24 @@
                 "bucket_type": "ephemeral"
             }
         },
+        "ephemeral_mem_recovery_enabled": {
+            "default": "false",
+            "descr": "Whether ephemeral memory recovery task is enabled. If disabled, ItemPager will carry out memory recovery for AutoDelete buckets.",
+            "dynamic": true,
+            "type": "bool",
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
+        },
+        "ephemeral_mem_recovery_sleep_time": {
+            "default": "5000",
+            "descr": "Duration in milliseconds the EphemeralMemRecovery task will sleep between periodic executions.",
+            "dynamic": true,
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "ephemeral"
+            }
+        },
         "ephemeral_metadata_purge_age": {
             "default": "60",
             "descr": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",

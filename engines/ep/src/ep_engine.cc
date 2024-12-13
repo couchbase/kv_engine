@@ -845,6 +845,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             runVbStatePersistTask(Vbid(std::stoi(val)));
         } else if (key == "ephemeral_full_policy") {
             configuration.setEphemeralFullPolicy(val);
+        } else if (key == "ephemeral_mem_recovery_enabled") {
+            configuration.setEphemeralMemRecoveryEnabled(cb_stob(val));
+        } else if (key == "ephemeral_mem_recovery_sleep_time") {
+            configuration.setEphemeralMemRecoverySleepTime(std::stoull(val));
         } else if (key == "ephemeral_metadata_mark_stale_chunk_duration") {
             configuration.setEphemeralMetadataMarkStaleChunkDuration(
                     std::stoull(val));
