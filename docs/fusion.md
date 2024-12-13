@@ -299,3 +299,45 @@ will contain details.
 **Status::Einternal (0x84)**
 
 This status code is used for unexpected internal failure.
+
+
+# 0x3d - Set VBucket State
+
+To request loading a vbucket from a snapshot, the command is extended from the
+format in [BinaryProtocol.md](BinaryProtocol.md), which is used for non-snapshot
+state changes.
+
+The command value (JSON datatype) is extended to include a
+`"use_snapshot": "fusion"` field.
+
+Request:
+
+* MUST have vbucket
+* MUST have extra
+* MUST NOT have key
+* MUST have value
+
+The command contains an extra section of one byte containing the vbucket state:
+
+1. Active
+2. Replica
+
+Response:
+
+* MUST NOT have extras
+* MUST NOT have key
+* MAY have value (error message)
+
+## Errors
+
+**Status::KeyEexists (0x02)**
+
+The node already has this vbucket.
+
+**Status::Einval (0x04)**
+
+Input validation failure.
+
+**Status::Einternal (0x84)**
+
+Unexpected internal failure.
