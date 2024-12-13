@@ -167,6 +167,22 @@ void DomainAwareDelete<magma::Magma::Snapshot>::operator()(
     delete p;
 }
 
+/**
+ * Helper function that returns a copy of the provided referenced object, copy
+ * allocated in the primary domain.
+ *
+ * @tparam T the type
+ * @param obj Const ref to the object to be copied. Const ref prevents
+ *            unnecessary arg copy for both const/non-const lvalues and
+ *            temporary objects
+ * @return A copy of obj, allocated in the primary domain
+ */
+template <class T>
+[[nodiscard]] static T copyToPrimaryDomain(const T& obj) {
+    cb::UseArenaMallocPrimaryDomain pGuard;
+    return obj;
+};
+
 MagmaMemoryTrackingProxy::MagmaMemoryTrackingProxy(
         magma::Magma::Config& config) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
@@ -718,9 +734,6 @@ MagmaMemoryTrackingProxy::MountKVStore(
         magma::Magma::KVStoreID kvId,
         magma::Magma::KVStoreRevision kvsRev,
         const magma::Magma::KVStoreMountConfig& config) {
-    cb::UseArenaMallocSecondaryDomain domainGuard;
-    const auto res = magma->MountKVStore(kvId, kvsRev, config);
-    // @todo MB-63974, MB-64494: magma has not implemented returing DEKS yet,
-    // plus we need to handle arena allocs properly.
-    return {std::get<magma::Status>(res), {}};
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return copyToPrimaryDomain(magma->MountKVStore(kvId, kvsRev, config));
 }

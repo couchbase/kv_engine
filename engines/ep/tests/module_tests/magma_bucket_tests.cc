@@ -1168,9 +1168,10 @@ public:
     }
 
 protected:
-    const std::string fusionLogstoreURI = "s3://some-uuid";
+    const std::string dbPath = std::filesystem::absolute(test_dbname);
+    const std::string fusionLogstoreURI = "local://" + dbPath + "/logstore";
     const std::string fusionMetadatastoreURI =
-            "chronicle://localhost:1234/fusion/some-uuid";
+            "local://" + dbPath + "/metadatastore";
 };
 
 TEST_P(STMagmaFusionTest, Config) {
@@ -1196,6 +1197,12 @@ TEST_P(STMagmaFusionTest, MetadataAuthToken) {
     EXPECT_EQ(cb::engine_errc::success,
               kvstore.setFusionMetadataAuthToken(token));
     EXPECT_EQ(token, kvstore.getFusionMetadataAuthToken());
+}
+
+TEST_P(STMagmaFusionTest, MountVbucket) {
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    const auto res = kvstore.mountVBucket(vbid, {});
+    EXPECT_EQ(cb::engine_errc::success, res.first);
 }
 
 INSTANTIATE_TEST_SUITE_P(STMagmaFusionTest,
