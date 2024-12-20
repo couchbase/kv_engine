@@ -7908,8 +7908,9 @@ EventuallyPersistentEngine::getFusionStorageSnapshotInner(
         return {cb::engine_errc::not_supported, {}};
     }
 
-    const auto fusionNamespace =
-            configuration.getCouchBucket() + "/" + configuration.getUuid();
+    const auto fusionNamespace = configuration.getCouchBucket() + "/" +
+                                 configuration.getUuid() + "/" +
+                                 configuration.getMagmaFusionNamespaceSuffix();
 
     return kvBucket->getRWUnderlying(vbid)->getFusionStorageSnapshot(
             fusionNamespace, vbid, snapshotUuid, validity);
@@ -7922,8 +7923,9 @@ cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshotInner(
         return cb::engine_errc::not_supported;
     }
 
-    const auto fusionNamespace =
-            configuration.getCouchBucket() + "/" + configuration.getUuid();
+    const auto fusionNamespace = configuration.getCouchBucket() + "/" +
+                                 configuration.getUuid() + "/" +
+                                 configuration.getMagmaFusionNamespaceSuffix();
     return kvBucket->getRWUnderlying(vbid)->releaseFusionStorageSnapshot(
             fusionNamespace, vbid, snapshotUuid);
 }
