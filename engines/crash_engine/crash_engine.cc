@@ -77,24 +77,32 @@ public:
      */
     cb::engine_errc initialize(std::string_view,
                                const nlohmann::json&) override {
-        std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
+        using namespace std::string_view_literals;
+        const auto* ptr = getenv("MEMCACHED_CRASH_TEST");
+        if (!ptr) {
+            fmt::println(
+                    stderr,
+                    "crash_engine::initialize: MEMCACHED_CRASH_TEST not set");
+            std::_Exit(EXIT_FAILURE);
+        }
+        std::string_view mode_string(ptr);
         CrashMode mode;
-        if (mode_string == "segfault") {
+        if (mode_string == "segfault"sv) {
             mode = CrashMode::SegFault;
-        } else if (mode_string == "std_exception") {
+        } else if (mode_string == "std_exception"sv) {
             mode = CrashMode::UncaughtStdException;
-        } else if (mode_string == "std_exception_via_std_thread") {
+        } else if (mode_string == "std_exception_via_std_thread"sv) {
             mode = CrashMode::UncaughtStdExceptionViaStdThread;
-        } else if (mode_string == "std_exception_with_trace") {
+        } else if (mode_string == "std_exception_with_trace"sv) {
             mode = CrashMode::UncaughtStdExceptionWithTrace;
-        } else if (mode_string == "unknown_exception") {
+        } else if (mode_string == "unknown_exception"sv) {
             mode = CrashMode::UncaughtUnknownException;
         } else {
-            fprintf(stderr,
-                    "crash_engine::initialize: could not find a valid "
-                    "CrashMode from MEMCACHED_CRASH_TEST env var ('%s')\n",
-                    mode_string.c_str());
-            exit(1);
+            fmt::println(stderr,
+                         "crash_engine::initialize: could not find a valid "
+                         "CrashMode from MEMCACHED_CRASH_TEST env var ({:?})",
+                         mode_string);
+            exit(EXIT_FAILURE);
         }
         if (mode == CrashMode::UncaughtStdExceptionViaStdThread) {
             std::thread thread{[mode] { recursive_crash_function(25, mode); }};
