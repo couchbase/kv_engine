@@ -243,7 +243,8 @@ void ExternalAuthManagerThread::setRbacCacheEpoch(
 }
 
 void ExternalAuthManagerThread::processResponseQueue() {
-    auto responses = std::move(incommingResponse);
+    decltype(incommingResponse) responses;
+    responses.swap(incommingResponse);
     while (!responses.empty()) {
         const auto& entry = responses.front();
         auto iter = requestMap.find(entry->opaque);
@@ -262,7 +263,8 @@ void ExternalAuthManagerThread::processResponseQueue() {
     }
 }
 void ExternalAuthManagerThread::purgePendingDeadConnections() {
-    auto pending = std::move(pendingRemoveConnection);
+    decltype(pendingRemoveConnection) pending;
+    pending.swap(pendingRemoveConnection);
     for (const auto& connection : pending) {
         LOG_WARNING_RAW(
                 "External authentication manager died. Expect "

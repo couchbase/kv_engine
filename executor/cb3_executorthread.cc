@@ -164,7 +164,7 @@ void CB3ExecutorThread::resetCurrentTask() {
         std::lock_guard<std::mutex> lh(currentTaskMutex);
         // move currentTask so we 'steal' the pointer and ensure currentTask
         // owns nothing.
-        resetThisObject = std::move(currentTask);
+        resetThisObject.swap(currentTask);
     }
     {
         // Freeing of the Task object should be accounted to the engine
