@@ -225,7 +225,7 @@ size_t WorkLoadMonitor::getNumGets() {
            engine->getEpStats().numOpsGetMeta;
 }
 
-bool WorkLoadMonitor::run() {
+void WorkLoadMonitor::autoSelectWorkLoadPattern() {
     size_t curr_num_mutations = getNumMutations();
     size_t curr_num_gets = getNumGets();
     auto delta_mutations = static_cast<double>(curr_num_mutations -
@@ -246,6 +246,14 @@ bool WorkLoadMonitor::run() {
     }
     prevNumMutations = curr_num_mutations;
     prevNumGets = curr_num_gets;
+}
+
+bool WorkLoadMonitor::run() {
+    if (engine->getConfiguration().isWorkloadMonitorEnabled()) {
+        autoSelectWorkLoadPattern();
+    } else {
+        engine->getWorkLoadPolicy().setWorkLoadPattern(MIXED);
+    }
 
     snooze(WORKLOAD_MONITOR_FREQ);
     if (engine->getEpStats().isShutdown) {

@@ -314,6 +314,7 @@ public:
     }
 
 private:
+    void autoSelectWorkLoadPattern();
 
     size_t getNumMutations();
     size_t getNumGets();
