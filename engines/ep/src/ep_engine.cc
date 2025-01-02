@@ -965,6 +965,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupInterval(std::stoull(val));
         } else if (key == "fusion_metadata_auth_token") {
             setFusionMetadataAuthToken(val);
+        } else if (key == "workload_monitor_enabled") {
+            configuration.setWorkloadMonitorEnabled(cb_stob(val));
         } else {
             EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                             {"key", key},
