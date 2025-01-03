@@ -438,18 +438,20 @@ OrderedLL::iterator BasicLinkedList::purgeListElem(OrderedLL::iterator it,
 
 std::unique_ptr<BasicLinkedList::RangeIteratorLL>
 BasicLinkedList::RangeIteratorLL::create(BasicLinkedList& ll, bool isBackfill) {
-    std::unique_ptr<BasicLinkedList::RangeIteratorLL> pRangeItr;
+    std::unique_ptr<RangeIteratorLL> pRangeItr;
     {
         std::lock_guard<std::mutex> listWriteLg(ll.getListWriteLock());
 
         /* Note: cannot use std::make_unique because the constructor of
            RangeIteratorLL is private */
-        pRangeItr = std::unique_ptr<BasicLinkedList::RangeIteratorLL>(
-                new BasicLinkedList::RangeIteratorLL(
-                        ll, listWriteLg, isBackfill));
+        pRangeItr.reset(new RangeIteratorLL(ll, listWriteLg, isBackfill));
     }
 
-    return pRangeItr->tryLater() ? nullptr : std::move(pRangeItr);
+    if (pRangeItr->tryLater()) {
+        pRangeItr.reset();
+    }
+
+    return pRangeItr;
 }
 
 BasicLinkedList::RangeIteratorLL::RangeIteratorLL(
