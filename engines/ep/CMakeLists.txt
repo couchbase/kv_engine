@@ -500,53 +500,50 @@ kv_enable_pch(ep_mocks)
 # this directory.
 add_ep_testsuite(ep_perfsuite tests/ep_perfsuite.cc)
 
-# The benchmark suite crash on MacOSX and cause a compile warning due
-# to the use of a deprecated function in folly. Disable it until
-# we've fixed the issue (and the benchmark suite is actually useful)
-#cb_add_test_executable(ep_engine_benchmarks
-#               benchmarks/access_scanner_bench.cc
-#               benchmarks/benchmark_memory_tracker.cc
-#               benchmarks/checkpoint_iterator_bench.cc
-#               benchmarks/dcp_producer_bench.cc
-#               benchmarks/defragmenter_bench.cc
-#               benchmarks/engine_fixture.cc
-#               benchmarks/ep_engine_benchmarks_main.cc
-#               benchmarks/executor_bench.cc
-#               benchmarks/hash_table_bench.cc
-#               benchmarks/item_bench.cc
-#               benchmarks/paging_visitor_bench.cc
-#               benchmarks/vbcb_adaptor_bench.cc
-#               benchmarks/item_compressor_bench.cc
-#               benchmarks/kvstore_bench.cc
-#               benchmarks/vb_ready_queue_bench.cc
-#               benchmarks/vbucket_bench.cc
-#               benchmarks/probabilistic_counter_bench.cc
-#               benchmarks/quota_sharing_bench.cc
-#               benchmarks/stats_bench.cc
-#               benchmarks/tracing_bench.cc
-#               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
-#               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-#               ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
-#kv_enable_pch(ep_engine_benchmarks)
-#
-#TARGET_LINK_LIBRARIES(ep_engine_benchmarks
-#        PRIVATE
-#                ep
-#                mock_dcp
-#                ep_mocks
-#                couchstore_test_fileops
-#                benchmark::benchmark
-#                cluster_framework
-#                GTest::gtest
-#                GTest::gmock
-#                platform_cb_malloc_arena)
-#TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
-#                           tests
-#                           benchmarks
-#                           ${Couchstore_SOURCE_DIR})
-#
-#add_sanitizers(ep_engine_benchmarks)
-#cb_enable_unity_build(ep_engine_benchmarks)
+cb_add_test_executable(ep_engine_benchmarks
+               benchmarks/access_scanner_bench.cc
+               benchmarks/benchmark_memory_tracker.cc
+               benchmarks/checkpoint_iterator_bench.cc
+               benchmarks/dcp_producer_bench.cc
+               benchmarks/defragmenter_bench.cc
+               benchmarks/engine_fixture.cc
+               benchmarks/ep_engine_benchmarks_main.cc
+               benchmarks/executor_bench.cc
+               benchmarks/hash_table_bench.cc
+               benchmarks/item_bench.cc
+               benchmarks/paging_visitor_bench.cc
+               benchmarks/vbcb_adaptor_bench.cc
+               benchmarks/item_compressor_bench.cc
+               benchmarks/kvstore_bench.cc
+               benchmarks/vb_ready_queue_bench.cc
+               benchmarks/vbucket_bench.cc
+               benchmarks/probabilistic_counter_bench.cc
+               benchmarks/quota_sharing_bench.cc
+               benchmarks/stats_bench.cc
+               benchmarks/tracing_bench.cc
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
+               ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
+kv_enable_pch(ep_engine_benchmarks)
+
+TARGET_LINK_LIBRARIES(ep_engine_benchmarks
+        PRIVATE
+                ep
+                mock_dcp
+                ep_mocks
+                couchstore_test_fileops
+                benchmark::benchmark
+                cluster_framework
+                GTest::gtest
+                GTest::gmock
+                platform_cb_malloc_arena)
+TARGET_INCLUDE_DIRECTORIES(ep_engine_benchmarks PUBLIC
+                           tests
+                           benchmarks
+                           ${Couchstore_SOURCE_DIR})
+
+add_sanitizers(ep_engine_benchmarks)
+cb_enable_unity_build(ep_engine_benchmarks)
 
 cb_add_test_executable(ep-engine_sizes src/sizes.cc)
 kv_enable_pch(ep-engine_sizes)
