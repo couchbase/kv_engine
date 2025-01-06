@@ -588,7 +588,7 @@ BENCHMARK_REGISTER_F(ExecutorPoolFixture, LongLivedScheduleRun_Folly)
 
 BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_CB3)
         ->ThreadRange(1, 16)
-        ->Range(1000, 30000)
+        ->Range(1000, 4096)
         ->ArgName("Timeouts")
         ->UseRealTime();
 BENCHMARK_REGISTER_F(ExecutorPoolFixture, TimeoutAddCancel_Folly)
