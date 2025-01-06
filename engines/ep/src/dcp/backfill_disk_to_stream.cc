@@ -354,6 +354,11 @@ bool DCPBackfillDiskToStream::isProgressStalled(
 
 bool DCPBackfillDiskToStream::shouldEndStreamToReclaimDisk(
         const ScanContext& scan, const ActiveStream& stream) {
+    if (!scan.handle) {
+        // no handle available to check.
+        return false;
+    }
+
     auto bytesToFree = scan.handle->getHowManyBytesCouldBeFreed();
     if (bytesToFree == 0) {
         // Bytes to free is zero, ending the stream and closing the scan will
