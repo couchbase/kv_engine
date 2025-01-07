@@ -1549,7 +1549,7 @@ protected:
     std::atomic<std::chrono::seconds> historyRetentionSeconds;
 
     /// Max bytes of history an individual vbucket should aim to retain on disk.
-    std::atomic<size_t> historyRetentionBytes;
+    std::atomic<size_t> historyRetentionBytes{0};
 
     /**
      * Hook called after creating (and possibly queueing) a compaction
