@@ -635,6 +635,8 @@ public:
 
     bool ephemeralFailNewData() const;
 
+    bool isEphemeralMemRecoveryEnabled() const;
+
     bool fullEviction() const;
 
     /// @returns true if this is a magma bucket

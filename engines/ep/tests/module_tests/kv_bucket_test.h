@@ -425,6 +425,8 @@ public:
 
     bool itemCompressorTaskIsSleepingForever() const;
 
+    void updateItemPagerSleepTime(const std::chrono::milliseconds interval);
+
 private:
     /**
      * Destroy the test objects - e.g. engine/store/cookie

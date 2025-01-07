@@ -122,7 +122,7 @@ protected:
      * How long this task sleeps for if not requested to run. Initialised from
      * the configuration parameter - pager_sleep_time_ms
      */
-    std::chrono::milliseconds sleepTime;
+    std::atomic<std::chrono::milliseconds> sleepTime;
 };
 
 /**
@@ -149,8 +149,15 @@ public:
     }
 
     std::chrono::microseconds getSleepTime() const override {
-        return sleepTime;
+        return sleepTime.load();
     }
+
+    /**
+     * Update the periodic sleep interval of the task.
+     *
+     * @param interval time in milliseconds to wait between runs
+     */
+    void updateSleepTime(const std::chrono::milliseconds interval);
 
     bool runInner(bool manuallyNotified) override {
         return runPager(manuallyNotified);

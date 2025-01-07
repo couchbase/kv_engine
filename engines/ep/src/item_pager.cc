@@ -159,6 +159,13 @@ void StrictQuotaItemPager::wakeUp() {
     EpNotifiableTask::wakeup();
 }
 
+void StrictQuotaItemPager::updateSleepTime(
+        const std::chrono::milliseconds interval) {
+    sleepTime = interval;
+    ExecutorPool::get()->snooze(
+            getId(), std::chrono::duration<double>(getSleepTime()).count());
+}
+
 ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
     KVBucket* kvBucket = engine->getKVBucket();
     auto current = kvBucket->getPageableMemCurrent();

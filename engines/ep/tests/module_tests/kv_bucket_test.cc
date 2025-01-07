@@ -27,6 +27,7 @@
 #include "dcp/flow-control-manager.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "ep_task.h"
 #include "ep_time.h"
 #include "ep_vb.h"
 #include "evp_store_single_threaded_test.h"
@@ -37,6 +38,7 @@
 #endif
 #include "item_access_visitor.h"
 #include "item_compressor.h"
+#include "item_pager.h"
 #include "kvstore/couch-kvstore/couch-kvstore-config.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "lambda_task.h"
@@ -704,6 +706,14 @@ void KVBucketTest::setupPrimaryWarmupOnly() {
 
 bool KVBucketTest::itemCompressorTaskIsSleepingForever() const {
     return store->itemCompressorTask->isSleepingForever();
+}
+
+void KVBucketTest::updateItemPagerSleepTime(
+        const std::chrono::milliseconds interval) {
+    ASSERT_FALSE(store->isCrossBucketHtQuotaSharing());
+    auto strictQuotaItemPager = std::dynamic_pointer_cast<StrictQuotaItemPager>(
+            store->itemPagerTask);
+    strictQuotaItemPager->updateSleepTime(interval);
 }
 
 class KVBucketParamTest : public STParameterizedBucketTest {

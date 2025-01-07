@@ -42,6 +42,7 @@
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+#include <chrono>
 
 using namespace std::string_literals;
 
@@ -811,6 +812,45 @@ TEST_P(STItemPagerTest, ItemPagerRunPeriodically) {
     // and run the next NonIO task.
     // This should be the periodic item pager run.
     runNextTask(lpNonioQ, expectedTask, timeAdvance * 2);
+}
+
+TEST_P(STItemPagerTest, ItemPagerUpdateSleepTime) {
+    if (ephemeralFailNewData()) {
+        // EphemeralFailNewData doesn't enable the ItemPager.
+        GTEST_SKIP();
+    }
+    if (isCrossBucketHtQuotaSharing()) {
+        // QuotaSharingItemPager does not support updating sleep time.
+        GTEST_SKIP();
+    }
+    if (isEphemeralMemRecoveryEnabled()) {
+        // Periodic execution disabled if EphemeralMemRecovery is enabled.
+        GTEST_SKIP();
+    }
+
+    // Check initial sleep time of ItemPager - advance time by item pager
+    // sleep period, and run the next NonIO task.
+    // This should be the initial item pager run.
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+    EXPECT_GE(lpNonioQ.getFutureQueueSize(), 1);
+
+    // Run the next task, advancing time by just over the item pager period,
+    // so we expect it to be run.
+    auto timeAdvance = std::chrono::milliseconds{
+            engine->getConfiguration().getPagerSleepTimeMs() + 1};
+    const auto itemPagerTask = "Paging out items.";
+    runNextTask(lpNonioQ, itemPagerTask, timeAdvance);
+
+    // Change sleep time and check it is utilised.
+    updateItemPagerSleepTime(1000ms);
+    timeAdvance = 1001ms;
+    runNextTask(lpNonioQ, itemPagerTask, timeAdvance);
+
+    // Change and check again
+    updateItemPagerSleepTime(2000ms);
+    timeAdvance = 2001ms;
+    runNextTask(lpNonioQ, itemPagerTask, timeAdvance);
 }
 
 TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {

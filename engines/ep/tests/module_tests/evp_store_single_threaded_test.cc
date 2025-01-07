@@ -647,6 +647,11 @@ bool STParameterizedBucketTest::ephemeralFailNewData() const {
                    "fail_new_data";
 }
 
+bool STParameterizedBucketTest::isEphemeralMemRecoveryEnabled() const {
+    return ephemeral() &&
+           engine->getConfiguration().isEphemeralMemRecoveryEnabled();
+}
+
 bool STParameterizedBucketTest::isMagma() const {
     return engine->getConfiguration().getBackendString() == "magma" ||
            isNexusMagmaPrimary();
