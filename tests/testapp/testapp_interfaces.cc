@@ -641,3 +641,50 @@ TEST_P(ConnectionResetTest, MB58262_Dont_log_connection_reset_TLS) {
     }
     testit("MB58262", "unexpected eof while reading");
 }
+TEST_P(InterfacesTest, MB63984_ConnStatsBindFail) {
+    SOCKET serverSocket = cb::net::socket(AF_INET, SOCK_STREAM, 0);
+    // Create a listening socket without SO_REUSEADDR/SO_REUSEPORT such that
+    // when we ask memcached to bind to the same port, it will fail.
+    ASSERT_NE(INVALID_SOCKET, serverSocket);
+    sockaddr_in sin = {};
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = INADDR_ANY;
+    ASSERT_EQ(0,
+              cb::net::bind(serverSocket,
+                            reinterpret_cast<const sockaddr*>(&sin),
+                            sizeof(sin)));
+    ASSERT_EQ(0, cb::net::listen(serverSocket, 10));
+    socklen_t len = sizeof(sockaddr_in);
+    ASSERT_EQ(
+            0,
+            getsockname(serverSocket, reinterpret_cast<sockaddr*>(&sin), &len));
+
+    // Connect to bucket so we can ask for stats.
+    adminConnection->selectBucket(bucketName);
+    auto expectedCurrConns = adminConnection->stats("")["curr_connections"]
+                                     .template get<unsigned int>();
+
+    auto config = memcached_cfg;
+    // Add listening port which is set up to clash with the one we set up above.
+    config["interfaces"].emplace_back(
+            nlohmann::json{{"system", false},
+                           {"port", ntohs(sin.sin_port)},
+                           {"ipv4", "required"},
+                           {"ipv6", "off"},
+                           {"host", "*"}});
+
+    // We've seen that failure to bind() can incorrectly decrement the
+    // curr_connections by 1. Repeat for every connection we have to demonstrate
+    // that we can even underflow the counter.
+    for (unsigned i = 0; i < expectedCurrConns + 1; i++) {
+        ASSERT_FALSE(reconfigure(config).isSuccess());
+    }
+
+    auto actualCurrConns = adminConnection->stats("")["curr_connections"]
+                                   .template get<unsigned int>();
+    EXPECT_EQ(expectedCurrConns, actualCurrConns)
+            << "Unexpected value for curr_connections";
+
+    reconfigure(memcached_cfg);
+    cb::net::closesocket(serverSocket);
+}
