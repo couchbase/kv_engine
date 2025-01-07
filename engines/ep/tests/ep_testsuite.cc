@@ -2742,16 +2742,6 @@ static enum test_result test_itempager_conf(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             set_param(h,
                       EngineParamCategory::Flush,
-                      "pager_sleep_time_ms",
-                      "1000"),
-            "Setting pager_sleep_time_ms should have worked");
-    checkeq(1000,
-            get_int_stat(h, "ep_pager_sleep_time_ms"),
-            "pager_sleep_time_ms did not get set to the correct value");
-
-    checkeq(cb::engine_errc::success,
-            set_param(h,
-                      EngineParamCategory::Flush,
                       "item_eviction_age_percentage",
                       "100"),
             "Set item_eviction_age_percentage should have worked");
@@ -8184,29 +8174,7 @@ static enum test_result test_seqno_persistence_timeout(EngineIface* h) {
 }
 
 static enum test_result test_bucket_quota_reduction(EngineIface* h) {
-    // Hack number 1 - We want to disable the item pager to ensure that
-    // memory usage can remain high while we attempt to write a new key but
-    // we don't expose that anywhere (probably for good reason).
-    // We don't strictly need to do this before loading the data, but it does
-    // make the test less racey as memory shouldn't drop before we expect it to.
-    //
-    // For doing that, it is enough to disable the ItemPager periodic run at
-    // this point in the test. We are loading the system up to the LWM, so that
-    // won't trigger eviction.
-    // Note: At this point in the test we can't disable the NonIO pool for
-    // disabling the Pager, as the write_items_upto_mem_perc() call that follows
-    // relies on running the CheckpointDestroyerTask
-    set_param(h,
-              EngineParamCategory::Flush,
-              "pager_sleep_time_ms",
-              std::to_string(1000 * 60 * 60).c_str());
-    // However, if we don't have any active/pending/replica vBuckets, and we
-    // don't have the item pager running periodically, once we re-enable the
-    // item pager by increasing the non-IO to 1 there will be nothing to
-    // trigger it (we normally wake up the task in memoryCondition(), when we
-    // have an incoming mutation, however these will be blocked by the
-    // quota change task).
-    // Hack number 2 - Have an empty active vBucket. The item pager will ignore
+    // Hack - Have an empty active vBucket. The item pager will ignore
     // the dead vb:0, and reschedule until the low_wat is reached (but there
     // is nothing to be evicted). Once we re-enable the non-IO tasks, it will
     // run immediately, freeing up memory and completing the quota change.
@@ -8226,7 +8194,7 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
               "max_size",
               std::to_string(newQuota).c_str());
 
-    // Hack number 3 - To set the new quota we need to run a NonIO task but
+    // Hack - To set the new quota we need to run a NonIO task but
     // we've just disabled all of the threads. To avoid paging things out, we
     // can cheat the ItemPager by setting the vBucket to dead (ItemPager will
     // skip it) but not delete it (different code path). Then, we can enable
