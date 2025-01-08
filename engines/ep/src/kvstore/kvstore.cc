@@ -731,6 +731,10 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     // Generate a path/uuid for the snapshot
     auto uuid = ::to_string(cb::uuid::random());
     const auto snapshotPath = path / uuid;
+    if (exists(snapshotPath)) {
+        return cb::engine_errc::key_already_exists;
+    }
+
     create_directories(snapshotPath);
 
     // Create a guard to clean-up on failure.
