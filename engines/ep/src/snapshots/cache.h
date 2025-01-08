@@ -53,7 +53,16 @@ namespace cb::snapshot {
  */
 class Cache {
 public:
-    Cache(const std::filesystem::path& path) : path(path / "snapshots") {
+    /**
+     * @param path path to the snapshot directory
+     * @param time a callback that set to control the time used by cache
+     *        functions. Default to steady_clock::now
+     */
+    Cache(
+            const std::filesystem::path& path,
+            std::function<std::chrono::steady_clock::time_point()> time =
+                    []() { return std::chrono::steady_clock::now(); })
+        : path(path / "snapshots"), time(std::move(time)) {
     }
 
     /// @return true if the manifest was added to cache (fail means duplicate)
@@ -152,14 +161,18 @@ protected:
     std::filesystem::path path;
 
     struct Entry {
-        explicit Entry(Manifest m) : manifest(std::move(m)) {
+        explicit Entry(Manifest m,
+                       std::chrono::steady_clock::time_point timestamp)
+            : manifest(std::move(m)), timestamp(timestamp) {
         }
-        mutable std::chrono::steady_clock::time_point timestamp =
-                std::chrono::steady_clock::now();
         Manifest manifest;
-        void addDebugStats(const StatCollector& collector) const;
+        mutable std::chrono::steady_clock::time_point timestamp;
+        void addDebugStats(const StatCollector& collector,
+                           std::chrono::steady_clock::time_point now) const;
     };
     folly::Synchronized<std::map<std::string, Entry>, std::mutex> snapshots;
+    // replaceable time callback to permit control/testing of time/purge
+    std::function<std::chrono::steady_clock::time_point()> time;
 };
 
 std::ostream& operator<<(std::ostream& os, const Cache& version);

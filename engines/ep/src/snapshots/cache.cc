@@ -24,33 +24,35 @@ namespace cb::snapshot {
 
 bool Cache::insert(Manifest manifest) {
     return snapshots
-            .withLock([&manifest](auto& map) {
-                return map.try_emplace(manifest.uuid, Entry(manifest));
+            .withLock([&manifest, time = time()](auto& map) {
+                return map.try_emplace(manifest.uuid, Entry(manifest, time));
             })
             .second;
 }
 
 std::optional<Manifest> Cache::lookup(const std::string& uuid) const {
-    return snapshots.withLock([&uuid](auto& map) -> std::optional<Manifest> {
-        auto iter = map.find(uuid);
-        if (iter == map.end()) {
-            return std::nullopt;
-        }
-        iter->second.timestamp = std::chrono::steady_clock::now();
-        return iter->second.manifest;
-    });
+    return snapshots.withLock(
+            [&uuid, time = time()](auto& map) -> std::optional<Manifest> {
+                auto iter = map.find(uuid);
+                if (iter == map.end()) {
+                    return std::nullopt;
+                }
+                iter->second.timestamp = time;
+                return iter->second.manifest;
+            });
 }
 
 std::optional<Manifest> Cache::lookup(const Vbid vbid) const {
-    return snapshots.withLock([&vbid](auto& map) -> std::optional<Manifest> {
-        for (auto& [uuid, entry] : map) {
-            if (entry.manifest.vbid == vbid) {
-                entry.timestamp = std::chrono::steady_clock::now();
-                return entry.manifest;
-            }
-        }
-        return std::nullopt;
-    });
+    return snapshots.withLock(
+            [&vbid, time = time()](auto& map) -> std::optional<Manifest> {
+                for (auto& [uuid, entry] : map) {
+                    if (entry.manifest.vbid == vbid) {
+                        entry.timestamp = time;
+                        return entry.manifest;
+                    }
+                }
+                return std::nullopt;
+            });
 }
 
 cb::engine_errc Cache::remove(std::string_view uuid) const {
@@ -88,8 +90,8 @@ cb::engine_errc Cache::release(Vbid vbid) {
 }
 
 void Cache::purge(std::chrono::seconds age) {
-    snapshots.withLock([&age, this](auto& map) {
-        const auto tp = std::chrono::steady_clock::now() - age;
+    snapshots.withLock([&age, this, time = time()](auto& map) {
+        const auto tp = time - age;
         std::vector<std::string> uuids;
 
         for (auto& [uuid, entry] : map) {
@@ -121,8 +123,8 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
 
     // Save the manfiest
     const auto& manifest = std::get<cb::snapshot::Manifest>(prepared);
-    if (!snapshots.withLock([manifest](auto& map) {
-            return map.try_emplace(manifest.uuid, Entry(manifest)).second;
+    if (!snapshots.withLock([manifest, time = time()](auto& map) {
+            return map.try_emplace(manifest.uuid, Entry(manifest, time)).second;
         })) {
         EP_LOG_WARN_CTX("Cache::prepare try_emplace failed",
                         {{"uuid", manifest.uuid}});
@@ -200,8 +202,8 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
 
     release_snapshot(manifest.uuid);
 
-    if (!snapshots.withLock([&manifest](auto& map) {
-            return map.try_emplace(manifest.uuid, Entry(manifest)).second;
+    if (!snapshots.withLock([&manifest, time = time()](auto& map) {
+            return map.try_emplace(manifest.uuid, Entry(manifest, time)).second;
         })) {
         EP_LOG_WARN_CTX("Cache::download try_emplace failed",
                         {{"uuid", manifest.uuid}});
@@ -219,30 +221,32 @@ std::filesystem::path Cache::make_absolute(
 void Cache::addDebugStats(const StatCollector& collector) const {
     // Lock the map, in general would prefer keep locking scope minimal but
     // this stat collection is for debug usage (cbcollect) and not operational
-    snapshots.withLock([&collector](auto& map) {
+    snapshots.withLock([&collector, time = time()](auto& map) {
         collector.addStat("snapshots_size", map.size());
 
         for (const auto& [uuid, entry] : map) {
-            entry.addDebugStats(collector);
+            entry.addDebugStats(collector, time);
         }
     });
 }
 
 void Cache::dump(std::ostream& os) const {
-    snapshots.withLock([&os](auto& map) {
+    snapshots.withLock([this, &os](auto& map) {
         for (const auto& [uuid, entry] : map) {
             nlohmann::json json;
             to_json(json, entry.manifest);
-            os << json.dump() << std::endl;
+            auto age = time() - entry.timestamp;
+            os << "age:" << age.count() << " " << json.dump() << std::endl;
         }
     });
 }
 
-void Cache::Entry::addDebugStats(const StatCollector& collector) const {
+void Cache::Entry::addDebugStats(
+        const StatCollector& collector,
+        std::chrono::steady_clock::time_point now) const {
     collector.addStat(
             std::string_view{fmt::format("vb_{}:age", manifest.vbid.get())},
-            std::chrono::duration_cast<std::chrono::seconds>(
-                    std::chrono::steady_clock::now() - timestamp)
+            std::chrono::duration_cast<std::chrono::seconds>(now - timestamp)
                     .count());
     manifest.addDebugStats(collector);
 }
