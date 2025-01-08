@@ -41,13 +41,16 @@ public:
     }
 
     std::filesystem::path snapshotdir{cb::io::mkdtemp("snapshot_test")};
-    cb::snapshot::Cache cache{snapshotdir};
+    std::chrono::steady_clock::time_point time =
+            std::chrono::steady_clock::now();
+    cb::snapshot::Cache cache{snapshotdir, [this]() { return time; }};
 };
 
 TEST_P(SnapshotsTests, prepare) {
     auto rv = cache.prepare(vbid, [this](const auto& dir, auto vb) {
         return doPrepareSnapshot(dir, vb);
     });
+    EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
     auto manifest = std::get<cb::snapshot::Manifest>(rv);
     EXPECT_FALSE(manifest.uuid.empty());
     EXPECT_FALSE(manifest.files.empty());
@@ -56,6 +59,31 @@ TEST_P(SnapshotsTests, prepare) {
         EXPECT_EQ(file_size(cache.make_absolute(file.path, manifest.uuid)),
                   file.size);
     }
+}
+
+TEST_P(SnapshotsTests, purge) {
+    // For this test we don't need to really create snapshots, we can just
+    // return a manifest. When purge runs it will log a warning only.
+    auto rv = cache.prepare(Vbid(0), [this](const auto& dir, auto vb) {
+        return cb::snapshot::Manifest{Vbid(0), "vb0"};
+    });
+    EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
+
+    rv = cache.prepare(Vbid(1), [this](const auto& dir, auto vb) {
+        return cb::snapshot::Manifest{Vbid(1), "vb1"};
+    });
+    EXPECT_TRUE(std::holds_alternative<cb::snapshot::Manifest>(rv));
+
+    // move time 10s and touch one snapshot
+    time += std::chrono::seconds(10);
+    EXPECT_TRUE(cache.lookup(Vbid(1)));
+
+    // Purge everything older than 9 seconds
+    cache.purge(std::chrono::seconds(9));
+
+    // Expect that vb0 snapshot is gone, but vb1 remains.
+    EXPECT_FALSE(cache.lookup(Vbid(0)));
+    EXPECT_TRUE(cache.lookup(Vbid(1)));
 }
 
 /* NOLINTNEXTLINE(modernize-avoid-c-arrays) */

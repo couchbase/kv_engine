@@ -91,11 +91,13 @@ cb::engine_errc Cache::release(Vbid vbid) {
 
 void Cache::purge(std::chrono::seconds age) {
     snapshots.withLock([&age, this, time = time()](auto& map) {
-        const auto tp = time - age;
+        const auto limit = time - age;
         std::vector<std::string> uuids;
 
         for (auto& [uuid, entry] : map) {
-            if (entry.timestamp > tp) {
+            // Remove all snapshots that have a timestamp below the limit, i.e.
+            // they've not been used for age seconds.
+            if (entry.timestamp < limit) {
                 remove(entry.manifest.uuid);
                 uuids.emplace_back(entry.manifest.uuid);
             }
