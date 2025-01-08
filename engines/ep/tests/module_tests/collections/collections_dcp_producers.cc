@@ -142,6 +142,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
         uint64_t end_seqno,
         DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> high_prepared_seqno,
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> purgeSeqno,
         cb::mcbp::DcpStreamId sid) {
@@ -153,6 +154,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
                                        end_seqno,
                                        flags,
                                        high_completed_seqno,
+                                       high_prepared_seqno,
                                        maxVisibleSeqno,
                                        purgeSeqno);
         EXPECT_EQ(cb::engine_errc::success, ret);
@@ -164,6 +166,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
                                     end_seqno,
                                     flags,
                                     high_completed_seqno,
+                                    high_prepared_seqno,
                                     maxVisibleSeqno,
                                     purgeSeqno,
                                     sid);

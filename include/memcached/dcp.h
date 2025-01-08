@@ -123,6 +123,7 @@ struct DcpMessageProducersIface {
             uint64_t end_seqno,
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> highCompletedSeqno,
+            std::optional<uint64_t> highPreparedSeqno,
             std::optional<uint64_t> maxVisibleSeqno,
             std::optional<uint64_t> purgeSeqno,
             cb::mcbp::DcpStreamId sid) = 0;
@@ -512,6 +513,7 @@ struct DcpIface {
             uint64_t end_seqno,
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> high_completed_seqno,
+            std::optional<uint64_t> high_prepared_seqno,
             std::optional<uint64_t> max_visible_seqno,
             std::optional<uint64_t> purge_seqno) = 0;
 

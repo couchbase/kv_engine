@@ -1116,7 +1116,8 @@ cb::engine_errc STParameterizedBucketTest::snapshot(
         uint64_t start,
         uint64_t end,
         DcpSnapshotMarkerFlag flags) {
-    return consumer.snapshotMarker(opaque, vbid, start, end, flags, 0, end, {});
+    return consumer.snapshotMarker(
+            opaque, vbid, start, end, flags, 0, {}, end, {});
 }
 
 cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
@@ -2388,6 +2389,7 @@ TEST_P(STParamPersistentBucketTest, MB_29861) {
             /*endseq*/ 2,
             /*flags*/ DcpSnapshotMarkerFlag::Disk,
             /*HCS*/ 0,
+            /*HPS*/ {},
             /*maxVisibleSeqno*/ {},
             /*purgeSeqno*/ {});
 
@@ -2483,6 +2485,7 @@ void STParameterizedBucketTest::test_replicateDeleteTime(time_t deleteTime) {
                              /*endseq*/ 2,
                              /*flags*/ {},
                              /*HCS*/ {},
+                             /*HPS*/ {},
                              /*maxVisibleSeqno*/ {},
                              /*purgeSeqno*/ {});
     // 2. Now add two deletions, one without deleteTime, one with
@@ -2926,6 +2929,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgSeqno*/));
     EXPECT_EQ(cb::engine_errc::success,
@@ -2960,6 +2964,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgSeqno*/));
     EXPECT_EQ(cb::engine_errc::success,
@@ -3406,6 +3411,7 @@ TEST_P(XattrCompressedTest, MB_29040_sanitise_input) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgSeqno*/));
 
@@ -3483,6 +3489,7 @@ TEST_P(STParamPersistentBucketTest, MB_31141_sanitise_input) {
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgSeqno*/));
 
@@ -4451,6 +4458,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {},
             {},
+            {},
             {});
 
     // Store value with an xattr
@@ -4491,6 +4499,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
             /*start_seqno*/ 2,
             /*end_seqno*/ 2,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
+            {},
             {},
             {},
             {});
@@ -5621,6 +5630,7 @@ TEST_P(STParameterizedBucketTest, FailoverEntryAfterReplicaPromotion) {
                                        bySeqno + 1,
                                        flags,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -5671,6 +5681,7 @@ TEST_P(STParameterizedBucketTest, FailoverEntryAfterReplicaPromotion) {
                                        bySeqno + 7,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -5726,6 +5737,7 @@ TEST_P(STParameterizedBucketTest,
                                        bySeqno + 1,
                                        flags,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -5769,6 +5781,7 @@ TEST_P(STParameterizedBucketTest,
                                        bySeqno + 1,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -5819,6 +5832,7 @@ TEST_P(STParameterizedBucketTest,
                                        bySeqno + 3,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 

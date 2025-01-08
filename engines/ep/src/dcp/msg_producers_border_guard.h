@@ -59,6 +59,7 @@ public:
                            uint64_t end_seqno,
                            cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                            std::optional<uint64_t> highCompletedSeqno,
+                           std::optional<uint64_t> highPreparedSeqno,
                            std::optional<uint64_t> maxVisibleSeqno,
                            std::optional<uint64_t> purgeSeqno,
                            cb::mcbp::DcpStreamId sid) override;

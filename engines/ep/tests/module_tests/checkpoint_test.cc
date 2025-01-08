@@ -346,13 +346,15 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
 // The test also demonstrates a partial snapshot
 TEST_P(ReplicaCheckpointTest, getItems_MultipleSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
-    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
+    this->manager->createSnapshot(
+            1001, 1003, {}, {}, CheckpointType::Memory, 1003);
     EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
     EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
 
     // 2nd Snapshot covers 1004-1006 and all items are received
     // here we pretend that 1005 is hidden
-    this->manager->createSnapshot(1004, 1006, {}, CheckpointType::Memory, 1005);
+    this->manager->createSnapshot(
+            1004, 1006, {}, {}, CheckpointType::Memory, 1005);
 
     for (auto i : {1004, 1005, 1006}) {
         EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
@@ -397,12 +399,13 @@ TEST_P(ReplicaCheckpointTest, getItems_MultipleSnapshots) {
 // Extended with dedicated checks and comments for the scenario hit in MB-55520.
 TEST_P(ReplicaCheckpointTest, getItems_MemoryDiskSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
-    this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
+    this->manager->createSnapshot(
+            1001, 1003, {}, {}, CheckpointType::Memory, 1003);
     EXPECT_TRUE(this->queueReplicatedItem("k1", 1001));
     EXPECT_TRUE(this->queueReplicatedItem("k2", 1003));
 
     // 2nd Snapshot covers 1004-1006 and all items are received
-    this->manager->createSnapshot(1004, 1006, 0, CheckpointType::Disk, 1006);
+    this->manager->createSnapshot(1004, 1006, 0, 0, CheckpointType::Disk, 1006);
 
     for (auto i : {1004, 1005, 1006}) {
         EXPECT_TRUE(this->queueReplicatedItem("k" + std::to_string(i), i));
@@ -1008,6 +1011,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                   snapshotEnd,
                                   flags,
                                   0 /*HCS*/,
+                                  {},
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {});
@@ -1043,6 +1047,7 @@ TEST_F(SingleThreadedCheckpointTest, CloseReplicaCheckpointOnDiskSnapshotEnd) {
                                    snapshotEnd + 2,
                                    DcpSnapshotMarkerFlag::Checkpoint,
                                    {} /*HCS*/,
+                                   {},
                                    {} /*maxVisibleSeqno*/,
                                    {}, // timestamp
                                    {} /*SID*/);
@@ -1140,6 +1145,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                       diskSnapshotEnd,
                                       flags,
                                       0 /*HCS*/,
+                                      {},
                                       {} /*maxVisibleSeqno*/,
                                       {}, // timestamp
                                       {} /*SID*/);
@@ -1160,6 +1166,7 @@ void SingleThreadedCheckpointTest::closeReplicaCheckpointOnMemorySnapshotEnd(
                                   snapshotEnd,
                                   flags,
                                   0 /*HCS*/,
+                                  {},
                                   {} /*maxVisibleSeqno*/,
                                   {}, // timestamp
                                   {} /*SID*/);
@@ -1945,6 +1952,7 @@ void SingleThreadedCheckpointTest::
                                   DcpSnapshotMarkerFlag::Disk,
                                   0,
                                   {},
+                                  {},
                                   std::nullopt,
                                   {});
     passiveStream->processMarker(&snapshotMarker);
@@ -2633,7 +2641,7 @@ TEST_P(CheckpointTest, DuplicateCheckpointCursorDifferentCheckpoints) {
  * as we would use a lot of memory for key indexes.
  */
 TEST_P(CheckpointTest, NoKeyIndexInDiskCheckpoint) {
-    manager->createSnapshot(0, 1000, 1000, CheckpointType::Disk, 1000);
+    manager->createSnapshot(0, 1000, 1000, {}, CheckpointType::Disk, 1000);
 
     const auto& checkpoint =
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
@@ -2737,7 +2745,7 @@ TEST_P(CheckpointTest, ExpelCheckpointItemsMemory) {
 }
 
 TEST_P(ReplicaCheckpointTest, ExpelCheckpointItemsDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
+    manager->createSnapshot(0, 1000, 0, {}, CheckpointType::Disk, 1000);
     testExpelCheckpointItems();
 }
 
@@ -2861,7 +2869,7 @@ TEST_P(CheckpointTest, ExpelCursorPointingToLastItemMemory) {
 }
 
 TEST_P(ReplicaCheckpointTest, ExpelCursorPointingToLastItemDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
+    manager->createSnapshot(0, 1000, 0, {}, CheckpointType::Disk, 1000);
     testExpelCursorPointingToLastItem();
 }
 
@@ -2892,7 +2900,7 @@ TEST_P(CheckpointTest, ExpelCursorPointingToChkptStartMemory) {
 }
 
 TEST_P(ReplicaCheckpointTest, ExpelCursorPointingToChkptStartDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
+    manager->createSnapshot(0, 1000, 0, {}, CheckpointType::Disk, 1000);
     testExpelCursorPointingToChkptStart();
 }
 
@@ -2957,7 +2965,7 @@ TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoMemory) {
 }
 
 TEST_P(CheckpointTest, testDontExpelIfCursorAtMetadataItemWithSameSeqnoDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
+    manager->createSnapshot(0, 1000, 0, {}, CheckpointType::Disk, 1000);
     testDontExpelIfCursorAtMetadataItemWithSameSeqno(true);
 }
 
@@ -3089,7 +3097,7 @@ TEST_P(CheckpointTest, ExpelCheckpointItemsMemoryRecoveredMemory) {
 }
 
 TEST_P(ReplicaCheckpointTest, ExpelCheckpointItemsMemoryRecoveredDisk) {
-    manager->createSnapshot(0, 1000, 0, CheckpointType::Disk, 1000);
+    manager->createSnapshot(0, 1000, 0, {}, CheckpointType::Disk, 1000);
     testExpelCheckpointItemsMemoryRecovered();
 }
 
@@ -3112,7 +3120,7 @@ TEST_P(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
 
     // first snapshot received
-    cm.createSnapshot(1, 10, {/* hcs */}, CheckpointType::Memory, 10);
+    cm.createSnapshot(1, 10, {/* hcs */}, {}, CheckpointType::Memory, 10);
     EXPECT_EQ(2, checkpointList.size());
     // Ensure the number of cursors is still correct
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
@@ -3565,12 +3573,12 @@ TEST_P(CheckpointTest, CheckpointManagerForbidsMergingDiskSnapshot) {
     vbucket->setState(vbucket_state_replica);
 
     // Positive check first: extending Memory checkpoints is allowed
-    manager->createSnapshot(1000, 2000, 0, CheckpointType::Memory, 2000);
+    manager->createSnapshot(1000, 2000, 0, {}, CheckpointType::Memory, 2000);
     EXPECT_TRUE(queueReplicatedItem("keyA", 1001));
     manager->extendOpenCheckpoint(2001, 3000);
 
     // Negative check
-    manager->createSnapshot(3001, 4000, 0, CheckpointType::Disk, 4000);
+    manager->createSnapshot(3001, 4000, 0, {}, CheckpointType::Disk, 4000);
     try {
         manager->extendOpenCheckpoint(4001, 5000);
     } catch (const std::logic_error& e) {
@@ -3854,7 +3862,7 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
 
     // 1) Receive a snapshot, two items is plenty for the test
     this->manager->createSnapshot(
-            1001, 1002, 1002, CheckpointType::Disk, 1002);
+            1001, 1002, 1002, {}, CheckpointType::Disk, 1002);
     ASSERT_TRUE(this->queueReplicatedItem("k1001", 1001)); // 1001
 
     // 1.1) persist these, cursor now past k1001 and we can expel up to that
@@ -3901,7 +3909,7 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
 // should not reference the closed checkpoint.
 TEST_P(ReplicaCheckpointTest, MB_47551) {
     // 1) Receive a snapshot, two items is plenty for the test
-    manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
+    manager->createSnapshot(1001, 1002, 1002, {}, CheckpointType::Disk, 1002);
     ASSERT_TRUE(queueReplicatedItem("k1001", 1001)); // 1001
     ASSERT_TRUE(queueReplicatedItem("k1002", 1002)); // 1002
 
@@ -4371,14 +4379,15 @@ TEST_P(CheckpointTest, NeverMergeCheckpointsOfDifferentType) {
     }
 
     // First Memory snapshot
-    manager->createSnapshot(1001, 1002, {}, CheckpointType::Memory, 1002);
+    manager->createSnapshot(1001, 1002, {}, {}, CheckpointType::Memory, 1002);
     EXPECT_TRUE(queueReplicatedItem("key1", 1001));
     EXPECT_TRUE(queueReplicatedItem("key2", 1002));
     EXPECT_EQ(1, manager->getNumCheckpoints());
     EXPECT_EQ(3, manager->getNumOpenChkItems());
 
     // Second Disk snapshot
-    this->manager->createSnapshot(1003, 1004, 0, CheckpointType::Disk, 1004);
+    this->manager->createSnapshot(
+            1003, 1004, 0, {}, CheckpointType::Disk, 1004);
     EXPECT_TRUE(queueReplicatedItem("key3", 1003));
     EXPECT_TRUE(queueReplicatedItem("key4", 1004));
     EXPECT_EQ(2, manager->getNumCheckpoints());

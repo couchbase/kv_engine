@@ -777,6 +777,7 @@ cb::engine_errc dcpSnapshotMarker(
         uint64_t endSeqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highPreparedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> purge_seqno) {
     auto& connection = cookie.getConnection();
@@ -788,6 +789,7 @@ cb::engine_errc dcpSnapshotMarker(
                                     endSeqno,
                                     flags,
                                     highCompletedSeqno,
+                                    highPreparedSeqno,
                                     maxVisibleSeqno,
                                     purge_seqno);
     if (ret == cb::engine_errc::disconnect) {

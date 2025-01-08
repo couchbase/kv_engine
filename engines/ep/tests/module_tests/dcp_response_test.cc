@@ -120,6 +120,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             4, // end_seqno
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
+            {},
             {}, // maxVisibleSeqno
             std::nullopt,
             {}); // sid
@@ -137,6 +138,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             4, // end_seqno
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             6, // highCompletedSeqno
+            {},
             {}, // maxVisibleSeqno
             std::nullopt,
             {}); // sid
@@ -148,6 +150,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_getMessageSize) {
             4, // end_seqno
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
+            {},
             6, // maxVisibleSeqno
             std::nullopt,
             {}); // sid
@@ -169,6 +172,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             4, // end_seqno
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
+            {},
             {}, // maxVisibleSeqno
             std::nullopt,
             cb::mcbp::DcpStreamId(6)); // sid
@@ -187,6 +191,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             4, // end_seqno
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             6, // highCompletedSeqno
+            {},
             {}, // maxVisibleSeqno
             std::nullopt,
             cb::mcbp::DcpStreamId(7)); // sid
@@ -198,6 +203,7 @@ TEST(DcpResponseTest, DcpSnapshotMarker_with_sid_getMessageSize) {
             4, // end_seqno
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {}, // highCompletedSeqno
+            {},
             6, // maxVisibleSeqno
             std::nullopt,
             cb::mcbp::DcpStreamId(7)); // sid

@@ -185,6 +185,7 @@ bool DCPBackfillDiskToStream::scanHistoryCreate(
                 historyScanCtx.snapshotInfo.range.getStart(),
                 historyScanCtx.snapshotInfo.range.getEnd(),
                 ctx.persistedCompletedSeqno,
+                ctx.highPreparedSeqno,
                 ctx.maxVisibleSeqno,
                 ctx.purgeSeqno,
                 historyScanCtx.getSnapshotType())) {

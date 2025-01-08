@@ -781,6 +781,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         uint64_t end_seqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> high_prepared_seqno,
         std::optional<uint64_t> max_visible_seqno,
         std::optional<uint64_t> purge_seqno) {
     lastMessageTime = ep_uptime_now();
@@ -790,6 +791,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
                                                 end_seqno,
                                                 flags,
                                                 high_completed_seqno,
+                                                high_prepared_seqno,
                                                 max_visible_seqno,
                                                 purge_seqno,
                                                 cb::mcbp::DcpStreamId{});

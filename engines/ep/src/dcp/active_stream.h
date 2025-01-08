@@ -227,6 +227,7 @@ public:
      * @param endSeqno seqno of last item in backfill range
      * @param highCompletedSeqno seqno of last commit/abort in the backfill
      * range
+     * @param highPreparedSeqno seqno of the last prepare in the backfill range
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
      * @param purgeSeqno current purgeSeqno of the vbucket.
@@ -237,6 +238,7 @@ public:
     bool markDiskSnapshot(uint64_t startSeqno,
                           uint64_t endSeqno,
                           std::optional<uint64_t> highCompletedSeqno,
+                          std::optional<uint64_t> highPreparedSeqno,
                           uint64_t maxVisibleSeqno,
                           uint64_t purgeSeqno,
                           SnapshotType snapshotType);
@@ -401,6 +403,7 @@ public:
              * The Purge Seqno of the original disk snapshot
              */
             uint64_t purgeSeqno;
+            uint64_t highPreparedSeqno{0};
         };
 
         /**

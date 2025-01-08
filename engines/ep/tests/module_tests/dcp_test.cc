@@ -1279,6 +1279,7 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                              /*end_seqno*/ 0,
                              /*flags*/ {},
                              /*HCS*/ {},
+                             /*HPS*/ {},
                              /*maxVisibleSeqno*/ {},
                              /*purgeSeqno*/ {});
     EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
@@ -2644,6 +2645,7 @@ void FlowControlTestBase::testNotifyConsumerOnlyIfFlowControlEnabled(
                                        10,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeq*/,
                                        {} /*purgeSeqno*/));
     const DocKeyView docKey{nullptr, 0, DocKeyEncodesCollectionId::No};

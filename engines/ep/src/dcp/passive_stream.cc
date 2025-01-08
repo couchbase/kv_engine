@@ -918,6 +918,12 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                     ? 0
                     : marker->getHighCompletedSeqno();
 
+    const std::optional<uint64_t> hps =
+            isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) &&
+                            !supportsSyncReplication
+                    ? 0
+                    : marker->getHighPreparedSeqno();
+
     if (isFlagSet(marker->getFlags(), DcpSnapshotMarkerFlag::Disk) && !hcs) {
         const auto msg = fmt::format(
                 "PassiveStream::processMarker: stream:{} {}, flags:{}, "
@@ -993,6 +999,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
         ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                cur_snapshot_end.load(),
                                hcs,
+                               hps,
                                checkpointType,
                                visibleSeq,
                                historical,
@@ -1004,6 +1011,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                    cur_snapshot_end.load(),
                                    hcs,
+                                   hps,
                                    checkpointType,
                                    visibleSeq,
                                    historical,
@@ -1026,6 +1034,7 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                 ckptMgr.createSnapshot(cur_snapshot_start.load(),
                                        cur_snapshot_end.load(),
                                        hcs,
+                                       hps,
                                        checkpointType,
                                        visibleSeq,
                                        historical,

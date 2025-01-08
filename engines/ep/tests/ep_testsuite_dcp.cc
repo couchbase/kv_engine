@@ -951,6 +951,7 @@ static void dcp_stream_to_replica(EngineIface* h,
                                  snap_end_seqno,
                                  flags,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send marker!");
@@ -1088,6 +1089,7 @@ static void dcp_stream_expiries_to_replica(EngineIface* h,
                                  snap_end_seqno,
                                  flags,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send marker!");
@@ -1213,6 +1215,7 @@ extern "C" {
                                               ctx->items + i,
                                               DcpSnapshotMarkerFlag::Disk,
                                               0 /*HCS*/,
+                                              0 /*HPS*/,
                                               {} /*maxVisibleSeqno*/,
                                               {} /*purgeSeqno*/),
                     "snapshot marker failed");
@@ -2494,6 +2497,7 @@ static enum test_result test_dcp_consumer_hotness_data(EngineIface* h) {
                                  1,
                                  {},
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send marker!");
@@ -3289,6 +3293,7 @@ static enum test_result test_dcp_reconnect(EngineIface* h,
                                  10,
                                  DcpSnapshotMarkerFlag::Disk,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
@@ -3422,6 +3427,7 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Disk |
                                          DcpSnapshotMarkerFlag::Acknowledge,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "snapshot marker failed");
@@ -3457,6 +3463,7 @@ static test_result test_dcp_consumer_takeover(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Disk |
                                          DcpSnapshotMarkerFlag::Acknowledge,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "snapshot marker failed");
@@ -3576,6 +3583,7 @@ static enum test_result test_failover_scenario_one_with_dcp(EngineIface* h) {
                                  startSeqno + snapshotNumItems,
                                  {} /*flags*/,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
@@ -3657,6 +3665,7 @@ static enum test_result test_failover_scenario_two_with_dcp(EngineIface* h) {
                                  5,
                                  {},
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send marker!");
@@ -3798,6 +3807,7 @@ static enum test_result test_consumer_backoff(EngineIface* h) {
                                  20,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -4692,6 +4702,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                                  10,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
@@ -4740,6 +4751,7 @@ static enum test_result test_dcp_consumer_mutate(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Acknowledge |
                                          DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send marker!");
@@ -4830,6 +4842,7 @@ static enum test_result test_dcp_consumer_delete(EngineIface* h) {
                                  10,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
@@ -4922,6 +4935,7 @@ static enum test_result test_dcp_consumer_expire(EngineIface* h) {
                                  10,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker");
@@ -6217,6 +6231,7 @@ static enum test_result test_dcp_erroneous_mutations(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Acknowledge |
                                          DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -6347,6 +6362,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Acknowledge |
                                          DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -6403,6 +6419,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                  10,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::out_of_range,
@@ -6417,6 +6434,7 @@ static enum test_result test_dcp_erroneous_marker(EngineIface* h) {
                                  15,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -6551,6 +6569,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Acknowledge |
                                          DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -6586,6 +6605,7 @@ static enum test_result test_dcp_invalid_snapshot_marker(EngineIface* h) {
                                          DcpSnapshotMarkerFlag::Acknowledge |
                                          DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::invalid_arguments,
@@ -6888,6 +6908,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                                  /*end*/ 2,
                                  DcpSnapshotMarkerFlag::Disk,
                                  /*HCS*/ 0,
+                                 /*HPS*/ 0,
                                  /*maxVisibleSeqno*/ {},
                                  /*purgeSeqno*/ {}),
             "snapshot marker failed");
@@ -6933,6 +6954,7 @@ static enum test_result test_mb17517_cas_minus_1_dcp(EngineIface* h) {
                                  /*end*/ 3,
                                  DcpSnapshotMarkerFlag::Disk,
                                  /*HCS*/ 0,
+                                 /*HPS*/ 0,
                                  /*maxVisibleSeqno*/ {},
                                  /*purgeSeqno*/ {}),
             "Snapshot marker failed");
@@ -7127,6 +7149,7 @@ static enum test_result test_dcp_consumer_oom_behavior(EngineIface* h) {
                                  {},
                                  {},
                                  {},
+                                 {},
                                  {}),
             "Failed to send snapshot marker");
     const DocKeyView docKey("key", DocKeyEncodesCollectionId::No);
@@ -7206,6 +7229,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                                  10,
                                  DcpSnapshotMarkerFlag::Memory,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send snapshot marker!");
@@ -7550,6 +7574,7 @@ static enum test_result test_mb19982(EngineIface* h) {
                                  DcpSnapshotMarkerFlag::Disk |
                                          DcpSnapshotMarkerFlag::Checkpoint,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -7664,6 +7689,7 @@ static enum test_result test_MB_34634(EngineIface* h) {
                                  2, // end-seq
                                  DcpSnapshotMarkerFlag::Disk,
                                  0 /*HCS*/,
+                                 0 /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "snapshot_marker returned an error");
@@ -7795,6 +7821,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
                                  num_items,
                                  DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             cb::engine_errc::success,
@@ -7831,6 +7858,7 @@ static enum test_result test_MB_34664(EngineIface* h) {
                                  num_items + 1,
                                  DcpSnapshotMarkerFlag::Checkpoint,
                                  {} /*HCS*/,
+                                 {} /*HPS*/,
                                  {} /*maxVisibleSeqno*/,
                                  {} /*purgeSeqno*/),
             "Failed to send second snapshot marker");

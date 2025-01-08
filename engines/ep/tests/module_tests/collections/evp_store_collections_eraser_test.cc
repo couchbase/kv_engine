@@ -2199,7 +2199,7 @@ TEST_P(CollectionsEraserPersistentOnly,
 TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
     // Setup a replica vBucket containing one collection.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
-    vb->checkpointManager->createSnapshot(0, 3, 0, CheckpointType::Disk, 3);
+    vb->checkpointManager->createSnapshot(0, 3, 0, {}, CheckpointType::Disk, 3);
     uint64_t uid = 0;
     vb->replicaBeginCollection(Collections::ManifestUid(uid++),
                                {ScopeID::Default, CollectionEntry::dairy},
@@ -2246,7 +2246,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
                           false);
 
         vb->checkpointManager->createSnapshot(
-                4, 4, 0, CheckpointType::Memory, 4);
+                4, 4, 0, {}, CheckpointType::Memory, 4);
         this->vb->replicaDropCollection(Collections::ManifestUid(uid++),
                                         CollectionEntry::dairy,
                                         false,

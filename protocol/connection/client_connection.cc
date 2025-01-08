@@ -2106,7 +2106,7 @@ size_t MemcachedConnection::dcpSnapshotMarkerV2(
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     builder.setOpaque(opaque);
 
-    cb::mcbp::DcpSnapshotMarker marker(start, end, flags, {}, end, 0);
+    cb::mcbp::DcpSnapshotMarker marker(start, end, flags, {}, {}, end, 0);
     marker.encode(builder);
     sendFrame(buffer);
     return buffer.payload.size();

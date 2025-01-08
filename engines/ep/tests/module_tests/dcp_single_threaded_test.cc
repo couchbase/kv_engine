@@ -233,6 +233,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              1 /*end_seqno*/,
                              DcpSnapshotMarkerFlag::Disk,
                              0 /*HCS*/,
+                             {} /*HPS*/,
                              {} /*maxVisibleSeqno*/,
                              {} /*purgeSeqno*/);
 
@@ -303,6 +304,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
                              0 /*end_seqno*/,
                              {} /*flags*/,
                              {} /*HCS*/,
+                             {} /*HPS*/,
                              {} /*maxVisibleSeqno*/,
                              {} /*purgeSeqno*/);
 
@@ -354,6 +356,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              1 /*end_seqno*/,
                              DcpSnapshotMarkerFlag::Disk,
                              0 /*HCS*/,
+                             {} /*HPS*/,
                              {} /*maxVisibleSeqno*/,
                              {} /*purgeSeqno*/);
 
@@ -366,6 +369,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
                              2 /*end_seqno*/,
                              {} /*flags*/,
                              {} /*HCS*/,
+                             {} /*HPS*/,
                              {} /*maxVisibleSeqno*/,
                              {} /*purgeSeqno*/);
 
@@ -593,6 +597,7 @@ TEST_P(STDcpTest, ProcessUnackedBytesAtReplicationOOM) {
                                        snapEnd,
                                        DcpSnapshotMarkerFlag::Memory,
                                        /*HCS*/ {},
+                                       /*HPS*/ {},
                                        /*maxVisibleSeqno*/ {},
                                        /*purgeSeqno*/ {}));
 
@@ -946,6 +951,7 @@ void STDcpTest::sendConsumerMutationsNearThreshold(bool beyondThreshold) {
                                        snapEnd,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeq*/,
                                        {} /*purgeSeqno*/));
 

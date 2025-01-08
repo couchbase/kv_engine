@@ -167,6 +167,7 @@ cb::engine_errc ConnHandler::snapshotMarker(
         uint64_t end_seqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> high_prepared_seqno,
         std::optional<uint64_t> max_visible_seqno,
         std::optional<uint64_t> purge_seqno) {
     logger->warn(

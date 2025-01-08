@@ -24,6 +24,9 @@ nlohmann::json DcpSnapshotMarker::to_json() const {
     if (maxVisibleSeqno) {
         ret["max_visible_seqno"] = *maxVisibleSeqno;
     }
+    if (highPreparedSeqno) {
+        ret["highPreparedSeqno"] = *highPreparedSeqno;
+    }
     return ret;
 }
 
@@ -47,7 +50,7 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV2_0Value(
 
     if (value.size() != sizeof(DcpSnapshotMarkerV2_0Value)) {
         throw std::runtime_error(
-                "decodeDcpSnapshotMarkerV2_0Value: Invalid size");
+                "decodeDcpSnapshotMarkerV2_xValue: Invalid size");
     }
 
     const auto* payload2_0 =
@@ -59,11 +62,6 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV2_0Value(
     // MaxVisible is sent in all V2.0 snapshot markers
     marker.setMaxVisibleSeqno(payload2_0->getMaxVisibleSeqno());
 
-    // HighCompletedSeqno is always present in V2.0 but should only be accessed
-    // when the flags have disk set.
-    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
-        marker.setHighCompletedSeqno(payload2_0->getHighCompletedSeqno());
-    }
     return marker;
 }
 
@@ -140,7 +138,11 @@ void DcpSnapshotMarker::encode(
         Expects(isFlagSet(flags, DcpSnapshotMarkerFlag::Disk));
     }
 
-    if (purgeSeqno) {
+    if (highPreparedSeqno) {
+        Expects(isFlagSet(flags, DcpSnapshotMarkerFlag::Disk));
+    }
+
+    if (purgeSeqno || highPreparedSeqno) {
         DcpSnapshotMarkerV2xPayload extras(DcpSnapshotMarkerV2xVersion::Two);
         frame.setExtras(extras.getBuffer());
 
@@ -150,6 +152,7 @@ void DcpSnapshotMarker::encode(
         value.setFlags(flags);
         value.setMaxVisibleSeqno(maxVisibleSeqno.value_or(0));
         value.setHighCompletedSeqno(highCompletedSeqno.value_or(0));
+        value.setHighPreparedSeqno(highPreparedSeqno.value_or(0));
         value.setPurgeSeqno(purgeSeqno.value_or(0));
 
         frame.setValue(value.getBuffer());

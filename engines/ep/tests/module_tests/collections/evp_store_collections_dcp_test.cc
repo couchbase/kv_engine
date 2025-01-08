@@ -89,6 +89,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ {},
                                        /*HCS*/ {},
+                                       /*HPS*/ {},
                                        /*maxVisibleSeqno*/ {},
                                        /*purgeSeqno*/ {}));
 
@@ -207,6 +208,7 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ {},
                                        /*highCompletedSeqno*/ {},
+                                       /*HPS*/ {},
                                        /*maxVisibleSeqno*/ {},
                                        /*purgeSeqno*/ {}));
 
@@ -387,7 +389,7 @@ TEST_F(CollectionsDcpTest, MB_38019) {
     // be created, then create collections, first we will match the active
     // node, then go ahead by two extra changes.
     replica->checkpointManager->createSnapshot(
-            1, 3, 0, CheckpointType::Memory, 3);
+            1, 3, 0, {}, CheckpointType::Memory, 3);
     replica->replicaBeginCollection(Collections::ManifestUid(uid),
                                     {ScopeID::Default, CollectionEntry::fruit},
                                     "fruit",
@@ -2703,7 +2705,7 @@ void MB48010CollectionsDCPParamTest::SetUp() {
     // This snapshot will cover 0 to 5
     // It begins by creating two collections and receiving one mutation
     // All of that is flushed and then expel is used to discard in-memory items
-    vb->checkpointManager->createSnapshot(0, 4, 0, CheckpointType::Disk, 4);
+    vb->checkpointManager->createSnapshot(0, 4, 0, {}, CheckpointType::Disk, 4);
 
     uint64_t uid = 0;
     vb->replicaBeginCollection(Collections::ManifestUid(uid),
@@ -3736,6 +3738,7 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
                                        /*end_seqno*/ 100,
                                        /*flags*/ {},
                                        /*HCS*/ {},
+                                       /*HPS*/ {},
                                        /*maxVisibleSeqno*/ {},
                                        /*purgeSeqno*/ {}));
 

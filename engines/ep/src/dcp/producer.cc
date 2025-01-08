@@ -1012,6 +1012,7 @@ cb::engine_errc DcpProducer::step(bool throttled,
                                    s->getEndSeqno(),
                                    s->getFlags(),
                                    s->getHighCompletedSeqno(),
+                                   s->getHighPreparedSeqno(),
                                    s->getMaxVisibleSeqno(),
                                    s->getPurgeSeqno(),
                                    resp->getStreamId());

@@ -3093,7 +3093,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     EXPECT_EQ(0, result.getManifestId());
 
     replicaVb->checkpointManager->createSnapshot(
-            0, 2, std::nullopt, CheckpointType::Memory, 2);
+            0, 2, std::nullopt, {}, CheckpointType::Memory, 2);
     replicaVb->replicaCreateScope(
             Collections::ManifestUid(1), ScopeUid::shop1, ScopeName::shop1, 1);
     replicaVb->replicaBeginCollection(

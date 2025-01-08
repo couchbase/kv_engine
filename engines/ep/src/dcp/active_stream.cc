@@ -305,6 +305,7 @@ static bool mustAssignEndSeqno(SnapshotType source,
 bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     uint64_t endSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
+                                    std::optional<uint64_t> highPreparedSeqno,
                                     uint64_t maxVisibleSeqno,
                                     uint64_t purgeSeqno,
                                     SnapshotType snapshotType) {
@@ -382,6 +383,11 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         // SnapshotMarker if it is not 0
         auto sendHCS = supportSyncReplication() && highCompletedSeqno;
         auto hcsToSend = sendHCS ? highCompletedSeqno : std::nullopt;
+
+        const auto sendHPS = supportSyncReplication() &&
+                             (maxMarkerVersion == MarkerVersion::V2_2);
+        auto hpsToSend = sendHPS ? highPreparedSeqno : std::nullopt;
+
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
@@ -414,6 +420,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                                  endSeqno,
                                                                  flags,
                                                                  hcsToSend,
+                                                                 hpsToSend,
                                                                  mvsToSend,
                                                                  psToSend,
                                                                  sid);
@@ -437,6 +444,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                           endSeqno,
                                                           flags,
                                                           hcsToSend,
+                                                          hpsToSend,
                                                           mvsToSend,
                                                           psToSend,
                                                           sid));
@@ -1126,6 +1134,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
             const auto msg = fmt::format(
                     "ActiveStream::getOutstandingItems: stream:{} {} "
                     "processing checkpoint type:{}, {}, ranges:{}, HCS:{}, "
+                    "HPS:{} "
                     "MVS:{}, items:{}",
                     name_,
                     vb_,
@@ -1133,6 +1142,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                     ::to_string(itemsForCursor.historical),
                     itemsForCursor.ranges.size(),
                     ::to_string_or_none(itemsForCursor.highCompletedSeqno),
+                    ::to_string_or_none(itemsForCursor.highPreparedSeqno),
                     itemsForCursor.visibleSeqno,
                     result.items.size());
             throw std::logic_error(msg);
@@ -1158,6 +1168,8 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
         result.diskCheckpointState->highCompletedSeqno =
                 *itemsForCursor.highCompletedSeqno;
         result.diskCheckpointState->purgeSeqno = itemsForCursor.purgeSeqno;
+        result.diskCheckpointState->highPreparedSeqno =
+                *itemsForCursor.highPreparedSeqno;
     }
 
     return result;
@@ -1721,6 +1733,7 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                                                       snapEnd,
                                                       flags,
                                                       hcsToSend,
+                                                      std::nullopt,
                                                       mvsToSend,
                                                       psToSend,
                                                       sid));
@@ -2759,6 +2772,7 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
                                                   start,
                                                   end,
                                                   flags,
+                                                  std::nullopt,
                                                   std::nullopt,
                                                   std::nullopt,
                                                   psToSend,

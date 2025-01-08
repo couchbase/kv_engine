@@ -111,7 +111,7 @@ void PassiveDurabilityMonitorTest::addSyncWrite(
     item.setPendingSyncWrite(req);
     // Note: necessary for non-auto-generated seqno
     vb->checkpointManager->createSnapshot(
-            seqno, seqno, {} /*HCS*/, CheckpointType::Memory, 0 /*MVS*/);
+            seqno, seqno, {} /*HCS*/, {}, CheckpointType::Memory, 0 /*MVS*/);
     processSet(item);
 }
 
@@ -2308,7 +2308,7 @@ void PassiveDurabilityMonitorTest::testResolvePrepareOutOfOrder(
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
     vb->checkpointManager->createSnapshot(
-            1, 7, 1 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 7, 1 /*HCS*/, {}, CheckpointType::Disk, 0 /*MVS*/);
 
     // PassiveDM doesn't track anything yet, no commit expected
     auto& pdm = getPassiveDM();
@@ -2340,7 +2340,7 @@ void PassiveDurabilityMonitorTest::testResolvePrepareOutOfOrder(
     // Reuse the checkpoint manager by setting the seqno range to the same as
     // above
     vb->checkpointManager->createSnapshot(
-            1, 7, 3 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 7, 3 /*HCS*/, {}, CheckpointType::Disk, 0 /*MVS*/);
 
     for (uint64_t seqno = 1; seqno < 4; seqno++) {
         auto item = Item(makeStoredDocKey("key" + std::to_string(seqno)),
@@ -2416,7 +2416,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
     vb->checkpointManager->createSnapshot(
-            1, 1, {} /*HCS*/, CheckpointType::Memory, 0 /*MVS*/);
+            1, 1, {} /*HCS*/, {}, CheckpointType::Memory, 0 /*MVS*/);
 
     // PassiveDM doesn't track anything yet, no commit expected
     auto& pdm = getPassiveDM();
@@ -2445,7 +2445,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
     assertNumTrackedAndHPSAndHCS(0, 0, 0 /*expectedHCS*/);
 
     vb->checkpointManager->createSnapshot(
-            1, 1, 1 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 1, 1 /*HCS*/, {}, CheckpointType::Disk, 0 /*MVS*/);
 
     // PassiveDM doesn't track anything yet, no commit expected
     auto& pdm = getPassiveDM();
@@ -2644,7 +2644,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
     // End snapshot, but not yet persisted
     vb->checkpointManager->createSnapshot(
-            1, 3, 0 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 3, 0 /*HCS*/, {}, CheckpointType::Disk, 0 /*MVS*/);
     notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
     EXPECT_EQ(3, pdm.getNumTracked());
 
@@ -2701,7 +2701,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
     // End disk snapshot, but not yet persisted, no prepares tracked
     vb->checkpointManager->createSnapshot(
-            1, 3, 0 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 3, 0 /*HCS*/, {}, CheckpointType::Disk, 0 /*MVS*/);
     notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
     EXPECT_EQ(1, pdm.getNumTracked());
 
@@ -2754,7 +2754,7 @@ TEST_P(PassiveDurabilityMonitorPersistentTest,
 
     // End disk snapshot, but not yet persisted, no prepares tracked
     vb->checkpointManager->createSnapshot(
-            1, 3, 0 /*HCS*/, CheckpointType::Disk, 0 /*MVS*/);
+            1, 3, 0 /*HCS*/, {}, CheckpointType::Disk, 0 /*MVS*/);
     notifySnapEndReceived(3 /*snapEnd*/, 0 /*expectedHPS*/, 0 /*expectedHCS*/);
     EXPECT_EQ(0, pdm.getNumTracked());
 
@@ -3824,7 +3824,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePrevious) {
 }
 
 TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
-    vb->checkpointManager->createSnapshot(1, 2, 0, CheckpointType::Disk, 0);
+    vb->checkpointManager->createSnapshot(1, 2, 0, {}, CheckpointType::Disk, 0);
 
     auto& pdm = getPassiveDM();
     using namespace cb::durability;
@@ -3849,7 +3849,8 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
     ASSERT_EQ(0, pdm.getHighCompletedSeqno());
     ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 
-    vb->checkpointManager->createSnapshot(3, 4, 2, CheckpointType::Memory, 4);
+    vb->checkpointManager->createSnapshot(
+            3, 4, 2, {}, CheckpointType::Memory, 4);
     pdm.eraseSyncWrite(makeStoredDocKey("key1"), 1);
 
     EXPECT_EQ(1, pdm.getNumTracked());
@@ -3867,7 +3868,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteNextDiskSnap) {
 }
 
 TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePreviousDiskSnap) {
-    vb->checkpointManager->createSnapshot(1, 2, 0, CheckpointType::Disk, 0);
+    vb->checkpointManager->createSnapshot(1, 2, 0, {}, CheckpointType::Disk, 0);
 
     auto& pdm = getPassiveDM();
     using namespace cb::durability;
@@ -3892,7 +3893,8 @@ TEST_P(PassiveDurabilityMonitorTest, dropLastKeyAndCompletePreviousDiskSnap) {
     ASSERT_EQ(0, pdm.getHighCompletedSeqno());
     ASSERT_EQ(0, pdm.getHighPreparedSeqno());
 
-    vb->checkpointManager->createSnapshot(3, 4, 2, CheckpointType::Memory, 3);
+    vb->checkpointManager->createSnapshot(
+            3, 4, 2, {}, CheckpointType::Memory, 3);
     pdm.eraseSyncWrite(makeStoredDocKey("key2"), 2);
 
     EXPECT_EQ(1, pdm.getNumTracked());
@@ -3911,7 +3913,7 @@ TEST_P(PassiveDurabilityMonitorTest, dropFirstKeyAndCompleteOutOfOrder) {
     auto& pdm = getPassiveDM();
 
     // Replica needs to be in a Disk snapshot for allowing OoO
-    vb->checkpointManager->createSnapshot(0, 4, 0, CheckpointType::Disk, 4);
+    vb->checkpointManager->createSnapshot(0, 4, 0, {}, CheckpointType::Disk, 4);
 
     using namespace cb::durability;
     auto req = Requirements{Level::Majority, Timeout::Infinity()};

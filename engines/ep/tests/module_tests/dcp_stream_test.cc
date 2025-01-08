@@ -1423,9 +1423,9 @@ TEST_P(StreamTest, MultipleVBucketsRoundRobin) {
         ::testing::InSequence sequence;
         using ::testing::_;
 
-        EXPECT_CALL(mockProducers, marker(_, Vbid(0), _, _, _, _, _, _, _));
-        EXPECT_CALL(mockProducers, marker(_, Vbid(1), _, _, _, _, _, _, _));
-        EXPECT_CALL(mockProducers, marker(_, Vbid(2), _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(0), _, _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(1), _, _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(2), _, _, _, _, _, _, _, _));
 
         EXPECT_CALL(mockProducers, mutation(_, _, Vbid(0), _, _, _, _, _));
         EXPECT_CALL(mockProducers, mutation(_, _, Vbid(1), _, _, _, _, _));
@@ -2654,6 +2654,7 @@ void SingleThreadedPassiveStreamTest::
             100 /*snapEnd*/,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
@@ -2720,6 +2721,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
                               snapEnd,
                               flags,
                               0 /*HCS*/,
+                              {},
                               {} /*maxVisibleSeqno*/,
                               std::nullopt,
                               streamId);
@@ -2836,6 +2838,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
                                        1 /*endSeqno*/,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -2924,6 +2927,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                        initialEndSeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -3011,6 +3015,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
                                            newStartSeqno + 10 /*endSeqno*/,
                                            DcpSnapshotMarkerFlag::Checkpoint,
                                            {} /*HCS*/,
+                                           {} /*HPS*/,
                                            {} /*maxVisibleSeqno*/,
                                            {} /*purgeSeqno*/));
         nextSeqno = newStartSeqno;
@@ -3079,6 +3084,7 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
                                        bySeqno,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {}, /*HPS*/
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -3224,6 +3230,7 @@ TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
                           snapEnd,
                           DcpSnapshotMarkerFlag::Memory,
                           0 /*HCS*/,
+                          {},
                           visibleSnapEnd,
                           std::nullopt,
                           {} /*streamId*/);
@@ -3269,6 +3276,7 @@ void SingleThreadedPassiveStreamTest::purgeSeqnoReplicated(bool flushTwice) {
                           10,
                           DcpSnapshotMarkerFlag::Disk,
                           0 /*HCS*/,
+                          0, /*HPS*/
                           10, /*MVS*/
                           5, /* purge */
                           cb::mcbp::DcpStreamId{});
@@ -3315,6 +3323,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                           10,
                           DcpSnapshotMarkerFlag::Disk,
                           0 /*HCS*/,
+                          0 /*HPS*/,
                           10, /*MVS*/
                           0, /* purge */
                           cb::mcbp::DcpStreamId{});
@@ -3342,6 +3351,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            11,
                            DcpSnapshotMarkerFlag::Disk,
                            0 /*HCS*/,
+                           0 /*HPS*/,
                            11, /*MVS*/
                            2, /* purge */
                            cb::mcbp::DcpStreamId{});
@@ -3362,6 +3372,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            13,
                            DcpSnapshotMarkerFlag::Disk,
                            0 /*HCS*/,
+                           0 /*HPS*/,
                            13, /*MVS*/
                            10, /* purge */
                            cb::mcbp::DcpStreamId{});
@@ -3380,6 +3391,7 @@ TEST_P(SingleThreadedPassiveStreamTest, cursorDroppedPurgeSeqnoReplicated) {
                            20,
                            DcpSnapshotMarkerFlag::Disk,
                            0 /*HCS*/,
+                           0 /*HPS*/,
                            20, /*MVS*/
                            15, /* purge */
                            cb::mcbp::DcpStreamId{});
@@ -3550,7 +3562,7 @@ TEST_P(SingleThreadedActiveStreamTest, MetaOnlyCheckpointsSkipped) {
     // CM: [1, 2] [3, 3]
 
     // And a snapshot received from active.
-    cm.createSnapshot(2, 3, {}, CheckpointType::Memory, 3);
+    cm.createSnapshot(2, 3, {}, {}, CheckpointType::Memory, 3);
     // CM: [1, 2] [3, 3] [2, ]
 
     // CM: [1, 2] [3, 3] [2, 3]
@@ -3963,13 +3975,13 @@ TEST_P(SingleThreadedActiveStreamTest,
         using ::testing::_;
         using ::testing::Return;
 
-        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _))
+        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _, _))
                 .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers, mutation(_, _, vbid, /*seqno*/ 1, _, _, _, _))
                 .WillOnce(Return(cb::engine_errc::success));
 
-        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _))
+        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _, _))
                 .WillOnce(Return(cb::engine_errc::success));
 
         EXPECT_CALL(producers, mutation(_, _, vbid, /*seqno*/ 2, _, _, _, _))
@@ -5025,6 +5037,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                      DcpSnapshotMarkerFlag::Disk |
                                              DcpSnapshotMarkerFlag::Checkpoint,
                                      {} /*HCS*/,
+                                     {}, /*HPS*/
                                      {} /*maxVisibleSeqno*/,
                                      {} /*purgeSeqno*/));
     ASSERT_EQ(1, ckptList.size());
@@ -5091,6 +5104,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                        3 /*snapEnd*/,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {}, /*HPS*/
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
 
@@ -5154,6 +5168,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
                                        4 /*snapEnd*/,
                                        DcpSnapshotMarkerFlag::Memory,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
     // The new snapshot will be queued into the existing checkpoint.
@@ -5245,6 +5260,7 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
                                              DcpSnapshotMarkerFlag::Checkpoint,
                                      {},
                                      {},
+                                     {},
                                      {}));
 
     const auto key = makeStoredDocKey("key");
@@ -5325,6 +5341,7 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
                                              DcpSnapshotMarkerFlag::Checkpoint,
                                      {},
                                      {},
+                                     {},
                                      {}));
 
     // No mutation in the new empty checkpoint, snapshot info is from the
@@ -5397,6 +5414,7 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
                                      2, // end
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
                                      {},
                                      {},
                                      {}));
@@ -5501,6 +5519,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
                                      2, // end
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
                                      {},
                                      {},
                                      {}));
@@ -5630,6 +5649,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                      2, // end
                                      DcpSnapshotMarkerFlag::Disk |
                                              DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
                                      {},
                                      {},
                                      {}));
@@ -7031,6 +7051,7 @@ TEST_P(SingleThreadedPassiveStreamTest, PurgeSeqnoInDiskCheckpoint) {
                                      DcpSnapshotMarkerFlag::Disk |
                                              DcpSnapshotMarkerFlag::Checkpoint,
                                      {} /*HCS*/,
+                                     {} /*HPS*/,
                                      {} /*maxVisibleSeqno*/,
                                      2));
 
@@ -7317,6 +7338,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             3 /*snapEnd*/,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
@@ -7371,6 +7393,7 @@ TEST_P(STPassiveStreamMagmaTest, InsertOpForInitialDiskSnapshot) {
             6 /*snapEnd*/,
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint,
             0 /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
@@ -7424,6 +7447,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                   3 /*snapEnd*/,
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(1) /*HCS*/,
+                                  {},
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
@@ -7505,7 +7529,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
         checkVBState(3 /*lastSnapStart*/,
                      3 /*lastSnapEnd*/,
                      CheckpointType::InitialDisk,
-                     3 /*HPS*/,
+                     1 /*HPS*/,
                      1 /*HCS*/,
                      2 /*maxDelRevSeqno*/);
     }
@@ -7549,6 +7573,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
                                   3 /*snapEnd*/,
                                   DcpSnapshotMarkerFlag::Memory,
                                   {} /*HCS*/,
+                                  {},
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
@@ -7699,6 +7724,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
                                   4 /*snapEnd*/,
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
+                                  std::optional<uint64_t>(4) /*HPS*/,
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
@@ -7752,8 +7778,6 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
  * This tests the scenario:
  * [1:Pre, 2:Pre, 3:Commit, 4:Commit, 5:Pre, 6:Mutation]
  *
- * Whilst one might expect that that HPS value is set to 5, it is in fact set to
- * the snapshot end (6) due to the changes made for MB-34873.
  */
 TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
     uint32_t opaque = 0;
@@ -7763,6 +7787,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                                   6 /*snapEnd*/,
                                   DcpSnapshotMarkerFlag::Disk,
                                   std::optional<uint64_t>(2) /*HCS*/,
+                                  {},
                                   {} /*maxVisibleSeqno*/,
                                   std::nullopt,
                                   {} /*streamId*/);
@@ -7803,7 +7828,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
         checkVBState(6 /*lastSnapStart*/,
                      6 /*lastSnapEnd*/,
                      CheckpointType::InitialDisk,
-                     6 /*HPS*/,
+                     5 /*HPS*/,
                      2 /*HCS*/,
                      0 /*maxDelRevSeqno*/);
     }
@@ -8402,6 +8427,7 @@ void CDCPassiveStreamTest::createHistoricalCollection(CheckpointType snapType,
                               DcpSnapshotMarkerFlag::History,
                       0,
                       {},
+                      {},
                       {}));
 
     const auto& vb = *store->getVBucket(vbid);
@@ -8481,6 +8507,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
                                           DcpSnapshotMarkerFlag::Disk |
                                           DcpSnapshotMarkerFlag::History,
                                   std::optional<uint64_t>(0), /*HCS*/
+                                  {},
                                   {}, /*maxVisibleSeqno*/
                                   std::nullopt,
                                   {} /*streamId*/);
@@ -8581,6 +8608,7 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
             1 /*end*/,
             DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Memory,
             std::optional<uint64_t>(0), /*HCS*/
+            {},
             {}, /*maxVisibleSeqno*/
             std::nullopt,
             {} /*streamId*/);
@@ -8699,6 +8727,7 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                              DcpSnapshotMarkerFlag::History,
                                      {},
                                      {},
+                                     {},
                                      {}));
     // We never reuse a checkpoint.
     // Note that at this point the open checkpoint is empty as it stores only
@@ -8745,6 +8774,7 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint |
                                              DcpSnapshotMarkerFlag::History,
+                                     {},
                                      {},
                                      {},
                                      {}));
@@ -8813,6 +8843,7 @@ void SingleThreadedPassiveStreamTest::testProcessMessageBypassMemCheck(
                                   seqno,
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
+                                  {},
                                   {},
                                   std::nullopt,
                                   {});
@@ -8968,6 +8999,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ProcessUnackedBytes_StreamEnd) {
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
                                   {},
+                                  {},
                                   std::nullopt,
                                   {});
     stream->processMarker(&snapshotMarker);
@@ -9039,6 +9071,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63439) {
                                   seqno,
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
+                                  {},
                                   {},
                                   {},
                                   {});
@@ -9126,6 +9159,7 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63611) {
                                   seqno,
                                   DcpSnapshotMarkerFlag::Memory,
                                   std::optional<uint64_t>(0),
+                                  {},
                                   {},
                                   {},
                                   {});
@@ -9397,6 +9431,7 @@ TEST_P(SingleThreadedPassiveStreamTest,
                                      2, // end
                                      DcpSnapshotMarkerFlag::Memory |
                                              DcpSnapshotMarkerFlag::Checkpoint,
+                                     {},
                                      {},
                                      {},
                                      {}));

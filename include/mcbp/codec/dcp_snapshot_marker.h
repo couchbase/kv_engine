@@ -42,12 +42,14 @@ public:
                       uint64_t end_seqno,
                       request::DcpSnapshotMarkerFlag flags,
                       std::optional<uint64_t> hcs,
+                      std::optional<uint64_t> hps,
                       std::optional<uint64_t> mvs,
                       std::optional<uint64_t> purge_seqno)
         : startSeqno(start_seqno),
           endSeqno(end_seqno),
           flags(flags),
           highCompletedSeqno(std::move(hcs)),
+          highPreparedSeqno(std::move(hps)),
           maxVisibleSeqno(std::move(mvs)),
           purgeSeqno(purge_seqno) {
     }
@@ -64,6 +66,11 @@ public:
     std::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
     }
+
+    std::optional<uint64_t> getHighPreparedSeqno() const {
+        return highPreparedSeqno;
+    }
+
     std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
@@ -82,6 +89,9 @@ public:
     }
     void setHighCompletedSeqno(uint64_t value) {
         highCompletedSeqno = value;
+    }
+    void setHighPreparedSeqno(uint64_t value) {
+        highPreparedSeqno = value;
     }
     void setMaxVisibleSeqno(uint64_t value) {
         maxVisibleSeqno = value;
@@ -114,6 +124,7 @@ protected:
     uint64_t endSeqno = 0;
     request::DcpSnapshotMarkerFlag flags = request::DcpSnapshotMarkerFlag::None;
     std::optional<uint64_t> highCompletedSeqno;
+    std::optional<uint64_t> highPreparedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
     std::optional<uint64_t> purgeSeqno;
 };

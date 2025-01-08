@@ -315,6 +315,7 @@ public:
             uint64_t end_seqno,
             cb::mcbp::request::DcpSnapshotMarkerFlag flags,
             std::optional<uint64_t> high_completed_seqno,
+            std::optional<uint64_t> high_prepared_seqno,
             std::optional<uint64_t> max_visible_seqno,
             std::optional<uint64_t> purge_seqno) override;
     cb::engine_errc mutation(CookieIface& cookie,
@@ -1524,6 +1525,7 @@ cb::engine_errc EWB_Engine::snapshot_marker(
         uint64_t end_seqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> high_completed_seqno,
+        std::optional<uint64_t> high_prepared_seqno,
         std::optional<uint64_t> max_visible_seqno,
         std::optional<uint64_t> purge_seqno) {
     if (!real_engine_dcp) {
@@ -1536,6 +1538,7 @@ cb::engine_errc EWB_Engine::snapshot_marker(
                                             end_seqno,
                                             flags,
                                             high_completed_seqno,
+                                            high_prepared_seqno,
                                             max_visible_seqno,
                                             purge_seqno);
 }

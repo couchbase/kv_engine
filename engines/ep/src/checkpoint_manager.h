@@ -136,6 +136,7 @@ public:
         ItemsForCursor() = default;
         ItemsForCursor(CheckpointType checkpointType,
                        std::optional<uint64_t> maxDeletedRevSeqno,
+                       std::optional<uint64_t> highPreparedSeqno,
                        std::optional<uint64_t> highCompletedSeqno,
                        uint64_t visibleSeqno,
                        CheckpointHistorical historical,
@@ -143,6 +144,7 @@ public:
             : checkpointType(checkpointType),
               historical(historical),
               maxDeletedRevSeqno(maxDeletedRevSeqno),
+              highPreparedSeqno(highPreparedSeqno),
               highCompletedSeqno(highCompletedSeqno),
               visibleSeqno(visibleSeqno),
               purgeSeqno(purgeSeqno) {
@@ -160,6 +162,8 @@ public:
         CheckpointHistorical historical = CheckpointHistorical::No;
 
         std::optional<uint64_t> maxDeletedRevSeqno = {};
+
+        std::optional<uint64_t> highPreparedSeqno;
 
         /**
          * HCS that must be sent to Replica when the Active is streaming a
@@ -497,6 +501,7 @@ public:
             uint64_t snapStartSeqno,
             uint64_t snapEndSeqno,
             std::optional<uint64_t> highCompletedSeqno,
+            std::optional<uint64_t> highPreparedSeqno,
             CheckpointType checkpointType,
             uint64_t maxVisibleSnapEnd,
             CheckpointHistorical historical = CheckpointHistorical::No,
@@ -765,6 +770,7 @@ protected:
                           uint64_t snapEndSeqno,
                           uint64_t visibleSnapEnd,
                           std::optional<uint64_t> highCompletedSeqno,
+                          std::optional<uint64_t> highPreparedSeqno,
                           CheckpointType checkpointType,
                           CheckpointHistorical historical,
                           uint64_t purgeSeqno = 0);
@@ -946,7 +952,7 @@ protected:
 
     CheckpointList checkpointList;
     EPStats                 &stats;
-    CheckpointConfig        &checkpointConfig;
+    CheckpointConfig& checkpointConfig;
     mutable std::mutex       queueLock;
 
     // Ref to the owning vbucket.

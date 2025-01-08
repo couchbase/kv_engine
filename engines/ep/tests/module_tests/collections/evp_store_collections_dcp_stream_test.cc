@@ -877,10 +877,16 @@ TEST_P(CollectionsDcpStreamsTest,
     // set flags for disk snapshot and checkpoint range
     auto flags =
             DcpSnapshotMarkerFlag::Disk | DcpSnapshotMarkerFlag::Checkpoint;
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            consumer->snapshotMarker(
-                    opaque, replicaVB, snapStart, snapEnd, flags, {}, {}, {}));
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       replicaVB,
+                                       snapStart,
+                                       snapEnd,
+                                       flags,
+                                       {},
+                                       {},
+                                       {},
+                                       {}));
     // double check no items on disk
     EXPECT_EQ(0, vbucketPtr->getNumTotalItems());
     // set seqno at the begging of snapshot
@@ -935,10 +941,16 @@ TEST_P(CollectionsDcpStreamsTest,
     snapEnd = snapStart + 1;
     // set flags for memory snapshot and checkpoint range
     flags = DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint;
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            consumer->snapshotMarker(
-                    opaque, replicaVB, snapStart, snapEnd, flags, {}, {}, {}));
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       replicaVB,
+                                       snapStart,
+                                       snapEnd,
+                                       flags,
+                                       {},
+                                       {},
+                                       {},
+                                       {}));
 
     // create collection drop system event and apply it to the pending vbucket
     Collections::DropEventDcpData dropEventDcpData{

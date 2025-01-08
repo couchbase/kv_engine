@@ -555,6 +555,8 @@ public:
      * end of the snapshot. This seqno is also used to optimise local warmup.
      */
     const uint64_t persistedCompletedSeqno;
+
+    const uint64_t highPreparedSeqno;
 };
 
 /**

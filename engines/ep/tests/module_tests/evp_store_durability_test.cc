@@ -415,6 +415,7 @@ protected:
         vb.checkpointManager->createSnapshot(seqno,
                                              seqno,
                                              {} /*HCS*/,
+                                             {},
                                              CheckpointType::Memory,
                                              vb.getHighSeqno());
 
@@ -2147,7 +2148,7 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
 
     auto& vb = *store->getVBucket(vbid);
     vb.checkpointManager->createSnapshot(
-            1, 1, {} /*HCS*/, CheckpointType::Memory, 0);
+            1, 1, {} /*HCS*/, {}, CheckpointType::Memory, 0);
     using namespace cb::durability;
     auto requirements = Requirements(level, Timeout::Infinity());
     auto pending =
@@ -3660,7 +3661,7 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
 
     // Now drive the VB as if a passive stream is receiving data.
     vb.checkpointManager->createSnapshot(
-            1, 3, {} /*HCS*/, CheckpointType::Memory, 0 /*MVS*/);
+            1, 3, {} /*HCS*/, {}, CheckpointType::Memory, 0 /*MVS*/);
 
     // seqno:3 A new prepare
     auto key1 = makeStoredDocKey("crikey3");
@@ -3677,7 +3678,7 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
 
     // seqno:4 the prepare at seqno:1 is committed
     vb.checkpointManager->createSnapshot(
-            4, 4, {} /*HCS*/, CheckpointType::Memory, 0);
+            4, 4, {} /*HCS*/, {}, CheckpointType::Memory, 0);
     std::shared_lock rlh(vb.getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
               vb.commit(rlh,
@@ -3716,7 +3717,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     uint64_t seqno = 1;
     // PREPARE
     vbucket->checkpointManager->createSnapshot(
-            seqno, seqno, {}, CheckpointType::Memory, 0);
+            seqno, seqno, {}, {}, CheckpointType::Memory, 0);
 
     const std::string value(1024, 'x'); // 1KB value to use for documents.
 
@@ -3749,7 +3750,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     ++seqno;
     // COMMIT
     vbucket->checkpointManager->createSnapshot(
-            seqno, seqno, {}, CheckpointType::Memory, seqno);
+            seqno, seqno, {}, {}, CheckpointType::Memory, seqno);
 
     {
         std::shared_lock rlh(vbucket->getStateLock());
@@ -3773,7 +3774,7 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     ++seqno;
     // Try to deleteWithMeta
     vbucket->checkpointManager->createSnapshot(
-            seqno, seqno, {}, CheckpointType::Memory, seqno);
+            seqno, seqno, {}, {}, CheckpointType::Memory, seqno);
     // expect the seqnos to be  @ the commit (which is seqno - 1)
     validateHighAndVisibleSeqno(*store->getVBucket(vbid), seqno - 1, seqno - 1);
 

@@ -752,7 +752,7 @@ TEST_P(CollectionsKVStoreTest, systemCollection) {
 TEST_P(CollectionsKVStoreTest, systemCollectionReplicaTombstones) {
     // Drop collections that were never created (replicate of a tombstone)
     vbucket->checkpointManager->createSnapshot(
-            1, 2, std::nullopt, CheckpointType::Memory, 2);
+            1, 2, std::nullopt, std::nullopt, CheckpointType::Memory, 2);
     {
         std::shared_lock rlh(vbucket->getStateLock());
         manifest.wlock(rlh).replicaDrop(*vbucket,

@@ -1860,6 +1860,7 @@ cb::engine_errc Connection::marker(
         uint64_t end_seqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> hcs,
+        std::optional<uint64_t> hps,
         std::optional<uint64_t> mvs,
         std::optional<uint64_t> purge_seqno,
         cb::mcbp::DcpStreamId sid) {
@@ -1889,7 +1890,7 @@ cb::engine_errc Connection::marker(
     }
 
     cb::mcbp::DcpSnapshotMarker marker(
-            start_seqno, end_seqno, flags, hcs, mvs, purge_seqno);
+            start_seqno, end_seqno, flags, hcs, hps, mvs, purge_seqno);
     marker.encode(builder);
     return add_packet_to_send_pipe(builder.getFrame()->getFrame());
 }

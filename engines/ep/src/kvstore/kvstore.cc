@@ -105,7 +105,8 @@ BySeqnoScanContext::BySeqnoScanContext(
       purgeSeqno(purgeSeqno),
       documentCount(_documentCount),
       maxVisibleSeqno(vbucketState.maxVisibleSeqno),
-      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno) {
+      persistedCompletedSeqno(vbucketState.persistedCompletedSeqno),
+      highPreparedSeqno(vbucketState.highPreparedSeqno) {
 }
 
 ByIdScanContext::ByIdScanContext(

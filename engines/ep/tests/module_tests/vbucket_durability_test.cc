@@ -65,6 +65,7 @@ void VBucketDurabilityTest::storeSyncWrites(
     ckptMgr->createSnapshot(seqnos.front().seqno,
                             seqnos.back().seqno,
                             {} /*HCS*/,
+                            {},
                             CheckpointType::Memory,
                             0);
 
@@ -775,6 +776,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     ckptMgr->createSnapshot(lastSeqno + 1,
                             lastSeqno + 2,
                             {} /*HCS*/,
+                            {},
                             CheckpointType::Memory,
                             lastSeqno);
 
@@ -804,6 +806,7 @@ TEST_P(VBucketDurabilityTest, NonExistingKeyAtAbortReplica) {
     ckptMgr->createSnapshot(lastSeqno + 1,
                             lastSeqno + 2,
                             prepareSeqno /*HCS*/,
+                            {},
                             CheckpointType::Disk,
                             lastSeqno);
 
@@ -840,6 +843,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     ckptMgr->createSnapshot(lastSeqno + 1,
                             lastSeqno + 3,
                             {} /*HCS*/,
+                            {},
                             CheckpointType::Memory,
                             lastSeqno);
 
@@ -888,6 +892,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
     ckptMgr->createSnapshot(lastSeqno + 1,
                             lastSeqno + 3,
                             prepareSeqno /*HCS*/,
+                            {},
                             CheckpointType::Disk,
                             lastSeqno);
 
@@ -1980,6 +1985,7 @@ void VBucketDurabilityTest::testConvertPDMToADMWithNullTopologyPostDiskSnap(
     ckptMgr->createSnapshot(baseSeqno + 3,
                             baseSeqno + 3,
                             0,
+                            {},
                             CheckpointType::Disk,
                             baseSeqno + 3);
 
@@ -2883,6 +2889,7 @@ void VBucketDurabilityTest::testCompleteSWInPassiveDM(vbucket_state_t state,
     ckptMgr->createSnapshot(writes.back().seqno + 1,
                             writes.back().seqno + 100,
                             {} /*HCS*/,
+                            {},
                             CheckpointType::Memory,
                             0);
     for (auto prepare : writes) {

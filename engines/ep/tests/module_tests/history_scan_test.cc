@@ -336,7 +336,7 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_duplicate_keys) {
     auto replica = store->getVBucket(replicaVB);
     EXPECT_TRUE(replica);
     replica->checkpointManager->createSnapshot(
-            1, 1, 0, CheckpointType::Memory, 1);
+            1, 1, 0, {}, CheckpointType::Memory, 1);
     replica->replicaBeginCollection(
             Collections::ManifestUid(cm.getUid()),
             {ScopeID::Default, CollectionEntry::vegetable},
@@ -494,7 +494,8 @@ TEST_P(HistoryScanTest, OSOThenHistory) {
     runBackfill();
 
     // see comment in CollectionsOSODcpTest.basic
-    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, {}, 0, highSeqno, {});
+    consumer->snapshotMarker(
+            1, replicaVB, 0, highSeqno, {}, 0, {}, highSeqno, {});
 
     // Manually step the producer and inspect all callbacks
     stepAndExpect(ClientOpcode::DcpOsoSnapshot);

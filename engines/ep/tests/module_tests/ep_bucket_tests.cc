@@ -776,6 +776,7 @@ TEST_F(SingleThreadedEPBucketTest,
                                        10,
                                        DcpSnapshotMarkerFlag::Checkpoint,
                                        {} /*HCS*/,
+                                       {} /*HPS*/,
                                        {} /*maxVisibleSeqno*/,
                                        {} /*purgeSeqno*/));
     ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(opaque, vbid));
@@ -856,6 +857,7 @@ TEST_F(SingleThreadedEPBucketTest,
                                            11,
                                            DcpSnapshotMarkerFlag::Checkpoint,
                                            {} /*HCS*/,
+                                           {} /*HPS*/,
                                            {} /*maxVisibleSeqno*/,
                                            {} /*purgeSeqno*/));
     };

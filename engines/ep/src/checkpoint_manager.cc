@@ -21,6 +21,7 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 
+#include <algorithm>
 #include <utility>
 
 #include <gsl/gsl-lite.hpp>
@@ -155,6 +156,7 @@ void CheckpointManager::addNewCheckpoint(
                      lastBySeqno + 1,
                      maxVisibleSeqno,
                      {},
+                     {},
                      CheckpointType::Memory,
                      vb.isHistoryRetentionEnabled() ? CheckpointHistorical::Yes
                                                     : CheckpointHistorical::No);
@@ -166,6 +168,7 @@ void CheckpointManager::addNewCheckpoint(
         uint64_t snapEndSeqno,
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highPreparedSeqno,
         CheckpointType checkpointType,
         CheckpointHistorical historical,
         uint64_t purgeSeqno) {
@@ -199,6 +202,8 @@ void CheckpointManager::addNewCheckpoint(
     auto hps = oldOpenCkpt.getHighPreparedSeqno()
                        ? *oldOpenCkpt.getHighPreparedSeqno()
                        : 0;
+
+    hps = std::max(hps, highPreparedSeqno.value_or(0));
 
     addOpenCheckpoint(snapStartSeqno,
                       snapEndSeqno,
@@ -1121,6 +1126,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     const auto& checkpoint = **cursor.getCheckpoint();
     ItemsForCursor result(checkpoint.getCheckpointType(),
                           checkpoint.getMaxDeletedRevSeqno(),
+                          checkpoint.getHighPreparedSeqno(),
                           checkpoint.getHighCompletedSeqno(),
                           checkpoint.getVisibleSnapshotEndSeqno(),
                           checkpoint.getHistorical(),
@@ -1480,6 +1486,7 @@ void CheckpointManager::createSnapshot(
         uint64_t snapStartSeqno,
         uint64_t snapEndSeqno,
         std::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highPreparedSeqno,
         CheckpointType checkpointType,
         uint64_t visibleSnapEnd,
         CheckpointHistorical historical,
@@ -1494,6 +1501,7 @@ void CheckpointManager::createSnapshot(
                      snapEndSeqno,
                      visibleSnapEnd,
                      highCompletedSeqno,
+                     highPreparedSeqno,
                      checkpointType,
                      historical,
                      purgeSeqno);

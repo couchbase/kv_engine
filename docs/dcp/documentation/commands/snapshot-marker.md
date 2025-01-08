@@ -42,11 +42,13 @@ _V2.1_ is removed from the spec, it was never used.
 
 ##### 0x02
 
-_V2.2_ extends _V2.0_ to include an 8-byte field for the server purge-seqno. Clients
-can use this purge-seqno to mitigate rollback (by presenting the purge-seqno in
-stream-requests).
+_V2.2_ extends _V2.0_ to include two additional 8-byte field: 
+1. server purge-seqno: Clients can use this purge-seqno to mitigate rollback
+(by presenting the purge-seqno in stream-requests). 
+2. high prepared seqno of the vbucket (present only for disk snapshot):
+Used during the promotion of a replica to active. replica with higher high prepared seqno is
+preferred.
 
-The full spec of v2.2 is.
 
 * 0:  1b version
 * 1:  8b Start Seqno
@@ -55,6 +57,7 @@ The full spec of v2.2 is.
 * 21: 8b Max Visible Seqno
 * 29: 8b High Completed Seqno
 * 37: 8b Purge Seqno
+* 45: 8b High Prepared Seqno
 
 ### Encoding Examples
 

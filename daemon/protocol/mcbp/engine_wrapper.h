@@ -385,6 +385,7 @@ cb::engine_errc dcpSetVbucketState(Cookie& cookie,
  * @param endSeqno The snapshot end seqno
  * @param flags
  * @param highCompletedSeqno The SyncRepl high completed seqno
+ * @param highPreparedSeqno The SyncRepl high prepared seqno
  * @param maxVisibleSeqno The snapshot's maximum visible seqno
  * @param purgeSeqno The snapshot's purge seqno
  *
@@ -398,6 +399,7 @@ cb::engine_errc dcpSnapshotMarker(
         uint64_t endSeqno,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags,
         std::optional<uint64_t> highCompletedSeqno,
+        std::optional<uint64_t> highPreparedSeqno,
         std::optional<uint64_t> maxVisibleSeqno,
         std::optional<uint64_t> purgeSeqno);
 

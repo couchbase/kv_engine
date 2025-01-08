@@ -897,14 +897,23 @@ public:
         purgeSeqno = htonll(value);
     }
 
+    uint64_t getHighPreparedSeqno() const {
+        return ntohll(purgeSeqno);
+    }
+
+    void setHighPreparedSeqno(uint64_t value) {
+        purgeSeqno = htonll(value);
+    }
+
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
     uint64_t purgeSeqno{0};
+    uint64_t highPreparedSeqno{0};
 };
-static_assert(sizeof(DcpSnapshotMarkerV2_2Value) == 44,
+static_assert(sizeof(DcpSnapshotMarkerV2_2Value) == 52,
               "Unexpected struct size");
 
 class DcpMutationPayload {

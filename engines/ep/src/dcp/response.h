@@ -392,6 +392,7 @@ public:
                    uint64_t end_seqno,
                    cb::mcbp::request::DcpSnapshotMarkerFlag flags,
                    std::optional<uint64_t> highCompletedSeqno,
+                   std::optional<uint64_t> highPreparedSeqno,
                    std::optional<uint64_t> maxVisibleSeqno,
                    std::optional<uint64_t> purgeSeqno,
                    cb::mcbp::DcpStreamId sid)
@@ -401,6 +402,7 @@ public:
           end_seqno_(end_seqno),
           flags_(flags),
           highCompletedSeqno(highCompletedSeqno),
+          highPreparedSeqno(highPreparedSeqno),
           maxVisibleSeqno(maxVisibleSeqno),
           purgeSeqno(purgeSeqno) {
     }
@@ -427,6 +429,10 @@ public:
         return highCompletedSeqno;
     }
 
+    std::optional<uint64_t> getHighPreparedSeqno() const {
+        return highPreparedSeqno;
+    }
+
     std::optional<uint64_t> getMaxVisibleSeqno() const {
         return maxVisibleSeqno;
     }
@@ -446,6 +452,7 @@ private:
     uint64_t end_seqno_;
     cb::mcbp::request::DcpSnapshotMarkerFlag flags_;
     std::optional<uint64_t> highCompletedSeqno;
+    std::optional<uint64_t> highPreparedSeqno;
     std::optional<uint64_t> maxVisibleSeqno;
     std::optional<uint64_t> purgeSeqno;
 };

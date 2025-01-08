@@ -852,6 +852,7 @@ TEST_P(RollbackTest, RollbackUnpersistedItemsFromCheckpointsOfDifferentType) {
     vb->checkpointManager->createSnapshot(vb->getHighSeqno() + 1,
                                           vb->getHighSeqno() + 1,
                                           0 /*highCompletedSeqno*/,
+                                          {},
                                           CheckpointType::Disk,
                                           vb->getHighSeqno() + 1);
     ASSERT_TRUE(vb->checkpointManager->isOpenCheckpointDisk());
@@ -1400,6 +1401,7 @@ void RollbackDcpTest::doPrepare(StoredDocKey key,
             prepareSeqno /*snapEnd*/,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
@@ -1440,6 +1442,7 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             commitSeqno /*snapEnd*/,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamId*/);
@@ -1490,6 +1493,7 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
             abortSeqno /*snapEnd*/,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamID*/);
@@ -1532,6 +1536,7 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
             delSeqno /*snapEnd*/,
             DcpSnapshotMarkerFlag::Memory | DcpSnapshotMarkerFlag::Checkpoint,
             {} /*HCS*/,
+            {},
             {} /*maxVisibleSeqno*/,
             std::nullopt,
             {} /*streamID*/);

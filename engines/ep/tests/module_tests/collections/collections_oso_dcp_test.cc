@@ -112,7 +112,7 @@ TEST_P(CollectionsOSODcpTest, basic) {
         // OSO snapshots are never really used in KV to KV replication, but this
         // test is using KV to KV test code, hence we need to set a snapshot so
         // that any transferred items don't trigger a snapshot exception.
-        consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+        consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
 
         // Manually step the producer and inspect all callbacks
         EXPECT_EQ(cb::engine_errc::success,
@@ -177,7 +177,7 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
     // OSO snapshots are never really used in KV to KV replication, but this
     // test is using KV to KV test code, hence we need to set a snapshot so
     // that any transferred items don't trigger a snapshot exception.
-    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
 
     // Manually step the producer and inspect all callbacks
     // We currently send OSO start/end with no data
@@ -302,7 +302,8 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
     runBackfill();
 
     // see comment in CollectionsOSODcpTest.basic
-    consumer->snapshotMarker(1, replicaVB, 0, highSeqno, {}, 0, highSeqno, {});
+    consumer->snapshotMarker(
+            1, replicaVB, 0, highSeqno, {}, 0, {}, highSeqno, {});
 
     auto step = [this, &backfillWillPause]() {
         auto result = producer->stepWithBorderGuard(*producers);
@@ -427,7 +428,7 @@ TEST_P(CollectionsOSODcpTest, dropped_collection) {
 
     // see comment in CollectionsOSODcpTest.basic
     consumer->snapshotMarker(
-            1, replicaVB, 0, setup.second + 1, {}, 0, setup.second + 1, {});
+            1, replicaVB, 0, setup.second + 1, {}, 0, {}, setup.second + 1, {});
 
     // Manually step the producer and inspect all callbacks
     EXPECT_EQ(cb::engine_errc::success,
@@ -475,7 +476,7 @@ TEST_P(CollectionsOSODcpTest, transition_to_memory) {
     // OSO snapshots are never really used in KV to KV replication, but this
     // test is using KV to KV test code, hence we need to set a snapshot so
     // that any transferred items don't trigger a snapshot exception.
-    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
 
     // Manually step the producer and inspect all callbacks
     EXPECT_EQ(cb::engine_errc::success,
@@ -550,7 +551,7 @@ TEST_P(CollectionsOSODcpTest, transition_to_memory_MB_38999) {
     // OSO snapshots are never really used in KV to KV replication, but this
     // test is using KV to KV test code, hence we need to set a snapshot so
     // that any transferred items don't trigger a snapshot exception.
-    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
 
     // Manually step the producer and inspect all callbacks
     EXPECT_EQ(cb::engine_errc::success,
@@ -840,7 +841,7 @@ TEST_P(CollectionsOSODcpTest, fallbackToSeqnoIfOsoDisabled) {
     // OSO snapshots are never really used in KV to KV replication, but this
     // test is using KV to KV test code, hence we need to set a snapshot so
     // that any transferred items don't trigger a snapshot exception.
-    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
 
     // Manually step the producer check we get a non-OSO snapshot.
     EXPECT_EQ(cb::engine_errc::success,
@@ -871,7 +872,7 @@ TEST_P(CollectionsOSOEphemeralTest, basic) {
     // OSO snapshots are never really used in KV to KV replication, but this
     // test is using KV to KV test code, hence we need to set a snapshot so
     // that any transferred items don't trigger a snapshot exception.
-    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
 
     // Manually step the producer and inspect all callbacks
     EXPECT_EQ(cb::engine_errc::success,
@@ -963,7 +964,7 @@ protected:
             // this test is using KV to KV test code, hence we need to set a
             // snapshot so that any transferred items don't trigger a snapshot
             // exception.
-            consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+            consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, {}, 4, {});
             // Manually step the producer and check the snapshot type.
             EXPECT_EQ(cb::engine_errc::success,
                       producer->stepWithBorderGuard(*producers));

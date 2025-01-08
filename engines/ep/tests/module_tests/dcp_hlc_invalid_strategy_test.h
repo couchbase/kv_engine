@@ -55,6 +55,7 @@ protected:
                 1,
                 cb::mcbp::request::DcpSnapshotMarkerFlag::None,
                 {} /*HCS*/,
+                {},
                 {} /*maxVisibleSeqno*/,
                 std::nullopt,
                 {} /*SID*/);
