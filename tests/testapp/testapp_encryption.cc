@@ -124,4 +124,16 @@ TEST_P(EncryptionTest, TestEncryptionKeyIds) {
             }
         }
     }
+
+    stats.clear();
+    adminConnection->unselectBucket();
+    adminConnection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+    EXPECT_FALSE(stats.empty());
+    EXPECT_TRUE(stats.is_object()) << stats.dump();
+    ASSERT_TRUE(stats.contains("@audit"));
+    ASSERT_TRUE(stats["@audit"].is_array());
+    ASSERT_TRUE(stats.contains("@logs"));
+    ASSERT_TRUE(stats["@logs"].is_array());
 }
