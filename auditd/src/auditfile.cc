@@ -204,7 +204,7 @@ bool AuditFile::open() {
 
     try {
         file = cb::crypto::FileWriter::create(
-                key, open_file_name, 8192, cb::crypto::Compression::ZLIB);
+                key, open_file_name, 8192, cb::crypto::Compression::None);
         LOG_INFO_CTX(
                 "Audit file",
                 {"encrypted", file->is_encrypted() ? "encrypted" : "plain"});
