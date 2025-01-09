@@ -738,9 +738,10 @@ TEST_F(BasicClusterTest, Snapshots) {
     const auto timeout = std::chrono::steady_clock::now() + 30s;
     bool done = false;
     std::optional<cb::snapshot::Manifest> manifest;
+    std::string error;
     do {
         replica->stats(
-                [&done, &manifest](auto k, auto v) {
+                [&done, &manifest, &error](auto k, auto v) {
                     if (k == "vb_0:download") {
                         auto json = nlohmann::json::parse(v);
                         if (json["state"] == "Finished") {
@@ -750,7 +751,7 @@ TEST_F(BasicClusterTest, Snapshots) {
                             manifest = json["manifest"];
                         }
                         if (json.contains("error")) {
-                            FAIL() << "Failed to download snapshot: " << v;
+                            error = v;
                         }
                     }
                 },
@@ -759,7 +760,9 @@ TEST_F(BasicClusterTest, Snapshots) {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
     } while (!done && std::chrono::steady_clock::now() < timeout);
-    EXPECT_TRUE(done);
+    ASSERT_TRUE(done);
+    ASSERT_TRUE(error.empty()) << "Failed to download snapshot: " << error;
+
     EXPECT_TRUE(manifest.has_value());
 
     // try to locate the vbucket snapshot and verify that all files exists
