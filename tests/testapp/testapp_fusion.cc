@@ -32,6 +32,22 @@ protected:
             GTEST_SKIP();
         }
     }
+
+    BinprotResponse mountVbucket(const nlohmann::json& volumes) {
+        BinprotResponse resp;
+        adminConnection->executeInBucket(
+                bucketName, [&resp, &volumes](auto& conn) {
+                    auto cmd = BinprotGenericCommand{
+                            cb::mcbp::ClientOpcode::MountFusionVbucket};
+                    cmd.setVBucket(Vbid(1));
+                    nlohmann::json json;
+                    json["mountPaths"] = volumes;
+                    cmd.setValue(json.dump());
+                    cmd.setDatatype(cb::mcbp::Datatype::JSON);
+                    resp = conn.execute(cmd);
+                });
+        return resp;
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -169,32 +185,19 @@ TEST_P(FusionTest, SetMetadataAuthToken) {
 }
 
 TEST_P(FusionTest, MountFusionVbucket) {
-    BinprotResponse resp;
+    auto resp = mountVbucket({1, 2});
+    EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
 
-    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::MountFusionVbucket};
-        cmd.setVBucket(Vbid(1));
-        nlohmann::json json;
-        json["mountPaths"] = {1, 2};
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        resp = conn.execute(cmd);
+    resp = mountVbucket({"path1", "path2"});
+    ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
+    const auto& res = resp.getDataJson();
+    ASSERT_FALSE(res.empty());
+    ASSERT_TRUE(res.contains("deks"));
+    ASSERT_TRUE(res["deks"].is_array());
+}
 
-        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
-    });
-
-    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
-        auto cmd = BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::MountFusionVbucket};
-        cmd.setVBucket(Vbid(1));
-        nlohmann::json json;
-        json["mountPaths"] = {"path1", "path2"};
-        cmd.setValue(json.dump());
-        cmd.setDatatype(cb::mcbp::Datatype::JSON);
-        resp = conn.execute(cmd);
-    });
-
+TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
+    const auto resp = mountVbucket(nlohmann::json::array());
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
