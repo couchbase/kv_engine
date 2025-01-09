@@ -732,6 +732,9 @@ std::variant<cb::engine_errc, cb::snapshot::Manifest> KVStore::prepareSnapshot(
     auto uuid = ::to_string(cb::uuid::random());
     const auto snapshotPath = path / uuid;
     if (exists(snapshotPath)) {
+        EP_LOG_WARN_CTX("prepareSnapshot Failed as path already exists",
+                        {"vb", vbid},
+                        {"path", snapshotPath});
         return cb::engine_errc::key_already_exists;
     }
 
