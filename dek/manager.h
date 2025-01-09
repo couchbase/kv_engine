@@ -12,6 +12,7 @@
 
 #include <cbcrypto/key_store.h>
 #include <nlohmann/json_fwd.hpp>
+#include <atomic>
 #include <filesystem>
 #include <string>
 
@@ -20,7 +21,7 @@ namespace cb::dek {
 using SharedEncryptionKey = crypto::SharedEncryptionKey;
 
 /// The various entities supporting encryption in the core
-enum class Entity { Config, Logs, Audit };
+enum class Entity { Config = 0, Logs = 1, Audit = 2, Count = 3 };
 
 std::string format_as(Entity entity);
 inline auto to_string(Entity entity) {
@@ -85,5 +86,12 @@ public:
     virtual void iterate(
             const std::function<void(Entity, const crypto::KeyStore&)>&
                     callback) = 0;
+
+    /// Get the generation counter for the named entity. Note that unless you're
+    /// using the static instance you must ensure that the lifetime for the
+    /// Manager instance is longer than the lifetime of the object using the
+    /// returned reference. The intended use case for this variable is to
+    /// use a lock free chck to see if the generation has changed.
+    virtual std::atomic_uint64_t* getEntityGenerationCounter(Entity entity) = 0;
 };
 } // namespace cb::dek

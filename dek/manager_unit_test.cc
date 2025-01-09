@@ -15,3 +15,14 @@ TEST(ManagerTest, GlobalInstance) {
     EXPECT_EQ(&Manager::instance(), &Manager::instance());
     EXPECT_NE(&Manager::instance(), Manager::create().get());
 }
+
+TEST(ManagerTest, GenerationUpdated) {
+    auto version = Manager::instance()
+                           .getEntityGenerationCounter(Entity::Config)
+                           ->load();
+    Manager::instance().setActive(Entity::Config, SharedEncryptionKey{});
+    EXPECT_EQ(version + 1,
+              Manager::instance()
+                      .getEntityGenerationCounter(Entity::Config)
+                      ->load());
+}

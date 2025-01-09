@@ -23,6 +23,7 @@
 
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/base_sink.h>
+#include <atomic>
 #include <filesystem>
 #include <mutex>
 
@@ -76,6 +77,13 @@ private:
     /// The aggregated size of log we've got (on disk). It does not include
     /// the content of the current file
     std::size_t aggregated_size = 0;
+    /// The version of the encryption data used when creating the current
+    /// version of the file
+    uint64_t encryption_config_version = 0;
+    /// Pointer to the generation counter for the log DEK configuration
+    /// to allow for checking if we need to rotate the file without having
+    /// to acuire the lock for the log DEK configuration
+    std::atomic_uint64_t* global_encryption_config_version;
 };
 
 using custom_rotating_file_sink_mt = custom_rotating_file_sink<std::mutex>;

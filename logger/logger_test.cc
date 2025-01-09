@@ -11,6 +11,7 @@
 
 #include "logger_test_fixture.h"
 
+#include <dek/manager.h>
 #include <memcached/engine.h>
 #include <valgrind/valgrind.h>
 
@@ -75,6 +76,21 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
         EXPECT_EQ(fmt::format("spdlogger_test.00000{}.txt", 3 + ii),
                   filename.string());
     }
+}
+
+TEST_F(FileRotationTest, DekForceRotation) {
+    auto* logger = cb::logger::get();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_EQ(1, files.size());
+
+    for (auto ii = 0; ii < 10; ii++) {
+        logger->critical("This is a log messate: {}", ii);
+        cb::dek::Manager::instance().setActive(cb::dek::Entity::Logs,
+                                               cb::dek::SharedEncryptionKey{});
+    }
+    cb::logger::shutdown();
+    files = cb::io::findFilesWithPrefix(config.filename);
+    ASSERT_LE(10, files.size());
 }
 
 #ifndef WIN32

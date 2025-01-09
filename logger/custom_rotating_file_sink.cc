@@ -41,7 +41,10 @@ custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
         std::size_t max_aggregated_size)
     : base_filename(base_filename),
       max_size(max_size),
-      max_aggregated_size(max_aggregated_size) {
+      max_aggregated_size(max_aggregated_size),
+      global_encryption_config_version(
+              cb::dek::Manager::instance().getEntityGenerationCounter(
+                      cb::dek::Entity::Logs)) {
     scanExistingLogFiles();
     formatter = std::make_unique<spdlog::pattern_formatter>(
             log_pattern, spdlog::pattern_time_type::local);
@@ -59,7 +62,8 @@ void custom_rotating_file_sink<Mutex>::sink_it_(
     file_writer->write({formatted.data(), formatted.size()});
 
     // Is it time to wrap to the next file?
-    if (file_writer->size() > max_size) {
+    if (file_writer->size() > max_size ||
+        encryption_config_version != global_encryption_config_version->load()) {
         try {
             auto next = openFile();
             aggregated_size += file_writer->size();
@@ -168,6 +172,7 @@ template <class Mutex>
 std::unique_ptr<cb::crypto::FileWriter>
 custom_rotating_file_sink<Mutex>::openFile() {
     using namespace cb::dek;
+    encryption_config_version = global_encryption_config_version->load();
     auto dek = Manager::instance().lookup(Entity::Logs);
     std::filesystem::path path;
     std::filesystem::path other;

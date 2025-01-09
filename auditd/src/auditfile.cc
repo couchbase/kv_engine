@@ -40,6 +40,13 @@ bool ends_with(std::string_view name, std::string_view suffix) {
     return (idx + suffix.size()) == name.length();
 }
 
+AuditFile::AuditFile(std::string hostname)
+    : hostname(std::move(hostname)),
+      global_encryption_config_version(
+              cb::dek::Manager::instance().getEntityGenerationCounter(
+                      cb::dek::Entity::Audit)) {
+}
+
 void AuditFile::iterate_old_files(
         const std::function<void(const std::filesystem::path&)>& callback)
         const {
@@ -97,7 +104,9 @@ void AuditFile::prune_old_audit_files() {
 
 bool AuditFile::maybe_rotate_files() {
     auto prune = folly::makeGuard([this] { prune_old_audit_files(); });
-    if (is_open() && time_to_rotate_log()) {
+    if (is_open() && (time_to_rotate_log() ||
+                      encryption_config_version !=
+                              global_encryption_config_version->load())) {
         close_and_rotate_log();
         return true;
     }
@@ -178,6 +187,7 @@ bool AuditFile::open() {
     auto ts = cb::time::timestamp(open_time).substr(0, 19);
     std::replace(ts.begin(), ts.end(), ':', '-');
 
+    encryption_config_version = global_encryption_config_version->load();
     auto key = cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit);
     const auto* extension = key ? "cef" : "log";
 

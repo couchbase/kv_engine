@@ -8,6 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 #include "auditfile.h"
+
+#include <dek/manager.h>
 #include <fmt/format.h>
 #include <folly/FileUtil.h>
 #include <folly/portability/GTest.h>
@@ -313,4 +315,26 @@ TEST_F(AuditFileTest, PruneFiles) {
         blueprint.pop_front();
     }
     EXPECT_EQ(blueprint, auditfile.get_log_files());
+}
+
+TEST_F(AuditFileTest, TestDekRotation) {
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    auto files = findFilesWithPrefix(testdir, "testing");
+    EXPECT_EQ(0, files.size());
+
+    for (int ii = 0; ii < 10; ++ii) {
+        // Trigger an event to the audit dek configuration (which should
+        // trigger the file to be rotated)
+        cb::dek::Manager::instance().setActive(cb::dek::Entity::Audit,
+                                               cb::dek::SharedEncryptionKey{});
+        auditfile.ensure_open();
+        auditfile.write_event_to_disk(event);
+    }
+
+    auditfile.close();
+
+    files = findFilesWithPrefix(testdir, "testing");
+    EXPECT_EQ(10, files.size());
 }

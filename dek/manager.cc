@@ -26,6 +26,8 @@ std::string format_as(Entity entity) {
         return "@logs";
     case Entity::Audit:
         return "@audit";
+    case Entity::Count:
+        break;
     }
     throw std::invalid_argument(
             fmt::format("cb::dek::format_as(Entity): Unknown value {}",
@@ -68,81 +70,110 @@ class ManagerImpl : public Manager {
     [[nodiscard]] nlohmann::json to_json(Entity entity) const override;
     void iterate(const std::function<void(Entity, const crypto::KeyStore&)>&
                          callback) override;
+    std::atomic_uint64_t* getEntityGenerationCounter(Entity entity) override;
 
 protected:
-    folly::Synchronized<std::unordered_map<Entity, crypto::KeyStore>> keys;
+    struct ObservableKeyStore {
+        crypto::KeyStore keystore;
+        std::atomic_uint64_t generation{0};
+    };
+
+    using SynchronizedObservableKeyStore =
+            folly::Synchronized<ObservableKeyStore, std::mutex>;
+
+    std::array<SynchronizedObservableKeyStore, int(Entity::Count)> stores;
+
+    SynchronizedObservableKeyStore& getKeyStoreForEntity(Entity entity) {
+        return stores[static_cast<int>(entity)];
+    }
+
+    const SynchronizedObservableKeyStore& getKeyStoreForEntity(
+            Entity entity) const {
+        return stores[static_cast<int>(entity)];
+    }
 };
 
 SharedEncryptionKey ManagerImpl::lookup(Entity entity,
                                         std::string_view id) const {
-    return keys.withRLock([&entity, id](auto& keys) -> SharedEncryptionKey {
-        auto itr = keys.find(entity);
-        if (itr == keys.end()) {
-            return {};
-        }
-
+    const auto& store = getKeyStoreForEntity(entity);
+    return store.withLock([id](const auto& oks) {
         if (id.empty()) {
-            return itr->second.getActiveKey();
+            return oks.keystore.getActiveKey();
         }
-
-        return itr->second.lookup(id);
+        return oks.keystore.lookup(id);
     });
 }
 
 void ManagerImpl::reset(const nlohmann::json& json) {
-    std::unordered_map<Entity, crypto::KeyStore> next;
-    if (json.empty()) {
-        keys.swap(next);
-        return;
+    for (std::size_t ii = 0; ii < stores.size(); ++ii) {
+        const auto entity = static_cast<Entity>(ii);
+        auto& store = getKeyStoreForEntity(entity);
+        store.withLock([](auto& oks) {
+            oks.keystore = {};
+            ++oks.generation;
+        });
     }
 
     if (!json.is_object()) {
         throw std::runtime_error("Provided json should be an object");
     }
-    for (auto it = json.begin(); it != json.end(); ++it) {
-        next[to_entity(it.key())] = it.value();
-    }
 
-    keys.swap(next);
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        auto& store = getKeyStoreForEntity(to_entity(it.key()));
+        store.withLock([&it](auto& oks) {
+            oks.keystore = it.value();
+            ++oks.generation;
+        });
+    }
 }
 
 void ManagerImpl::setActive(const Entity entity, SharedEncryptionKey key) {
-    keys.withWLock(
-            [entity, &key](auto& map) { map[entity].setActiveKey(key); });
+    auto& store = getKeyStoreForEntity(entity);
+    store.withLock([&key](auto& oks) {
+        oks.keystore.setActiveKey(std::move(key));
+        ++oks.generation;
+    });
 }
 
 void ManagerImpl::setActive(Entity entity, crypto::KeyStore ks) {
-    keys.withWLock([entity, &ks](auto& map) { map[entity] = std::move(ks); });
+    auto& store = getKeyStoreForEntity(entity);
+    store.withLock([&ks](auto& oks) {
+        oks.keystore = std::move(ks);
+        ++oks.generation;
+    });
 }
 
 nlohmann::json ManagerImpl::to_json() const {
-    return keys.withRLock([](auto& keys) {
-        nlohmann::json ret = nlohmann::json::object();
-        for (const auto& [n, type_keys] : keys) {
-            auto name = format_as(n);
-            ret[name] = type_keys;
-        }
-        return ret;
-    });
+    nlohmann::json ret;
+    for (size_t ii = 0; ii < stores.size(); ++ii) {
+        const auto entity = static_cast<Entity>(ii);
+        ret[format_as(entity)] = to_json(entity);
+    }
+
+    return ret;
 }
 
 nlohmann::json ManagerImpl::to_json(Entity entity) const {
-    return keys.withRLock([&entity](auto& keys) -> nlohmann::json {
-        auto iter = keys.find(entity);
-        if (iter == keys.end()) {
-            return nlohmann::json::object();
-        }
-
-        return iter->second;
-    });
+    const auto& store = getKeyStoreForEntity(entity);
+    return store.withLock(
+            [](const auto& oks) -> nlohmann::json { return oks.keystore; });
 }
+
 void ManagerImpl::iterate(
         const std::function<void(Entity, const crypto::KeyStore&)>& callback) {
-    keys.withRLock([&callback](const auto& keys) {
-        for (const auto& [entity, ks] : keys) {
-            callback(entity, ks);
-        }
-    });
+    for (size_t ii = 0; ii < stores.size(); ++ii) {
+        const auto entity = static_cast<Entity>(ii);
+        stores[ii].withLock([&callback, entity](const auto& oks) {
+            callback(entity, oks.keystore);
+        });
+    }
+}
+
+std::atomic_uint64_t* ManagerImpl::getEntityGenerationCounter(Entity entity) {
+    auto& store = getKeyStoreForEntity(entity);
+    std::atomic_uint64_t* ptr;
+    store.withLock([&ptr](auto& oks) { ptr = &oks.generation; });
+    return ptr;
 }
 
 std::unique_ptr<Manager> Manager::create() {

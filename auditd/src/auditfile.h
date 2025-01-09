@@ -35,8 +35,7 @@
  */
 class AuditFile {
 public:
-    explicit AuditFile(std::string hostname) : hostname(std::move(hostname)) {
-    }
+    explicit AuditFile(std::string hostname);
 
     /**
      * Check if we need to rotate the logfile, and if so go ahead and do so.
@@ -137,5 +136,11 @@ protected:
     std::chrono::steady_clock::time_point next_prune =
             std::chrono::steady_clock::now();
     bool buffered = true;
+    /// The version of the encryption data used when creating the current
+    /// version of the file
+    uint64_t encryption_config_version = 0;
+    /// Pointer to the generation counter for the audit DEK configuration
+    /// to allow for checking if we need to rotate the file without having
+    /// to acuire the lock for the audit DEK configuration
+    std::atomic_uint64_t* global_encryption_config_version;
 };
-
