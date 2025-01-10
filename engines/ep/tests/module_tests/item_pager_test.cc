@@ -688,20 +688,27 @@ TEST_P(STItemPagerTest, VisitorPausesMidVBucket) {
             VBucketFilter());
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
-
-    auto& stats = engine->getEpStats();
-    auto aboveHWM = [&stats]() {
-        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
-    };
-
-    size_t itemCount = 0;
-    while (!aboveHWM()) {
-        itemCount += populateVbsUntil({vbid}, aboveHWM);
-    }
-    EXPECT_GT(itemCount, 0);
-
     auto vb = store->getVBucket(vbid);
     ASSERT_TRUE(vb);
+    auto& stats = engine->getEpStats();
+    const auto mem_high_wat = stats.mem_high_wat.load();
+
+    size_t itemCount = 0;
+    std::string value(200, 'x');
+    do {
+        // Populate in batches of 50
+        for (int ii = 0; ii < 50; ++ii) {
+            auto key = makeStoredDocKey(std::to_string(itemCount++));
+            auto item = make_item(vbid, key, value);
+            // Set the frequency counter to the same value for all items
+            // to avoid potential probabilistic failures around not
+            // evicting to below the LWM in one pass
+            item.setFreqCounterValue(0);
+            ASSERT_EQ(cb::engine_errc::success, storeItem(item));
+        }
+        flushAndExpelFromCheckpoints(vbid); // Free memory from checkpoints
+        vb->ht.resizeInOneStep(); // Keep chains short
+    } while (stats.getPreciseTotalMemoryUsed() <= mem_high_wat);
 
     // We expect to pause at least once, so the vBucket will need to be visited
     // more than once. We also limit how often we check the pause condition,
