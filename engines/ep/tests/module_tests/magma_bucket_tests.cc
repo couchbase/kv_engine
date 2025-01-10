@@ -1193,7 +1193,9 @@ TEST_P(STMagmaFusionTest, Config) {
 TEST_P(STMagmaFusionTest, MetadataAuthToken) {
     auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
     ASSERT_TRUE(kvstore.getFusionMetadataAuthToken().empty());
-    const auto token = "some-token";
+    // MB-64494: Big-enough string for preventing SSO that hides memory domain
+    //           alloc issues
+    const auto token = std::string(1024, 't');
     EXPECT_EQ(cb::engine_errc::success,
               kvstore.setFusionMetadataAuthToken(token));
     EXPECT_EQ(token, kvstore.getFusionMetadataAuthToken());

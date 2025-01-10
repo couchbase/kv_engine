@@ -726,7 +726,7 @@ void MagmaMemoryTrackingProxy::SetFusionMetadataStoreAuthToken(
 
 std::string MagmaMemoryTrackingProxy::GetFusionMetadataStoreAuthToken() const {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetFusionMetadataStoreAuthToken();
+    return copyToPrimaryDomain(magma->GetFusionMetadataStoreAuthToken());
 }
 
 std::tuple<magma::Status, std::vector<std::string>>
