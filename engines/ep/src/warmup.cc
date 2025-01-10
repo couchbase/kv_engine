@@ -1989,13 +1989,15 @@ VBucketPtr Warmup::lookupVBucket(Vbid vbid) const {
     case WarmupState::State::LoadingAccessLog:
     case WarmupState::State::LoadingKVPairs:
     case WarmupState::State::LoadingData:
-    case WarmupState::State::Done:
         throw std::runtime_error(
                 fmt::format("Warmup({})::lookupVBucket({}): called for illegal "
                             "warmup state:{}",
                             getName(),
                             vbid,
                             to_string(state.getState())));
+    case WarmupState::State::Done:
+        // State is set to Done when stopping warmup
+        return nullptr;
     }
 
     auto locked = warmedUpVbuckets.lock();
