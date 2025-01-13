@@ -290,6 +290,13 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
             // to make this more complex than it is...
             privilegeContext = std::make_shared<cb::rbac::PrivilegeContext>(
                     cb::rbac::PrivilegeContext{getUser().domain});
+
+            if (bucketIndex.load() == 0) {
+                // If we're connected to the no bucket we should return
+                // no bucket instead of EACCESS. Lets give the connection all
+                // possible bucket privileges
+                privilegeContext->setBucketPrivileges();
+            }
             return privilegeContext;
         }
 
@@ -315,6 +322,14 @@ std::shared_ptr<cb::rbac::PrivilegeContext> Connection::getPrivilegeContext() {
                              {"description", getDescription()});
             }
         }
+
+        if (bucketIndex.load() == 0) {
+            // If we're connected to the no bucket we should return
+            // no bucket instead of EACCESS. Lets give the connection all
+            // possible bucket privileges
+            privilegeContext->setBucketPrivileges();
+        }
+
         updatePrivilegeContext();
     }
 

@@ -721,3 +721,24 @@ TEST_P(RegressionTest, MB55754) {
                          << " Before: "
                          << conn_stats_before["yields"].get<int>();
 }
+
+/**
+ * Verify that we return No Bucket on a connection which span RBAC refresh
+ * and bound to "no bucket".
+ *
+ * See https://jira.issues.couchbase.com/browse/MB-64825
+ */
+TEST_P(RegressionTest, MB64825) {
+    userConnection->unselectBucket();
+    auto rsp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "foo"});
+    ASSERT_EQ(cb::mcbp::Status::NoBucket, rsp.getStatus());
+
+    rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::RbacRefresh});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    rsp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "foo"});
+    ASSERT_EQ(cb::mcbp::Status::NoBucket, rsp.getStatus());
+}

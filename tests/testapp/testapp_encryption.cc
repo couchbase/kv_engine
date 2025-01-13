@@ -136,4 +136,21 @@ TEST_P(EncryptionTest, TestEncryptionKeyIds) {
     ASSERT_TRUE(stats["@audit"].is_array());
     ASSERT_TRUE(stats.contains("@logs"));
     ASSERT_TRUE(stats["@logs"].is_array());
+
+    // MB-64825: Verify that the stat call still succeed if it spans a RBAC
+    // refresh and the connection is bound to "no bucket"
+    // See https://jira.issues.couchbase.com/browse/MB-64825
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::RbacRefresh});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    adminConnection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+    EXPECT_FALSE(stats.empty());
+    EXPECT_TRUE(stats.is_object()) << stats.dump();
+    ASSERT_TRUE(stats.contains("@audit"));
+    ASSERT_TRUE(stats["@audit"].is_array());
+    ASSERT_TRUE(stats.contains("@logs"));
+    ASSERT_TRUE(stats["@logs"].is_array());
 }
