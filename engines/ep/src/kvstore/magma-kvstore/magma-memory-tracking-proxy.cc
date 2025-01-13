@@ -702,17 +702,20 @@ MagmaMemoryTrackingProxy::GetFusionStorageSnapshot(
         const std::string& snapshotUuid,
         std::time_t validity) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetFusionStorageSnapshot(
+    return copyToPrimaryDomain(magma->GetFusionStorageSnapshot(
             fusionNamespace,
             kvID,
             snapshotUuid,
-            std::chrono::system_clock::from_time_t(validity));
+            std::chrono::system_clock::from_time_t(validity)));
 }
 
 magma::Status MagmaMemoryTrackingProxy::ReleaseFusionStorageSnapshot(
         const std::string& fusionNamespace,
         magma::Magma::KVStoreID kvID,
         const std::string& snapshotUuid) {
+    // Note: magma::Status ensures by ExecutionEnvGuard that instances allocated
+    // within magma (ie in the secondary domain) are released in the same
+    // domain. See Status::~Status() for details.
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->ReleaseFusionStorageSnapshot(
             fusionNamespace, kvID, snapshotUuid);

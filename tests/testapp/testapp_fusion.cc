@@ -121,13 +121,29 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
 }
 
 TEST_P(FusionTest, GetReleaseStorageSnapshot) {
-    // Create a snapshot first
+    // Negative test: try to release a non-existent snapshot
+    BinprotResponse resp;
+    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        // MB-64494: snapshot uuid reported in the error message allocated by
+        // magma. Here big-enough for preventing SSO that hides memory domain
+        // alloc issues.
+        json["snapshotUuid"] = std::string(1024, 'u');
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        resp = conn.execute(cmd);
+    });
+    EXPECT_EQ(cb::mcbp::Status::Einternal, resp.getStatus());
+
+    // Create a snapshot
     const auto snapshotUuid = "some-snapshot-uuid";
     const auto tp = std::chrono::system_clock::now() + std::chrono::minutes(10);
     const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(tp);
     const auto validity = secs.time_since_epoch().count();
 
-    BinprotResponse resp;
     adminConnection->executeInBucket(
             bucketName, [&resp, &snapshotUuid, validity](auto& conn) {
                 auto cmd = BinprotGenericCommand{
