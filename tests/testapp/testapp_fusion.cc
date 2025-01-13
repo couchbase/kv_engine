@@ -117,6 +117,8 @@ TEST_P(FusionTest, Stat_ActiveGuestVolumes) {
     });
 
     // @todo MB-63679: Actual values will be populated once we have MountKVStore
+    // + SetVBstate(open_snapshot=true). At the time of writing MountKVStore is
+    // ready, we need the latter.
     ASSERT_TRUE(res.is_array());
 }
 

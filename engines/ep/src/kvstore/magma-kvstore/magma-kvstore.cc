@@ -4502,7 +4502,7 @@ nlohmann::json MagmaKVStore::getFusionStats(FusionStat stat, Vbid vbid) {
         const auto res = magma->GetActiveFusionGuestVolumes(
                 Magma::KVStoreID(vbid.get()));
         checkError(std::get<Status>(res));
-        return std::get<nlohmann::json>(res);
+        return {std::get<std::vector<std::string>>(res)};
     }
     }
 

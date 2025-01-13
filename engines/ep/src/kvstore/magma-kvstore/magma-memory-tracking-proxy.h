@@ -269,8 +269,8 @@ public:
     std::tuple<magma::Status, nlohmann::json> GetFusionSyncInfo(
             const magma::Magma::KVStoreID kvID);
 
-    std::tuple<magma::Status, nlohmann::json> GetActiveFusionGuestVolumes(
-            const magma::Magma::KVStoreID kvID);
+    std::tuple<magma::Status, std::vector<std::string>>
+    GetActiveFusionGuestVolumes(const magma::Magma::KVStoreID kvID);
 
     std::tuple<magma::Status, nlohmann::json> GetFusionStorageSnapshot(
             const std::string& fusionNamespace,

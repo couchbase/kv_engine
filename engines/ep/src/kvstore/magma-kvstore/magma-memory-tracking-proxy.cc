@@ -685,14 +685,14 @@ std::tuple<magma::Status, nlohmann::json>
 MagmaMemoryTrackingProxy::GetFusionSyncInfo(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetFusionSyncInfo(kvID);
+    return copyToPrimaryDomain(magma->GetFusionSyncInfo(kvID));
 }
 
-std::tuple<magma::Status, nlohmann::json>
+std::tuple<magma::Status, std::vector<std::string>>
 MagmaMemoryTrackingProxy::GetActiveFusionGuestVolumes(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetActiveFusionGuestVolumes(kvID);
+    return copyToPrimaryDomain(magma->GetActiveFusionGuestVolumes(kvID));
 }
 
 std::tuple<magma::Status, nlohmann::json>
