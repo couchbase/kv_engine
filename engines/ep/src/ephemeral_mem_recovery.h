@@ -63,7 +63,7 @@ public:
     bool runInner(bool manuallyNotified) override;
 
     std::string getDescription() const override {
-        return "Ephemeral Memory Manager";
+        return "Ephemeral Memory Recovery";
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {

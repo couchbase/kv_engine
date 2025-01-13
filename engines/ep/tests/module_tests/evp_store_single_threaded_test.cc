@@ -707,6 +707,10 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
                        "compaction_expiry_fetch_inline=true",
                        "compaction_fetch_inline");
     boost::replace_all(config, "_compaction_expiry_fetch_inline=false", "");
+    boost::replace_all(config,
+                       "ephemeral_mem_recovery_enabled=true",
+                       "ephemeral_mem_recovery");
+    boost::replace_all(config, "_ephemeral_mem_recovery_enabled=false", "");
     return config;
 }
 

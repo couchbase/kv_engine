@@ -20,6 +20,8 @@
 #include "checkpoint_utils.h"
 #include "ep_bucket.h"
 #include "ep_time.h"
+#include "ephemeral_bucket.h"
+#include "ephemeral_mem_recovery.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
 #include "item_pager.h"
@@ -369,6 +371,21 @@ protected:
                          std::to_string(getNumConcurrentExpiryPagers());
         STBucketQuotaTest::SetUp();
 
+        if (isEphemeralMemRecoveryEnabled()) {
+            if (isCrossBucketHtQuotaSharing()) {
+                GTEST_SKIP()
+                        << "EphemeralMemRecovery and cross-bucket HT quota "
+                           "sharing are not compatible";
+            }
+            // Stop periodic execution of ItemPager
+            updateItemPagerSleepTime(std::chrono::milliseconds(INT_MAX));
+            scheduleEphemeralMemRecovery();
+            // EphMemRec utilises checkpoint remover task
+            scheduleCheckpointRemoverTask();
+            initialNonIoTasks += 2;
+            ephemeralMemRecoveryScheduled = true;
+        }
+
         // For Ephemeral fail_new_data buckets we have no item pager, instead
         // the Expiry pager is used.
         if (engine->getConfiguration().getEphemeralFullPolicyString() ==
@@ -455,7 +472,29 @@ protected:
         ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
         ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
-        if (itemPagerScheduled) {
+        if (ephemeralMemRecoveryScheduled) {
+            // Ephemeral MemRecovery wakes up checkpoint remover first,
+            // it then wakes up item pager for auto-delete buckets.
+            runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+
+            if (itemPagerScheduled) {
+                // Only auto-delete bucket has itemPager scheduled
+                runNextTask(lpNonioQ, "CheckpointMemRecoveryTask:0");
+                runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+                // item pager is run as final stage of EphemeralMemRecovery
+                runNextTask(lpNonioQ, itemPagerTaskName());
+                ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
+                ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
+                runPagingAdapterTask();
+            } else {
+                // fail_new_data bucket schedules the expiry pager as well
+                runNextTask(lpNonioQ, "Paging expired items.");
+                runNextTask(lpNonioQ, "CheckpointMemRecoveryTask:0");
+                runNextTask(lpNonioQ,
+                            "Expired item remover no vbucket assigned");
+                runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+            }
+        } else if (itemPagerScheduled) {
             // Item pager consists of two Tasks - the parent ItemPager task,
             // and then a task (via VCVBAdapter) to process each vBucket (which
             // there is just one of as we only have one vBucket online).
@@ -575,6 +614,7 @@ protected:
     bool itemPagerScheduled = false;
     /// Paging visitor set up to visit VBucket(`vbid`).
     std::unique_ptr<MockItemPagingVisitor> mockVisitor;
+    bool ephemeralMemRecoveryScheduled = false;
 };
 
 TEST_P(STItemPagerTest, MaxVisitorDuration) {
@@ -866,7 +906,11 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
 TEST_P(STItemPagerTest, ItemPagerRunPeriodically) {
     if (ephemeralFailNewData()) {
         // EphemeralFailNewData doesn't enable the ItemPager.
-        return;
+        GTEST_SKIP();
+    }
+    if (isEphemeralMemRecoveryEnabled()) {
+        // Periodic execution disabled if EphemeralMemRecovery is enabled.
+        GTEST_SKIP();
     }
 
     // Check initial sleep time of ItemPager - advance time by item pager
@@ -1049,7 +1093,11 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     // For the Expiry Pager we do not enforce the visiting of replica buckets
     // first.
     if (ephemeralFailNewData()) {
-        return;
+        GTEST_SKIP();
+    }
+    // EphemeralMemRecovery utilises ItemPager for eviction - test not required
+    if (isEphemeralMemRecoveryEnabled()) {
+        GTEST_SKIP();
     }
     auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
@@ -2086,6 +2134,12 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, PageOutHoldsVBStateLock) {
 // don't delete under the simple LWM when pageable mem used is above the
 // pageable LWM.
 TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_64008) {
+    // EphemeralMemRecovery utilises the ItemPager to delete items, so
+    // running this test just on ItemPager alone is enough.
+    if (isEphemeralMemRecoveryEnabled()) {
+        GTEST_SKIP();
+    }
+
     ASSERT_TRUE(itemPagerScheduled);
 
     // Need two vbuckets and one must be replica so that we account the replica
@@ -2710,6 +2764,11 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
 
     if (ephemeralFailNewData()) {
         // items are not auto-deleted, so the ItemPager does not run.
+        GTEST_SKIP();
+    }
+    if (isEphemeralMemRecoveryEnabled()) {
+        // The test is not applicable when EphemeralMemRecovery enabled as
+        // only ItemPager was affected (which is utilised by EphMemRec).
         GTEST_SKIP();
     }
 

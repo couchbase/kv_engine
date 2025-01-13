@@ -11,6 +11,7 @@
 
 #include "ephemeral_bucket_test.h"
 
+#include <chrono>
 #include <utility>
 
 #include "checkpoint_manager.h"
@@ -20,6 +21,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "ephemeral_bucket.h"
+#include "ephemeral_mem_recovery.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "test_helpers.h"
@@ -759,6 +761,56 @@ TEST_F(SingleThreadedEphemeralTest, no_prepare_snapshot) {
     EXPECT_EQ(cb::engine_errc::not_supported,
               engine->prepare_snapshot(
                       *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
+}
+
+void SingleThreadedEphemeralTest::testEphemeralMemRecoverySwitching() {
+    auto& ephemeralBucket = dynamic_cast<EphemeralBucket&>(*store);
+    auto& config = engine->getConfiguration();
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+
+    // ItemPager only scheduled for auto_delete bucket
+    if (!ephemeralFailNewData()) {
+        ephemeralBucket.enableItemPager();
+    }
+
+    // Enable EphemeralMemRecovery and disable ItemPager periodic execution
+    config.setEphemeralMemRecoveryEnabled(true);
+    ephemeralBucket.useEphemeralMemRecovery(true);
+    ASSERT_EQ(std::chrono::seconds(INT_MAX), getItemPagerWakeTime());
+    ASSERT_FALSE(isEphemeralMemRecoveryTaskDead());
+
+    // attempToFreeMemory will wakeup EphemeralMemRecovery
+    ephemeralBucket.attemptToFreeMemory();
+    runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+    if (ephemeralFailNewData()) {
+        // Also wakes up the expiry pager for fail_new_data bucket
+        runNextTask(lpNonioQ, "Paging expired items.");
+    }
+
+    // Disable EphemeralMemRecovery and enable ItemPager periodic execution
+    config.setEphemeralMemRecoveryEnabled(false);
+    ephemeralBucket.useEphemeralMemRecovery(false);
+    ASSERT_NE(std::chrono::seconds(INT_MAX), getItemPagerWakeTime());
+    ASSERT_TRUE(isEphemeralMemRecoveryTaskDead());
+    // Cancelling wakes up the task once more to set rescheduled to false
+    runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+
+    ephemeralBucket.attemptToFreeMemory();
+    if (ephemeralFailNewData()) {
+        // fail_new_data bucket should run expiry pager
+        runNextTask(lpNonioQ, "Paging expired items.");
+    } else {
+        // auto_delete should run item pager
+        runNextTask(lpNonioQ, "Paging out items.");
+    }
+}
+
+TEST_F(SingleThreadedEphemeralTest, useEphemeralMemRecovery) {
+    testEphemeralMemRecoverySwitching();
+}
+
+TEST_F(SingleThreadedEphemeralTestFailNewData, useEphemeralMemRecovery) {
+    testEphemeralMemRecoverySwitching();
 }
 
 class SingleThreadedEphemeralPurgerTest : public SingleThreadedKVBucketTest {

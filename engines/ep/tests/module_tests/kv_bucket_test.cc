@@ -30,9 +30,12 @@
 #include "ep_task.h"
 #include "ep_time.h"
 #include "ep_vb.h"
+#include "ephemeral_bucket.h"
+#include "ephemeral_mem_recovery.h"
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "flusher.h"
+#include "tests/ep_testsuite_common.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
@@ -127,6 +130,12 @@ void KVBucketTest::initialise(std::string_view baseConfig) {
             config += ";max_num_bgfetchers=1";
         }
 
+        // Unless specified, default to disabling the ephemeral memory recovery.
+        if (config.find("ephemeral_mem_recovery_enabled") ==
+            std::string::npos) {
+            config += ";ephemeral_mem_recovery_enabled=false";
+        }
+
         engine = SynchronousEPEngine::build(config);
         Expects(ObjectRegistry::getCurrentEngine() &&
                 "Expect current thread is associated with 'engine' after "
@@ -160,6 +169,17 @@ void KVBucketTest::initialise(std::string_view baseConfig) {
     for (size_t i = 0; i < numCkptDestroyers; ++i) {
         locked->push_back(
                 std::make_shared<CheckpointDestroyerTask>(*engine));
+    }
+
+    if (epConfig.isEphemeralMemRecoveryEnabled()) {
+        ASSERT_EQ(epConfig.getBucketTypeString(), "ephemeral");
+        auto* ephemeralStore = dynamic_cast<EphemeralBucket*>(store);
+        ephemeralStore->ephemeralMemRecoveryTask =
+                std::make_shared<EphemeralMemRecovery>(
+                        *engine,
+                        *ephemeralStore,
+                        std::chrono::milliseconds(
+                                epConfig.getEphemeralMemRecoverySleepTime()));
     }
 
     // Note cookies are owned by the frontend (not any specific engine) so
@@ -434,6 +454,12 @@ GetValue KVBucketTest::getInternal(const DocKeyView& key,
 
 void KVBucketTest::scheduleItemPager() {
     ExecutorPool::get()->schedule(store->itemPagerTask);
+}
+
+void KVBucketTest::scheduleEphemeralMemRecovery() {
+    ASSERT_EQ(engine->getConfiguration().getBucketTypeString(), "ephemeral");
+    auto* bucket = dynamic_cast<EphemeralBucket*>(store);
+    ExecutorPool::get()->schedule(*bucket->ephemeralMemRecoveryTask.rlock());
 }
 
 void KVBucketTest::initializeExpiryPager() {

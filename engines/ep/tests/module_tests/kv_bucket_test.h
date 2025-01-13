@@ -270,6 +270,8 @@ public:
      */
     void scheduleItemPager();
 
+    void scheduleEphemeralMemRecovery();
+
     void initializeExpiryPager();
 
     void initializeInitialMfuUpdater();

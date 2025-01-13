@@ -490,6 +490,11 @@ public:
         return ephAutoDelete() | ephFailNewData();
     }
 
+    static config::Config ephemeralMemRecoveryConfigValues() {
+        return config::Config{
+                {"ephemeral_mem_recovery_enabled", {"true", "false"}}};
+    }
+
     static auto couchstoreBucket() {
         return persistentBucket() * config::Config{{"backend", "couchstore"}};
     }
@@ -513,12 +518,14 @@ public:
     }
 
     static auto ephConfigValues() {
-        return ephemeralBucket() * ephFullPolicy();
+        return ephemeralBucket() * ephFullPolicy() *
+               ephemeralMemRecoveryConfigValues();
     }
 
     static auto ephAutoDeleteConfigValues() {
         using namespace std::string_literals;
-        return ephemeralBucket() * ephAutoDelete();
+        return ephemeralBucket() * ephAutoDelete() *
+               ephemeralMemRecoveryConfigValues();
     }
 
     static auto allConfigValues() {

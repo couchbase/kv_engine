@@ -16,18 +16,24 @@
 #include "collections/vbucket_manifest.h"
 #include "ep_engine.h"
 #include "ep_types.h"
+#include "ephemeral_mem_recovery.h"
 #include "ephemeral_tombstone_purger.h"
 #include "ephemeral_vb.h"
 #include "ephemeral_vb_count_visitor.h"
 #include "failover-table.h"
+#include "item_pager.h"
 #include "rollback_result.h"
 #include "seqno_persistence_notify_task.h"
 #include <executor/executorpool.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 
 #include <algorithm>
+#include <chrono>
+#include <climits>
+#include <memory>
 
 /**
  * A configuration value changed listener that responds to Ephemeral bucket
@@ -80,6 +86,19 @@ public:
         if (key == "ephemeral_metadata_purge_interval") {
             // Cancel and re-schedule the task to pick up the new interval.
             bucket.enableTombstonePurgerTask();
+        } else if (key == "ephemeral_mem_recovery_sleep_time") {
+            bucket.setMemRecoveryTaskSleepTime(value);
+        } else {
+            EP_LOG_WARN(
+                    "EphemeralValueChangedListener: Failed to change value for "
+                    "unknown key '{}'",
+                    key);
+        }
+    }
+
+    void booleanValueChanged(std::string_view key, bool value) override {
+        if (key == "ephemeral_mem_recovery_enabled") {
+            bucket.useEphemeralMemRecovery(value);
         } else {
             EP_LOG_WARN(
                     "EphemeralValueChangedListener: Failed to change value for "
@@ -118,6 +137,8 @@ bool EphemeralBucket::initialize() {
     KVBucket::initialize();
     auto& config = engine.getConfiguration();
 
+    useEphemeralMemRecovery(config.isEphemeralMemRecoveryEnabled());
+
     // Item pager - only scheduled if "auto_delete" is specified as the bucket
     // full policy, but always add a value changed listener so we can handle
     // dynamic config changes (and later schedule it).
@@ -126,7 +147,7 @@ bool EphemeralBucket::initialize() {
     } else {
         switchFullPolicy(FullPolicy::FailNewData);
     }
-    engine.getConfiguration().addValueChangedListener(
+    config.addValueChangedListener(
             "ephemeral_full_policy",
             std::make_unique<EphemeralValueChangedListener>(*this));
 
@@ -141,6 +162,12 @@ bool EphemeralBucket::initialize() {
             std::make_unique<EphemeralValueChangedListener>(*this));
     config.addValueChangedListener(
             "ephemeral_metadata_purge_interval",
+            std::make_unique<EphemeralValueChangedListener>(*this));
+    config.addValueChangedListener(
+            "ephemeral_mem_recovery_sleep_time",
+            std::make_unique<EphemeralValueChangedListener>(*this));
+    config.addValueChangedListener(
+            "ephemeral_mem_recovery_enabled",
             std::make_unique<EphemeralValueChangedListener>(*this));
 
     return true;
@@ -231,8 +258,13 @@ size_t EphemeralBucket::getPageableMemLowWatermark() const {
 }
 
 void EphemeralBucket::attemptToFreeMemory() {
-    // Call down to the base class; do to whatever it can to free memory.
-    KVBucket::attemptToFreeMemory();
+    if (getConfiguration().isEphemeralMemRecoveryEnabled()) {
+        ephemeralMemRecoveryTask.withRLock(
+                [](auto& task) { task->wakeupIfRequired(); });
+    } else {
+        // Utilise item pager to free memory for auto-delete buckets
+        KVBucket::attemptToFreeMemory();
+    }
 
     // No-eviction Ephemeral buckets don't schedule the item pager, which
     // normally handles deleting expired items (while looking for items to
@@ -377,6 +409,49 @@ void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
             ExecutorPool::get()->wake(seqnoPersistenceNotifyTask->getId());
         }
     }
+}
+
+void EphemeralBucket::setMemRecoveryTaskSleepTime(size_t sleepTime) {
+    ephemeralMemRecoveryTask.withRLock([sleepTime](auto& task) {
+        if (task) {
+            task->updateSleepTime(std::chrono::milliseconds(sleepTime));
+        }
+    });
+}
+
+void EphemeralBucket::useEphemeralMemRecovery(bool enableEphMemRec) {
+    Expects(!isCrossBucketHtQuotaSharing());
+
+    auto strictQuotaItemPager =
+            std::dynamic_pointer_cast<StrictQuotaItemPager>(itemPagerTask);
+
+    std::shared_ptr<EphemeralMemRecovery> tempTask;
+    if (enableEphMemRec) {
+        tempTask = std::make_shared<EphemeralMemRecovery>(
+                engine,
+                *this,
+                std::chrono::milliseconds(
+                        getConfiguration().getEphemeralMemRecoverySleepTime()));
+    }
+
+    auto oldTask = ephemeralMemRecoveryTask.exchange(std::move(tempTask));
+    if (oldTask) {
+        ExecutorPool::get()->cancel(oldTask->getId());
+    }
+
+    auto pagerSleepTime =
+            std::chrono::milliseconds(getConfiguration().getPagerSleepTimeMs());
+    ephemeralMemRecoveryTask.withRLock([&](auto& lockedTask) {
+        if (lockedTask) {
+            // Disable the periodic execution of the item pager if
+            // the ephemeralMemRecoveryTask is being scheduled.
+            strictQuotaItemPager->updateSleepTime(
+                    std::chrono::seconds(INT_MAX));
+            ExecutorPool::get()->schedule(lockedTask);
+        } else {
+            strictQuotaItemPager->updateSleepTime(pagerSleepTime);
+        }
+    });
 }
 
 // Protected methods //////////////////////////////////////////////////////////

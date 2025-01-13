@@ -11,11 +11,13 @@
 #pragma once
 
 #include "kv_bucket.h"
+#include <folly/Synchronized.h>
 #include <mcbp/protocol/status.h>
 #include <relaxed_atomic.h>
 
 /* Forward declarations */
 class RollbackResult;
+class EphemeralMemRecovery;
 
 /**
  * Ephemeral Bucket
@@ -193,7 +195,24 @@ public:
 
     void switchFullPolicy(FullPolicy newPolicy);
 
+    /**
+     * @param sleepTime Interval in milliseconds to sleep between runs for
+     * EphemeralMemRecovery.
+     */
+    void setMemRecoveryTaskSleepTime(size_t sleepTime);
+
+    /**
+     * Switch between utilising EphemeralMemRecovery or
+     * ItemPager (auto-delete only) for memory recovery
+     *
+     * @param enableEphMemRec If true, use EphemeralMemRecovery
+     */
+    void useEphemeralMemRecovery(bool enableEphMemRec);
+
 protected:
+    friend class KVBucketTest;
+    friend class SingleThreadedEphemeralTest;
+
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;
 
@@ -225,4 +244,12 @@ protected:
      */
     cb::RelaxedAtomic<FullPolicy> fullPolicy;
     std::mutex fullPolicyMutex;
+
+    /*
+     * Task responsible for recovering memory from checkpoint usage when HWM is
+     * exceeded. For auto-delete only, the ItemPager is woken up after
+     * checkpoint memory recovery has been completed.
+     */
+    folly::Synchronized<std::shared_ptr<EphemeralMemRecovery>>
+            ephemeralMemRecoveryTask;
 };

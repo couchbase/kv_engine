@@ -13,6 +13,10 @@
 /**
  * Unit tests for the EphemeralBucket class.
  */
+#include "ephemeral_bucket.h"
+#include "ephemeral_mem_recovery.h"
+#include "executor/globaltask.h"
+#include "item_pager.h"
 #include "stats_test.h"
 
 /**
@@ -36,9 +40,44 @@ protected:
  * Test fixture for single-threaded Ephemeral tests.
  */
 class SingleThreadedEphemeralTest : public SingleThreadedKVBucketTest {
+public:
+    bool isEphemeralMemRecoveryTaskDead() const {
+        auto& ephemeralBucket = dynamic_cast<EphemeralBucket&>(*store);
+        return ephemeralBucket.ephemeralMemRecoveryTask.withRLock(
+                [&](const auto& task) {
+                    if (task) {
+                        return task->isdead();
+                    }
+                    return true;
+                });
+    }
+
+    std::chrono::microseconds getItemPagerWakeTime() const {
+        auto& ephemeralBucket = dynamic_cast<EphemeralBucket&>(*store);
+        auto& itemPager = dynamic_cast<StrictQuotaItemPager&>(
+                *ephemeralBucket.itemPagerTask);
+        return itemPager.getSleepTime();
+    }
+
+    bool ephemeralFailNewData() const {
+        return engine->getConfiguration().getEphemeralFullPolicyString() ==
+               "fail_new_data";
+    }
+
+    void testEphemeralMemRecoverySwitching();
+
 protected:
     void SetUp() override {
-        config_string += "bucket_type=ephemeral;ht_size=1";
+        config_string += "bucket_type=ephemeral;ht_size=1;";
         SingleThreadedKVBucketTest::SetUp();
+    }
+};
+
+class SingleThreadedEphemeralTestFailNewData
+    : public SingleThreadedEphemeralTest {
+    void SetUp() override {
+        config_string +=
+                "ephemeral_full_policy=fail_new_data;exp_pager_enabled=true;";
+        SingleThreadedEphemeralTest::SetUp();
     }
 };

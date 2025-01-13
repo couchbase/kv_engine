@@ -69,6 +69,15 @@ public:
             store->enableItemPager();
         }
 
+        // Disable periodic execution of the ItemPager and schedule the
+        // EphemeralMemRecoveryTask.
+        if (isEphemeralMemRecoveryEnabled()) {
+            updateItemPagerSleepTime(std::chrono::seconds(INT_MAX));
+            scheduleEphemeralMemRecovery();
+            // Required to re-trigger EphemeralMemRecover
+            scheduleCheckpointRemoverTask();
+        }
+
         // Drop task wait time to run the next stage instantly so that:
         // 1) we don't have to wait
         // 2) we can run the task and the ItemPager manually and assert the
@@ -98,6 +107,11 @@ public:
         auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
         // run the task.
         runNextTask(lpNonioQ, "Paging out items.");
+    }
+
+    void runEphemeralMemRecoveryTask() {
+        auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+        runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
     }
 
     size_t getCurrentBucketQuota() {
@@ -381,7 +395,16 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
     auto key = makeStoredDocKey("key");
     auto newQuota = oldQuota / 2;
 
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
+
     if (ephemeralFailNewData()) {
+        if (isEphemeralMemRecoveryEnabled()) {
+            // EphemeralMemRecovery will have been woken by the
+            // BucketQuotaChangeTask, which already carries out memory
+            // recovery from checkpoints.
+            runEphemeralMemRecoveryTask();
+        }
+
         // Ephemeral fail new data can't recover memory via item paging (which
         // this test relies on) so just run the task again, make sure the quota
         // isn't changing, and end the test early.
@@ -390,11 +413,14 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
         return;
     }
 
-    // ItemPager will have been woken by the BucketQuotaChangeTask after it sets
-    // the new watermark values. ItemPager is a multi-phase task though and it
-    // will schedule the next stages now (which actually do the eviction).
-    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
-    runNextTask(lpNonioQ, "Paging out items.");
+    // BucketQuotaChnageTask will schedule ItemPager or EphemeralMemRecovery
+    // after it sets the new watermark values. Both tasks are multi-phase tasks
+    // and will schedule the next stages now (which actually do the eviction).
+    if (isEphemeralMemRecoveryEnabled()) {
+        runEphemeralMemRecoveryTask();
+    } else {
+        runItemPagerTask();
+    }
 
     // Quota task is up next because it snoozes for the configured duration
     // (wakes up immediately for test purposes) after setting the watermarks
@@ -402,6 +428,18 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
     // memory usage is too high and won't change the quota down yet.
     runQuotaChangeTaskOnce();
     EXPECT_NE(newQuota, engine->getEpStats().getMaxDataSize());
+
+    // EphemeralMemRecovery is a multi-phase task and will have scheduled the
+    // checkpoint remover task first, after which it will wakeup again.
+    // It will then schedule the item pager task to run.
+    if (isEphemeralMemRecoveryEnabled()) {
+        runNextTask(lpNonioQ, "CheckpointMemRecoveryTask:0");
+        runQuotaChangeTaskOnce();
+        runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+        runQuotaChangeTaskOnce();
+        runItemPagerTask();
+        runQuotaChangeTaskOnce();
+    }
 
     // Now the ItemPager visitor task can run.
     runNextTask(lpNonioQ, "Item pager no vbucket assigned");
@@ -483,15 +521,24 @@ TEST_P(BucketQuotaChangeTest, HandleIdenticalQuotaChange) {
 
 TEST_P(BucketQuotaChangeTest, HandleQuotaChangeCancel) {
     auto currentQuota = getCurrentBucketQuota();
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     setUpQuotaChangeDownHighMemoryUsageTest();
 
-    // 1 run of the ItemPager doesn't actually free up any memory
-    if (!ephemeralFailNewData()) {
+    // 1 run of the EphMemRec/ItemPager doesn't actually free up any memory
+    if (isEphemeralMemRecoveryEnabled()) {
+        runEphemeralMemRecoveryTask();
+    } else if (!ephemeralFailNewData()) {
         runItemPagerTask();
     }
 
     setBucketQuotaAndRunQuotaChangeTask(currentQuota);
+
+    // Complete remaining tasks
+    if (isEphemeralMemRecoveryEnabled()) {
+        runNextTask(lpNonioQ, "CheckpointMemRecoveryTask:0");
+        runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+    }
 
     {
         CB_SCOPED_TRACE("");
@@ -502,15 +549,24 @@ TEST_P(BucketQuotaChangeTest, HandleQuotaChangeCancel) {
 TEST_P(BucketQuotaChangeTest, HandleQuotaIncreaseDuringQuotaDecreaseChange) {
     auto currentQuota = getCurrentBucketQuota();
     auto newQuota = currentQuota * 2;
+    auto& lpNonioQ = *task_executor->getLpTaskQ(TaskType::NonIO);
 
     setUpQuotaChangeDownHighMemoryUsageTest();
 
-    // 1 run of the ItemPager doesn't actually free up any memory
-    if (!ephemeralFailNewData()) {
+    // 1 run of the EphMemRec/ItemPager doesn't actually free up any memory
+    if (isEphemeralMemRecoveryEnabled()) {
+        runEphemeralMemRecoveryTask();
+    } else if (!ephemeralFailNewData()) {
         runItemPagerTask();
     }
 
     setBucketQuotaAndRunQuotaChangeTask(newQuota);
+
+    // Complete remaining tasks
+    if (isEphemeralMemRecoveryEnabled()) {
+        runNextTask(lpNonioQ, "CheckpointMemRecoveryTask:0");
+        runNextTask(lpNonioQ, "Ephemeral Memory Recovery");
+    }
 
     {
         CB_SCOPED_TRACE("");

@@ -176,7 +176,8 @@ public:
         } else if (getTaskName() == "Paging out items." ||
                    getTaskName() == "Paging out items (quota sharing)." ||
                    getTaskName() == "Paging expired items." ||
-                   getTaskName() == "Generating access log") {
+                   getTaskName() == "Generating access log" ||
+                   getTaskName() == "Ephemeral Memory Recovery") {
             checker = [this](bool taskRescheduled) {
                 // This task _may_ schedule N subsequent tasks.
                 // Bound it at 10 as a sanity check. If tests wish to configure
