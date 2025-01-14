@@ -65,6 +65,8 @@ public:
      */
     cb::time::steady_clock::time_point runNextTask(TaskQueue& taskQ);
 
+    void runNextTask(TaskType t, std::string_view expectedTaskName);
+
     /*
      * DCP helper. Create a MockDcpProducer configured with (or without)
      * collections and/or delete_times enabled

@@ -104,7 +104,7 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup) {
 }
 
 TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
-    // Prepare 3 snapshots
+    // Prepare 4 snapshots
     Vbid vb1(vbid);
     Vbid vb2(vbid.get() + 1);
     Vbid vb3(vbid.get() + 2);

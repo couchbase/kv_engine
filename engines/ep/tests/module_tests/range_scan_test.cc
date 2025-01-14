@@ -131,6 +131,34 @@ public:
         SingleThreadedEPBucketTest::TearDown();
     }
 
+    bool isTimeoutTaskScheduled() const {
+        return task_executor->isTaskScheduled(
+                TaskType::NonIO,
+                fmt::format("RangeScanTimeoutTask for {}", vbid));
+    }
+
+    bool isTimeoutTaskSnoozed() const {
+        return task_executor->isTask(
+                TaskType::NonIO,
+                fmt::format("RangeScanTimeoutTask for {}", vbid),
+                [](GlobalTask& t) { return t.getState() == TASK_SNOOZED; });
+    }
+
+    bool isTimeoutTaskDead() const {
+        return task_executor->isTask(
+                TaskType::NonIO,
+                fmt::format("RangeScanTimeoutTask for {}", vbid),
+                [](GlobalTask& t) { return t.getState() == TASK_DEAD; });
+    }
+
+    bool isTimeoutTaskWakeupTime(
+            std::chrono::steady_clock::time_point time) const {
+        return task_executor->isTask(
+                TaskType::NonIO,
+                fmt::format("RangeScanTimeoutTask for {}", vbid),
+                [time](GlobalTask& t) { return t.getWaketime() == time; });
+    }
+
     static std::string PrintToStringParamName(
             const ::testing::TestParamInfo<ParamType>& info) {
         return std::get<0>(info.param) + "_" + std::get<1>(info.param) + "_" +
@@ -1742,12 +1770,15 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scan_due_to_time_limit) {
 }
 
 TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
-    std::chrono::seconds tick(5);
-    RangeScan::setClockFunction([&tick]() {
-        static auto now = cb::time::steady_clock::time_point();
-        now += tick;
-        return now;
-    });
+    cb::time::steady_clock::use_chrono = false;
+    auto scopeGuard = folly::makeGuard(
+            []() { cb::time::steady_clock::use_chrono = true; });
+
+    // e.g. 60 seconds
+    std::chrono::seconds lifetime{
+            store->getConfiguration().getRangeScanMaxLifetime()};
+    // e.g. 30 seconds advance at various parts of the test
+    auto tick = lifetime / 2;
 
     auto vb = store->getVBucket(vbid);
 
@@ -1760,6 +1791,17 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
             {/* no sampling*/},
             cb::engine_errc::success,
             std::make_unique<DummyRangeScanHandler>(dummyCallbackCounter));
+
+    EXPECT_TRUE(isTimeoutTaskScheduled());
+    auto startTime = cb::time::steady_clock::now(); // e.g. 15:00.00
+    EXPECT_TRUE(isTimeoutTaskWakeupTime(startTime + lifetime)); // 15:01.00
+
+    using namespace std::chrono_literals;
+
+    // advance time so next scan has a different creation time
+    cb::time::steady_clock::advance(tick); // now + 30s = 15:00.30
+
+    // uuid2 is created at 15:00.30 and expires at 15:01.30
     auto uuid2 = createScan(
             scanCollection,
             {"user"},
@@ -1768,37 +1810,59 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
             {/* no sampling*/},
             cb::engine_errc::success,
             std::make_unique<DummyRangeScanHandler>(dummyCallbackCounter));
-    // RangeScanOwnerTest::cancelRangeScansExceedingDuration gives more details
-    // to the flow of time (or calls to now())
-    tick = std::chrono::seconds(0);
 
-    // Force cancel one scan
-    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
-    auto duration =
-            epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(5));
-    ASSERT_TRUE(duration.has_value());
-    EXPECT_EQ(std::chrono::seconds(5), duration.value());
+    // Task schedule and still due for the time of when we need uuid1 to be
+    // done by.
+    EXPECT_TRUE(isTimeoutTaskScheduled());
+    EXPECT_TRUE(isTimeoutTaskWakeupTime(startTime + lifetime)); // 15:01.00
+
+    // // RangeScanOwnerTest::cancelRangeScansExceedingDuration gives more
+    // details
+    // // to the flow of time (or calls to now())
+    // tick = std::chrono::seconds(0);
+
+    // Move time so task runs and we shall see that uuid1 cancels
+    cb::time::steady_clock::advance(tick); // now + 30s = 15:01.00
+    runNextTask(TaskType::NonIO,
+                fmt::format("RangeScanTimeoutTask for {}", vbid));
+    // Task runbs and sets the waketime to be the expiry of the next scan
+    // And the scan is gone.
     auto continueParams = cb::rangescan::ContinueParameters{
             vbid, uuid1, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(*cookie, continueParams));
 
-    // Can start uuid2
+    // We can start uuid2
     auto continueParams2 = cb::rangescan::ContinueParameters{
             vbid, uuid2, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::would_block,
               store->continueRangeScan(*cookie, continueParams2));
 
-    // Let's cancel whilst uuid2 is queued
-    tick = std::chrono::seconds(5);
-    duration = epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(5));
-    ASSERT_FALSE(duration.has_value());
+    // And expect the task will now wake at the limit of uuid2's lifetime
+    EXPECT_TRUE(isTimeoutTaskScheduled());
+    EXPECT_TRUE(isTimeoutTaskWakeupTime(startTime + lifetime +
+                                        (lifetime / 2))); // 15:01.30
+
+    cb::time::steady_clock::advance(tick); // now + 30s = 15:01.30
+    // Task should run again and cancel uuid2, whilst it's runnable though
+    runNextTask(TaskType::NonIO,
+                fmt::format("RangeScanTimeoutTask for {}", vbid));
+
+    // Task does not reschedule as no scans remain.
+    EXPECT_FALSE(isTimeoutTaskScheduled());
+
+    // Scan has been removed from tracking, no_such_key
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->cancelRangeScan(vbid, uuid2, *cookie));
 
-    // Task runs twice to drive scans to close files i.e. cancel
+    // Finally must run the AuxIO to drain out the tasks which got scheduled.
+    // When a RangeScan is cancelled an AuxIO task does the work to free any
+    // disk resources, hence we have AuxIO tasks to run.
     runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
+    runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
+                "RangeScanContinueTask");
+    // In this test 3 tasks were scheduled - 1 for the continue and 2 for cancel
     runNextTask(*task_executor->getLpTaskQ(TaskType::AuxIO),
                 "RangeScanContinueTask");
 }

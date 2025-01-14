@@ -83,7 +83,7 @@ public:
     void cancelByName(std::string_view name) {
         std::lock_guard<std::mutex> lh(tMutex);
         for (auto& it : taskLocator) {
-            if (name == it.second.first->getDescription().c_str()) {
+            if (name == it.second.first->getDescription()) {
                 it.second.first->cancel();
                 // And force awake so he is "runnable"
                 it.second.second->wake(it.second.first);
@@ -97,8 +97,7 @@ public:
     bool isTaskScheduled(TaskType queueType, std::string_view name) {
         std::lock_guard<std::mutex> lh(tMutex);
         for (auto& it : taskLocator) {
-            auto description = it.second.first->getDescription();
-            if (name != std::string_view(description.c_str())) {
+            if (name != it.second.first->getDescription()) {
                 continue;
             }
             if (it.second.second->getQueueType() != queueType) {
@@ -107,6 +106,24 @@ public:
             return true;
         }
         return false;
+    }
+
+    /*
+     * Check if task with given name exists
+     */
+    template <class Callback>
+    bool isTask(TaskType queueType, std::string_view name, Callback cb) {
+        std::lock_guard<std::mutex> lh(tMutex);
+        for (auto& it : taskLocator) {
+            if (name != it.second.first->getDescription()) {
+                continue;
+            }
+            if (it.second.second->getQueueType() != queueType) {
+                continue;
+            }
+            return cb(*it.second.first);
+        }
+        throw std::runtime_error(fmt::format("Task '{}' not found", name));
     }
 
     size_t getTotReadyTasks() {

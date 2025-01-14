@@ -97,6 +97,12 @@ cb::time::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
     return executor.completeCurrentTask();
 }
 
+void SingleThreadedKVBucketTest::runNextTask(
+        TaskType t, std::string_view expectedTaskName) {
+    auto& taskQueue = *task_executor->getLpTaskQ(t);
+    runNextTask(taskQueue, expectedTaskName);
+}
+
 void SingleThreadedKVBucketTest::SetUp() {
     {
         NonBucketAllocationGuard guard;
