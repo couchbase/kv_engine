@@ -287,6 +287,57 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, PagerIteration)
     }
 }
 
+class TestTraceable : public cb::executor::Traceable {
+public:
+    cb::executor::Tracer& getTracer() override {
+        return tracer;
+    }
+    const cb::executor::Tracer& getTracer() const override {
+        return tracer;
+    }
+    cb::executor::Tracer tracer;
+};
+
+BENCHMARK_DEFINE_F(PagingVisitorBench, NoopIterationWithTracing)
+(benchmark::State& state) {
+    auto semaphore = std::make_shared<cb::Semaphore>();
+    while (state.KeepRunning()) {
+        state.PauseTiming();
+
+        populateUntilFull(vbid);
+
+        // Poke the first item in the HashTable to have a very low freq counter
+        // to "poison" the MFU histogram that the PagingVisitor creates. This
+        // should prevent us from evicting almost all items with a low enough
+        // eviction ratio
+        auto vb = engine->getVBucket(vbid);
+        LambdaEvictionVisitor ev(*vb, [](const auto& hbl, auto& v) {
+            v.setFreqCounterValue(0);
+            return false;
+        });
+        vb->ht.visit(ev);
+
+        TestTraceable tracer;
+        auto pv = std::make_unique<ItemPagingVisitor>(
+                *engine->getKVBucket(),
+                engine->getEpStats(),
+                ItemEvictionStrategy::evict_nothing(),
+                semaphore,
+                false,
+                VBucketFilter(std::vector<Vbid>{vbid}));
+        pv->setTraceable(&tracer);
+        ObjectRegistry::onSwitchThread(engine.get());
+
+        state.ResumeTiming();
+
+        // Benchmark - measure how long it takes to run the PagingVisitor
+        // over the vBucket
+        pv->visitBucket(*engine->getVBucket(vbid));
+
+        state.PauseTiming();
+    }
+}
+
 BENCHMARK_DEFINE_F(PagingVisitorBench, EvictAllWithoutPager)
 (benchmark::State& state) {
     // Populate until we're temp failing to ensure that we can run
@@ -329,6 +380,13 @@ BENCHMARK_REGISTER_F(PagingVisitorBench, SingleVBucket)
         ->Unit(benchmark::kMillisecond);
 
 BENCHMARK_REGISTER_F(PagingVisitorBench, PagerIteration)
+        ->Threads(1)
+        ->Arg(10)
+        ->Arg(128)
+        ->Arg(256)
+        ->Unit(benchmark::kMillisecond);
+
+BENCHMARK_REGISTER_F(PagingVisitorBench, NoopIterationWithTracing)
         ->Threads(1)
         ->Arg(10)
         ->Arg(128)

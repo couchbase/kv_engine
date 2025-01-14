@@ -15,6 +15,20 @@
 namespace cb::executor {
 
 /**
+ * Uses the coarse system clock (via folly) and has a time_point compatible with
+ * the std::chrono::steady_clock.
+ */
+struct CoarseSteadyClock {
+    using duration = std::chrono::steady_clock::duration;
+    using period = std::chrono::steady_clock::period;
+    using rep = std::chrono::steady_clock::rep;
+    using time_point = std::chrono::steady_clock::time_point;
+    static constexpr bool is_steady{true};
+
+    static time_point now();
+};
+
+/**
  * An EventLiteral is simply a wrapper for a const char* with the contract that
  * the string is a compile-time literal (and does not need to be copied).
  * It's the type we use to identfy trace events.

@@ -23,6 +23,7 @@
 #include "vbucket.h"
 #include <executor/executorpool.h>
 
+#include <platform/scope_timer.h>
 #include <platform/semaphore.h>
 
 #include <cstdlib>
@@ -95,6 +96,9 @@ bool PagingVisitor::maybeExpire(StoredValue& v) {
 void PagingVisitor::update() {
     // Process expirations
     if (!expired.empty()) {
+        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
+                    cb::executor::CoarseSteadyClock>
+                timer(getTraceable(), "pager.expire");
         const auto startTime = ep_real_time();
         for (auto& item : expired) {
             store.processExpiredItem(item, startTime, ExpireBy::Pager);
@@ -334,7 +338,12 @@ void ItemPagingVisitor::visitBucket(VBucket& vb) {
     evictionStrategy->setupVBucketVisit(vb.getNumItems());
 
     currentBucket = &vb;
-    hashTablePosition = vb.ht.pauseResumeVisit(*this, hashTablePosition);
+    {
+        ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
+                    cb::executor::CoarseSteadyClock>
+                timer(getTraceable(), "pager.ht_visit");
+        hashTablePosition = vb.ht.pauseResumeVisit(*this, hashTablePosition);
+    }
     if (hashTablePosition == vb.ht.endPosition()) {
         hashTablePosition = {};
     }
@@ -346,6 +355,10 @@ void ItemPagingVisitor::visitBucket(VBucket& vb) {
 bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
                                    StoredValue* v,
                                    bool isDropped) {
+    ScopeTimer1<cb::tracing::SpanStopwatch<cb::executor::EventLiteral>,
+                cb::executor::CoarseSteadyClock>
+            timer(getTraceable(), "pager.evict");
+
     auto policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 

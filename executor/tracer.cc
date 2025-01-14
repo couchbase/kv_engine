@@ -10,6 +10,7 @@
 #include "platform/cb_arena_malloc.h"
 #include <executor/tracer.h>
 
+#include <folly/Chrono.h>
 #include <folly/container/F14Map.h>
 
 namespace cb::executor {
@@ -22,6 +23,11 @@ Tracer::Tracer() {
 Tracer::~Tracer() {
     cb::NoArenaGuard guard;
     data.reset();
+}
+
+CoarseSteadyClock::time_point CoarseSteadyClock::now() {
+    return time_point(
+            folly::chrono::coarse_steady_clock::now().time_since_epoch());
 }
 
 const Tracer::Profile& Tracer::getProfile() const {
