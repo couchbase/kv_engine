@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
             "Specify an output mode. Options: json (default), json-log (>=8.0)",
     });
     parser.addOption({[&parser](auto) {
-                          std::cerr << "mclogcat [options]" << std::endl;
+                          std::cerr << "mclogfmt [options]" << std::endl;
                           parser.usage(std::cerr);
                           std::exit(EXIT_SUCCESS);
                       },
