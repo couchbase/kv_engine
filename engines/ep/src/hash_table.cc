@@ -349,8 +349,8 @@ HashTable::UnlockedFindResult HashTable::unlocked_find(
     return {foundCmt, foundPend};
 }
 
-HashTable::RandomKeyVisitor::RandomKeyVisitor(size_t size, int random)
-    : random(std::abs(random)) {
+HashTable::RandomKeyVisitor::RandomKeyVisitor(size_t size, uint32_t random)
+    : random(random) {
     setup(size);
 }
 
@@ -381,11 +381,11 @@ void HashTable::RandomKeyVisitor::setup(size_t size) {
     }
 
     currentSize = size;
-    currentBucket = random % (currentSize);
+    currentBucket = random % static_cast<uint32_t>(currentSize);
     bucketsVisited = 0;
 }
 
-std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid, int rnd) {
+std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid, uint32_t rnd) {
     return getRandomKey(cid, RandomKeyVisitor{getSize(), rnd});
 }
 
