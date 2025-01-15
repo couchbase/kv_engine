@@ -1770,12 +1770,12 @@ public:
                     tempItemsAllowedPercent) {
     }
 
-    void testIntialiseVisitor(size_t size, int random) {
+    void testIntialiseVisitor(size_t size, uint32_t random) {
         HashTable::RandomKeyVisitor visitor{size, random};
         EXPECT_LT(visitor.getNextBucket(), size);
     }
 
-    void testVisitor(size_t size, int random) {
+    void testVisitor(size_t size, uint32_t random) {
         HashTable::RandomKeyVisitor visitor{size, random};
         EXPECT_FALSE(visitor.visitComplete());
         EXPECT_FALSE(visitor.maybeReset(size));
@@ -1820,7 +1820,7 @@ public:
 
         // Initialise the visitor so it computes a start point very close to the
         // end a place which definitely does not exist after the resize
-        HashTable::RandomKeyVisitor visitor{getSize(), int(size - 10)};
+        HashTable::RandomKeyVisitor visitor{getSize(), uint32_t(size - 10)};
 
         // Ensure if resize is called after the visitor is constructed
         // getRandomKey does not generate any faults
@@ -1844,7 +1844,7 @@ public:
 
         // Initialise the visitor so it computes a start point very close to the
         // end a place which definitely does not exist after the resize
-        HashTable::RandomKeyVisitor visitor{getSize(), int(size - 10)};
+        HashTable::RandomKeyVisitor visitor{getSize(), uint32_t(size - 10)};
 
         // Increase the keys in the HT
         keys = generateKeys(500, 100 /*start key*/);
