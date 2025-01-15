@@ -937,7 +937,7 @@ public:
      *
      * @return an item -- NULL if not fount
      */
-    std::unique_ptr<Item> getRandomKey(CollectionID cid, int random);
+    std::unique_ptr<Item> getRandomKey(CollectionID cid, uint32_t random);
 
     /**
      * Set an Item into the this hashtable
@@ -1490,7 +1490,7 @@ protected:
          *        should be the result of a random generator. There is no limit
          *        on this value.
          */
-        RandomKeyVisitor(size_t size, int random);
+        RandomKeyVisitor(size_t size, uint32_t random);
 
         /**
          * Return the bucket to use, this internally increments (and wraps) for
@@ -1517,7 +1517,7 @@ protected:
         size_t currentSize{0};
         size_t currentBucket{0};
         size_t bucketsVisited{0};
-        int random{0};
+        uint32_t random{0};
     };
 
     /**
