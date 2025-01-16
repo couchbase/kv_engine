@@ -96,7 +96,21 @@ public:
     std::vector<std::pair<Vbid, size_t>> getVbucketsSortedByChkMem() const;
 
 protected:
+    friend class CheckpointRemoverTest;
+
     enum class ReductionRequired : uint8_t { No, Yes };
+    enum class ReductionTarget { BucketLWM, CheckpointLowerMark };
+
+    /**
+     * Utilises target flag to determine amount of checkpoint memory to free:
+     *  - Free checkpoint memory to reach chk_lower_mark
+     *  - Free as much checkpoint memory as possible so overall
+     *    memory reaches LWM.
+     *
+     * @param target whether to recovery until bucket LWM or chk lower mark
+     * @return Return amount of checkpoint memory to free
+     */
+    size_t getBytesToFree(ReductionTarget target) const;
 
     /**
      * Attempts to release memory by creating a new checkpoint. That might make
@@ -104,25 +118,28 @@ protected:
      * removal. The procedure operates on all vbuckets in decreasing
      * checkpoint-mem-usage order.
      *
+     * @param target whether to recovery until bucket LWM or chk lower mark
      * @return Whether further memory reduction is required
      */
-    ReductionRequired attemptNewCheckpointCreation();
+    ReductionRequired attemptNewCheckpointCreation(ReductionTarget target);
 
     /**
      * Attempts to free memory by using item expelling from checkpoints from all
      * vbuckets in decreasing checkpoint-mem-usage order.
      *
+     * @param target whether to recovery until bucket LWM or chk lower mark
      * @return Whether further memory reduction is required
      */
-    ReductionRequired attemptItemExpelling();
+    ReductionRequired attemptItemExpelling(ReductionTarget target);
 
     /**
      * Attempts to make checkpoints eligible for removal by dropping cursors
      * from all vbuckets in decreasing checkpoint-mem-usage order.
      *
+     * @param target whether to recovery until bucket LWM or chk lower mark
      * @return Whether further memory reduction is required
      */
-    ReductionRequired attemptCursorDropping();
+    ReductionRequired attemptCursorDropping(ReductionTarget target);
 
     EPStats& stats;
 

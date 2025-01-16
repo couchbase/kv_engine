@@ -90,7 +90,8 @@ CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
 }
 
 CheckpointMemRecoveryTask::ReductionRequired
-CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
+CheckpointMemRecoveryTask::attemptNewCheckpointCreation(
+        ReductionTarget target) {
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
@@ -124,7 +125,7 @@ CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
         //   open checkpoint.
         bucket.notifyReplication(vbid, queue_op::empty);
 
-        if (bucket.getRequiredCMMemoryReduction() == 0) {
+        if (getBytesToFree(target) == 0) {
             // All done
             return ReductionRequired::No;
         }
@@ -134,7 +135,7 @@ CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
 }
 
 CheckpointMemRecoveryTask::ReductionRequired
-CheckpointMemRecoveryTask::attemptItemExpelling() {
+CheckpointMemRecoveryTask::attemptItemExpelling(ReductionTarget target) {
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
@@ -154,7 +155,7 @@ CheckpointMemRecoveryTask::attemptItemExpelling() {
                 vbid,
                 expelResult.memory);
 
-        if (bucket.getRequiredCMMemoryReduction() == 0) {
+        if (getBytesToFree(target) == 0) {
             // All done
             return ReductionRequired::No;
         }
@@ -163,7 +164,7 @@ CheckpointMemRecoveryTask::attemptItemExpelling() {
 }
 
 CheckpointMemRecoveryTask::ReductionRequired
-CheckpointMemRecoveryTask::attemptCursorDropping() {
+CheckpointMemRecoveryTask::attemptCursorDropping(ReductionTarget target) {
     auto& bucket = *engine->getKVBucket();
     const auto vbuckets = getVbucketsSortedByChkMem();
     for (const auto& it : vbuckets) {
@@ -187,7 +188,7 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
             }
             ++stats.cursorsDropped;
 
-            if (bucket.getRequiredCMMemoryReduction() == 0) {
+            if (getBytesToFree(target) == 0) {
                 // All done
                 return ReductionRequired::No;
             }
@@ -196,11 +197,34 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
     return ReductionRequired::Yes;
 }
 
+size_t CheckpointMemRecoveryTask::getBytesToFree(ReductionTarget target) const {
+    auto& bucket = *engine->getKVBucket();
+
+    size_t memToBucketLWM = 0;
+    auto currMemUsage = bucket.getPageableMemCurrent();
+    auto memLWM = bucket.getPageableMemLowWatermark();
+    if (target == ReductionTarget::BucketLWM && currMemUsage > memLWM) {
+        memToBucketLWM = currMemUsage - memLWM;
+    }
+
+    // Return max of (chk_mem_usage above lower_mark) and (mem_usage above LWM)
+    return std::max(bucket.getRequiredCMMemoryReduction(), memToBucketLWM);
+}
+
 bool CheckpointMemRecoveryTask::runInner(bool) {
     TRACE_EVENT0("ep-engine/task", "CheckpointMemRecoveryTask");
 
     auto& bucket = *engine->getKVBucket();
-    const auto bytesToFree = bucket.getRequiredCMMemoryReduction();
+
+    ReductionTarget target = ReductionTarget::CheckpointLowerMark;
+    // EphemeralMemRecoveryTask can trigger this task when HWM is exceeded.
+    // In that case we want to try free until bucket LWM instead of lower_mark.
+    if (engine->getConfiguration().isEphemeralMemRecoveryEnabled() &&
+        stats.getEstimatedTotalMemoryUsed() >= stats.mem_high_wat) {
+        target = ReductionTarget::BucketLWM;
+    }
+
+    const auto bytesToFree = getBytesToFree(target);
     if (bytesToFree == 0) {
         return true;
     }
@@ -221,7 +245,7 @@ bool CheckpointMemRecoveryTask::runInner(bool) {
         }
     });
 
-    if (attemptNewCheckpointCreation() == ReductionRequired::No) {
+    if (attemptNewCheckpointCreation(target) == ReductionRequired::No) {
         // Recovered enough, done
         return true;
     }
@@ -231,19 +255,21 @@ bool CheckpointMemRecoveryTask::runInner(bool) {
     // The reason behind trying expel here is to avoid dropping cursors if
     // possible, as that kicks the stream back to backfilling.
     if (engine->getConfiguration().isChkExpelEnabled()) {
-        if (attemptItemExpelling() == ReductionRequired::No) {
+        if (attemptItemExpelling(target) == ReductionRequired::No) {
             // Recovered enough by ItemExpel, done
             return true;
         }
     }
 
     // More memory to recover, try CursorDrop + CheckpointRemoval
-    if (attemptCursorDropping() == ReductionRequired::No) {
+    if (attemptCursorDropping(target) == ReductionRequired::No) {
         return true;
     }
 
-    // Run again as the required amount of memory was not recovered
-    snooze(0.1);
+    // Run again if we were not able to free to checkpoint lower mark.
+    if (target == ReductionTarget::CheckpointLowerMark) {
+        snooze(0.1);
+    }
 
     return true;
 }

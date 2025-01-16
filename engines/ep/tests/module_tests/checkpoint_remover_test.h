@@ -60,6 +60,16 @@ public:
      * test should be moved forward.
      */
     void testExpellingOccursBeforeCursorDropping(MemRecoveryMode mode);
+
+    /**
+     * Helper function to test the getBytesToFree method of
+     * CheckpointMemRecoveryTask.
+     * @param triggeredByHWM true if remover is triggered by bucket HWM
+     *          false if remover triggered by the checkpoint upper mark.
+     */
+    void testGetBytesToFree(KVBucket& bucket,
+                            std::shared_ptr<CheckpointMemRecoveryTask> remover,
+                            bool triggeredByHWM);
 };
 
 /**

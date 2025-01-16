@@ -26,6 +26,7 @@
 #include "vbucket.h"
 
 #include <folly/portability/GMock.h>
+#include <gtest/gtest.h>
 #include <climits>
 
 void CheckpointRemoverTest::SetUp() {
@@ -352,6 +353,26 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     }
 
     EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
+}
+
+void CheckpointRemoverTest::testGetBytesToFree(
+        KVBucket& bucket,
+        std::shared_ptr<CheckpointMemRecoveryTask> remover,
+        bool triggeredByHWM) {
+    if (triggeredByHWM) {
+        // Should free to bucket LWM.
+        auto expectedBytesToFree = bucket.getPageableMemCurrent() -
+                                   bucket.getPageableMemLowWatermark();
+        auto target = CheckpointMemRecoveryTask::ReductionTarget::BucketLWM;
+        auto bytesToFree = remover->getBytesToFree(target);
+        EXPECT_EQ(expectedBytesToFree, bytesToFree);
+    } else {
+        // Should free to checkpoint lower mark.
+        auto target =
+                CheckpointMemRecoveryTask::ReductionTarget::CheckpointLowerMark;
+        auto bytesToFree = remover->getBytesToFree(target);
+        EXPECT_EQ(bucket.getRequiredCMMemoryReduction(), bytesToFree);
+    }
 }
 
 // Test that we correctly apply expelling before cursor dropping.
@@ -1329,6 +1350,97 @@ TEST_P(CheckpointRemoverTest, WakeupAgainIfReductionRequired) {
     EXPECT_EQ(remover->getWaketime(),
               std::chrono::steady_clock::time_point::max());
     EXPECT_EQ(remover->getState(), TASK_SNOOZED);
+}
+
+// If the CheckpointMemRecoveryTask is woken up by the checkpoint upper mark
+// being exceeded, then it should attempt to free memory to reach the checkpoint
+// lower mark
+TEST_P(CheckpointRemoverTest, TriggeredByChkUpperMark) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& config = engine->getConfiguration();
+    auto& stats = engine->getEpStats();
+    auto& bucket = *engine->getKVBucket();
+
+    const size_t bucketQuota = 1024 * 1024 * 100; // 100MB
+    config.setMaxSize(bucketQuota);
+    // Set checkpoint quota to a lower value to test the upper mark triggering
+    config.setCheckpointMemoryRatio(0.2);
+    EXPECT_EQ(bucketQuota, stats.getMaxDataSize());
+
+    const auto checkpointMemoryLimit =
+            bucketQuota * store->getCheckpointMemoryRatio();
+    config.setCheckpointMaxSize(checkpointMemoryLimit);
+
+    // Simulate memory usage above checkpoint upper mark
+    size_t numItems = 0;
+    do {
+        const auto value = std::string(bucketQuota / 20, 'x');
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("key_" + std::to_string(++numItems)),
+                          value,
+                          0 /*exp*/,
+                          PROTOCOL_BINARY_RAW_BYTES);
+        store->set(item, cookie);
+    } while (stats.getCheckpointManagerEstimatedMemUsage() <
+             bucket.getCMRecoveryUpperMarkBytes());
+
+    auto remover = std::make_shared<CheckpointMemRecoveryTask>(
+            *engine, engine->getEpStats(), 0);
+
+    EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat);
+    testGetBytesToFree(bucket, remover, false);
+}
+
+// If the CheckpointMemRecoveryTask is woken up by the total memory HWM
+// being exceeded, then it should attempt to free memory as much
+// memory as possible to reach the total memory LWM
+TEST_P(CheckpointRemoverTest, TriggeredByBucketHWM) {
+    if (persistent()) {
+        // This test is only relevant for Ephemeral buckets
+        GTEST_SKIP();
+    }
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& config = engine->getConfiguration();
+    auto& stats = engine->getEpStats();
+    auto& bucket = *engine->getKVBucket();
+
+    const size_t bucketQuota = 1024 * 1024 * 100; // 100MB
+    config.setMaxSize(bucketQuota);
+    config.setCheckpointMaxSize(bucketQuota);
+    // Set high checkpoint quota as we just want to test the HWM triggering
+    // and not the checkpoint upper_mark triggering the task.
+    config.setCheckpointMemoryRatio(1);
+    EXPECT_EQ(bucketQuota, stats.getMaxDataSize());
+
+    // Simulate memory usage above HWM.
+    size_t numItems = 0;
+    const auto value = std::string(bucketQuota / 20, 'x');
+    do {
+        auto item =
+                make_item(vbid,
+                          makeStoredDocKey("key_" + std::to_string(++numItems)),
+                          value,
+                          0 /*exp*/,
+                          PROTOCOL_BINARY_RAW_BYTES);
+        store->set(item, cookie);
+    } while (stats.getEstimatedTotalMemoryUsed() <
+             (stats.mem_high_wat + value.size())); // Ensure above HWM
+
+    flushAndRemoveCheckpoints(vbid);
+
+    auto remover = std::make_shared<CheckpointMemRecoveryTask>(
+            *engine, engine->getEpStats(), 0);
+
+    // Only EphemeralMemRecoveryTask can trigger CheckpointMemRecoveryTask
+    // when HWM is exceeded currently.
+    const bool triggeredByHWM =
+            engine->getConfiguration().isEphemeralMemRecoveryEnabled();
+    EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat);
+    testGetBytesToFree(bucket, remover, triggeredByHWM);
 }
 
 INSTANTIATE_TEST_SUITE_P(
