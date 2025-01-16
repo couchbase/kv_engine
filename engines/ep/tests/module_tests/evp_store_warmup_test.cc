@@ -814,17 +814,17 @@ TEST_F(WarmupOrderTest, pauseResumeVisit) {
     EXPECT_EQ(visitor.visited, toVisit);
 }
 
-/// Test that all the active vbuckets in a shard are loaded first
+// Test that all the active vbuckets in a shard are loaded first
 TEST_F(WarmupOrderTest, populateShardVbStates) {
     resetEngineAndEnableWarmup();
     runReadersUntilWarmedUp();
     const auto* warmup = store->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
-    for (const auto& shard : warmup->getShardVbIds()) {
+    for (const auto& shard : warmup->getShardVBData()) {
         EXPECT_EQ(16, shard.size());
         bool seenNotActive = false;
-        for (const auto& vbid : shard) {
-            const auto vb = store->getVBucket(vbid);
+        for (const auto& entry : shard) {
+            const auto vb = store->getVBucket(entry.vbid);
             ASSERT_TRUE(vb);
             const auto state = vb->getState();
             if (seenNotActive) {

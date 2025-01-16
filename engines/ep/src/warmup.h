@@ -14,6 +14,7 @@
 #include "mutation_log.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
+#include "vbucket_state.h"
 
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
@@ -326,9 +327,8 @@ public:
     }
 
     enum class WarmupAccessLogState { Yield, Done, Failed };
-    WarmupAccessLogState doWarmup(MutationLog& lf,
-                                  const std::map<Vbid, vbucket_state>& vbmap,
-                                  StatusCallback<GetValue>& cb);
+    WarmupAccessLogState tryLoadFromAccessLog(MutationLog& lf,
+                                              uint16_t shardId);
 
     bool isComplete() const {
         return finishedLoading && state.getState() == WarmupState::State::Done;
@@ -392,10 +392,6 @@ public:
         }
 
         return "running";
-    }
-
-    const std::vector<std::vector<Vbid>>& getShardVbIds() const {
-        return shardVbIds;
     }
 
     /**
@@ -469,12 +465,21 @@ public:
 
     /**
      * Warmup holds weak_ptr references to all VBuckets that are being warmed
-     * up. weak_ptr::lock and return a shared_ptr<VBucket which the caller must
-     * check for validity.
+     * up. This function will weak_ptr::lock and return a
+     * shared_ptr<VBucket which the caller must check for validity.
+     *
+     * The current implementation means that a O(n) search is performed to find
+     * a VBucket associated with vbid. n however max-vbuckets/shards
+     *
      * @return VBucketPtr (shared_ptr<VBucket>) which may or may not point to a
      *         VBucket.
      */
     VBucketPtr tryAndGetVbucket(Vbid vbid) const;
+
+    /// @return reference to internal vector of per shard VBData
+    const auto& getShardVBData() const {
+        return shardVBData;
+    }
 
     /**
      * Testing hook which if set is called every time warmup transitions to
@@ -588,21 +593,6 @@ private:
 
     void transition(WarmupState::State to, bool force = false);
 
-    /**
-     * Helper method to return the given vBucket setup in the CreateVBuckets
-     * phase. Returns an empty pointer if no such vBucket created.
-     *
-     * This function is only valid for use in certain Warmup phases, once
-     * Warmup reaches PopulateVBucketMap this container of VBuckets is cleared.
-     *
-     * After passing PopulateVBucketMap Warmup::tryAndGetVbucket should be used
-     *
-     * This function checks the WarmupState is valid and throws if invalid
-     *
-     * @throws throw std::runtime_error WarmupState is invalid
-     */
-    VBucketPtr lookupVBucket(Vbid vbid) const;
-
     /// @return how many shards warmup is working with (this sets the
     ///         concurrency of certain stages).
     size_t getNumShards() const;
@@ -637,13 +627,57 @@ private:
     // Time it took to load metadata and complete warmup, stored atomically.
     cb::AtomicDuration<> metadata;
     cb::AtomicDuration<> warmup;
-
-    std::vector<std::map<Vbid, vbucket_state>> shardVbStates;
     std::atomic<size_t> threadtask_count{0};
 
-    /// vector of vectors of VBucket IDs (one vector per shard). Each vector
-    /// contains all vBucket IDs which are present for the given shard.
-    std::vector<std::vector<Vbid>> shardVbIds;
+    // VBData stores information for one VBucket
+    struct VBData {
+        VBData(Vbid id, vbucket_state state)
+            : vbid(id), state(std::move(state)) {
+        }
+
+        // The id of the vbucket
+        Vbid vbid;
+
+        // The state read from the vbucket during Warmup::populateShardVbStates
+        vbucket_state state;
+
+        // The VB object created in the CreateVBuckets phase. This object is
+        // given to vbMap in the PopulateVBucketMap phase and not used in other
+        // phases. It is used in phases between CreateVBuckets and
+        // PopulateVBucketMap, e.g. during LoadCollectionCounts.
+        VBucketPtr vbucketPtr;
+
+        // A weak pointer to the VB object created in the CreateVBuckets phase.
+        // This is used in warmup key/loading phases to ensure the correct
+        // instance of the VBucket is used in warmup.
+        std::weak_ptr<VBucket> weakVBucketPtr;
+    };
+
+    // ShardList is a vector of VBData, one per vbucket found on disk for the
+    // shard. The vbuckets in the container are not ordered (see
+    // populateShardVbStates)
+    using ShardList = std::vector<VBData>;
+
+    // A vector of ShardList per shard. This object is indexed by shard-ID and
+    // Warmup construction sizes this vector (or in the secondary Warmup path
+    // moves an existing vector from primary Warmup).
+    //
+    // The ShardList/ShardData are all initialised in the single threaded
+    // Initialise phase of warmup.
+    //
+    // During:
+    //   * CreateVBucket
+    //   * LoadingCollectionCounts
+    //   * EstimateDatabaseItemCount
+    //   * LoadPreparedSyncWrites
+    //   * PoplulateVBucketMap
+    //   * KeyDump
+    //   * LoadingAccessLog
+    //   * LoadingData
+    //   * LoadingKVPairs
+    // different threads can concurrently access this structur but each thread
+    // accesses just one shard.
+    std::vector<ShardList> shardVBData;
 
     cb::AtomicDuration<> estimateTime;
     bool cleanShutdown{false};
@@ -670,25 +704,6 @@ private:
     std::mutex pendingCookiesMutex;
     /// True if we've been unable to persist vbucket state during warmup
     bool failedToSetAVbucketState{false};
-
-    /**
-     * Any vbucket found in the CreateVBuckets phase are added here and then
-     * removed at the PopulateVBucketMap phase
-     */
-    using VBMap = folly::Synchronized<std::unordered_map<uint16_t, VBucketPtr>,
-                                      std::mutex>;
-    VBMap warmedUpVbuckets;
-
-    /**
-     * Once warmup is running, obtain VBucketPtr only from the weak map to avoid
-     * using a VBucketPtr which wasn't the one that warmup started with, e.g.
-     * in between pause/resume of KeyDump/LoadingData it is possible for a VB
-     * to be deleted and recreated.
-     */
-    using WeakVBMap = folly::Synchronized<
-            std::unordered_map<Vbid, std::weak_ptr<VBucket>>,
-            std::mutex>;
-    WeakVBMap weakVbMap;
 
     std::vector<std::vector<std::unique_ptr<MutationLog>>> accessLog;
 

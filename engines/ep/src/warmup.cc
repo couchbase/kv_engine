@@ -45,15 +45,11 @@
 #include <folly/lang/Assume.h>
 
 struct WarmupCookie {
-    WarmupCookie(EPBucket& s,
-                 const Warmup& warmup,
-                 StatusCallback<GetValue>& c,
-                 MutationLog& log)
-        : epstore(s), warmup(warmup), cb(c), log(log) {
+    WarmupCookie(EPBucket& s, Warmup& warmup, MutationLog& log)
+        : epstore(s), warmup(warmup), log(log) {
     }
     EPBucket& epstore;
-    const Warmup& warmup;
-    StatusCallback<GetValue>& cb;
+    Warmup& warmup;
     MutationLog& log;
 };
 
@@ -71,6 +67,7 @@ class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
 public:
     LoadStorageKVPairCallback(
             EPBucket& ep,
+            VBucket& vb,
             Warmup& warmup,
             bool shouldCheckIfWarmupThresholdReached,
             WarmupState::State warmupState,
@@ -89,6 +86,7 @@ private:
     bool shouldEject() const;
     EPStats& stats;
     EPBucket& epstore;
+    VBucket& vb;
     Warmup& warmup;
     std::optional<const std::chrono::steady_clock::duration>
             deltaDeadlineFromNow;
@@ -107,13 +105,14 @@ using CacheLookupCallBackPtr = std::unique_ptr<StatusCallback<CacheLookup>>;
 
 class LoadValueCallback : public StatusCallback<CacheLookup> {
 public:
-    LoadValueCallback(Warmup& warmup) : warmup(warmup) {
+    LoadValueCallback(Warmup& warmup, VBucket& vb) : warmup(warmup), vb(vb) {
     }
 
     void callback(CacheLookup& lookup) override;
 
 private:
     Warmup& warmup;
+    VBucket& vb;
 };
 
 // Warmup Tasks ///////////////////////////////////////////////////////////////
@@ -412,8 +411,7 @@ public:
                              100),
           currentNumBackfillTasks(threadTaskCount),
           visitor(bucket, *this),
-          vbsToVisit(warmup.shardVbIds[shardId]),
-          currentVb(vbsToVisit.begin()) {
+          currentVb(warmup.shardVBData[shardId].begin()) {
         warmup.addToTaskSet(uid);
     }
 
@@ -428,7 +426,8 @@ public:
     bool run() override {
         TRACE_EVENT1(
                 "ep-engine/task", "WarmupBackfillTask", "shard", getShardId());
-        if (vbsToVisit.empty() || engine->getEpStats().isShutdown) {
+        if (warmup.shardVBData[shardId].empty() ||
+            engine->getEpStats().isShutdown) {
             // Technically "isShutdown" being true doesn't equate to a
             // successful task finish, however if we are shutting down we want
             // warmup to advance and be considered "done".
@@ -438,8 +437,9 @@ public:
 
         visitor.begin();
         try {
-            for (; currentVb != vbsToVisit.end(); ++currentVb) {
-                auto vb = warmup.tryAndGetVbucket(*currentVb);
+            for (; currentVb != warmup.shardVBData[shardId].end();
+                 ++currentVb) {
+                auto vb = currentVb->weakVBucketPtr.lock();
                 if (vb) {
                     if (!visitor.visit(*vb)) {
                         break;
@@ -459,7 +459,7 @@ public:
             return false;
         }
 
-        if (currentVb == vbsToVisit.end()) {
+        if (currentVb == warmup.shardVBData[shardId].end()) {
             finishTask(true);
             return false;
         }
@@ -484,7 +484,8 @@ public:
      */
     virtual bool shouldCheckIfWarmupThresholdReached() const = 0;
 
-    virtual CacheLookupCallBackPtr makeCacheLookupCallback() const = 0;
+    virtual CacheLookupCallBackPtr makeCacheLookupCallback(
+            VBucket& vb) const = 0;
 
 protected:
     Warmup& warmup;
@@ -516,8 +517,7 @@ private:
     const std::chrono::milliseconds maxExpectedRuntime;
     std::atomic<size_t>& currentNumBackfillTasks;
     WarmupVbucketVisitor visitor;
-    const std::vector<Vbid> vbsToVisit;
-    std::vector<Vbid>::const_iterator currentVb;
+    Warmup::ShardList::const_iterator currentVb;
 };
 
 bool WarmupVbucketVisitor::visit(VBucket& vb) {
@@ -530,13 +530,14 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
                         .getWarmupBackfillScanChunkDuration()};
         auto kvLookup = std::make_unique<LoadStorageKVPairCallback>(
                 ep,
+                vb,
                 backfillTask.getWarmup(),
                 backfillTask.shouldCheckIfWarmupThresholdReached(),
                 backfillTask.getWarmup().getWarmupState(),
                 chunkDuration);
         currentScanCtx = kvstore->initBySeqnoScanContext(
                 std::move(kvLookup),
-                backfillTask.makeCacheLookupCallback(),
+                backfillTask.makeCacheLookupCallback(vb),
                 vb.getId(),
                 0,
                 DocumentFilter::NO_DELETES,
@@ -671,7 +672,7 @@ public:
         return false;
     }
 
-    CacheLookupCallBackPtr makeCacheLookupCallback() const override {
+    CacheLookupCallBackPtr makeCacheLookupCallback(VBucket&) const override {
         return std::make_unique<NoLookupCallback>();
     }
 };
@@ -775,8 +776,8 @@ public:
         return warmup.store.getItemEvictionPolicy() == EvictionPolicy::Full;
     }
 
-    CacheLookupCallBackPtr makeCacheLookupCallback() const override {
-        return std::make_unique<LoadValueCallback>(warmup);
+    CacheLookupCallBackPtr makeCacheLookupCallback(VBucket& vb) const override {
+        return std::make_unique<LoadValueCallback>(warmup, vb);
     }
 };
 
@@ -810,8 +811,8 @@ public:
         return true;
     }
 
-    CacheLookupCallBackPtr makeCacheLookupCallback() const override {
-        return std::make_unique<LoadValueCallback>(warmup);
+    CacheLookupCallBackPtr makeCacheLookupCallback(VBucket& vb) const override {
+        return std::make_unique<LoadValueCallback>(warmup, vb);
     }
 };
 
@@ -850,6 +851,16 @@ static bool batchWarmupCallback(Vbid vbId,
     auto& c = *static_cast<WarmupCookie*>(arg);
 
     if (!c.warmup.hasReachedThreshold()) {
+        auto vb = c.warmup.tryAndGetVbucket(vbId);
+        if (!vb) {
+            return false;
+        }
+
+        LoadStorageKVPairCallback cb(c.epstore,
+                                     *vb,
+                                     c.warmup,
+                                     true,
+                                     WarmupState::State::LoadingAccessLog);
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
             // Access log only records Committed keys, therefore construct
@@ -877,7 +888,7 @@ static bool batchWarmupCallback(Vbid vbId,
             if (applyItem) {
                 if (bg_itm_ctx.value.getStatus() == cb::engine_errc::success) {
                     // NB: callback will delete the GetValue's Item
-                    c.cb.callback(bg_itm_ctx.value);
+                    cb.callback(bg_itm_ctx.value);
                 } else {
                     EP_LOG_WARN(
                             "Warmup({}) failed to load data for {}"
@@ -889,7 +900,7 @@ static bool batchWarmupCallback(Vbid vbId,
                     c.log.incrementKeyError();
                 }
 
-                if (c.cb.getStatus() == cb::engine_errc::success) {
+                if (cb.getStatus() == cb::engine_errc::success) {
                     c.log.incrementKeyLoaded();
                 } else {
                     // Failed to apply an Item, so fail the rest
@@ -1038,6 +1049,7 @@ std::ostream& operator<<(std::ostream& out, const WarmupState& state) {
 
 LoadStorageKVPairCallback::LoadStorageKVPairCallback(
         EPBucket& ep,
+        VBucket& vb,
         Warmup& warmup,
         bool shouldCheckIfWarmupThresholdReached,
         WarmupState::State warmupState,
@@ -1045,6 +1057,7 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
                 deltaDeadlineFromNow)
     : stats(ep.getEPEngine().getEpStats()),
       epstore(ep),
+      vb(vb),
       warmup(warmup),
       deltaDeadlineFromNow(std::move(deltaDeadlineFromNow)),
       deadline(std::chrono::steady_clock::time_point::max()),
@@ -1082,34 +1095,23 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         return;
     }
 
-    auto vb = warmup.tryAndGetVbucket(i->getVBucketId());
-    if (!vb) {
-        setStatus(cb::engine_errc::not_my_vbucket);
-        return;
-    }
-
     if (i->getCas() == static_cast<uint64_t>(-1)) {
         if (val.isPartial()) {
             i->setCas(0);
         } else {
-            i->setCas(vb->nextHLCCas());
+            i->setCas(vb.nextHLCCas());
         }
     }
 
-    auto* epVb = dynamic_cast<EPVBucket*>(vb.get());
-    if (!epVb) {
-        setStatus(cb::engine_errc::not_my_vbucket);
-        return;
-    }
-
-    const auto res = epVb->insertFromWarmup(
+    auto& epVb = dynamic_cast<EPVBucket&>(vb);
+    const auto res = epVb.insertFromWarmup(
             *i, shouldEject(), val.isPartial(), true /*check mem_used*/);
     switch (res) {
     case MutationStatus::NoMem:
         EP_LOG_DEBUG(
                 "LoadStorageKVPairCallback::callback(): {} "
                 "NoMem",
-                vb->getId());
+                vb.getId());
         ++stats.warmOOM;
         break;
     case MutationStatus::InvalidCas:
@@ -1117,7 +1119,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
                 "LoadStorageKVPairCallback::callback(): {} "
                 "Value changed in memory before restore from disk. "
                 "Ignored disk value for: key{{{}}}.",
-                vb->getId(),
+                vb.getId(),
                 i->getKey());
         ++stats.warmDups;
         break;
@@ -1197,14 +1199,8 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    auto vb = warmup.tryAndGetVbucket(lookup.getVBucketId());
-    if (!vb) {
-        setStatus(cb::engine_errc::not_my_vbucket);
-        return;
-    }
-
     // We explicitly want the committedSV (if exists).
-    auto res = vb->ht.findOnlyCommitted(lookup.getKey().getDocKey());
+    auto res = vb.ht.findOnlyCommitted(lookup.getKey().getDocKey());
     if (res.storedValue && res.storedValue->isResident()) {
         // Already resident in memory - skip loading from disk.
         setStatus(cb::engine_errc::key_already_exists);
@@ -1231,9 +1227,7 @@ Warmup::Warmup(EPBucket& st,
       config(config),
       stats(store.getEPEngine().getEpStats()),
       warmupDoneFunction(std::move(warmupDoneFunction)),
-      shardVbStates(store.vbMap.getNumShards()),
-      shardVbIds(store.vbMap.getNumShards()),
-      warmedUpVbuckets(std::in_place, config.getMaxVbuckets()),
+      shardVBData(store.vbMap.getNumShards()),
       name(std::move(name)) {
     setup(memoryThreshold, itemsThreshold);
 }
@@ -1246,10 +1240,8 @@ Warmup::Warmup(Warmup& warmup,
       config(warmup.config),
       stats(store.getEPEngine().getEpStats()),
       warmupDoneFunction([]() { /* no done callback needed*/ }),
-      shardVbStates(std::move(warmup.shardVbStates)),
-      shardVbIds(std::move(warmup.shardVbIds)),
+      shardVBData(std::move(warmup.shardVBData)),
       estimatedKeyCount(warmup.getEstimatedKeyCount()),
-      weakVbMap(std::move(warmup.weakVbMap)),
       name(std::move(name)) {
     setup(memoryThreshold, itemsThreshold);
     // Jump into the state machine at CheckForAccessLog to begin loading data.
@@ -1365,9 +1357,9 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
     // Iterate over all VBucket states defined for this shard, creating VBucket
     // objects if they do not already exist.
-    for (const auto& itr : shardVbStates[shardId]) {
-        Vbid vbid = itr.first;
-        const vbucket_state& vbs = itr.second;
+    for (auto& entry : shardVBData[shardId]) {
+        const Vbid vbid = entry.vbid;
+        const vbucket_state& vbs = entry.state;
 
         // Collections and sync-repl requires that the VBucket datafiles have
         // 'namespacing' applied to the key space
@@ -1456,13 +1448,11 @@ void Warmup::createVBuckets(uint16_t shardId) {
             vb->setFreqSaturatedCallback(
                     [this]() { store.itemFrequencyCounterSaturated(); });
 
-            // Add the new vbucket to our local map, it will later be added
-            // to the bucket's vbMap once the vbuckets are fully initialised
-            // from KVStore data
-            warmedUpVbuckets.lock()->insert(std::make_pair(vbid.get(), vb));
-            // Capture a weak_ptr reference to the vb, all data loading steps
-            // will access the VBucket via a weak_ptr.
-            weakVbMap.lock()->insert(std::make_pair(vbid.get(), vb));
+            // Keep the shared_ptr<VBucket> until we reach PopulateVbuckets
+            entry.vbucketPtr = vb;
+            // Capture a weak_ptr reference to the vb, all later steps will
+            // access the VBucket via a weak_ptr.
+            entry.weakVBucketPtr = vb;
         }
 
         // Pass the max deleted seqno for each vbucket.
@@ -1514,27 +1504,26 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
 
     const auto* kvstore = store.getROUnderlyingByShard(shardId);
     // Iterate the VBs in the shard
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto vb = lookupVBucket(vbid);
-        if (!vb) {
+    for (const auto& entry : shardVBData[shardId]) {
+        if (!entry.vbucketPtr) {
             continue;
         }
 
         // Take the KVFileHandle before we lock the manifest to prevent lock
         // order inversions.
-        auto kvstoreContext = kvstore->makeFileHandle(vbid);
+        auto kvstoreContext = kvstore->makeFileHandle(entry.vbid);
         if (!kvstoreContext) {
             EP_LOG_CRITICAL(
                     "Warmup({})::loadCollectionStatsForShard() Unable to make "
                     "KVFileHandle for {}, aborting warmup as we will not be "
                     "able to check collection stats.",
                     getName(),
-                    vbid);
+                    entry.vbid);
             return;
         }
 
-        std::unique_lock wlh(vb->getStateLock());
-        auto wh = vb->getManifest().wlock(wlh);
+        std::unique_lock wlh(entry.vbucketPtr->getStateLock());
+        auto wh = entry.vbucketPtr->getManifest().wlock(wlh);
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
             // start tracking in-memory stats before items are warmed up.
@@ -1553,7 +1542,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
                         "as we will not be "
                         "able to check collection stats.",
                         getName(),
-                        vbid);
+                        entry.vbid);
                 return;
             }
             // For NotFound we're ok to use the default initialised stats
@@ -1576,18 +1565,17 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
     auto st = std::chrono::steady_clock::now();
     size_t item_count = 0;
 
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto vb = lookupVBucket(vbid);
-        if (!vb) {
+    for (auto& entry : shardVBData[shardId]) {
+        if (!entry.vbucketPtr) {
             continue;
         }
-        auto& epVb = static_cast<EPVBucket&>(*vb);
+        auto& epVb = static_cast<EPVBucket&>(*entry.vbucketPtr);
         epVb.setNumTotalItems(*store.getRWUnderlyingByShard(shardId));
         const auto vbItemCount = epVb.getNumTotalItems();
         item_count += vbItemCount;
         EP_LOG_INFO_CTX("Warmup::estimateDatabaseItemCount: ",
                         {"shard_id", shardId},
-                        {"vb", vbid},
+                        {"vb", entry.vbid},
                         {"item_count", vbItemCount});
     }
 
@@ -1602,31 +1590,30 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
 }
 
 void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto vb = lookupVBucket(vbid);
-        if (!vb) {
+    for (const auto& entry : shardVBData[shardId]) {
+        if (!entry.vbucketPtr) {
             continue;
         }
 
         // Our EPBucket function will do the load for us as we re-use the code
         // for rollback.
         auto [itemsVisited, preparesLoaded, defaultCollectionMVS, success] =
-                store.loadPreparedSyncWrites(*vb);
+                store.loadPreparedSyncWrites(*entry.vbucketPtr);
         if (!success) {
             EP_LOG_CRITICAL(
                     "Warmup({})::loadPreparedSyncWrites(): "
                     "EPBucket::loadPreparedSyncWrites() failed for {} aborting "
                     "Warmup",
                     getName(),
-                    vbid);
+                    entry.vbid);
             return;
         }
         auto& epStats = store.getEPEngine().getEpStats();
         epStats.warmupItemsVisitedWhilstLoadingPrepares += itemsVisited;
         epStats.warmedUpPrepares += preparesLoaded;
-        vb->getManifest().setDefaultCollectionLegacySeqnos(
+        entry.vbucketPtr->getManifest().setDefaultCollectionLegacySeqnos(
                 defaultCollectionMVS,
-                vbid,
+                entry.vbid,
                 *store.getRWUnderlyingByShard(shardId));
     }
 
@@ -1636,31 +1623,31 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
 }
 
 void Warmup::populateVBucketMap(uint16_t shardId) {
-    for (const auto vbid : shardVbIds[shardId]) {
-        auto vbPtr = lookupVBucket(vbid);
-        if (vbPtr) {
+    for (auto& entry : shardVBData[shardId]) {
+        if (entry.vbucketPtr) {
             // Take the vBucket lock to stop the flusher from racing with our
             // set vBucket state. It MUST go to disk in the first flush batch
             // or we run the risk of not rolling back replicas that we should
-            auto lockedVb = store.getLockedVBucket(vbid);
+            auto lockedVb = store.getLockedVBucket(entry.vbid);
             Expects(lockedVb.owns_lock());
             Expects(!lockedVb);
 
-            vbPtr->checkpointManager->queueSetVBState();
+            entry.vbucketPtr->checkpointManager->queueSetVBState();
 
             {
                 // Note this lock is here for correctness - the VBucket is not
                 // accessible yet, so its state cannot be changed by other code.
-                std::shared_lock rlh(vbPtr->getStateLock());
-                if (vbPtr->getState() == vbucket_state_active) {
+                std::shared_lock rlh(entry.vbucketPtr->getStateLock());
+                if (entry.vbucketPtr->getState() == vbucket_state_active) {
                     // For all active vbuckets, call through to the manager so
                     // that they are made 'current' with the manifest.
-                    store.getCollectionsManager().maybeUpdate(rlh, *vbPtr);
+                    store.getCollectionsManager().maybeUpdate(
+                            rlh, *entry.vbucketPtr);
                 }
             }
 
             auto result = store.flushVBucket_UNLOCKED(
-                    {vbPtr, std::move(lockedVb.getLock())});
+                    {entry.vbucketPtr, std::move(lockedVb.getLock())});
             // if flusher returned MoreAvailable::Yes, this indicates the single
             // flush of the vbucket state failed.
             if (result.moreAvailable == EPBucket::MoreAvailable::Yes) {
@@ -1672,12 +1659,13 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
                         "{} highSeqno:{}, write traffic will be disabled for "
                         "this node.",
                         getName(),
-                        vbid,
-                        vbPtr->getHighSeqno());
+                        entry.vbid,
+                        entry.vbucketPtr->getHighSeqno());
                 failedToSetAVbucketState = true;
             }
-
-            store.vbMap.addBucket(vbPtr);
+            store.vbMap.addBucket(entry.vbucketPtr);
+            // Warmup no longer needs the shared reference.
+            entry.vbucketPtr.reset();
         }
     }
 
@@ -1692,7 +1680,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         store.startFlusher();
 
         // Can now drop the shared_ptrs from Warmup
-        warmedUpVbuckets.lock()->clear();
+        // warmedUpVbuckets.lock()->clear();
 
         // Once we have populated the VBMap we can release operations that are
         // waiting for the VBuckets to of been loaded E.g. setVBState
@@ -1877,31 +1865,29 @@ Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLog& log,
     }
 
     try {
-        LoadStorageKVPairCallback load_cb(store, *this, true, state.getState());
-        return doWarmup(log, shardVbStates[shardId], load_cb);
+        return tryLoadFromAccessLog(log, shardId);
     } catch (const std::exception& e) {
         corruptAccessLog = true;
-        EP_LOG_WARN(
-                "Warmup({}) Error reading access log: {}", getName(), e.what());
+        EP_LOG_WARN("Warmup({}) Error from tryLoadFromAccessLog: {}",
+                    getName(),
+                    e.what());
     }
     return WarmupAccessLogState::Failed;
 }
 
-Warmup::WarmupAccessLogState Warmup::doWarmup(
-        MutationLog& lf,
-        const std::map<Vbid, vbucket_state>& vbmap,
-        StatusCallback<GetValue>& cb) {
+Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLog& lf,
+                                                          uint16_t shardId) {
     MutationLogHarvester harvester(lf, &store.getEPEngine());
-    std::map<Vbid, vbucket_state>::const_iterator it;
-    for (it = vbmap.begin(); it != vbmap.end(); ++it) {
-        harvester.setVBucket(it->first);
+    for (const auto& entry : shardVBData[shardId]) {
+        harvester.setVBucket(entry.vbid);
     }
+
+    // WarmupCookie is arg passed to static func batchWarmupCallback
+    WarmupCookie cookie(store, *this, lf);
 
     // To constrain the number of elements from the access log we have to keep
     // alive (there may be millions of items per-vBucket), process it
     // a batch at a time.
-    WarmupCookie cookie(store, *this, cb, lf);
-
     using namespace std::chrono;
     auto start = steady_clock::now();
     auto maxDuration = milliseconds{config.getWarmupAccesslogLoadDuration()};
@@ -1973,39 +1959,6 @@ void Warmup::transition(WarmupState::State to, bool force) {
     state.transition(to, force);
     stateTransitionHook(to);
     step();
-}
-
-VBucketPtr Warmup::lookupVBucket(Vbid vbid) const {
-    switch (state.getState()) {
-    case WarmupState::State::LoadingCollectionCounts:
-    case WarmupState::State::EstimateDatabaseItemCount:
-    case WarmupState::State::LoadPreparedSyncWrites:
-    case WarmupState::State::PopulateVBucketMap:
-        break;
-    case WarmupState::State::Initialize:
-    case WarmupState::State::CreateVBuckets:
-    case WarmupState::State::KeyDump:
-    case WarmupState::State::CheckForAccessLog:
-    case WarmupState::State::LoadingAccessLog:
-    case WarmupState::State::LoadingKVPairs:
-    case WarmupState::State::LoadingData:
-        throw std::runtime_error(
-                fmt::format("Warmup({})::lookupVBucket({}): called for illegal "
-                            "warmup state:{}",
-                            getName(),
-                            vbid,
-                            to_string(state.getState())));
-    case WarmupState::State::Done:
-        // State is set to Done when stopping warmup
-        return nullptr;
-    }
-
-    auto locked = warmedUpVbuckets.lock();
-    auto it = locked->find(vbid.get());
-    if (it == locked->end()) {
-        return {};
-    }
-    return it->second;
 }
 
 void Warmup::addCommonStats(const StatCollector& collector) const {
@@ -2131,25 +2084,25 @@ void Warmup::populateShardVbStates() {
     for (uint16_t shardIdx = 0; shardIdx < numShards; ++shardIdx) {
         const std::vector<vbucket_state*> curShardStates =
                 store.getRWUnderlyingByShard(shardIdx)->listPersistedVbuckets();
-        auto& statesMap = shardVbStates[shardIdx];
-        auto& statesVec = shardVbIds[shardIdx];
+        std::vector<std::pair<Vbid, vbucket_state>> vbStates;
+        auto& statesVec = shardVBData[shardIdx];
         for (uint16_t vbIdx = 0; vbIdx < curShardStates.size(); ++vbIdx) {
             if (!curShardStates[vbIdx]) {
                 continue;
             }
             const Vbid vbid(vbIdx * numShards + shardIdx);
-            statesMap.insert({vbid, *curShardStates[vbIdx]});
+            vbStates.emplace_back(vbid, *curShardStates[vbIdx]);
         }
 
         // First push all active vbuckets and then the rest
-        for (const auto& item : statesMap) {
+        for (const auto& item : vbStates) {
             if (item.second.transition.state == vbucket_state_active) {
-                statesVec.push_back(item.first);
+                statesVec.emplace_back(item.first, std::move(item.second));
             }
         }
-        for (const auto& item : statesMap) {
+        for (const auto& item : vbStates) {
             if (item.second.transition.state != vbucket_state_active) {
-                statesVec.push_back(item.first);
+                statesVec.emplace_back(item.first, std::move(item.second));
             }
         }
     }
@@ -2273,28 +2226,29 @@ VBucketPtr Warmup::tryAndGetVbucket(Vbid vbid) const {
     case WarmupState::State::EstimateDatabaseItemCount:
     case WarmupState::State::LoadPreparedSyncWrites:
     case WarmupState::State::PopulateVBucketMap:
+    case WarmupState::State::KeyDump:
+    case WarmupState::State::CheckForAccessLog:
+    case WarmupState::State::LoadingKVPairs:
+    case WarmupState::State::LoadingData:
+    case WarmupState::State::Done:
         throw std::runtime_error(
                 fmt::format("Warmup({})::tryAndGetVbucket({}): called for "
                             "illegal warmup state:{}",
                             getName(),
                             vbid,
                             to_string(state.getState())));
-    case WarmupState::State::KeyDump:
-    case WarmupState::State::CheckForAccessLog:
+
+    // Only batchWarmupCallback is calling this function from an I/O callback
+    // other use-cases may want to optimise and remove the search
     case WarmupState::State::LoadingAccessLog:
-    case WarmupState::State::LoadingKVPairs:
-    case WarmupState::State::LoadingData:
-    case WarmupState::State::Done:
         break;
     }
-
-    auto weak = weakVbMap.withLock([vbid](const auto& map) {
-        auto itr = map.find(vbid);
-        if (itr == map.end()) {
-            return std::weak_ptr<VBucket>();
+    // Search in the shard for the object and lock it. Vbuckets are not ordered
+    // by vbid, the ordering is set in populateShardVbStates
+    for (const auto& entry : shardVBData[vbid.get() % shardVBData.size()]) {
+        if (entry.vbid == vbid) {
+            return entry.weakVBucketPtr.lock();
         }
-        return itr->second;
-    });
-
-    return weak.lock();
+    }
+    return {};
 }
