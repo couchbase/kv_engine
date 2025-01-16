@@ -31,6 +31,7 @@
 #include <executor/executorpool.h>
 #include <folly/lang/Assume.h>
 #include <memcached/range_scan_optional_configuration.h>
+#include <variant>
 
 EphemeralVBucket::EphemeralVBucket(
         Vbid i,
@@ -474,6 +475,13 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                     lh, listWriteLg, *queueItmCtx.hcs);
         }
 
+        if (queueItmCtx.durability &&
+            std::holds_alternative<cb::durability::Requirements>(
+                    queueItmCtx.durability.value()
+                            .requirementsOrPreparedSeqno)) {
+            seqList->updateHighPreparedSeqno(lh, listWriteLg, osv.getBySeqno());
+        }
+
         if (res == SequenceList::UpdateStatus::Append) {
             /* Mark the un-updated storedValue as stale. This must be done after
                the new storedvalue for the item is visible for range read in the
@@ -544,6 +552,15 @@ std::pair<StoredValue*, VBNotifyCtx> EphemeralVBucket::addNewStoredValue(
         if (queueItmCtx.hcs) {
             seqList->updateHighCompletedSeqno(
                     lh, listWriteLg, *queueItmCtx.hcs);
+        }
+
+        // Only prepares have durability requirements set ..
+        if (queueItmCtx.durability &&
+            std::holds_alternative<cb::durability::Requirements>(
+                    queueItmCtx.durability.value()
+                            .requirementsOrPreparedSeqno)) {
+            seqList->updateHighPreparedSeqno(
+                    lh, listWriteLg, osv->getBySeqno());
         }
     }
     if (itm.isCommitted()) {

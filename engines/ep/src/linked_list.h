@@ -102,6 +102,10 @@ public:
                                   std::lock_guard<std::mutex>& writeLock,
                                   int64_t hcs) override;
 
+    void updateHighPreparedSeqno(std::lock_guard<std::mutex>& seqLock,
+                                 std::lock_guard<std::mutex>& writeLock,
+                                 int64_t hps) override;
+
     void markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                        StoredValue::UniquePtr ownedSv,
                        StoredValue* newSv) override;
@@ -266,6 +270,12 @@ private:
     Monotonic<uint64_t> highCompletedSeqno{0};
 
     /**
+     * Seqno of the highest prepare. Used at backfill if the client has
+     * negotiated to receive SnapshotMarker V2.2
+     */
+    Monotonic<uint64_t> highPreparedSeqno{0};
+
+    /**
      * Indicates the number of elements in the list that are stale (old,
      * duplicate values). Stale items are owned by the list and hence must
      * periodically clean them up.
@@ -347,6 +357,10 @@ private:
             return highCompletedSeqno;
         }
 
+        uint64_t getHighPreparedSeqno() const override {
+            return highPreparedSeqno;
+        }
+
         uint64_t getHighestPurgedDeletedSeqno() const override {
             return list.getHighestPurgedDeletedSeqno();
         }
@@ -412,6 +426,8 @@ private:
         const uint64_t maxVisibleSeqno;
 
         const uint64_t highCompletedSeqno;
+
+        const uint64_t highPreparedSeqno;
 
         /* Indicates if the range iterator is for DCP backfill
            (for debug) */

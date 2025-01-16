@@ -716,6 +716,43 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     ASSERT_EQ(3, resp->getBySeqno());
 }
 
+TEST_F(SingleThreadedEphemeralTest, SeqListHasHighPreparedSeqno) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto cookie = create_mock_cookie();
+    auto& vb = *store->getVBucket(vbid);
+    auto key = makeStoredDocKey("key");
+    // auto item = make_item(vbid, key, "value");
+
+    store_item(vbid,
+               key,
+               "value",
+               0 /*exptime*/,
+               {cb::engine_errc::sync_write_pending},
+               PROTOCOL_BINARY_RAW_BYTES,
+               cb::durability::Requirements(),
+               false /*deleted*/);
+
+    {
+        auto& ht = vb.ht;
+        auto res = ht.findForUpdate(key);
+        ASSERT_TRUE(res.pending);
+        ASSERT_EQ(1, res.pending->getBySeqno());
+        ASSERT_FALSE(res.committed);
+    }
+
+    {
+        auto& ephVb = static_cast<EphemeralVBucket&>(vb);
+        auto itr = ephVb.makeRangeIterator(true /*backfill*/);
+        // HPS updated for a Prepare
+        EXPECT_EQ(1, itr->getHighPreparedSeqno());
+    }
+    destroy_mock_cookie(cookie);
+}
+
 TEST_F(SingleThreadedEphemeralTest, no_prepare_snapshot) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     nlohmann::json manifest;

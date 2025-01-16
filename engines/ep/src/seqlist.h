@@ -116,6 +116,8 @@ protected:
 
         virtual uint64_t getHighCompletedSeqno() const = 0;
 
+        virtual uint64_t getHighPreparedSeqno() const = 0;
+
         virtual uint64_t getHighestPurgedDeletedSeqno() const = 0;
     };
 
@@ -213,6 +215,8 @@ public:
 
         uint64_t getHighCompletedSeqno() const;
 
+        uint64_t getHighPreparedSeqno() const;
+
         uint64_t getHighestPurgedDeletedSeqno() const;
 
     private:
@@ -306,6 +310,13 @@ public:
             std::lock_guard<std::mutex>& seqLock,
             std::lock_guard<std::mutex>& writeLock,
             int64_t hcs) = 0;
+
+    /**
+     * Updates the highPreparedSeqno to the seqno given.
+     */
+    virtual void updateHighPreparedSeqno(std::lock_guard<std::mutex>& seqLock,
+                                         std::lock_guard<std::mutex>& writeLock,
+                                         int64_t hps) = 0;
 
     /**
      * Mark an OrderedStoredValue stale and assumes its ownership. Stores ptr to

@@ -116,6 +116,13 @@ void BasicLinkedList::updateHighCompletedSeqno(
     highCompletedSeqno = hcs;
 }
 
+void BasicLinkedList::updateHighPreparedSeqno(
+        std::lock_guard<std::mutex>& seqLock,
+        std::lock_guard<std::mutex>& writeLock,
+        int64_t hps) {
+    highPreparedSeqno = hps;
+}
+
 void BasicLinkedList::markItemStale(std::lock_guard<std::mutex>& listWriteLg,
                                     StoredValue::UniquePtr ownedSv,
                                     StoredValue* newSv) {
@@ -461,6 +468,7 @@ BasicLinkedList::RangeIteratorLL::RangeIteratorLL(
       numRemaining(0),
       maxVisibleSeqno(list.maxVisibleSeqno),
       highCompletedSeqno(list.highCompletedSeqno),
+      highPreparedSeqno(list.highPreparedSeqno),
       isBackfill(isBackfill) {
     if (list.highSeqno < 1) {
         /* No need of holding a lock for the snapshot as there are no items;

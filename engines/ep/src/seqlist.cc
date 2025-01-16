@@ -54,6 +54,10 @@ uint64_t SequenceList::RangeIterator::getHighCompletedSeqno() const {
     return rangeIterImpl->getHighCompletedSeqno();
 }
 
+uint64_t SequenceList::RangeIterator::getHighPreparedSeqno() const {
+    return rangeIterImpl->getHighPreparedSeqno();
+}
+
 uint64_t SequenceList::RangeIterator::getHighestPurgedDeletedSeqno() const {
     return rangeIterImpl->getHighestPurgedDeletedSeqno();
 }
