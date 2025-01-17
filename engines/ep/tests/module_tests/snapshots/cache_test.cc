@@ -15,8 +15,6 @@
 #include <platform/dirutils.h>
 #include <platform/uuid.h>
 
-using namespace cb::snapshot;
-
 class CacheTest : public ::testing::Test {
 public:
     void SetUp() override {
@@ -27,14 +25,14 @@ public:
     }
 
 protected:
-    std::variant<cb::engine_errc, Manifest> doCreateSnapshot(
+    std::variant<cb::engine_errc, cb::snapshot::Manifest> doCreateSnapshot(
             const std::filesystem::path& directory, Vbid vb) {
         // Generate a path/uuid for the snapshot
         auto uuid = ::to_string(cb::uuid::random());
         const auto snapshotPath = directory / uuid;
         create_directories(snapshotPath);
 
-        Manifest manifest{vb, uuid};
+        cb::snapshot::Manifest manifest{vb, uuid};
         for (auto f : {"1.couch.32", "dek.32"}) {
             cb::io::saveFile(snapshotPath / f, f);
         }
@@ -46,7 +44,7 @@ protected:
     }
 
     std::filesystem::path test_dir{cb::io::mkdtemp("snapshot_test")};
-    Cache cache{test_dir};
+    cb::snapshot::Cache cache{test_dir};
 };
 
 TEST_F(CacheTest, PrepareFailed) {
@@ -60,7 +58,7 @@ TEST_F(CacheTest, Prepare) {
     auto rv = cache.prepare(Vbid{0}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<Manifest>(rv);
+    auto manifest = std::get<cb::snapshot::Manifest>(rv);
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
     for (const auto& file : manifest.files) {
         EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid / file.path));
@@ -84,7 +82,7 @@ TEST_F(CacheTest, ReleaseByVb) {
     auto rv = cache.prepare(Vbid{1}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<Manifest>(rv);
+    auto manifest = std::get<cb::snapshot::Manifest>(rv);
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
 
     cache.release(Vbid{1});
@@ -96,7 +94,7 @@ TEST_F(CacheTest, ReleaseByUuid) {
     auto rv = cache.prepare(Vbid{0}, [this](const auto& directory, auto vb) {
         return doCreateSnapshot(directory, vb);
     });
-    auto manifest = std::get<Manifest>(rv);
+    auto manifest = std::get<cb::snapshot::Manifest>(rv);
     EXPECT_TRUE(exists(test_dir / "snapshots" / manifest.uuid));
     cache.release(manifest.uuid);
     EXPECT_FALSE(exists(test_dir / "snapshots" / manifest.uuid));
