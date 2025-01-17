@@ -22,6 +22,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                                const nlohmann::json&) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
                                              TrafficControlMode mode) override;
+    void initiate_shutdown() override;
     void destroy(bool force) override;
     void disconnect(CookieIface& cookie) override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,

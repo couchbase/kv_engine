@@ -214,6 +214,7 @@ public:
     }
 
     void destroy_bucket(EngineIface* handle, bool force) override {
+        handle->initiate_shutdown();
         // destroy should delete the handle
         handle->destroy(force);
 

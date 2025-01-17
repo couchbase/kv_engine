@@ -80,6 +80,10 @@ cb::engine_errc MockEngine::set_traffic_control_mode(CookieIface& cookie,
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
 }
 
+void MockEngine::initiate_shutdown() {
+    the_engine->initiate_shutdown();
+}
+
 void MockEngine::destroy(const bool force) {
     // We've got an annoying binding from the cookies to
     // the engine. As part of shutting down the engine they

@@ -208,6 +208,38 @@ TEST_P(SecondaryWarmupTest, WritingAndWarming) {
     }
 }
 
+// Step primary warmup and shutdown. Without any fixes this meant that the
+// shutdown path would trigger secondary to initialise from primary, which
+// can move some data between the objects, leaving primary vulnerable to invalid
+// accesses.
+TEST_P(SecondaryWarmupTest, ShutdownWhilstPrimary) {
+    auto* kvBucket = engine->getKVBucket();
+    ASSERT_TRUE(kvBucket);
+    auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
+
+    // Step primary to a sharded primary phase.
+    while (kvBucket->getPrimaryWarmup()->getWarmupState() !=
+           WarmupState::State::LoadingCollectionCounts) {
+        runNextTask(readerQueue);
+    }
+
+    // capture the task ready for running
+    CheckedExecutor executor(task_executor, readerQueue);
+    auto task = executor.getCurrentTask();
+    ASSERT_TRUE(task);
+    ASSERT_TRUE(task->getDescription().find(
+                        "Warmup - loading collection counts:") !=
+                std::string::npos);
+    engine->initiate_shutdown();
+
+    // Run the task directly - the task was really cancelled inside
+    // initiate_shutdown making it hard to run via runCurrentTask, but the task
+    // could of been on a thread about to call run... Before fixing MB-64849
+    // this would access outside of a vector (which was moved from primary
+    // to secondary).
+    task->runImmediately();
+}
+
 auto testConfig =
         ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA

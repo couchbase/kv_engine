@@ -1299,6 +1299,9 @@ void Warmup::start() {
 
 void Warmup::stop() {
     if (syncData.withLock([](auto& syncData) {
+            // Set the done function to empty, any threads trying to reach done
+            // will now not initialise secondary warmup
+            syncData.doneFunction = []() {};
             if (syncData.taskSet.empty()) {
                 return true;
             }

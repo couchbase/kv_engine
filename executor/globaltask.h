@@ -216,6 +216,15 @@ public:
         return nullptr;
     }
 
+    /**
+     * Run the task run function immediatley,  bypassing execute etc... This
+     * exists for test-cases to force execution of the run function at anytime
+     * even when the task is techincally "dead" (e.g. was cancelled).
+     */
+    void runImmediately() {
+        run();
+    }
+
     /*
      * Lookup the task name for TaskId id.
      * The data used is generated from tasks.def.h

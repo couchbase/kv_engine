@@ -2537,6 +2537,20 @@ void EPBucket::stopWarmup() {
                 stats.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }
+
+    // Stop the secondaryWarmup if it exists
+    secondaryWarmupTask.withLock([this](auto& warmup) {
+        if (!warmup) {
+            return;
+        }
+        if (!warmup->isComplete()) {
+            EP_LOG_INFO(
+                    "Stopping secondary warmup while engine is loading "
+                    "data from underlying storage, shutdown = {}",
+                    stats.isShutdown ? "yes" : "no");
+            warmup->stop();
+        }
+    });
 }
 
 bool EPBucket::isByIdScanSupported() const {

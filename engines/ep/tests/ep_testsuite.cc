@@ -8253,6 +8253,99 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
     return SUCCESS;
 }
 
+// This test exists primarily to run MT warmup and entice TSAN into finding
+// issues. The test configures 4 shards and the vbuckets are assigned
+// 1 per shard. Many warmup phases should then "concurrently" warmup each VB.
+static enum test_result test_bg_warmup(EngineIface* h) {
+    if (!isWarmupEnabled(h)) {
+        return SKIPPED;
+    }
+
+    check_expression(set_vbucket_state(h, Vbid(0), vbucket_state_active),
+                     "Failed set vbucket 1 state.");
+    check_expression(set_vbucket_state(h, Vbid(1), vbucket_state_active),
+                     "Failed set vbucket 2 state.");
+    check_expression(set_vbucket_state(h, Vbid(2), vbucket_state_active),
+                     "Failed set vbucket 3 state.");
+    check_expression(set_vbucket_state(h, Vbid(3), vbucket_state_active),
+                     "Failed set vbucket 4 state.");
+
+    for (int i = 0; i < 10000; ++i) {
+        std::stringstream key;
+        key << "key+" << i;
+        checkeq(cb::engine_errc::success,
+                store(h,
+                      nullptr,
+                      StoreSemantics::Set,
+                      key.str(),
+                      "somevalue",
+                      nullptr,
+                      0,
+                      Vbid(i % 4)),
+                "Error setting.");
+    }
+
+    // Restart the server.
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
+
+    // Wait for a warmup and check it the results.
+    wait_for_warmup_complete(h);
+
+    const std::string policy = get_str_stat(h, "ep_item_eviction_policy");
+
+    if (policy == "full_eviction") {
+        checkeq(get_int_stat(h, "ep_warmup_key_count", "warmup"),
+                get_int_stat(h, "ep_warmup_value_count", "warmup"),
+                "Warmed up key count didn't match warmed up value count");
+    } else {
+        checkeq(10000,
+                get_int_stat(h, "ep_warmup_key_count", "warmup"),
+                "Warmup didn't warmup all keys");
+    }
+
+    // Restart again, but this time restart during loading
+    testHarness->reload_engine(
+            &h, testHarness->get_current_testcase()->cfg, true, false);
+
+    std::chrono::microseconds sleepTime{1};
+    do {
+        try {
+            // Once key count is non zero, restart to try and force shutdown
+            // and warmup
+            if (get_int_stat(h, "ep_warmup_key_count", "warmup") > 0) {
+                testHarness->reload_engine(
+                        &h,
+                        testHarness->get_current_testcase()->cfg,
+                        true,
+                        false);
+                break;
+            }
+        } catch (const cb::engine_error&) {
+            // If the stat call failed then the warmup stats group no longer
+            // exists and hence warmup is complete.
+            break;
+        }
+        decayingSleep(&sleepTime);
+    } while (true);
+
+    wait_for_warmup_complete(h);
+
+    if (policy == "full_eviction") {
+        checkeq(get_int_stat(h, "ep_warmup_key_count", "warmup"),
+                get_int_stat(h, "ep_warmup_value_count", "warmup"),
+                "Warmed up key count didn't match warmed up value count");
+    } else {
+        checkeq(10000,
+                get_int_stat(h, "ep_warmup_key_count", "warmup"),
+                "Warmup didn't warmup all keys");
+    }
+
+    cb_assert(get_int_stat(h, "ep_warmup_time", "warmup") > 0);
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char* default_dbname = "./ep_testsuite.db";
@@ -9462,6 +9555,16 @@ BaseTestCase testsuite_testcases[] = {
                  "bucket_quota_change_task_poll_interval=0",
                  prepare,
                  cleanup),
-
+        TestCase("test background warmup",
+                 test_bg_warmup,
+                 test_setup,
+                 teardown,
+                 // ensure shards isn't 1 so 4 tasks run for each warmup phase
+                 // also ensure that warmup tasks may yield and rerun by
+                 // reducing the batch limit and duration
+                 "warmup_behavior=background;max_num_shards=4;"
+                 "warmup_batch_size=10;warmup_backfill_scan_chunk_duration=5",
+                 prepare,
+                 cleanup),
         TestCase(
                 nullptr, nullptr, nullptr, nullptr, nullptr, prepare, cleanup)};
