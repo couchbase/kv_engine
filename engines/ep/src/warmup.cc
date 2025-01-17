@@ -1226,7 +1226,7 @@ Warmup::Warmup(EPBucket& st,
     : store(st),
       config(config),
       stats(store.getEPEngine().getEpStats()),
-      warmupDoneFunction(std::move(warmupDoneFunction)),
+      syncData(std::move(warmupDoneFunction)),
       shardVBData(store.vbMap.getNumShards()),
       name(std::move(name)) {
     setup(memoryThreshold, itemsThreshold);
@@ -1239,7 +1239,6 @@ Warmup::Warmup(Warmup& warmup,
     : store(warmup.store),
       config(warmup.config),
       stats(store.getEPEngine().getEpStats()),
-      warmupDoneFunction([]() { /* no done callback needed*/ }),
       shardVBData(std::move(warmup.shardVBData)),
       estimatedKeyCount(warmup.getEstimatedKeyCount()),
       name(std::move(name)) {
@@ -1249,10 +1248,7 @@ Warmup::Warmup(Warmup& warmup,
 }
 
 void Warmup::setup(size_t memoryThreshold, size_t itemsThreshold) {
-    {
-        std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        warmupStart.time = std::chrono::steady_clock::now();
-    }
+    syncData.lock()->startTime = std::chrono::steady_clock::now();
     setMemoryThreshold(memoryThreshold);
     setItemThreshold(itemsThreshold);
 }
@@ -1278,13 +1274,11 @@ size_t Warmup::getValues() const {
 }
 
 void Warmup::addToTaskSet(size_t taskId) {
-    std::lock_guard<std::mutex> lh(taskSetMutex);
-    taskSet.insert(taskId);
+    syncData.lock()->taskSet.insert(taskId);
 }
 
 void Warmup::removeFromTaskSet(size_t taskId) {
-    std::lock_guard<std::mutex> lh(taskSetMutex);
-    taskSet.erase(taskId);
+    syncData.lock()->taskSet.erase(taskId);
 }
 
 size_t Warmup::getEstimatedValueCount() const {
@@ -1304,15 +1298,18 @@ void Warmup::start() {
 }
 
 void Warmup::stop() {
-    {
-        std::lock_guard<std::mutex> lh(taskSetMutex);
-        if (taskSet.empty()) {
-            return;
-        }
-        for (auto id : taskSet) {
-            ExecutorPool::get()->cancel(id);
-        }
-        taskSet.clear();
+    if (syncData.withLock([](auto& syncData) {
+            if (syncData.taskSet.empty()) {
+                return true;
+            }
+            for (auto id : syncData.taskSet) {
+                ExecutorPool::get()->cancel(id);
+            }
+            syncData.taskSet.clear();
+            return false;
+        })) {
+        // taskSet was empty
+        return;
     }
     transition(WarmupState::State::Done, true);
     done();
@@ -1322,7 +1319,7 @@ void Warmup::initialize() {
     auto session_stats = store.getOneROUnderlying()->getPersistedStats();
     auto it = session_stats.find("ep_force_shutdown");
     if (it != session_stats.end() && it.value() == "false") {
-        cleanShutdown = true;
+        syncData.lock()->cleanShutdown = true;
         // We want to ensure that if we crash from now and then warmup again.
         // That we will generate a new failover entry and not treat the last
         // shutdown as being clean. To do this we just need to set
@@ -1425,6 +1422,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                    vbs.maxVisibleSeqno,
                                    vbs.persistedPreparedSeqno);
 
+            const bool cleanShutdown = syncData.lock()->cleanShutdown;
             if (vbs.transition.state == vbucket_state_active &&
                 (!cleanShutdown ||
                  store.getCollectionsManager().needsUpdating(*vb))) {
@@ -1469,11 +1467,11 @@ void Warmup::createVBuckets(uint16_t shardId) {
 
 void Warmup::notifyWaitingCookies(cb::engine_errc status) {
     PendingCookiesQueue toNotify;
-    {
-        std::unique_lock<std::mutex> lock(pendingCookiesMutex);
-        mustWaitForWarmup = false;
-        pendingCookies.swap(toNotify);
-    }
+    syncData.withLock([&toNotify](auto& syncData) {
+        syncData.mustSaveCookies = false;
+        syncData.cookies.swap(toNotify);
+    });
+
     if (toNotify.empty()) {
         return;
     }
@@ -1490,12 +1488,13 @@ void Warmup::notifyWaitingCookies(cb::engine_errc status) {
 }
 
 bool Warmup::maybeWaitForVBucketWarmup(CookieIface* cookie) {
-    std::lock_guard<std::mutex> lg(pendingCookiesMutex);
-    if (mustWaitForWarmup) {
-        pendingCookies.push_back(cookie);
-        return true;
-    }
-    return false;
+    return syncData.withLock([cookie](auto& syncData) {
+        if (syncData.mustSaveCookies) {
+            syncData.cookies.push_back(cookie);
+            return true;
+        }
+        return false;
+    });
 }
 
 void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
@@ -1661,7 +1660,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
                         getName(),
                         entry.vbid,
                         entry.vbucketPtr->getHighSeqno());
-                failedToSetAVbucketState = true;
+                syncData.lock()->failedToSetAVbucketState = true;
             }
             store.vbMap.addBucket(entry.vbucketPtr);
             // Warmup no longer needs the shared reference.
@@ -1695,8 +1694,8 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         }
 
         {
-            std::lock_guard<std::mutex> lock(warmupStart.mutex);
-            metadata.store(std::chrono::steady_clock::now() - warmupStart.time);
+            metadata.store(std::chrono::steady_clock::now() -
+                           syncData.lock()->startTime);
         }
         EP_LOG_INFO("Warmup({}) metadata loaded in {}",
                     getName(),
@@ -1828,7 +1827,7 @@ bool Warmup::loadingAccessLog(uint16_t shardId) {
     case WarmupAccessLogState::Yield:
         return true;
     case WarmupAccessLogState::Failed:
-        corruptAccessLog = true;
+        syncData.lock()->corruptAccessLog = true;
         // Get rid of the current MutationLog object
         accessLog[shardId].pop_back();
         break;
@@ -1867,7 +1866,7 @@ Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLog& log,
     try {
         return tryLoadFromAccessLog(log, shardId);
     } catch (const std::exception& e) {
-        corruptAccessLog = true;
+        syncData.lock()->corruptAccessLog = true;
         EP_LOG_WARN("Warmup({}) Error from tryLoadFromAccessLog: {}",
                     getName(),
                     e.what());
@@ -1917,7 +1916,9 @@ Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLog& lf,
 void Warmup::done() {
     if (setFinishedLoading()) {
         setWarmupTime();
-        warmupDoneFunction();
+        // Obtain function but don't call under lock as it could do anything
+        auto doneFunction = syncData.lock()->doneFunction;
+        doneFunction();
         logStats();
     }
 }
@@ -2014,7 +2015,7 @@ void Warmup::addStats(const StatCollector& collector) const {
         collector.addStat(Key::ep_warmup_estimated_key_count, itemCount);
     }
 
-    if (corruptAccessLog) {
+    if (syncData.lock()->corruptAccessLog) {
         collector.addStat(Key::ep_warmup_access_log, "corrupt");
     }
 
@@ -2046,7 +2047,7 @@ void Warmup::addSecondaryWarmupStats(const StatCollector& collector) const {
                           duration_cast<microseconds>(md_time).count());
     }
 
-    if (corruptAccessLog) {
+    if (syncData.lock()->corruptAccessLog) {
         collector.addStat(Key::ep_secondary_warmup_access_log, "corrupt");
     }
 

@@ -321,8 +321,8 @@ public:
     }
 
     void setWarmupTime() {
-        std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        warmup.store(std::chrono::steady_clock::now() - warmupStart.time +
+        warmup.store(std::chrono::steady_clock::now() -
+                     syncData.lock()->startTime +
                      std::chrono::steady_clock::duration(1));
     }
 
@@ -375,7 +375,7 @@ public:
     }
 
     bool hasSetVbucketStateFailure() const {
-        return failedToSetAVbucketState;
+        return syncData.lock()->failedToSetAVbucketState;
     };
 
     WarmupState::State getWarmupState() const {
@@ -609,20 +609,31 @@ private:
     const Configuration& config;
     const EPStats& stats;
 
-    /// A callback to invoke when Warmup is Done.
-    std::function<void()> warmupDoneFunction;
+    using PendingCookiesQueue = std::deque<CookieIface*>;
+    struct SyncData {
+        SyncData() = default;
+        SyncData(std::function<void()> doneFunction)
+            : doneFunction(std::move(doneFunction)) {
+        }
+        bool cleanShutdown{false};
+        bool corruptAccessLog{false};
+        std::chrono::steady_clock::time_point startTime;
+        /// True if we've been unable to persist vbucket state during warmup
+        bool failedToSetAVbucketState{false};
 
-    // Unordered set to hold the current executing tasks
-    std::mutex taskSetMutex;
-    std::unordered_set<size_t> taskSet;
+        // If true warmup will collect cookies and notify them when
+        // PopulateVBucketMap is complete.
+        bool mustSaveCookies{true};
+        /// All of the cookies which need notifying when create-vbuckets is done
+        PendingCookiesQueue cookies;
 
-    // Stores the time when the warmup process has started.
-    // Lock the mutex when reading from or writing to the time member,
-    // in order to synchronise access from multiple threads.
-    struct {
-        std::mutex mutex;
-        std::chrono::steady_clock::time_point time;
-    } warmupStart;
+        // Unordered set to hold the current executing tasks
+        std::unordered_set<size_t> taskSet;
+
+        // A callback to invoke when Warmup is Done.
+        std::function<void()> doneFunction = []() {};
+    };
+    folly::Synchronized<SyncData, std::mutex> syncData;
 
     // Time it took to load metadata and complete warmup, stored atomically.
     cb::AtomicDuration<> metadata;
@@ -680,8 +691,6 @@ private:
     std::vector<ShardList> shardVBData;
 
     cb::AtomicDuration<> estimateTime;
-    bool cleanShutdown{false};
-    bool corruptAccessLog{false};
 
     /**
      * Has the data loading finished? This was historically called
@@ -694,16 +703,6 @@ private:
     std::atomic<bool> warmupOOMFailure{false};
     std::atomic<size_t> estimatedKeyCount{std::numeric_limits<size_t>::max()};
     std::atomic<size_t> estimatedValueCount{std::numeric_limits<size_t>::max()};
-
-    /// All of the cookies which need notifying when create-vbuckets is done
-    using PendingCookiesQueue = std::deque<CookieIface*>;
-    PendingCookiesQueue pendingCookies;
-    /// If true, some operations must wait for warmup (ewouldblock)
-    bool mustWaitForWarmup{true};
-    /// A mutex which gives safe access to the cookies and state flag
-    std::mutex pendingCookiesMutex;
-    /// True if we've been unable to persist vbucket state during warmup
-    bool failedToSetAVbucketState{false};
 
     std::vector<std::vector<std::unique_ptr<MutationLog>>> accessLog;
 
@@ -721,7 +720,7 @@ private:
     std::atomic<double> maxItemsScaleFactor{0.0};
 
     /// A name used in logging about Warmup
-    std::string name;
+    const std::string name;
 
     /// counter of keys loaded by this Warmup
     cb::RelaxedAtomic<size_t> keys{0};
