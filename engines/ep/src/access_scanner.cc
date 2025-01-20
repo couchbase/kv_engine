@@ -14,6 +14,7 @@
 #include "configuration.h"
 #include "ep_time.h"
 #include "hash_table.h"
+#include "item_access_visitor.h"
 #include "kv_bucket.h"
 #include "mutation_log.h"
 #include "stats.h"
@@ -28,173 +29,143 @@
 #include <memory>
 #include <numeric>
 
-class ItemAccessVisitor : public CappedDurationVBucketVisitor,
-                          public HashTableVisitor {
-public:
-    ItemAccessVisitor(KVBucket& _store,
-                      Configuration& conf,
-                      EPStats& _stats,
-                      uint16_t sh,
-                      cb::SemaphoreGuard<> guard,
-                      uint64_t items_to_scan)
-        : stats(_stats),
-          startTime(ep_real_time()),
-          taskStart(std::chrono::steady_clock::now()),
-          shardID(sh),
-          semaphoreGuard(std::move(guard)),
-          items_scanned(0),
-          items_to_scan(items_to_scan) {
-        Expects(semaphoreGuard.valid());
-        setVBucketFilter(VBucketFilter(
-                _store.getVBuckets().getShard(sh)->getVBuckets()));
-        name = conf.getAlogPath();
-        name = name + "." + std::to_string(shardID);
-        prev = name + ".old";
-        next = name + ".next";
+ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
+                                     Configuration& conf,
+                                     EPStats& _stats,
+                                     uint16_t sh,
+                                     cb::SemaphoreGuard<> guard,
+                                     uint64_t items_to_scan)
+    : stats(_stats),
+      startTime(ep_real_time()),
+      taskStart(std::chrono::steady_clock::now()),
+      shardID(sh),
+      semaphoreGuard(std::move(guard)),
+      items_scanned(0),
+      items_to_scan(items_to_scan) {
+    Expects(semaphoreGuard.valid());
+    setVBucketFilter(
+            VBucketFilter(_store.getVBuckets().getShard(sh)->getVBuckets()));
+    name = conf.getAlogPath();
+    name = name + "." + std::to_string(shardID);
+    prev = name + ".old";
+    next = name + ".next";
 
-        log = std::make_unique<MutationLog>(next, conf.getAlogBlockSize());
-        log->open();
-        if (!log->isOpen()) {
-            EP_LOG_WARN("Failed to open access log: '{}'", next);
-            throw std::runtime_error(fmt::format(
-                    "ItemAccessVisitor failed log->isOpen {}", next));
-        } else {
-            EP_LOG_INFO(
-                    "Attempting to generate new access file "
-                    "'{}'",
-                    next);
-        }
-    }
-
-    ~ItemAccessVisitor() override {
-        ++stats.alogRuns;
-    }
-
-    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override {
-        // Record resident, Committed HashTable items as 'accessed'.
-        if (v.isResident() && v.isCommitted()) {
-            if (v.isExpired(startTime) || v.isDeleted()) {
-                EP_LOG_DEBUG("Skipping expired/deleted item: {}",
-                             v.getBySeqno());
-            } else {
-                accessed.push_back(StoredDocKey(v.getKey()));
-                return ++items_scanned < items_to_scan;
-            }
-        }
-        return true;
-    }
-
-    void update(Vbid vbid) {
-            for (auto& it : accessed) {
-                log->newItem(vbid, it);
-            }
-        accessed.clear();
-    }
-
-    void visitBucket(VBucket& vb) override {
-        update(vb.getId());
-
-        HashTable::Position ht_start;
-        if (vBucketFilter(vb.getId())) {
-            while (ht_start != vb.ht.endPosition()) {
-                ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
-                update(vb.getId());
-                log->commit1();
-                log->commit2();
-                items_scanned = 0;
-            }
-        }
-    }
-
-    void complete() override {
-        size_t num_items = log->itemsLogged[int(MutationLogType::New)];
-        log->commit1();
-        log->commit2();
-        log.reset();
-
-        stats.alogRuntime.store(ep_real_time() - startTime);
-        stats.alogNumItems.store(num_items);
-        stats.accessScannerHisto.add(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - taskStart));
-
-        if (num_items == 0) {
-            EP_LOG_INFO_RAW(
-                    "The new access log file is empty. "
-                    "Delete it without replacing the current access "
-                    "log...");
-            remove(next.c_str());
-            return;
-        }
-
-        if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
-            EP_LOG_WARN(
-                    "Failed to remove access log file "
-                    "'{}': {}",
-                    prev,
-                    strerror(errno));
-            remove(next.c_str());
-            return;
-        }
-        EP_LOG_INFO("Removed old access log file: '{}'", prev);
-        if (cb::io::isFile(name) && rename(name.c_str(), prev.c_str()) == -1) {
-            EP_LOG_WARN(
-                    "Failed to rename access log file "
-                    "from '{}' to '{}': {}",
-                    name,
-                    prev,
-                    strerror(errno));
-            remove(next.c_str());
-            return;
-        }
+    log = std::make_unique<MutationLog>(next, conf.getAlogBlockSize());
+    log->open();
+    if (!log->isOpen()) {
+        EP_LOG_WARN("Failed to open access log: '{}'", next);
+        throw std::runtime_error(
+                fmt::format("ItemAccessVisitor failed log->isOpen {}", next));
+    } else {
         EP_LOG_INFO(
-                "Renamed access log file from '{}' to "
+                "Attempting to generate new access file "
                 "'{}'",
-                name,
-                prev);
-        if (rename(next.c_str(), name.c_str()) == -1) {
-            EP_LOG_WARN(
-                    "Failed to rename access log file "
-                    "from '{}' to '{}': {}",
-                    next,
-                    name,
-                    strerror(errno));
-            remove(next.c_str());
-            return;
+                next);
+    }
+}
+
+ItemAccessVisitor::~ItemAccessVisitor() {
+    ++stats.alogRuns;
+}
+
+bool ItemAccessVisitor::visit(const HashTable::HashBucketLock& lh,
+                              StoredValue& v) {
+    // Record resident, Committed HashTable items as 'accessed'.
+    if (v.isResident() && v.isCommitted()) {
+        if (v.isExpired(startTime) || v.isDeleted()) {
+            EP_LOG_DEBUG("Skipping expired/deleted item: {}", v.getBySeqno());
+        } else {
+            accessed.emplace_back(v.getKey());
+            return ++items_scanned < items_to_scan;
         }
-        EP_LOG_INFO(
-                "New access log file '{}' created with "
-                "{} keys",
-                name,
-                static_cast<uint64_t>(num_items));
+    }
+    return true;
+}
+
+void ItemAccessVisitor::update(Vbid vbid) {
+    for (auto& it : accessed) {
+        log->newItem(vbid, it);
+    }
+    accessed.clear();
+}
+
+void ItemAccessVisitor::visitBucket(VBucket& vb) {
+    update(vb.getId());
+
+    HashTable::Position ht_start;
+    if (vBucketFilter(vb.getId())) {
+        while (ht_start != vb.ht.endPosition()) {
+            ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
+            update(vb.getId());
+            log->commit1();
+            log->commit2();
+            items_scanned = 0;
+        }
+    }
+}
+
+void ItemAccessVisitor::complete() {
+    size_t num_items = log->itemsLogged[int(MutationLogType::New)];
+    log->commit1();
+    log->commit2();
+    log.reset();
+
+    stats.alogRuntime.store(ep_real_time() - startTime);
+    stats.alogNumItems.store(num_items);
+    stats.accessScannerHisto.add(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - taskStart));
+
+    if (num_items == 0) {
+        EP_LOG_INFO_RAW(
+                "The new access log file is empty. "
+                "Delete it without replacing the current access "
+                "log...");
+        remove(next.c_str());
+        return;
     }
 
-private:
-
-    VBucketFilter vBucketFilter;
-
-    EPStats& stats;
-    rel_time_t startTime;
-    std::chrono::steady_clock::time_point taskStart;
-    std::string prev;
-    std::string next;
-    std::string name;
-    uint16_t shardID;
-
-    std::vector<StoredDocKey> accessed;
-
-    std::unique_ptr<MutationLog> log;
-    /**
-     * The parent AccessScanner is tracking how many visitors exist, this
-     * guard will update the parent when the visitor destructs.
-     */
-    cb::SemaphoreGuard<> semaphoreGuard;
-
-    // The number items scanned since last pause
-    uint64_t items_scanned;
-    // The number of items to scan before we pause
-    const uint64_t items_to_scan;
-};
+    if (cb::io::isFile(prev) && remove(prev.c_str()) == -1) {
+        EP_LOG_WARN(
+                "Failed to remove access log file "
+                "'{}': {}",
+                prev,
+                strerror(errno));
+        remove(next.c_str());
+        return;
+    }
+    EP_LOG_INFO("Removed old access log file: '{}'", prev);
+    if (cb::io::isFile(name) && rename(name.c_str(), prev.c_str()) == -1) {
+        EP_LOG_WARN(
+                "Failed to rename access log file "
+                "from '{}' to '{}': {}",
+                name,
+                prev,
+                strerror(errno));
+        remove(next.c_str());
+        return;
+    }
+    EP_LOG_INFO(
+            "Renamed access log file from '{}' to "
+            "'{}'",
+            name,
+            prev);
+    if (rename(next.c_str(), name.c_str()) == -1) {
+        EP_LOG_WARN(
+                "Failed to rename access log file "
+                "from '{}' to '{}': {}",
+                next,
+                name,
+                strerror(errno));
+        remove(next.c_str());
+        return;
+    }
+    EP_LOG_INFO(
+            "New access log file '{}' created with "
+            "{} keys",
+            name,
+            static_cast<uint64_t>(num_items));
+}
 
 AccessScanner::AccessScanner(KVBucket& _store,
                              Configuration& conf,
