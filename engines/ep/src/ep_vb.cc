@@ -1570,3 +1570,12 @@ EPVBucket::cancelRangeScansExceedingDuration(std::chrono::seconds duration) {
 void EPVBucket::cancelRangeScans() {
     rangeScans.cancelAllScans(dynamic_cast<EPBucket&>(*bucket));
 }
+
+failover_entry_t EPVBucket::processFailover() {
+    const auto range = getPersistedSnapshot();
+    createFailoverEntry(range.getEnd() == getPersistenceSeqno()
+                                ? range.getEnd()
+                                : range.getStart());
+
+    return failovers->getLatestEntry();
+}
