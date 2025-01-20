@@ -49,6 +49,7 @@
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/stats_context.h"
+#include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -751,6 +752,15 @@ static void mount_vbucket_executor(Cookie& cookie) {
             res.first, {}, {}, json.dump(), cb::mcbp::Datatype::JSON, 0);
 }
 
+static void sync_fusion_logstore_executor(Cookie& cookie) {
+    if (!cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<SyncFusionLogstoreCommandContext>(cookie).drive();
+}
+
 static void process_bin_dcp_response(Cookie& cookie) {
     auto& c = cookie.getConnection();
 
@@ -1024,6 +1034,8 @@ void initialize_mbcp_lookup_map() {
                   release_fusion_storage_snapshot_executor);
     setup_handler(cb::mcbp::ClientOpcode::MountFusionVbucket,
                   mount_vbucket_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SyncFusionLogstore,
+                  sync_fusion_logstore_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

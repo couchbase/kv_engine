@@ -818,6 +818,8 @@ public:
               {"RELEASE_FUSION_STORAGE_SNAPSHOT"sv, {Attribute::Supported}});
         setup(ClientOpcode::MountFusionVbucket,
               {"MOUNT_FUSION_VBUCKET"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SyncFusionLogstore,
+              {"SYNC_FUSION_LOGSTORE"sv, {Attribute::Supported}});
     }
 
 protected:

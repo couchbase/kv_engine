@@ -669,6 +669,8 @@ public:
     std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
             Vbid vbid, const std::vector<std::string>& paths) override;
 
+    cb::engine_errc syncFusionLogstore(Vbid vbid) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

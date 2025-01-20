@@ -866,6 +866,14 @@ struct EngineIface {
     mountVBucket(Vbid vbid, const std::vector<std::string>& paths);
 
     /**
+     * Force flush to disk of the magma write cache for the given vbucket and
+     * sync the data to fusion.
+     *
+     * @param vbid The vbucket to sync
+     */
+    [[nodiscard]] virtual cb::engine_errc syncFusionLogstore(Vbid vbid);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

@@ -181,8 +181,8 @@ enum class ClientOpcode : uint8_t {
     GetFusionStorageSnapshot = 0x98,
     ReleaseFusionStorageSnapshot = 0x99,
     MountFusionVbucket = 0x9a,
-    ReservedFusion3 = 0x9b,
-    ReservedFusion4 = 0x9c,
+    ReservedFusion3 = 0x9b, // Reserved for UnmountVB
+    SyncFusionLogstore = 0x9c,
     ReservedFusion5 = 0x9d,
 
     /**

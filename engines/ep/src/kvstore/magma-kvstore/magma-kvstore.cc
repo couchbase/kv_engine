@@ -3312,7 +3312,7 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 std::unique_ptr<KVFileHandle> MagmaKVStore::makeFileHandle(Vbid vbid) const {
     DomainAwareUniquePtr<magma::Magma::Snapshot> snapshot;
     // Flush write cache for creating an on-disk snapshot
-    auto status = magma->SyncKVStore(vbid.get());
+    auto status = magma->SyncKVStore(vbid.get(), false);
     fileHandleSyncStatusHook(status);
     if (status.IsOK()) {
         status = magma->GetDiskSnapshot(vbid.get(), snapshot);
@@ -4583,4 +4583,15 @@ std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
         return {cb::engine_errc::failed, {}};
     }
     return {cb::engine_errc::success, std::get<std::vector<std::string>>(res)};
+}
+
+cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid) {
+    const auto status = magma->SyncKVStore(Magma::KVStoreID(vbid.get()), true);
+    if (status.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::syncFusionLogstore: ",
+                        {"vb", vbid},
+                        {"status", status.String()});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
 }

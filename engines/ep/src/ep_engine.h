@@ -305,6 +305,7 @@ public:
             Vbid vbid, std::string_view snapshotUuid) override;
     std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
             Vbid vbid, const std::vector<std::string>& paths) override;
+    cb::engine_errc syncFusionLogstore(Vbid vbid) override;
 
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
@@ -1519,6 +1520,7 @@ protected:
             Vbid vbid, std::string_view snapshotUuid);
     std::pair<cb::engine_errc, std::vector<std::string>> mountVBucketInner(
             Vbid vbid, const std::vector<std::string>& paths);
+    cb::engine_errc syncFusionLogstoreInner(Vbid vbid);
 
     cb::engine_errc setFusionMetadataAuthToken(std::string_view token);
     std::string getFusionMetadataAuthToken() const;

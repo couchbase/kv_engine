@@ -973,6 +973,10 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    [[nodiscard]] virtual cb::engine_errc syncFusionLogstore(Vbid vbid) {
+        return cb::engine_errc::not_supported;
+    }
+
     /**
      * Result of the loadPreparedSyncWrites function
      */

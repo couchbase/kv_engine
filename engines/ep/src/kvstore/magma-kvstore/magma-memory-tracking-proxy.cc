@@ -522,9 +522,9 @@ magma::Status MagmaMemoryTrackingProxy::Sync(bool flushAll) {
 }
 
 magma::Status MagmaMemoryTrackingProxy::SyncKVStore(
-        const magma::Magma::KVStoreID kvID) {
+        const magma::Magma::KVStoreID kvID, bool fusion) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->SyncKVStore(kvID);
+    return magma->SyncKVStore(kvID, fusion);
 }
 
 magma::Status MagmaMemoryTrackingProxy::WriteDocs(

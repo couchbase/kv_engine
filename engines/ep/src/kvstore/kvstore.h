@@ -1013,6 +1013,10 @@ public:
         return {cb::engine_errc::not_supported, {}};
     }
 
+    cb::engine_errc syncFusionLogstore(Vbid vbid) override {
+        return cb::engine_errc::not_supported;
+    }
+
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
             const std::filesystem::path& snapshotDirectory, Vbid vb) override;
 

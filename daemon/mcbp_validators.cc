@@ -2733,6 +2733,16 @@ static Status mount_vbucket_validator(Cookie& cookie) {
     return status;
 }
 
+static Status sync_fusion_logstore_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -3035,4 +3045,6 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot,
           release_fusion_storage_snapshot_validator);
     setup(cb::mcbp::ClientOpcode::MountFusionVbucket, mount_vbucket_validator);
+    setup(cb::mcbp::ClientOpcode::SyncFusionLogstore,
+          sync_fusion_logstore_validator);
 }

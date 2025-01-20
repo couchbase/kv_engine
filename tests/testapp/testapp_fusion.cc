@@ -223,4 +223,15 @@ TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
     ASSERT_TRUE(res["deks"].is_array());
 }
 
+TEST_P(FusionTest, SyncFusionLogstore) {
+    BinprotResponse resp;
+    adminConnection->executeInBucket(bucketName, [&resp](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SyncFusionLogstore};
+        cmd.setVBucket(Vbid(0));
+        resp = conn.execute(cmd);
+    });
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
 #endif // USE_FUSION
