@@ -34,7 +34,8 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
                                      EPStats& _stats,
                                      uint16_t sh,
                                      cb::SemaphoreGuard<> guard,
-                                     uint64_t items_to_scan)
+                                     uint64_t items_to_scan,
+                                     std::unique_ptr<mlog::FileIface> fileIface)
     : stats(_stats),
       startTime(ep_real_time()),
       taskStart(std::chrono::steady_clock::now()),
@@ -50,7 +51,8 @@ ItemAccessVisitor::ItemAccessVisitor(KVBucket& _store,
     prev = name + ".old";
     next = name + ".next";
 
-    log = std::make_unique<MutationLog>(next, conf.getAlogBlockSize());
+    log = std::make_unique<MutationLog>(
+            next, conf.getAlogBlockSize(), std::move(fileIface));
     log->open();
     if (!log->isOpen()) {
         EP_LOG_WARN("Failed to open access log: '{}'", next);
@@ -90,25 +92,52 @@ void ItemAccessVisitor::update(Vbid vbid) {
 }
 
 void ItemAccessVisitor::visitBucket(VBucket& vb) {
-    update(vb.getId());
+    try {
+        update(vb.getId());
 
-    HashTable::Position ht_start;
-    if (vBucketFilter(vb.getId())) {
-        while (ht_start != vb.ht.endPosition()) {
-            ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
-            update(vb.getId());
-            log->commit1();
-            log->commit2();
-            items_scanned = 0;
+        HashTable::Position ht_start;
+        if (vBucketFilter(vb.getId())) {
+            while (ht_start != vb.ht.endPosition()) {
+                ht_start = vb.ht.pauseResumeVisit(*this, ht_start);
+                update(vb.getId());
+                log->commit1();
+                log->commit2();
+                items_scanned = 0;
+            }
         }
+    } catch (const MutationLog::WriteException& e) {
+        EP_LOG_WARN(
+                "Failed to write new access log to disk. path : {}, error: "
+                "{}",
+                next,
+                e.what());
+        writeFailed = true;
+        log->disable();
     }
 }
 
 void ItemAccessVisitor::complete() {
     size_t num_items = log->itemsLogged[int(MutationLogType::New)];
-    log->commit1();
-    log->commit2();
-    log.reset();
+    try {
+        log->commit1();
+        log->commit2();
+        log.reset();
+    } catch (const MutationLog::WriteException& e) {
+        EP_LOG_WARN(
+                "Failed to write new access log to disk. path : {}, error: "
+                "{}",
+                next,
+                e.what());
+        writeFailed = true;
+        log->disable();
+    }
+
+    // Writing the new access log to disk failed, skip replacing the current
+    // access log.
+    if (writeFailed) {
+        remove(next.c_str());
+        return;
+    }
 
     stats.alogRuntime.store(ep_real_time() - startTime);
     stats.alogNumItems.store(num_items);
