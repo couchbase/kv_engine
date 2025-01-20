@@ -18,5 +18,8 @@
   },
   "seqno_persistence": {
     "slow": "30 s"
+  },
+  "range_scan_continue": {
+    "slow" : "5 s"
   }
 }
