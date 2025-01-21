@@ -6639,7 +6639,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
         CookieIface& cookie, TrafficControlMode mode) {
     switch (mode) {
     case TrafficControlMode::Enabled:
-        if (kvBucket->isWarmupLoadingData()) {
+        if (kvBucket->isPrimaryWarmupLoadingData()) {
             // engine is still warming up, do not turn on data traffic yet
             setErrorContext(cookie, "Persistent engine is still warming up!");
             return cb::engine_errc::temporary_failure;
@@ -6693,7 +6693,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
 }
 
 bool EventuallyPersistentEngine::isDegradedMode() const {
-    return kvBucket->isWarmupLoadingData() || !trafficEnabled.load();
+    return kvBucket->isPrimaryWarmupLoadingData() || !trafficEnabled.load();
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(

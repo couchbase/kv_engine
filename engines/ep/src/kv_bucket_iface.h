@@ -718,7 +718,7 @@ public:
     /**
      * Has warmup loaded enough data to serve ops?
      */
-    virtual bool isWarmupLoadingData() const = 0;
+    virtual bool isPrimaryWarmupLoadingData() const = 0;
 
     /**
      * Has primary warmup loaded all metadata? E.g. the vbucket's and collection

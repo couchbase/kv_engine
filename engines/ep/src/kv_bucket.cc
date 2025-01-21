@@ -2307,7 +2307,7 @@ bool KVBucket::isExpPagerEnabled() {
     return expiryPagerTask->isEnabled();
 }
 
-bool KVBucket::isWarmupLoadingData() const {
+bool KVBucket::isPrimaryWarmupLoadingData() const {
     return false;
 }
 

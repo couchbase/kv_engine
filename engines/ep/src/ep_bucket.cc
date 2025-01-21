@@ -2389,7 +2389,7 @@ Warmup* EPBucket::getSecondaryWarmup() const {
     return secondaryWarmupTask.lock()->get();
 }
 
-bool EPBucket::isWarmupLoadingData() const {
+bool EPBucket::isPrimaryWarmupLoadingData() const {
     // This function only needs to check Primary warmup as this controls things
     // like enableTraffic and isDegraded. In both of those cases the Secondary
     // warmup could be loading data, but it doesn't change the outcome of this
@@ -2530,7 +2530,7 @@ void EPBucket::primaryWarmupCompleted() {
 
 void EPBucket::stopWarmup() {
     // forcefully stop current warmup task
-    if (isWarmupLoadingData()) {
+    if (isPrimaryWarmupLoadingData()) {
         EP_LOG_INFO(
                 "Stopping warmup while engine is loading "
                 "data from underlying storage, shutdown = {}",

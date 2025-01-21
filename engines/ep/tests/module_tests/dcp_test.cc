@@ -2595,7 +2595,7 @@ TEST_F(SingleThreadedKVBucketTest, MB_63618) {
     auto& readerQueue = *task_executor->getLpTaskQ(TaskType::Reader);
 
     // finish warmup so get_failover_log is notified
-    while (engine->getKVBucket()->isWarmupLoadingData()) {
+    while (engine->getKVBucket()->isPrimaryWarmupLoadingData()) {
         CheckedExecutor executor(task_executor, readerQueue);
         executor.runCurrentTask();
     }
