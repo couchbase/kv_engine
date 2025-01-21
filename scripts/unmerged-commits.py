@@ -100,6 +100,13 @@ sequences = {
 }
 
 
+def format_commit(sha):
+    """Pretty prints the commit."""
+    # Short hash, message, committer name
+    return subprocess.check_output(
+        ['git', 'log', '-1', '--pretty=format:%h %s (%cn)', sha],
+        text=True)
+
 project = os.path.basename(
     subprocess.check_output(['git', 'rev-parse', '--show-toplevel'],
                             text=True).strip())
@@ -107,7 +114,7 @@ project = os.path.basename(
 total_unmerged = 0
 for sequence in sequences[project]:
     for (downstream, upstream) in sequence:
-        commits = subprocess.check_output(['git', 'cherry', '-v',
+        commits = subprocess.check_output(['git', 'cherry',
                                            upstream, downstream],
                                           text=True)
         commits = commits.splitlines()
@@ -117,12 +124,14 @@ for sequence in sequences[project]:
             print(
                 f"{bcolors.HEADER}{count} commits in '{downstream}' not present in '{upstream}':{bcolors.ENDC}")
             for commit in commits:
-                if commit[0] == '-':
+                status, sha = commit.split(' ', maxsplit=1)
+                commit_text = f'{status} {format_commit(sha)}'
+                if status == '-':
                     # Equivalent in upstream, de-emphasise
                     color = bcolors.FAINT
                 else:
                     color = bcolors.ENDC
-                print(f"  {color}{commit}{bcolors.ENDC}")
+                print(f"  {color}{commit_text}{bcolors.ENDC}")
             print()
 
 if total_unmerged:
