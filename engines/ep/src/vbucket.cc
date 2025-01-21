@@ -3223,13 +3223,22 @@ void VBucket::deletedOnDiskCbk(const Item& queuedItem, bool deleted) {
     //  1. Item is existent in hashtable, and deleted flag is true
     //  2. seqno of queued item matches seqno of hash table item
     if (v && v->isDeleted() && queuedItem.getBySeqno() == v->getBySeqno()) {
-        bool isDeleted = deleteStoredValue(res.lock, *v);
-        if (!isDeleted) {
-            throw std::logic_error(
-                    "deletedOnDiskCbk:callback: "
-                    "Failed to delete key with seqno:" +
-                    std::to_string(v->getBySeqno()) + "' from bucket " +
-                    to_string(res.lock.getPosition()));
+        if (bucket && bucket->isWarmupLoadingData()) {
+            // During warmup, we only mark the deletes as clean as they are
+            // persisted - we cannot remove them from the HT. They will get
+            // cleaned up by the expiry pager.
+            ht.markSVClean(res.lock, *v);
+            // Make immediate candidate for eviction.
+            ht.setSVFreqCounter(res.lock, *v, 0);
+        } else {
+            bool isDeleted = deleteStoredValue(res.lock, *v);
+            if (!isDeleted) {
+                throw std::logic_error(
+                        "deletedOnDiskCbk:callback: "
+                        "Failed to delete key with seqno:" +
+                        std::to_string(v->getBySeqno()) + "' from bucket " +
+                        to_string(res.lock.getPosition()));
+            }
         }
 
         /**

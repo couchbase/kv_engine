@@ -716,6 +716,11 @@ public:
                                            size_t replicaPerc) = 0;
 
     /**
+     * Is there any warmup process still loading data?
+     */
+    virtual bool isWarmupLoadingData() const = 0;
+
+    /**
      * Has warmup loaded enough data to serve ops?
      */
     virtual bool isPrimaryWarmupLoadingData() const = 0;

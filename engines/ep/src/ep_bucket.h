@@ -273,6 +273,12 @@ public:
     Warmup* getSecondaryWarmup() const override;
 
     /**
+     * @return true if Primary and Secondary warm-up has yet to signal finished
+     * loading.
+     */
+    bool isWarmupLoadingData() const override;
+
+    /**
      * @return true if Primary warm-up has yet to signal finished loading. Note
      *         that Secondary warm-up has no input on this function.
      */

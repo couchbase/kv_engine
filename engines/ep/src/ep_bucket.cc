@@ -2374,6 +2374,14 @@ Warmup* EPBucket::getSecondaryWarmup() const {
     return secondaryWarmup.atomic.load(std::memory_order_relaxed);
 }
 
+bool EPBucket::isWarmupLoadingData() const {
+    if (isPrimaryWarmupLoadingData()) {
+        return true;
+    }
+    const auto* secondary = secondaryWarmup.atomic.load();
+    return secondary && !secondary->isFinishedLoading();
+}
+
 bool EPBucket::isPrimaryWarmupLoadingData() const {
     // This function only needs to check Primary warmup as this controls things
     // like enableTraffic and isDegraded. In both of those cases the Secondary

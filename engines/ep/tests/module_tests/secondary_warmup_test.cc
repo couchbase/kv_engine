@@ -240,6 +240,40 @@ TEST_P(SecondaryWarmupTest, ShutdownWhilstPrimary) {
     task->runImmediately();
 }
 
+TEST_P(SecondaryWarmupTest, WarmingAndDeleting) {
+    auto* kvBucket = engine->getKVBucket();
+    ASSERT_TRUE(kvBucket);
+    auto& epBucket = getEPBucket();
+    runPrimaryAndEnableTraffic();
+    ASSERT_TRUE(epBucket.getSecondaryWarmup());
+
+    const auto* warmup = epBucket.getSecondaryWarmup();
+
+    ASSERT_TRUE(store->isWarmupLoadingData());
+    ASSERT_FALSE(warmup->isFinishedLoading());
+
+    const auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "");
+    delete_item(vbid, key);
+
+    flush_vbucket_to_disk(vbid, 1);
+
+    auto vb = kvBucket->getVBucket(vbid);
+    {
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        EXPECT_TRUE(res.committed->isDeleted())
+                << "Expected to find delete still in the HT.";
+        EXPECT_FALSE(res.committed->isDirty())
+                << "Expected delete to be persisted and clean.";
+    }
+    EXPECT_EQ(MutationStatus::InvalidCas,
+              vb->ht.insertFromWarmup(make_item(vbid, key, "value"),
+                                      false,
+                                      false,
+                                      store->getItemEvictionPolicy()));
+}
+
 auto testConfig =
         ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA
