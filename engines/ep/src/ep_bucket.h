@@ -516,7 +516,11 @@ protected:
      *
      * @param itemsToFlush Used for performing post-flush operations
      */
-    void flushFailureEpilogue(EPVBucket& vb, ItemsToFlush& itemsToFlush);
+    void flushFailureEpilogue(EPVBucket& vb,
+                              ItemsToFlush& itemsToFlush,
+                              std::size_t numItems,
+                              std::string_view snapStart,
+                              std::string_view snapEnd);
 
     bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const override;

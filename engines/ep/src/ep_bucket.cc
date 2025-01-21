@@ -895,7 +895,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
         if (!rwUnderlying->snapshotVBucket(vb.getId(), commitData)) {
-            flushFailureEpilogue(vb, toFlush);
+            flushFailureEpilogue(vb, toFlush, 0, "none", "none");
             return {MoreAvailable::Yes, 0};
         }
 
@@ -924,6 +924,14 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
     //  - we cannot rely on clear() + shrink_to_fit() as the latter is a
     //    non-binding request to reduce capacity() to size(), it depends on
     //    the implementation whether the request is fulfilled.
+    const std::size_t numItems = toFlush.items.size();
+    std::string snapStart = "none";
+    std::string snapEnd = "none";
+    if (!toFlush.ranges.empty()) {
+        snapStart = std::to_string(toFlush.ranges.front().getStart());
+        snapEnd = std::to_string(toFlush.ranges.back().getEnd());
+    }
+
     {
         const auto itemsToRelease = std::move(toFlush.items);
         const auto rangesToRelease = std::move(toFlush.ranges);
@@ -931,7 +939,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
 
     // Persist the flush-batch.
     if (!commit(*rwUnderlying, std::move(ctx), commitData)) {
-        flushFailureEpilogue(vb, toFlush);
+        flushFailureEpilogue(vb, toFlush, numItems, snapStart, snapEnd);
         return {MoreAvailable::Yes, 0};
     }
 
@@ -1034,21 +1042,20 @@ void EPBucket::flushSuccessEpilogue(
     getRWUnderlying(vb.getId())->pendingTasks();
 }
 
-void EPBucket::flushFailureEpilogue(EPVBucket& vb, ItemsToFlush& flush) {
+void EPBucket::flushFailureEpilogue(EPVBucket& vb,
+                                    ItemsToFlush& flush,
+                                    std::size_t numItems,
+                                    std::string_view snapStart,
+                                    std::string_view snapEnd) {
     // Flush failed, we need to reset the pcursor to the original
     // position. At the next run the flusher will re-attempt by retrieving
     // all the items from the disk queue again.
     flush.flushHandle->markFlushFailed(vb);
     if (vb.shouldWarnForFlushFailure()) {
-        std::string snapStart{"none"}, snapEnd{"none"};
-        if (!flush.ranges.empty()) {
-            snapStart = std::to_string(flush.ranges.front().getStart());
-            snapEnd = std::to_string(flush.ranges.back().getEnd());
-        }
         EP_LOG_WARN_CTX(
                 "EPBucket::flushVBucket: failed",
                 {"vb", vb.getId()},
-                {"items", flush.items.size()},
+                {"items", numItems},
                 {"snap_start", snapStart},
                 {"snap_end", snapEnd},
                 {"more_available", flush.moreAvailable},
