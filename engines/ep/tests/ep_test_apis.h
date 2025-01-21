@@ -18,6 +18,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/protocol_binary.h>
+#include <platform/timeutils.h>
 #include <relaxed_atomic.h>
 #include <iostream>
 #include <map>
@@ -90,13 +91,15 @@ public:
             T last_value, const std::chrono::microseconds sleep_time) {
         totalSleepTime += sleep_time;
         if (totalSleepTime >= maxWaitTime) {
-            std::cerr << "Exceeded maximum wait time of " << maxWaitTime.count()
-                      << "us waiting for stat '" << stat;
+            std::cerr << "Exceeded maximum wait time of "
+                      << cb::time2text(maxWaitTime) << " waiting for stat '"
+                      << stat;
             if (statKey != nullptr) {
                 std::cerr << "(" << statKey << ")";
             }
-            std::cerr << "' " << compareName << " " << final << " (last value:"
-            << last_value << ") - aborting." << std::endl;
+            std::cerr << "' " << compareName << " " << final
+                      << " (last value:" << last_value << ") - aborting."
+                      << std::endl;
             abort();
         }
     }
