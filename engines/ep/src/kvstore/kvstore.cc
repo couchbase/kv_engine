@@ -886,7 +886,7 @@ cb::engine_errc checkSnapshotFile(const std::filesystem::path& path,
             info.status = cb::snapshot::FileStatus::Present;
             return cb::engine_errc::success;
         }
-
+        // else no sha512 to check, but is the file truncated?
         if (size < info.size) {
             EP_LOG_INFO_CTX("getValidatedManifest snapshot has truncated file",
                             {"uuid", uuid},
@@ -895,7 +895,9 @@ cb::engine_errc checkSnapshotFile(const std::filesystem::path& path,
                             {"expectedSize", info.size},
                             {"type", type});
             info.status = cb::snapshot::FileStatus::Truncated;
+            return cb::engine_errc::out_of_range;
         }
+        info.status = cb::snapshot::FileStatus::Present;
         return cb::engine_errc::success;
     }
     EP_LOG_INFO_CTX("getValidatedManifest snapshot missing a file",
@@ -903,7 +905,7 @@ cb::engine_errc checkSnapshotFile(const std::filesystem::path& path,
                     {"target", target},
                     {"type", type});
     info.status = cb::snapshot::FileStatus::Absent;
-    return cb::engine_errc::success;
+    return cb::engine_errc::no_such_key;
 }
 
 std::variant<cb::engine_errc, cb::snapshot::Manifest>
@@ -913,16 +915,26 @@ KVStore::getValidatedManifest(const std::filesystem::path& path) {
 
     // Validate all files, do they exist? Are they truncated?
     for (auto& file : m.files) {
-        if (checkSnapshotFile(path, m.uuid, file, "FILE") !=
-            cb::engine_errc::success) {
-            return cb::engine_errc::failed;
+        auto status = checkSnapshotFile(path, m.uuid, file, "FILE");
+        if (status == cb::engine_errc::failed) {
+            // Corrupt
+            return status;
+        }
+        if (status != cb::engine_errc::success) {
+            // ! success is an Incomplete file issue (Absent/Truncated)
+            m.setIncomplete();
         }
     }
 
     for (auto& file : m.deks) {
-        if (checkSnapshotFile(path, m.uuid, file, "DEK") !=
-            cb::engine_errc::success) {
-            return cb::engine_errc::failed;
+        auto status = checkSnapshotFile(path, m.uuid, file, "DEK");
+        if (status == cb::engine_errc::failed) {
+            // Corrupt
+            return status;
+        }
+        if (status != cb::engine_errc::success) {
+            // Incomplete file issue.
+            m.setIncomplete();
         }
     }
 

@@ -3040,15 +3040,13 @@ cb::engine_errc EPBucket::doSnapshotStatus(const StatCollector& collector,
 
     // For each of the vbucket IDs produce a single status for the snapshot.
     // The snapshot may not exist, be downloading or be in the cache.
-    // @todo: cached snapshots maybe incomplete
     for (auto id : ids) {
         fmt::memory_buffer key;
         fmt::format_to(std::back_inserter(key), "vb_{}:status", id.get());
         auto manifest = snapshotCache.lookup(id);
         if (manifest) {
-            // @todo: manifest may not be complete.
             collector.addStat(std::string_view(key.data(), key.size()),
-                              "available");
+                              manifest->getStatus());
         } else if (auto optional = snapshotController.findState(id); optional) {
             if (*optional == cb::snapshot::DownloadSnapshotTaskState::Failed) {
                 collector.addStat(std::string_view(key.data(), key.size()),

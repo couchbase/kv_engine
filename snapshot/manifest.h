@@ -79,6 +79,12 @@ struct Manifest {
     /// snapshot
     std::vector<FileInfo> deks;
 
+    // A status to say if the snapshot has all files or is missing a file or
+    // has a truncated file. An incomplete snapshot from the POV of a download
+    // could in theory be made complete (resumed).
+    enum class Status : uint8_t { Complete, Incomplete };
+    Status status{Status::Complete};
+
     friend bool operator==(const Manifest& lhs, const Manifest& rhs) {
         return lhs.uuid == rhs.uuid && lhs.files == rhs.files &&
                lhs.deks == rhs.deks;
@@ -89,6 +95,17 @@ struct Manifest {
 
     /// Add the state of this Manifest to the collector
     void addDebugStats(const StatCollector&) const;
+
+    void setIncomplete() {
+        status = Status::Incomplete;
+    }
+
+    // @return the status for use in snapshot-status stat command
+    std::string_view getStatus() const {
+        // Use available for complete - as a complete snapshot is available for
+        // being used in subsequent FBR steps.
+        return status == Status::Complete ? "available" : "incomplete";
+    }
 };
 
 void to_json(nlohmann::json& json, const FileInfo& info);

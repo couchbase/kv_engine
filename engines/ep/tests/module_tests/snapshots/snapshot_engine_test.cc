@@ -205,6 +205,21 @@ TEST_P(SnapshotEngineTest, prepare_snapshot_warmup_invalid_snap) {
     // Expect that the truncated file is marked as such
     EXPECT_EQ(cb::snapshot::FileStatus::Truncated,
               manifest->files.at(0).status);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getStats(
+                      *cookie,
+                      "snapshot-status",
+                      {},
+                      [](auto k, auto v, auto& c) {
+                          if (k == "vb_0:status" || k == "vb_1:status") {
+                              EXPECT_EQ(v, "none");
+                          } else if (k == "vb_2:status" || k == "vb_3:status") {
+                              EXPECT_EQ(v, "incomplete");
+                          } else {
+                              FAIL() << "Unexpected key " << k;
+                          }
+                      }));
 }
 
 static std::string PrintToStringParamName(
