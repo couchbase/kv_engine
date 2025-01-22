@@ -83,4 +83,17 @@ void DownloadSnapshotController::addStats(
         }
     });
 }
+
+std::optional<DownloadSnapshotTaskState> DownloadSnapshotController::findState(
+        Vbid vbid) const {
+    return listeners.withLock([vbid](auto& map) {
+        auto itr = map.find(vbid);
+        if (itr == map.end()) {
+            return std::optional<DownloadSnapshotTaskState>{};
+        }
+        return std::optional<DownloadSnapshotTaskState>{
+                itr->second->state.load()};
+    });
+}
+
 } // namespace cb::snapshot

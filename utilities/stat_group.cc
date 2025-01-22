@@ -334,6 +334,12 @@ StatsGroupManager::StatsGroupManager()
                "Get detailed information about vbucket disk snapshots",
                true,
                true},
+              {StatGroupId::SnapshotStatus,
+               "snapshot-status",
+               "Get brief status information about one or all vbucket disk "
+               "snapshots",
+               true,
+               true},
               {StatGroupId::StatTimings,
                "stat-timings",
                "Get timing information for stat commands",

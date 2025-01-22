@@ -426,6 +426,15 @@ public:
     cb::engine_errc doSnapshotDebugStats(const StatCollector&) override;
 
     /**
+     * Handle the brief snapshot-status stat which is used by ns_server to
+     * monitor downloads.
+     * Function will collect snapshot status for each vbucket or one vbucket if
+     * the input specifies a vbid.
+     */
+    cb::engine_errc doSnapshotStatus(const StatCollector&,
+                                     std::string_view) override;
+
+    /**
      * @return the cached disk space info (non-const as this call may change the
      *         cached value as time progresses)
      */

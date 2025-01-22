@@ -43,6 +43,13 @@ public:
      */
     void addStats(const StatCollector& collector) const;
 
+    /**
+     * Lookup the state of the snapshot associated with vbid. There may not
+     * be one
+     * @return optional state (nullopt if nothing found).
+     */
+    std::optional<DownloadSnapshotTaskState> findState(Vbid vbid) const;
+
 protected:
     struct TaskListener;
     folly::Synchronized<std::unordered_map<Vbid, std::shared_ptr<TaskListener>>,

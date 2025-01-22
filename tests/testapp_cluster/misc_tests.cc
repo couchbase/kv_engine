@@ -741,28 +741,35 @@ TEST_F(BasicClusterTest, Snapshots) {
     std::string error;
     do {
         replica->stats(
-                [&done, &manifest, &error](auto k, auto v) {
-                    if (k == "vb_0:download") {
-                        auto json = nlohmann::json::parse(v);
-                        if (json["state"] == "Finished") {
-                            done = true;
-                        }
-                        if (json.contains("manifest")) {
-                            manifest = json["manifest"];
-                        }
-                        if (json.contains("error")) {
-                            error = v;
-                        }
+                [&done](auto k, auto v) {
+                    ASSERT_EQ(k, "vb_0:status");
+                    ASSERT_NE(v, "failed");
+                    ASSERT_NE(v, "none");
+                    if (v == "available") {
+                        done = true;
                     }
                 },
-                "snapshot-details");
+                "snapshot-status 0");
         if (!done) {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
     } while (!done && std::chrono::steady_clock::now() < timeout);
     ASSERT_TRUE(done);
+    replica->stats(
+            [&done, &manifest, &error](auto k, auto v) {
+                if (k == "vb_0:download") {
+                    auto json = nlohmann::json::parse(v);
+                    EXPECT_EQ(json["state"], "Finished");
+                    if (json.contains("manifest")) {
+                        manifest = json["manifest"];
+                    }
+                    if (json.contains("error")) {
+                        error = v;
+                    }
+                }
+            },
+            "snapshot-details");
     ASSERT_TRUE(error.empty()) << "Failed to download snapshot: " << error;
-
     EXPECT_TRUE(manifest.has_value());
 
     // try to locate the vbucket snapshot and verify that all files exists

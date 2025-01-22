@@ -62,6 +62,15 @@ TEST_P(SnapshotEngineTest, prepare_snapshot) {
     EXPECT_EQ(1, manifest["files"][0]["id"]);
     EXPECT_EQ("0.couch.1", manifest["files"][0]["path"]);
     EXPECT_GT(manifest["files"][0]["size"], 0);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->getStats(*cookie,
+                               "snapshot-status 0",
+                               {},
+                               [](auto k, auto v, auto& c) {
+                                   EXPECT_EQ(k, "vb_0:status");
+                                   EXPECT_EQ(v, "available");
+                               }));
 }
 
 TEST_P(SnapshotEngineTest, prepare_snapshot_warmup) {

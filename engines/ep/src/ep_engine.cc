@@ -5619,6 +5619,9 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key == "snapshot-details"sv) {
         return getKVBucket()->doSnapshotDebugStats(bucketCollector);
     }
+    if (cb_isPrefix(key, "snapshot-status")) {
+        return getKVBucket()->doSnapshotStatus(bucketCollector, key);
+    }
 
     // Unknown stat requested
     return cb::engine_errc::no_such_key;
