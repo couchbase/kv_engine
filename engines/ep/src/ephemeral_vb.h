@@ -289,6 +289,12 @@ public:
     cb::engine_errc doRangeScanStats(const StatCollector&) override;
     size_t getAutoDeleteCount() const;
 
+    /**
+     * Ephemeral vbuckets process failover from data that the CheckpointManager
+     * maintains
+     */
+    failover_entry_t processFailover() override;
+
     // Test hook for checking that a backfill respects the purgeSeqno after
     // purgeTombstones runs.
     TestingHook<> postPurgeTombstonesHook;

@@ -71,6 +71,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
       numItems(0),
       lastBySeqno(lastSeqno, {vb.getId()}),
       maxVisibleSeqno(maxVisibleSeqno, {vb.getId()}),
+      lastSnapshotHighSeqno(0, {vb.getId()}),
       flusherCB(std::move(cb)),
       memFreedByExpel(stats.memFreedByCheckpointItemExpel),
       memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
@@ -1001,6 +1002,14 @@ bool CheckpointManager::queueDirty(
                 std::to_string(checkpointList.size()));
     }
 
+    // On a replica lastSnapshotHighSeqno, tracks if the last received snapshot
+    // was fully processed.  If there is a hard failover & this node
+    // becomes active, we'll create the failover entry using
+    // lastSnapshotHighSeqno.
+    if (uint64_t(lastBySeqno) == snapEnd) {
+        lastSnapshotHighSeqno = lastBySeqno;
+    }
+
     switch (result.status) {
     case QueueDirtyStatus::SuccessExistingItem:
         ++stats.totalDeduplicated;
@@ -1361,6 +1370,7 @@ void CheckpointManager::clear(std::optional<uint64_t> seqno) {
         const auto newHighSeqno = seqno ? *seqno : lastBySeqno;
         lastBySeqno.reset(newHighSeqno);
         maxVisibleSeqno.reset(newHighSeqno);
+        lastSnapshotHighSeqno.reset(0);
 
         // Use lastBySeqno + 1 as that will be the seqno of the first item
         // belonging to this checkpoint
@@ -1533,6 +1543,11 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     }
 
     return info;
+}
+
+uint64_t CheckpointManager::getFailoverSeqno() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    return uint64_t(lastSnapshotHighSeqno);
 }
 
 uint64_t CheckpointManager::getOpenSnapshotStartSeqno() const {
@@ -1834,7 +1849,8 @@ size_t CheckpointManager::getNumCursors() const {
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
     os << "CheckpointManager[" << &m << "] with numItems:" << m.getNumItems()
        << " checkpoints:" << m.checkpointList.size()
-       << " totalItems:" << m.totalItems << std::endl;
+       << " totalItems:" << m.totalItems
+       << " lastSnapshotHighSeqno:" << m.lastSnapshotHighSeqno << std::endl;
     for (const auto& c : m.checkpointList) {
         os << "    " << *c << std::endl;
     }

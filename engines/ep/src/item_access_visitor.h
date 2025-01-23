@@ -12,7 +12,9 @@
 #pragma once
 
 #include "hash_table.h"
+#include "kv_bucket.h"
 #include "mutation_log.h"
+#include "stats.h"
 #include "vb_visitors.h"
 
 #include <memcached/storeddockey_fwd.h>

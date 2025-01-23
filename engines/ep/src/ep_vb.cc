@@ -1797,3 +1797,12 @@ bool EPVBucket::shouldWarnForFlushFailure() {
     }
     return false;
 }
+
+failover_entry_t EPVBucket::processFailover() {
+    const auto range = getPersistedSnapshot();
+    createFailoverEntry(range.getEnd() == getPersistenceSeqno()
+                                ? range.getEnd()
+                                : range.getStart());
+
+    return failovers->getLatestEntry();
+}
