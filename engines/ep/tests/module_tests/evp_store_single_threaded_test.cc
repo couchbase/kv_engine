@@ -5595,6 +5595,282 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
 }
 
+/// Checks the failover table entry on replica -> active promotion.
+TEST_P(STParameterizedBucketTest, FailoverEntryAfterReplicaPromotion) {
+    using namespace cb::mcbp::request;
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    int opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
+
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    int64_t bySeqno = 1;
+    const auto flags =
+            DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Disk;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno + 1,
+                                       flags,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgeSeqno*/));
+
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 makeStoredDocKey("key"),
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    // We just processed one mutation (of the total 2 mutations in this
+    // snapshot); getFailoverSeqno should still be 0.
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 makeStoredDocKey("key1"),
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno + 1,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    // All the mutations have been processed - start should now point to the
+    // seqno of the last mutation in a full processed snapshot.
+    EXPECT_EQ(2, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno + 6,
+                                       bySeqno + 7,
+                                       DcpSnapshotMarkerFlag::Memory,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgeSeqno*/));
+
+    // A new snapshot marker was processed - getFailoverSeqno remains 2
+    EXPECT_EQ(2, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 makeStoredDocKey("key2"),
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno + 6,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    consumer->closeStream(opaque, vbid);
+
+    // The full snapshot wasn't processed - there should be no change in the
+    // getFailoverSeqno
+    EXPECT_EQ(2, manager.getFailoverSeqno());
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& failovers = *store->getVBucket(vbid)->failovers;
+    EXPECT_EQ(2, failovers.getLatestEntry().by_seqno);
+}
+
+TEST_P(STParameterizedBucketTest,
+       FailoverEntryAfterReplicaPromotion_EmptyCheckpoint) {
+    using namespace cb::mcbp::request;
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    int opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
+
+    int64_t bySeqno = 1;
+    const auto flags =
+            DcpSnapshotMarkerFlag::Checkpoint | DcpSnapshotMarkerFlag::Disk;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno + 1,
+                                       flags,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgeSeqno*/));
+
+    flushVBucketToDiskIfPersistent(vbid, 0);
+    consumer->closeStream(opaque, vbid);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    // Check what the failover snapshot range is before promotion to active.
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& failovers = *store->getVBucket(vbid)->failovers;
+    EXPECT_EQ(0, failovers.getLatestEntry().by_seqno);
+}
+
+// We extend the open checkpoint if we receive two memory snapshots in a row -
+// check we are correctly updating the failover entry for that too.
+TEST_P(STParameterizedBucketTest,
+       FailoverEntryAfterReplicaPromotion_MergedSnapshots) {
+    using namespace cb::mcbp::request;
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+
+    auto consumer = std::make_shared<MockDcpConsumer>(*engine, cookie, "test");
+
+    int opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->addStream(opaque, vbid, /*flags*/ {}));
+
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    int64_t bySeqno = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno,
+                                       bySeqno + 1,
+                                       DcpSnapshotMarkerFlag::Memory,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgeSeqno*/));
+
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 makeStoredDocKey("key"),
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    // We just processed one mutation (of the total 2 mutations in this
+    // snapshot); getFailoverSeqno should still be 0.
+    EXPECT_EQ(0, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 makeStoredDocKey("key1"),
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno + 1,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    // All the mutations have been processed - getFailoverSeqno should now point
+    // to the seqno of the last mutation in a full processed snapshot.
+    EXPECT_EQ(2, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       bySeqno + 2,
+                                       bySeqno + 3,
+                                       DcpSnapshotMarkerFlag::Memory,
+                                       {} /*HCS*/,
+                                       {} /*maxVisibleSeqno*/,
+                                       {} /*purgeSeqno*/));
+
+    // A new snapshot marker was processed - but the open checkpoint is extended
+    // vs a new one being created, because we received two memory snapshots in a
+    // row.
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+
+    // A new snapshot marker was processed - getFailoverSeqno remains the same.
+    EXPECT_EQ(2, manager.getFailoverSeqno());
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 makeStoredDocKey("key2"),
+                                 {},
+                                 PROTOCOL_BINARY_DATATYPE_XATTR,
+                                 0, // cas
+                                 vbid,
+                                 0, // flags
+                                 bySeqno + 2,
+                                 0, // rev seqno
+                                 0, // exptime
+                                 0, // locktime
+                                 {}, // meta
+                                 0)); // nru
+
+    flushVBucketToDiskIfPersistent(vbid, 3);
+    consumer->closeStream(opaque, vbid);
+
+    // The full snapshot wasn't processed - there should be no change in the
+    // getFailoverSeqno
+    EXPECT_EQ(2, manager.getFailoverSeqno());
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto& failovers = *store->getVBucket(vbid)->failovers;
+
+    // We haven't processed all the mutations in the extended checkpoint,
+    // because we merged the snapshots on the replica. We don't rollback to 0
+    // since the active initally sent {1, 2} snapshot & we have fully processed
+    // that.
+    // There is difference in behavior here between ephemeral and persistent
+    // buckets & that's ok, we are updating the failover entry to the most
+    // consistent snapshot in both the cases.
+
+    if (ephemeral()) {
+        EXPECT_EQ(2, failovers.getLatestEntry().by_seqno);
+    } else {
+        EXPECT_EQ(0, failovers.getLatestEntry().by_seqno);
+    }
+}
+
 TEST_P(STParamPersistentBucketTest, MB_47134) {
     using namespace testing;
     auto& mockKVStore = MockKVStore::replaceRWKVStoreWithMock(*store, 0);

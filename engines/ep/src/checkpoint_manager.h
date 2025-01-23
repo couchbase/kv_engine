@@ -525,6 +525,16 @@ public:
 
     snapshot_info_t getSnapshotInfo();
 
+    /**
+     * Return lastSnapshotEndSeqno which represents the consistent seqno that
+     * must be used in processing a failover (replica->active change).
+     *
+     * As items are added via queueDirty the seqno of each item is compared
+     * against the snapshot.end, on observation of the final seqno (a complete
+     * snapshot) the failover point is moved forwards to the snapshot.end
+     */
+    uint64_t getFailoverSeqno() const;
+
     uint64_t getOpenSnapshotStartSeqno() const;
 
     /**
@@ -960,6 +970,16 @@ protected:
      * to the seqno of a prepare.
      */
     MONOTONIC3(int64_t, maxVisibleSeqno, Labeller);
+
+    /**
+     * This tracks the end of the last fully processed DCP snapshot. That is
+     * if the VB receives a DCP snapshot start=x, end=y, this variable is set
+     * to y only once we receive the DCP item with seqno y. Thus this variable
+     * is then usable in determining the failover point when we are in between
+     * x and y, this value would state the seqno from the previous fully
+     * processed snapshot.
+     */
+    MONOTONIC3(int64_t, lastSnapshotHighSeqno, Labeller);
 
     /**
      * cursors: stores all known CheckpointCursor objects which are held via

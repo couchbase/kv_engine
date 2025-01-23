@@ -2007,7 +2007,6 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
     }
 
     const auto shard = store->getShardId(vbid);
-    const auto conf = engine->getConfiguration();
     cb::Semaphore semaphore(1);
     cb::SemaphoreGuard<> semaphoreGuard(&semaphore, cb::adopt_token_t{});
 
@@ -2058,7 +2057,8 @@ TEST_P(KVBucketParamTest, MutationLogFailedWrite) {
                       500ms);
 
     auto& auxioQueue = *task_executor->getLpTaskQ(TaskType::AuxIO);
-    EXPECT_NO_THROW(runNextTask(auxioQueue));
+    EXPECT_NO_THROW(
+            runNextTask(auxioQueue, "Item Access Scanner no vbucket assigned"));
 }
 
 // Check that getRandomKey works correctly when given a random value of zero

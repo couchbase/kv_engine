@@ -1071,14 +1071,7 @@ void KVBucket::continueToActive(
     if (oldstate != vbucket_state_active && transfer == TransferVB::No) {
         // Changed state to active and this isn't a transfer (i.e.
         // takeover), which means this is a new fork in the vBucket history
-        // - create a new failover table entry.
-        const snapshot_range_t range = vb->getPersistedSnapshot();
-        auto highSeqno = range.getEnd() == vb->getPersistenceSeqno()
-                                 ? range.getEnd()
-                                 : range.getStart();
-        vb->createFailoverEntry(highSeqno);
-
-        auto entry = vb->failovers->getLatestEntry();
+        const auto entry = vb->processFailover();
         EP_LOG_INFO(
                 "KVBucket::setVBucketState: {} created new failover entry "
                 "with uuid:{} and seqno:{}",
