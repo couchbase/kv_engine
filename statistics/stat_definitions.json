@@ -858,7 +858,7 @@
         "key": "ep_secondary_warmup_estimated_value_count",
         "unit": "none",
         "description":"To facilitate warm-up progress tracking this value represents how many values need to be loaded to reach 100% of values loaded. This counter is only initialised when warm-up reaches the \"loading access log\", \"loading k/v pairs\" or \"loading data\" state and the ratio of ep_warmup_value_count and this provides insight into progress.",
-        "prometheus": false,
+        "type": "counter",
         "added": "8.0.0"
     },
     {
@@ -903,14 +903,14 @@
         "key": "ep_warmup_key_count",
         "unit": "none",
         "description": "Number of keys warmed up",
-        "prometheus": false,
+        "type": "counter",
         "added": "7.1.0"
     },
     {
         "key": "ep_warmup_value_count",
         "unit": "none",
         "description": "Number of values warmed up",
-        "prometheus": false,
+        "type": "counter",
         "added": "7.1.0"
     },
     {
@@ -923,8 +923,8 @@
     {
         "key": "ep_warmup_estimated_key_count",
         "unit": "none",
-        "description":"To facilitate warm-up progress tracking this value represents how many keys need to be loaded to reach 100% keys loaded. This count is useful for progress tracking for Value Eviction buckets during the \"loading keys\" state and the ratio of ep_warmup_key_count and this provides insight into progress.",
-        "prometheus": false,
+        "description":"To facilitate warm-up progress tracking this value represents how many keys need to be loaded to reach 100% keys loaded. This count is useful for progress tracking for Value Eviction buckets during the \"loading keys\" state and the ratio of ep_warmup_key_count and this provides insight into progress. This value is the same for the estimated number of keys required to be loaded for secondary warmup, if secondary warmup is enabled.",
+        "type": "counter",
         "added": "7.1.0"
     },
     {
@@ -945,7 +945,7 @@
         "key": "ep_warmup_estimated_value_count",
         "unit": "none",
         "description":"To facilitate warm-up progress tracking this value represents how many values need to be loaded to reach 100% of values loaded. This counter is only initialised when warm-up reaches the \"loading access log\", \"loading k/v pairs\" or \"loading data\" state and the ratio of ep_warmup_value_count and this provides insight into progress.",
-        "prometheus": false,
+        "type": "counter",
         "added": "7.1.0"
     },
     {

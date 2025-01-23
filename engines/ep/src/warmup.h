@@ -309,6 +309,7 @@ public:
 
     void addStats(const StatCollector& c) const;
     void addSecondaryWarmupStats(const StatCollector& c) const;
+    void addSecondaryWarmupStatsToPrometheus(const StatCollector& c) const;
 
     /**
      * Add state-labelled one-hot metrics expressing the current state of

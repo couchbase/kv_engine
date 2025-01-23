@@ -3431,6 +3431,10 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
         }
         wp->addCommonStats(collector);
+        wp = kvBucket->getSecondaryWarmup();
+        if (wp) {
+            wp->addSecondaryWarmupStatsToPrometheus(collector);
+        }
     }
 
     collector.addStat(Key::ep_num_ops_get_meta, epstats.numOpsGetMeta);

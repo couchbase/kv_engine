@@ -7127,10 +7127,16 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
     if (isWarmupEnabled(h)) {
         // Add stats which are only available if warmup is enabled:
         auto& eng_stats = statsKeys.at("");
-        eng_stats.insert(eng_stats.end(), {"ep_warmup_dups",
-                                           "ep_warmup_oom",
-                                           "ep_warmup_time",
-                                           "ep_warmup_thread"});
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_warmup_dups",
+                          "ep_warmup_oom",
+                          "ep_warmup_time",
+                          "ep_warmup_thread",
+                          "ep_warmup_key_count",
+                          "ep_warmup_value_count",
+                          "ep_warmup_estimated_key_count",
+                          "ep_warmup_estimated_value_count",
+                          "ep_secondary_warmup_estimated_value_count"});
     }
 
     if (isCompressionEnabled(h)) {

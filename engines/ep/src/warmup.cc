@@ -1985,21 +1985,51 @@ void Warmup::addCommonStats(const StatCollector& collector) const {
         collector.addStat(Key::ep_warmup_time,
                           duration_cast<microseconds>(w_time).count());
     }
+
+    collector.addStat(Key::ep_warmup_key_count, stats.warmedUpKeys);
+    collector.addStat(Key::ep_warmup_value_count, stats.warmedUpValues);
+
+    size_t itemCount = estimatedKeyCount.load();
+    if (itemCount == std::numeric_limits<size_t>::max()) {
+        collector.addStat(Key::ep_warmup_estimated_key_count, "unknown");
+    } else {
+        collector.addStat(Key::ep_warmup_estimated_key_count, itemCount);
+    }
+
+    size_t warmupCount = estimatedValueCount.load();
+    if (warmupCount == std::numeric_limits<size_t>::max()) {
+        collector.addStat(Key::ep_warmup_estimated_value_count, "unknown");
+    } else {
+        collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
+    }
+}
+
+void Warmup::addSecondaryWarmupStatsToPrometheus(
+        const StatCollector& collector) const {
+    using namespace cb::stats;
+
+    // Secondary uses the key count from Primary - so don't report the key count
+    // but Secondary should proceed to estimate the values
+    size_t warmupCount = estimatedValueCount.load();
+    if (warmupCount == std::numeric_limits<size_t>::max()) {
+        collector.addStat(Key::ep_secondary_warmup_estimated_value_count,
+                          "unknown");
+    } else {
+        collector.addStat(Key::ep_secondary_warmup_estimated_value_count,
+                          warmupCount);
+    }
 }
 
 void Warmup::addStats(const StatCollector& collector) const {
     using namespace cb::stats;
     using namespace std::chrono;
 
-    EPStats& stats = store.getEPEngine().getEpStats();
     collector.addStat(Key::ep_warmup, "enabled");
     const char* stateName = state.toString();
     collector.addStat(Key::ep_warmup_state, stateName);
 
     addCommonStats(collector);
 
-    collector.addStat(Key::ep_warmup_key_count, stats.warmedUpKeys);
-    collector.addStat(Key::ep_warmup_value_count, stats.warmedUpValues);
     collector.addStat(Key::ep_primary_warmup_min_memory_threshold,
                       maxSizeScaleFactor * 100.0);
     collector.addStat(Key::ep_primary_warmup_min_items_threshold,
@@ -2012,26 +2042,16 @@ void Warmup::addStats(const StatCollector& collector) const {
     }
 
     size_t itemCount = estimatedKeyCount.load();
-    if (itemCount == std::numeric_limits<size_t>::max()) {
-        collector.addStat(Key::ep_warmup_estimated_key_count, "unknown");
-    } else {
+    if (itemCount != std::numeric_limits<size_t>::max()) {
         auto e_time = estimateTime.load();
         if (e_time != e_time.zero()) {
             collector.addStat(Key::ep_warmup_estimate_time,
                               duration_cast<microseconds>(e_time).count());
         }
-        collector.addStat(Key::ep_warmup_estimated_key_count, itemCount);
     }
 
     if (syncData.lock()->corruptAccessLog) {
         collector.addStat(Key::ep_warmup_access_log, "corrupt");
-    }
-
-    size_t warmupCount = estimatedValueCount.load();
-    if (warmupCount == std::numeric_limits<size_t>::max()) {
-        collector.addStat(Key::ep_warmup_estimated_value_count, "unknown");
-    } else {
-        collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
     }
 }
 
