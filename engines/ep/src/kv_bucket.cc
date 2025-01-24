@@ -1987,7 +1987,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
             }
             return cb::engine_errc::locked_tmpfail;
         }
-        return cb::engine_errc::not_locked;
+        return notLockedError;
     }
     case VBucket::FetchForWriteResult::Status::OkVacant:
         if (eviction_policy == EvictionPolicy::Value) {
@@ -2011,7 +2011,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
                 return cb::engine_errc::no_such_key;
             }
 
-            return cb::engine_errc::not_locked;
+            return notLockedError;
         }
     case VBucket::FetchForWriteResult::Status::ESyncWriteInProgress:
         return cb::engine_errc::sync_write_in_progress;
