@@ -111,7 +111,8 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
     ObjectRegistry::onCreateStoredValue(this);
 }
 
-bool StoredValue::eligibleForEviction(EvictionPolicy policy) const {
+bool StoredValue::eligibleForEviction(EvictionPolicy policy,
+                                      bool keepSV) const {
     // Always resident:
     // * Dirty SVs
     // * Pending SyncWrites
@@ -119,10 +120,21 @@ bool StoredValue::eligibleForEviction(EvictionPolicy policy) const {
         return false;
     }
 
-    // Always eligible for eviction:
-    // * Clean, resident SVs (can evict at least value)
-    // * Clean, deleted SVs
-    if (isResident() || isDeleted()) {
+    // Clean, resident SVs are always eligible for eviction - can evict at least
+    // value.
+    if (isResident()) {
+        return true;
+    }
+
+    // SV is non-resident and we want to keep the metadata in memory, so there
+    // is nothing else to evict (this applies to deletes).
+    if (keepSV) {
+        return false;
+    }
+
+    // Clean, deleted SVs can be entirely removed in any eviction policy,
+    // conditional on keepMetadata.
+    if (isDeleted()) {
         return true;
     }
 

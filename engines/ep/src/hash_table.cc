@@ -1409,7 +1409,7 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
     }
 
     if (eject && !keyMetaDataOnly) {
-        unlocked_ejectItem(hbl, v, evictionPolicy);
+        unlocked_ejectItem(hbl, v, evictionPolicy, false);
     }
 
     return MutationStatus::NotFound;
@@ -1610,7 +1610,8 @@ HashTable::Position HashTable::endPosition() const  {
 
 bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
                                    StoredValue*& vptr,
-                                   EvictionPolicy policy) {
+                                   EvictionPolicy policy,
+                                   bool keepMetadata) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_ejectItem: htLock not held");
@@ -1620,21 +1621,23 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
                 "Unable to delete NULL StoredValue");
     }
 
-    if (!vptr->eligibleForEviction(policy)) {
+    if (!vptr->eligibleForEviction(policy, keepMetadata)) {
         ++stats.numFailedEjects;
         return false;
     }
 
     const auto preProps = valueStats.prologue(hbl, vptr);
 
-    // Deleted items may be entirely removed from memory even in value eviction.
-    // Locked items are not entirely removed from memory as the locked status is
-    // not persisted to disk.
-    bool keepMetadata =
-            !vptr->isDeleted() && (policy == EvictionPolicy::Value ||
-                                   vptr->isLocked(ep_current_time()));
+    // If keepMetadata is set, only the value is evicted.
+    // Deleted items may be entirely removed from memory even in value eviction,
+    // but not if keepMetadata is set. Locked items are not entirely removed
+    // from memory as the locked status is not persisted to disk.
+    bool shouldKeepMetadata =
+            keepMetadata ||
+            (!vptr->isDeleted() && (policy == EvictionPolicy::Value ||
+                                    vptr->isLocked(ep_current_time())));
 
-    if (keepMetadata) {
+    if (shouldKeepMetadata) {
         // Just eject the value.
         vptr->ejectValue();
         ++stats.numValueEjects;

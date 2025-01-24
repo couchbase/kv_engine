@@ -29,6 +29,7 @@
 #include "kvstore/kvstore.h"
 #include "learning_age_and_mfu_based_eviction.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "vb_adapters.h"
@@ -2026,6 +2027,42 @@ TEST_P(STItemPagerTest, EligibleForEvictionAndExpiration) {
                  expectToEvict && sv->isDeleted()) ||
                 (store->getItemEvictionPolicy() == EvictionPolicy::Full &&
                  expectToEvict && !sv->isLocked(ep_real_time()));
+
+        auto [expired, evicted, unlinked] = mockVisitSV(*sv);
+        EXPECT_EQ(expectToExpire, expired) << *sv;
+        EXPECT_EQ(expectToEvict, evicted) << *sv;
+        EXPECT_EQ(expectToUnlink, unlinked) << *sv;
+    }
+}
+
+TEST_P(STItemPagerTest, ItemPagerCannotRemoveKeyDuringWarmup) {
+    if (!isPersistent()) {
+        // Warmup only on persistent buckets.
+        GTEST_SKIP();
+    }
+
+    using namespace ::testing;
+
+    auto& epBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
+    EXPECT_CALL(epBucket, isWarmupLoadingData()).WillRepeatedly(Return(true));
+
+    for (auto& sv : cb::testing::sv::createAll(makeStoredDocKey("key"))) {
+        // We do not expire deleted or temp items.
+        bool expectToExpire = !sv->isDeleted() && !sv->isTempItem() &&
+                              sv->isExpired(ep_real_time());
+        // We cannot evict and expire. We cannot evict dirty SVs.
+        // We cannot evict non-resident items under full-eviction (metadata).
+        bool expectToEvict =
+                !expectToExpire && !sv->isDirty() && sv->isResident();
+        // Under value eviction, we can only evict the value.
+        // Deletes can also be removed entirely.
+        if (store->getItemEvictionPolicy() == EvictionPolicy::Value) {
+            expectToEvict &= sv->isResident() || sv->isDeleted();
+        }
+        // During warmup, we can only remove temp items from the HT. The
+        // metadata for everything else must stay.
+        bool expectToUnlink =
+                sv->isTempDeletedItem() || sv->isTempNonExistentItem();
 
         auto [expired, evicted, unlinked] = mockVisitSV(*sv);
         EXPECT_EQ(expectToExpire, expired) << *sv;

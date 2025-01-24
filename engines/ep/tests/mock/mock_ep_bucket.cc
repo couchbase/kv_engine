@@ -31,6 +31,10 @@ MockEPBucket::MockEPBucket(EventuallyPersistentEngine& theEngine)
                                   int64_t pcs) {
                 EPBucket::dropKey(vb, key, seqno, isAbort, pcs);
             });
+
+    ON_CALL(*this, isWarmupLoadingData).WillByDefault([this]() {
+        return EPBucket::isWarmupLoadingData();
+    });
 }
 
 void MockEPBucket::initializeMockBucket() {

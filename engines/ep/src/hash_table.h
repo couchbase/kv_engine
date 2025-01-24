@@ -1441,6 +1441,8 @@ public:
      *             This is passed as a reference as it may be modified by this
      *             function (see note below).
      * @param policy item eviction policy
+     * @param keepMetadata if set, the key will remain in the HT (even for
+     *                     deletes)
      * @return true if an item is ejected.
      *
      * NOTE: Upon a successful ejection (and if full eviction is enabled)
@@ -1449,7 +1451,8 @@ public:
      */
     bool unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
                             StoredValue*& vptr,
-                            EvictionPolicy policy);
+                            EvictionPolicy policy,
+                            bool keepMetadata);
 
     /**
      * Restore the value for the item.

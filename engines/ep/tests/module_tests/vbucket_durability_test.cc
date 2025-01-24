@@ -676,8 +676,10 @@ TEST_P(VBucketDurabilityTest, Active_PendingSkippedAtEjectionAndCommit) {
         // thing, i.e. that the item is not ejected because it is Pending (not
         // because it is dirty).
         storedItem.storedValue->markClean();
-        ASSERT_FALSE(ht->unlocked_ejectItem(
-                storedItem.lock, storedItem.storedValue, getEvictionPolicy()));
+        ASSERT_FALSE(ht->unlocked_ejectItem(storedItem.lock,
+                                            storedItem.storedValue,
+                                            getEvictionPolicy(),
+                                            false));
     }
 
     // HashTable state:

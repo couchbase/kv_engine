@@ -604,7 +604,8 @@ cb::engine_errc EPVBucket::evictKey(
     }
 
     if (v->isResident()) {
-        if (ht.unlocked_ejectItem(res.lock, v, eviction)) {
+        if (ht.unlocked_ejectItem(
+                    res.lock, v, eviction, bucket->isWarmupLoadingData())) {
             *msg = "Ejected.";
 
             // Add key to bloom filter in case of full eviction mode
@@ -631,7 +632,8 @@ bool EPVBucket::pageOut(VBucketStateLockRef,
         dropStoredValue(lh, *v);
         return true;
     }
-    return ht.unlocked_ejectItem(lh, v, eviction);
+    return ht.unlocked_ejectItem(
+            lh, v, eviction, bucket->isWarmupLoadingData());
 }
 
 bool EPVBucket::canEvict() const {
@@ -645,7 +647,9 @@ bool EPVBucket::isEligibleForEviction(const HashTable::HashBucketLock& lh,
                                       const StoredValue& v) const {
     // TODO: move the below eligibility check out of StoredValue.
     //       the result is only accurate for SVs in an EPVBucket
-    return v.eligibleForEviction(eviction);
+    // Bucket is nullptr in some tests.
+    const auto keepSV = bucket && bucket->isWarmupLoadingData();
+    return v.eligibleForEviction(eviction, keepSV);
 }
 
 size_t EPVBucket::getPageableMemUsage() {

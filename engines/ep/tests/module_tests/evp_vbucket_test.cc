@@ -155,7 +155,7 @@ TEST_P(EPVBucketTest, EjectionResidentCount) {
     // Need to clear the dirty flag to allow it to be ejected.
     stored_item.storedValue->markClean();
     EXPECT_TRUE(this->vbucket->ht.unlocked_ejectItem(
-            stored_item.lock, stored_item.storedValue, eviction_policy));
+            stored_item.lock, stored_item.storedValue, eviction_policy, false));
 
     switch (eviction_policy) {
     case EvictionPolicy::Value:

@@ -303,7 +303,15 @@ public:
         return value->isCompressible();
     }
 
-    bool eligibleForEviction(EvictionPolicy policy) const;
+    /**
+     * Checks whether the SV can be evicted according to the policy.
+     * @param policy depending on policy, we can remove the SV itself or just
+     * the value
+     * @param keepSV if the SV should be kept in the HT (including SVs marked
+     * deleted)
+     * @return true if eligible
+     */
+    bool eligibleForEviction(EvictionPolicy policy, bool keepSV) const;
 
     /**
      * Check if this item is expired or not.

@@ -30,6 +30,8 @@ public:
                 (VBucket&, const DiskDocKey&, int64_t, bool, int64_t),
                 (override));
 
+    MOCK_CONST_METHOD0(isWarmupLoadingData, bool());
+
     using KVBucket::initializeExpiryPager;
 
     /**

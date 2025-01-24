@@ -812,7 +812,7 @@ protected:
         EXPECT_TRUE(result.storedValue);
         result.storedValue->markClean();
         EXPECT_TRUE(ht.unlocked_ejectItem(
-                result.lock, result.storedValue, evictionPolicy));
+                result.lock, result.storedValue, evictionPolicy, false));
         return result.storedValue;
     }
 
@@ -941,7 +941,7 @@ TEST_P(HashTableStatsTest, EjectFlush) {
         EXPECT_TRUE(item.storedValue);
         item.storedValue->markClean();
         EXPECT_TRUE(ht.unlocked_ejectItem(
-                item.lock, item.storedValue, evictionPolicy));
+                item.lock, item.storedValue, evictionPolicy, false));
     }
 
     switch (evictionPolicy) {
@@ -972,28 +972,29 @@ TEST_P(HashTableStatsTest, EjectLockedItem) {
         auto* sv = res.storedValue;
         sv->markClean();
         EXPECT_TRUE(sv->isResident());
-        EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
+        EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy, false));
 
         // Lock item
         sv->lock(ep_current_time() + 20, {});
         EXPECT_TRUE(sv->isResident());
-        EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
+        EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy, false));
 
         // Eject item
-        EXPECT_TRUE(ht.unlocked_ejectItem(res.lock, sv, evictionPolicy));
+        EXPECT_TRUE(ht.unlocked_ejectItem(res.lock, sv, evictionPolicy, false));
         EXPECT_FALSE(sv->isResident());
-        EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy));
+        EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy, false));
 
         // Unlock item
         sv->unlock();
         EXPECT_FALSE(sv->isResident());
         if (evictionPolicy == EvictionPolicy::Value) {
-            EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy));
+            EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy, false));
         } else {
-            EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
+            EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy, false));
 
             // Eject item
-            EXPECT_TRUE(ht.unlocked_ejectItem(res.lock, sv, evictionPolicy));
+            EXPECT_TRUE(
+                    ht.unlocked_ejectItem(res.lock, sv, evictionPolicy, false));
         }
     }
     {
@@ -1002,7 +1003,7 @@ TEST_P(HashTableStatsTest, EjectLockedItem) {
             ASSERT_TRUE(res.storedValue);
             auto* sv = res.storedValue;
             EXPECT_FALSE(sv->isResident());
-            EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy));
+            EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy, false));
         } else {
             EXPECT_FALSE(res.storedValue);
         }
@@ -1021,7 +1022,7 @@ TEST_P(HashTableStatsTest, numFailedEjects) {
         auto item(ht.findForWrite(key));
         EXPECT_TRUE(item.storedValue);
         EXPECT_FALSE(ht.unlocked_ejectItem(
-                item.lock, item.storedValue, evictionPolicy));
+                item.lock, item.storedValue, evictionPolicy, false));
         EXPECT_EQ(1, stats.numFailedEjects);
     }
     ht.clear();
