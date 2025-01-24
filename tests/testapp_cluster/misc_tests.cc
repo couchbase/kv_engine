@@ -716,11 +716,43 @@ TEST_F(BasicClusterTest, Snapshots) {
     auto conn = bucket->getAuthedConnection(Vbid(0));
     auto replica = bucket->getAuthedConnection(Vbid(0), vbucket_state_replica);
 
+    // Set the TLS properties
+    conn->ifconfig(
+            "tls",
+            {{"private key", OBJECT_ROOT "/tests/cert/servers/node1.key"},
+             {"certificate chain",
+              OBJECT_ROOT "/tests/cert/servers/chain.cert"},
+             {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
+             {"minimum version", "TLS 1.2"},
+             {"cipher list",
+              {{"TLS 1.2", "HIGH"},
+               {"TLS 1.3",
+                "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_"
+                "AES_"
+                "128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_"
+                "SHA256"}}},
+             {"cipher order", true},
+             {"client cert auth", "disabled"}});
+
+    // create a TLS port
+    auto spec = conn->ifconfig("define",
+                               {{"host", "::1"},
+                                {"port", 0},
+                                {"family", "inet6"},
+                                {"system", true},
+                                {"type", "mcbp"},
+                                {"tls", true},
+                                {"tag", "tls"}});
+
     cb::snapshot::DownloadProperties properties;
-    properties.hostname = conn->getFamily() == AF_INET ? "127.0.0.1" : "::1";
-    properties.port = conn->getPort();
+    properties.hostname = "::1";
+    properties.port = spec["ports"].front()["port"];
     properties.bucket = "default";
     properties.sasl = {"PLAIN", "@admin", "password"};
+    properties.tls = nlohmann::json{
+            {"cert", OBJECT_ROOT "/tests/cert/clients/internal.cert"},
+            {"key", OBJECT_ROOT "/tests/cert/clients/internal.key"},
+            {"ca_store", OBJECT_ROOT "/tests/cert/root/ca_root.cert"}};
 
     BinprotGenericCommand download(ClientOpcode::DownloadSnapshot,
                                    {},

@@ -51,6 +51,17 @@ void MemcachedConnection::setLookupUserPasswordFunction(
     *lookupPasswordCallback.lock() = std::move(func);
 }
 
+nlohmann::json MemcachedConnection::ifconfig(std::string_view command,
+                                             const nlohmann::json& spec) {
+    auto rsp = execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Ifconfig,
+                                             std::string(command),
+                                             spec.dump()});
+    if (!rsp.isSuccess()) {
+        throw ConnectionError(fmt::format("ifconfig({}) Failed", command), rsp);
+    }
+    return rsp.getDataJson();
+}
+
 /// Helper function to check if we're running in unit test mode or not
 static bool is_unit_test_mode() {
     return getenv("MEMCACHED_UNIT_TESTS") != nullptr;

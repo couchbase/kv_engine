@@ -1130,6 +1130,9 @@ public:
     static void setLookupUserPasswordFunction(
             std::function<std::string(const std::string&)> func);
 
+    nlohmann::json ifconfig(std::string_view command,
+                            const nlohmann::json& spec);
+
 protected:
     /**
      * Perform a SASL authentication to memcached
