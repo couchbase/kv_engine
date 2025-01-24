@@ -699,6 +699,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setMaxItemPrivilegedBytes(std::stoull(val));
         } else if (key == "max_item_size") {
             configuration.setMaxItemSize(std::stoull(val));
+        } else if (key == "not_locked_returns_tmpfail") {
+            configuration.setNotLockedReturnsTmpfail(cb_stob(val));
         } else if (key == "access_scanner_enabled") {
             configuration.setAccessScannerEnabled(cb_stob(val));
         } else if (key == "alog_path") {
