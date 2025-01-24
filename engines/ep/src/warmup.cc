@@ -439,7 +439,7 @@ public:
         try {
             for (; currentVb != warmup.shardVBData[shardId].end();
                  ++currentVb) {
-                auto vb = currentVb->weakVBucketPtr.lock();
+                auto vb = warmup.tryAndGetVbucket(currentVb->vbid);
                 if (vb) {
                     if (!visitor.visit(*vb)) {
                         break;
@@ -1232,6 +1232,7 @@ Warmup::Warmup(EPBucket& st,
     setup(memoryThreshold, itemsThreshold);
 }
 
+// Secondary Warmup construction
 Warmup::Warmup(Warmup& warmup,
                size_t memoryThreshold,
                size_t itemsThreshold,
@@ -1239,9 +1240,12 @@ Warmup::Warmup(Warmup& warmup,
     : store(warmup.store),
       config(warmup.config),
       stats(store.getEPEngine().getEpStats()),
+      syncData(warmup.syncData),
       shardVBData(std::move(warmup.shardVBData)),
       estimatedKeyCount(warmup.getEstimatedKeyCount()),
       name(std::move(name)) {
+    // Remove the done function from the now moved syncData
+    syncData.lock()->doneFunction = []() {};
     setup(memoryThreshold, itemsThreshold);
     // Jump into the state machine at CheckForAccessLog to begin loading data.
     transition(WarmupState::State::CheckForAccessLog);
@@ -1453,7 +1457,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
             entry.vbucketPtr = vb;
             // Capture a weak_ptr reference to the vb, all later steps will
             // access the VBucket via a weak_ptr.
-            entry.weakVBucketPtr = vb;
+            Expects(syncData.lock()->weakVbMap.try_emplace(vbid, vb).second);
         }
 
         // Pass the max deleted seqno for each vbucket.
@@ -2230,29 +2234,26 @@ VBucketPtr Warmup::tryAndGetVbucket(Vbid vbid) const {
     case WarmupState::State::EstimateDatabaseItemCount:
     case WarmupState::State::LoadPreparedSyncWrites:
     case WarmupState::State::PopulateVBucketMap:
-    case WarmupState::State::KeyDump:
-    case WarmupState::State::CheckForAccessLog:
-    case WarmupState::State::LoadingKVPairs:
-    case WarmupState::State::LoadingData:
-    case WarmupState::State::Done:
         throw std::runtime_error(
                 fmt::format("Warmup({})::tryAndGetVbucket({}): called for "
                             "illegal warmup state:{}",
                             getName(),
                             vbid,
                             to_string(state.getState())));
-
-    // Only batchWarmupCallback is calling this function from an I/O callback
-    // other use-cases may want to optimise and remove the search
+    case WarmupState::State::KeyDump:
+    case WarmupState::State::CheckForAccessLog:
     case WarmupState::State::LoadingAccessLog:
+    case WarmupState::State::LoadingKVPairs:
+    case WarmupState::State::LoadingData:
+    case WarmupState::State::Done:
         break;
     }
-    // Search in the shard for the object and lock it. Vbuckets are not ordered
-    // by vbid, the ordering is set in populateShardVbStates
-    for (const auto& entry : shardVBData[vbid.get() % shardVBData.size()]) {
-        if (entry.vbid == vbid) {
-            return entry.weakVBucketPtr.lock();
+
+    return syncData.withLock([vbid](const auto& syncData) {
+        const auto itr = syncData.weakVbMap.find(vbid);
+        if (itr == syncData.weakVbMap.end()) {
+            return VBucketPtr{};
         }
-    }
-    return {};
+        return itr->second.lock();
+    });
 }

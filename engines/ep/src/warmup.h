@@ -632,6 +632,8 @@ private:
 
         // A callback to invoke when Warmup is Done.
         std::function<void()> doneFunction = []() {};
+
+        std::unordered_map<Vbid, std::weak_ptr<VBucket>> weakVbMap;
     };
     folly::Synchronized<SyncData, std::mutex> syncData;
 
@@ -657,11 +659,6 @@ private:
         // phases. It is used in phases between CreateVBuckets and
         // PopulateVBucketMap, e.g. during LoadCollectionCounts.
         VBucketPtr vbucketPtr;
-
-        // A weak pointer to the VB object created in the CreateVBuckets phase.
-        // This is used in warmup key/loading phases to ensure the correct
-        // instance of the VBucket is used in warmup.
-        std::weak_ptr<VBucket> weakVBucketPtr;
     };
 
     // ShardList is a vector of VBData, one per vbucket found on disk for the
