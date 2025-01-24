@@ -1467,6 +1467,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     // load the _local doc count value
 
     const auto* kvstore = store.getROUnderlyingByShard(shardId);
+    Expects(kvstore);
     // Iterate the VBs in the shard
     for (const auto& entry : shardVBData[shardId]) {
         if (!entry.vbucketPtr) {
@@ -1474,7 +1475,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
         }
 
         auto status = VBucketLoader(store, config, entry.vbucketPtr, shardId)
-                              .loadCollectionStats(kvstore);
+                              .loadCollectionStats(*kvstore);
         using Status = VBucketLoader::LoadCollectionStatsStatus;
         switch (status) {
         case Status::Success:

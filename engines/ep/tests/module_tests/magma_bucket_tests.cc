@@ -1262,7 +1262,8 @@ TEST_P(STMagmaFusionTest, MetadataAuthToken) {
 
 TEST_P(STMagmaFusionTest, MountVbucket) {
     auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
-    const auto res = kvstore.mountVBucket(vbid, {});
+    const auto res =
+            kvstore.mountVBucket(vbid, VBucketSnapshotSource::Fusion, {});
     EXPECT_EQ(cb::engine_errc::success, res.first);
 }
 

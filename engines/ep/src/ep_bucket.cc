@@ -34,6 +34,7 @@
 #include "tasks.h"
 #include "vb_commit.h"
 #include "vb_visitors.h"
+#include "vbucket_loading_task.h"
 #include "vbucket_state.h"
 #include "warmup.h"
 #include "work_sharding.h"
@@ -1856,6 +1857,191 @@ VBucketPtr EPBucket::makeVBucket(
                           maxVisibleSeqno,
                           maxPrepareSeqno),
             VBucket::DeferredDeleter(engine)};
+}
+
+KVBucketResult<std::vector<std::string>> EPBucket::mountVBucket(
+        CookieIface& cookie, Vbid vbid, const std::vector<std::string>& paths) {
+    if (!getStorageProperties().supportsFusion()) {
+        return folly::Unexpected(cb::engine_errc::not_supported);
+    }
+    const auto connId = cookie.getConnectionId();
+    std::unique_lock vbset(vbsetMutex);
+    if (auto foundTask = vbucketsLoading.find(vbid);
+        foundTask != vbucketsLoading.end()) {
+        const auto& task = *foundTask->second;
+        if (&cookie != &task.getCookie()) {
+            EP_LOG_WARN_CTX(
+                    "Received mount vbucket request while existing task is "
+                    "running",
+                    {"conn_id", connId},
+                    {"task_conn_id", task.getCookie().getConnectionId()},
+                    {"vb", vbid},
+                    {"paths", paths});
+            return folly::Unexpected(cb::engine_errc::key_already_exists);
+        }
+        const auto ret = task.getErrorCode(vbset);
+        if (ret == cb::engine_errc::would_block) {
+            return folly::Unexpected(ret);
+        }
+        const auto isMountingTask = task.isMountingTask();
+        auto deks = task.getDekIds(vbset);
+        vbucketsLoading.erase(foundTask);
+        if (!isMountingTask) {
+            throw std::logic_error(
+                    fmt::format("EPBucket::mountVBucket: Cookie which "
+                                "requested vbucket mounting found loading "
+                                "task instead {} conn_id:{}",
+                                vbid,
+                                connId));
+        }
+        if (ret != cb::engine_errc::success) {
+            return folly::Unexpected(ret);
+        }
+        return {std::move(deks)};
+    }
+    VBucketPtr vb = vbMap.getBucket(vbid);
+    if (vb) {
+        EP_LOG_WARN_CTX("Received mount vbucket request for existing vbucket",
+                        {"conn_id", connId},
+                        {"vb", vbid},
+                        {"paths", paths});
+        return folly::Unexpected(cb::engine_errc::key_already_exists);
+    }
+    if (vbid.get() >= vbMap.getSize()) {
+        return folly::Unexpected(cb::engine_errc::out_of_range);
+    }
+    auto task =
+            VBucketLoadingTask::makeMountingTask(cookie,
+                                                 *this,
+                                                 vbid,
+                                                 VBucketSnapshotSource::Fusion,
+                                                 std::move(paths));
+    vbucketsLoading[vbid] = task;
+    ExecutorPool::get()->schedule(std::move(task));
+    EP_LOG_INFO_CTX("Scheduled vbucket mounting task",
+                    {"conn_id", connId},
+                    {"vb", vbid});
+    return folly::Unexpected(cb::engine_errc::would_block);
+}
+
+bool EPBucket::isVBucketLoading_UNLOCKED(
+        Vbid vbid, const std::unique_lock<std::mutex>& vbset) const {
+    return vbucketsLoading.contains(vbid);
+}
+
+struct LoadVBucketOptions {
+    cb::engine_errc status = cb::engine_errc::failed;
+    VBucketSnapshotSource source = VBucketSnapshotSource::Local;
+    nlohmann::json topology;
+};
+
+static void from_json(const nlohmann::json& meta, LoadVBucketOptions& options) {
+    auto useSnapshot = meta.find("use_snapshot");
+    if (useSnapshot == meta.end() || !useSnapshot->is_string()) {
+        options.status = cb::engine_errc::invalid_arguments;
+        return;
+    }
+    using namespace std::string_view_literals;
+    auto value = useSnapshot->get<std::string_view>();
+    if (value == "fbr"sv) {
+        options.source = VBucketSnapshotSource::Local;
+    } else if (value == "fusion"sv) {
+        options.source = VBucketSnapshotSource::Fusion;
+    } else {
+        options.status = cb::engine_errc::not_supported;
+        return;
+    }
+    auto topology = meta.find("topology");
+    if (topology != meta.end()) {
+        options.topology = *topology;
+    }
+    options.status = cb::engine_errc::success;
+}
+
+cb::engine_errc EPBucket::loadVBucket_UNLOCKED(
+        CookieIface& cookie,
+        Vbid vbid,
+        vbucket_state_t toState,
+        const nlohmann::json& meta,
+        std::unique_lock<std::mutex>& vbset) {
+    const auto connId = cookie.getConnectionId();
+    if (auto foundTask = vbucketsLoading.find(vbid);
+        foundTask != vbucketsLoading.end()) {
+        const auto& task = *foundTask->second;
+        if (&cookie != &task.getCookie()) {
+            EP_LOG_WARN_CTX(
+                    "Received load vbucket request while existing task is "
+                    "running",
+                    {"conn_id", connId},
+                    {"vb", vbid},
+                    {"to", VBucket::toString(toState)},
+                    {"meta", meta});
+            return cb::engine_errc::key_already_exists;
+        }
+        const auto ret = task.getErrorCode(vbset);
+        if (ret == cb::engine_errc::would_block) {
+            return ret;
+        }
+        const auto isMountingTask = task.isMountingTask();
+        vbucketsLoading.erase(foundTask);
+        if (isMountingTask) {
+            throw std::logic_error(
+                    fmt::format("EPBucket::loadVBucket_UNLOCKED: Cookie  which "
+                                "requested vbucket loading found mounting task "
+                                "instead {} conn_id:{}",
+                                vbid,
+                                connId));
+        }
+        // Creation task; return result
+        return ret;
+    }
+    if (vbMap.getBucket(vbid)) {
+        EP_LOG_WARN_CTX("Received load vbucket request for existing vbucket",
+                        {"conn_id", connId},
+                        {"vb", vbid},
+                        {"to", VBucket::toString(toState)},
+                        {"meta", meta});
+        return cb::engine_errc::key_already_exists;
+    }
+    LoadVBucketOptions options = meta;
+    if (options.status != cb::engine_errc::success) {
+        return options.status;
+    }
+    std::vector<std::string> paths;
+    if (options.source == VBucketSnapshotSource::Local) {
+        // Get file paths from the snapshot manifest
+        const auto maybeManifest = snapshotCache.lookup(vbid);
+        if (!maybeManifest) {
+            EP_LOG_WARN_CTX(
+                    "EPBucket::loadVBucket_UNLOCKED: Snapshot not found",
+                    {"conn_id", connId},
+                    {"vb", vbid},
+                    {"to", VBucket::toString(toState)},
+                    {"meta", meta});
+            return cb::engine_errc::not_stored;
+        }
+        const auto& manifest = *maybeManifest;
+        paths.reserve(manifest.files.size());
+        for (const auto& file : manifest.files) {
+            paths.push_back(
+                    snapshotCache.make_absolute(file.path, manifest.uuid)
+                            .string());
+        }
+    }
+    auto task =
+            VBucketLoadingTask::makeCreationTask(cookie,
+                                                 *this,
+                                                 vbid,
+                                                 options.source,
+                                                 std::move(paths),
+                                                 toState,
+                                                 std::move(options.topology));
+    vbucketsLoading[vbid] = task;
+    ExecutorPool::get()->schedule(std::move(task));
+    EP_LOG_INFO_CTX("Scheduled vbucket loading task",
+                    {"conn_id", connId},
+                    {"vb", vbid});
+    return cb::engine_errc::would_block;
 }
 
 cb::engine_errc EPBucket::statsVKey(const DocKeyView& key,

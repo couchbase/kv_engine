@@ -212,6 +212,12 @@ public:
             uint64_t purge_before_seq,
             bool drop_deletes,
             const std::vector<std::string>& obsolete_keys) override;
+    cb::engine_errc mountVBucket(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::vector<std::string>& paths,
+            const std::function<void(const nlohmann::json&)>& setResponse)
+            override;
     std::pair<cb::engine_errc, vbucket_state_t> getVBucket(CookieIface& cookie,
                                                            Vbid vbid) override;
     cb::engine_errc setVBucket(CookieIface& cookie,
@@ -237,8 +243,6 @@ public:
             std::time_t validity) override;
     cb::engine_errc releaseFusionStorageSnapshot(
             Vbid vbid, std::string_view snapshotUuid) override;
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
-            Vbid vbid, const std::vector<std::string>& paths) override;
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
@@ -1383,9 +1387,12 @@ cb::engine_errc EWB_Engine::releaseFusionStorageSnapshot(
     return real_engine->releaseFusionStorageSnapshot(vbid, snapshotUuid);
 }
 
-std::pair<cb::engine_errc, std::vector<std::string>> EWB_Engine::mountVBucket(
-        Vbid vbid, const std::vector<std::string>& paths) {
-    return real_engine->mountVBucket(vbid, paths);
+cb::engine_errc EWB_Engine::mountVBucket(
+        CookieIface& cookie,
+        Vbid vbid,
+        const std::vector<std::string>& paths,
+        const std::function<void(const nlohmann::json&)>& setResponse) {
+    return real_engine->mountVBucket(cookie, vbid, paths, setResponse);
 }
 
 cb::engine_errc EWB_Engine::syncFusionLogstore(Vbid vbid) {

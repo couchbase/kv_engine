@@ -7854,10 +7854,20 @@ cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshot(
                                                                   snapshotUuid);
 }
 
-std::pair<cb::engine_errc, std::vector<std::string>>
-EventuallyPersistentEngine::mountVBucket(
-        Vbid vbid, const std::vector<std::string>& paths) {
-    return acquireEngine(this)->mountVBucketInner(vbid, paths);
+cb::engine_errc EventuallyPersistentEngine::mountVBucket(
+        CookieIface& cookie,
+        Vbid vbid,
+        const std::vector<std::string>& paths,
+        const std::function<void(const nlohmann::json&)>& setResponse) {
+    auto eng = acquireEngine(this);
+    const auto result = kvBucket->mountVBucket(cookie, vbid, paths);
+    if (result.hasError()) {
+        return result.error();
+    }
+    nlohmann::json response{{"deks", result.value()}};
+    NonBucketAllocationGuard guard;
+    setResponse(response);
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::syncFusionLogstore(Vbid vbid) {
@@ -8094,17 +8104,6 @@ cb::engine_errc EventuallyPersistentEngine::setChronicleAuthToken(
 
 std::string EventuallyPersistentEngine::getCachedChronicleAuthToken() const {
     return *chronicleAuthToken.rlock();
-}
-
-std::pair<cb::engine_errc, std::vector<std::string>>
-EventuallyPersistentEngine::mountVBucketInner(
-        Vbid vbid, const std::vector<std::string>& paths) {
-    Expects(kvBucket);
-    if (!kvBucket->getStorageProperties().supportsFusion()) {
-        return {cb::engine_errc::not_supported, {}};
-    }
-
-    return kvBucket->getRWUnderlying(vbid)->mountVBucket(vbid, paths);
 }
 
 cb::engine_errc EventuallyPersistentEngine::syncFusionLogstoreInner(Vbid vbid) {

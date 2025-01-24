@@ -969,10 +969,24 @@ cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
         return cb::engine_errc::would_block;
     }
 
+    const bool useSnapshot = meta && meta->contains("use_snapshot");
+
     // Lock to prevent a race condition between a failed update and add.
     std::unique_lock<std::mutex> lh(vbsetMutex);
+    if (!useSnapshot && isVBucketLoading_UNLOCKED(vbid, lh)) {
+        EP_LOG_WARN_CTX(
+                "Received plain setVBucketState while vBucket is being "
+                "loaded or mounted",
+                {"vb", vbid},
+                {"to", VBucket::toString(to)});
+        return cb::engine_errc::key_already_exists;
+    }
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
+        if (useSnapshot) {
+            Expects(cookie);
+            return loadVBucket_UNLOCKED(*cookie, vbid, to, *meta, lh);
+        }
         std::unique_lock vbStateLock(vb->getStateLock());
         setVBucketState_UNLOCKED(vb,
                                  to,
@@ -983,6 +997,10 @@ cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
                                  lh,
                                  vbStateLock);
     } else if (vbid.get() < vbMap.getSize()) {
+        if (useSnapshot) {
+            Expects(cookie);
+            return loadVBucket_UNLOCKED(*cookie, vbid, to, *meta, lh);
+        }
         return createVBucket_UNLOCKED(vbid, to, meta, lh);
     } else {
         return cb::engine_errc::out_of_range;

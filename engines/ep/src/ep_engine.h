@@ -304,11 +304,15 @@ public:
             std::time_t validity) override;
     cb::engine_errc releaseFusionStorageSnapshot(
             Vbid vbid, std::string_view snapshotUuid) override;
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
-            Vbid vbid, const std::vector<std::string>& paths) override;
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
     cb::engine_errc stopFusionUploader(Vbid vbid) override;
+    cb::engine_errc mountVBucket(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::vector<std::string>& paths,
+            const std::function<void(const nlohmann::json&)>& setResponse)
+            override;
 
     cb::engine_errc setChronicleAuthToken(std::string_view token) override;
 
@@ -1549,8 +1553,6 @@ protected:
             Vbid vbid, std::string_view snapshotUuid, std::time_t validity);
     cb::engine_errc releaseFusionStorageSnapshotInner(
             Vbid vbid, std::string_view snapshotUuid);
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucketInner(
-            Vbid vbid, const std::vector<std::string>& paths);
     cb::engine_errc syncFusionLogstoreInner(Vbid vbid);
     cb::engine_errc startFusionUploaderInner(Vbid vbid, uint64_t term);
     cb::engine_errc stopFusionUploaderInner(Vbid vbid);

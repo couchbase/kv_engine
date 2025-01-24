@@ -172,6 +172,20 @@ public:
         return std::nullopt;
     }
 
+    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid,
+            VBucketSnapshotSource source,
+            const std::vector<std::string>& paths) override {
+        return {cb::engine_errc::not_supported, {}};
+    }
+
+    ReadVBStateResult loadVBucketSnapshot(
+            Vbid vbid,
+            vbucket_state_t state,
+            const nlohmann::json& topology) override {
+        return {ReadVBStateStatus::Error, {}};
+    }
+
     // Fusion not supported on nexus
 
     nlohmann::json getFusionStats(FusionStat stat, Vbid vbid) override {
@@ -203,11 +217,6 @@ public:
             const std::filesystem::path& path,
             cb::snapshot::Cache& cache) const override {
         return cb::engine_errc::success;
-    }
-
-    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
-            Vbid vbid, const std::vector<std::string>& paths) override {
-        return {cb::engine_errc::not_supported, {}};
     }
 
     cb::engine_errc syncFusionLogstore(Vbid vbid) override {

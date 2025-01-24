@@ -779,6 +779,22 @@ struct EngineIface {
     }
 
     /**
+     * Mount a vbucket from a fusion snapshot using the given paths.
+     *
+     * Responds with a JSON object containing DEK ids for the vbucket.
+     *
+     * @param cookie The cookie identifying the request
+     * @param vbid The vbucket to update
+     * @param paths File paths to use for mounting the vbucket
+     * @param setResponse Callback to set the response
+     */
+    [[nodiscard]] virtual cb::engine_errc mountVBucket(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::vector<std::string>& paths,
+            const std::function<void(const nlohmann::json&)>& setResponse);
+
+    /**
      * Set the state of a vbucket
      *
      * @param cookie The cookie identifying the request
@@ -862,12 +878,6 @@ struct EngineIface {
      */
     [[nodiscard]] virtual cb::engine_errc releaseFusionStorageSnapshot(
             Vbid vbid, std::string_view snapshotUuid);
-
-    /**
-     * Proxy to magma->mountVBucket. See magma's API for details.
-     */
-    [[nodiscard]] virtual std::pair<cb::engine_errc, std::vector<std::string>>
-    mountVBucket(Vbid vbid, const std::vector<std::string>& paths);
 
     /**
      * Force flush to disk of the magma write cache for the given vbucket and

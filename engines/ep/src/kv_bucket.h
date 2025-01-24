@@ -268,6 +268,18 @@ public:
     virtual void initiateShutdown();
 
     /**
+     * Mounts a vbucket from a fusion snapshot using the given paths.
+     *
+     * @return Vector of DEK ids for the vbucket.
+     */
+    virtual KVBucketResult<std::vector<std::string>> mountVBucket(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::vector<std::string>& paths) {
+        return folly::Unexpected(cb::engine_errc::not_supported);
+    }
+
+    /**
      * Sets the vbucket or creates a vbucket with the desired state
      *
      * @param vbid vbucket id
@@ -1291,6 +1303,35 @@ protected:
 
     /* Notify flusher of a new seqno being added in the vbucket */
     virtual void notifyFlusher(const Vbid vbid);
+
+    /**
+     * Returns whether the vbucket is currently loading.
+     *
+     * @param vbid vbucket id
+     * @param vbset locked vbsetMutex holder (used as a tag; not modified)
+     */
+    virtual bool isVBucketLoading_UNLOCKED(
+            Vbid vbid, const std::unique_lock<std::mutex>& vbset) const {
+        return false;
+    }
+
+    /**
+     * Create a VBucket from a snapshot.
+     *
+     * @param cookie Cookie to notify the result
+     * @param vbid ID of the VBucket to load from snapshot
+     * @param toState State to set the VBucket
+     * @param meta Payload of set state command
+     * @param vbset Locked vbsetMutex holder
+     */
+    virtual cb::engine_errc loadVBucket_UNLOCKED(
+            CookieIface& cookie,
+            Vbid vbid,
+            vbucket_state_t toState,
+            const nlohmann::json& meta,
+            std::unique_lock<std::mutex>& vbset) {
+        return cb::engine_errc::not_supported;
+    }
 
     /// Helper method from setVBucketState_UNLOCKED() - extracted
     /// `to == vbucket_state_active` logic

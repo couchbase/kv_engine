@@ -10,32 +10,55 @@
 
 #include "mount_fusion_vbucket_command_context.h"
 
-#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <executor/globaltask.h>
 
 MountFusionVbucketCommandContext::MountFusionVbucketCommandContext(
         Cookie& cookie)
-    : BackgroundThreadCommandContext(
-              cookie,
-              TaskId::Core_MountFusionVBucketTask,
-              fmt::format("MountFusionVbucket:{}",
-                          cookie.getRequest().getVBucket()),
-              ConcurrencySemaphores::instance().fusion_management) {
+    : SteppableCommandContext(cookie), state(State::Mount) {
+    const auto& req = cookie.getRequest();
+    paths = nlohmann::json::parse(req.getValueString()).at("mountPaths");
 }
 
-cb::engine_errc MountFusionVbucketCommandContext::execute() {
-    const auto& req = cookie.getRequest();
-    auto& engine = cookie.getConnection().getBucketEngine();
-    const auto request = nlohmann::json::parse(req.getValueString());
-    std::vector<std::string> paths = request["mountPaths"];
+cb::engine_errc MountFusionVbucketCommandContext::step() {
+    auto ret = cb::engine_errc::failed;
+    do {
+        switch (state) {
+        case State::Mount:
+            ret = mount();
+            break;
+        case State::SendResponse:
+            ret = sendResponse();
+            break;
+        case State::Done:
+            return cb::engine_errc::success;
+        }
+    } while (ret == cb::engine_errc::success);
+    return ret;
+}
 
-    const auto [ec, deks] = engine.mountVBucket(req.getVBucket(), paths);
-    if (ec == cb::engine_errc::success) {
-        nlohmann::json json;
-        json["deks"] = deks;
-        response = json.dump();
-        datatype = cb::mcbp::Datatype::JSON;
+cb::engine_errc MountFusionVbucketCommandContext::mount() {
+    auto& connection = cookie.getConnection();
+    auto ret = connection.getBucketEngine().mountVBucket(
+            cookie,
+            cookie.getRequest().getVBucket(),
+            paths,
+            [this](const nlohmann::json& json) {
+                // The engine needs to use NonBucketAllocationGuard
+                response = json.dump();
+            });
+    if (ret == cb::engine_errc::success) {
+        state = State::SendResponse;
     }
-    return ec;
+    return ret;
+}
+
+cb::engine_errc MountFusionVbucketCommandContext::sendResponse() {
+    cookie.sendResponse(cb::mcbp::Status::Success,
+                        {},
+                        {},
+                        response,
+                        cb::mcbp::Datatype::JSON,
+                        cb::mcbp::cas::Wildcard);
+    state = State::Done;
+    return cb::engine_errc::success;
 }

@@ -37,6 +37,7 @@ class CompactTask;
 struct CompactionContext;
 struct CompactionStats;
 class SeqnoPersistenceNotifyTask;
+class VBucketLoadingTask;
 
 /**
  * Eventually Persistent Bucket
@@ -222,6 +223,22 @@ public:
                            const nlohmann::json* replicationTopology,
                            uint64_t maxVisibleSeqno,
                            uint64_t maxPrepareSeqno) override;
+
+    KVBucketResult<std::vector<std::string>> mountVBucket(
+            CookieIface& cookie,
+            Vbid vbid,
+            const std::vector<std::string>& paths) override;
+
+    bool isVBucketLoading_UNLOCKED(
+            Vbid vbid,
+            const std::unique_lock<std::mutex>& vbset) const override;
+
+    cb::engine_errc loadVBucket_UNLOCKED(
+            CookieIface& cookie,
+            Vbid vbid,
+            vbucket_state_t toState,
+            const nlohmann::json& meta,
+            std::unique_lock<std::mutex>& vbset) override;
 
     cb::engine_errc statsVKey(const DocKeyView& key,
                               Vbid vbucket,
@@ -624,6 +641,9 @@ protected:
     // synchronisation. After the task is created, we want to be able to cheaply
     // read it for stats.
     SynchronizedInitOncePtr<Warmup> secondaryWarmup;
+
+    std::unordered_map<Vbid, std::shared_ptr<VBucketLoadingTask>>
+            vbucketsLoading;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
 

@@ -37,11 +37,15 @@ public:
     CreateVBucketStatus createVBucket(Vbid vbid,
                                       const vbucket_state& vbs,
                                       size_t maxFailoverEntries,
-                                      bool cleanShutdown);
+                                      bool cleanShutdown,
+                                      bool readCollectionsManifest = true);
 
     enum class LoadCollectionStatsStatus { Success, Failed, NoFileHandle };
 
-    LoadCollectionStatsStatus loadCollectionStats(const KVStoreIface* kvstore);
+    /**
+     * Read the collections stats for the VBucket from disk.
+     */
+    LoadCollectionStatsStatus loadCollectionStats(const KVStoreIface& kvstore);
 
     KVBucketIface::LoadPreparedSyncWritesResult loadPreparedSyncWrites();
 

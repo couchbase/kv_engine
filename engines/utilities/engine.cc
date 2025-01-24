@@ -66,9 +66,12 @@ cb::engine_errc EngineIface::releaseFusionStorageSnapshot(
     return cb::engine_errc::not_supported;
 }
 
-std::pair<cb::engine_errc, std::vector<std::string>> EngineIface::mountVBucket(
-        Vbid vbid, const std::vector<std::string>& paths) {
-    return {cb::engine_errc::not_supported, {}};
+cb::engine_errc EngineIface::mountVBucket(
+        CookieIface& cookie,
+        Vbid vbid,
+        const std::vector<std::string>& paths,
+        const std::function<void(const nlohmann::json&)>& setResponse) {
+    return cb::engine_errc::not_supported;
 }
 
 cb::engine_errc EngineIface::syncFusionLogstore(Vbid vbid) {

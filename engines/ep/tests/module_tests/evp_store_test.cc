@@ -3236,6 +3236,65 @@ TEST_P(EPBucketTestCouchstore, CompactionWithPurgeOptions) {
     }
 }
 
+TEST_P(EPBucketTestCouchstore, LoadVBucketFromLocalSnapshot) {
+    const auto docKey = makeStoredDocKey("key");
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, docKey, "valueA");
+    flushVBucket(vbid);
+
+    nlohmann::json manifest;
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->prepare_snapshot(
+                      *cookie, vbid, [&manifest](auto& m) { manifest = m; }));
+    const auto uuid = manifest.at("uuid").get<std::string>();
+    const auto snap = std::filesystem::path(test_dbname) / "snapshots" / uuid;
+    // 0.couch.1 is hardlinked and will be modified
+    std::filesystem::copy(snap / "0.couch.1", snap / "vb.tmp");
+
+    store_item(vbid, docKey, "valueB");
+    flushVBucket(vbid);
+
+    auto& taskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    for (;;) {
+        const auto ret = engine->deleteVBucket(*cookie, vbid, true);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(taskQ, "Removing (dead) vb:0 from memory and disk");
+    }
+
+    std::filesystem::remove(snap / "0.couch.1");
+    std::filesystem::rename(snap / "vb.tmp", snap / "0.couch.1");
+
+    const nlohmann::json meta{{"use_snapshot", "fbr"}};
+    for (;;) {
+        const auto ret = store->setVBucketState(
+                vbid, vbucket_state_active, &meta, TransferVB::No, cookie);
+        if (ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+            break;
+        }
+        runNextTask(taskQ, "Loading VBucket vb:0");
+    }
+
+    const auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+    for (;;) {
+        auto getValue = store->get(docKey, vbid, cookie, options);
+        const auto status = getValue.getStatus();
+        if (status != cb::engine_errc::would_block) {
+            ASSERT_EQ(cb::engine_errc::success, status);
+            ASSERT_TRUE(getValue.item);
+            EXPECT_EQ(std::string_view("valueA"),
+                      getValue.item->getValue()->to_string_view());
+            break;
+        }
+        runBGFetcherTask();
+    }
+}
+
 TEST_P(EPBucketFullEvictionTest, CompactionBgFetchMustCleanUp) {
     // Nexus only forwards the callback to the primary so this test doesn't
     // work for it.

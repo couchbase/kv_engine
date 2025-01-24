@@ -33,7 +33,8 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
         Vbid vbid,
         const vbucket_state& vbs,
         size_t maxFailoverEntries,
-        bool cleanShutdown) {
+        bool cleanShutdown,
+        bool readCollectionsManifest) {
     Expects(!vb);
     auto status = CreateVBucketStatus::Success;
     auto curVb = store.getVBucket(vbid);
@@ -52,7 +53,7 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
         KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
 
         std::unique_ptr<Collections::VB::Manifest> manifest;
-        if (config.isCollectionsEnabled()) {
+        if (readCollectionsManifest && config.isCollectionsEnabled()) {
             auto [getManifestStatus, persistedManifest] =
                     store.getROUnderlyingByShard(shardId)
                             ->getCollectionsManifest(vbid);
@@ -111,15 +112,11 @@ VBucketLoader::CreateVBucketStatus VBucketLoader::createVBucket(
 }
 
 VBucketLoader::LoadCollectionStatsStatus VBucketLoader::loadCollectionStats(
-        const KVStoreIface* kvstore) {
+        const KVStoreIface& kvstore) {
     Expects(vb);
-    if (!kvstore) {
-        kvstore = store.getROUnderlyingByShard(shardId);
-    }
-    Expects(kvstore);
     // Take the KVFileHandle before we lock the manifest to prevent lock
     // order inversions.
-    auto kvstoreContext = kvstore->makeFileHandle(vb->getId());
+    auto kvstoreContext = kvstore.makeFileHandle(vb->getId());
     if (!kvstoreContext) {
         return LoadCollectionStatsStatus::NoFileHandle;
     }
@@ -136,7 +133,7 @@ VBucketLoader::LoadCollectionStatsStatus VBucketLoader::loadCollectionStats(
         // has been corrupted between the call to makeFileHandle() and
         // getCollectionStats()
         auto [status, stats] =
-                kvstore->getCollectionStats(*kvstoreContext, collection.first);
+                kvstore.getCollectionStats(*kvstoreContext, collection.first);
         if (status == KVStore::GetCollectionStatsStatus::Failed) {
             return LoadCollectionStatsStatus::Failed;
         }

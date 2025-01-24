@@ -414,6 +414,7 @@ ADD_LIBRARY(ep STATIC
             src/vbucket.cc
             src/vbucket_bgfetch_item.cc
             src/vbucket_loader.cc
+            src/vbucket_loading_task.cc
             src/vbucket_state.cc
             src/vbucketmap.cc
             src/vbucketdeletiontask.cc

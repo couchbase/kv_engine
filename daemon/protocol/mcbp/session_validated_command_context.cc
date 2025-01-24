@@ -104,11 +104,6 @@ SetVbucketCommandContext::SetVbucketCommandContext(Cookie& cookie)
             state = vbucket_state_t(extras.front());
             auto val = req.getValueString();
             if (!val.empty()) {
-                if (state != vbucket_state_active) {
-                    throw std::invalid_argument(
-                            "vbucket meta may only be set on active vbuckets");
-                }
-
                 meta = nlohmann::json::parse(val);
             }
         } else {

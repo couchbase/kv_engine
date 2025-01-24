@@ -879,7 +879,7 @@ void CouchKVStore::delVBucket(Vbid vbucket,
         (*dbFileRevMap->rlock()).at(getCacheSlot(vbucket))) {
         vbucketEncryptionKeysManager.removeCurrentKey(vbucket);
     }
-
+    mountedVBuckets.wlock()->erase(vbucket);
     unlinkCouchFile(vbucket, fileRev->getRevision());
 }
 
@@ -4372,6 +4372,97 @@ KVStoreIface::ReadVBStateResult CouchKVStore::getVBucketState(
     }
 
     return res;
+}
+
+std::pair<cb::engine_errc, std::vector<std::string>> CouchKVStore::mountVBucket(
+        Vbid vbid,
+        VBucketSnapshotSource source,
+        const std::vector<std::string>& paths) {
+    Expects(source == VBucketSnapshotSource::Local);
+    Expects(paths.size() == 1);
+    const auto& path = paths.front();
+    {
+        auto vbs = mountedVBuckets.wlock();
+        const auto [iter, inserted] = vbs->emplace(vbid, path);
+        if (!inserted) {
+            logger.warnWithContext(
+                    "CouchKVStore::mountVBucket: Already exists",
+                    {{"vb", vbid}, {"path", path}, {"existing", iter->second}});
+            return {cb::engine_errc::key_already_exists, {}};
+        }
+    }
+    // TODO: Get DEK ids (MB-63440)
+    return {cb::engine_errc::success, {}};
+}
+
+KVStoreIface::ReadVBStateResult CouchKVStore::loadVBucketSnapshot(
+        Vbid vbid, vbucket_state_t state, const nlohmann::json& topology) {
+    auto lockedMountedVBuckets = mountedVBuckets.rlock();
+    const auto foundMountedVBucket = lockedMountedVBuckets->find(vbid);
+    if (foundMountedVBucket == lockedMountedVBuckets->end()) {
+        logger.warnWithContext("CouchKVStore::loadVBucketSnapshot: Not mounted",
+                               {{"vb", vbid}});
+        return {ReadVBStateStatus::NotFound, {}};
+    }
+    const auto& path = foundMountedVBucket->second;
+    uint64_t snapRev;
+    {
+        auto diskMap = getVbucketRevisions({path});
+        auto diskMapItr = diskMap.find(vbid);
+        if (diskMapItr == diskMap.end()) {
+            return {ReadVBStateStatus::NotFound, {}};
+        }
+        auto maxRevItr = std::max_element(diskMapItr->second.begin(),
+                                          diskMapItr->second.end());
+        if (maxRevItr == diskMapItr->second.end()) {
+            return {ReadVBStateStatus::NotFound, {}};
+        }
+        snapRev = *maxRevItr;
+    }
+    ReadVBStateResult result;
+    {
+        DbHolder db(*this);
+        auto errCode = openSpecificDBFile(vbid, snapRev, db, 0, path);
+        if (errCode) {
+            logOpenError(__func__,
+                         spdlog::level::level_enum::warn,
+                         errCode,
+                         vbid,
+                         path,
+                         0);
+            return {ReadVBStateStatus::Error, {}};
+        }
+        result = readVBState(db.getDb(), vbid);
+        if (result.status != ReadVBStateStatus::Success) {
+            return result;
+        }
+        result.state.transition.replicationTopology = topology;
+        result.state.transition.state = state;
+        errCode = updateLocalDocument(
+                *db, LocalDocKey::vbstate, makeJsonVBState(result.state));
+        if (errCode) {
+            logger.warnWithContext(
+                    "CouchKVStore::loadVBucketSnapshot: "
+                    "updateLocalDocument failed",
+                    {{"vb", vbid}, {"error", couchstore_strerror(errCode)}});
+            return {ReadVBStateStatus::Error, {}};
+        }
+        errCode = couchstore_commit(db.getDb());
+        if (errCode) {
+            logger.warnWithContext(
+                    "CouchKVStore::loadVBucketSnapshot: "
+                    "couchstore_commit failed",
+                    {{"vb", vbid}, {"error", couchstore_strerror(errCode)}});
+            return {ReadVBStateStatus::Error, {}};
+        }
+    }
+    const auto lockedRevMap = dbFileRevMap->wlock();
+    auto& cachedRev = (*lockedRevMap)[getCacheSlot(vbid)];
+    const auto fileRev = cachedRev + 1;
+    std::filesystem::rename(path, getDBFileName(dbname, vbid, fileRev));
+    cachedRev = fileRev;
+    updateCachedVBState(vbid, result.state);
+    return result;
 }
 
 couchstore_error_t CouchKVStore::updateLocalDocuments(

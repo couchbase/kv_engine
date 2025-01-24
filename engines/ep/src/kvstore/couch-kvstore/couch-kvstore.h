@@ -401,6 +401,16 @@ public:
     ReadVBStateResult getPersistedVBucketState(KVFileHandle& handle,
                                                Vbid vbid) const override;
 
+    std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
+            Vbid vbid,
+            VBucketSnapshotSource source,
+            const std::vector<std::string>& paths) override;
+
+    ReadVBStateResult loadVBucketSnapshot(
+            Vbid vbid,
+            vbucket_state_t state,
+            const nlohmann::json& topology) override;
+
     /// Get the logger used by this bucket
     BucketLogger& getLogger() const {
         return logger;
@@ -1003,6 +1013,9 @@ protected:
     /// may set the element to true if it runs at the same time as
     /// compaction is running (and we just need to abort the compaction)
     std::vector<std::atomic_bool> vbAbortCompaction;
+
+    /// Paths to vbucket snapshots that will later be loaded
+    folly::Synchronized<std::unordered_map<Vbid, std::string>> mountedVBuckets;
 
     VBucketEncryptionKeysManager vbucketEncryptionKeysManager;
 

@@ -7,18 +7,30 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #pragma once
-#include "background_thread_command_context.h"
+
+#include "steppable_command_context.h"
 
 /**
- * The MountFusionVbucketCommandContext is a command context for executing
- * the MountFusionVbucket command in a AUXIO bg-thread and avoiding blocking IO
+ * Mounts a vbucket using the paths in the request and responds with the DEK ids
+ * used by the snapshot.
+ *
+ * The command is need for Fusion to gather DEK ids before issuing SetVbState.
  */
-class MountFusionVbucketCommandContext : public BackgroundThreadCommandContext {
+class MountFusionVbucketCommandContext : public SteppableCommandContext {
 public:
-    MountFusionVbucketCommandContext(Cookie& cookie);
+    enum class State { Mount, SendResponse, Done };
+
+    explicit MountFusionVbucketCommandContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc execute() override;
+    cb::engine_errc step() override;
+
+    cb::engine_errc mount();
+
+    cb::engine_errc sendResponse();
+
+    std::vector<std::string> paths;
+    std::string response;
+    State state;
 };

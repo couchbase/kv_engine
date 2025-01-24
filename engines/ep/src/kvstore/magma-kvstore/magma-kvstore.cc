@@ -4623,15 +4623,23 @@ std::string MagmaKVStore::getChronicleAuthToken() const {
 }
 
 std::pair<cb::engine_errc, std::vector<std::string>> MagmaKVStore::mountVBucket(
-        Vbid vbid, const std::vector<std::string>& paths) {
+        Vbid vbid,
+        VBucketSnapshotSource source,
+        const std::vector<std::string>& paths) {
     // Note: Creating a fusion vbucket is a 2-step operation, ie Mount + Create
     // (in order). So we have to bump the revision here only.
     const auto rev = ++kvstoreRevList[getCacheSlot(vbid)];
 
     magma::Magma::KVStoreMountConfig config;
-    // @todo: Type::Local will be used for FBR. Source here will be set based on
-    //  the bucket configuration
-    config.Source = magma::Magma::KVStoreMountConfig::Type::Fusion;
+    switch (source) {
+        using Type = magma::Magma::KVStoreMountConfig::Type;
+    case VBucketSnapshotSource::Local:
+        config.Source = Type::Local;
+        break;
+    case VBucketSnapshotSource::Fusion:
+        config.Source = Type::Fusion;
+        break;
+    }
     config.MountPaths = paths;
 
     const auto res = magma->MountKVStore(Magma::KVStoreID(vbid.get()),
