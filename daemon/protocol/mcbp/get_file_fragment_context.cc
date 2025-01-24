@@ -41,10 +41,6 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     if (length > MaxReadSize) {
         length = MaxReadSize;
     }
-    using namespace std::string_literals;
-    if (json.contains("checksum") && json.value("checksum", ""s) == "crc32c"s) {
-        checksum_crc32c = 0;
-    }
 }
 
 GetFileFragmentContext::~GetFileFragmentContext() {
@@ -157,17 +153,13 @@ cb::engine_errc GetFileFragmentContext::initialize() {
 }
 
 cb::engine_errc GetFileFragmentContext::send_response_header() {
-    static constexpr const char* checksum_msg =
-            R"({ "checksum": { "type" : "crc32c", "size": 4, "location": "tail" } })";
-    std::string extras = checksum_crc32c.has_value() ? checksum_msg : "";
-
     connection.sendResponseHeaders(cookie,
                                    cb::mcbp::Status::Success,
-                                   extras,
+                                   {},
                                    {},
                                    length,
                                    PROTOCOL_BINARY_RAW_BYTES);
-    if (!checksum_crc32c.has_value() && connection.isSendfileSupported()) {
+    if (connection.isSendfileSupported()) {
         state = State::TransferWithSendFile;
     } else {
         state = State::ReadFileChunk;
@@ -201,11 +193,6 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                         }
 
                         if (nr > 0) {
-                            if (checksum_crc32c.has_value()) {
-                                checksum_crc32c = crc32c(iob->writableTail(),
-                                                         nr,
-                                                         *checksum_crc32c);
-                            }
                             length -= nr;
                             offset += nr;
                             iob->append(nr);
@@ -225,13 +212,6 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
         return cb::engine_errc::would_block;
     }
     // // No more data to send; we're done!
-    if (checksum_crc32c.has_value()) {
-        uint32_t network = htonl(*checksum_crc32c);
-        std::string_view view = {reinterpret_cast<const char*>(&network),
-                                 sizeof(network)};
-        connection.copyToOutputStream(view);
-    }
-
     state = State::Done;
     return cb::engine_errc::success;
 }

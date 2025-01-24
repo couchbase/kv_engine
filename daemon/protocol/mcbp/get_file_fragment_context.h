@@ -66,7 +66,6 @@ protected:
     std::size_t length{0};
     int fd{-1};
 
-    std::optional<uint32_t> checksum_crc32c;
     folly::Synchronized<std::unique_ptr<folly::IOBuf>> chunk;
 
     State state;

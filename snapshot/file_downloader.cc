@@ -66,10 +66,6 @@ public:
         return getMaxChunkSizeImpl(fsync_size);
     }
 
-    [[nodiscard]] bool supportsChecksum() const override {
-        return true;
-    }
-
 protected:
     static std::size_t getMaxChunkSizeImpl(std::size_t fsync_size) {
         return std::min(static_cast<std::size_t>(50 * 1024 * 1024), fsync_size);
@@ -84,16 +80,6 @@ size_t MemcachedClientFileDownloader::downloadFileFragment(
         throw ConnectionError("Failed to fetch fragment", rsp);
     }
     auto data = rsp.getDataView();
-    Expects(data.size() >= sizeof(uint32_t));
-    auto checksum_view = data.substr(data.size() - sizeof(uint32_t));
-    data.remove_suffix(sizeof(uint32_t));
-    uint32_t checksum;
-    std::copy(checksum_view.begin(), checksum_view.end(), &checksum);
-    checksum = ntohl(checksum);
-    if (crc32c(data, 0) != checksum) {
-        throw std::runtime_error("Invalid checksum");
-    }
-
     fwriteData(fp, data);
     fsync(fileno(fp));
     return data.size();
@@ -128,10 +114,6 @@ protected:
         // (we could probably go up to uint32_t max, but ehh.. do we
         // really need to?)
         return std::numeric_limits<int32_t>::max();
-    }
-
-    [[nodiscard]] bool supportsChecksum() const override {
-        return false;
     }
 
     void sendBinprotCommand(const BinprotGenericCommand& cmd) const;
@@ -295,16 +277,12 @@ bool FileDownloader::download(const FileInfo& meta) {
 
     nlohmann::json file_meta{{"id", meta.id}};
     std::size_t chunksize = getMaxChunkSize();
-    bool checksum = supportsChecksum();
 
     const auto start = std::chrono::steady_clock::now();
     while (offset < size) {
         std::size_t chunk = std::min(size - offset, chunksize);
         file_meta["offset"] = std::to_string(offset);
         file_meta["length"] = std::to_string(chunk);
-        if (checksum) {
-            file_meta["checksum"] = "crc32c";
-        }
 
         log_callback(info, "Request fragment", {{"chunk", file_meta}});
 
