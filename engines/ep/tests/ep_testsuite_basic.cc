@@ -736,6 +736,16 @@ static enum test_result test_unl(EngineIface* h) {
             unl(h, nullptr, key, vbucketId, cas),
             "Expected to fail unl on lock timeout");
 
+    checkeq(cb::engine_errc::success,
+            set_param(h,
+                      EngineParamCategory::Flush,
+                      "not_locked_returns_tmpfail",
+                      "true"),
+            "Expected setting not_locked_returns_tmpfail to succeed");
+    checkeq(cb::engine_errc::temporary_failure,
+            unl(h, nullptr, key, vbucketId, cas),
+            "Expected to fail unl on lock timeout (returning tmpfail)");
+
     ret = getl(h, nullptr, key, vbucketId, 0);
     checkeq(cb::engine_errc::success,
             ret.first,
