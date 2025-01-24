@@ -1657,10 +1657,7 @@ uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
                                               std::shared_ptr<ActiveStream> s,
                                               uint64_t start,
                                               uint64_t end) {
-    if (!(start <= end)) {
-        return 0;
-    }
-
+    Expects(start <= end);
     auto backfill = vb.createDCPBackfill(engine_, s, start, end);
     const auto backfillUID = backfill->getUID();
     switch (backfillMgr->schedule(std::move(backfill))) {

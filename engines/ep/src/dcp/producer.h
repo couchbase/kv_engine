@@ -215,7 +215,7 @@ public:
     void recordBackfillManagerBytesSent(size_t bytes);
 
     /**
-     * Schedule a seqno backfill
+     * Schedule a seqno backfill. Expects start to be less than equal to end.
      * @param vb Vbucket requesting the backfill
      * @param s ActiveStream requesting the backfill
      * @param start range start

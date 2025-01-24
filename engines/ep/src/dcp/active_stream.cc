@@ -2038,14 +2038,19 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         abortScheduleBackfill(reschedule, producer);
         return;
     }
+
+    if (backfillStart > backfillEnd) {
+        // No items to backfill.
+        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
+        return;
+    }
+
     if (tryAndScheduleOSOBackfill(producer, *vbucket)) {
         return;
     }
 
     backfillUID = producer.scheduleBackfillManager(
             *vbucket, shared_from_this(), backfillStart, backfillEnd);
-    // Expect a non zero UID. 0 is reserved for "no backfill to remove"
-    Expects(backfillUID);
 
     // backfill will be needed to catch up to the items in the
     // CheckpointManager

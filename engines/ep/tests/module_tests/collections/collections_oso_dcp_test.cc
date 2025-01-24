@@ -156,61 +156,84 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
     store_item(vbid, makeStoredDocKey("c"), "y");
     flush_vbucket_to_disk(vbid, 1);
 
-    std::array<cb::mcbp::DcpAddStreamFlag, 2> flags = {
-            {cb::mcbp::DcpAddStreamFlag::None,
-             cb::mcbp::DcpAddStreamFlag::DiskOnly}};
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Create a collection so we can get a stream, but don't flush it
+    CollectionsManifest cm(CollectionEntry::fruit);
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm));
 
-    for (auto flag : flags) {
-        // Reset so we have to stream from backfill and clean-up between flags
-        resetEngineAndWarmup();
-        VBucketPtr vb = store->getVBucket(vbid);
-        // Create a collection so we can get a stream, but don't flush it
-        CollectionsManifest cm(CollectionEntry::fruit);
-        vb->updateFromManifest(
-                std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
-                makeManifest(cm));
+    // Must call this to ensure collection start-seqno optimisation doesn't
+    // skip the OSO backfill.
+    ensureDcpWillBackfill();
+    // Filter on fruit collection (this will request from seqno:0)
+    createDcpObjects({{R"({"collections":["9"]})"}},
+                     osoMode,
+                     cb::mcbp::DcpAddStreamFlag::None);
 
-        // Must call this to ensure collection start-seqno optimisation doesn't
-        // skip the OSO backfill.
-        ensureDcpWillBackfill();
-        // Filter on fruit collection (this will request from seqno:0)
-        createDcpObjects({{R"({"collections":["9"]})"}}, osoMode, flag);
+    // We have a single filter, expect the backfill to be OSO
+    runBackfill();
 
-        // We have a single filter, expect the backfill to be OSO
-        runBackfill();
+    // OSO snapshots are never really used in KV to KV replication, but this
+    // test is using KV to KV test code, hence we need to set a snapshot so
+    // that any transferred items don't trigger a snapshot exception.
+    consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
 
-        // OSO snapshots are never really used in KV to KV replication, but this
-        // test is using KV to KV test code, hence we need to set a snapshot so
-        // that any transferred items don't trigger a snapshot exception.
-        consumer->snapshotMarker(1, replicaVB, 0, 4, {}, 0, 4, {});
+    // Manually step the producer and inspect all callbacks
+    // We currently send OSO start/end with no data
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
+              producers->last_oso_snapshot_flags);
 
-        // Manually step the producer and inspect all callbacks
-        // We currently send OSO start/end with no data
+    if (osoMode == OutOfOrderSnapshots::YesWithSeqnoAdvanced) {
         EXPECT_EQ(cb::engine_errc::success,
                   producer->stepWithBorderGuard(*producers));
-        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
-        EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::Start),
-                  producers->last_oso_snapshot_flags);
-
-        if (osoMode == OutOfOrderSnapshots::YesWithSeqnoAdvanced) {
-            EXPECT_EQ(cb::engine_errc::success,
-                      producer->stepWithBorderGuard(*producers));
-            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
-                      producers->last_op);
-        }
-
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->stepWithBorderGuard(*producers));
-        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
-        EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
-                  producers->last_oso_snapshot_flags);
-
-        if (flag == cb::mcbp::DcpAddStreamFlag::DiskOnly) {
-            EXPECT_EQ(cb::engine_errc::success,
-                      producer->stepWithBorderGuard(*producers));
-            EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
-        }
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced, producers->last_op);
     }
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpOsoSnapshot, producers->last_op);
+    EXPECT_EQ(uint32_t(cb::mcbp::request::DcpOsoSnapshotFlags::End),
+              producers->last_oso_snapshot_flags);
+}
+
+TEST_P(CollectionsOSODcpTest, DiskOnlyStreamEnds) {
+    // Put something on disk
+    store_item(vbid, makeStoredDocKey("c"), "y");
+    flush_vbucket_to_disk(vbid, 1);
+
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Create a collection so we can get a stream, but don't flush it.
+    // This makes sure the end_seqno is adjusted to the last seqno that
+    // was persisted for the vbucket (which is 1).
+    CollectionsManifest cm(CollectionEntry::fruit);
+    vb->updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb->getStateLock()),
+            makeManifest(cm));
+
+    // Remove all the checkpoints, this will force DCP to backfill
+    ensureDcpWillBackfill();
+    // Filter on fruit collection, this will adjusted the start_seqno to 2
+    // when the stream request is processed (seqno when the fruit collection
+    // was created).
+    createDcpObjects({{R"({"collections":["9"]})"}},
+                     OutOfOrderSnapshots::Yes,
+                     cb::mcbp::DcpAddStreamFlag::DiskOnly);
+
+    // No backfill was scheduled
+    auto& lpTaskQ = *task_executor->getLpTaskQ(TaskType::AuxIO);
+    ASSERT_EQ(0, lpTaskQ.getFutureQueueSize());
+
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    ASSERT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
+
+    // Stream isn't present in the producer streams list
+    const auto& stream = producer->findStream(vbid);
+    ASSERT_FALSE(stream);
 }
 
 TEST_P(CollectionsOSODcpTest, emptyDiskSnapshot_MB_49847) {

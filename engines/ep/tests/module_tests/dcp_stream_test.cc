@@ -6929,6 +6929,56 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
 }
 
+TEST_P(SingleThreadedActiveStreamTest,
+       CollectionFilteredStreamEnds_StartSeqnoGreaterThanEndSeqno) {
+    // Reset the stream created originally as part of the test setup.
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+
+    store_item(vbid, makeStoredDocKey("foo", CollectionEntry::defaultC), "bar");
+    store_item(
+            vbid, makeStoredDocKey("foo1", CollectionEntry::defaultC), "bar");
+
+    // Create a collection
+    CollectionsManifest manifest;
+    const auto& cVegetable = CollectionEntry::vegetable;
+    manifest.add(cVegetable,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
+
+    store_item(vbid, makeStoredDocKey("potato", cVegetable), "value");
+    store_item(vbid, makeStoredDocKey("carrot", cVegetable), "value");
+
+    ASSERT_EQ(5, vb.getHighSeqno());
+    flushAndRemoveCheckpoints(vbid);
+
+    // Request end seqno below what is relevant to the stream.
+    stream = producer->mockActiveStreamRequest(
+            cb::mcbp::DcpAddStreamFlag::ActiveVbOnly,
+            0 /*opaque*/,
+            vb,
+            0 /*st_seqno*/,
+            2 /*en_seqno*/,
+            0x0 /*vb_uuid*/,
+            0 /*snap_start_seqno*/,
+            ~0 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            producer->public_getMaxMarkerVersion(),
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(cVegetable.getId())));
+
+    auto resp = stream->next(*producer);
+    ASSERT_EQ(DcpResponse::Event::StreamEnd, resp->getEvent());
+
+    ASSERT_TRUE(stream->isDead());
+}
+
 TEST_P(SingleThreadedActiveStreamTest, backfillYieldsAfterDurationLimit) {
     auto vb = engine->getVBucket(vbid);
     // Remove the initial stream, we want to force it to backfill.
