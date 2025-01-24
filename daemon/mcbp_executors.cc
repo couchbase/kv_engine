@@ -30,6 +30,7 @@
 #include "protocol/mcbp/gat_context.h"
 #include "protocol/mcbp/get_context.h"
 #include "protocol/mcbp/get_file_fragment_context.h"
+#include "protocol/mcbp/get_fusion_storage_snapshot_command_context.h"
 #include "protocol/mcbp/get_locked_context.h"
 #include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/getex_context.h"
@@ -705,18 +706,13 @@ static void auth_provider_executor(Cookie& cookie) {
 }
 
 static void get_fusion_storage_snapshot_executor(Cookie& cookie) {
-    const auto vbid = cookie.getRequest().getVBucket();
-    auto& engine = cookie.getConnection().getBucketEngine();
-    const auto inJson =
-            nlohmann::json::parse(cookie.getRequest().getValueString());
-    const auto res = engine.getFusionStorageSnapshot(
-            vbid,
-            inJson["snapshotUuid"].get<std::string>(),
-            inJson["validity"]);
-    Ensures(res.first != cb::engine_errc::would_block);
-    Ensures(res.first != cb::engine_errc::disconnect);
-    cookie.sendResponse(
-            res.first, {}, {}, res.second.dump(), cb::mcbp::Datatype::JSON, 0);
+    if (!cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<GetFusionStorageSnapshotCommandContext>(cookie)
+            .drive();
 }
 
 static void release_fusion_storage_snapshot_executor(Cookie& cookie) {

@@ -52,6 +52,8 @@ add_library(memcached_daemon_mcbp OBJECT
         get_context.h
         get_file_fragment_context.cc
         get_file_fragment_context.h
+        get_fusion_storage_snapshot_command_context.cc
+        get_fusion_storage_snapshot_command_context.h
         get_locked_context.cc
         get_locked_context.h
         get_meta_context.cc

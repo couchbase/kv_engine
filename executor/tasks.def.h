@@ -71,6 +71,7 @@ TASK(Core_ReleaseSnapshotTask, TaskType::AuxIO, 6)
 TASK(Core_ReadFileFragmentTask, TaskType::AuxIO, 0)
 TASK(DownloadSnapshotTask, TaskType::AuxIO, 6)
 TASK(Core_SyncFusionLogstoreTask, TaskType::AuxIO, 6)
+TASK(Core_GetFusionStorageSnapshotTask, TaskType::AuxIO, 6)
 
 // Read/Write IO tasks
 TASK(RollbackTask, TaskType::Writer, 1)
