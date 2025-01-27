@@ -44,7 +44,7 @@ cb::engine_errc SingleStateCommandContext::step() {
                     cb::engine_errc::success,
                     {},
                     {},
-                    cookie.getErrorContext(),
+                    blob,
                     blob.empty() ? cb::mcbp::Datatype::Raw : successDatatype,
                     cookie.getCas());
             return cb::engine_errc::success;
