@@ -229,11 +229,6 @@ static void isasl_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<SaslRefreshCommandContext>(cookie).drive();
 }
 
-static void ssl_certs_refresh_executor(Cookie& cookie) {
-    cookie.setErrorContext("Use ifconfig tls instead");
-    cookie.sendResponse(cb::mcbp::Status::NotSupported);
-}
-
 static void collections_set_manifest_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
               return c.getConnection()
@@ -884,8 +879,6 @@ void initialize_mbcp_lookup_map() {
                   collections_get_scope_id_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::IsaslRefresh, isasl_refresh_executor);
-    setup_handler(cb::mcbp::ClientOpcode::SslCertsRefresh,
-                  ssl_certs_refresh_executor);
     setup_handler(cb::mcbp::ClientOpcode::Verbosity, verbosity_executor);
     setup_handler(cb::mcbp::ClientOpcode::Hello, process_hello_packet_executor);
     setup_handler(cb::mcbp::ClientOpcode::Version, version_executor);

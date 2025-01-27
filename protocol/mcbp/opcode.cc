@@ -790,8 +790,8 @@ public:
         setup(ClientOpcode::Scrub_Unsupported, {"SCRUB"sv, {}});
         setup(ClientOpcode::IsaslRefresh,
               {"ISASL_REFRESH"sv, {Attribute::Supported}});
-        setup(ClientOpcode::SslCertsRefresh,
-              {"SSL_CERTS_REFRESH"sv, {Attribute::Supported}});
+        setup(ClientOpcode::SslCertsRefresh_Unsupported,
+              {"SSL_CERTS_REFRESH"sv, {}});
         setup(ClientOpcode::GetCmdTimer,
               {"GET_CMD_TIMER"sv, {Attribute::Supported}});
         setup(ClientOpcode::SetCtrlToken,

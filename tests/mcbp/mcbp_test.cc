@@ -1539,7 +1539,6 @@ TEST_P(ObserveSeqnoValidatorTest, InvalidBody) {
 
 enum class RefreshOpcodes : uint8_t {
     Isasl = uint8_t(cb::mcbp::ClientOpcode::IsaslRefresh),
-    Ssl = uint8_t(cb::mcbp::ClientOpcode::SslCertsRefresh),
     Rbac = uint8_t(cb::mcbp::ClientOpcode::RbacRefresh)
 };
 
@@ -1547,8 +1546,6 @@ std::string to_string(const RefreshOpcodes& opcode) {
     switch (opcode) {
     case RefreshOpcodes::Isasl:
         return "ISASL";
-    case RefreshOpcodes::Ssl:
-        return "SSL";
     case RefreshOpcodes::Rbac:
         return "RBAC";
     }
@@ -1578,7 +1575,6 @@ INSTANTIATE_TEST_SUITE_P(
         RefreshOpcodes,
         RefreshValidatorTest,
         ::testing::Combine(::testing::Values(RefreshOpcodes::Isasl,
-                                             RefreshOpcodes::Ssl,
                                              RefreshOpcodes::Rbac),
                            ::testing::Bool()));
 

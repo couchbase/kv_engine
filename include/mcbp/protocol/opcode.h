@@ -344,7 +344,7 @@ enum class ClientOpcode : uint8_t {
     /* Refresh the ISASL data */
     IsaslRefresh = 0xf1,
     /* Refresh the SSL certificates */
-    SslCertsRefresh = 0xf2,
+    SslCertsRefresh_Unsupported = 0xf2,
     /* Internal timer ioctl */
     GetCmdTimer = 0xf3,
     /* ns_server - memcached session validation */

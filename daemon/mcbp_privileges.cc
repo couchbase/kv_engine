@@ -390,7 +390,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(cb::mcbp::ClientOpcode::IsaslRefresh,
           require<Privilege::NodeSupervisor>);
     /* Refresh the SSL certificates */
-    setup(cb::mcbp::ClientOpcode::SslCertsRefresh,
+    setup(cb::mcbp::ClientOpcode::SslCertsRefresh_Unsupported,
           require<Privilege::NodeSupervisor>);
     /* Internal timer ioctl */
     setup(cb::mcbp::ClientOpcode::GetCmdTimer, empty);

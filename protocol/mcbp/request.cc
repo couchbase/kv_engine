@@ -385,7 +385,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::CollectionsGetScopeID:
         case ClientOpcode::Scrub_Unsupported:
         case ClientOpcode::IsaslRefresh:
-        case ClientOpcode::SslCertsRefresh:
+        case ClientOpcode::SslCertsRefresh_Unsupported:
         case ClientOpcode::GetCtrlToken:
         case ClientOpcode::UpdateExternalUserPermissions:
         case ClientOpcode::RbacRefresh:

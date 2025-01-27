@@ -2782,8 +2782,6 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::DcpAbort, dcp_abort_validator);
     setup(cb::mcbp::ClientOpcode::IsaslRefresh,
           configuration_refresh_validator);
-    setup(cb::mcbp::ClientOpcode::SslCertsRefresh,
-          configuration_refresh_validator);
     setup(cb::mcbp::ClientOpcode::Verbosity, verbosity_validator);
     setup(cb::mcbp::ClientOpcode::Hello, hello_validator);
     setup(cb::mcbp::ClientOpcode::Version, version_validator);
@@ -3027,6 +3025,8 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::CreateCheckpoint_Unsupported,
           not_supported_validator);
     setup(cb::mcbp::ClientOpcode::LastClosedCheckpoint_Unsupported,
+          not_supported_validator);
+    setup(cb::mcbp::ClientOpcode::SslCertsRefresh_Unsupported,
           not_supported_validator);
 
     setup(cb::mcbp::ClientOpcode::RangeScanCreate, create_range_scan_validator);
