@@ -9,7 +9,8 @@
  */
 #pragma once
 
-#include "file_reload_command_context.h"
+#include "background_thread_command_context.h"
+
 #include <daemon/network_interface_description.h>
 
 class Settings;
@@ -22,17 +23,26 @@ class Settings;
  * be a slow process as we need to reconfigure system interfaces
  * and TLS properties as part of the reload.
  */
-class SettingsReloadCommandContext : public FileReloadCommandContext {
+class SettingsReloadCommandContext : public BackgroundThreadCommandContext {
 public:
     explicit SettingsReloadCommandContext(Cookie& cookie);
 
 protected:
     /**
-     * Dispatch the task to call doSettingsReload
+     * This is the callback method being executed in the separate thread
+     * in the executor pool.
      *
-     * @return cb::engine_errc::would_block always
+     * For simplicity it use exception handling for error handling to avoid
+     * cluttering the code with too many explicit return code paths and to
+     * make sure we get the correct error information stored in the response
+     * message.
+     *
+     * It starts off reading the configuration file, then verifies that
+     * none of the constant configuration parameters was changed before it
+     * tries to change the prometheus port; then the network interfaces;
+     * TLS properties and finally the rest of the properties.
      */
-    cb::engine_errc reload() override;
+    cb::engine_errc execute() override;
 
 private:
     /**
@@ -78,22 +88,4 @@ private:
      * @throws std::runtime_error if there is an error
      */
     void maybeReconfigureInterfaces(Settings& next);
-
-    /**
-     * Do the actual settings reload
-     *
-     * This is the callback method being executed in the separate thread
-     * in the executor pool.
-     *
-     * For simplicity it use exception handling for error handling to avoid
-     * cluttering the code with too many explicit return code paths and to
-     * make sure we get the correct error information stored in the response
-     * message.
-     *
-     * It starts off reading the configuration file, then verifies that
-     * none of the constant configuration parameters was changed before it
-     * tries to change the prometheus port; then the network interfaces;
-     * TLS properties and finally the rest of the properties.
-     */
-    cb::engine_errc doSettingsReload();
 };

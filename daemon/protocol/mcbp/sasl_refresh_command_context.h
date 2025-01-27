@@ -8,11 +8,10 @@
  *   the file licenses/APL2.txt.
  */
 #pragma once
-#include "file_reload_command_context.h"
+
+#include "background_thread_command_context.h"
 
 #include <daemon/memcached.h>
-#include <mcbp/protocol/opcode.h>
-#include <mcbp/protocol/request.h>
 
 /**
  * SaslRefreshCommandContext is responsible for handling the
@@ -20,14 +19,12 @@
  * it'll offload the task to another thread to do the actual work which
  * notifies the command cookie when it's done.
  */
-class SaslRefreshCommandContext : public FileReloadCommandContext {
+class SaslRefreshCommandContext : public BackgroundThreadCommandContext {
 public:
-    explicit SaslRefreshCommandContext(Cookie& cookie)
-        : FileReloadCommandContext(cookie) {
-    }
+    explicit SaslRefreshCommandContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc reload() override;
+    cb::engine_errc execute() override;
 
 private:
     cb::engine_errc doSaslRefresh();

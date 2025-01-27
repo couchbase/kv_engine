@@ -18,45 +18,17 @@
 #include <executor/executorpool.h>
 
 SetActiveEncryptionKeysContext::SetActiveEncryptionKeysContext(Cookie& cookie)
-    : SteppableCommandContext(cookie),
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::Core_SetActiveEncryptionKeys,
+              "SetActiveEncryptionKeys",
+              ConcurrencySemaphores::instance()
+                      .encryption_and_snapshot_management),
       json(nlohmann::json::parse(cookie.getRequest().getValueString())),
       entity(cookie.getRequest().getKeyString()) {
 }
 
-cb::engine_errc SetActiveEncryptionKeysContext::step() {
-    auto ret = cb::engine_errc::success;
-    do {
-        switch (state) {
-        case State::Done:
-            return done();
-
-        case State::ScheduleTask:
-            ret = scheduleTask();
-            break;
-        }
-    } while (ret == cb::engine_errc::success);
-    return ret;
-}
-
-cb::engine_errc SetActiveEncryptionKeysContext::scheduleTask() {
-    auto& semaphore = ConcurrencySemaphores::instance()
-                              .encryption_and_snapshot_management;
-
-    ExecutorPool::get()->schedule(
-            std::make_shared<OneShotLimitedConcurrencyTask>(
-                    TaskId::Core_SetActiveEncryptionKeys,
-                    "SetActiveEncryptionKeys",
-                    [this]() {
-                        execute();
-                        cookie.notifyIoComplete(cb::engine_errc::success);
-                    },
-                    semaphore));
-
-    state = State::Done;
-    return cb::engine_errc::would_block;
-}
-
-void SetActiveEncryptionKeysContext::execute() {
+cb::engine_errc SetActiveEncryptionKeysContext::execute() {
     try {
         if (entity.front() == '@') {
             using namespace std::string_view_literals;
@@ -100,9 +72,5 @@ void SetActiveEncryptionKeysContext::execute() {
                     {"error", e.what()});
         }
     }
-}
-
-cb::engine_errc SetActiveEncryptionKeysContext::done() const {
-    cookie.sendResponse(status);
-    return cb::engine_errc::success;
+    return status;
 }

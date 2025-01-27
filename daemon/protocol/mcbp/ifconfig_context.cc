@@ -13,127 +13,57 @@
 #include <daemon/connection.h>
 #include <daemon/memcached.h>
 #include <daemon/network_interface_manager.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
-#include <executor/executorpool.h>
 
-cb::engine_errc IfconfigCommandContext::scheduleTask() {
-    const std::string_view key = cookie.getRequest().getKeyString();
-    std::string value(cookie.getRequest().getValueString());
-    auto& semaphore = ConcurrencySemaphores::instance().ifconfig;
-
-    if (key == "define") {
-        ExecutorPool::get()->schedule(
-                std::make_shared<OneShotLimitedConcurrencyTask>(
-                        TaskId::Core_Ifconfig,
-                        "Ifconfig define",
-                        [this, spec = std::move(value)]() {
-                            auto json = nlohmann::json::parse(spec);
-                            auto [s, p] =
-                                    networkInterfaceManager->defineInterface(
-                                            json);
-                            status = s;
-                            payload = std::move(p);
-                            cookie.notifyIoComplete(cb::engine_errc::success);
-                        },
-                        semaphore));
-    } else if (key == "delete") {
-        ExecutorPool::get()->schedule(
-                std::make_shared<OneShotLimitedConcurrencyTask>(
-                        TaskId::Core_Ifconfig,
-                        "Ifconfig delete",
-                        [this, uuid = std::move(value)]() {
-                            auto [s, p] =
-                                    networkInterfaceManager->deleteInterface(
-                                            uuid);
-                            status = s;
-                            payload = std::move(p);
-                            cookie.notifyIoComplete(cb::engine_errc::success);
-                        },
-                        semaphore));
-    } else if (key == "list") {
-        ExecutorPool::get()->schedule(
-                std::make_shared<OneShotLimitedConcurrencyTask>(
-                        TaskId::Core_Ifconfig,
-                        "Ifconfig list",
-                        [this]() {
-                            auto [s, p] =
-                                    networkInterfaceManager->listInterface();
-                            status = s;
-                            payload = std::move(p);
-                            cookie.notifyIoComplete(cb::engine_errc::success);
-                        },
-                        semaphore));
-    } else if (key == "tls") {
-        if (value.empty()) {
-            ExecutorPool::get()->schedule(
-                    std::make_shared<OneShotLimitedConcurrencyTask>(
-                            TaskId::Core_Ifconfig,
-                            "Ifconfig get TLS configuration",
-                            [this]() {
-                                auto [s, p] =
-                                        networkInterfaceManager->getTlsConfig();
-                                status = s;
-                                payload = std::move(p);
-                                cookie.notifyIoComplete(
-                                        cb::engine_errc::success);
-                            },
-                            semaphore));
-        } else {
-            ExecutorPool::get()->schedule(
-                    std::make_shared<OneShotLimitedConcurrencyTask>(
-                            TaskId::Core_Ifconfig,
-                            "Ifconfig set TLS configuration",
-                            [this, spec = std::move(value)]() {
-                                auto json = nlohmann::json::parse(spec);
-                                auto [s, p] =
-                                        networkInterfaceManager
-                                                ->reconfigureTlsConfig(json);
-                                status = s;
-                                payload = std::move(p);
-                                cookie.notifyIoComplete(
-                                        cb::engine_errc::success);
-                            },
-                            semaphore));
-        }
-    } else {
-        throw std::runtime_error(
-                "IfconfigCommandContext::scheduleTask(): unknown command");
-    }
-
-    state = State::Done;
-    return cb::engine_errc::would_block;
+IfconfigCommandContext::IfconfigCommandContext(Cookie& cookie)
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::Core_Ifconfig,
+              fmt::format("Ifconfig {}", cookie.getRequest().getKeyString()),
+              ConcurrencySemaphores::instance().ifconfig) {
 }
 
-cb::engine_errc IfconfigCommandContext::done() {
-    if (status != cb::mcbp::Status::Success) {
-        cookie.setErrorContext(std::string{payload.data(), payload.size()});
+cb::engine_errc IfconfigCommandContext::execute() {
+    auto ret = doExecute();
+    if (!response.empty()) {
+        datatype = cb::mcbp::Datatype::JSON;
     }
-    cookie.sendResponse(status,
-                        {},
-                        {},
-                        payload,
-                        payload.empty() ? cb::mcbp::Datatype::Raw
-                                        : cb::mcbp::Datatype::JSON,
-                        cb::mcbp::cas::Wildcard);
-    return cb::engine_errc::success;
-}
-
-cb::engine_errc IfconfigCommandContext::step() {
-    auto ret = cb::engine_errc::success;
-    do {
-        switch (state) {
-        case State::Done:
-            return done();
-
-        case State::scheduleTask:
-            ret = scheduleTask();
-            break;
-        }
-    } while (ret == cb::engine_errc::success);
-
     return ret;
 }
 
-IfconfigCommandContext::IfconfigCommandContext(Cookie& cookie)
-    : SteppableCommandContext(cookie) {
+cb::engine_errc IfconfigCommandContext::doExecute() {
+    const auto key = cookie.getRequest().getKeyString();
+    const auto value = cookie.getRequest().getValueString();
+
+    if (key == "define") {
+        auto json = nlohmann::json::parse(value);
+        auto [s, p] = networkInterfaceManager->defineInterface(json);
+        response = std::move(p);
+        return s;
+    }
+
+    if (key == "delete") {
+        auto [s, p] =
+                networkInterfaceManager->deleteInterface(std::string(value));
+        response = std::move(p);
+        return s;
+    }
+
+    if (key == "list") {
+        auto [s, p] = networkInterfaceManager->listInterface();
+        response = std::move(p);
+        return s;
+    }
+
+    // The validator blocked all other keys
+    Expects(key == "tls");
+    if (value.empty()) {
+        auto [s, p] = networkInterfaceManager->getTlsConfig();
+        response = std::move(p);
+        return s;
+    }
+
+    auto json = nlohmann::json::parse(value);
+    auto [s, p] = networkInterfaceManager->reconfigureTlsConfig(json);
+    response = std::move(p);
+    return s;
 }

@@ -9,7 +9,9 @@
  */
 #pragma once
 
-#include "steppable_command_context.h"
+#include "background_thread_command_context.h"
+#include <folly/Synchronized.h>
+#include <atomic>
 
 namespace cb::mcbp {
 enum class Status : uint16_t;
@@ -19,23 +21,11 @@ enum class Status : uint16_t;
  * The IfconfigCommandContext is a state machine used by the memcached
  * core to implement the "ifconfig" operation(s)
  */
-class IfconfigCommandContext : public SteppableCommandContext {
+class IfconfigCommandContext : public BackgroundThreadCommandContext {
 public:
-    // The internal states. Look at the function headers below to
-    // for the functions with the same name to figure out what each
-    // state does
-    enum class State { scheduleTask, Done };
-
     explicit IfconfigCommandContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc step() override;
-
-    cb::engine_errc scheduleTask();
-    cb::engine_errc done();
-
-    State state = State::scheduleTask;
-
-    cb::mcbp::Status status;
-    std::string payload;
+    cb::engine_errc execute() override;
+    cb::engine_errc doExecute();
 };

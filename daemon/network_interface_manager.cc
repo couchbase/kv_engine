@@ -90,7 +90,7 @@ void NetworkInterfaceManager::createBootstrapInterface() {
                                      bool required) {
                 try {
                     auto [status, error] = doDefineInterface(spec);
-                    if (status != cb::mcbp::Status::Success && required) {
+                    if (status != cb::engine_errc::success && required) {
                         FATAL_ERROR(EXIT_FAILURE,
                                     "Failed to create required listening "
                                     "socket: \"{}\". Errors: {}. Terminating.",
@@ -365,15 +365,15 @@ NetworkInterfaceManager::createInterface(
                                                           std::move(errors));
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::defineInterface(const nlohmann::json& spec) {
-    std::pair<cb::mcbp::Status, std::string> ret;
+    std::pair<cb::engine_errc, std::string> ret;
     eventBase.runInEventBaseThreadAndWait(
             [this, &spec, &ret]() { ret = doDefineInterface(spec); });
     return ret;
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
     if (!eventBase.isInEventBaseThread()) {
         throw std::logic_error(
@@ -387,7 +387,7 @@ NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
     if (descr.getType() == NetworkInterfaceDescription::Type::Prometheus) {
         const auto prometheus = cb::prometheus::getRunningConfigAsJson();
         if (!prometheus.empty()) {
-            return {cb::mcbp::Status::KeyEexists, {}};
+            return {cb::engine_errc::key_already_exists, {}};
         }
         try {
             const auto port = prometheus_init(
@@ -395,9 +395,9 @@ NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
             nlohmann::json json;
             json["errors"] = nlohmann::json::array();
             json["ports"].push_back(port);
-            return {cb::mcbp::Status::Success, json.dump(2)};
+            return {cb::engine_errc::success, json.dump(2)};
         } catch (const std::exception& e) {
-            return {cb::mcbp::Status::Einternal, e.what()};
+            return {cb::engine_errc::failed, e.what()};
         }
         // not reached
     }
@@ -409,7 +409,7 @@ NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
             const auto& d = c->getInterfaceDescription();
             if (d.port == descr.getPort() && d.family == descr.getFamily() &&
                 d.getHostname() == descr.getHostname()) {
-                return {cb::mcbp::Status::KeyEexists, {}};
+                return {cb::engine_errc::key_already_exists, {}};
             }
         }
     }
@@ -420,28 +420,28 @@ NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
             nlohmann::json json;
             json["error"]["context"] = "Failed to create any ports";
             json["error"]["errors"] = std::move(errors);
-            return {cb::mcbp::Status::KeyEnoent, json.dump(2)};
+            return {cb::engine_errc::no_such_key, json.dump(2)};
         }
 
         nlohmann::json json;
         json["ports"] = std::move(result);
         json["errors"] = std::move(errors);
         writeInterfaceFile(false);
-        return {cb::mcbp::Status::Success, json.dump()};
+        return {cb::engine_errc::success, json.dump()};
     } catch (const std::exception& exception) {
-        return {cb::mcbp::Status::Einternal, exception.what()};
+        return {cb::engine_errc::failed, exception.what()};
     }
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::deleteInterface(const std::string& uuid) {
-    std::pair<cb::mcbp::Status, std::string> ret;
+    std::pair<cb::engine_errc, std::string> ret;
     eventBase.runInEventBaseThreadAndWait(
             [this, &uuid, &ret]() { ret = doDeleteInterface(uuid); });
     return ret;
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
     if (!eventBase.isInEventBaseThread()) {
         throw std::logic_error(
@@ -455,14 +455,14 @@ NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
             if (listen_conn.size() == 1) {
                 nlohmann::json json;
                 json["error"]["context"] = "Can't delete the last interface";
-                return {cb::mcbp::Status::Eaccess, json.dump()};
+                return {cb::engine_errc::no_access, json.dump()};
             }
 
             listen_conn.erase(iter);
             writeInterfaceFile(false);
             iterate_all_connections(
                     [](auto& conn) { conn.reEvaluateParentPort(); });
-            return {cb::mcbp::Status::Success, {}};
+            return {cb::engine_errc::success, {}};
         }
     }
 
@@ -470,21 +470,21 @@ NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
     if (!prometheus.empty() && prometheus["uuid"] == uuid) {
         cb::prometheus::shutdown();
         writeInterfaceFile(false);
-        return {cb::mcbp::Status::Success, {}};
+        return {cb::engine_errc::success, {}};
     }
 
-    return {cb::mcbp::Status::KeyEnoent, {}};
+    return {cb::engine_errc::no_such_key, {}};
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::listInterface() {
-    std::pair<cb::mcbp::Status, std::string> ret;
+    std::pair<cb::engine_errc, std::string> ret;
     eventBase.runInEventBaseThreadAndWait(
             [this, &ret]() { ret = doListInterface(); });
     return ret;
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::doListInterface() {
     if (!eventBase.isInEventBaseThread()) {
         throw std::logic_error(
@@ -504,36 +504,36 @@ NetworkInterfaceManager::doListInterface() {
         ret.push_back(std::move(prometheus));
     }
 
-    return {cb::mcbp::Status::Success, ret.dump(2)};
+    return {cb::engine_errc::success, ret.dump(2)};
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::getTlsConfig() {
     try {
-        return tlsConfiguration.withRLock([](auto& config)
-                                                  -> std::pair<cb::mcbp::Status,
-                                                               std::string> {
-            if (config) {
-                return {cb::mcbp::Status::Success, config->to_json().dump(2)};
-            }
-            return {cb::mcbp::Status::KeyEnoent, ""};
-        });
+        return tlsConfiguration.withRLock(
+                [](auto& config) -> std::pair<cb::engine_errc, std::string> {
+                    if (config) {
+                        return {cb::engine_errc::success,
+                                config->to_json().dump(2)};
+                    }
+                    return {cb::engine_errc::no_such_key, ""};
+                });
     } catch (const std::exception& e) {
-        return {cb::mcbp::Status::Einternal, e.what()};
+        return {cb::engine_errc::failed, e.what()};
     }
 }
 
-std::pair<cb::mcbp::Status, std::string>
+std::pair<cb::engine_errc, std::string>
 NetworkInterfaceManager::reconfigureTlsConfig(const nlohmann::json& spec) {
     try {
         auto next = std::make_unique<TlsConfiguration>(spec);
         auto desc = next->to_json();
         tlsConfiguration.wlock()->swap(next);
         LOG_INFO_CTX("TLS configuration changed", desc);
-        return {cb::mcbp::Status::Success, desc.dump()};
+        return {cb::engine_errc::success, desc.dump()};
     } catch (const std::exception& e) {
         LOG_WARNING_CTX("TLS configuration failed", {"error", e.what()});
-        return {cb::mcbp::Status::Einternal, e.what()};
+        return {cb::engine_errc::failed, e.what()};
     }
 }
 

@@ -13,12 +13,10 @@
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
-#include <executor/executorpool.h>
 #include <logger/logger.h>
 
-cb::engine_errc RbacReloadCommandContext::doRbacReload() {
+cb::engine_errc RbacReloadCommandContext::execute() {
     try {
         LOG_INFO_CTX("Loading RBAC configuration",
                      {"conn_id", connection.getId()},
@@ -45,19 +43,10 @@ cb::engine_errc RbacReloadCommandContext::doRbacReload() {
     return cb::engine_errc::failed;
 }
 
-cb::engine_errc RbacReloadCommandContext::reload() {
-    ExecutorPool::get()->schedule(
-            std::make_shared<OneShotLimitedConcurrencyTask>(
-                    TaskId::Core_RbacReloadTask,
-                    "Refresh RBAC database",
-                    [this]() {
-                        try {
-                            cookie.notifyIoComplete(doRbacReload());
-                        } catch (const std::bad_alloc&) {
-                            cookie.notifyIoComplete(cb::engine_errc::no_memory);
-                        }
-                    },
-                    ConcurrencySemaphores::instance().rbac_reload));
-
-    return cb::engine_errc::would_block;
+RbacReloadCommandContext::RbacReloadCommandContext(Cookie& cookie)
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::Core_RbacReloadTask,
+              "Refresh RBAC database",
+              ConcurrencySemaphores::instance().rbac_reload) {
 }

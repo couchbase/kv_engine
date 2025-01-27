@@ -13,10 +13,16 @@
 #include <cbsasl/mechanism.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
-#include <executor/executorpool.h>
 #include <logger/logger.h>
+
+SaslRefreshCommandContext::SaslRefreshCommandContext(Cookie& cookie)
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::Core_SaslRefreshTask,
+              "Refresh SASL database",
+              ConcurrencySemaphores::instance().sasl_reload) {
+}
 
 cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
     try {
@@ -65,19 +71,10 @@ cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
     return cb::engine_errc::failed;
 }
 
-cb::engine_errc SaslRefreshCommandContext::reload() {
-    ExecutorPool::get()->schedule(
-            std::make_shared<OneShotLimitedConcurrencyTask>(
-                    TaskId::Core_SaslRefreshTask,
-                    "Refresh SASL database",
-                    [this]() {
-                        try {
-                            cookie.notifyIoComplete(doSaslRefresh());
-                        } catch (const std::bad_alloc&) {
-                            cookie.notifyIoComplete(cb::engine_errc::no_memory);
-                        }
-                    },
-                    ConcurrencySemaphores::instance().sasl_reload));
-
-    return cb::engine_errc::would_block;
+cb::engine_errc SaslRefreshCommandContext::execute() {
+    try {
+        return doSaslRefresh();
+    } catch (const std::bad_alloc&) {
+        return cb::engine_errc::no_memory;
+    }
 }

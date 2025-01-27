@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "steppable_command_context.h"
+#include "background_thread_command_context.h"
 
 /**
  * Implementation of the "ReleaseSnapshot" command.
@@ -21,17 +21,12 @@
  * in the thread pool to perform the actual IO before being rescheduled
  * to send the reply back to the client.
  */
-class ReleaseSnapshotContext : public SteppableCommandContext {
+class ReleaseSnapshotContext : public BackgroundThreadCommandContext {
 public:
-    enum class State : uint8_t { Initialize, Done };
-
     explicit ReleaseSnapshotContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc step() override;
-    cb::engine_errc initialize();
-
+    cb::engine_errc execute() override;
     const std::string uuid;
     const Vbid vbid;
-    State state = State::Initialize;
 };

@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include "file_reload_command_context.h"
+#include "background_thread_command_context.h"
 
 /**
  * RbacReloadCommandContext is responsible for handling the
@@ -17,15 +17,10 @@
  * it'll offload the task to another thread to do the
  * actual work which notifies the command cookie when it's done.
  */
-class RbacReloadCommandContext : public FileReloadCommandContext {
+class RbacReloadCommandContext : public BackgroundThreadCommandContext {
 public:
-    explicit RbacReloadCommandContext(Cookie& cookie)
-        : FileReloadCommandContext(cookie) {
-    }
+    explicit RbacReloadCommandContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc reload() override;
-
-private:
-    cb::engine_errc doRbacReload();
+    cb::engine_errc execute() override;
 };

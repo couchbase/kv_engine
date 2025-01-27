@@ -17,15 +17,17 @@
 #include <daemon/memcached.h>
 #include <daemon/network_interface_description.h>
 #include <daemon/network_interface_manager.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
 #include <dek/manager.h>
-#include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <platform/dirutils.h>
 
 SettingsReloadCommandContext::SettingsReloadCommandContext(Cookie& cookie)
-    : FileReloadCommandContext(cookie) {
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::Core_SettingsReloadTask,
+              "Reload memcached.json",
+              ConcurrencySemaphores::instance().settings) {
 }
 
 class NetworkInterfaceManagerException : public std::runtime_error {
@@ -43,7 +45,7 @@ public:
 std::vector<NetworkInterfaceDescription>
 SettingsReloadCommandContext::getInterfaces() {
     auto [status, list] = networkInterfaceManager->listInterface();
-    if (status != cb::mcbp::Status::Success) {
+    if (status != cb::engine_errc::success) {
         throw std::runtime_error("Failed to fetch the list of interfaces: " +
                                  to_string(status));
     }
@@ -57,7 +59,7 @@ SettingsReloadCommandContext::getInterfaces() {
 
 void SettingsReloadCommandContext::deleteInterface(const std::string& uuid) {
     auto [status, error] = networkInterfaceManager->deleteInterface(uuid);
-    if (status != cb::mcbp::Status::Success) {
+    if (status != cb::engine_errc::success) {
         throw NetworkInterfaceManagerException(
                 "Failed to delete interface " + uuid + ": " + to_string(status),
                 nlohmann::json::parse(error));
@@ -66,7 +68,7 @@ void SettingsReloadCommandContext::deleteInterface(const std::string& uuid) {
 
 void SettingsReloadCommandContext::createInterface(const nlohmann::json& spec) {
     auto [status, error] = networkInterfaceManager->defineInterface(spec);
-    if (status != cb::mcbp::Status::Success) {
+    if (status != cb::engine_errc::success) {
         auto json = nlohmann::json::parse(error);
         json["spec"] = spec;
         throw NetworkInterfaceManagerException(
@@ -201,7 +203,7 @@ void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
     }
 }
 
-cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
+cb::engine_errc SettingsReloadCommandContext::execute() {
     try {
         LOG_INFO_CTX("Reloading config file",
                      {"config_file", get_config_file()});
@@ -274,14 +276,4 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
                     {"config_file", get_config_file()},
                     {"error_context", cookie.getErrorContext()});
     return cb::engine_errc::failed;
-}
-
-cb::engine_errc SettingsReloadCommandContext::reload() {
-    ExecutorPool::get()->schedule(
-            std::make_shared<OneShotLimitedConcurrencyTask>(
-                    TaskId::Core_SettingsReloadTask,
-                    "Reload memcached.json",
-                    [this]() { cookie.notifyIoComplete(doSettingsReload()); },
-                    ConcurrencySemaphores::instance().settings));
-    return cb::engine_errc::would_block;
 }

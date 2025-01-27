@@ -7,46 +7,33 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #include "sync_fusion_logstore_command_context.h"
 
 #include <daemon/buckets.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
-#include <daemon/one_shot_limited_concurrency_task.h>
-#include <executor/executorpool.h>
+#include <logger/logger.h>
 #include <memcached/engine.h>
 
 SyncFusionLogstoreCommandContext::SyncFusionLogstoreCommandContext(
         Cookie& cookie)
-    : SteppableCommandContext(cookie), vbid(cookie.getRequest().getVBucket()) {
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::SyncFusionLogstore,
+              fmt::format("SyncFusionLogstore {}",
+                          cookie.getRequest().getVBucket()),
+              ConcurrencySemaphores::instance().fusion_management),
+      vbid(cookie.getRequest().getVBucket()) {
 }
-cb::engine_errc SyncFusionLogstoreCommandContext::step() {
-    if (completed) {
-        // Note: SteppableCommandContext::drive handles non-successful
-        // executions and doesn't execute here at all in that case
-        cookie.sendResponse(cb::engine_errc::success);
-        return cb::engine_errc::success;
-    }
 
-    const auto func = [this]() -> void {
-        try {
-            completed = true;
-            auto& engine = cookie.getConnection().getBucketEngine();
-            const auto res = engine.syncFusionLogstore(vbid);
-            cookie.notifyIoComplete(res);
-        } catch (const std::exception& e) {
-            LOG_WARNING_CTX("SyncFusionLogstoreCommandContext: ",
-                            {"error", e.what()});
-            cookie.setErrorContext(e.what());
-            cookie.notifyIoComplete(cb::engine_errc::failed);
-        }
-    };
-    const auto task = std::make_shared<OneShotLimitedConcurrencyTask>(
-            TaskId::SyncFusionLogstore,
-            "SyncFusionLogstore " + to_string(vbid),
-            func,
-            ConcurrencySemaphores::instance().fusion_management);
-    ExecutorPool::get()->schedule(task);
-    return cb::engine_errc::would_block;
+cb::engine_errc SyncFusionLogstoreCommandContext::execute() {
+    try {
+        auto& engine = cookie.getConnection().getBucketEngine();
+        return engine.syncFusionLogstore(vbid);
+    } catch (const std::exception& e) {
+        LOG_WARNING_CTX("SyncFusionLogstoreCommandContext: ",
+                        {"error", e.what()});
+        response = fmt::format("Failed: {}", e.what());
+    }
+    return cb::engine_errc::failed;
 }

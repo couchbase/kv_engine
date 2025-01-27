@@ -19,58 +19,33 @@
 #include <memcached/engine.h>
 
 PrepareSnapshotContext::PrepareSnapshotContext(Cookie& cookie)
-    : SteppableCommandContext(cookie), vb(cookie.getRequest().getVBucket()) {
+    : BackgroundThreadCommandContext(
+              cookie,
+              TaskId::Core_PrepareSnapshotTask,
+              "Prepare Snapshot",
+              ConcurrencySemaphores::instance()
+                      .encryption_and_snapshot_management),
+      vb(cookie.getRequest().getVBucket()) {
 }
 
-cb::engine_errc PrepareSnapshotContext::step() {
-    auto ret = cb::engine_errc::success;
-    while (ret == cb::engine_errc::success) {
-        switch (state) {
-        case State::Initialize:
-            ret = initialize();
-            break;
-        case State::Done:
-            return done();
+cb::engine_errc PrepareSnapshotContext::execute() {
+    try {
+        auto ret = doCreateSnapshot();
+        if (!response.empty()) {
+            datatype = cb::mcbp::Datatype::JSON;
         }
+        return ret;
+    } catch (const std::exception& e) {
+        response = fmt::format("Failed: {}", e.what());
     }
-    return ret;
-}
 
-cb::engine_errc PrepareSnapshotContext::initialize() {
-    ExecutorPool::get()->schedule(
-            std::make_shared<OneShotLimitedConcurrencyTask>(
-                    TaskId::Core_PrepareSnapshotTask,
-                    "Prepare Snapshot",
-                    [this]() {
-                        try {
-                            cookie.notifyIoComplete(doCreateSnapshot());
-                        } catch (const std::exception& e) {
-                            cookie.setErrorContext(
-                                    fmt::format("Failed: {}", e.what()));
-                            cookie.notifyIoComplete(cb::engine_errc::failed);
-                        }
-                    },
-                    ConcurrencySemaphores::instance()
-                            .encryption_and_snapshot_management));
-
-    return cb::engine_errc::would_block;
+    return cb::engine_errc::failed;
 }
 
 cb::engine_errc PrepareSnapshotContext::doCreateSnapshot() {
     auto& engine = connection.getBucket().getEngine();
-    state = State::Done;
     return engine.prepare_snapshot(
             cookie, vb, [this](const nlohmann::json& json) {
-                snapshot = json;
+                response = json.dump();
             });
-}
-
-cb::engine_errc PrepareSnapshotContext::done() {
-    cookie.sendResponse(cb::mcbp::Status::Success,
-                        {},
-                        {},
-                        snapshot.rlock()->dump(),
-                        cb::mcbp::Datatype::JSON,
-                        0);
-    return cb::engine_errc::success;
 }

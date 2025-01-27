@@ -9,33 +9,21 @@
  */
 #pragma once
 
+#include "background_thread_command_context.h"
 #include "steppable_command_context.h"
 
 /**
  * The SetActiveEncryptionKeysContext is a state machine used by the memcached
  * core to implement the "SetActiveEncryptionKeys" operation
  */
-class SetActiveEncryptionKeysContext : public SteppableCommandContext {
+class SetActiveEncryptionKeysContext : public BackgroundThreadCommandContext {
 public:
-    enum class State {
-        /// In the schedule task state the task is scheduled on the
-        /// executor pool and continues to the "Done" state
-        ScheduleTask,
-        /// In the done state the result of the operation is sent to the client
-        Done
-    };
-
     explicit SetActiveEncryptionKeysContext(Cookie& cookie);
 
 protected:
     // Execute the operation when running on the executor
-    void execute();
+    cb::engine_errc execute() override;
 
-    cb::engine_errc step() override;
-    cb::engine_errc scheduleTask();
-    cb::engine_errc done() const;
     const nlohmann::json json;
     const std::string entity;
-    cb::engine_errc status = cb::engine_errc::invalid_arguments;
-    State state = State::ScheduleTask;
 };

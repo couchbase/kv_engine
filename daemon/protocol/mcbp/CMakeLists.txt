@@ -6,6 +6,8 @@ add_library(memcached_daemon_mcbp OBJECT
         arithmetic_context.h
         audit_configure_context.cc
         audit_configure_context.h
+        background_thread_command_context.cc
+        background_thread_command_context.h
         bucket_management_command_context.cc
         bucket_management_command_context.h
         cluster_config_executor.cc

@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "background_thread_command_context.h"
 #include "steppable_command_context.h"
 #include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
@@ -36,18 +37,14 @@
  * the snapshot and write the manifest file before being rescheduled to send
  * the manifest back to the client.
  */
-class PrepareSnapshotContext : public SteppableCommandContext {
+class PrepareSnapshotContext : public BackgroundThreadCommandContext {
 public:
-    enum class State : uint8_t { Initialize, Done };
-
     explicit PrepareSnapshotContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc step() override;
-    cb::engine_errc initialize();
-    cb::engine_errc done();
+    cb::engine_errc execute() override;
+
+private:
     cb::engine_errc doCreateSnapshot();
     const Vbid vb;
-    folly::Synchronized<nlohmann::json> snapshot;
-    State state = State::Initialize;
 };

@@ -8,18 +8,17 @@
  *   the file licenses/APL2.txt.
  */
 #pragma once
-#include "steppable_command_context.h"
+#include "background_thread_command_context.h"
 
 /**
  * Command context for executing SyncFusionLogstore requests in a AUXIO
  * bg-thread and avoiding blocking IO in frontend threads.
  */
-class SyncFusionLogstoreCommandContext : public SteppableCommandContext {
+class SyncFusionLogstoreCommandContext : public BackgroundThreadCommandContext {
 public:
     explicit SyncFusionLogstoreCommandContext(Cookie& cookie);
 
 protected:
-    cb::engine_errc step() override;
-    bool completed = false;
+    cb::engine_errc execute() override;
     const Vbid vbid;
 };

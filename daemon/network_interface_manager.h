@@ -56,13 +56,13 @@ public:
     // Check to see if TLS is configured or not
     bool isTlsConfigured();
 
-    std::pair<cb::mcbp::Status, std::string> getTlsConfig();
-    std::pair<cb::mcbp::Status, std::string> reconfigureTlsConfig(
+    std::pair<cb::engine_errc, std::string> getTlsConfig();
+    std::pair<cb::engine_errc, std::string> reconfigureTlsConfig(
             const nlohmann::json& spec);
-    std::pair<cb::mcbp::Status, std::string> listInterface();
-    std::pair<cb::mcbp::Status, std::string> defineInterface(
+    std::pair<cb::engine_errc, std::string> listInterface();
+    std::pair<cb::engine_errc, std::string> defineInterface(
             const nlohmann::json& spec);
-    std::pair<cb::mcbp::Status, std::string> deleteInterface(
+    std::pair<cb::engine_errc, std::string> deleteInterface(
             const std::string& uuid);
 
     uniqueSslPtr createClientSslHandle();
@@ -70,10 +70,10 @@ public:
     std::size_t getNumberOfDaemonConnections() const;
 
 protected:
-    std::pair<cb::mcbp::Status, std::string> doListInterface();
-    std::pair<cb::mcbp::Status, std::string> doDeleteInterface(
+    std::pair<cb::engine_errc, std::string> doListInterface();
+    std::pair<cb::engine_errc, std::string> doDeleteInterface(
             const std::string& uuid);
-    std::pair<cb::mcbp::Status, std::string> doDefineInterface(
+    std::pair<cb::engine_errc, std::string> doDefineInterface(
             const nlohmann::json& spec);
 
     /**
