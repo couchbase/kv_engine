@@ -18,6 +18,7 @@
 #include "diskdockey.h"
 #include "ep_types.h"
 #include "objectregistry.h"
+#include "stored_value_factories.h"
 
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
@@ -260,3 +261,103 @@ std::string generateNexusConfig(std::string_view testConfig);
  * @return config string
  */
 std::string sanitizeTestParamConfigString(std::string_view config);
+
+namespace cb::testing::sv {
+
+/// Whether there is a value.
+enum HasValue { No, Yes, Any };
+std::vector<HasValue> hasValueValues(HasValue hasValue);
+
+/// Whether the value is resident.
+enum class Resident { No, Yes, Any };
+std::vector<Resident> residentValues(Resident resident);
+
+/// Sets the clean/dirty flag.
+enum class Persisted { No, Yes, Any };
+std::vector<Persisted> persistedValues(Persisted persisted);
+
+/// Sets the deleted flag.
+enum class Deleted { No, Yes, Any };
+std::vector<Deleted> deletedValues(Deleted deleted);
+
+enum class Expired { No, Yes, Any };
+std::vector<Expired> expiredValues(Expired expired);
+
+enum class Locked { No, Yes, Any };
+std::vector<Locked> lockedValues(Locked locked);
+
+std::vector<protocol_binary_datatype_t> datatypeValues(
+        protocol_binary_datatype_t datatype);
+
+/// Sets the states distiniguished by special seqno values.
+enum class State {
+    Document = 0b0001,
+    TempInitial = 0b0010,
+    TempDeleted = 0b0100,
+    TempNonExistent = 0b1000,
+    Temp = TempInitial | TempDeleted | TempNonExistent,
+    Any = Document | TempInitial | TempDeleted | TempNonExistent,
+};
+std::vector<State> stateValues(State state);
+
+/**
+ * Creates an [Ordered]StoredValue from the given factory and with the given
+ * properties.
+ * Note that none of the values are allowed to be 'Any'.
+ */
+StoredValue::UniquePtr createWithFactory(AbstractStoredValueFactory& factory,
+                                         const DocKeyView& key,
+                                         State state,
+                                         HasValue value,
+                                         protocol_binary_datatype_t datatype,
+                                         Resident resident,
+                                         Persisted persisted,
+                                         Deleted deleted,
+                                         Expired expired,
+                                         Locked locked);
+
+/**
+ * Creates a StoredValue from the default factory and with the given properties.
+ * Note that none of the values are allowed to be 'Any'.
+ */
+StoredValue::UniquePtr create(const DocKeyView& key,
+                              State state,
+                              HasValue value,
+                              protocol_binary_datatype_t datatype,
+                              Resident resident,
+                              Persisted persisted,
+                              Deleted deleted,
+                              Expired expired,
+                              Locked locked);
+
+/**
+ * Creates all possible types of StoredValues matching the given properties.
+ * Note this is a very large number of combinations - 115 currently.
+ */
+std::vector<StoredValue::UniquePtr> createAllWithFactory(
+        AbstractStoredValueFactory& factory,
+        const DocKeyView& key,
+        State state = State::Any,
+        HasValue value = HasValue::Any,
+        protocol_binary_datatype_t datatype = cb::mcbp::datatype::highest,
+        Resident resident = Resident::Any,
+        Persisted persisted = Persisted::Any,
+        Deleted deleted = Deleted::Any,
+        Expired expired = Expired::Any,
+        Locked locked = Locked::Any);
+
+/**
+ * Creates all possible types of StoredValues matching the given properties.
+ * Note this is a very large number of combinations - 115 currently.
+ */
+std::vector<StoredValue::UniquePtr> createAll(
+        const DocKeyView& key,
+        State state = State::Any,
+        HasValue value = HasValue::Any,
+        protocol_binary_datatype_t datatype = cb::mcbp::datatype::highest,
+        Resident resident = Resident::Any,
+        Persisted persisted = Persisted::Any,
+        Deleted deleted = Deleted::Any,
+        Expired expired = Expired::Any,
+        Locked locked = Locked::Any);
+} // namespace cb::testing::sv

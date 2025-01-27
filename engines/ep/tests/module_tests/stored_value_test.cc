@@ -384,6 +384,20 @@ TYPED_TEST(ValueTest, freqCounterNotReset) {
     EXPECT_EQ(10, this->sv->getFreqCounterValue());
 }
 
+TYPED_TEST(ValueTest, generateValidCombinations) {
+    auto c = cb::testing::sv::createAllWithFactory(this->factory,
+                                                   makeStoredDocKey("key"));
+    EXPECT_EQ(339, c.size())
+            << "Unexpected number of possible StoredValue combinations!";
+    if (::testing::Test::HasFailure()) {
+        std::stringstream ss;
+        for (auto& sv : c) {
+            ss << *sv << '\n';
+        }
+        ADD_FAILURE() << ss.str();
+    }
+}
+
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {

@@ -359,3 +359,291 @@ std::string generateNexusConfig(std::string_view config) {
 
     return configString;
 }
+
+namespace cb::testing::sv {
+
+std::vector<HasValue> hasValueValues(HasValue hasValue) {
+    return hasValue == HasValue::Any ? std::vector{HasValue::Yes, HasValue::No}
+                                     : std::vector{hasValue};
+}
+
+std::vector<Resident> residentValues(Resident resident) {
+    return resident == Resident::Any ? std::vector{Resident::Yes, Resident::No}
+                                     : std::vector{resident};
+}
+
+std::vector<Persisted> persistedValues(Persisted persisted) {
+    return persisted == Persisted::Any
+                   ? std::vector{Persisted::Yes, Persisted::No}
+                   : std::vector{persisted};
+}
+
+std::vector<Deleted> deletedValues(Deleted deleted) {
+    return deleted == Deleted::Any ? std::vector{Deleted::Yes, Deleted::No}
+                                   : std::vector{deleted};
+}
+
+std::vector<Expired> expiredValues(Expired expired) {
+    return expired == Expired::Any ? std::vector{Expired::Yes, Expired::No}
+                                   : std::vector{expired};
+}
+
+std::vector<Locked> lockedValues(Locked locked) {
+    return locked == Locked::Any ? std::vector{Locked::Yes, Locked::No}
+                                 : std::vector{locked};
+}
+
+std::vector<protocol_binary_datatype_t> datatypeValues(
+        protocol_binary_datatype_t datatype) {
+    std::vector<protocol_binary_datatype_t> results;
+    for (protocol_binary_datatype_t i = 0; i < cb::mcbp::datatype::highest;
+         i++) {
+        if ((i & datatype) == i) {
+            results.push_back(i);
+        }
+    }
+    return results;
+}
+
+std::vector<State> stateValues(State state) {
+    std::vector<State> stateValues;
+    for (auto flag : {State::Document,
+                      State::TempInitial,
+                      State::TempDeleted,
+                      State::TempNonExistent}) {
+        if (static_cast<unsigned>(state) & static_cast<unsigned>(flag)) {
+            stateValues.push_back(flag);
+        }
+    }
+    return stateValues;
+}
+
+template <typename... Ts>
+std::vector<std::tuple<Ts...>> combinations(const std::vector<Ts>&... ts) {
+    using namespace ::testing;
+    // None of our dependencies provide a Cartesian product function, and it is
+    // simpler to re-use the GTest one, given this is test code.
+    using Params = std::tuple<Ts...>;
+    // The target generator type which we can iterate.
+    using Generator = decltype(Range<Params>(std::declval<Params>(),
+                                             std::declval<Params>()));
+    // Call combine and implicitly convert the result to the above type.
+    Generator g = Combine(ValuesIn(ts)...);
+    // The iterator returned is not compatible with the std::vector constructor,
+    // so we need a loop.
+    std::vector<std::tuple<Ts...>> results;
+    for (auto v : g) {
+        results.emplace_back(v);
+    }
+    return results;
+}
+
+StoredValue::UniquePtr createWithFactory(AbstractStoredValueFactory& factory,
+                                         const DocKeyView& key,
+                                         State s,
+                                         HasValue v,
+                                         protocol_binary_datatype_t t,
+                                         Resident r,
+                                         Persisted p,
+                                         Deleted d,
+                                         Expired e,
+                                         Locked l) {
+    Item item(key,
+              /*flags*/ 0,
+              /*exp*/ 0,
+              value_t{});
+
+    switch (s) {
+    case State::Document:
+        item.setBySeqno(1);
+        break;
+    case State::TempInitial:
+        item.setBySeqno(StoredValue::state_temp_init);
+        break;
+    case State::TempDeleted:
+        item.setBySeqno(StoredValue::state_deleted_key);
+        break;
+    case State::TempNonExistent:
+        item.setBySeqno(StoredValue::state_non_existent_key);
+        break;
+    default:
+        throw std::logic_error("Unexpected invalid state!");
+    }
+
+    auto sv = factory(item, {});
+
+    if (s != State::Document) {
+        // Temp items have no value.
+        Expects(v == HasValue::No);
+        Expects(t == PROTOCOL_BINARY_RAW_BYTES);
+        // Temp items are always clean.
+        Expects(p == Persisted::Yes);
+        // Temp items are never resident.
+        Expects(r == Resident::No);
+        // Temp items are never deleted (the bit).
+        Expects(d == Deleted::No);
+        Expects(e == Expired::No);
+        Expects(l == Locked::No);
+        return sv;
+    }
+
+    Expects(d != Deleted::Any);
+    if (d == Deleted::Yes) {
+        sv->markDeleted(DeleteSource::Explicit);
+    }
+
+    Expects(v != HasValue::Any);
+    if (v == HasValue::Yes) {
+        std::string body;
+        if (cb::mcbp::datatype::is_xattr(t)) {
+            cb::xattr::Blob blob;
+            blob.set("attr", "\"string\"");
+            body.append(blob.finalize());
+        }
+        if (cb::mcbp::datatype::is_json(t)) {
+            body.append("{}");
+        } else {
+            body.append("abc");
+        }
+        if (cb::mcbp::datatype::is_snappy(t)) {
+            cb::compression::Buffer deflated;
+            Expects(cb::compression::deflateSnappy(body, deflated));
+            sv->replaceValue(std::unique_ptr<Blob>(
+                    Blob::New(deflated.data(), deflated.size())));
+        } else {
+            sv->replaceValue(
+                    std::unique_ptr<Blob>(Blob::New(body.data(), body.size())));
+        }
+    } else {
+        sv->resetValue();
+    }
+
+    Expects(r != Resident::Any);
+    if (r == Resident::Yes) {
+        Expects(sv->isResident());
+    } else {
+        // Note: SV without a value can still be resident/non-resident depending
+        // on whether they were created by normal op or a meta BGFetch.
+        sv->ejectValue();
+    }
+
+    Expects(e != Expired::Any);
+    if (e == Expired::Yes) {
+        // Smallest possible exptime.
+        sv->setExptime(1);
+    } else {
+        sv->setExptime(0);
+    }
+
+    Expects(p != Persisted::Any);
+    if (p == Persisted::Yes) {
+        sv->markClean();
+    } else {
+        sv->markDirty();
+    }
+
+    Expects(l != Locked::Any);
+    if (l == Locked::Yes) {
+        Expects(d != Deleted::Yes);
+        sv->lock(std::numeric_limits<rel_time_t>::max(),
+                 std::numeric_limits<uint64_t>::max());
+    }
+
+    return sv;
+}
+
+StoredValue::UniquePtr create(const DocKeyView& key,
+                              State state,
+                              HasValue value,
+                              protocol_binary_datatype_t datatype,
+                              Resident resident,
+                              Persisted persisted,
+                              Deleted deleted,
+                              Expired expired,
+                              Locked locked) {
+    StoredValueFactory factory;
+    return createWithFactory(factory,
+                             key,
+                             state,
+                             value,
+                             datatype,
+                             resident,
+                             persisted,
+                             deleted,
+                             expired,
+                             locked);
+}
+
+std::vector<StoredValue::UniquePtr> createAllWithFactory(
+        AbstractStoredValueFactory& factory,
+        const DocKeyView& key,
+        State state,
+        HasValue value,
+        protocol_binary_datatype_t datatype,
+        Resident resident,
+        Persisted persisted,
+        Deleted deleted,
+        Expired expired,
+        Locked locked) {
+    // Ordered in the order we print them in operator<<.
+    const auto c = combinations(datatypeValues(datatype),
+                                persistedValues(persisted),
+                                deletedValues(deleted),
+                                residentValues(resident),
+                                lockedValues(locked),
+                                expiredValues(expired),
+                                hasValueValues(value));
+    std::vector<StoredValue::UniquePtr> results;
+
+    for (auto s : stateValues(state)) {
+        if (s == State::Document) {
+            for (auto [t, p, d, r, l, e, v] : c) {
+                if (d == Deleted::Yes && l == Locked::Yes) {
+                    // Deletes cannot be locked.
+                    continue;
+                }
+                results.emplace_back(createWithFactory(
+                        factory, key, State::Document, v, t, r, p, d, e, l));
+            }
+        } else {
+            // Note: temp items are never deleted (even tempDeleted is not).
+            results.emplace_back(createWithFactory(factory,
+                                                   key,
+                                                   s,
+                                                   HasValue::No,
+                                                   PROTOCOL_BINARY_RAW_BYTES,
+                                                   Resident::No,
+                                                   Persisted::Yes,
+                                                   Deleted::No,
+                                                   Expired::No,
+                                                   Locked::No));
+        }
+    }
+
+    return results;
+}
+
+std::vector<StoredValue::UniquePtr> createAll(
+        const DocKeyView& key,
+        State state,
+        HasValue value,
+        protocol_binary_datatype_t datatype,
+        Resident resident,
+        Persisted persisted,
+        Deleted deleted,
+        Expired expired,
+        Locked locked) {
+    StoredValueFactory factory;
+    return createAllWithFactory(factory,
+                                key,
+                                state,
+                                value,
+                                datatype,
+                                resident,
+                                persisted,
+                                deleted,
+                                expired,
+                                locked);
+}
+
+} // namespace cb::testing::sv
