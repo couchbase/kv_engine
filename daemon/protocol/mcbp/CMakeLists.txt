@@ -108,6 +108,8 @@ add_library(memcached_daemon_mcbp OBJECT
         steppable_command_context.h
         sync_fusion_logstore_command_context.cc
         sync_fusion_logstore_command_context.h
+        unknown_packet_command_context.cc
+        unknown_packet_command_context.h
         utilities.h)
 kv_enable_pch(memcached_daemon_mcbp)
 cb_enable_unity_build(memcached_daemon_mcbp)

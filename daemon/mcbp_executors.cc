@@ -53,6 +53,7 @@
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
+#include "protocol/mcbp/unknown_packet_command_context.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -162,28 +163,7 @@ static void disable_traffic_control_mode_executor(Cookie& cookie) {
 }
 
 static void process_bin_unknown_packet(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    if (ret == cb::engine_errc::success) {
-        ret = bucket_unknown_command(cookie, mcbpResponseHandlerFn);
-    }
-
-    ret = cookie.getConnection().remapErrorCode(ret);
-    switch (ret) {
-    case cb::engine_errc::success: {
-        break;
-    }
-    case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
-        break;
-    case cb::engine_errc::disconnect:
-        connection.shutdown();
-        break;
-    default:
-        cookie.sendResponse(ret);
-    }
+    cookie.obtainContext<UnknownPacketCommandContext>(cookie).drive();
 }
 
 static void add_set_replace_executor(Cookie& cookie, StoreSemantics store_op) {
