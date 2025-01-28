@@ -360,6 +360,48 @@ std::string generateNexusConfig(std::string_view config) {
     return configString;
 }
 
+class HashTableIntrospector {
+public:
+    explicit HashTableIntrospector(HashTable& ht) : ht(ht) {
+    }
+
+    StoredValue* forceInsert(const HashTable::HashBucketLock& hbl,
+                             const StoredValue& value) {
+        const auto emptyProperties = ht.valueStats.prologue(hbl, nullptr);
+
+        // Create a new StoredValue and link it into the head of the bucket
+        // chain.
+        auto v = ht.valFact->copyStoredValue(
+                value, std::move(ht.unlocked_getBucket(hbl)));
+
+        ht.valueStats.epilogue(hbl, emptyProperties, v.get().get());
+
+        auto& ret = ht.unlocked_getBucket(hbl);
+        ret = std::move(v);
+        return ret.get().get();
+    }
+
+    HashTable& ht;
+};
+
+StoredValue* forceInsert(HashTable& ht,
+                         const HashTable::HashBucketLock& hbl,
+                         const StoredValue& value) {
+    return HashTableIntrospector(ht).forceInsert(hbl, value);
+}
+
+void removeIfExists(HashTable& ht,
+                    const HashTable::HashBucketLock& hbl,
+                    const DocKeyView& key) {
+    auto [cmt, pend] = ht.unlocked_find(hbl, key);
+    if (cmt) {
+        ht.unlocked_release(hbl, *cmt);
+    }
+    if (pend) {
+        ht.unlocked_release(hbl, *pend);
+    }
+}
+
 namespace cb::testing::sv {
 
 std::vector<HasValue> hasValueValues(HasValue hasValue) {

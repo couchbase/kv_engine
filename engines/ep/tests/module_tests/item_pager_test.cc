@@ -400,6 +400,17 @@ protected:
             FAIL() << "Unexpectedly managed to run Item Pager";
         } catch (std::logic_error&) {
         }
+
+        // Set up mock pager that is ready to evict.
+        auto pagerSemaphore = std::make_shared<cb::Semaphore>();
+        mockVisitor = std::make_unique<MockItemPagingVisitor>(
+                *store,
+                engine->getEpStats(),
+                ItemEvictionStrategy::evict_everything(),
+                pagerSemaphore,
+                false,
+                VBucketFilter());
+        mockVisitor->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     }
 
     bool isCrossBucketHtQuotaSharing() {
@@ -466,6 +477,63 @@ protected:
         flushDirectlyIfPersistent(vbid);
     }
 
+    /**
+     * Describes the result of a paging visitor visit.
+     */
+    struct PagerResult {
+        /// Has the pager expired the key?
+        bool expired = false;
+        /// Has the pager evicted the key?
+        bool evicted = false;
+        /// Has the pager removed the key (as result of eviction/expiration)?
+        bool unlinked = false;
+    };
+
+    /**
+     * Visits the value in the HT under that key using the PagingVisitor.
+     */
+    PagerResult mockVisitKey(const DocKeyView& key) {
+        auto& ht = store->getVBucket(vbid)->ht;
+
+        auto preExpired = engine->getEpStats().expired_pager;
+        auto preEvicted = ht.getNumEjects();
+
+        {
+            auto [sv, hbl] =
+                    ht.findForRead(key, TrackReference::No, WantsDeleted::Yes);
+            if (!sv) {
+                throw std::logic_error(
+                        fmt::format("Expected to find key {}",
+                                    static_cast<std::string_view>(key)));
+            }
+
+            mockVisitor->setUpHashBucketVisit();
+            mockVisitor->visit(hbl, const_cast<StoredValue&>(*sv));
+            mockVisitor->tearDownHashBucketVisit();
+        }
+        mockVisitor->update();
+
+        return PagerResult{
+                preExpired < engine->getEpStats().expired_pager,
+                preEvicted < ht.getNumEjects(),
+                !ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                         .storedValue,
+        };
+    }
+
+    /**
+     * Inserts a copy of the SV in the HT and visits it with the PagingVisitor.
+     * @returns PagerResult which describes the action that was taken.
+     */
+    PagerResult mockVisitSV(const StoredValue& testSV) {
+        auto& ht = store->getVBucket(vbid)->ht;
+        forceInsert(ht, ht.getLockedBucket(testSV.getKey()), testSV);
+        auto result = mockVisitKey(testSV.getKey());
+        removeIfExists(
+                ht, ht.getLockedBucket(testSV.getKey()), testSV.getKey());
+        return result;
+    }
+
     // get the resident ratio of the provided vbucket, expressed as a percentage
     static size_t getRRPercent(VBucket& vb) {
         size_t numItems = vb.getNumItems();
@@ -505,6 +573,8 @@ protected:
     int numConcurrentExpiryPagers = 1;
     /// Has the item pager been scheduled to run?
     bool itemPagerScheduled = false;
+    /// Paging visitor set up to visit VBucket(`vbid`).
+    std::unique_ptr<MockItemPagingVisitor> mockVisitor;
 };
 
 TEST_P(STItemPagerTest, MaxVisitorDuration) {
@@ -1868,6 +1938,45 @@ TEST_P(STItemPagerTest, ItemPagerUpdatesMFUHistogram) {
     EXPECT_EQ(0, hist[startMFU]);
     EXPECT_EQ(1, hist[expectedMFU]);
     EXPECT_EQ(1, hist.getNumberOfSamples());
+}
+
+TEST_P(STItemPagerTest, EligibleForEvictionAndExpiration) {
+    if (!isPersistent()) {
+        // Does not run under ephemeral -- OSVs are linked and that means we
+        // cannot just force them into the HT, which this test does.
+        GTEST_SKIP();
+    }
+
+    for (auto& sv : cb::testing::sv::createAll(makeStoredDocKey("key"))) {
+        // We do not expire deleted or temp items.
+        bool expectToExpire = !sv->isDeleted() && !sv->isTempItem() &&
+                              sv->isExpired(ep_real_time());
+        // We cannot evict and expire. We cannot evict dirty SVs.
+        bool expectToEvict =
+                !expectToExpire && !sv->isDirty() &&
+                (!sv->isLocked(ep_real_time()) ||
+                 (sv->isLocked(ep_real_time()) && sv->isResident()));
+        // Under value eviction, we can only evict the value.
+        // Deletes can also be removed entirely.
+        if (store->getItemEvictionPolicy() == EvictionPolicy::Value) {
+            expectToEvict &= sv->isResident() || sv->isDeleted();
+        }
+        // We only remove the SV from the HT during eviction if:
+        // - it is a temp deleted or non-existent item
+        // - under full-eviction, as part of eviction, but not if locked
+        // - under value-eviction, if it is a delete
+        bool expectToUnlink =
+                sv->isTempDeletedItem() || sv->isTempNonExistentItem() ||
+                (store->getItemEvictionPolicy() == EvictionPolicy::Value &&
+                 expectToEvict && sv->isDeleted()) ||
+                (store->getItemEvictionPolicy() == EvictionPolicy::Full &&
+                 expectToEvict && !sv->isLocked(ep_real_time()));
+
+        auto [expired, evicted, unlinked] = mockVisitSV(*sv);
+        EXPECT_EQ(expectToExpire, expired) << *sv;
+        EXPECT_EQ(expectToEvict, evicted) << *sv;
+        EXPECT_EQ(expectToUnlink, unlinked) << *sv;
+    }
 }
 
 /**

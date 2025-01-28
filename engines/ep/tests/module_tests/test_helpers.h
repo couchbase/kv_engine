@@ -17,6 +17,7 @@
 
 #include "diskdockey.h"
 #include "ep_types.h"
+#include "hash_table.h"
 #include "objectregistry.h"
 #include "stored_value_factories.h"
 
@@ -261,6 +262,14 @@ std::string generateNexusConfig(std::string_view testConfig);
  * @return config string
  */
 std::string sanitizeTestParamConfigString(std::string_view config);
+
+StoredValue* forceInsert(HashTable& ht,
+                         const HashTable::HashBucketLock& hbl,
+                         const StoredValue& value);
+
+void removeIfExists(HashTable& ht,
+                    const HashTable::HashBucketLock& hbl,
+                    const DocKeyView& value);
 
 namespace cb::testing::sv {
 

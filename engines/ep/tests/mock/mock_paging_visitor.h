@@ -41,6 +41,11 @@ public:
                 }));
     }
 
+    void setItemEvictionStrategy(
+            std::unique_ptr<ItemEvictionStrategy> newStrategy) {
+        evictionStrategy = std::move(newStrategy);
+    }
+
     ItemEvictionStrategy& getItemEvictionStrategyString() {
         return *evictionStrategy;
     }
