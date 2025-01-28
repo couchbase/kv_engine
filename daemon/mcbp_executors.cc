@@ -35,6 +35,7 @@
 #include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/getex_context.h"
 #include "protocol/mcbp/ifconfig_context.h"
+#include "protocol/mcbp/ioctl_command_context.h"
 #include "protocol/mcbp/mount_fusion_vbucket_command_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/observe_context.h"
@@ -361,74 +362,8 @@ static void get_ctrl_token_executor(Cookie& cookie) {
                         session_cas.getCasValue());
 }
 
-static void ioctl_get_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-    cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw;
-    std::string value;
-    if (ret == cb::engine_errc::success) {
-        const std::string key(cookie.getRequest().getKeyString());
-        ret = ioctl_get_property(cookie, key, value, datatype);
-    }
-
-    auto remapErr = connection.remapErrorCode(ret);
-    switch (remapErr) {
-    case cb::engine_errc::success:
-        cookie.sendResponse(
-                cb::mcbp::Status::Success, {}, {}, value, datatype, 0);
-        break;
-    case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
-        break;
-    case cb::engine_errc::disconnect:
-        if (ret == cb::engine_errc::disconnect) {
-            LOG_WARNING_CTX(
-                    "ioctl_get_executor - ioctl_get_property returned "
-                    "cb::engine_errc::disconnect - closing connection",
-                    {"conn_id", connection.getId()},
-                    {"description", connection.getDescription()});
-            connection.setTerminationReason(
-                    "ioctl_get_executor forced disconnect");
-        }
-        connection.shutdown();
-        break;
-    default:
-        cookie.sendResponse(remapErr);
-    }
-}
-
-static void ioctl_set_executor(Cookie& cookie) {
-    auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
-    auto& connection = cookie.getConnection();
-    if (ret == cb::engine_errc::success) {
-        auto& req = cookie.getRequest();
-        const std::string key(req.getKeyString());
-        const std::string value(req.getValueString());
-
-        ret = ioctl_set_property(cookie, key, value);
-    }
-    auto remapErr = connection.remapErrorCode(ret);
-
-    switch (remapErr) {
-    case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
-        break;
-    case cb::engine_errc::disconnect:
-        if (ret == cb::engine_errc::disconnect) {
-            LOG_WARNING_CTX(
-                    "ioctl_set_executor - ioctl_set_property returned "
-                    "cb::engine_errc::disconnect - closing connection",
-                    {"conn_id", connection.getId()},
-                    {"description", connection.getDescription()});
-            connection.setTerminationReason(
-                    "ioctl_set_executor forced disconnect");
-        }
-        connection.shutdown();
-        break;
-    default:
-        cookie.sendResponse(remapErr);
-    }
+static void ioctl_executor(Cookie& cookie) {
+    cookie.obtainContext<IoctlCommandContext>(cookie).drive();
 }
 
 static void config_validate_executor(Cookie& cookie) {
@@ -904,8 +839,8 @@ void initialize_mbcp_lookup_map() {
                   set_ctrl_token_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetCtrlToken,
                   get_ctrl_token_executor);
-    setup_handler(cb::mcbp::ClientOpcode::IoctlGet, ioctl_get_executor);
-    setup_handler(cb::mcbp::ClientOpcode::IoctlSet, ioctl_set_executor);
+    setup_handler(cb::mcbp::ClientOpcode::IoctlGet, ioctl_executor);
+    setup_handler(cb::mcbp::ClientOpcode::IoctlSet, ioctl_executor);
     setup_handler(cb::mcbp::ClientOpcode::ConfigValidate,
                   config_validate_executor);
     setup_handler(cb::mcbp::ClientOpcode::ConfigReload, config_reload_executor);

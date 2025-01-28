@@ -63,6 +63,8 @@ add_library(memcached_daemon_mcbp OBJECT
         hello_packet_executor.cc
         ifconfig_context.cc
         ifconfig_context.h
+        ioctl_command_context.cc
+        ioctl_command_context.h
         list_bucket_executor.cc
         mount_fusion_vbucket_command_context.cc
         mount_fusion_vbucket_command_context.h

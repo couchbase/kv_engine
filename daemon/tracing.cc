@@ -156,59 +156,6 @@ void deinitializeTracing() {
     traceDumps.lock()->clear();
 }
 
-/// Task to run on the executor pool to convert the TraceContext to JSON
-class TraceFormatterTask : public GlobalTask {
-public:
-    TraceFormatterTask(Cookie& cookie, phosphor::TraceContext&& context)
-        : GlobalTask(NoBucketTaskable::instance(),
-                     TaskId::Core_TraceDumpFormatter,
-                     0,
-                     false),
-          cookie(cookie),
-          context(std::move(context)) {
-    }
-
-    bool run() override {
-        try {
-            phosphor::tools::JSONExport exporter(context);
-            static const std::size_t chunksize = 1024 * 1024;
-            size_t last_wrote;
-            do {
-                formatted.resize(formatted.size() + chunksize);
-                last_wrote = exporter.read(
-                        &formatted[formatted.size() - chunksize], chunksize);
-            } while (!exporter.done());
-            formatted.resize(formatted.size() - (chunksize - last_wrote));
-            cookie.notifyIoComplete(cb::engine_errc::success);
-        } catch (const std::exception& e) {
-            LOG_WARNING_CTX("TraceFormatterTask::execute: Received exception",
-                            {"error", e.what()});
-            cookie.notifyIoComplete(cb::engine_errc::failed);
-        }
-        return false;
-    }
-
-    std::string getDescription() const override {
-        return "Trace Dump Formatter";
-    }
-
-    std::chrono::microseconds maxExpectedDuration() const override {
-        return std::chrono::milliseconds(20);
-    }
-
-    Cookie& cookie;
-    std::string formatted;
-    phosphor::TraceContext context;
-};
-
-struct TraceFormatterContext : public CommandContext {
-    explicit TraceFormatterContext(std::shared_ptr<TraceFormatterTask>& task)
-        : task(task) {
-    }
-
-    std::shared_ptr<TraceFormatterTask> task;
-};
-
 phosphor::TraceContext getTraceContext() {
     // Lock the instance until we've grabbed the trace context
     std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
@@ -223,35 +170,28 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
                                          const StrToStrMap&,
                                          std::string& value,
                                          cb::mcbp::Datatype& datatype) {
-    auto* cctx = cookie.getCommandContext();
-    if (!cctx) {
-        auto context = getTraceContext();
-        if (!context.getBuffer()) {
-            cookie.setErrorContext(
-                    "Cannot begin a dump when there is no existing trace");
-            return cb::engine_errc::invalid_arguments;
-        }
-
-        // Create a task to format the dump
-        auto task = std::make_shared<TraceFormatterTask>(cookie,
-                                                         std::move(context));
-        cookie.setCommandContext(new TraceFormatterContext{task});
-
-        cookie.setEwouldblock(true);
-        ExecutorPool::get()->schedule(task);
-        return cb::engine_errc::would_block;
+    auto context = getTraceContext();
+    if (!context.getBuffer()) {
+        cookie.setErrorContext(
+                "Cannot begin a dump when there is no existing trace");
+        return cb::engine_errc::invalid_arguments;
     }
 
-    auto* ctx = dynamic_cast<TraceFormatterContext*>(cctx);
-    if (!ctx) {
-        throw std::runtime_error(
-                "ioctlGetTracingBeginDump: Unknown value for command context");
-    }
+    std::string formatted;
+    phosphor::tools::JSONExport exporter(context);
+    static const std::size_t chunksize = 1024 * 1024;
+    size_t last_wrote;
+    do {
+        formatted.resize(formatted.size() + chunksize);
+        last_wrote = exporter.read(&formatted[formatted.size() - chunksize],
+                                   chunksize);
+    } while (!exporter.done());
+    formatted.resize(formatted.size() - (chunksize - last_wrote));
+
     const auto uuid = cb::uuid::random();
-    traceDumps.lock()->emplace(uuid,
-                               DumpContext{std::move(ctx->task->formatted)});
+    traceDumps.lock()->emplace(uuid, DumpContext{std::move(formatted)});
     value = to_string(uuid);
-    cookie.setCommandContext();
+
     return cb::engine_errc::success;
 }
 

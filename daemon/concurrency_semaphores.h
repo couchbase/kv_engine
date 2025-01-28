@@ -53,6 +53,8 @@ public:
     /// Used for limiting the number of IO tasks that can run for Fusion
     /// management (eg Mount, Unmount, Stat).
     cb::AwaitableSemaphore fusion_management{4};
+    /// Used for limiting the number of IOCTL commands to run in parallel
+    cb::AwaitableSemaphore ioctl{1};
 
 protected:
     ConcurrencySemaphores();
