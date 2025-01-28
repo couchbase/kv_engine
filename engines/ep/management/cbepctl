@@ -21,9 +21,15 @@ import sys
 
 cmd = cli_auth_utils.cmd_decorator
 
+# Define a set of parameters that should not be set via cbepctl
+RESTRICTED_PARAMS = {"access_scanner_enabled", "exp_pager_stime"}
 
 @cmd
-def set_param(mc, type, key, val):
+def set_param(mc, type, key, val, force=False):
+    if not force and key in RESTRICTED_PARAMS:
+        print(f"Error: Setting '{key}' via cbepctl is not allowed. Use the REST API instead.")
+        return
+
     engine_param = None
     if type == 'checkpoint_param':
         engine_param = memcacheConstants.ENGINE_PARAM_CHECKPOINT
@@ -351,5 +357,6 @@ Available params for "set":
     # except for when required by support/development
     c.addCommand('set_collections', set_collections, None, hidden=True)
     c.addCommand('get_collections', get_collections, None, hidden=True)
+    c.addHiddenFlag('--force', 'force')
 
     c.execute()
