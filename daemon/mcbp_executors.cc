@@ -64,6 +64,28 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/throttle_utilities.h>
 
+/**
+ * The handler function is used to handle and incomming packet (command or
+ * response).
+ * Each handler is provided with a Cookie object which contains all
+ * of the context information about the command/response.
+ *
+ * When called the entire packet is available.
+ */
+using HandlerFunction = std::function<void(Cookie&)>;
+
+/**
+ * A map between the request packets op-code and the function to handle
+ * the request message
+ */
+std::array<HandlerFunction, 0x100> handlers;
+
+/**
+ * A map between the response packets op-code and the function to handle
+ * the response message.
+ */
+std::array<HandlerFunction, 0x100> response_handlers;
+
 static void process_bin_get_meta(Cookie& cookie) {
     cookie.obtainContext<GetMetaCommandContext>(cookie).drive();
 }
@@ -135,28 +157,6 @@ static void disable_traffic_control_mode_executor(Cookie& cookie) {
                       c, TrafficControlMode::Disabled);
           }).drive();
 }
-
-/**
- * The handler function is used to handle and incomming packet (command or
- * response).
- * Each handler is provided with a Cookie object which contains all
- * of the context information about the command/response.
- *
- * When called the entire packet is available.
- */
-using HandlerFunction = std::function<void(Cookie&)>;
-
-/**
- * A map between the request packets op-code and the function to handle
- * the request message
- */
-std::array<HandlerFunction, 0x100> handlers;
-
-/**
- * A map between the response packets op-code and the function to handle
- * the response message.
- */
-std::array<HandlerFunction, 0x100> response_handlers;
 
 static void process_bin_unknown_packet(Cookie& cookie) {
     auto& connection = cookie.getConnection();
