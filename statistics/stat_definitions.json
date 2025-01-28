@@ -2396,14 +2396,14 @@
 /* aggregates over multiple operations for a single bucket */
     {
         "key": "cmd_mutation",
-        "description": "The number of mutation operations",
+        "description": "The number of mutation operations. This includes operations such as Add, Append, Decrement, Delete, Gat, Increment, Prepend, Replace, Set, Touch, and various Sub-Document mutations (e.g., SubdocArrayAddUnique, SubdocCounter, SubdocDelete, etc.)",
         "unit": "none",
         "type": "counter",
         "added": "7.0.0"
     },
     {
         "key": "cmd_lookup",
-        "description": "The number of lookup operations",
+        "description": "The number of lookup operations. This includes operations such as Get, Gat, Getk, Getq, GetLocked, GetRandomKey, GetReplica, SubdocMultiLookup, SubdocGet and SubdocExists",
         "unit": "none",
         "type": "counter",
         "added": "7.0.0"
@@ -2633,7 +2633,7 @@
     {
         "key": "cmd_lookup_10s_count",
         "unit": "none",
-        "description": "The number of lookup operations performed within the last 10 seconds",
+        "description": "The number of lookup operations performed within the last 10 seconds. This aggregates operations like Get, Gat, Getk, Getq, and various Sub-Document lookups",
         "added": "7.0.0"
     },
 /* us suffix would be confusing in Prometheus as the stat is scaled to seconds */
@@ -2643,13 +2643,13 @@
         "prometheus": {
             "family": "cmd_lookup_10s_duration"
         },
-        "description": "The total duration of lookup operations performed over the last 10 seconds",
+        "description": "The total duration of lookup operations performed over the last 10 seconds. This aggregates the time for operations like Get, Gat, Getk, Getq, and various Sub-Document lookups",
         "added": "7.0.0"
     },
     {
         "key": "cmd_mutation_10s_count",
         "unit": "none",
-        "description": "The number of mutation operations performed within the last 10 seconds",
+        "description": "The number of mutation operations performed within the last 10 seconds. This includes operations like Add, Append, Delete, Replace, and various Sub-Document mutations",
         "added": "7.0.0"
     },
 /* us suffix would be confusing in Prometheus as the stat is scaled to seconds */
@@ -2659,7 +2659,7 @@
         "prometheus": {
             "family": "cmd_mutation_10s_duration"
         },
-        "description": "The total duration of mutation operations performed over the last 10 seconds",
+        "description": "The total duration of mutation operations performed over the last 10 seconds. This includes time spent on operations like Add, Append, Delete, Replace, and various Sub-Document mutations",
         "added": "7.0.0"
     },
     {
