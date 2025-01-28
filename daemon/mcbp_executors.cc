@@ -39,6 +39,7 @@
 #include "protocol/mcbp/observe_context.h"
 #include "protocol/mcbp/prepare_snapshot_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
+#include "protocol/mcbp/release_fusion_storage_snapshot_command_context.h"
 #include "protocol/mcbp/release_snapshot_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
@@ -716,15 +717,13 @@ static void get_fusion_storage_snapshot_executor(Cookie& cookie) {
 }
 
 static void release_fusion_storage_snapshot_executor(Cookie& cookie) {
-    const auto vbid = cookie.getRequest().getVBucket();
-    auto& engine = cookie.getConnection().getBucketEngine();
-    const auto inJson =
-            nlohmann::json::parse(cookie.getRequest().getValueString());
-    const auto res = engine.releaseFusionStorageSnapshot(
-            vbid, inJson["snapshotUuid"].get<std::string>());
-    Ensures(res != cb::engine_errc::would_block);
-    Ensures(res != cb::engine_errc::disconnect);
-    cookie.sendResponse(res);
+    if (!cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<ReleaseFusionStorageSnapshotCommandContext>(cookie)
+            .drive();
 }
 
 static void mount_fusion_vbucket_executor(Cookie& cookie) {

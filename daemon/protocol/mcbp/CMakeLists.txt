@@ -75,6 +75,8 @@ add_library(memcached_daemon_mcbp OBJECT
         range_scan_create_executor.cc
         rbac_reload_command_context.cc
         rbac_reload_command_context.h
+        release_fusion_storage_snapshot_command_context.cc
+        release_fusion_storage_snapshot_command_context.h
         release_snapshot_context.cc
         release_snapshot_context.h
         remove_context.cc
