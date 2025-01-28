@@ -19,7 +19,7 @@ SyncFusionLogstoreCommandContext::SyncFusionLogstoreCommandContext(
         Cookie& cookie)
     : BackgroundThreadCommandContext(
               cookie,
-              TaskId::SyncFusionLogstore,
+              TaskId::Core_SyncFusionLogstoreTask,
               fmt::format("SyncFusionLogstore {}",
                           cookie.getRequest().getVBucket()),
               ConcurrencySemaphores::instance().fusion_management),

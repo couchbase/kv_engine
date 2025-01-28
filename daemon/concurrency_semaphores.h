@@ -50,8 +50,8 @@ public:
     /// We don't want to be able to run too many tasks to read chunks
     /// off disk in parallel (each task may read up to 50MB of data)
     cb::AwaitableSemaphore read_vbucket_chunk{4};
-    // Used for limiting the number of IO tasks that can run for Fusion
-    // management (eg Mount, Unmount, Stat).
+    /// Used for limiting the number of IO tasks that can run for Fusion
+    /// management (eg Mount, Unmount, Stat).
     cb::AwaitableSemaphore fusion_management{4};
 
 protected:
