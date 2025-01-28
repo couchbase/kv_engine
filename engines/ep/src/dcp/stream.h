@@ -77,6 +77,11 @@ public:
         return start_seqno_;
     }
 
+    uint64_t getSnapStartSeqno() const {
+        std::lock_guard<std::mutex> lg(streamMutex);
+        return snap_start_seqno_;
+    }
+
     uint64_t getSnapEndSeqno() const {
         std::lock_guard<std::mutex> lg(streamMutex);
         return snap_end_seqno_;

@@ -5398,8 +5398,11 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     }
 
     snapInfo = manager.getSnapshotInfo();
-    EXPECT_EQ(2, snapInfo.start); // lastBySeqno is still 2, only marker 3,4 rx
-    EXPECT_EQ(snapshot_range_t(3, 4), snapInfo.range);
+    // Note: The open checkpoint range is (3, 4) but lastBySeqno=2 falls into
+    // the previous checkpoint (which was the last that had stored a non-meta
+    // item)
+    EXPECT_EQ(2, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
 }
 
 // Note: At the moment this test's purpose is to show how outbound DCP behaves
@@ -9498,6 +9501,134 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_63611) {
     EXPECT_EQ(0, stream->getUnackedBytes());
     EXPECT_EQ(0, stream1->getUnackedBytes());
     EXPECT_EQ(messageBytes * 2, control.getFreedBytes());
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, MB_64246) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(vbucket_state_replica, vb.getState());
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    removeCheckpoint(vb);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    // Save the initial open checkpointId for sanity checks
+    const auto ckptId = manager.getOpenCheckpointId();
+
+    ASSERT_TRUE(consumer);
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isActive());
+
+    // Stream receives the full [1, 10] snapshot
+    const size_t snapStart = 1;
+    const size_t snapEnd = 10;
+    SnapshotMarker snapshotMarker(0,
+                                  vbid,
+                                  snapStart,
+                                  snapEnd,
+                                  DcpSnapshotMarkerFlag::Memory,
+                                  std::optional<uint64_t>(0),
+                                  {},
+                                  {},
+                                  {},
+                                  {});
+    stream->processMarker(&snapshotMarker);
+
+    const auto value = std::string("value");
+    for (size_t seqno = snapStart; seqno <= snapEnd; ++seqno) {
+        const auto key = "key" + std::to_string(seqno);
+        const auto messageBytes = MutationResponse::mutationBaseMsgBytes +
+                                  key.size() + value.size();
+        queued_item qi(makeCommittedItem(makeStoredDocKey(key), value));
+        qi->setBySeqno(seqno);
+        qi->setVBucketId(vbid);
+        const auto docKey = qi->getDocKey();
+        EXPECT_EQ(cb::engine_errc::success,
+                  consumer->public_processMutationOrPrepare(vbid,
+                                                            1, // opaque
+                                                            docKey,
+                                                            std::move(qi),
+                                                            {},
+                                                            messageBytes));
+        EXPECT_EQ(seqno, vb.getHighSeqno());
+    }
+    ASSERT_EQ(10, vb.getHighSeqno());
+    flush_vbucket_to_disk(vbid, 10);
+
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(ckptId + 1, manager.getOpenCheckpointId());
+    EXPECT_EQ(11, manager.getNumOpenChkItems()); // cs + [1, 10] snapshot
+    EXPECT_EQ(10, manager.getHighSeqno());
+
+    auto checkpointSnap = manager.getSnapshotInfo();
+    EXPECT_EQ(1, checkpointSnap.range.getStart());
+    EXPECT_EQ(10, checkpointSnap.range.getEnd());
+    EXPECT_EQ(10, checkpointSnap.start);
+
+    // Recreate stream
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(0, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid, {}));
+    stream = static_cast<MockPassiveStream*>(
+            (consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream);
+
+    EXPECT_EQ(10, stream->getSnapStartSeqno());
+    EXPECT_EQ(10, stream->getSnapEndSeqno());
+    EXPECT_EQ(10, stream->getStartSeqno());
+
+    // Simulate vbstate changes and stream recreation as observed in MB-64246
+    setVBucketState(vbid, vbucket_state_pending);
+    setVBucketState(vbid, vbucket_state_active);
+    // Note: Persisting for moving the cursor and allowing ItemExpel in the
+    // next steps
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Vbstate bumps triggered new checkpoint creation (note: prev checkpoint
+    // removed by cursor move)
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(ckptId + 2, manager.getOpenCheckpointId());
+    EXPECT_EQ(4, manager.getNumOpenChkItems()); // cs + vbs(p) + vbs(a) + vbs(r)
+    EXPECT_EQ(10, manager.getHighSeqno());
+    checkpointSnap = manager.getSnapshotInfo();
+    EXPECT_EQ(10, checkpointSnap.range.getStart());
+    EXPECT_EQ(10, checkpointSnap.range.getEnd());
+    EXPECT_EQ(10, checkpointSnap.start);
+
+    // Item Expel is the precondition for triggering the broken code path at
+    // CheckpointManager::getSnapshotInfo() which is used for making the
+    // StreamRequest in DcpConsumer::addStream
+    EXPECT_EQ(3, manager.expelUnreferencedCheckpointItems().count);
+
+    // Before the fix getSnapshotInfo() would expose an invalid snapshot
+    // (snapStart:11, snapEnd:11, start:10), so these need to NOT vary from
+    // the previous values
+    checkpointSnap = manager.getSnapshotInfo();
+    EXPECT_EQ(10, checkpointSnap.range.getStart());
+    EXPECT_EQ(10, checkpointSnap.range.getEnd());
+    EXPECT_EQ(10, checkpointSnap.start);
+
+    // Stream closes and reconnects
+    ASSERT_EQ(cb::engine_errc::success, consumer->closeStream(0, vbid));
+    ASSERT_EQ(cb::engine_errc::success, consumer->addStream(0, vbid, {}));
+    stream = static_cast<MockPassiveStream*>(
+            consumer->getVbucketStream(vbid).get());
+    ASSERT_TRUE(stream->isActive());
+
+    // Before the fix we would observe (snapStart:11, snapEnd:11, start:10)
+    EXPECT_EQ(10, stream->getSnapStartSeqno());
+    EXPECT_EQ(10, stream->getSnapEndSeqno());
+    EXPECT_EQ(10, stream->getStartSeqno());
+
+    // Verify snap seqnos in the StreamRequest queued in readyQ
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(1, readyQ.size());
+    auto msg = stream->public_popFromReadyQ();
+    ASSERT_TRUE(msg);
+    ASSERT_EQ(DcpResponse::Event::StreamReq, msg->getEvent());
+    auto& streamReq = dynamic_cast<StreamRequest&>(*msg);
+    // Before the fix we would observe (snapStart:11, snapEnd:11, start:10)
+    EXPECT_EQ(10, streamReq.getSnapStartSeqno());
+    EXPECT_EQ(10, streamReq.getSnapEndSeqno());
+    EXPECT_EQ(10, streamReq.getStartSeqno());
 }
 
 // MB-62847

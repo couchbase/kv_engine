@@ -1520,32 +1520,41 @@ void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,
 snapshot_info_t CheckpointManager::getSnapshotInfo() {
     std::lock_guard<std::mutex> lh(queueLock);
 
-    const auto& openCkpt = getOpenCheckpoint(lh);
+    const auto& ckpt = getOpenCheckpoint(lh);
 
-    snapshot_info_t info(
-            lastBySeqno,
-            {openCkpt.getSnapshotStartSeqno(), openCkpt.getSnapshotEndSeqno()});
-
-    // If there are no items in the open checkpoint then we need to resume by
-    // using that sequence numbers of the last closed snapshot. The exception is
-    // if we are in a partial snapshot which can be detected by checking if the
-    // snapshot start sequence number is greater than the start sequence number
-    // Also, since the last closed snapshot may not be in the checkpoint manager
-    // we should just use the last by sequence number. The open checkpoint will
-    // be overwritten once the next snapshot marker is received since there are
-    // no items in it.
+    // This function is used by DCP streams for determining the in-memory
+    // snapshot state of this vbucket. That is determined in this function by
+    // looking at the open checkpoint state.
     //
-    // Note: Condition on "modifiedByExpel" added in MB-39344 for ensuring that
-    // the semantic here doesn't change by the new ItemExpel semantic.
-    // Actually new unit tests cover this code path and prove that there is no
-    // semantic change here caused by MB-39344. But, the additional condition
-    // covers us by any unexpected (and uncaught in unit tests) behaviour.
-    if (!openCkpt.modifiedByExpel() && !openCkpt.hasNonMetaItems() &&
-        static_cast<uint64_t>(lastBySeqno) < info.range.getStart()) {
-        info.range = snapshot_range_t(lastBySeqno, lastBySeqno);
-    }
-
-    return info;
+    // Baseline scenarios:
+    //
+    //  1. The open checkpoint stores at least a non-meta item (eg a mutation).
+    //    Non-meta items bump the CM::lastBySeqno, so in this case by logic
+    //    lastBySeqno is within the open checkpoint range.
+    //    Return: {start=lastBySeqno, snap[ckpt.snapStart, ckpt.snapStart]}
+    //
+    //  2. The open checkpoint doesn't store any non-meta item (ie only meta
+    //    items in checkpoint). In that case we know that CM::lastBySeqno was
+    //    updated for the last time with the highSeqno of a previous (now closed
+    //    and maybe also removed) checkpoint. Thus, we know that the vbucket
+    //    has never really jumped into to the new/open checkpoint range.
+    //    Return: {start=lastBySeqno, snap[lastBySeqno, lastBySeqno]}
+    //
+    // Now, ItemExpel at first look complicates the above a bit as after
+    // ItemExpel we can't just look into the checkpoint for inferring what that
+    // checkpoint stores or stores-not.
+    // But actually, given that ItemExpel doesn't modify any lastBySeqno or
+    // ckpt.snapStart, we can infer on (1) or (2) above by just looking at
+    // lastBySeqno vs ckpt.snapStart. Ie:
+    //
+    //  if (lastBySeqno < ckpt.snapStart) then (2);
+    //  else then (1)
+    const auto range =
+            static_cast<uint64_t>(lastBySeqno) < ckpt.getSnapshotStartSeqno()
+                    ? snapshot_range_t(lastBySeqno, lastBySeqno)
+                    : snapshot_range_t(ckpt.getSnapshotStartSeqno(),
+                                       ckpt.getSnapshotEndSeqno());
+    return {static_cast<uint64_t>(lastBySeqno), range};
 }
 
 uint64_t CheckpointManager::getFailoverSeqno() const {
