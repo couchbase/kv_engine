@@ -183,13 +183,6 @@ static void process_bin_unknown_packet(Cookie& cookie) {
     }
 }
 
-/**
- * We received a noop response.. just ignore it
- */
-static void process_bin_noop_response(Cookie& cookie) {
-    // do nothing
-}
-
 static void add_set_replace_executor(Cookie& cookie, StoreSemantics store_op) {
     cookie.obtainContext<MutationCommandContext>(
                   cookie, cookie.getRequest(), store_op)
@@ -759,6 +752,10 @@ static void sync_fusion_logstore_executor(Cookie& cookie) {
         return;
     }
     cookie.obtainContext<SyncFusionLogstoreCommandContext>(cookie).drive();
+}
+
+static void process_bin_noop_response(Cookie&) {
+    // do nothing
 }
 
 static void process_bin_dcp_response(Cookie& cookie) {
