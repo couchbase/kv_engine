@@ -731,7 +731,7 @@ static void release_fusion_storage_snapshot_executor(Cookie& cookie) {
     cookie.sendResponse(res);
 }
 
-static void mount_vbucket_executor(Cookie& cookie) {
+static void mount_fusion_vbucket_executor(Cookie& cookie) {
     const auto vbid = cookie.getRequest().getVBucket();
     auto& engine = cookie.getConnection().getBucketEngine();
     const auto inJson =
@@ -1030,7 +1030,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::ReleaseFusionStorageSnapshot,
                   release_fusion_storage_snapshot_executor);
     setup_handler(cb::mcbp::ClientOpcode::MountFusionVbucket,
-                  mount_vbucket_executor);
+                  mount_fusion_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::SyncFusionLogstore,
                   sync_fusion_logstore_executor);
 
