@@ -112,10 +112,10 @@ void CB3ExecutorThread::run() {
             updateTaskStart();
 
             const auto curTaskDescr = currentTask->getDescription();
-            LOG_TRACE("{}: Run task \"{}\" id {}",
-                      getName(),
-                      curTaskDescr,
-                      currentTask->getId());
+            LOG_TRACE_CTX("Run task",
+                          {"name", getName()},
+                          {"descr", curTaskDescr},
+                          {"id", currentTask->getId()});
 
             // Now Run the Task ....
             bool again = currentTask->execute(getName());
@@ -132,13 +132,13 @@ void CB3ExecutorThread::run() {
                 // on it's waketime.
                 q->reschedule(currentTask);
 
-                LOG_TRACE(
-                        "{}: Reschedule a task"
-                        " \"{}\" id:{} waketime:{}",
-                        name,
-                        curTaskDescr,
-                        currentTask->getId(),
-                        to_ns_since_epoch(currentTask->getWaketime()).count());
+                LOG_TRACE_CTX("Reschedule a task",
+                              {"name", name},
+                              {"descr", curTaskDescr},
+                              {"id", currentTask->getId()},
+                              {"waketime",
+                               to_ns_since_epoch(currentTask->getWaketime())
+                                       .count()});
                 resetCurrentTask();
             }
             manager->doneWork(taskType);

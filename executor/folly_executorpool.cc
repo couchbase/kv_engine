@@ -117,18 +117,18 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         // timeout has fired so should not be currently scheduled.
         Expects(!isScheduled());
 
-        LOG_TRACE("TaskProxy::timeoutExpired() id:{} name:{}",
-                  task->getId(),
-                  GlobalTask::getTaskName(task->getTaskId()));
+        LOG_TRACE_CTX("TaskProxy::timeoutExpired()",
+                      {"id", task->getId()},
+                      {"name", GlobalTask::getTaskName(task->getTaskId())});
 
         scheduleViaCPUPool();
     }
 
     void callbackCanceled() noexcept override {
         // Callback cancelled. nothing to be done.
-        LOG_TRACE("TaskProxy::timeoutCanceled() id:{} name{}",
-                  task->getId(),
-                  GlobalTask::getTaskName(task->getTaskId()));
+        LOG_TRACE_CTX("TaskProxy::timeoutCanceled()",
+                      {"id", task->getId()},
+                      {"name", GlobalTask::getTaskName(task->getTaskId())});
     }
 
     /**
@@ -138,10 +138,10 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     void scheduleViaCPUPool() {
         using namespace std::chrono;
 
-        LOG_TRACE("TaskProxy::scheduleViaCPUPool() id:{} name:{} descr:{}",
-                  task->getId(),
-                  GlobalTask::getTaskName(task->getTaskId()),
-                  task->getDescription());
+        LOG_TRACE_CTX("TaskProxy::scheduleViaCPUPool()",
+                      {"id", task->getId()},
+                      {"name", GlobalTask::getTaskName(task->getTaskId())},
+                      {"description", task->getDescription()});
 
         // Mark that the task cannot be re-scheduled at this time - once the
         // task is enqueued onto its CPU pool then we cannot re-schedule it
@@ -166,9 +166,9 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
         cpuPool.add(task.get(), [&proxy = *this] {
             Expects(proxy.task.get());
 
-            LOG_TRACE("FollyExecutorPool: Run task \"{}\" id {}",
-                      proxy.task->getDescription(),
-                      proxy.task->getId());
+            LOG_TRACE_CTX("FollyExecutorPool: Run task",
+                          {"id", proxy.task->getId()},
+                          {"description", proxy.task->getDescription()});
             bool runAgain = proxy.task->execute(proxy.getCurrentThreadName());
 
             // If runAgain is false, then task should be cancelled. This is
@@ -193,27 +193,25 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
     }
 
     void resetTaskPtr(std::atomic<int>& pendingResets, bool resetOnScheduler) {
-        LOG_TRACE(
-                "FollyExecutorPool::TaskProxy::resetTaskPtr() id:{} "
-                "name:{} descr:'{}' "
-                "enqueuing func to reset 'task' shared_ptr resetOnScheduler:{}",
-                task->getId(),
-                GlobalTask::getTaskName(task->getTaskId()),
-                task->getDescription(),
-                resetOnScheduler);
+        LOG_TRACE_CTX(
+                "FollyExecutorPool::TaskProxy::resetTaskPtr() enqueuing func "
+                "to reset 'task' shared_ptr",
+                {"id", task->getId()},
+                {"name", GlobalTask::getTaskName(task->getTaskId())},
+                {"description", task->getDescription()},
+                {"reset_on_scheduler", resetOnScheduler});
 
         using namespace std::chrono;
 
         auto resetLambda = [ptrToReset = std::move(task),
                             &pendingResets,
                             resetOnScheduler]() mutable {
-            LOG_TRACE(
-                    "FollyExecutorPool::TaskProxy::resetTaskPtr() "
-                    "lambda() id:{} name:{} state:{} resetOnScheduler:{}",
-                    ptrToReset->getId(),
-                    GlobalTask::getTaskName(ptrToReset->getTaskId()),
-                    to_string(ptrToReset->getState()),
-                    resetOnScheduler);
+            LOG_TRACE_CTX(
+                    "FollyExecutorPool::TaskProxy::resetTaskPtr() lambda()",
+                    {"id", ptrToReset->getId()},
+                    {"name", GlobalTask::getTaskName(ptrToReset->getTaskId())},
+                    {"state", to_string(ptrToReset->getState())},
+                    {"reset_on_scheduler", resetOnScheduler});
 
             // Reset the shared_ptr, decrementing it's refcount and potentially
             // deleting the owned object if no other objects (Engine etc) have
@@ -548,12 +546,9 @@ struct FollyExecutorPool::State {
         for (auto& [owner, tasks] : taskOwners) {
             it = tasks.locator.find(taskId);
             if (it != tasks.locator.end()) {
-                LOG_TRACE(
-                        "FollyExecutorPool::State::cancelTask() id:{} found "
-                        "for "
-                        "owner:'{}'",
-                        taskId,
-                        owner->getName());
+                LOG_TRACE_CTX("FollyExecutorPool::State::cancelTask()",
+                              {"id", taskId},
+                              {"owner", owner->getName()});
 
                 if (!it->second->task) {
                     // Task already cancelled (shared pointer reset to null) by
@@ -674,15 +669,13 @@ FollyExecutorPool::FollyExecutorPool(
       maxWriters(calcNumWriters(maxWriters_)),
       maxAuxIO(calcNumAuxIO(maxAuxIO_)),
       maxNonIO(calcNumNonIO(maxNonIO_)) {
-    LOG_TRACE(
-            "FollyExecutorPool ctor: Creating with maxThreads:{} maxReaders:{} "
-            "maxWriters:{} maxAuxIO:{} maxNonIO:{} ioThreadsPerCore:{}",
-            maxThreads,
-            maxReaders,
-            maxWriters,
-            maxAuxIO,
-            maxNonIO,
-            ioThreadsPerCore);
+    LOG_TRACE_CTX("FollyExecutorPool ctor()",
+                  {"max_threads", maxThreads},
+                  {"max_readers", maxReaders},
+                  {"max_writers", maxWriters},
+                  {"max_aux_io", maxAuxIO},
+                  {"max_non_io", maxNonIO},
+                  {"io_threads_per_core", ioThreadsPerCore});
 
     // Disable dynamic thread creation / destruction to match CB3ExecutorPool
     // behaviour. At least AtomicQueue cannot be used when this is set to true.
@@ -830,9 +823,9 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
 void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     cb::NoArenaGuard guard;
 
-    LOG_TRACE("FollyExecutorPool::unregisterTaskable() taskable:'{}' force:{}",
-              taskable.getName(),
-              force);
+    LOG_TRACE_CTX("FollyExecutorPool::unregisterTaskable()",
+                  {"taskable", taskable.getName()},
+                  {"force", force});
 
     // We need to ensure that all tasks owned by this taskable have
     // stopped when this function returns. Tasks can be in one of three
@@ -942,11 +935,12 @@ size_t FollyExecutorPool::schedule(ExTask task) {
     cb::NoArenaGuard guard;
 
     using namespace std::chrono;
-    LOG_TRACE("FollyExecutorPool::schedule() id:{} name:{} type:{} wakeTime:{}",
-              task->getId(),
-              GlobalTask::getTaskName(task->getTaskId()),
-              GlobalTask::getTaskType(task->getTaskId()),
-              task->getWaketime().time_since_epoch().count());
+    LOG_TRACE_CTX(
+            "FollyExecutorPool::schedule()",
+            {"id", task->getId()},
+            {"name", GlobalTask::getTaskName(task->getTaskId())},
+            {"type", GlobalTask::getTaskType(task->getTaskId())},
+            {"wake_time", task->getWaketime().time_since_epoch().count()});
 
     auto* eventBase = futurePool->getEventBase();
     auto* pool = getPoolForTaskType(GlobalTask::getTaskType(task->getTaskId()));
@@ -962,9 +956,9 @@ size_t FollyExecutorPool::schedule(ExTask task) {
 bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
     cb::NoArenaGuard guard;
 
-    LOG_TRACE("FollyExecutorPool::cancel() id:{} eraseTask:{}",
-              taskId,
-              eraseTask);
+    LOG_TRACE_CTX("FollyExecutorPool::cancel()",
+                  {"id", taskId},
+                  {"erase_task", eraseTask});
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
@@ -978,7 +972,7 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
 void FollyExecutorPool::wake(size_t taskId) {
     cb::NoArenaGuard guard;
 
-    LOG_TRACE("FollyExecutorPool::wake() id:{}", taskId);
+    LOG_TRACE_CTX("FollyExecutorPool::wake()", {"id", taskId});
 
     auto* eventBase = futurePool->getEventBase();
     eventBase->runInEventBaseThread(
@@ -988,7 +982,7 @@ void FollyExecutorPool::wake(size_t taskId) {
 bool FollyExecutorPool::wakeAndWait(size_t taskId) {
     cb::NoArenaGuard guard;
 
-    LOG_TRACE("FollyExecutorPool::wakeAndWait() id:{}", taskId);
+    LOG_TRACE_CTX("FollyExecutorPool::wakeAndWait()", {"id", taskId});
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
@@ -1002,7 +996,9 @@ bool FollyExecutorPool::wakeAndWait(size_t taskId) {
 void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
     cb::NoArenaGuard guard;
     using namespace std::chrono;
-    LOG_TRACE("FollyExecutorPool::snooze() id:{} toSleep:{}", taskId, toSleep);
+    LOG_TRACE_CTX("FollyExecutorPool::snooze()",
+                  {"id", taskId},
+                  {"to_sleep", toSleep});
 
     futurePool->getEventBase()->runInEventBaseThread(
             [state = state.get(), taskId, toSleep] {
@@ -1013,9 +1009,9 @@ void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
 bool FollyExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
     cb::NoArenaGuard guard;
     using namespace std::chrono;
-    LOG_TRACE("FollyExecutorPool::snoozeAndWait() id:{} toSleep:{}",
-              taskId,
-              toSleep);
+    LOG_TRACE_CTX("FollyExecutorPool::snoozeAndWait()",
+                  {"id", taskId},
+                  {"to_sleep", toSleep});
 
     auto* eventBase = futurePool->getEventBase();
     bool found = false;
@@ -1173,14 +1169,11 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
     auto* eventBase = futurePool->getEventBase();
     Expects(eventBase->inRunningEventBaseThread());
 
-    LOG_TRACE(
-            "FollyExecutorPool::rescheduleTaskAfterRun() id:{} name:{} "
-            "descr:'{}' "
-            "state:{}",
-            proxy.task->getId(),
-            GlobalTask::getTaskName(proxy.task->getTaskId()),
-            proxy.task->getDescription(),
-            to_string(proxy.task->getState()));
+    LOG_TRACE_CTX("FollyExecutorPool::rescheduleTaskAfterRun()",
+                  {"id", proxy.task->getId()},
+                  {"description", proxy.task->getDescription()},
+                  {"name", GlobalTask::getTaskName(proxy.task->getTaskId())},
+                  {"state", to_string(proxy.task->getState())});
 
     // We have just finished running the task on the CPU thread pool, therefore
     // it should _not_ be scheduled to run again yet (given that's what we are

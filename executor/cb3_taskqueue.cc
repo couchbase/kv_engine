@@ -202,10 +202,10 @@ void TaskQueue::_schedule(ExTask& task) {
 
         futureQueue.push(task);
 
-        LOG_TRACE("{}: Schedule a task \"{}\" id {}",
-                  name,
-                  task->getDescription(),
-                  task->getId());
+        LOG_TRACE_CTX("Schedule a task",
+                      {"name", name},
+                      {"descr", task->getDescription()},
+                      {"id", task->getId()});
 
         sleepQ = manager->getSleepQ(queueType);
         _doWake_UNLOCKED(numToWake);

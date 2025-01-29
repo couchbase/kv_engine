@@ -162,13 +162,10 @@ void CB3ExecutorPool::startWork(TaskType taskType) {
                 to_string(taskType) + "}");
     }
     ++curWorkers[static_cast<size_t>(taskType)];
-    LOG_TRACE(
-            "Taking up work in task "
-            "type:{{{}}} "
-            "current:{{{}}}, max:{{{}}}",
-            taskType,
-            curWorkers[static_cast<size_t>(taskType)].load(),
-            numWorkers[static_cast<size_t>(taskType)].load());
+    LOG_TRACE_CTX("Taking up work in task",
+                  {"type", taskType},
+                  {"current", curWorkers[static_cast<size_t>(taskType)].load()},
+                  {"max", numWorkers[static_cast<size_t>(taskType)].load()});
 }
 
 void CB3ExecutorPool::doneWork(TaskType taskType) {
@@ -181,9 +178,10 @@ void CB3ExecutorPool::doneWork(TaskType taskType) {
     }
     --curWorkers[static_cast<size_t>(taskType)];
     // Record that a thread is done working on a particular queue type
-    LOG_TRACE("Done with task type:{{{}}} capacity:{{{}}}",
-              taskType,
-              numWorkers[static_cast<size_t>(taskType)].load());
+    LOG_TRACE_CTX(
+            "Done with task",
+            {"type", taskType},
+            {"capacity", numWorkers[static_cast<size_t>(taskType)].load()});
 }
 
 ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {
@@ -195,11 +193,11 @@ ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {
     }
 
     ExTask task = itr->second.first;
-    LOG_TRACE("Cancel task {} id {} on bucket {} {}",
-              task->getDescription(),
-              task->getId(),
-              task->getTaskable().getName(),
-              remove ? "removed task" : "");
+    LOG_TRACE_CTX("Cancel task",
+                  {"description", task->getDescription()},
+                  {"id", task->getId()},
+                  {"taskable", task->getTaskable().getName()},
+                  {"remove", remove});
 
     task->cancel(); // must be idempotent, just set state to dead
 
