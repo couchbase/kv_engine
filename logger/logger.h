@@ -199,8 +199,6 @@ std::unordered_set<std::string> getDeksInUse();
         }                                                 \
     } while (false)
 
-#define LOG_DEBUG(...) \
-    CB_LOG_ENTRY(spdlog::level::level_enum::debug, __VA_ARGS__)
 #define LOG_INFO(...) CB_LOG_ENTRY(spdlog::level::level_enum::info, __VA_ARGS__)
 #define LOG_WARNING(...) \
     CB_LOG_ENTRY(spdlog::level::level_enum::warn, __VA_ARGS__)

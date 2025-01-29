@@ -512,12 +512,11 @@ struct FollyExecutorPool::State {
                 // canelTask() - skip.
                 continue;
             }
-            LOG_DEBUG(
-                    "FollyExecutorPool::cancelTasksOwnedBy(): Stopping "
-                    "Task id:{} taskable:{} description:'{}'",
-                    tProxy->task->getId(),
-                    tProxy->task->getTaskable().getName(),
-                    tProxy->task->getDescription());
+            LOG_DEBUG_CTX(
+                    "FollyExecutorPool::cancelTasksOwnedBy(): Stopping task",
+                    {"id", tProxy->task->getId()},
+                    {"taskable", tProxy->task->getTaskable().getName()},
+                    {"description", tProxy->task->getDescription()});
 
             // If force flag is set during shutdown, cancel all tasks
             // without considering the blockShutdown status of the task.
@@ -863,35 +862,39 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     // with this Taskable from the queues of the ExecutorPools (things due to be
     // run immediately) to speed up shutdown
     eventBase->runImmediatelyOrRunInEventBaseThreadAndWait([this, &taskable]() {
-        LOG_DEBUG("Removing tasks from read pool for taskable {}",
-                  taskable.getName());
+        LOG_DEBUG_CTX("Removing tasks",
+                      {"pool", TaskType::Reader},
+                      {"taskable", taskable.getName()});
         for (auto task : readerPool->removeTasksForTaskable(taskable)) {
-            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
-                      task->getId());
+            LOG_DEBUG_CTX("Cancelling task from runningQ",
+                          {"id", task->getId()});
             state->cancelTask(task->getId(), true);
         }
 
-        LOG_DEBUG("Removing tasks from writer pool for taskable {}",
-                  taskable.getName());
+        LOG_DEBUG_CTX("Removing tasks",
+                      {"pool", TaskType::Writer},
+                      {"taskable", taskable.getName()});
         for (auto task : writerPool->removeTasksForTaskable(taskable)) {
-            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
-                      task->getId());
+            LOG_DEBUG_CTX("Cancelling task from runningQ",
+                          {"id", task->getId()});
             state->cancelTask(task->getId(), true);
         }
 
-        LOG_DEBUG("Removing tasks from aux pool for taskable {}",
-                  taskable.getName());
+        LOG_DEBUG_CTX("Removing tasks",
+                      {"pool", TaskType::AuxIO},
+                      {"taskable", taskable.getName()});
         for (auto task : auxPool->removeTasksForTaskable(taskable)) {
-            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
-                      task->getId());
+            LOG_DEBUG_CTX("Cancelling task from runningQ",
+                          {"id", task->getId()});
             state->cancelTask(task->getId(), true);
         }
 
-        LOG_DEBUG("Removing tasks from nonIo pool for taskable {}",
-                  taskable.getName());
+        LOG_DEBUG_CTX("Removing tasks",
+                      {"pool", TaskType::NonIO},
+                      {"taskable", taskable.getName()});
         for (auto task : nonIoPool->removeTasksForTaskable(taskable)) {
-            LOG_DEBUG("Cancelling task from runningQ with ID:{}",
-                      task->getId());
+            LOG_DEBUG_CTX("Cancelling task from runningQ",
+                          {"id", task->getId()});
             state->cancelTask(task->getId(), true);
         }
     });

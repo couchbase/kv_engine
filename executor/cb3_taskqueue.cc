@@ -22,7 +22,7 @@ TaskQueue::TaskQueue(CB3ExecutorPool* m, TaskType t, const char* nm)
 }
 
 TaskQueue::~TaskQueue() {
-    LOG_DEBUG("Task Queue killing {}", name);
+    LOG_DEBUG_CTX("Task Queue killing", {"name", name});
 }
 
 const std::string TaskQueue::getName() const {
@@ -204,7 +204,7 @@ void TaskQueue::_schedule(ExTask& task) {
 
         LOG_TRACE_CTX("Schedule a task",
                       {"name", name},
-                      {"descr", task->getDescription()},
+                      {"description", task->getDescription()},
                       {"id", task->getId()});
 
         sleepQ = manager->getSleepQ(queueType);
@@ -228,10 +228,10 @@ void TaskQueue::_wake(ExTask& task) {
     size_t readyCount = 1;
     {
         std::lock_guard<std::mutex> lh(mutex);
-        LOG_DEBUG("{}: Wake a task \"{}\" id {}",
-                  name,
-                  task->getDescription(),
-                  task->getId());
+        LOG_DEBUG_CTX("Wake a task",
+                      {"name", name},
+                      {"description", task->getDescription()},
+                      {"id", task->getId()});
 
         futureQueue.updateWaketime(task, now);
         task->setState(TASK_RUNNING, TASK_SNOOZED);

@@ -46,7 +46,7 @@ void CB3ExecutorThread::start() {
     thread = create_thread([this]() { launch_executor_thread(this); },
                            std::move(thread_name));
 
-    LOG_DEBUG("{}: Started", name);
+    LOG_DEBUG_CTX("Started", {"name", name});
 }
 
 void CB3ExecutorThread::stop(bool wait) {
@@ -65,7 +65,7 @@ void CB3ExecutorThread::stop(bool wait) {
 }
 
 void CB3ExecutorThread::run() {
-    LOG_DEBUG("Thread {} running..", getName());
+    LOG_DEBUG_CTX("Thread running", {"name", getName()});
 
     // The run loop should not account to any bucket, only once inside a task
     // will accounting be back on. GlobalTask::execute will switch to the bucket

@@ -57,10 +57,9 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
     setUpLogger();
 
     for (auto ii = 0; ii < 100; ii++) {
-        LOG_DEBUG(
+        LOG_DEBUG_RAW(
                 "This is a textual log message that we want to repeat a "
-                "number of times: {}",
-                ii);
+                "number of times");
     }
     cb::logger::shutdown();
 
@@ -145,10 +144,9 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
 
     // Keep on logging. This should cause the files to wrap
     for (auto ii = 0; ii < 100; ii++) {
-        LOG_DEBUG(
+        LOG_DEBUG_RAW(
                 "This is a textual log message that we want to repeat a number "
-                "of times {}",
-                ii);
+                "of times");
     }
 
     LOG_DEBUG_RAW("HandleOpenFileErrors");

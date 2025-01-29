@@ -188,7 +188,7 @@ ExTask CB3ExecutorPool::_cancel(size_t taskId, bool remove) {
     std::lock_guard<std::mutex> lh(tMutex);
     auto itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
-        LOG_DEBUG("Task id {} not found", uint64_t(taskId));
+        LOG_DEBUG_CTX("Task not found", {"id", uint64_t(taskId)});
         return {};
     }
 
