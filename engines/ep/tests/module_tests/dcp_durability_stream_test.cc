@@ -4506,10 +4506,11 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
                                      0,
                                      0));
 
+    // Expect V2.2 as the above snapshotMarker call passes purgeSeqno:0
     auto ackBytes = consumer->getFlowControl().getFreedBytes();
     EXPECT_EQ(sizeof(cb::mcbp::Request) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value),
+                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value),
               ackBytes);
     auto key = makeStoredDocKey("bufferDcp");
     EXPECT_EQ(cb::engine_errc::success,
@@ -4576,9 +4577,10 @@ TEST_P(DurabilityPassiveStreamPersistentTest, FlowControlUnackedDcpAbort) {
     EXPECT_EQ(all_processed, consumer->processUnackedBytes());
 
     // Marker and Commit bytes acked
+    // Expect V2.2 as earlier snapshotMarker call passes purgeSeqno:0
     ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-                sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+                sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value);
     ackBytes += sizeof(cb::mcbp::Request) +
                 sizeof(cb::mcbp::request::DcpAbortPayload) + key.size();
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());

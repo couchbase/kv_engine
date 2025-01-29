@@ -784,25 +784,6 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         std::optional<uint64_t> max_visible_seqno,
         std::optional<uint64_t> purge_seqno) {
     lastMessageTime = ep_uptime_now();
-    uint32_t bytes = SnapshotMarker::baseMsgBytes;
-    if (high_completed_seqno || max_visible_seqno) {
-        bytes += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
-    } else if (purge_seqno) {
-        bytes += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-                 sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value);
-    } else {
-        bytes += sizeof(cb::mcbp::request::DcpSnapshotMarkerV1Payload);
-    }
-    UpdateFlowControl ufc(*this, bytes);
-
-    if (start_seqno > end_seqno) {
-        logger->warnWithContext(
-                "Invalid snapshot marker received, snap_start <= snap_end",
-                {{"vb", vbucket}, {"snapshot", {start_seqno, end_seqno}}});
-        return cb::engine_errc::invalid_arguments;
-    }
-
     auto msg = std::make_unique<SnapshotMarker>(opaque,
                                                 vbucket,
                                                 start_seqno,
@@ -812,6 +793,15 @@ cb::engine_errc DcpConsumer::snapshotMarker(
                                                 max_visible_seqno,
                                                 purge_seqno,
                                                 cb::mcbp::DcpStreamId{});
+    UpdateFlowControl ufc(*this, msg->getMessageSize());
+
+    if (start_seqno > end_seqno) {
+        logger->warnWithContext(
+                "Invalid snapshot marker received, snap_start <= snap_end",
+                {{"vb", vbucket}, {"snapshot", {start_seqno, end_seqno}}});
+        return cb::engine_errc::invalid_arguments;
+    }
+
     return lookupStreamAndDispatchMessage(ufc, vbucket, opaque, std::move(msg));
 }
 

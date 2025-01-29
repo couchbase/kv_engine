@@ -2096,7 +2096,7 @@ size_t MemcachedConnection::dcpSnapshotMarkerV2(
         cb::mcbp::request::DcpSnapshotMarkerFlag flags) {
     const auto size = sizeof(cb::mcbp::Request) +
                       sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_0Value);
+                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value);
     Frame buffer;
     buffer.payload.resize(size);
 
@@ -2106,8 +2106,7 @@ size_t MemcachedConnection::dcpSnapshotMarkerV2(
     builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     builder.setOpaque(opaque);
 
-    cb::mcbp::DcpSnapshotMarker marker(
-            start, end, flags, {}, end, std::nullopt);
+    cb::mcbp::DcpSnapshotMarker marker(start, end, flags, {}, end, 0);
     marker.encode(builder);
     sendFrame(buffer);
     return buffer.payload.size();

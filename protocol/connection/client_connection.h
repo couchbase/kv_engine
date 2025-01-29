@@ -1018,7 +1018,8 @@ public:
             uint32_t opaque,
             const std::vector<std::pair<uint64_t, uint64_t>>& failovers);
     /**
-     * Send the V2 marker with max visible seqno set to end
+     * Send the V2.2 marker with max visible seqno set to end and purgeSeqno of
+     * 0
      */
     size_t dcpSnapshotMarkerV2(uint32_t opaque,
                                uint64_t start,
