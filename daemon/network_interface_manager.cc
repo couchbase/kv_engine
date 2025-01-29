@@ -197,34 +197,41 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
             }
         }
 
-        std::string tempname;
-        tempname.assign(filename);
-        tempname.append(".lck");
-
-        FILE* file = fopen(tempname.c_str(), "a");
-        if (file == nullptr) {
-            LOG_CRITICAL(R"(Failed to open "{}": {})", tempname, cb_strerror());
+        std::filesystem::path tempname = filename + ".lck";
+        try {
+            cb::io::saveFile(tempname, json.dump());
+        } catch (const std::exception& e) {
+            LOG_CRITICAL_CTX("Failed to save port number file",
+                             {"path", tempname},
+                             {"error", e.what()});
             if (terminate) {
                 exit(EXIT_FAILURE);
             }
             return;
         }
 
-        fprintf(file, "%s\n", json.dump().c_str());
-        fclose(file);
-        std::filesystem::remove(filename);
-
-        LOG_INFO_CTX("Port numbers available in file", {"filename", filename});
-        if (rename(tempname.c_str(), filename.c_str()) == -1) {
-            LOG_CRITICAL(R"(Failed to rename "{}" to "{}": {})",
-                         tempname,
-                         filename,
-                         cb_strerror());
+        try {
+            std::filesystem::remove(filename);
+            std::filesystem::rename(tempname, filename);
+        } catch (const std::exception& e) {
+            LOG_CRITICAL_CTX("Failed to rename port number file",
+                             {"from", tempname},
+                             {"to", filename},
+                             {"error", e.what()});
             if (terminate) {
                 exit(EXIT_FAILURE);
             }
-            std::filesystem::remove(tempname);
+            std::error_code ec;
+            remove(tempname, ec);
+            if (ec) {
+                LOG_WARNING_CTX("Failed to remove temporary file",
+                                {"path", tempname},
+                                {"error", ec.message()});
+            }
+            return;
         }
+
+        LOG_INFO_CTX("Port numbers available in file", {"filename", filename});
     }
 }
 
