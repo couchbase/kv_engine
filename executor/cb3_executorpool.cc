@@ -300,8 +300,8 @@ TaskQueue* CB3ExecutorPool::_getTaskQueue(const Taskable& t, TaskType qType) {
     curNumThreads = threadQ.size();
 
     if (!bucketPriority) {
-        LOG_WARNING("Trying to schedule task for unregistered bucket {}",
-                    t.getName());
+        LOG_WARNING_CTX("Trying to schedule task for unregistered bucket",
+                        {"bucket", t.getName()});
         return q;
     }
 
@@ -673,8 +673,8 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
             }
         }
     } catch (std::exception& error) {
-        LOG_WARNING("CB3ExecutorPool::doTaskQStat: Failed to build stats: {}",
-                    error.what());
+        LOG_WARNING_CTX("CB3ExecutorPool::doTaskQStat: Failed to build stats",
+                        {"error", error.what()});
     }
 }
 
@@ -719,7 +719,8 @@ static void addWorkerStats(const char* prefix,
                         add_stat,
                         cookie);
     } catch (std::exception& error) {
-        LOG_WARNING("addWorkerStats: Failed to build stats: {}", error.what());
+        LOG_WARNING_CTX("addWorkerStats: Failed to build stats",
+                        {"error", error.what()});
     }
 }
 

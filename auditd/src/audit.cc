@@ -59,8 +59,8 @@ AuditImpl::~AuditImpl() {
         create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
         put_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
     } catch (const std::exception& exception) {
-        LOG_WARNING("AuditImpl::~AuditImpl(): Failed to add audit event: {}",
-                    exception.what());
+        LOG_WARNING_CTX("AuditImpl::~AuditImpl(): Failed to add audit event",
+                        {"error", exception.what()});
     }
 
     {
@@ -118,13 +118,14 @@ bool AuditImpl::configure() {
         file_content = cb::dek::Manager::instance().load(
                 cb::dek::Entity::Config, configfile, std::chrono::seconds{5});
         if (file_content.empty()) {
-            LOG_WARNING(R"(Audit::configure: No data in "{}")", configfile);
+            LOG_WARNING_CTX("Audit::configure: No data in file",
+                            {"path", configfile});
             return false;
         }
     } catch (const std::exception& exception) {
-        LOG_WARNING(R"(Audit::configure: Failed to load "{}": {})",
-                    configfile,
-                    exception.what());
+        LOG_WARNING_CTX("Audit::configure: Failed to load",
+                        {"path", configfile},
+                        {"error", exception.what()});
         return false;
     }
 
@@ -132,26 +133,23 @@ bool AuditImpl::configure() {
     try {
         config_json = nlohmann::json::parse(file_content);
     } catch (const nlohmann::json::exception&) {
-        LOG_WARNING(
-                R"(Audit::configure: JSON parsing error of "{}" with content: "{}")",
-                configfile,
-                cb::UserDataView(file_content));
+        LOG_WARNING_CTX("Audit::configure: JSON parsing error",
+                        {"path", configfile},
+                        {"content", cb::UserDataView(file_content)});
         return false;
     }
 
     try {
         config = AuditConfig(config_json);
     } catch (const nlohmann::json::exception& e) {
-        LOG_WARNING(
-                R"(Audit::configure:: Configuration error in "{}". Error: {}.)"
-                R"(Content: {})",
-                cb::UserDataView(configfile),
-                cb::UserDataView(e.what()),
-                cb::UserDataView(file_content));
+        LOG_WARNING_CTX("Audit::configure:: Configuration error",
+                        {"path", cb::UserDataView(configfile)},
+                        {"error", cb::UserDataView(e.what())},
+                        {"content", cb::UserDataView(file_content)});
         return false;
     } catch (const std::exception& exception) {
-        LOG_WARNING("Audit::configure: Initialization failed: {}",
-                    exception.what());
+        LOG_WARNING_CTX("Audit::configure: Initialization failed",
+                        {"error", exception.what()});
         return false;
     }
 
@@ -182,10 +180,10 @@ bool AuditImpl::configure() {
             }
         } catch (const std::exception& exception) {
             dropped_events++;
-            LOG_WARNING(
+            LOG_WARNING_CTX(
                     "Audit::configure(): Failed to add audit event for "
-                    "audit configure: {}",
-                    exception.what());
+                    "audit configure",
+                    {"error", exception.what()});
         }
     }
 
@@ -284,7 +282,7 @@ bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {
     }
 
     dropped_events++;
-    LOG_WARNING("Audit: Dropping audit event {}", event_id);
+    LOG_WARNING_CTX("Audit: Dropping audit event", {"id", event_id});
     return false;
 }
 
@@ -338,12 +336,12 @@ void AuditImpl::consume_events() {
                     }
                 }
             } catch (const std::exception& e) {
-                LOG_WARNING(
+                LOG_WARNING_CTX(
                         "AuditImpl::consume_events(): Got exception while "
-                        "processing event: {} ({}): {}",
-                        event->id,
-                        cb::tagUserData(event->payload.dump()),
-                        e.what());
+                        "processing event",
+                        {"id", event->id},
+                        {"content", cb::tagUserData(event->payload.dump())},
+                        {"error", e.what()});
                 dropped_events++;
             }
             processeventqueue.pop();
@@ -362,8 +360,8 @@ std::unique_ptr<AuditEventFilter> AuditImpl::createAuditEventFilter() {
 
 bool AuditImpl::write_to_audit_trail(const nlohmann::json& json) {
     if (!auditfile.ensure_open()) {
-        LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
-                    cb::UserDataView(json.dump()));
+        LOG_WARNING_CTX("Audit: error opening audit file. Dropping event",
+                        {"content", cb::UserDataView(json.dump())});
         return false;
     }
 
@@ -371,8 +369,8 @@ bool AuditImpl::write_to_audit_trail(const nlohmann::json& json) {
         return true;
     }
 
-    LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
-                cb::UserDataView(json.dump()));
+    LOG_WARNING_CTX("Audit: error writing event to disk. Dropping event",
+                    {"content", cb::UserDataView(json.dump())});
 
     // If the write_event_to_disk function returns false then it is
     // possible the audit file has been closed. Therefore, ensure

@@ -167,9 +167,9 @@ public:
         auto limit = Settings::instance().getSlowPrometheusScrapeDuration();
 
         if (duration > limit) {
-            LOG_WARNING("Slow prometheus scrape, path: {}, duration: {}",
-                        path,
-                        cb::time2text(duration));
+            LOG_WARNING_CTX("Slow prometheus scrape",
+                            {"path", path},
+                            {"duration", duration});
         }
 
         // KVCollectable interface requires a vector of metric families,

@@ -391,13 +391,12 @@ struct FollyExecutorPool::State {
                       ExTask task) {
         auto& owner = taskOwners.at(&task->getTaskable());
         if (!owner.registered) {
-            LOG_WARNING(
+            LOG_WARNING_CTX(
                     "FollyExecutorPool::scheduleTask(): Attempting to schedule "
-                    "task id:{} name:'{}' when Taskable '{}' is not "
-                    "registered.",
-                    task->getId(),
-                    GlobalTask::getTaskName(task->getTaskId()),
-                    task->getTaskable().getName());
+                    "task when Taskable is not registered.",
+                    {"id", task->getId()},
+                    {"name", GlobalTask::getTaskName(task->getTaskId())},
+                    {"taskable", task->getTaskable().getName()});
             return false;
         }
 
@@ -407,12 +406,12 @@ struct FollyExecutorPool::State {
             // taskId already present - i.e. this taskId has already been
             // scheduled.
             // It is not valid to schedule a task twice.
-            LOG_WARNING(
-                    "FollyExecutorPool::scheduleTask(): Task with id:{} "
-                    "({}) is already registered against Taskable '{}'",
-                    task->getId(),
-                    task->getDescription(),
-                    GlobalTask::getTaskName(task->getTaskId()));
+            LOG_WARNING_CTX(
+                    "FollyExecutorPool::scheduleTask(): Task is already "
+                    "registered against Taskable",
+                    {"id", task->getId()},
+                    {"description", task->getDescription()},
+                    {"name", GlobalTask::getTaskName(task->getTaskId())});
             return false;
         }
         // Inserted a new entry into map - create a TaskProxy object for it.

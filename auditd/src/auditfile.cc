@@ -45,11 +45,10 @@ void AuditFile::iterate_old_files(
                 callback(path);
             }
         } catch (const std::exception& e) {
-            LOG_WARNING(
-                    "AuditFile::iterate_old_files(): Exception occurred "
-                    "while inspecting \"{}\": {}",
-                    p.path().generic_string(),
-                    e.what());
+            LOG_WARNING_CTX(
+                    "AuditFile::iterate_old_files(): Exception occurred",
+                    {"path", p.path().generic_string()},
+                    {"error", e.what()});
         }
     }
 }
@@ -203,9 +202,9 @@ bool AuditFile::open() {
                 "Audit file",
                 {"encrypted", file->is_encrypted() ? "encrypted" : "plain"});
     } catch (const std::exception& exception) {
-        LOG_WARNING("Audit: open error on file {}: {}",
-                    open_file_name.generic_string(),
-                    exception.what());
+        LOG_WARNING_CTX("Audit: Failed to open file",
+                        {"path", open_file_name.generic_string()},
+                        {"error", exception.what()});
         return false;
     }
 
@@ -214,9 +213,9 @@ bool AuditFile::open() {
         create_symlink(std::filesystem::path{"."} / open_file_name.filename(),
                        log_directory / current_audit_link_name);
     } catch (const std::exception& e) {
-        LOG_WARNING("Audit: Failed to create {} symbolic link: {}",
-                    current_audit_link_name,
-                    e.what());
+        LOG_WARNING_CTX("Audit: Failed to create symbolic link",
+                        {"path", current_audit_link_name},
+                        {"error", e.what()});
     }
 
     open_time = auditd_time();
@@ -259,8 +258,8 @@ bool AuditFile::write_event_to_disk(const nlohmann::json& output) {
                 "Audit: memory allocation error for writing audit event to "
                 "disk");
     } catch (const std::exception& exception) {
-        LOG_WARNING("Audit: Failed to write event to disk: {}",
-                    exception.what());
+        LOG_WARNING_CTX("Audit: Failed to write event to disk",
+                        {"error", exception.what()});
         close_and_rotate_log();
     }
 
@@ -284,9 +283,9 @@ void AuditFile::set_log_directory(const std::string& new_directory) {
         // The directory does not exist and we failed to create
         // it. This is not a fatal error, but it does mean that the
         // node won't be able to do any auditing
-        LOG_WARNING(R"(Audit: failed to create audit directory "{}": {})",
-                    new_directory,
-                    error.what());
+        LOG_WARNING_CTX("Audit: failed to create audit directory",
+                        {"path", new_directory},
+                        {"error", error.what()});
     }
 }
 
@@ -308,7 +307,8 @@ bool AuditFile::flush() {
         try {
             file->flush();
         } catch (const std::exception& exception) {
-            LOG_WARNING("Audit: writing to disk error: {}", exception.what());
+            LOG_WARNING_CTX("Audit: writing to disk failed",
+                            {"error", exception.what()});
             close_and_rotate_log();
             return false;
         }
@@ -322,9 +322,9 @@ void AuditFile::remove_file(const std::filesystem::path& path) {
         try {
             remove(path);
         } catch (const std::exception& exception) {
-            LOG_WARNING("Audit: Failed to remove \"{}\": {}",
-                        path.generic_string(),
-                        exception.what());
+            LOG_WARNING_CTX("Audit: Failed to remove file",
+                            {"path", path.generic_string()},
+                            {"error", exception.what()});
         }
     }
 }

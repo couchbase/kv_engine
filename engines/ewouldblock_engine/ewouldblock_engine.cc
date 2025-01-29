@@ -1242,10 +1242,10 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
         }
 
         if (new_mode == nullptr) {
-            LOG_WARNING(
+            LOG_WARNING_CTX(
                     "EWB_Engine::unknown_command(): "
-                    "Got unexpected mode={} for EWOULDBLOCK_CTL, ",
-                    (unsigned int)mode);
+                    "Unexpected mode for EWOULDBLOCK_CTL, ",
+                    {"mode", (unsigned int)mode});
             response({},
                      {},
                      {},
@@ -1843,10 +1843,9 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
     }
 
     if (!suspendConn(cookie, id)) {
-        LOG_WARNING(
-                "EWB_Engine::handleBlockMonitorFile(): "
-                "Id {} already registered",
-                id);
+        LOG_WARNING_CTX(
+                "EWB_Engine::handleBlockMonitorFile(): Id already registered",
+                {"conn_id", id});
         return cb::engine_errc::key_already_exists;
     }
 
@@ -1895,10 +1894,10 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
         thread->start();
         threads.lock()->emplace_back(thread.release());
     } catch (std::exception& e) {
-        LOG_WARNING(
+        LOG_WARNING_CTX(
                 "EWB_Engine::handleBlockMonitorFile(): Failed to create "
-                "block monitor thread: {}",
-                e.what());
+                "block monitor thread",
+                {"error", e.what()});
         return cb::engine_errc::failed;
     }
 
@@ -1925,7 +1924,8 @@ cb::engine_errc EWB_Engine::handleSuspend(CookieIface* cookie,
                  *cookie);
         return cb::engine_errc::success;
     }
-    LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered", id);
+    LOG_WARNING_CTX("EWB_Engine::handleSuspend(): Id already registered",
+                    {"conn_id", id});
     return cb::engine_errc::key_already_exists;
 }
 
@@ -1942,10 +1942,10 @@ cb::engine_errc EWB_Engine::handleResume(CookieIface* cookie,
                  *cookie);
         return cb::engine_errc::success;
     }
-    LOG_WARNING(
-            "EWB_Engine::unknown_command(): No connection registered with id "
-            "{}",
-            id);
+    LOG_WARNING_CTX(
+            "EWB_Engine::unknown_command(): No connection registered with "
+            "requested id",
+            {"conn_id", id});
     return cb::engine_errc::invalid_arguments;
 }
 

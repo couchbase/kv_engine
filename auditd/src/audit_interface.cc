@@ -28,7 +28,7 @@ UniqueAuditPtr create_audit_daemon(std::string config_file) {
         return std::make_unique<AuditImpl>(std::move(config_file),
                                            cb::net::getHostname());
     } catch (std::runtime_error& err) {
-        LOG_WARNING("{}", err.what());
+        LOG_WARNING_CTX("Failed to start audit", {"error", err.what()});
     } catch (std::bad_alloc&) {
         LOG_WARNING_RAW("Failed to start audit: Out of memory");
     }

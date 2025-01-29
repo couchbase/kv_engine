@@ -390,7 +390,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setSlowPrometheusScrapeDuration(
                     std::chrono::duration<float>(value.get<float>()));
         } else {
-            LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
+            LOG_WARNING_CTX("Ignoring unknown key in config", {"key", key});
         }
     }
 }

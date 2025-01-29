@@ -54,11 +54,10 @@ void GetAuthorizationTask::externalResponse(cb::mcbp::Status statusCode,
                 }
             }
         } catch (const std::exception& e) {
-            LOG_WARNING(
-                    R"({} GetAuthorizationTask::externalResponse() failed. UUID[{}] "{}")",
-                    cookie.getConnectionId(),
-                    cookie.getEventId(),
-                    e.what());
+            LOG_WARNING_CTX("GetAuthorizationTask::externalResponse() failed",
+                            {"conn_id", cookie.getConnectionId()},
+                            {"event_id", cookie.getEventId()},
+                            {"error", e.what()});
             status = cb::sasl::Error::FAIL;
         }
     }
