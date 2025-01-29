@@ -64,6 +64,8 @@ add_library(memcached_daemon_mcbp OBJECT
         ifconfig_context.cc
         ifconfig_context.h
         list_bucket_executor.cc
+        mount_fusion_vbucket_command_context.cc
+        mount_fusion_vbucket_command_context.h
         mutation_context.cc
         mutation_context.h
         observe_context.cc

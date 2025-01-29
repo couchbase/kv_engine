@@ -210,7 +210,7 @@ TEST_P(FusionTest, MountFusionVbucket) {
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
-    ASSERT_TRUE(res.contains("deks"));
+    ASSERT_TRUE(res.contains("deks")) << res.dump();
     ASSERT_TRUE(res["deks"].is_array());
 }
 
@@ -219,7 +219,7 @@ TEST_P(FusionTest, MountFusionVbucket_NoVolumes) {
     ASSERT_TRUE(resp.isSuccess()) << "status:" << resp.getStatus();
     const auto& res = resp.getDataJson();
     ASSERT_FALSE(res.empty());
-    ASSERT_TRUE(res.contains("deks"));
+    ASSERT_TRUE(res.contains("deks")) << res.dump();
     ASSERT_TRUE(res["deks"].is_array());
 }
 

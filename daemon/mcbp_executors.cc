@@ -35,6 +35,7 @@
 #include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/getex_context.h"
 #include "protocol/mcbp/ifconfig_context.h"
+#include "protocol/mcbp/mount_fusion_vbucket_command_context.h"
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/observe_context.h"
 #include "protocol/mcbp/prepare_snapshot_context.h"
@@ -727,17 +728,12 @@ static void release_fusion_storage_snapshot_executor(Cookie& cookie) {
 }
 
 static void mount_fusion_vbucket_executor(Cookie& cookie) {
-    const auto vbid = cookie.getRequest().getVBucket();
-    auto& engine = cookie.getConnection().getBucketEngine();
-    const auto inJson =
-            nlohmann::json::parse(cookie.getRequest().getValueString());
-    const auto res = engine.mountVBucket(vbid, inJson["mountPaths"]);
-    Ensures(res.first != cb::engine_errc::would_block);
-    Ensures(res.first != cb::engine_errc::disconnect);
-    nlohmann::json json;
-    json["deks"] = res.second;
-    cookie.sendResponse(
-            res.first, {}, {}, json.dump(), cb::mcbp::Datatype::JSON, 0);
+    if (cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.obtainContext<MountFusionVbucketCommandContext>(cookie).drive();
+    } else {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+    }
 }
 
 static void sync_fusion_logstore_executor(Cookie& cookie) {
