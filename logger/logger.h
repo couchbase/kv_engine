@@ -199,7 +199,6 @@ std::unordered_set<std::string> getDeksInUse();
         }                                                 \
     } while (false)
 
-#define LOG_INFO(...) CB_LOG_ENTRY(spdlog::level::level_enum::info, __VA_ARGS__)
 #define LOG_WARNING(...) \
     CB_LOG_ENTRY(spdlog::level::level_enum::warn, __VA_ARGS__)
 #define LOG_ERROR(...) CB_LOG_ENTRY(spdlog::level::level_enum::err, __VA_ARGS__)
@@ -226,8 +225,8 @@ std::unordered_set<std::string> getDeksInUse();
 //
 // For example:
 //
-//     LOG_INFO("Starting flusher");
-//     LOG_INFO(std:string{...});
+//     LOG_INFO_RAW("Starting flusher");
+//     LOG_INFO_RAW(std:string{...});
 //
 #define LOG_TRACE_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::trace, msg)
 #define LOG_DEBUG_RAW(msg) CB_LOG_RAW(spdlog::level::level_enum::debug, msg)

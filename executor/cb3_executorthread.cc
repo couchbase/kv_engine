@@ -31,7 +31,7 @@ static void launch_executor_thread(void* arg) {
 }
 
 CB3ExecutorThread::~CB3ExecutorThread() {
-    LOG_INFO("Executor killing {}", name);
+    LOG_INFO_CTX("Executor dtor", {"name", name});
 }
 
 void CB3ExecutorThread::start() {
@@ -57,11 +57,11 @@ void CB3ExecutorThread::stop(bool wait) {
     state = EXECUTOR_SHUTDOWN;
 
     if (!wait) {
-        LOG_INFO("{}: Stopping", name);
+        LOG_INFO_CTX("Stopping", {"name", name});
         return;
     }
     thread.join();
-    LOG_INFO("{}: Stopped", name);
+    LOG_INFO_CTX("Stopped", {"name", name});
 }
 
 void CB3ExecutorThread::run() {
@@ -88,7 +88,7 @@ void CB3ExecutorThread::run() {
                  getName(),
                  strerror(errno));
     } else {
-        LOG_INFO("Set thread {} to background priority", getName());
+        LOG_INFO_CTX("Set thread to background priority", {"name", getName()});
     }
 #endif
 

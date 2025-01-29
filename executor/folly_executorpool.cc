@@ -805,12 +805,14 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
     if (taskable.getWorkLoadPolicy().getBucketPriority() <
         HIGH_BUCKET_PRIORITY) {
         taskable.setWorkloadPriority(LOW_BUCKET_PRIORITY);
-        LOG_INFO("Taskable {} registered with low priority",
-                 taskable.getName());
+        LOG_INFO_CTX("Taskable registered",
+                     {"priority", "low"},
+                     {"taskable", taskable.getName()});
     } else {
         taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
-        LOG_INFO("Taskable {} registered with high priority",
-                 taskable.getName());
+        LOG_INFO_CTX("Taskable registered",
+                     {"priority", "high"},
+                     {"taskable", taskable.getName()});
     }
 
     futurePool->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(

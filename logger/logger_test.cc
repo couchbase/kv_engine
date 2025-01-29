@@ -24,12 +24,13 @@
  */
 TEST_F(SpdloggerTest, FmtStyleFormatting) {
     const uint32_t value = 0xdeadbeef;
-    LOG_INFO("FmtStyleFormatting {:x}", value);
+    LOG_CRITICAL("FmtStyleFormatting {:x}", value);
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1,
-              countInFile(files.front(), "INFO FmtStyleFormatting deadbeef"));
+    EXPECT_EQ(
+            1,
+            countInFile(files.front(), "CRITICAL FmtStyleFormatting deadbeef"));
 }
 
 /**
@@ -196,11 +197,13 @@ TEST_F(FileRotationTest, HandleOpenFileErrors) {
  */
 TEST_F(SpdloggerTest, VbidClassTest) {
     const Vbid value = Vbid(1023);
-    LOG_INFO("VbidClassTest {}", value);
+    LOG_INFO_CTX("VbidClassTest", {"vbucket", value});
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);
     ASSERT_EQ(1, files.size()) << "We should only have a single logfile";
-    EXPECT_EQ(1, countInFile(files.front(), "INFO VbidClassTest vb:1023"));
+    EXPECT_EQ(1,
+              countInFile(files.front(),
+                          R"(INFO VbidClassTest {"vbucket":"vb:1023"})"));
 }
 
 /**

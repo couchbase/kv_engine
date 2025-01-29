@@ -56,9 +56,9 @@ nlohmann::json initialize(const std::pair<in_port_t, sa_family_t>& config,
     // if the configured port is set to 0, an available port number will have
     // been selected, log that instead of 0.
     auto listeningPort = (*handle)->getListeningPort();
-    LOG_INFO("Prometheus Exporter started, listening on family:{} port:{}",
-             (family == AF_INET) ? "inet" : "inet6",
-             listeningPort);
+    LOG_INFO_CTX("Prometheus Exporter started",
+                 {"family", (family == AF_INET) ? "inet" : "inet6"},
+                 {"port", listeningPort});
     return (*handle)->getRunningConfigAsJson();
 }
 
@@ -236,8 +236,8 @@ MetricServer::MetricServer(in_port_t port,
 MetricServer::~MetricServer() {
     try {
         if (isAlive()) {
-            LOG_INFO("Shutting down Prometheus exporter: {}",
-                     getRunningConfigAsJson().dump());
+            LOG_INFO_CTX("Shutting down Prometheus exporter",
+                         getRunningConfigAsJson());
         }
     } catch (const std::exception&) {
         // we don't want any exception being thrown in the destructor

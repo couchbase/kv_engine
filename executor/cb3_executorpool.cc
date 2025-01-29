@@ -384,15 +384,17 @@ void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
         queueName = "LowPrioQ_";
-        LOG_INFO("Taskable {} registered with low priority",
-                 taskable.getName());
+        LOG_INFO_CTX("Taskable registered",
+                     {"priority", "low"},
+                     {"taskable", taskable.getName()});
     } else {
         taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
         taskQ = &hpTaskQ;
         whichQset = &isHiPrioQset;
         queueName = "HiPrioQ_";
-        LOG_INFO("Taskable {} registered with high priority",
-                 taskable.getName());
+        LOG_INFO_CTX("Taskable registered",
+                     {"priority", "high"},
+                     {"taskable", taskable.getName()});
     }
 
     {
@@ -444,10 +446,10 @@ void CB3ExecutorPool::_adjustWorkers(TaskType type, size_t desiredNumItems) {
             return;
         }
 
-        LOG_INFO("Adjusting threads of type:{} from:{} to:{}",
-                 typeName,
-                 numItems,
-                 desiredNumItems);
+        LOG_INFO_CTX("Adjusting threads",
+                     {"pool", type},
+                     {"from", numItems},
+                     {"to", desiredNumItems});
 
         if (numItems < desiredNumItems) {
             // If we want to increase the number of threads, they must be
@@ -544,10 +546,10 @@ std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
             ExTask& task = itr->second.first;
             TaskQueue* q = itr->second.second;
             if (task->getTaskable().getGID() == taskGID) {
-                LOG_INFO("Stopping Task id {} {} {}",
-                         uint64_t(task->getId()),
-                         task->getTaskable().getName(),
-                         task->getDescription());
+                LOG_INFO_CTX("Stopping Task",
+                             {"id", uint64_t(task->getId())},
+                             {"taskable", task->getTaskable().getName()},
+                             {"description", task->getDescription()});
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
                 if (force || !task->blockShutdown) {
@@ -567,10 +569,7 @@ std::vector<ExTask> CB3ExecutorPool::_stopTaskGroup(
 }
 
 void CB3ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
-    LOG_INFO("Unregistering {} taskable {}",
-             (numTaskables == 1) ? "last" : "",
-             taskable.getName());
-
+    LOG_INFO_CTX("Unregistering", {"taskable", taskable.getName()});
     std::unique_lock<std::mutex> lh(tMutex);
 
     _stopTaskGroup(taskable.getGID(), lh, force);

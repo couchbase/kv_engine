@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -263,7 +262,8 @@ void logCrashData() {
             }
         }
         if (lineCount == lineLimit) {
-            LOG_INFO("logCrashData reached line count limit {}", lineCount);
+            LOG_INFO_CTX("logCrashData reached line count limit",
+                         {"limit", lineCount});
         }
 #endif
         if (remove(crashLogPath.c_str()) != 0) {
@@ -292,8 +292,7 @@ void cb::breakpad::initialize(const cb::breakpad::Settings& settings,
         // just print it twice.
         set_terminate_handler_print_backtrace(false);
 
-        LOG_INFO("Breakpad enabled. Minidumps will be written to '{}'",
-                 settings.minidump_dir);
+        LOG_INFO_CTX("Breakpad enabled", {"path", settings.minidump_dir});
     } else {
         // If breakpad is off, then at least print the backtrace via
         // terminate_handler.

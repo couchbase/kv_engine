@@ -651,8 +651,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto o = other.client_cert_mapper.to_string();
 
         if (m != o) {
-            LOG_INFO(
-                    R"(Change SSL client auth from "{}" to "{}")", m, o);
+            // @todo we should log them as JSON; not strings in json format
+            LOG_INFO_CTX("Change SSL client auth", {"from", m}, {"to", o});
             // TODO MB-30041: Remove when we migrate settings
             nlohmann::json json = nlohmann::json::parse(o);
             auto config = cb::x509::ClientCertConfig::create(json);
@@ -670,18 +670,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.max_connections) {
         if (other.max_connections != max_connections) {
-            LOG_INFO(R"(Change max connections from {} to {})",
-                     max_connections,
-                     other.max_connections);
+            LOG_INFO_CTX("Change max connections",
+                         {"from", max_connections},
+                         {"to", other.max_connections});
             setMaxConnections(other.max_connections);
         }
     }
 
     if (other.has.system_connections) {
         if (other.system_connections != system_connections) {
-            LOG_INFO(R"(Change system connections from {} to {})",
-                     system_connections,
-                     other.system_connections);
+            LOG_INFO_CTX("Change system connections",
+                         {"from", system_connections},
+                         {"to", other.system_connections});
             setSystemConnections(other.system_connections);
         }
     }
@@ -735,10 +735,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
 
         if (b2.minidump_dir != b1.minidump_dir) {
-            LOG_INFO(
-                    R"(Change minidump directory from "{}" to "{}")",
-                    b1.minidump_dir,
-                    b2.minidump_dir);
+            LOG_INFO_CTX("Change minidump directory",
+                         {"from", b1.minidump_dir},
+                         {"to", b2.minidump_dir});
             b1.minidump_dir = b2.minidump_dir;
             changed = true;
         }
@@ -781,9 +780,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto m = getScramshaFallbackSalt();
 
         if (o != m) {
-            LOG_INFO(R"(Change scram fallback salt from {} to {})",
-                     cb::UserDataView(m),
-                     cb::UserDataView(o));
+            LOG_INFO_CTX("Change scram fallback salt",
+                         {"from", cb::UserDataView(m)},
+                         {"to", cb::UserDataView(o)});
             setScramshaFallbackSalt(o);
         }
     }
@@ -803,10 +802,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         auto mine = getSaslMechanisms();
         auto others = other.getSaslMechanisms();
         if (mine != others) {
-            LOG_INFO(
-                    R"(Change SASL mechanisms on normal connections from "{}" to "{}")",
-                    mine,
-                    others);
+            LOG_INFO_CTX("Change SASL mechanisms on normal connections",
+                         {"from", mine},
+                         {"to", others});
             setSaslMechanisms(others);
         }
     }
@@ -815,10 +813,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         auto mine = getSslSaslMechanisms();
         auto others = other.getSslSaslMechanisms();
         if (mine != others) {
-            LOG_INFO(
-                    R"(Change SASL mechanisms on SSL connections from "{}" to "{}")",
-                    mine,
-                    others);
+            LOG_INFO_CTX("Change SASL mechanisms on SSL connections",
+                         {"from", mine},
+                         {"to", others});
             setSslSaslMechanisms(others);
         }
     }
@@ -826,11 +823,13 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.external_auth_service) {
         if (isExternalAuthServiceEnabled() !=
             other.isExternalAuthServiceEnabled()) {
-            LOG_INFO(
-                    R"(Change external authentication service from "{}" to "{}")",
-                    isExternalAuthServiceEnabled() ? "enabled" : "disabled",
-                    other.isExternalAuthServiceEnabled() ? "enabled"
-                                                         : "disabled");
+            LOG_INFO_CTX(
+                    "Change external authentication service",
+                    {"from",
+                     isExternalAuthServiceEnabled() ? "enabled" : "disabled"},
+                    {"to",
+                     other.isExternalAuthServiceEnabled() ? "enabled"
+                                                          : "disabled"});
             setExternalAuthServiceEnabled(other.isExternalAuthServiceEnabled());
         }
     }
@@ -838,12 +837,14 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.external_auth_service_scram_support) {
         if (doesExternalAuthServiceSupportScram() !=
             other.doesExternalAuthServiceSupportScram()) {
-            LOG_INFO(
-                    R"(Change external authentication SCRAM support from "{}" to "{}")",
-                    doesExternalAuthServiceSupportScram() ? "enabled"
-                                                          : "disabled",
-                    other.doesExternalAuthServiceSupportScram() ? "enabled"
-                                                                : "disabled");
+            LOG_INFO_CTX(
+                    "Change external authentication SCRAM support",
+                    {"from",
+                     doesExternalAuthServiceSupportScram() ? "enabled"
+                                                           : "disabled"},
+                    {"to",
+                     other.doesExternalAuthServiceSupportScram() ? "enabled"
+                                                                 : "disabled"});
             setExternalAuthServiceScramSupport(
                     other.doesExternalAuthServiceSupportScram());
         }
@@ -852,14 +853,9 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.active_external_users_push_interval) {
         if (getActiveExternalUsersPushInterval() !=
             other.getActiveExternalUsersPushInterval()) {
-            LOG_INFO(
-                    R"(Change push interval for external users list from {}s to {}s)",
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                            getActiveExternalUsersPushInterval())
-                            .count(),
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                            other.getActiveExternalUsersPushInterval())
-                            .count());
+            LOG_INFO_CTX("Change push interval for external users list",
+                         {"from", getActiveExternalUsersPushInterval()},
+                         {"to", other.getActiveExternalUsersPushInterval()});
             setActiveExternalUsersPushInterval(
                     other.getActiveExternalUsersPushInterval());
         }
@@ -868,14 +864,10 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.external_auth_slow_duration) {
         if (getExternalAuthSlowDuration() !=
             other.getExternalAuthSlowDuration()) {
-            LOG_INFO(
-                    R"(Change slow duration for external users authentication from {}s to {}s)",
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                            getExternalAuthSlowDuration())
-                            .count(),
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                            other.getExternalAuthSlowDuration())
-                            .count());
+            LOG_INFO_CTX(
+                    "Change slow duration for external users authentication",
+                    {"from", getExternalAuthSlowDuration()},
+                    {"to", other.getExternalAuthSlowDuration()});
             setExternalAuthSlowDuration(other.getExternalAuthSlowDuration());
         }
     }
@@ -883,14 +875,10 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     if (other.has.external_auth_request_timeout) {
         if (getExternalAuthRequestTimeout() !=
             other.getExternalAuthRequestTimeout()) {
-            LOG_INFO(
-                    R"(Change request timeout for external users authentication from {}s to {}s)",
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                            getExternalAuthRequestTimeout())
-                            .count(),
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                            other.getExternalAuthRequestTimeout())
-                            .count());
+            LOG_INFO_CTX(
+                    "Change request timeout for external users authentication",
+                    {"from", getExternalAuthRequestTimeout()},
+                    {"to", other.getExternalAuthRequestTimeout()});
             setExternalAuthRequestTimeout(
                     other.getExternalAuthRequestTimeout());
         }
@@ -898,10 +886,13 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
     if (other.has.allow_localhost_interface) {
         if (other.allow_localhost_interface != allow_localhost_interface) {
-            LOG_INFO(R"(Change allow localhost interface from "{}" to "{}")",
-                     isLocalhostInterfaceAllowed() ? "enabled" : "disabled",
+            LOG_INFO_CTX(
+                    "Change allow localhost interface",
+                    {"from",
+                     isLocalhostInterfaceAllowed() ? "enabled" : "disabled"},
+                    {"to",
                      other.isLocalhostInterfaceAllowed() ? "enabled"
-                                                         : "disabled");
+                                                         : "disabled"});
             setAllowLocalhostInterface(other.isLocalhostInterfaceAllowed());
         }
     }
@@ -1018,7 +1009,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         const auto o = other.getPhosphorConfig();
         const auto m = getPhosphorConfig();
         if (o != m) {
-            LOG_INFO(R"(Change Phosphor config from "{}" to "{}")", o, m);
+            LOG_INFO_CTX("Change Phosphor config", {"from", m}, {"to", o});
             setPhosphorConfig(o);
         }
     }
