@@ -157,7 +157,7 @@ nlohmann::json Connection::to_json() const {
 
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& c : cookies) {
-        if (c && !c->empty()) {
+        if (c && (!c->empty() || isDCP())) {
             arr.push_back(c->to_json());
         }
     }
@@ -951,7 +951,7 @@ void Connection::logExecutionException(const std::string_view where,
     try {
         auto array = nlohmann::json::array();
         for (const auto& c : cookies) {
-            if (c && !c->empty()) {
+            if (c && (!c->empty() || isDCP())) {
                 array.push_back(c->to_json());
             }
         }
