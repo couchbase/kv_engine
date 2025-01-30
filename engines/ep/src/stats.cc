@@ -26,7 +26,8 @@ EPStats::EPStats()
     // All variables initialized here are cached / calculated config values or
     // timestamps, that should not be included in a reset() call, and so cannot
     // be initialized in that function.
-    : mem_low_wat(0),
+    : flusher_todo(0),
+      mem_low_wat(0),
       mem_high_wat(0),
       desiredMaxDataSize(0),
       inactiveHTMemory(0),
@@ -287,7 +288,6 @@ void EPStats::reset() {
     warmupItemsVisitedWhilstLoadingPrepares.reset();
     warmDups.reset();
     warmOOM.reset();
-    flusher_todo.reset();
     flusherCommits.reset();
     cumulativeFlushTime.reset();
     cumulativeCommitTime.reset();

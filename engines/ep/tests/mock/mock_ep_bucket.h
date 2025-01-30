@@ -69,6 +69,15 @@ public:
     /// @returns a non-const pointer to Flusher object.
     Flusher* getFlusherNonConst(Vbid vbid);
 
+    void flushSuccessEpilogue(
+            VBucket& vb,
+            const std::chrono::steady_clock::time_point flushStart,
+            size_t itemsFlushed,
+            const AggregatedFlushStats& aggStats,
+            Collections::VB::Flush& collectionFlush) override;
+
+    TestingHook<VBucket&, size_t> flushSuccessEpilogueHook;
+
     void setPostCompactionCompletionHook(std::function<void()> hook) {
         postCompactionCompletionStatsUpdateHook = hook;
     }

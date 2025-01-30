@@ -3151,6 +3151,45 @@ TEST_P(EPBucketTest, RescheduleWithSmallerDelay) {
     EXPECT_EQ(task_state_t::TASK_RUNNING, task1->getState());
 }
 
+/**
+ * Test kv_flusher_todo stat to correctly track the number of items requiring
+ * a flush. The stat was previously reset to 0 at the end of a flush so if
+ * two flushers were running, one could reset the stat to 0, losing an
+ * increment by another thread.
+ */
+TEST_P(EPBucketTest, MB_64896) {
+    // Create and set two vbids to active.
+    Vbid vbid0 = Vbid(0);
+    Vbid vbid1 = Vbid(1);
+    store->setVBucketState(vbid0, vbucket_state_active);
+    store->setVBucketState(vbid1, vbucket_state_active);
+
+    // Store items in both vBuckets.
+    store_item(vbid0, makeStoredDocKey("key1"), "value1");
+    store_item(vbid1, makeStoredDocKey("key2"), "value2");
+
+    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    const auto& stats = engine->getEpStats();
+    bucket->flushSuccessEpilogueHook = [&](VBucket& vb, size_t itemsFlushed) {
+        // Flushed 1 item
+        EXPECT_EQ(1, itemsFlushed);
+
+        if (vb.getId() == vbid0) {
+            EXPECT_EQ(2, stats.flusher_todo);
+            flush_vbucket_to_disk(vbid1);
+            // Should not reset stat to 0 after another flusher runs
+            EXPECT_EQ(2, stats.flusher_todo);
+        } else if (vb.getId() == vbid1) {
+            // Both vbid0 and vbid1 flushers are running at this point
+            EXPECT_EQ(4, stats.flusher_todo);
+        }
+    };
+
+    EXPECT_EQ(0, stats.flusher_todo);
+    flush_vbucket_to_disk(vbid0);
+    EXPECT_EQ(0, stats.flusher_todo);
+}
+
 class EPBucketTestCouchstore : public EPBucketTest {
 public:
     void SetUp() override {

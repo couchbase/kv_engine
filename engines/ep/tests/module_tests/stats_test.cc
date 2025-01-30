@@ -1433,6 +1433,7 @@ protected:
         EXPECT_EQ(nonStatValue, stats.numRemainingBgJobs);
         EXPECT_EQ(nonStatValue, stats.inactiveCheckpointOverhead);
         EXPECT_EQ(nonStatValue, stats.inactiveHTMemory);
+        EXPECT_EQ(nonStatValue, stats.flusher_todo);
 
         EXPECT_EQ(initializedValue, stats.warmedUpKeys);
         EXPECT_EQ(initializedValue, stats.warmedUpValues);
@@ -1441,7 +1442,6 @@ protected:
                   stats.warmupItemsVisitedWhilstLoadingPrepares);
         EXPECT_EQ(initializedValue, stats.warmDups);
         EXPECT_EQ(initializedValue, stats.warmOOM);
-        EXPECT_EQ(initializedValue, stats.flusher_todo);
         EXPECT_EQ(initializedValue, stats.flusherCommits);
         EXPECT_EQ(initializedValue, stats.cumulativeFlushTime);
         EXPECT_EQ(initializedValue, stats.cumulativeCommitTime);

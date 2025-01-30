@@ -524,7 +524,7 @@ protected:
      * @param aggStats Used for updating stats
      * @param collectionFlush Used for performing collection-related operations
      */
-    void flushSuccessEpilogue(
+    virtual void flushSuccessEpilogue(
             VBucket& vb,
             const std::chrono::steady_clock::time_point flushStart,
             size_t itemsFlushed,

@@ -806,6 +806,12 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
         return {moreAvailable, 0};
     }
 
+    // Decrement flusher_todo stat on return as we have processed
+    // the current flush batch.
+    auto flusherTodoStatReset = folly::makeGuard([&]() {
+        stats.flusher_todo.fetch_sub(flushBatchSize + mustPersistVBState);
+    });
+
     if (proposedVBState.transition.state == vbucket_state_active) {
         if (maxSeqno) {
             range = snapshot_range_t(maxSeqno, maxSeqno);
@@ -1013,7 +1019,6 @@ void EPBucket::flushSuccessEpilogue(
             itemsFlushed ? static_cast<double>(transTime) / itemsFlushed : 0;
     lastTransTimePerItem.store(transTimePerItem);
     stats.cumulativeFlushTime.fetch_add(transTime);
-    stats.flusher_todo.store(0);
     stats.totalPersistVBState++;
     ++stats.flusherCommits;
 
