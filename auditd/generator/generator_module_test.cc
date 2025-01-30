@@ -95,6 +95,7 @@ protected:
   "module1": {
     "startid": 0,
     "file": "auditd/generator/tests/module1.json",
+    "generate_macros": true,
     "enterprise": false
   }
 })";

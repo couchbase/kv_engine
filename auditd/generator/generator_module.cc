@@ -59,6 +59,11 @@ Module::Module(const nlohmann::json& object, const std::string& srcRoot) {
         ++expected;
     }
 
+    if (data.contains("generate_macros")) {
+        generateMacros = data.value("generate_macros", false);
+        ++expected;
+    }
+
     if (data.size() != expected) {
         std::stringstream ss;
         ss << "Unknown elements for " << name << ": " << std::endl
@@ -85,14 +90,20 @@ void Module::addEvent(Event event) {
 }
 
 void Module::createHeaderFile(std::ostream& out) {
+    if (!generateMacros) {
+        return;
+    }
     for (const auto& ev : events) {
         std::string nm(name);
         nm.append("_AUDIT_");
         nm.append(ev.name);
-        std::replace(nm.begin(), nm.end(), ' ', '_');
-        std::replace(nm.begin(), nm.end(), '/', '_');
-        std::replace(nm.begin(), nm.end(), ':', '_');
-        std::transform(nm.begin(), nm.end(), nm.begin(), toupper);
+        for (auto& c : nm) {
+            if (std::isalnum(c)) {
+                c = toupper(c);
+            } else {
+                c = '_';
+            }
+        }
         out << "#define " << nm << " " << ev.id << std::endl;
     }
 }

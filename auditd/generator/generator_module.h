@@ -58,6 +58,9 @@ public:
      */
     std::vector<Event> events;
 
+    /// Should macros be defined for the events in this module?
+    bool generateMacros = false;
+
 protected:
     /**
      * Add the event to the list of events for the module
