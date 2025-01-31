@@ -304,7 +304,6 @@ void to_json(nlohmann::json& json, const MetaData& meta) {
             {"bySeqno", std::to_string(meta.getBySeqno())},
             {"cas", std::to_string(meta.getCas())},
             {"revSeqno", std::to_string(uint64_t(meta.getRevSeqno()))},
-            {"exptime", std::to_string(meta.getExptime())},
             {"flags", std::to_string(meta.getFlags())},
             {"valueSize", std::to_string(meta.getValueSize())},
             {"deleteSource", to_string(meta.getDeleteSource())},
@@ -314,6 +313,12 @@ void to_json(nlohmann::json& json, const MetaData& meta) {
             {"deleted", std::to_string(meta.isDeleted())},
             {"history_seconds",
              std::to_string(meta.getHistoryTimeStamp().count())}};
+
+    if (meta.isDeleted()) {
+        json["delete_time"] = std::to_string(meta.getExptime());
+    } else {
+        json["exptime"] = std::to_string(meta.getExptime());
+    }
 
     if (meta.isDurabilityDefined()) {
         if (meta.isDeleted()) {
