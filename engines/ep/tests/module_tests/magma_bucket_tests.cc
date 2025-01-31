@@ -1164,6 +1164,10 @@ public:
         config_string += "magma_fusion_logstore_uri=" + fusionLogstoreURI;
         config_string +=
                 ";magma_fusion_metadatastore_uri=" + fusionMetadatastoreURI;
+        config_string += ";magma_fusion_upload_interval=" +
+                         std::to_string(fusionUploadInterval);
+        config_string += ";magma_fusion_log_checkpoint_interval=" +
+                         std::to_string(fusionLogCheckpointInterval);
         STParameterizedBucketTest::SetUp();
     }
 
@@ -1172,6 +1176,8 @@ protected:
     const std::string fusionLogstoreURI = "local://" + dbPath + "/logstore";
     const std::string fusionMetadatastoreURI =
             "local://" + dbPath + "/metadatastore";
+    const size_t fusionUploadInterval = 1234;
+    const size_t fusionLogCheckpointInterval = 5678;
 };
 
 TEST_P(STMagmaFusionTest, Config) {
@@ -1188,6 +1194,11 @@ TEST_P(STMagmaFusionTest, Config) {
                                  bucketConfig.getUuid() + "/" +
                                  bucketConfig.getMagmaFusionNamespaceSuffix();
     EXPECT_EQ(fusionNamespace, kvstoreConfig.getFusionNamespace());
+
+    // The following configuration is propagated directly to magma
+    EXPECT_EQ(fusionUploadInterval, kvstore.getFusionUploadInterval().count());
+    EXPECT_EQ(fusionLogCheckpointInterval,
+              kvstore.getFusionLogCheckpointInterval().count());
 }
 
 TEST_P(STMagmaFusionTest, MetadataAuthToken) {

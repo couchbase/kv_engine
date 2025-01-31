@@ -291,6 +291,14 @@ public:
         return fusionNamespace;
     }
 
+    std::chrono::seconds getFusionUploadInterval() const {
+        return fusionUploadInterval;
+    }
+
+    std::chrono::seconds getFusionLogCheckpointInterval() const {
+        return fusionLogCheckpointInterval;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -562,10 +570,13 @@ private:
 
     // Fusion Logstore URI.
     std::string fusionLogstoreURI;
-
     // Fusion Metadatastore URI.
     std::string fusionMetadatastoreURI;
-
     // Fusion Namespace.
     std::string fusionNamespace;
+    // The interval between kvstore syncs to fusion
+    std::chrono::seconds fusionUploadInterval;
+    // The interval at which FusionFS should create a log checkpoint on the
+    // FusionMetadataStore and delete eligible logs from the FusionLogStore
+    std::chrono::seconds fusionLogCheckpointInterval;
 };

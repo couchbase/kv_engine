@@ -671,6 +671,9 @@ public:
 
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
 
+    std::chrono::seconds getFusionUploadInterval() const;
+    std::chrono::seconds getFusionLogCheckpointInterval() const;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

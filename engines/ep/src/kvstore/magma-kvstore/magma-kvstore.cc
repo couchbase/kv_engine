@@ -893,6 +893,12 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
         encryptionKeyProvider->addListener(
                 [this](const auto& ks) { magma->setActiveEncryptionKeys(ks); });
     }
+
+    if (!configuration.getFusionLogstoreURI().empty()) {
+        magma->SetFusionUploadInterval(configuration.getFusionUploadInterval());
+        magma->SetFusionLogCheckpointInterval(
+                configuration.getFusionLogCheckpointInterval());
+    }
 }
 
 MagmaKVStore::~MagmaKVStore() {
@@ -4594,4 +4600,12 @@ cb::engine_errc MagmaKVStore::syncFusionLogstore(Vbid vbid) {
         return cb::engine_errc::failed;
     }
     return cb::engine_errc::success;
+}
+
+std::chrono::seconds MagmaKVStore::getFusionUploadInterval() const {
+    return magma->GetFusionUploadInterval();
+}
+
+std::chrono::seconds MagmaKVStore::getFusionLogCheckpointInterval() const {
+    return magma->GetFusionLogCheckpointInterval();
 }

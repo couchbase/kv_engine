@@ -1652,6 +1652,18 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "magma_fusion_upload_interval": {
+            "default": "(60 * 10)",
+            "descr": "The interval between kvstore syncs to fusion, in seconds.",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "magma_fusion_log_checkpoint_interval": {
+            "default": "(60 * 15)",
+            "descr": "The interval at which FusionFS should create a log checkpoint on the FusionMetadataStore and delete eligible logs from the FusionLogStore, in seconds.",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",

@@ -740,3 +740,26 @@ MagmaMemoryTrackingProxy::MountKVStore(
     cb::UseArenaMallocSecondaryDomain sGuard;
     return copyToPrimaryDomain(magma->MountKVStore(kvId, kvsRev, config));
 }
+
+void MagmaMemoryTrackingProxy::SetFusionUploadInterval(
+        std::chrono::seconds interval) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionUploadInterval(interval);
+}
+
+std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionUploadInterval() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionUploadInterval();
+}
+
+void MagmaMemoryTrackingProxy::SetFusionLogCheckpointInterval(
+        std::chrono::seconds interval) {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    magma->SetFusionLogCheckpointInterval(interval);
+}
+
+std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionLogCheckpointInterval()
+        const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionLogCheckpointInterval();
+}

@@ -221,6 +221,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     fusionMetadatastoreURI = config.getMagmaFusionMetadatastoreUri();
     fusionNamespace = config.getCouchBucket() + "/" + config.getUuid() + "/" +
                       config.getMagmaFusionNamespaceSuffix();
+    fusionUploadInterval =
+            std::chrono::seconds(config.getMagmaFusionUploadInterval());
+    fusionLogCheckpointInterval =
+            std::chrono::seconds(config.getMagmaFusionLogCheckpointInterval());
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {

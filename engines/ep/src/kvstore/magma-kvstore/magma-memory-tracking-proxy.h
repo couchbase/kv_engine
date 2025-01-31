@@ -291,6 +291,16 @@ public:
             magma::Magma::KVStoreRevision kvsRev,
             const magma::Magma::KVStoreMountConfig& config);
 
+    /// The upload interval is the interval between kvstore syncs to fusion
+    void SetFusionUploadInterval(std::chrono::seconds interval);
+    std::chrono::seconds GetFusionUploadInterval() const;
+
+    // The LogCheckpoint interval is the interval at which FusionFS should
+    // create a log checkpoint on the FusionMetadataStore and delete eligible
+    // logs from the FusionLogStore
+    void SetFusionLogCheckpointInterval(std::chrono::seconds interval);
+    std::chrono::seconds GetFusionLogCheckpointInterval() const;
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };
