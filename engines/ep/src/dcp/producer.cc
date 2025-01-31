@@ -21,6 +21,7 @@
 #include "dcp/active_stream.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
+#include "dcp/cache_transfer_stream.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
 #include "ep_time.h"

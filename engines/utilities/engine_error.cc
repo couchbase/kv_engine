@@ -122,7 +122,7 @@ std::string cb::to_string(cb::engine_errc code) {
     case engine_errc::range_scan_complete:
         return "range scan complete";
     case engine_errc::vbuuid_not_equal:
-        return "range scan vbuuid unknown";
+        return "vbucket uuid mismatch";
     case engine_errc::too_many_connections:
         return "too many connections";
     case engine_errc::throttled:

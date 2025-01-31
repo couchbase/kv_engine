@@ -435,6 +435,18 @@ public:
 
     StreamAggStats getStreamAggStats() const;
 
+    /**
+     * Handler for a DCP Cache Copy request. If successful will create a
+     * CacheTransferStream for the vbucket and produce DCP mutations for all
+     * resident documents with a seqno <= maxSeqno
+     */
+    cb::engine_errc cacheTransferRequest(cb::mcbp::DcpAddStreamFlag flags,
+                                         uint32_t opaque,
+                                         Vbid vbucket,
+                                         uint64_t maxSeqno,
+                                         uint64_t vbucket_uuid,
+                                         IncludeValue includeValue);
+
     // MB-37702: Test hook set via mock class.
     TestingHook<> closeAllStreamsHook;
 

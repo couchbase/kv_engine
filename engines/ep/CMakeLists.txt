@@ -270,6 +270,7 @@ ADD_LIBRARY(ep STATIC
             src/dcp/backfill_disk_to_stream.cc
             src/dcp/backfill_memory.cc
             src/dcp/backfill_to_stream.cc
+            src/dcp/cache_transfer_stream.cc
             src/dcp/consumer.cc
             src/dcp/dcp-types.cc
             src/dcp/dcpconnmap.cc
@@ -464,6 +465,7 @@ endfunction()
 add_subdirectory(tests)
 
 SET(MOCK_SOURCE
+    tests/mock/mock_cache_transfer_stream.cc
     tests/mock/mock_couch_kvstore.cc
     tests/mock/mock_dcp_conn_map.cc
     tests/mock/mock_dcp_consumer.cc

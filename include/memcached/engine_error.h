@@ -141,7 +141,7 @@ enum class engine_errc {
     /// RangeScan has completed, successfully, no more data.
     range_scan_complete,
 
-    /// RangeScan create failed due to vb-uuid mismatch
+    /// Failed due to vb-uuid mismatch
     vbuuid_not_equal,
 
     /// Too many connections

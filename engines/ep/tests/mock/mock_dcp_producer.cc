@@ -15,6 +15,7 @@
 #include "dcp/msg_producers_border_guard.h"
 #include "dcp/response.h"
 #include "mock_bucket_logger.h"
+#include "mock_cache_transfer_stream.h"
 #include "mock_dcp.h"
 #include "mock_dcp_backfill_mgr.h"
 #include "mock_stream.h"
@@ -134,6 +135,23 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
                 "failed to insert requested stream");
     }
     notifyStreamReady(vb.getId());
+    return stream;
+}
+
+std::shared_ptr<MockCacheTransferStream>
+MockDcpProducer::mockCacheTransferStreamRequest(uint32_t opaque,
+                                                Vbid vbid,
+                                                uint64_t maxSeqno,
+                                                uint64_t vbucketUuid,
+                                                IncludeValue includeValue) {
+    auto stream = std::make_shared<MockCacheTransferStream>(
+            std::static_pointer_cast<MockDcpProducer>(shared_from_this()),
+            opaque,
+            maxSeqno,
+            vbucketUuid,
+            vbid,
+            engine_,
+            includeValue);
     return stream;
 }
 

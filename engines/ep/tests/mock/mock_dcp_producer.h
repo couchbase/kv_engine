@@ -20,6 +20,7 @@ class ActiveStreamCheckpointProcessorTask;
 struct BackfillScanBuffer;
 class MockActiveStream;
 class MockBucketLogger;
+class MockCacheTransferStream;
 class MockDcpMessageProducers;
 
 /*
@@ -199,6 +200,16 @@ public:
             MarkerVersion maxMarkerVersion,
             std::optional<std::string_view> jsonFilter,
             std::function<void(MockActiveStream&)> preSetActiveHook = {});
+
+    /**
+     * Create a mock cache transfer stream.
+     */
+    std::shared_ptr<MockCacheTransferStream> mockCacheTransferStreamRequest(
+            uint32_t opaque,
+            Vbid vbid,
+            uint64_t maxSeqno,
+            uint64_t vbucketUuid,
+            IncludeValue includeValue);
 
     /**
      * Step the producer and expect the opcode to be returned
