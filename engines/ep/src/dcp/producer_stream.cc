@@ -50,6 +50,9 @@ void ProducerStream::notifyStreamReady(bool force, DcpProducer* producer) {
 void ProducerStream::logWithContext(spdlog::level::level_enum severity,
                                     std::string_view msg,
                                     cb::logger::Json ctx) const {
+    if (!shouldLog(severity)) {
+        return;
+    }
     // Format: {"vb:"vb:X", "sid": "sid:none", ...}
     auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
     if (sid) {
@@ -70,5 +73,14 @@ void ProducerStream::logWithContext(spdlog::level::level_enum severity,
 
 void ProducerStream::logWithContext(spdlog::level::level_enum severity,
                                     std::string_view msg) const {
+    if (!shouldLog(severity)) {
+        return;
+    }
     logWithContext(severity, msg, cb::logger::Json::object());
+}
+
+bool ProducerStream::shouldLog(spdlog::level::level_enum severity) const {
+    // Avoid sp.lock and just ask the global bucket logger - in reality there
+    // is only one log level
+    return getGlobalBucketLogger()->should_log(severity);
 }

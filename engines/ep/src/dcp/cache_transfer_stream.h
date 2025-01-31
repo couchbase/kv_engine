@@ -11,7 +11,7 @@
 #pragma once
 
 #include "collections/vbucket_manifest_handles.h"
-#include "dcp/stream.h"
+#include "dcp/producer_stream.h"
 
 #include <memory>
 
@@ -33,7 +33,7 @@ class VBucket;
  *
  */
 class CacheTransferStream
-    : public Stream,
+    : public ProducerStream,
       public std::enable_shared_from_this<CacheTransferStream> {
 public:
     CacheTransferStream(std::shared_ptr<DcpProducer> p,
@@ -54,15 +54,20 @@ public:
     /// @returns true if Stream::state != Dead
     bool isActive() const override;
 
-    // @todo override ProducerStream::next when that exists.
-    std::unique_ptr<DcpResponse> next(DcpProducer&);
+    /// ProducerStreamn overrides
+    bool endIfRequiredPrivilegesLost(DcpProducer&) override;
 
-    // @todo override ProducerStream::makeEndStreamResponse when that exists.
-    std::unique_ptr<DcpResponse> makeEndStreamResponse(
-            cb::mcbp::DcpStreamEndStatus reason);
+    std::unique_ptr<DcpResponse> next(DcpProducer&) override;
 
-    // @todo override ProducerStream::getItemsRemaining when that exists.
-    size_t getItemsRemaining();
+    void setDeadWithLock(
+            cb::mcbp::DcpStreamEndStatus status,
+            std::unique_lock<folly::SharedMutex>& vbstateLock) override;
+
+    size_t getItemsRemaining() override;
+
+    void addTakeoverStats(const AddStatFn& add_stat,
+                          CookieIface& c,
+                          const VBucket& vb) override;
 
     enum class Status {
         /// maybeQueueItem() has queued an item. Caller should continue
@@ -117,11 +122,7 @@ protected:
     /// ID of the task generating data for the stream.
     size_t tid{0};
 
-    /// Weak pointer to the producer which created this stream.
-    std::weak_ptr<DcpProducer> producerPtr;
-
-    /// Reference to the engine which created the producer which created this
-    /// stream.
+    /// Reference to the engine owning this producer/stream.
     EventuallyPersistentEngine& engine;
 
     /// Configuration: Stream will send keys or keys+value

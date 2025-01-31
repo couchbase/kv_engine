@@ -153,6 +153,8 @@ public:
     void logWithContext(spdlog::level::level_enum severity,
                         std::string_view msg) const;
 
+    bool shouldLog(spdlog::level::level_enum severity) const;
+
 protected:
     /// A weak pointer to the producer which created this stream.
     const std::weak_ptr<DcpProducer> producerPtr;

@@ -75,10 +75,10 @@ std::unique_ptr<DcpResponse> MockCacheTransferStream::validateNextResponse(
         return nullptr;
     }
 
-    if (response->getEvent() != DcpResponse::Event::Mutation) {
-        EXPECT_EQ(DcpResponse::Event::Mutation, response->getEvent())
+    if (response->getEvent() != DcpResponse::Event::CachedValue) {
+        EXPECT_EQ(DcpResponse::Event::CachedValue, response->getEvent())
                 << "MockCacheTransferStream::validateNextResponse -> Expected "
-                   "a DcpResponse::Event::Mutation, got:"
+                   "a DcpResponse::Event::CachedValue, got:"
                 << response->to_string();
         return nullptr;
     }

@@ -235,12 +235,14 @@ bool CacheTransferTask::run() {
                         .count();
 
         // Reached end of HT
-        EP_LOG_INFO_CTX("CacheTransferTask::run: Reached HT end.",
-                        {{"vbid", vbid},
-                         {"visited_count", visitedCount},
-                         {"queued_count", queuedCount},
-                         {"total_runtime_ms", totalRuntimeMs},
-                         {"total_bytes_queued", stream.getTotalBytesQueued()}});
+        stream.logWithContext(
+                spdlog::level::info,
+                "CacheTransferTask::run: Reached HT end.",
+                {{"vbid", vbid},
+                 {"visited_count", visitedCount},
+                 {"queued_count", queuedCount},
+                 {"total_runtime_ms", totalRuntimeMs},
+                 {"total_bytes_queued", stream.getTotalBytesQueued()}});
         stream.setDead(cb::mcbp::DcpStreamEndStatus::Ok);
         // Notify the producer as we have queued a stream end.
         notify = true;
@@ -269,15 +271,14 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
                                          Vbid vbid,
                                          EventuallyPersistentEngine& engine,
                                          IncludeValue includeValue)
-    : Stream(name + ":cts",
-             cb::mcbp::DcpAddStreamFlag::None,
-             opaque,
-             vbid,
-             maxSeqno,
-             uuid,
-             0, // snap_start_seqno
-             0), // snap_end_seqno
-      producerPtr(p),
+    : ProducerStream(name + ":cts",
+                     p,
+                     cb::mcbp::DcpStreamId{},
+                     cb::mcbp::DcpAddStreamFlag::None,
+                     opaque,
+                     vbid,
+                     maxSeqno,
+                     uuid),
       engine(engine),
       includeValue(includeValue) {
     Expects(p);
@@ -292,9 +293,11 @@ CacheTransferStream::CacheTransferStream(std::shared_ptr<DcpProducer> p,
 void CacheTransferStream::setActive() {
     auto producer = getProducer();
     if (!producer) {
-        EP_LOG_WARN_CTX(
+        logWithContext(
+                spdlog::level::warn,
                 "CacheTransferStream::scheduleTask: Producer cannot be locked",
                 {"vbid", getVBucket()});
+        return;
     }
     std::lock_guard<std::mutex> lh(streamMutex);
     tid = ExecutorPool::get()->schedule(std::make_unique<CacheTransferTask>(
@@ -309,6 +312,28 @@ void CacheTransferStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     }
     state = State::Dead;
     pushToReadyQ(makeEndStreamResponse(status));
+}
+
+bool CacheTransferStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
+    // @todo: can later link to the filter
+    return false;
+}
+
+void CacheTransferStream::setDeadWithLock(
+        cb::mcbp::DcpStreamEndStatus status,
+        std::unique_lock<folly::SharedMutex>&) {
+    setDead(status);
+    if (status != cb::mcbp::DcpStreamEndStatus::Disconnected) {
+        notifyStreamReady();
+    }
+}
+
+void CacheTransferStream::addTakeoverStats(const AddStatFn& add_stat,
+                                           CookieIface& c,
+                                           const VBucket& vb) {
+    // @todo: figure out if we need to provide takeover stats.
+    // We certainly need to provide some stats if the CTS is created during
+    // takeover.
 }
 
 std::string CacheTransferStream::getStreamTypeName() const {
@@ -344,12 +369,6 @@ std::unique_ptr<DcpResponse> CacheTransferStream::next(DcpProducer& producer) {
     return popFromReadyQ();
 }
 
-std::unique_ptr<DcpResponse> CacheTransferStream::makeEndStreamResponse(
-        cb::mcbp::DcpStreamEndStatus reason) {
-    return std::make_unique<StreamEndResponse>(
-            opaque_, reason, vb_, cb::mcbp::DcpStreamId{/*no sid*/});
-}
-
 size_t CacheTransferStream::getItemsRemaining() {
     std::lock_guard<std::mutex> lh(streamMutex);
     return readyQ.size();
@@ -363,29 +382,31 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
         const StoredValue& sv, Collections::VB::ReadHandle& readHandle) {
     preQueueCallback(sv);
 
+    const auto debugLogSv = [this](const std::string_view msg,
+                                   const StoredValue& logSv) {
+        if (shouldLog(spdlog::level::debug)) {
+            logWithContext(
+                    spdlog::level::debug, msg, {{"sv", nlohmann::json{logSv}}});
+        }
+    };
+
     // Check if the sv is eligible for transfer.
     // 1. Temporary/Deleted/Pending StoredValues are not eligible.
     if (sv.isTempItem() || sv.isDeleted() || sv.isPending()) {
-        EP_LOG_DEBUG_CTX("CacheTransferStream skipping temp/deleted/pending",
-                         {"sv", nlohmann::json{sv}});
+        debugLogSv("CacheTransferStream skipping temp/deleted/pending", sv);
         return Status::KeepVisiting;
     }
 
     // 2. Dropped collection items are not eligible.
     if (readHandle.isLogicallyDeleted(sv.getKey(), sv.getBySeqno())) {
-        EP_LOG_DEBUG_CTX(
-                "CacheTransferStream skipping as in dropped collection",
-                {"sv", nlohmann::json{sv}});
+        debugLogSv("CacheTransferStream skipping as in dropped collection", sv);
         return Status::KeepVisiting;
     }
 
     // 3. StoredValues with a sequence number greater than the stream's maxSeqno
     // are not eligible.
     if (uint64_t(sv.getBySeqno()) > getMaxSeqno()) {
-        EP_LOG_DEBUG_CTX(
-                "CacheTransferStream skipping sv with seqno > maxSeqno",
-                {"max_seqno", getMaxSeqno()},
-                {"sv", nlohmann::json{sv}});
+        debugLogSv("CacheTransferStream skipping sv with seqno > maxSeqno", sv);
         return Status::KeepVisiting;
     }
 
@@ -394,20 +415,19 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     if (includeValue == IncludeValue::Yes) {
         // 4.1 If not resident, it is not eligible.
         if (!sv.isResident()) {
-            EP_LOG_DEBUG_CTX("CacheTransferStream skipping non-resident",
-                             {"sv", nlohmann::json{sv}});
+            debugLogSv("CacheTransferStream skipping non-resident", sv);
             return Status::KeepVisiting;
         }
 
         // 4.2 If the sv is expired, it is not eligible.
         if (sv.isExpired(ep_real_time())) {
-            EP_LOG_DEBUG_CTX("CacheTransferStream skipping expired",
-                             {"sv", nlohmann::json{sv}});
+            debugLogSv("CacheTransferStream skipping expired", sv);
             return Status::KeepVisiting;
         }
     }
 
-    EP_LOG_DEBUG_CTX("CacheTransferStream queuing", {"sv", nlohmann::json{sv}});
+    // If the item is not allowed by the filter, skip it.
+    debugLogSv("CacheTransferStream queuing", sv);
 
     // Generate a MutationResponse. It carries all the required information to
     // transfer the cache. Later we will tweak this so that a DcpMutation isn't
@@ -429,7 +449,8 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
             IncludeDeletedUserXattrs::Yes,
             DocKeyEncodesCollectionId::Yes,
             EnableExpiryOutput::Yes,
-            cb::mcbp::DcpStreamId{});
+            sid,
+            DcpResponse::Event::CachedValue);
     {
         std::lock_guard<std::mutex> lh(streamMutex);
         if (state != State::Active) {
@@ -443,9 +464,11 @@ CacheTransferStream::Status CacheTransferStream::maybeQueueItem(
     const auto hwm = engine.getEpStats().mem_high_wat.load();
     const auto memoryUsed = getMemoryUsed();
     if (memoryUsed > hwm) {
-        EP_LOG_DEBUG_CTX("CacheTransferStream OOM:",
-                         {"mem_used", memoryUsed},
-                         {"hwm", hwm});
+        if (shouldLog(spdlog::level::debug)) {
+            logWithContext(spdlog::level::debug,
+                           "CacheTransferStream OOM:",
+                           {{"mem_used", memoryUsed}, {"hwm", hwm}});
+        }
         return Status::OOM;
     }
 
