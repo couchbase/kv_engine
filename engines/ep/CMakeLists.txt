@@ -278,6 +278,7 @@ ADD_LIBRARY(ep STATIC
             src/dcp/passive_stream.cc
             src/dcp/passive_stream.h
             src/dcp/producer.cc
+            src/dcp/producer_stream.cc
             src/dcp/response.cc
             src/dcp/stream.cc
             src/defragmenter.cc

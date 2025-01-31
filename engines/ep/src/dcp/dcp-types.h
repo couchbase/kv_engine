@@ -32,10 +32,13 @@ class DcpProducer;
 // Implementation defined in dcp/stream.h
 class Stream;
 
-// Implementation defined in dcp/stream.h
+// Implementation defined in dcp/producer_stream.h
+class ProducerStream;
+
+// Implementation defined in dcp/active_stream.h
 class ActiveStream;
 
-// Implementation defined in dcp/stream.h
+// Implementation defined in dcp/passive_stream.h
 class PassiveStream;
 
 class ConnHandler;

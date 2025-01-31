@@ -12,14 +12,13 @@
 #pragma once
 
 #include "collections/vbucket_filter.h"
-#include "dcp/stream.h"
+#include "dcp/producer_stream.h"
 #include "utilities/testing_hook.h"
 #include <engines/ep/src/ep_engine.h>
 #include <memcached/engine_error.h>
 #include <platform/json_log.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
-#include <spdlog/common.h>
 #include <optional>
 
 namespace cb::mcbp::request {
@@ -83,7 +82,7 @@ struct DCPBackfillIface;
  *                   V
  *                [Dead]
  */
-class ActiveStream : public Stream,
+class ActiveStream : public ProducerStream,
                      public std::enable_shared_from_this<ActiveStream> {
 public:
     /// The states this ActiveStream object can be in - see diagram in
@@ -137,7 +136,7 @@ public:
      *                 path.
      * @return DcpResponse to ship to the consumer (via the calling DcpProducer)
      */
-    std::unique_ptr<DcpResponse> next(DcpProducer& producer);
+    std::unique_ptr<DcpResponse> next(DcpProducer& producer) override;
 
     void setActive() override {
         std::lock_guard<std::mutex> lh(streamMutex);
@@ -166,14 +165,9 @@ public:
 
     void setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
-    /**
-     * Ends the stream.
-     *
-     * @param status The stream end status
-     * @param vbstateLock Exclusive lock to vbstate
-     */
-    void setDead(cb::mcbp::DcpStreamEndStatus status,
-                 std::unique_lock<folly::SharedMutex>& vbstateLock);
+    void setDeadWithLock(
+            cb::mcbp::DcpStreamEndStatus status,
+            std::unique_lock<folly::SharedMutex>& vbstateLock) override;
 
     StreamState getState() const {
         return state_;
@@ -185,7 +179,7 @@ public:
      * @param producer reference to the calling producer to avoid promoting the
      *                 producerPtr weak_ptr
      */
-    void notifySeqnoAvailable(DcpProducer& producer);
+    void notifySeqnoAvailable(DcpProducer& producer) override;
 
     void snapshotMarkerAckReceived();
 
@@ -313,19 +307,21 @@ public:
 
     void addTakeoverStats(const AddStatFn& add_stat,
                           CookieIface& c,
-                          const VBucket& vb);
+                          const VBucket& vb) override;
 
     /**
      * Returns a count of how many items are outstanding to be sent for this
      * stream's vBucket.
      */
-    size_t getItemsRemaining();
+    size_t getItemsRemaining() override;
 
     /// @returns the count of items backfilled from disk.
     size_t getBackfillItemsDisk() const;
 
     /// @returns the count of items backfilled from memory.
     size_t getBackfillItemsMemory() const;
+
+    void updateAggStats(StreamAggStats& stats) override;
 
     uint64_t getLastReadSeqno() const;
 
@@ -338,14 +334,6 @@ public:
     uint64_t getLastSentSnapEndSeqno() const {
         return lastSentSnapEndSeqno;
     }
-
-    void logWithContext(spdlog::level::level_enum severity,
-                        std::string_view msg,
-                        cb::logger::Json ctx) const;
-
-    void logWithContext(spdlog::level::level_enum severity,
-                        std::string_view msg) const;
-
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
@@ -454,10 +442,7 @@ public:
      * reassess the streams required privileges and call endStream if required
      * @param producer reference to the calling DcpProducer
      */
-    bool endIfRequiredPrivilegesLost(DcpProducer& producer);
-
-    std::unique_ptr<DcpResponse> makeEndStreamResponse(
-            cb::mcbp::DcpStreamEndStatus);
+    bool endIfRequiredPrivilegesLost(DcpProducer& producer) override;
 
     bool isDiskOnly() const;
 
@@ -825,19 +810,6 @@ private:
     bool dropCheckpointCursor_UNLOCKED();
 
     /**
-     * Notifies the producer connection that the stream has items ready to be
-     * pick up.
-     *
-     * @param force Indiciates if the function should notify the connection
-     *              irrespective of whether the connection already knows that
-     *              the items are ready to be picked up. Default is 'false'
-     * @param producer optional pointer to the DcpProducer owning this stream.
-     *                 Supplied in some cases to reduce the number of times that
-     *                 we promote the weak_ptr to the DcpProducer (producerPtr).
-     */
-    void notifyStreamReady(bool force = false, DcpProducer* producer = nullptr);
-
-    /**
      * Helper function that tries to takes the ownership of the vbucket
      * (temporarily) and then removes the checkpoint cursor held by the stream.
      */
@@ -989,7 +961,6 @@ private:
     std::atomic<int> waitForSnapshot{0};
 
     EventuallyPersistentEngine* const engine;
-    const std::weak_ptr<DcpProducer> producerPtr;
 
     struct {
         std::atomic<size_t> bytes = 0;
@@ -1079,12 +1050,6 @@ private:
     std::optional<uint64_t> collectionStartSeqno;
 
 protected:
-    /**
-     * A stream-ID which is defined if the producer is using enabled to allow
-     * many streams-per-vbucket
-     */
-    const cb::mcbp::DcpStreamId sid;
-
     /// Whether sending History Snapshots is enabled on this stream
     const bool changeStreamsEnabled;
 

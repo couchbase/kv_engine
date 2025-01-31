@@ -155,7 +155,7 @@ MockDcpProducer::mockCacheTransferStreamRequest(uint32_t opaque,
     return stream;
 }
 
-std::shared_ptr<ActiveStream> MockDcpProducer::makeStream(
+std::shared_ptr<ProducerStream> MockDcpProducer::makeStream(
         uint32_t opaque,
         StreamRequestInfo& req,
         VBucketPtr vb,
@@ -248,6 +248,32 @@ std::shared_ptr<ActiveStream> MockDcpProducer::findStream(Vbid vbid) {
                     "streams size:" +
                     std::to_string(handle.size()));
         }
+        auto rv = std::dynamic_pointer_cast<ActiveStream>(handle.get());
+        if (!rv) {
+            throw std::logic_error(
+                    "MockDcpProducer::findStream against producer with "
+                    "non-ActiveStream");
+        }
+        return rv;
+    }
+    return nullptr;
+}
+
+std::shared_ptr<ProducerStream> MockDcpProducer::findProducerStream(Vbid vbid) {
+    auto rv = streams->find(vbid.get());
+    if (rv != streams->end()) {
+        auto handle = rv->second->rlock();
+
+        if (handle.size() == 0) {
+            return nullptr;
+        }
+
+        if (handle.size() != 1) {
+            throw std::logic_error(
+                    "MockDcpProducer::findStream against producer with many "
+                    "streams size:" +
+                    std::to_string(handle.size()));
+        }
         return handle.get();
     }
     return nullptr;
@@ -268,7 +294,14 @@ std::pair<std::shared_ptr<ActiveStream>, bool> MockDcpProducer::findStream(
         // Try and locate a matching stream
         for (; !handle.end(); handle.next()) {
             if (handle.get()->compareStreamId(sid)) {
-                return {handle.get(), true};
+                auto rv = std::dynamic_pointer_cast<ActiveStream>(handle.get());
+                if (!rv) {
+                    throw std::logic_error(
+                            "MockDcpProducer::findStream(sid) against producer "
+                            "with "
+                            "non-ActiveStream");
+                }
+                return {rv, true};
             }
         }
         return {nullptr, handle.size() > 0};

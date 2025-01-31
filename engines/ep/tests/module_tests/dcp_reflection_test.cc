@@ -126,7 +126,7 @@ public:
 
         std::pair<cb::engine_errc, uint64_t> doStreamRequest(
                 cb::mcbp::DcpAddStreamFlag flags = {});
-        std::unique_ptr<DcpResponse> getNextProducerMsg(ActiveStream* stream);
+        std::unique_ptr<DcpResponse> getNextProducerMsg(ProducerStream& stream);
 
         void transferMessage();
         void transferMessage(DcpResponse::Event expectedEvent);
@@ -151,7 +151,7 @@ public:
         /// Inject a CloseStream message into the consumer side of the route.
         void closeStreamAtConsumer();
 
-        std::pair<ActiveStream*, MockPassiveStream*> getStreams();
+        std::pair<ProducerStream*, MockPassiveStream*> getStreams();
 
         Vbid vbid;
         EventuallyPersistentEngine* producerNode;
@@ -440,8 +440,8 @@ void DCPLoopbackTestHelper::DcpRoute::destroy() {
 }
 
 std::unique_ptr<DcpResponse>
-DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
-    std::unique_ptr<DcpResponse> producerMsg(stream->next(*producer));
+DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ProducerStream& stream) {
+    std::unique_ptr<DcpResponse> producerMsg(stream.next(*producer));
     if (!producerMsg) {
         // Run the next ready task to populate the streams' items. This could
         // either be a NonIO task (ActiveStreamCheckpointProcessorTask) or
@@ -467,7 +467,7 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
                              "NonIO ready/future queues after null "
                              "producerMsg, but both are zero";
         }
-        if (!stream->getItemsRemaining()) {
+        if (!stream.getItemsRemaining()) {
             return {};
         }
         return getNextProducerMsg(stream);
@@ -486,9 +486,9 @@ DCPLoopbackTestHelper::DcpRoute::getNextProducerMsg(ActiveStream* stream) {
     return producerMsg;
 }
 
-std::pair<ActiveStream*, MockPassiveStream*>
+std::pair<ProducerStream*, MockPassiveStream*>
 DCPLoopbackTestHelper::DcpRoute::getStreams() {
-    auto* pStream = producer->findStream(vbid).get();
+    auto* pStream = producer->findProducerStream(vbid).get();
     auto* cStream = dynamic_cast<MockPassiveStream*>(
             consumer->getVbucketStream(vbid).get());
     EXPECT_TRUE(pStream);
@@ -498,7 +498,7 @@ DCPLoopbackTestHelper::DcpRoute::getStreams() {
 
 void DCPLoopbackTestHelper::DcpRoute::transferMessage() {
     auto streams = getStreams();
-    auto msg = getNextProducerMsg(streams.first);
+    auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     EXPECT_EQ(cb::engine_errc::success,
               streams.second->messageReceived(std::move(msg)));
@@ -507,7 +507,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMessage() {
 void DCPLoopbackTestHelper::DcpRoute::transferMessage(
         DcpResponse::Event expectedEvent) {
     auto streams = getStreams();
-    auto msg = getNextProducerMsg(streams.first);
+    auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     EXPECT_EQ(expectedEvent, msg->getEvent()) << *msg;
     EXPECT_EQ(cb::engine_errc::success,
@@ -517,7 +517,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMessage(
 void DCPLoopbackTestHelper::DcpRoute::transferMutation(
         const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
     auto streams = getStreams();
-    auto msg = getNextProducerMsg(streams.first);
+    auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Mutation, msg->getEvent());
     ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
@@ -563,7 +563,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferMutation(
 void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
         const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
     auto streams = getStreams();
-    auto msg = getNextProducerMsg(streams.first);
+    auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Deletion, msg->getEvent());
     ASSERT_TRUE(msg->getBySeqno()) << "optional seqno has no value";
@@ -577,7 +577,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferDeletion(
 void DCPLoopbackTestHelper::DcpRoute::transferPrepare(
         const StoredDocKey& expectedKey, uint64_t expectedSeqno) {
     auto streams = getStreams();
-    auto msg = getNextProducerMsg(streams.first);
+    auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::Prepare, msg->getEvent());
     auto* prepare = static_cast<MutationResponse*>(msg.get());
@@ -593,7 +593,7 @@ void DCPLoopbackTestHelper::DcpRoute::transferSnapshotMarker(
         DcpSnapshotMarkerFlag expectedFlags,
         std::optional<uint64_t> expectedHighPreparedSeqno = std::nullopt) {
     auto streams = getStreams();
-    auto msg = getNextProducerMsg(streams.first);
+    auto msg = getNextProducerMsg(*streams.first);
     ASSERT_TRUE(msg);
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, msg->getEvent()) << *msg;
     auto* marker = static_cast<SnapshotMarker*>(msg.get());
@@ -618,10 +618,12 @@ void DCPLoopbackTestHelper::DcpRoute::transferResponseMessage() {
     if (consumerMsg) {
         switch (consumerMsg->getEvent()) {
         case DcpResponse::Event::SnapshotMarker:
-            streams.first->snapshotMarkerAckReceived();
+            dynamic_cast<MockActiveStream&>(*streams.first)
+                    .snapshotMarkerAckReceived();
             break;
         case DcpResponse::Event::SetVbucket:
-            streams.first->setVBucketStateAckRecieved(*producer);
+            dynamic_cast<MockActiveStream&>(*streams.first)
+                    .setVBucketStateAckRecieved(*producer);
             break;
         default:
             FAIL() << *consumerMsg;
@@ -748,7 +750,7 @@ void DCPLoopbackStreamTest::takeoverTest(
     auto* consumerStream = route0_1.getStreams().second;
     while (true) {
         // We expect an producer->consumer message that will trigger a response
-        auto msg = route0_1.getNextProducerMsg(producerStream);
+        auto msg = route0_1.getNextProducerMsg(*producerStream);
         if (msg) {
             EXPECT_EQ(cb::engine_errc::success,
                       consumerStream->messageReceived(std::move(msg)));

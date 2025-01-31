@@ -118,12 +118,18 @@ public:
     ActiveStreamCheckpointProcessorTask* getCheckpointSnapshotTask() const;
 
     /**
-     * Finds the stream for a given vbucket
+     * Finds the ActiveStream for a given vbucket. Will assert that any found
+     * stream is of the correct type (ActiveStream)
      */
     std::shared_ptr<ActiveStream> findStream(Vbid vbid);
 
     /**
-     * Finds the stream for a given vbucket/sid
+     * @return the stream associated with the given vbucket. (can be null)
+     */
+    std::shared_ptr<ProducerStream> findProducerStream(Vbid vbid);
+
+    /**
+     * Finds the ActiveStream for a given vbucket/sid
      * @returns a pair where second indicates if the VB has no entries at all
      *          first is the stream (or null if no stream)
      */
@@ -203,7 +209,7 @@ public:
             std::optional<std::string_view> jsonFilter,
             std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
-    std::shared_ptr<ActiveStream> makeStream(
+    std::shared_ptr<ProducerStream> makeStream(
             uint32_t opaque,
             StreamRequestInfo& req,
             VBucketPtr vb,

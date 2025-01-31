@@ -30,23 +30,31 @@ class BackfillManager;
 class CheckpointCursor;
 class DcpResponse;
 class MutationResponse;
+class ProducerStream;
 class VBucket;
 namespace Collections::VB {
 class Filter;
 }
 
 struct DCPBackfillIface;
+struct StreamAggStats {
+    size_t streams{};
+    size_t itemsRemaining{};
+    size_t readyQueueMemory{};
+    size_t backfillItemsDisk{};
+    size_t backfillItemsMemory{};
+};
 
 class DcpProducer : public ConnHandler {
 public:
     /**
-     * The StreamContainer stores the ActiveStream via a shared_ptr, this is
+     * The StreamContainer stores the ProducerStream via a shared_ptr, this is
      * because we have multi-threaded access to the DcpProducer and the
      * possibility that a stream maybe removed from the container whilst a
      * thread is still working on the stream, e.g. closeStream and addStats
      * occurring concurrently.
      */
-    using ContainerElement = std::shared_ptr<ActiveStream>;
+    using ContainerElement = std::shared_ptr<ProducerStream>;
 
     /**
      * The StreamsMap maps from vbid to the StreamContainer, which is stored
@@ -413,7 +421,7 @@ public:
      * @return a vector of streams (shared_ptr<ActiveStream) which are
      *         associated with the vbid
      */
-    std::vector<ContainerElement> getStreams(Vbid vbid);
+    std::vector<std::shared_ptr<ActiveStream>> getActiveStreams(Vbid vbid);
 
     std::string getConsumerName() const;
 
@@ -424,14 +432,6 @@ public:
     void setBackfillByteLimit(size_t bytes);
 
     size_t getBackfillByteLimit() const;
-
-    struct StreamAggStats {
-        size_t streams{};
-        size_t itemsRemaining{};
-        size_t readyQueueMemory{};
-        size_t backfillItemsDisk{};
-        size_t backfillItemsMemory{};
-    };
 
     StreamAggStats getStreamAggStats() const;
 
@@ -484,11 +484,11 @@ protected:
             const Collections::VB::Filter& filter);
 
     virtual cb::engine_errc scheduleTasksForStreamRequest(
-            std::shared_ptr<ActiveStream> s,
+            std::shared_ptr<ProducerStream> s,
             VBucket& vb,
             cb::mcbp::DcpStreamId streamID);
 
-    virtual std::shared_ptr<ActiveStream> makeStream(
+    virtual std::shared_ptr<ProducerStream> makeStream(
             uint32_t opaque,
             StreamRequestInfo& req,
             VBucketPtr vb,
@@ -583,7 +583,7 @@ protected:
      *         stream
      */
     std::unique_ptr<DcpResponse> getAndValidateNextItemFromStream(
-            const std::shared_ptr<ActiveStream>& stream);
+            const std::shared_ptr<ProducerStream>& stream);
 
     size_t getItemsRemaining() const;
 
@@ -644,7 +644,7 @@ protected:
      */
     void updateStreamsMap(Vbid vbid,
                           cb::mcbp::DcpStreamId sid,
-                          std::shared_ptr<ActiveStream>& stream);
+                          std::shared_ptr<ProducerStream> stream);
 
     /**
      * Attempt to locate a stream associated with the vbucket/stream-id and

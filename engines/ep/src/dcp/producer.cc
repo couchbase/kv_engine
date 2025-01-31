@@ -23,6 +23,7 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/cache_transfer_stream.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp/producer_stream.h"
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "eviction_utils.h"
@@ -438,7 +439,7 @@ cb::engine_errc DcpProducer::streamRequest(
     return cb::engine_errc::success;
 }
 
-std::shared_ptr<ActiveStream> DcpProducer::makeStream(
+std::shared_ptr<ProducerStream> DcpProducer::makeStream(
         uint32_t opaque,
         StreamRequestInfo& req,
         VBucketPtr vb,
@@ -749,7 +750,7 @@ cb::engine_errc DcpProducer::adjustSeqnosForStreamRequest(
 }
 
 cb::engine_errc DcpProducer::scheduleTasksForStreamRequest(
-        std::shared_ptr<ActiveStream> s,
+        std::shared_ptr<ProducerStream> s,
         VBucket& vb,
         const cb::mcbp::DcpStreamId streamID) {
     const Vbid vbucket = vb.getId();
@@ -1566,7 +1567,11 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         // Use find_if2 which will return the matching shared_ptr<Stream>
         auto stream = find_if2(streamFindFn);
         if (stream) {
-            auto* as = stream.get();
+            // But only expect these responses for ActiveStream
+            auto* as = dynamic_cast<ActiveStream*>(stream.get());
+            if (!as) {
+                return errorMessageHandler();
+            }
             if (opcode == cb::mcbp::ClientOpcode::DcpSetVbucketState) {
                 as->setVBucketStateAckRecieved(*this);
             } else {
@@ -1982,8 +1987,10 @@ bool DcpProducer::handleSlowStream(Vbid vbid, const CheckpointCursor* cursor) {
             for (auto handle = rv->second->rlock(); !handle.end();
                  handle.next()) {
                 if (handle.get()->getCursor().lock().get() == cursor) {
-                    auto* as = handle.get().get();
-                    return as->handleSlowStream();
+                    auto* as = dynamic_cast<ActiveStream*>(handle.get().get());
+                    if (as) {
+                        return as->handleSlowStream();
+                    }
                 }
             }
         }
@@ -1997,7 +2004,7 @@ bool DcpProducer::setStreamDeadStatus(
         std::unique_lock<folly::SharedMutex>* vbstateLock) {
     auto rv = streams->find(vbid.get());
     if (rv != streams->end()) {
-        std::vector<std::shared_ptr<ActiveStream>> streamPtrs;
+        std::vector<ContainerElement> streamPtrs;
         // MB-35073: holding StreamContainer rlock while calling setDead
         // has been seen to cause lock inversion elsewhere.
         // Collect sharedptrs then setDead once lock is released (itr out of
@@ -2013,7 +2020,7 @@ bool DcpProducer::setStreamDeadStatus(
         for (const auto& stream : streamPtrs) {
             if (stream) {
                 if (vbstateLock) {
-                    stream->setDead(status, *vbstateLock);
+                    stream->setDeadWithLock(status, *vbstateLock);
                 } else {
                     stream->setDead(status);
                 }
@@ -2039,7 +2046,7 @@ void DcpProducer::closeAllStreams() {
         std::ranges::for_each(
                 *streams, [this, &vbvector](StreamsMap::value_type& vt) {
                     vbvector.push_back((Vbid)vt.first);
-                    std::vector<std::shared_ptr<ActiveStream>> streamPtrs;
+                    std::vector<ContainerElement> streamPtrs;
                     // MB-35073: holding StreamContainer lock while
                     // calling setDead leads to lock inversion - so
                     // collect sharedptrs in one pass then setDead once
@@ -2063,7 +2070,11 @@ void DcpProducer::closeAllStreams() {
                         // DcpProducer::removeBackfill needs the
                         // closeAllStreamsLock which is already locked.
                         if (backfillMgr) {
-                            streamPtr->removeBackfill(*backfillMgr);
+                            auto* as = dynamic_cast<ActiveStream*>(
+                                    streamPtr.get());
+                            if (as) {
+                                as->removeBackfill(*backfillMgr);
+                            }
                         }
                         streamPtr->setDead(
                                 cb::mcbp::DcpStreamEndStatus::Disconnected);
@@ -2151,7 +2162,7 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItemFromVbucket(Vbid vbid) {
 }
 
 std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
-        const std::shared_ptr<ActiveStream>& stream) {
+        const std::shared_ptr<ProducerStream>& stream) {
     auto response = stream->next(*this);
     if (!response) {
         return {};
@@ -2302,19 +2313,16 @@ size_t DcpProducer::getItemsRemaining() const {
     return remainingSize;
 }
 
-DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
-    DcpProducer::StreamAggStats stats;
+StreamAggStats DcpProducer::getStreamAggStats() const {
+    StreamAggStats stats;
 
     std::ranges::for_each(*streams, [&stats](const StreamsMap::value_type& vt) {
         auto itr = vt.second->rlock();
         stats.streams += itr.size();
         for (; !itr.end(); itr.next()) {
-            auto* as = itr.get().get();
-            if (as) {
-                stats.itemsRemaining += as->getItemsRemaining();
-                stats.readyQueueMemory += as->getReadyQueueMemory();
-                stats.backfillItemsDisk += as->getBackfillItemsDisk();
-                stats.backfillItemsMemory += as->getBackfillItemsMemory();
+            auto* ps = itr.get().get();
+            if (ps) {
+                ps->updateAggStats(stats);
             }
         }
     });
@@ -2373,19 +2381,24 @@ DcpProducer::StreamMapValue DcpProducer::findStreams(Vbid vbid) {
     return nullptr;
 }
 
-std::vector<DcpProducer::ContainerElement> DcpProducer::getStreams(Vbid vbid) {
+std::vector<std::shared_ptr<ActiveStream>> DcpProducer::getActiveStreams(
+        Vbid vbid) {
     auto streams = findStreams(vbid);
     if (!streams) {
         return {}; // empty
     }
-    std::vector<ContainerElement> rv;
+    std::vector<std::shared_ptr<ActiveStream>> rv;
     {
         // scope for rlock, just iterate and copy (one allocation occurs for
         // the container)
         auto handle = streams->rlock();
         rv.reserve(handle.size());
         for (; !handle.end(); handle.next()) {
-            rv.emplace_back(handle.get());
+            auto sp = std::dynamic_pointer_cast<ActiveStream>(handle.get());
+            if (!sp) {
+                continue;
+            }
+            rv.emplace_back(sp);
         }
     }
     return rv;
@@ -2393,7 +2406,7 @@ std::vector<DcpProducer::ContainerElement> DcpProducer::getStreams(Vbid vbid) {
 
 void DcpProducer::updateStreamsMap(Vbid vbid,
                                    cb::mcbp::DcpStreamId sid,
-                                   std::shared_ptr<ActiveStream>& stream) {
+                                   std::shared_ptr<ProducerStream> stream) {
     using cb::tracing::Code;
     ScopeTimer1<TracerStopwatch<Code>> timer(*getCookie(),
                                              Code::StreamUpdateMap);

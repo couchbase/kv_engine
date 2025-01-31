@@ -101,7 +101,7 @@ ActiveStreamCheckpointProcessorTask::queuePop() {
        without acquiring workQueueLock */
     auto producer = producerPtr.lock();
     if (producer) {
-        return producer->getStreams(vbid);
+        return producer->getActiveStreams(vbid);
     }
     return {};
 }

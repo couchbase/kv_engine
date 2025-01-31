@@ -67,14 +67,16 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
                            MarkerVersion maxMarkerVersion,
                            Collections::VB::Filter f)
-    : Stream(f.getStreamId() ? n + f.getStreamId().to_string() : n,
-             flags,
-             opaque,
-             vbucket.getId(),
-             st_seqno,
-             vb_uuid,
-             snap_start_seqno,
-             snap_end_seqno),
+    : ProducerStream(f.getStreamId() ? n + f.getStreamId().to_string() : n,
+                     p,
+                     f.getStreamId(),
+                     flags,
+                     opaque,
+                     vbucket.getId(),
+                     st_seqno,
+                     vb_uuid,
+                     snap_start_seqno,
+                     snap_end_seqno),
       lastReadSeqno(st_seqno, {*this}),
       includeValue(includeVal),
       includeXattributes(includeXattrs),
@@ -84,7 +86,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       lastSentSeqnoAdvance(0, {*this}),
       curChkSeqno(st_seqno, {*this}),
       engine(e),
-      producerPtr(p),
       takeoverSendMaxTime(e->getConfiguration().getDcpTakeoverMaxTime()),
       lastSentSnapStartSeqno(0, {*this}),
       lastSentSnapEndSeqno(0, {*this}),
@@ -101,7 +102,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       syncReplication(p->getSyncReplSupport()),
       flatBuffersSystemEventsEnabled(p->areFlatBuffersSystemEventsEnabled()),
       filter(std::move(f)),
-      sid(filter.getStreamId()),
       changeStreamsEnabled(p->areChangeStreamsEnabled()),
       endSeqno(en_seqno),
       checkpointDequeueLimit(
@@ -1897,8 +1897,9 @@ void ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     removeAcksFromDM();
 }
 
-void ActiveStream::setDead(cb::mcbp::DcpStreamEndStatus status,
-                           std::unique_lock<folly::SharedMutex>& vbstateLock) {
+void ActiveStream::setDeadWithLock(
+        cb::mcbp::DcpStreamEndStatus status,
+        std::unique_lock<folly::SharedMutex>& vbstateLock) {
     setDeadInner(status);
     removeAcksFromDM(&vbstateLock);
 }
@@ -2703,29 +2704,6 @@ spdlog::level::level_enum ActiveStream::getTransitionStateLogLevel(
     return spdlog::level::level_enum::info;
 }
 
-void ActiveStream::notifyStreamReady(bool force, DcpProducer* producer) {
-    bool inverse = false;
-    if (force || itemsReady.compare_exchange_strong(inverse, true)) {
-        /**
-         * The below block of code exists to reduce the amount of times that we
-         * have to promote the producerPtr (weak_ptr<DcpProducer>). Callers that
-         * have already done so can supply a raw ptr for us to use instead.
-         */
-        if (producer) {
-            // Caller supplied a producer to call this on, use that
-            producer->notifyStreamReady(vb_);
-            return;
-        }
-
-        // No producer supplied, promote the weak_ptr and use that
-        auto lkProducer = producerPtr.lock();
-        if (!lkProducer) {
-            return;
-        }
-        lkProducer->notifyStreamReady(vb_);
-    }
-}
-
 bool ActiveStream::removeCheckpointCursor() {
     VBucketPtr vb = engine->getVBucket(vb_);
     if (vb) {
@@ -2819,11 +2797,6 @@ bool ActiveStream::endIfRequiredPrivilegesLost(DcpProducer& producer) {
         return true;
     }
     return false;
-}
-
-std::unique_ptr<DcpResponse> ActiveStream::makeEndStreamResponse(
-        cb::mcbp::DcpStreamEndStatus reason) {
-    return std::make_unique<StreamEndResponse>(opaque_, reason, vb_, sid);
 }
 
 void ActiveStream::incrementNumBackfillPauses() {
@@ -3140,28 +3113,8 @@ void ActiveStream::removeBackfill(BackfillManager& bfm) {
     }
 }
 
-void ActiveStream::logWithContext(spdlog::level::level_enum severity,
-                                  std::string_view msg,
-                                  cb::logger::Json ctx) const {
-    // Format: {"vb:"vb:X", "sid": "sid:none", ...}
-    auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
-    if (sid) {
-        object.insert(object.begin(), {"sid", sid.to_string()});
-    }
-    object.insert(object.begin(), {"vb", getVBucket()});
-
-    auto producer = producerPtr.lock();
-    if (producer) {
-        producer->getLogger().logWithContext(severity, msg, std::move(ctx));
-    } else {
-        if (getGlobalBucketLogger()->should_log(severity)) {
-            getGlobalBucketLogger()->logWithContext(
-                    severity, msg, std::move(ctx));
-        }
-    }
-}
-
-void ActiveStream::logWithContext(spdlog::level::level_enum severity,
-                                  std::string_view msg) const {
-    logWithContext(severity, msg, cb::logger::Json::object());
+void ActiveStream::updateAggStats(StreamAggStats& stats) {
+    ProducerStream::updateAggStats(stats);
+    stats.backfillItemsDisk += getBackfillItemsDisk();
+    stats.backfillItemsMemory += getBackfillItemsMemory();
 }
