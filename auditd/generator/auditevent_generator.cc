@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
              << "#pragma once" << std::endl;
 
         for (const auto& module : modules) {
-            module->createHeaderFile(file);
+            module->createMacros(file);
         }
         file.close();
     } catch (const std::exception& e) {

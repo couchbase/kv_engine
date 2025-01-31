@@ -34,9 +34,9 @@ and path to a file that defines the event descriptions for that
 module.
 
 The `modules` attribute is an array of objects where each object
-defines a single object module. The module is identified by it's
-name as the attribute and the value is an object with the following
-attributes:
+defines a single object module.
+
+* `name` - The name of the module (this must be unique)
 
 * `startid` - startid specifies the first identifier used by the
   module. The module may only define audit events within the range
@@ -45,13 +45,12 @@ attributes:
 * `file` - The file (relative to the source root) containing the
   modules various audit event descriptors
 
-* `header` - An optional attribute, and if present it names
-  a file relative to the "object root" which will be generated
-  containing `#define` of all of the audit descriptor identifiers
+* `generate_macros` - Set to true to generate #define's for the
+  event ids. This is useful for using the events in C++ code
+  without having to hard code the event id's.
 
-* `enterprise` - An optional boolean attribute. If set to true
-  the module is only included when building the enterprise edition.
-
+* `configuration` - An array containing the build configurations
+  the module should be included in (KV_CV, EE, CE, Columnar)
 
 In the example below, a single module is defined (auditd).  It
 creates audit events from 0x1000 and the events definitions for this
@@ -63,8 +62,7 @@ module are found in `kv_engine/auditd/etc/auditd_descriptor.json`.
            "auditd" : {
              "startid" : 4096,
              "file": "kv_engine/auditd/etc/auditd_descriptor.json",
-             "header": "kv_engine/auditd/auditd_audit_events.h"
-             "enterprise" : true
+             "configuration" : ["KV_CV", "EE", "CE", "Columnar"]
            }
          }
        ]

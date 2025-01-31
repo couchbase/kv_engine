@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -13,66 +12,11 @@
 #include "generator_event.h"
 #include "generator_utilities.h"
 #include <fmt/format.h>
-#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <sstream>
-#include <system_error>
-
-Module::Module(const nlohmann::json& object, const std::string& srcRoot) {
-    /*
-     * https://github.com/nlohmann/json/issues/67
-     * There is no way for a JSON value to "know" whether it is stored in an
-     * object, and if so under which key Use an iterator to get the first (and
-     * only) object and extract the key and data from it
-     */
-    auto it = object.begin();
-    name = it.key();
-    auto data = it.value();
-
-    // Expect a single item in the dictionary, if this is not the case, throw an
-    // exception
-    if (object.size() > 1) {
-        std::stringstream ss;
-        ss << "Module::Module expected single item dictionary, got: " << object;
-        throw std::runtime_error(ss.str());
-    }
-
-    // Each module contains:
-    //   startid - mandatory
-    //   file - mandatory
-    //   header - optional
-    size_t expected = 2;
-    start = data.at("startid");
-
-    file.assign(srcRoot);
-    file.append("/");
-    file.append(cb::jsonGet<std::string>(data, "file"));
-    file = cb::io::sanitizePath(file);
-
-    auto ent = data.value("enterprise", -1);
-    if (ent != -1) {
-        enterprise = gsl::narrow_cast<bool>(ent);
-        ++expected;
-    }
-
-    if (data.contains("generate_macros")) {
-        generateMacros = data.value("generate_macros", false);
-        ++expected;
-    }
-
-    if (data.size() != expected) {
-        std::stringstream ss;
-        ss << "Unknown elements for " << name << ": " << std::endl
-           << data << std::endl;
-        throw std::runtime_error(ss.str());
-    }
-
-    parseEventDescriptorFile();
-}
 
 void Module::addEvent(Event event) {
     if (event.id >= start && event.id < (start + max_events_per_module)) {
@@ -81,7 +25,7 @@ void Module::addEvent(Event event) {
         throw std::runtime_error(
                 fmt::format("Error in {}: Event identifier {} is outside the "
                             "legal range for module {}s legal range: [{}, {}>",
-                            file,
+                            path,
                             event.id,
                             name,
                             start,
@@ -89,7 +33,7 @@ void Module::addEvent(Event event) {
     }
 }
 
-void Module::createHeaderFile(std::ostream& out) {
+void Module::createMacros(std::ostream& out) {
     if (!generateMacros) {
         return;
     }
@@ -107,25 +51,22 @@ void Module::createHeaderFile(std::ostream& out) {
         out << "#define " << nm << " " << ev.id << std::endl;
     }
 }
-void Module::parseEventDescriptorFile() {
-    if (!is_enterprise_edition() && enterprise) {
-        // enterprise files should only be loaded for enterprise builds
-        return;
-    }
 
-    if (!is_production_build() && !exists(std::filesystem::path{file})) {
+void Module::loadEventDescriptorFile(const std::filesystem::path& source_root) {
+    auto file = source_root / path;
+    if (!is_production_build() && !exists(file)) {
         std::cerr << "Audit: Ignoring missing file: " << file << std::endl;
         // Ignore the missing file if this isn't a production build
         // (one may try to build a subset of the modules)
         return;
     }
 
-    json = load_file(file);
+    json = load_file(file.generic_string());
     auto v = cb::jsonGet<int32_t>(json, "version");
     if (v != SupportedVersion) {
         throw std::runtime_error(
                 fmt::format("Invalid version in {}: {}. Must be set to {}",
-                            file,
+                            file.generic_string(),
                             v,
                             SupportedVersion));
     }
@@ -134,7 +75,7 @@ void Module::parseEventDescriptorFile() {
     if (n != name) {
         throw std::runtime_error(fmt::format(
                 "Invalid name in {}: {} can't load a module named {}",
-                file,
+                file.generic_string(),
                 name,
                 n));
     }
@@ -142,8 +83,9 @@ void Module::parseEventDescriptorFile() {
     // Parse all the individual events
     auto e = json["events"];
     if (!e.is_array()) {
-        throw std::runtime_error(fmt::format(
-                "Invalid entry in {}: \"events\" must be an array", file));
+        throw std::runtime_error(
+                fmt::format("Invalid entry in {}: \"events\" must be an array",
+                            file.generic_string()));
     }
 
     for (const auto& event : json["events"]) {
@@ -154,4 +96,37 @@ void Module::parseEventDescriptorFile() {
     json = {{"version", SupportedVersion},
             {"module", name},
             {"events", events}};
+}
+
+bool Module::includeInConfiguration() const {
+    return std::find(configurations.begin(),
+                     configurations.end(),
+                     CB_BUILD_CONFIGURATION) != configurations.end();
+}
+
+void from_json(const nlohmann::json& json, Module& module) {
+    if (!json.contains("name")) {
+        throw std::runtime_error(fmt::format(
+                "from_json(Module): 'name' must be set: {}", json.dump()));
+    }
+    if (!json.contains("startid")) {
+        throw std::runtime_error(fmt::format(
+                "from_json(Module): 'startid' must be set: {}", json.dump()));
+    }
+    if (!json.contains("file")) {
+        throw std::runtime_error(fmt::format(
+                "from_json(Module): 'file' must be set: {}", json.dump()));
+    }
+    if (!json.contains("configurations") ||
+        !json["configurations"].is_array()) {
+        throw std::runtime_error(
+                fmt::format("from_json(Module): 'configurations' must be set "
+                            "(and an array): {}",
+                            json.dump()));
+    }
+    module.start = json.value("startid", -1);
+    module.path = json["file"].get<std::string>();
+    module.name = json["name"];
+    module.configurations = json["configurations"];
+    module.generateMacros = json.value("generate_macros", false);
 }

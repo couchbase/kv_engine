@@ -11,7 +11,6 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
 #include <vector>
 
 struct Event;
@@ -22,16 +21,10 @@ struct Event;
  */
 class Module {
 public:
+    /// The version of the descriptor file format we support
     constexpr static size_t SupportedVersion = 2;
 
-    Module() = delete;
-    Module(const nlohmann::json& json, const std::string& srcRoot);
-
-    void createHeaderFile(std::ostream& out);
-
-    /**
-     * The name of the module
-     */
+    /// The name of the module
     std::string name;
     /**
      * The lowest identifier for the audit events in this module. All
@@ -39,27 +32,38 @@ public:
      * [start, start + max_events_per_module]
      */
     int64_t start;
-    /**
-     * The name of the file containing the audit descriptors for this
-     * module.
-     */
-    std::string file;
-    /**
-     * The JSON data describing the audit descriptors for this module
-     */
-    nlohmann::json json;
-    /**
-     * Is this module enterprise only?
-     */
-    bool enterprise = false;
 
-    /**
-     * A list of all of the events defined for this module
-     */
-    std::vector<Event> events;
+    /// The name of the file containing the audit descriptors for this module.
+    std::string path;
+
+    /// The various configurations the module should be included in
+    std::vector<std::string> configurations;
 
     /// Should macros be defined for the events in this module?
     bool generateMacros = false;
+
+    /**
+     * The JSON data describing the audit descriptors for this module
+     * (read from the file specified in `path` when calling
+     * `loadEventDescriptorFile`)
+     */
+    nlohmann::json json;
+
+    /**
+     * A list of all of the events defined for this module (created as part
+     * of the `loadEventDescriptorFile` method)
+     */
+    std::vector<Event> events;
+
+    /// Parse the event descriptor file and add all of the events into
+    /// the list of events
+    void loadEventDescriptorFile(const std::filesystem::path& source_root);
+
+    /// Is this module included in the current configuration?
+    bool includeInConfiguration() const;
+
+    /// Create the header file containing the macros for the events
+    void createMacros(std::ostream& out);
 
 protected:
     /**
@@ -70,8 +74,6 @@ protected:
      *                               for the module
      */
     void addEvent(Event event);
-
-    /// Parse the event descriptor file and add all of the events into
-    /// the list of events
-    void parseEventDescriptorFile();
 };
+
+void from_json(const nlohmann::json& json, Module& module);

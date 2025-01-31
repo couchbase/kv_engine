@@ -1,3 +1,13 @@
+if (NOT DEFINED CB_BUILD_CONFIGURATION)
+    if (DEFINED COUCHBASE_KV_COMMIT_VALIDATION)
+        set(CB_BUILD_CONFIGURATION "KV_CV")
+    elseif (BUILD_ENTERPRISE)
+        set(CB_BUILD_CONFIGURATION "EE")
+    else ()
+        set(CB_BUILD_CONFIGURATION "CE")
+    endif ()
+endif ()
+
 # Most of the source is used both in the unit test and the actual program
 # Build a static archive of the source to avoid compiling it twice
 add_library(audit_generator_utilities OBJECT
@@ -7,6 +17,7 @@ add_library(audit_generator_utilities OBJECT
             generator_module.h
             generator_utilities.cc
             generator_utilities.h)
+target_compile_definitions(audit_generator_utilities PRIVATE -DCB_BUILD_CONFIGURATION="${CB_BUILD_CONFIGURATION}")
 target_link_libraries(audit_generator_utilities
                       PRIVATE nlohmann_json::nlohmann_json platform fmt::fmt)
 kv_enable_pch(audit_generator_utilities)
@@ -45,12 +56,6 @@ foreach(audit_descriptor_file
     endif()
 endforeach()
 
-if (COUCHBASE_KV_COMMIT_VALIDATION)
-    SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/kv_commit_validation_module_descriptors.json)
-else ()
-    SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json)
-endif (COUCHBASE_KV_COMMIT_VALIDATION)
-
 add_custom_command(OUTPUT
                      ${Memcached_BINARY_DIR}/auditd/audit_events.json
                      ${Memcached_BINARY_DIR}/auditd/couchbase_audit_events.h
@@ -60,11 +65,11 @@ add_custom_command(OUTPUT
                             -r ${CMAKE_SOURCE_DIR}
                             -b ${CMAKE_BINARY_DIR}
                             -o ${Memcached_BINARY_DIR}/auditd/audit_events.json
-                            -i ${MODULE_DESCRIPTION}
+                            -i ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json
                             -f ${Memcached_BINARY_DIR}/auditd/couchbase_audit_events.h
                   DEPENDS
                      ${AUDIT_MODULE_DEPENDENCIES}
-                  COMMENT "Generating audit descriptor definitions"
+                  COMMENT "Generating audit descriptor definitions for configuration ${CB_BUILD_CONFIGURATION}"
                   VERBATIM)
 
 add_custom_target(generate_audit_descriptors ALL

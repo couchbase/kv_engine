@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -96,11 +95,9 @@ void parse_module_descriptors(const nlohmann::json& json,
     auto mod = json["modules"];
     if (mod.is_array()) {
         for (auto& module : mod) {
-            auto new_module = std::make_unique<Module>(module, srcroot);
-            if (new_module->enterprise && !is_enterprise_edition()) {
-                // Community edition should ignore modules from enterprise
-                // Edition
-            } else {
+            auto new_module = std::make_unique<Module>(module);
+            if (new_module->includeInConfiguration()) {
+                new_module->loadEventDescriptorFile(srcroot);
                 modules.emplace_back(std::move(new_module));
             }
         }

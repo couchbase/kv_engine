@@ -1,81 +1,78 @@
 {
   "modules": [
     {
-      "auditd": {
-        "startid": 4096,
-        "file": "kv_engine/auditd/etc/auditd_descriptor.json",
-        "generate_macros": true
-      }
+      "name": "auditd",
+      "startid": 4096,
+      "file": "kv_engine/auditd/etc/auditd_descriptor.json",
+      "generate_macros": true,
+      "configurations": ["KV_CV","EE","CE"]
     },
     {
-      "ns_server": {
-        "startid": 8192,
-        "file": "ns_server/etc/audit_descriptor.json"
-      }
+      "name": "ns_server",
+      "startid": 8192,
+      "file": "ns_server/etc/audit_descriptor.json",
+      "configurations": ["EE","CE"]
     },
     {
-      "xdcr": {
-        "startid": 16384,
-        "file": "goproj/src/github.com/couchbase/goxdcr/etc/audit_descriptor.json"
-      }
+      "name": "xdcr",
+      "startid": 16384,
+      "file": "goproj/src/github.com/couchbase/goxdcr/etc/audit_descriptor.json",
+      "configurations": ["EE","CE"]
     },
     {
-      "memcached": {
-        "startid": 20480,
-        "file": "kv_engine/etc/memcached_descriptor.json",
-        "generate_macros": true
-      }
+      "name": "memcached",
+      "startid": 20480,
+      "file": "kv_engine/etc/memcached_descriptor.json",
+      "generate_macros": true,
+      "configurations": ["KV_CV","EE","CE"]
     },
     {
-      "fts": {
-        "startid": 24576,
-        "file": "cbft/etc/audit_descriptor.json"
-      }
+      "name": "fts",
+      "startid": 24576,
+      "file": "cbft/etc/audit_descriptor.json",
+      "configurations": ["EE","CE"]
     },
     {
-      "n1ql": {
-        "startid": 28672,
-        "file": "goproj/src/github.com/couchbase/query/etc/audit_descriptor.json"
-      }
+      "name": "n1ql",
+      "startid": 28672,
+      "file": "goproj/src/github.com/couchbase/query/etc/audit_descriptor.json",
+      "configurations": ["EE","CE"]
     },
     {
-      "eventing": {
-        "startid": 32768,
-        "file": "goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json",
-        "enterprise": true
-      }
+      "name": "eventing",
+      "startid": 32768,
+      "file": "goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json",
+      "configurations": ["EE"]
     },
     {
-      "analytics": {
-        "startid": 36864,
-        "file": "analytics/cbas/cbas-server/src/main/resources/com/couchbase/analytics/audit/audit_descriptor.json",
-        "enterprise": true
-      }
+      "name": "analytics",
+      "startid": 36864,
+      "file": "analytics/cbas/cbas-server/src/main/resources/com/couchbase/analytics/audit/audit_descriptor.json",
+      "configurations": ["EE"]
     },
     {
-      "view_engine": {
-        "startid": 40960,
-        "file": "couchdb/src/couch_audit/etc/audit_descriptor.json"
-      }
+      "name": "view_engine",
+      "startid": 40960,
+      "file": "couchdb/src/couch_audit/etc/audit_descriptor.json",
+      "configurations": ["EE","CE"]
     },
     {
-      "backup": {
-        "startid": 45056,
-        "file": "cbbs/audit/audit_descriptor.json",
-        "enterprise": true
-      }
+      "name": "backup",
+      "startid": 45056,
+      "file": "cbbs/audit/audit_descriptor.json",
+      "configurations": ["EE"]
     },
     {
-      "index": {
-        "startid": 49152,
-        "file": "goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json"
-      }
+      "name": "index",
+      "startid": 49152,
+      "file": "goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json",
+      "configurations": ["EE","CE"]
     },
     {
-      "sync_gateway": {
-        "startid": 53248,
-        "file": "kv_engine/auditd/etc/sync_gateway_descriptor.json"
-      }
+      "name": "sync_gateway",
+      "startid": 53248,
+      "file": "kv_engine/auditd/etc/sync_gateway_descriptor.json",
+      "configurations": ["EE","CE"]
     }
   ]
 }
