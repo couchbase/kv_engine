@@ -20,25 +20,9 @@
 #include <platform/timeutils.h>
 #include <chrono>
 #include <filesystem>
-#include <sstream>
-#include <thread>
 
 /// The name of the link to the "current" audit trail
 static constexpr std::string_view current_audit_link_name = "current-audit.log";
-
-/// c++20 std::string::starts_with
-bool starts_with(std::string_view name, std::string_view prefix) {
-    return name.find(prefix) == 0;
-}
-
-/// c++20 std::string::ends_with
-bool ends_with(std::string_view name, std::string_view suffix) {
-    const auto idx = name.rfind(suffix);
-    if (idx == std::string_view::npos) {
-        return false;
-    }
-    return (idx + suffix.size()) == name.length();
-}
 
 AuditFile::AuditFile(std::string hostname)
     : hostname(std::move(hostname)),
@@ -55,9 +39,9 @@ void AuditFile::iterate_old_files(
         try {
             const auto& path = p.path();
             const auto filename = path.filename().string();
-            if (starts_with(filename, hostname) &&
-                (ends_with(filename, "-audit.log") ||
-                 ends_with(filename, "-audit.cef"))) {
+            if (filename.starts_with(hostname) &&
+                (filename.ends_with("-audit.log") ||
+                 filename.ends_with("-audit.cef"))) {
                 callback(path);
             }
         } catch (const std::exception& e) {

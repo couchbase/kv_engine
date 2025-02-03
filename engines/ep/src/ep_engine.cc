@@ -5272,7 +5272,7 @@ cb::engine_errc EventuallyPersistentEngine::doDiskSlownessStats(
     using namespace cb::stats;
     using std::to_string;
 
-    if (!cb_isPrefix(key, "disk-slowness ")) {
+    if (!key.starts_with("disk-slowness ")) {
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -5338,25 +5338,25 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
     const auto acc = cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {});
 
     if (acc.success()) {
-        if (cb_isPrefix(key, "_checkpoint-dump")) {
+        if (key.starts_with("_checkpoint-dump")) {
             const size_t keyLen = strlen("_checkpoint-dump");
             std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doCheckpointDump(cookie, add_stat, keyArgs);
         }
 
-        if (cb_isPrefix(key, "_hash-dump")) {
+        if (key.starts_with("_hash-dump")) {
             const size_t keyLen = strlen("_hash-dump");
             std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doHashDump(cookie, add_stat, keyArgs);
         }
 
-        if (cb_isPrefix(key, "_durability-dump")) {
+        if (key.starts_with("_durability-dump")) {
             const size_t keyLen = strlen("_durability-dump");
             std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doDurabilityMonitorDump(cookie, add_stat, keyArgs);
         }
 
-        if (cb_isPrefix(key, "_vbucket-dump")) {
+        if (key.starts_with("_vbucket-dump")) {
             const size_t keyLen = strlen("_vbucket-dump");
             std::string_view keyArgs(key.data() + keyLen, key.size() - keyLen);
             return doVBucketDump(cookie, add_stat, keyArgs);
@@ -5474,7 +5474,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key.empty()) {
         return doEngineStats(bucketCollector, &c);
     }
-    if (key.size() > 7 && cb_isPrefix(key, "dcpagg ")) {
+    if (key.size() > 7 && key.starts_with("dcpagg ")) {
         return doConnAggStats(bucketCollector, key.substr(7));
     }
     if (key == "dcp"sv) {
@@ -5500,21 +5500,21 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
                               key.size(),
                               VBucketStatsDetailLevel::PreviousState);
     }
-    if (cb_isPrefix(key, "vbucket-durability-state")) {
+    if (key.starts_with("vbucket-durability-state")) {
         return doVBucketStats(c,
                               add_stat,
                               key.data(),
                               key.size(),
                               VBucketStatsDetailLevel::Durability);
     }
-    if (cb_isPrefix(key, "vbucket-details")) {
+    if (key.starts_with("vbucket-details")) {
         return doVBucketStats(c,
                               add_stat,
                               key.data(),
                               key.size(),
                               VBucketStatsDetailLevel::Full);
     }
-    if (cb_isPrefix(key, "vbucket-seqno")) {
+    if (key.starts_with("vbucket-seqno")) {
         return doSeqnoStats(c, add_stat, key.data(), key.size());
     }
 
@@ -5522,10 +5522,10 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doEncryptionKeyIdsStats(c, add_stat);
     }
 
-    if (cb_isPrefix(key, "checkpoint")) {
+    if (key.starts_with("checkpoint")) {
         return doCheckpointStats(c, add_stat, key.data(), key.size());
     }
-    if (cb_isPrefix(key, "durability-monitor")) {
+    if (key.starts_with("durability-monitor")) {
         return doDurabilityMonitorStats(c, add_stat, key.data(), key.size());
     }
     if (key == "timings"sv) {
@@ -5554,17 +5554,17 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         add_casted_stat("uuid", configuration.getUuid(), add_stat, c);
         return cb::engine_errc::success;
     }
-    if (cb_isPrefix(key, "key ") || cb_isPrefix(key, "key-byid ")) {
+    if (key.starts_with("key ") || key.starts_with("key-byid ")) {
         return doKeyStats(c, add_stat, key);
     }
-    if (cb_isPrefix(key, "vkey ") || cb_isPrefix(key, "vkey-byid ")) {
+    if (key.starts_with("vkey ") || key.starts_with("vkey-byid ")) {
         return doVKeyStats(c, add_stat, key);
     }
     if (key == "kvtimings"sv) {
         getKVBucket()->addKVStoreTimingStats(add_stat, c);
         return cb::engine_errc::success;
     }
-    if (key.size() >= 7 && cb_isPrefix(key, "kvstore")) {
+    if (key.size() >= 7 && key.starts_with("kvstore")) {
         std::string args(key.data() + 7, key.size() - 7);
         getKVBucket()->addKVStoreStats(add_stat, c);
         return cb::engine_errc::success;
@@ -5580,46 +5580,46 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         configuration.addStats(bucketCollector);
         return cb::engine_errc::success;
     }
-    if (key.size() > 15 && cb_isPrefix(key, "dcp-vbtakeover")) {
+    if (key.size() > 15 && key.starts_with("dcp-vbtakeover")) {
         return doDcpVbTakeoverStats(c, add_stat, key);
     }
     if (key == "workload"sv) {
         return doWorkloadStats(c, add_stat);
     }
-    if (cb_isPrefix(key, "failovers")) {
+    if (key.starts_with("failovers")) {
         return doFailoversStats(c, add_stat, key);
     }
-    if (cb_isPrefix(key, "diskinfo")) {
+    if (key.starts_with("diskinfo")) {
         return doDiskinfoStats(c, add_stat, key);
     }
-    if (cb_isPrefix(key, "collections")) {
+    if (key.starts_with("collections")) {
         return doCollectionStats(
                 c, add_stat, std::string(key.data(), key.size()));
     }
-    if (cb_isPrefix(key, "scopes")) {
+    if (key.starts_with("scopes")) {
         return doScopeStats(c, add_stat, std::string(key.data(), key.size()));
     }
-    if (cb_isPrefix(key, "disk-failures")) {
+    if (key.starts_with("disk-failures")) {
         doDiskFailureStats(bucketCollector);
         return cb::engine_errc::success;
     }
-    if (cb_isPrefix(key, "disk-slowness")) {
+    if (key.starts_with("disk-slowness")) {
         return doDiskSlownessStats(
                 c, add_stat, std::string(key.data(), key.size()));
     }
     if (key[0] == '_') {
         return doPrivilegedStats(c, add_stat, key);
     }
-    if (cb_isPrefix(key, "range-scans")) {
+    if (key.starts_with("range-scans")) {
         return doRangeScanStats(bucketCollector, key);
     }
-    if (cb_isPrefix(key, "fusion")) {
+    if (key.starts_with("fusion")) {
         return doFusionStats(c, add_stat, key);
     }
     if (key == "snapshot-details"sv) {
         return getKVBucket()->doSnapshotDebugStats(bucketCollector);
     }
-    if (cb_isPrefix(key, "snapshot-status")) {
+    if (key.starts_with("snapshot-status")) {
         return getKVBucket()->doSnapshotStatus(bucketCollector, key);
     }
 

@@ -28,13 +28,6 @@
  */
 bool cb_stob(std::string_view s);
 
-/**
- * Checks input to determine whether it is prefixed with 'prefix'.
- */
-constexpr bool cb_isPrefix(std::string_view input, std::string_view prefix) {
-    return input.rfind(prefix, 0) == 0;
-}
-
 class invalid_argument_bool : public std::invalid_argument {
 public:
     explicit invalid_argument_bool(const std::string& msg)

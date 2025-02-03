@@ -512,7 +512,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doCollectionStats(
         arg = statKey.substr(pos + 1);
     }
 
-    if (cb_isPrefix(statKey, "collections-details")) {
+    if (statKey.starts_with("collections-details")) {
         return doCollectionDetailStats(bucket, collector, arg);
     }
 
@@ -601,7 +601,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
         const std::string& statKey) {
     cb::EngineErrorGetCollectionIDResult res{cb::engine_errc::failed};
     // An argument was provided, maybe an id or a 'path'
-    if (cb_isPrefix(statKey, "collections-byid")) {
+    if (statKey.starts_with("collections-byid")) {
         CollectionID cid;
         // provided argument should be a hex collection ID N, 0xN or 0XN
         try {
@@ -695,7 +695,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doScopeStats(
     if (auto pos = statKey.find_first_of(' '); pos != std::string_view::npos) {
         arg = statKey.substr(pos + 1);
     }
-    if (cb_isPrefix(statKey, "scopes-details")) {
+    if (statKey.starts_with("scopes-details")) {
         return doScopeDetailStats(bucket, collector, arg);
     }
 
@@ -779,7 +779,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
         const std::string& arg,
         const std::string& statKey) {
     cb::EngineErrorGetScopeIDResult res{cb::engine_errc::failed};
-    if (cb_isPrefix(statKey, "scopes-byid")) {
+    if (statKey.starts_with("scopes-byid")) {
         ScopeID scopeID;
         // provided argument should be a hex scope ID N, 0xN or 0XN
         try {
