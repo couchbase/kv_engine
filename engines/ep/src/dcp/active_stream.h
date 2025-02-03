@@ -664,13 +664,13 @@ protected:
     /* Indicates that a backfill has been scheduled and has not yet completed.
      * Is protected (as opposed to private) for testing purposes.
      */
-    std::atomic<bool> isBackfillTaskRunning;
+    std::atomic<bool> isBackfillTaskRunning{false};
 
     /* Indicates if another backfill must be scheduled following the completion
      * of current running backfill.  Guarded by streamMutex.
      * Is protected (as opposed to private) for testing purposes.
      */
-    bool pendingBackfill;
+    bool pendingBackfill{false};
 
     //! Stats to track items read and sent from the backfill phase
     struct {
@@ -918,17 +918,17 @@ private:
      * contains only meta items.
      * MB-57767: This value is *not* monotonic.
      */
-    uint64_t nextSnapStart;
+    uint64_t nextSnapStart{0};
 
     //! The current vbucket state to send in the takeover stream
-    vbucket_state_t takeoverState;
+    vbucket_state_t takeoverState{vbucket_state_pending};
 
     //! The amount of items that have been sent during the memory phase
-    std::atomic<size_t> itemsFromMemoryPhase;
+    std::atomic<size_t> itemsFromMemoryPhase{0};
 
     //! Whether or not this is the first snapshot marker sent
     // @TODO - update to be part of the state machine.
-    bool firstMarkerSent;
+    bool firstMarkerSent{false};
 
     /**
      * Indicates if the stream is currently waiting for a snapshot to be
@@ -936,7 +936,7 @@ private:
      * TakeoverSend phase, and decremented when SnapshotMarkerAck is received
      * from the peer.
      */
-    std::atomic<int> waitForSnapshot;
+    std::atomic<int> waitForSnapshot{0};
 
     EventuallyPersistentEngine* const engine;
     const std::weak_ptr<DcpProducer> producerPtr;
@@ -947,7 +947,7 @@ private:
     } bufferedBackfill;
 
     /// Records the time at which the TakeoverSend phase begins.
-    std::atomic<rel_time_t> takeoverStart = 0;
+    std::atomic<rel_time_t> takeoverStart{0};
 
     /**
      * Maximum amount of time the TakeoverSend phase is permitted to take before
@@ -965,7 +965,7 @@ private:
     /* Flag used by checkpointCreatorTask that is set before all items are
        extracted for given checkpoint cursor, and is unset after all retrieved
        items are added to the readyQ */
-    std::atomic<bool> chkptItemsExtractionInProgress;
+    std::atomic<bool> chkptItemsExtractionInProgress{false};
 
     // Will the stream send dcp deletions with delete-times?
     const IncludeDeleteTime includeDeleteTime;
