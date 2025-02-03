@@ -1064,6 +1064,12 @@
                 }
             }
         },
+        "not_locked_returns_tmpfail": {
+            "default": "false",
+            "descr": "Controls which error code should be returned when attempting to unlock an item that is not locked. When value is true, the legacy temporary_failure is used instead of not_locked.",
+            "dynamic": true,
+            "type": "bool"
+        },
         "pager_sleep_time_ms": {
             "default": "5000",
             "descr": "How long in milliseconds the ItemPager will sleep for when not being requested to run",
