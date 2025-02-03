@@ -1165,6 +1165,13 @@ public:
     bool isCompactionExpiryFetchInline() const;
 
     /**
+     * Sets which error code should be returned when attempting to unlock an
+     * item that is not locked. When value is true, the legacy temporary_failure
+     * is used instead of not_locked.
+     */
+    void setNotLockedReturnsTmpfail(bool value);
+
+    /**
      * @return The number of checkpoint destroyer tasks enabled in this KVBucket
      */
     size_t getNumCheckpointDestroyers() const;
@@ -1471,6 +1478,10 @@ protected:
     cb::RelaxedAtomic<size_t> minimumHashTableSize;
 
     cb::RelaxedAtomic<size_t> htTempItemsAllowedPercent;
+
+    /// Error code to return when attempting to unlock
+    /// an item that is not locked
+    cb::RelaxedAtomic<cb::engine_errc> notLockedError;
 
     /**
      * Status of XATTR support for this bucket - this is set from the
