@@ -34,6 +34,8 @@ static const std::vector<std::string_view> IGNORED_WORDS = {
 };
 
 enum class LogFormat {
+    /// Deduce the log format and convert between (Json <-> JsonLog).
+    Auto,
     /// Format: <json>
     Json,
     /// Format: <TS> <LEVEL> message <json>
@@ -52,7 +54,7 @@ int main(int argc, char** argv) {
     cb::getopt::CommandLineOptionsParser parser;
 
     std::optional<std::string> input;
-    LogFormat outputMode{LogFormat::Json};
+    LogFormat outputMode{LogFormat::Auto};
     parser.addOption({
             [&input](auto value) { input = std::string{value}; },
             'i',
@@ -61,14 +63,14 @@ int main(int argc, char** argv) {
             "filename",
             "Specify an input filename. Reads from stdin if not specified.",
     });
-    parser.addOption({
-            [&outputMode](auto value) { outputMode = parseLogFormat(value); },
-            'o',
-            "output",
-            Argument::Required,
-            "mode",
-            "Specify an output mode. Options: json (default), json-log (>=8.0)",
-    });
+    parser.addOption(
+            {[&outputMode](auto value) { outputMode = parseLogFormat(value); },
+             'o',
+             "output",
+             Argument::Required,
+             "mode",
+             "Specify an output mode. Options: auto (default), json, json-log "
+             "(>=8.0)"});
     parser.addOption({[&parser](auto) {
                           std::cerr << "mclogfmt [options]" << std::endl;
                           parser.usage(std::cerr);
@@ -99,6 +101,9 @@ LogFormat parseLogFormat(std::string_view output) {
     }
     if (output == "json-log") {
         return LogFormat::JsonLog;
+    }
+    if (output == "auto") {
+        return LogFormat::Auto;
     }
     throw std::invalid_argument(
             fmt::format("Unexpected log format: '{}'", output));
@@ -131,6 +136,9 @@ void processLine(std::string_view timestamp,
             fmt::println("{} {} {} {}", timestamp, severity, message, context);
         }
         break;
+    case LogFormat::Auto:
+        throw std::runtime_error(
+                "processLine(): Unexpected output=LogFormat::Auto.");
     }
 }
 
@@ -144,12 +152,20 @@ void processFile(std::istream& s, LogFormat output) {
         if (lineView.at(0) == '{') {
             auto parsedLog = nlohmann::ordered_json::parse(lineView);
             auto contextString = parsedLog["ctx"].dump();
+
+            if (output == LogFormat::Auto) {
+                output = LogFormat::JsonLog;
+            }
             processLine(parsedLog.at("ts").template get_ref<std::string&>(),
                         parsedLog.at("lvl").template get_ref<std::string&>(),
                         parsedLog.at("msg").template get_ref<std::string&>(),
                         contextString,
                         output);
             continue;
+        }
+
+        if (output == LogFormat::Auto) {
+            output = LogFormat::Json;
         }
 
         auto timestampEnd = line.find(' ');
