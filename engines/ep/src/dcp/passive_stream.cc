@@ -235,7 +235,7 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
                                     uint32_t new_opaque,
                                     uint64_t start_seqno) {
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
-    vb_uuid_ = start_seqno ? vb->failovers->getLatestEntry().vb_uuid : 0;
+    auto uuidToUse = start_seqno ? vb->failovers->getLatestEntry().vb_uuid : 0;
 
     snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
     if (info.range.getEnd() == info.start) {
@@ -246,7 +246,7 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
 
     {
         std::lock_guard<std::mutex> lh(streamMutex);
-
+        vb_uuid_ = uuidToUse;
         snap_start_seqno_ = info.range.getStart();
         start_seqno_ = info.start;
         snap_end_seqno_ = info.range.getEnd();
@@ -262,7 +262,8 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
                         {"start_seqno", start_seqno},
                         {"end_seqno", end_seqno_},
                         {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
-                        {"value", stream_req_value}});
+                        {"value", stream_req_value},
+                        {"vb_uuid", vb_uuid_}});
 
         pushToReadyQ(std::make_unique<StreamRequest>(vb_,
                                                      new_opaque,

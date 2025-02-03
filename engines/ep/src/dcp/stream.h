@@ -74,22 +74,17 @@ public:
     }
 
     uint64_t getStartSeqno() const {
+        std::lock_guard<std::mutex> lg(streamMutex);
         return start_seqno_;
     }
 
     uint64_t getEndSeqno() const {
+        std::lock_guard<std::mutex> lg(streamMutex);
         return end_seqno_;
     }
 
-    uint64_t getVBucketUUID() const {
-        return vb_uuid_;
-    }
-
-    uint64_t getSnapStartSeqno() const {
-        return snap_start_seqno_;
-    }
-
     uint64_t getSnapEndSeqno() const {
+        std::lock_guard<std::mutex> lg(streamMutex);
         return snap_end_seqno_;
     }
 
@@ -134,7 +129,7 @@ protected:
     /* To be called after getting streamMutex lock */
     std::unique_ptr<DcpResponse> popFromReadyQ();
 
-    std::string name_;
+    const std::string name_;
     const cb::mcbp::DcpAddStreamFlag flags_;
     const uint32_t opaque_;
     const Vbid vb_;

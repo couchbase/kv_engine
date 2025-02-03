@@ -64,7 +64,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                            IncludeDeletedUserXattrs includeDeletedUserXattrs,
                            MarkerVersion maxMarkerVersion,
                            Collections::VB::Filter f)
-    : Stream(n,
+    : Stream(f.getStreamId() ? n + f.getStreamId().to_string() : n,
              flags,
              opaque,
              vbucket.getId(),
@@ -115,8 +115,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 
     logPrefix = "(" + vbucket.getId().to_string() + ")";
     if (sid) {
-        // name must be unique to ensure we get our own cursor
-        name_ += sid.to_string();
         logPrefix += " (" + sid.to_string() + ")";
     }
 
@@ -1555,7 +1553,7 @@ void ActiveStream::processItems(
 
     // If we've processed past the stream's end seqno then transition to the
     // stream to the dead state and add a stream end to the ready queue
-    if (curChkSeqno >= getEndSeqno()) {
+    if (curChkSeqno >= end_seqno_) {
         endStream(cb::mcbp::DcpStreamEndStatus::Ok);
     }
 
@@ -2837,6 +2835,7 @@ ValueFilter ActiveStream::getValueFilter() const {
 }
 
 void ActiveStream::setEndSeqno(uint64_t seqno) {
+    std::lock_guard<std::mutex> lg(streamMutex);
     end_seqno_ = seqno;
 }
 
