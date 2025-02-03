@@ -99,18 +99,39 @@ uint64_t Stream::getReadyQueueMemory() const {
 
 void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     try {
-        std::lock_guard<std::mutex> lh(streamMutex);
+        uint32_t flags{0};
+        uint64_t opaque{0};
+        uint64_t startSeqno{0};
+        uint64_t endSeqno{0};
+        uint64_t vbUuid{0};
+        uint64_t snapStartSeqno{0};
+        uint64_t snapEndSeqno{0};
+        std::string stateName;
+        size_t readyQSize{0};
 
-        add_casted_stat("flags", static_cast<uint32_t>(flags_), add_stat, c);
-        add_casted_stat("opaque", opaque_, add_stat, c);
-        add_casted_stat("start_seqno", start_seqno_, add_stat, c);
-        add_casted_stat("end_seqno", end_seqno_, add_stat, c);
-        add_casted_stat("vb_uuid", vb_uuid_, add_stat, c);
-        add_casted_stat("snap_start_seqno", snap_start_seqno_, add_stat, c);
-        add_casted_stat("snap_end_seqno", snap_end_seqno_, add_stat, c);
-        add_casted_stat("state", getStateName(), add_stat, c);
+        {
+            std::lock_guard<std::mutex> lh(streamMutex);
+            flags = static_cast<uint32_t>(flags_);
+            opaque = opaque_;
+            startSeqno = start_seqno_;
+            endSeqno = end_seqno_;
+            vbUuid = vb_uuid_;
+            snapStartSeqno = snap_start_seqno_;
+            snapEndSeqno = snap_end_seqno_;
+            stateName = getStateName();
+            readyQSize = readyQ.size();
+        }
+
+        add_casted_stat("flags", flags, add_stat, c);
+        add_casted_stat("opaque", opaque, add_stat, c);
+        add_casted_stat("start_seqno", startSeqno, add_stat, c);
+        add_casted_stat("end_seqno", endSeqno, add_stat, c);
+        add_casted_stat("vb_uuid", vbUuid, add_stat, c);
+        add_casted_stat("snap_start_seqno", snapStartSeqno, add_stat, c);
+        add_casted_stat("snap_end_seqno", snapEndSeqno, add_stat, c);
+        add_casted_stat("state", stateName, add_stat, c);
         add_casted_stat("items_ready", itemsReady.load(), add_stat, c);
-        add_casted_stat("readyQ_items", readyQ.size(), add_stat, c);
+        add_casted_stat("readyQ_items", readyQSize, add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN_CTX("Stream::addStats: Failed to build stats",
                         {"error", error.what()});
