@@ -38,7 +38,6 @@ Stream::Stream(std::string name,
                uint32_t opaque,
                Vbid vb,
                uint64_t start_seqno,
-               uint64_t end_seqno,
                uint64_t vb_uuid,
                uint64_t snap_start_seqno,
                uint64_t snap_end_seqno)
@@ -47,7 +46,6 @@ Stream::Stream(std::string name,
       opaque_(opaque),
       vb_(vb),
       start_seqno_(start_seqno),
-      end_seqno_(end_seqno),
       vb_uuid_(vb_uuid),
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
@@ -102,7 +100,6 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
         uint32_t flags{0};
         uint64_t opaque{0};
         uint64_t startSeqno{0};
-        uint64_t endSeqno{0};
         uint64_t vbUuid{0};
         uint64_t snapStartSeqno{0};
         uint64_t snapEndSeqno{0};
@@ -114,7 +111,6 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
             flags = static_cast<uint32_t>(flags_);
             opaque = opaque_;
             startSeqno = start_seqno_;
-            endSeqno = end_seqno_;
             vbUuid = vb_uuid_;
             snapStartSeqno = snap_start_seqno_;
             snapEndSeqno = snap_end_seqno_;
@@ -125,7 +121,6 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
         add_casted_stat("flags", flags, add_stat, c);
         add_casted_stat("opaque", opaque, add_stat, c);
         add_casted_stat("start_seqno", startSeqno, add_stat, c);
-        add_casted_stat("end_seqno", endSeqno, add_stat, c);
         add_casted_stat("vb_uuid", vbUuid, add_stat, c);
         add_casted_stat("snap_start_seqno", snapStartSeqno, add_stat, c);
         add_casted_stat("snap_end_seqno", snapEndSeqno, add_stat, c);

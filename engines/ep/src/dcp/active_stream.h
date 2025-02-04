@@ -549,6 +549,11 @@ public:
         return collectionStartSeqno;
     }
 
+    uint64_t getEndSeqno() const {
+        std::lock_guard<std::mutex> lg(streamMutex);
+        return endSeqno;
+    }
+
 protected:
     void clear_UNLOCKED();
 
@@ -1051,6 +1056,12 @@ protected:
     const bool changeStreamsEnabled;
 
 private:
+    /**
+     * The requested end for this stream. Not const as this can be adjusted
+     * by backfill calling setEndSeqno
+     */
+    uint64_t endSeqno{0};
+
     /**
      * A prefix to use in all stream log messages
      */

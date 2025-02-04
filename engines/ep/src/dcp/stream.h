@@ -54,7 +54,6 @@ public:
            uint32_t opaque,
            Vbid vb,
            uint64_t start_seqno,
-           uint64_t end_seqno,
            uint64_t vb_uuid,
            uint64_t snap_start_seqno,
            uint64_t snap_end_seqno);
@@ -76,11 +75,6 @@ public:
     uint64_t getStartSeqno() const {
         std::lock_guard<std::mutex> lg(streamMutex);
         return start_seqno_;
-    }
-
-    uint64_t getEndSeqno() const {
-        std::lock_guard<std::mutex> lg(streamMutex);
-        return end_seqno_;
     }
 
     uint64_t getSnapEndSeqno() const {
@@ -134,7 +128,6 @@ protected:
     const uint32_t opaque_;
     const Vbid vb_;
     uint64_t start_seqno_;
-    uint64_t end_seqno_;
     uint64_t vb_uuid_;
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;

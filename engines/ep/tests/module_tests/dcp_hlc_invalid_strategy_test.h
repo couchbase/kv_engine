@@ -42,7 +42,6 @@ protected:
                         0 /* opaque */,
                         vbid,
                         0 /* startSeqno */,
-                        std::numeric_limits<uint64_t>::max() /* endSeqno */,
                         0 /* vbUuid */,
                         0 /* snapStartSeqno */,
                         0 /* snapEndSeqno */,

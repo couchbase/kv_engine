@@ -57,7 +57,6 @@ public:
                   uint32_t opaque,
                   Vbid vb,
                   uint64_t start_seqno,
-                  uint64_t end_seqno,
                   uint64_t vb_uuid,
                   uint64_t snap_start_seqno,
                   uint64_t snap_end_seqno,

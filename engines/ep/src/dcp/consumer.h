@@ -137,7 +137,6 @@ public:
      * @param opaque The stream opaque
      * @param vb The vbucket the stream belongs to
      * @param start_seqno The start sequence number of the stream
-     * @param end_seqno The end sequence number of the stream
      * @param vb_uuid The uuid of the vbucket the stream belongs to
      * @param snap_start_seqno The snapshot start sequence number
      * @param snap_end_seqno The snapshot end sequence number
@@ -154,7 +153,6 @@ public:
             uint32_t opaque,
             Vbid vb,
             uint64_t start_seqno,
-            uint64_t end_seqno,
             uint64_t vb_uuid,
             uint64_t snap_start_seqno,
             uint64_t snap_end_seqno,

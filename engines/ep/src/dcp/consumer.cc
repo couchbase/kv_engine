@@ -244,7 +244,6 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
         uint32_t opaque,
         Vbid vb,
         uint64_t start_seqno,
-        uint64_t end_seqno,
         uint64_t vb_uuid,
         uint64_t snap_start_seqno,
         uint64_t snap_end_seqno,
@@ -257,7 +256,6 @@ std::shared_ptr<PassiveStream> DcpConsumer::makePassiveStream(
                                            opaque,
                                            vb,
                                            start_seqno,
-                                           end_seqno,
                                            vb_uuid,
                                            snap_start_seqno,
                                            snap_end_seqno,
@@ -304,7 +302,6 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     uint32_t new_opaque = ++opaqueCounter;
     failover_entry_t entry = vb->failovers->getLatestEntry();
     uint64_t start_seqno = info.start;
-    uint64_t end_seqno = std::numeric_limits<uint64_t>::max();
     uint64_t vbucket_uuid = entry.vb_uuid;
     uint64_t snap_start_seqno = info.range.getStart();
     uint64_t snap_end_seqno = info.range.getEnd();
@@ -339,7 +336,6 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
                                new_opaque,
                                vbucket,
                                start_seqno,
-                               end_seqno,
                                vbucket_uuid,
                                snap_start_seqno,
                                snap_end_seqno,

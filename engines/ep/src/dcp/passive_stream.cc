@@ -41,7 +41,6 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
                              uint32_t opaque,
                              Vbid vb,
                              uint64_t st_seqno,
-                             uint64_t en_seqno,
                              uint64_t vb_uuid,
                              uint64_t snap_start_seqno,
                              uint64_t snap_end_seqno,
@@ -52,7 +51,6 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
              opaque,
              vb,
              st_seqno,
-             en_seqno,
              vb_uuid,
              snap_start_seqno,
              snap_end_seqno),
@@ -97,15 +95,16 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
     auto stream_req_value = createStreamReqValue();
 
     /* the stream should send a don't care vb_uuid if start_seqno is 0 */
-    pushToReadyQ(std::make_unique<StreamRequest>(vb_,
-                                                 opaque_,
-                                                 flags_,
-                                                 start_seqno_,
-                                                 end_seqno_,
-                                                 start_seqno_ ? vb_uuid : 0,
-                                                 snap_start_seqno_,
-                                                 snap_end_seqno_,
-                                                 stream_req_value));
+    pushToReadyQ(std::make_unique<StreamRequest>(
+            vb_,
+            opaque_,
+            flags_,
+            start_seqno_,
+            std::numeric_limits<uint64_t>::max(),
+            start_seqno_ ? vb_uuid : 0,
+            snap_start_seqno_,
+            snap_end_seqno_,
+            stream_req_value));
 
     const bool isTakeover =
             isFlagSet(flags_, cb::mcbp::DcpAddStreamFlag::TakeOver);
@@ -115,7 +114,6 @@ void PassiveStream::streamRequest_UNLOCKED(uint64_t vb_uuid) {
                    {{"takeover", isTakeover},
                     {"opaque", opaque_},
                     {"start_seqno", start_seqno_},
-                    {"end_seqno", end_seqno_},
                     {"vb_uuid", vb_uuid},
                     {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
                     {"last_seqno", last_seqno.load()},
@@ -260,20 +258,20 @@ void PassiveStream::reconnectStream(VBucketPtr& vb,
                        "Attempting to reconnect stream",
                        {{"new_opaque", new_opaque},
                         {"start_seqno", start_seqno},
-                        {"end_seqno", end_seqno_},
                         {"snapshot", {snap_start_seqno_, snap_end_seqno_}},
                         {"value", stream_req_value},
                         {"vb_uuid", vb_uuid_}});
 
-        pushToReadyQ(std::make_unique<StreamRequest>(vb_,
-                                                     new_opaque,
-                                                     flags_,
-                                                     start_seqno,
-                                                     end_seqno_,
-                                                     vb_uuid_,
-                                                     snap_start_seqno_,
-                                                     snap_end_seqno_,
-                                                     stream_req_value));
+        pushToReadyQ(std::make_unique<StreamRequest>(
+                vb_,
+                new_opaque,
+                flags_,
+                start_seqno,
+                std::numeric_limits<uint64_t>::max(),
+                vb_uuid_,
+                snap_start_seqno_,
+                snap_end_seqno_,
+                stream_req_value));
     }
     notifyStreamReady();
 }

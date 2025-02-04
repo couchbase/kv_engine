@@ -69,7 +69,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
              opaque,
              vbucket.getId(),
              st_seqno,
-             en_seqno,
              vb_uuid,
              snap_start_seqno,
              snap_end_seqno),
@@ -100,16 +99,17 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       flatBuffersSystemEventsEnabled(p->areFlatBuffersSystemEventsEnabled()),
       filter(std::move(f)),
       sid(filter.getStreamId()),
-      changeStreamsEnabled(p->areChangeStreamsEnabled()) {
+      changeStreamsEnabled(p->areChangeStreamsEnabled()),
+      endSeqno(en_seqno) {
     if (isTakeoverStream()) {
-        end_seqno_ = dcpMaxSeqno;
+        endSeqno = dcpMaxSeqno;
     }
 
     std::shared_lock rlh(vbucket.getStateLock());
     if (vbucket.getState() == vbucket_state_replica) {
         snapshot_info_t info = vbucket.checkpointManager->getSnapshotInfo();
         if (info.range.getEnd() > en_seqno) {
-            end_seqno_ = info.range.getEnd();
+            endSeqno = info.range.getEnd();
         }
     }
 
@@ -122,7 +122,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                    "Creating stream",
                    {{"takeover", isTakeoverStream()},
                     {"start_seqno", st_seqno},
-                    {"end_seqno", end_seqno_},
+                    {"end_seqno", endSeqno},
                     {"requested_end_seqno", en_seqno},
                     {"flags", flags},
                     {"snapshot", {snap_start_seqno, snap_end_seqno}},
@@ -146,7 +146,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
         collectionStartSeqno = getCollectionStreamStart(vbucket);
     }
 
-    if (start_seqno_ >= end_seqno_) {
+    if (start_seqno_ >= endSeqno) {
         /* streamMutex lock needs to be acquired because endStream
          * potentially makes call to pushToReadyQueue.
          */
@@ -302,8 +302,8 @@ static bool mustAssignEndSeqno(SnapshotType source,
     folly::assume_unreachable();
 }
 
-bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
-                                    uint64_t endSeqno,
+bool ActiveStream::markDiskSnapshot(uint64_t diskStartSeqno,
+                                    uint64_t diskEndSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
                                     std::optional<uint64_t> highPreparedSeqno,
                                     uint64_t maxVisibleSeqno,
@@ -312,7 +312,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
-        const auto originalEndSeqno = endSeqno;
+        const auto originalEndSeqno = diskEndSeqno;
 
         if (!isBackfilling()) {
             logWithContext(spdlog::level::level_enum::warn,
@@ -330,9 +330,9 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                  * inform it that a seqno has moved to the end of the snapshot
                  * using a SeqnoAdvanced op.
                  */
-                endSeqno = maxVisibleSeqno;
+                diskEndSeqno = maxVisibleSeqno;
             }
-            if (endSeqno < startSeqno) {
+            if (diskEndSeqno < diskStartSeqno) {
                 // no visible items in backfill, should not send
                 // a snapshot marker at all (no data will be sent)
                 logWithContext(
@@ -349,8 +349,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
         const bool wasFirst = !firstMarkerSent;
-        startSeqno = adjustStartIfFirstSnapshot(
-                startSeqno,
+        diskStartSeqno = adjustStartIfFirstSnapshot(
+                diskStartSeqno,
                 snapshotType != SnapshotType::NoHistoryPrecedingHistory);
 
         VBucketPtr vb = engine->getVBucket(vb_);
@@ -363,7 +363,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         // An atomic read of vbucket state without acquiring the
         // reader lock for state should suffice here.
         if (vb->getState() == vbucket_state_replica) {
-            if (end_seqno_ > endSeqno) {
+            if (endSeqno > diskEndSeqno) {
                 /* We possibly have items in the open checkpoint
                    (incomplete snapshot) */
                 snapshot_info_t info = vb->checkpointManager->getSnapshotInfo();
@@ -371,11 +371,11 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                         spdlog::level::level_enum::info,
                         "Merging backfill and memory snapshot for a "
                         "replica vbucket",
-                        {{"backfill_start_seqno", startSeqno},
-                         {"backfill_end_seqno", endSeqno},
+                        {{"backfill_start_seqno", diskStartSeqno},
+                         {"backfill_end_seqno", diskEndSeqno},
                          {"new_snapshot_range",
                           {{info.range.getStart(), info.range.getEnd()}}}});
-                endSeqno = info.range.getEnd();
+                diskEndSeqno = info.range.getEnd();
             }
         }
 
@@ -392,10 +392,10 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
 
-        // The endSeqno & purgeSeqno are derived from the same
+        // The diskEndSeqno & purgeSeqno are derived from the same
         // BySeqnoScanContext and therefore purge seqno will always be <= end
         // seqno. Expect the same to true.
-        Expects(purgeSeqno <= endSeqno);
+        Expects(purgeSeqno <= diskEndSeqno);
 
         auto psToSend = maxMarkerVersion == MarkerVersion::V2_2
                                 ? std::make_optional(purgeSeqno)
@@ -416,8 +416,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             // backfillRecevied can send it if it exists.
             pendingDiskMarker = std::make_unique<SnapshotMarker>(opaque_,
                                                                  vb_,
-                                                                 startSeqno,
-                                                                 endSeqno,
+                                                                 diskStartSeqno,
+                                                                 diskEndSeqno,
                                                                  flags,
                                                                  hcsToSend,
                                                                  hpsToSend,
@@ -428,7 +428,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             logWithContext(
                     spdlog::level::level_enum::info,
                     "ActiveStream::markDiskSnapshot: Sending disk snapshot",
-                    {{"snapshot", {startSeqno, endSeqno}},
+                    {{"snapshot", {diskStartSeqno, diskEndSeqno}},
                      {"flags", flags},
                      {"high_completed_seqno", hcsToSend},
                      {"max_visible_seqno", mvsToSend},
@@ -440,8 +440,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             pendingDiskMarker.reset();
             pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                           vb_,
-                                                          startSeqno,
-                                                          endSeqno,
+                                                          diskStartSeqno,
+                                                          diskEndSeqno,
                                                           flags,
                                                           hcsToSend,
                                                           hpsToSend,
@@ -450,8 +450,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                                           sid));
             // Update the last start seqno seen but handle base case as
             // lastSentSnapStartSeqno is initial zero
-            if (startSeqno > 0) {
-                lastSentSnapStartSeqno = startSeqno;
+            if (diskStartSeqno > 0) {
+                lastSentSnapStartSeqno = diskStartSeqno;
             }
 
             // Only compare last sent start with last sent end if end has
@@ -482,8 +482,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                         vb_,
                         lastSentSnapStartSeqno.load(),
                         lastSentSnapEndSeqno.load(),
-                        startSeqno,
-                        endSeqno,
+                        diskStartSeqno,
+                        diskEndSeqno,
                         sid,
                         getName(),
                         lastReadSeqno.load(),
@@ -494,8 +494,9 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             // CDC: There are cases where there's no need to assign the seqno
             // again
             if (mustAssignEndSeqno(
-                        snapshotType, endSeqno, lastSentSnapEndSeqno)) {
-                lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+                        snapshotType, diskEndSeqno, lastSentSnapEndSeqno)) {
+                lastSentSnapEndSeqno.store(diskEndSeqno,
+                                           std::memory_order_relaxed);
             }
         }
 
@@ -511,7 +512,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
     return true;
 }
 
-bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
+bool ActiveStream::markOSODiskSnapshot(uint64_t diskEndSeqno) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -531,11 +532,11 @@ bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
                                "does not exist");
                 return false;
             }
-            registerCursor(*vb->checkpointManager, endSeqno);
+            registerCursor(*vb->checkpointManager, diskEndSeqno);
             logWithContext(spdlog::level::level_enum::info,
                            "ActiveStream::markOSODiskSnapshot: Sent snapshot "
                            "begin marker",
-                           {{"cursor_req_seqno", endSeqno},
+                           {{"cursor_req_seqno", diskEndSeqno},
                             {"cursor_chk_seqno", curChkSeqno.load()}});
         } else {
             logWithContext(spdlog::level::level_enum::info,
@@ -787,7 +788,7 @@ std::unique_ptr<DcpResponse> ActiveStream::backfillPhase(
                 resp = nextQueuedItem(producer);
             }
         } else {
-            if (lastReadSeqno.load() >= end_seqno_) {
+            if (lastReadSeqno.load() >= endSeqno) {
                 endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             } else if (isTakeoverStream()) {
                 transitionState(StreamState::TakeoverSend);
@@ -909,6 +910,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
                                              auto statValue) {
             add_casted_stat(statKey, statValue, add_stat, c);
         };
+        addStat("end_seqno", getEndSeqno()); // obtains streamMutex for read.
         addStat("backfill_disk_items", backfillItems.disk.load());
         addStat("backfill_mem_items", backfillItems.memory.load());
         addStat("backfill_sent", backfillItems.sent.load());
@@ -950,7 +952,7 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
         // Snapshot the state and drop the lock, then report them
         std::lock_guard<std::mutex> lh(streamMutex);
         bfillRemaining = backfillRemaining;
-        endSeq = end_seqno_;
+        endSeq = endSeqno;
         curChkSeq = curChkSeqno;
     }
     add_casted_stat("name", name_, add_stat, cookie);
@@ -1588,7 +1590,7 @@ void ActiveStream::processItems(
 
     // If we've processed past the stream's end seqno then transition to the
     // stream to the dead state and add a stream end to the ready queue
-    if (curChkSeqno >= end_seqno_) {
+    if (curChkSeqno >= endSeqno) {
         endStream(cb::mcbp::DcpStreamEndStatus::Ok);
     }
 
@@ -1992,7 +1994,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
     if (isDiskOnly()) {
         // if disk only, always backfill to the requested end seqno
-        backfillEnd = end_seqno_;
+        backfillEnd = endSeqno;
         requireBackfill = true;
     } else {
         /* not disk only - stream may require backfill but will transition to
@@ -2054,7 +2056,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         // requested stream end seqno OR the seqno immediately
         // before what the checkpoint manager can provide
         // - whichever is lower.
-        backfillEnd = std::min(end_seqno_, curChkSeqno - 1);
+        backfillEnd = std::min(endSeqno, curChkSeqno - 1);
     }
 
     numBackfillPauses = 0;
@@ -2480,7 +2482,7 @@ void ActiveStream::transitionState(StreamState newState) {
         // Check if the producer has sent up till the last requested
         // sequence number already, if not - move checkpoint items into
         // the ready queue.
-        if (lastSentSeqno.load() >= end_seqno_) {
+        if (lastSentSeqno.load() >= endSeqno) {
             // Stream transitioning to DEAD state
             endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             notifyStreamReady();
@@ -2873,7 +2875,7 @@ ValueFilter ActiveStream::getValueFilter() const {
 
 void ActiveStream::setEndSeqno(uint64_t seqno) {
     std::lock_guard<std::mutex> lg(streamMutex);
-    end_seqno_ = seqno;
+    endSeqno = seqno;
 }
 
 std::string ActiveStream::Labeller::getLabel(const char* name) const {

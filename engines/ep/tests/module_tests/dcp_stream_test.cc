@@ -1842,7 +1842,6 @@ TEST_P(SingleThreadedPassiveStreamTest, StreamStats) {
     expectStreamStat("unacked_bytes");
     expectStreamStat("cur_snapshot_prepare");
     expectStreamStat("cur_snapshot_type");
-    expectStreamStat("end_seqno");
     expectStreamStat("flags");
     expectStreamStat("items_ready");
     expectStreamStat("last_received_seqno");
