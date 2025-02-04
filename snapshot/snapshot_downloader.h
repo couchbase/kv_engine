@@ -22,12 +22,11 @@ struct Manifest;
 /**
  * Use the provided connection and download the snapshot provided in
  * the provided manifest into the the provided directory
- *
- * @todo plug in a listener to log and metrics
  */
 void download(std::unique_ptr<MemcachedConnection> connection,
               const std::filesystem::path& directory,
               const Manifest& snapshot,
+              std::size_t fsync_interval,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback);

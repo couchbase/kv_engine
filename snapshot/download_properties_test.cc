@@ -18,6 +18,7 @@ TEST(DownloadPropertiesTest, ConversionSimple) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
+  "fsync_interval": 52428800,
   "host": "::1",
   "port": 11210
 }
@@ -42,6 +43,7 @@ TEST(DownloadPropertiesTest, ConversionSasl) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
+  "fsync_interval": 52428800,
   "host": "::1",
   "port": 11210,
   "sasl": {
@@ -72,6 +74,7 @@ TEST(DownloadPropertiesTest, ConversionTls) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
+  "fsync_interval": 52428800,
   "host": "::1",
   "port": 11210,
   "tls": {
@@ -103,6 +106,7 @@ TEST(DownloadPropertiesTest, ConversionFull) {
     nlohmann::json blueprint = R"(
 {
   "bucket": "travel-sample",
+  "fsync_interval":52428800,
   "host": "::1",
   "port": 11210,
   "sasl": {

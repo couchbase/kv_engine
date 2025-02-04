@@ -79,6 +79,10 @@ struct DownloadProperties {
     /// The bucket to connect to
     std::string bucket;
 
+    static constexpr std::size_t DefaultFsyncInterval = 50 * 1024 * 1024;
+    /// The number of bytes between each call to fsync
+    std::size_t fsync_interval = DefaultFsyncInterval;
+
     /// The properties to use IF SASL should be used (should not be
     /// specified if cert based auth is used)
     std::optional<Sasl> sasl;

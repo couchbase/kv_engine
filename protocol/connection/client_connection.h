@@ -53,6 +53,10 @@ namespace cb::json {
 class SyntaxValidator;
 }
 
+namespace cb::io {
+class FileSink;
+}
+
 /**
  * The Frame class is used to represent all of the data included in the
  * protocol unit going over the wire.
@@ -1132,6 +1136,33 @@ public:
 
     nlohmann::json ifconfig(std::string_view command,
                             const nlohmann::json& spec);
+
+    /**
+     * Get a file fragment from a snapshot on the server.
+     * Note that this method *replace* the IO method on the input socket
+     * with a dedicated method for this operation as we *don't* want to spool
+     * the entire frame in memory before we start writing it to disk.
+     * This means you *cannot* use this method if you've got pending data
+     * in the input buffer.
+     *
+     * @param uuid The snapshot UUID
+     * @param id The file identifier within the snapshot
+     * @param offset The offset within the file to download
+     * @param length The number of bytes to download. Note that the server
+     *               may limit the number of bytes to download and you should
+     *               check the returned value for the number of bytes actually
+     *               received
+     * @param sink The sink to write the data to
+     * @return The number of bytes from the file received from the server. Note
+     *         that this number may be less than the requested length
+     * @throws ConnectionError for unexpected errors from the server
+     * @throws folly::AsyncSocketException for network / file IO errors
+     */
+    uint64_t getFileFragment(std::string_view uuid,
+                             uint64_t id,
+                             uint64_t offset,
+                             uint64_t length,
+                             cb::io::FileSink& sink);
 
 protected:
     /**

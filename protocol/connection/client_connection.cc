@@ -26,6 +26,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <platform/file_sink.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
 #include <xattr/utils.h>
@@ -2445,4 +2446,138 @@ std::string ConnectionError::getErrorContext() const {
 
 nlohmann::json ConnectionError::getErrorJsonContext() const {
     return nlohmann::json::parse(payload);
+}
+
+/**
+ * The GetFileFragmentAsyncReadCallback class is an implementation of the
+ * async reader interface to be used by the getFileFragment method.
+ * Given that the received message is a file fragment and may be extremely
+ * large (hundred of MBs) we need to read the data in chunks and write it to
+ * disk as we receive it rather than spool the entire frame into memory.
+ */
+class GetFileFragmentAsyncReadCallback
+    : public folly::AsyncReader::ReadCallback {
+public:
+    GetFileFragmentAsyncReadCallback(folly::EventBase& base,
+                                     cb::io::FileSink& sink)
+        : base(base), buffer(2 * 1024 * 1024), sink(sink) {
+    }
+
+    ~GetFileFragmentAsyncReadCallback() override = default;
+
+    void getReadBuffer(void** bufReturn, size_t* lenReturn) override {
+        *bufReturn = buffer.data() + offset;
+        *lenReturn = buffer.size() - offset;
+    }
+
+    void readDataAvailable(size_t len) noexcept override {
+        offset += len;
+        onDataReceived({reinterpret_cast<const char*>(buffer.data()), offset});
+    }
+
+    void readEOF() noexcept override {
+        eof = true;
+        base.terminateLoopSoon();
+    }
+
+    void readErr(const folly::AsyncSocketException& ex) noexcept override {
+        exception = ex;
+        base.terminateLoopSoon();
+    }
+
+    void onDataReceived(std::string_view view) {
+        if (!header.has_value()) {
+            if (view.size() < sizeof(cb::mcbp::Header)) {
+                return;
+            }
+            header = *reinterpret_cast<const cb::mcbp::Header*>(view.data());
+            if (!header->isValid()) {
+                exception = folly::AsyncSocketException(
+                        folly::AsyncSocketException::INTERNAL_ERROR,
+                        "Invalid packet received");
+                base.terminateLoopSoon();
+                return;
+            }
+
+            view.remove_prefix(sizeof(cb::mcbp::Header));
+        }
+
+        if (header->getResponse().getStatus() != cb::mcbp::Status::Success) {
+            if (offset == sizeof(cb::mcbp::Header) + header->getBodylen()) {
+                base.terminateLoopSoon();
+            }
+            return;
+        }
+
+        if (!view.empty()) {
+            storeData(view);
+        }
+        offset = 0;
+    }
+
+    void handlePotentialNetworkException() {
+        if (exception) {
+            handleFollyAsyncSocketException(*exception);
+        }
+    }
+
+    /// Set to true once we see EOF
+    bool eof = false;
+    /// Contains the exception if we encountered a read error
+    std::optional<folly::AsyncSocketException> exception;
+    /// The EventBase we're bound to so that we can jump out of the loop
+    folly::EventBase& base;
+    /// The current offset in the buffer to place new data
+    std::size_t offset = 0;
+    /// A buffer to hold data
+    std::vector<uint8_t> buffer;
+    cb::io::FileSink& sink;
+    std::size_t bytes_written = 0;
+
+    /// The header we received
+    std::optional<cb::mcbp::Header> header;
+
+    /// Store the view to the file
+    void storeData(std::string_view view) {
+        sink.sink(view);
+        bytes_written += view.size();
+        if (sink.getBytesWritten() == header->getBodylen()) {
+            base.terminateLoopSoon();
+        }
+    }
+};
+
+uint64_t MemcachedConnection::getFileFragment(std::string_view uuid,
+                                              uint64_t id,
+                                              uint64_t offset,
+                                              uint64_t length,
+                                              cb::io::FileSink& sink) {
+    // This command cannot be used if there is pending data!
+    Expects(asyncReadCallback->input_bytes == 0);
+
+    nlohmann::json file_meta{{"id", id},
+                             {"offset", std::to_string(offset)},
+                             {"length", std::to_string(length)}};
+
+    sendCommand(BinprotGenericCommand{cb::mcbp::ClientOpcode::GetFileFragment,
+                                      std::string{uuid},
+                                      file_meta.dump()});
+    GetFileFragmentAsyncReadCallback callback(*eventBase, sink);
+    asyncSocket->setReadCB(&callback);
+    eventBase->loop();
+    asyncSocket->setReadCB(nullptr);
+    callback.handlePotentialNetworkException();
+    if (!isStatusSuccess(callback.header->getResponse().getStatus())) {
+        callback.buffer.resize(sizeof(cb::mcbp::Header) +
+                               callback.header->getBodylen());
+        BinprotResponse response;
+        response.assign(std::move(callback.buffer));
+        throw ConnectionError(
+                fmt::format(
+                        "getFileFragment: Failed to get file fragment for {}",
+                        uuid),
+                response);
+    }
+
+    return callback.bytes_written;
 }

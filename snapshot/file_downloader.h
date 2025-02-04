@@ -10,6 +10,7 @@
 
 #pragma once
 #include <nlohmann/json_fwd.hpp>
+#include <platform/file_sink.h>
 #include <platform/json_log.h>
 #include <spdlog/spdlog.h>
 #include <filesystem>
@@ -45,46 +46,24 @@ public:
      *                   from
      * @param directory destination directory for the file
      * @param uuid the uuid for the the snapshot the file belongs to
-     * @param fsync_size the number of bytes between each call to fsync()
+     * @param fsync_interval the number of bytes between each call to fsync()
      * @param log_callback a callback function to add information to the log
      */
-    [[nodiscard]] static std::unique_ptr<FileDownloader> create(
-            std::unique_ptr<MemcachedConnection> connection,
-            std::filesystem::path directory,
-            std::string uuid,
-            std::size_t fsync_size,
-            std::function<void(spdlog::level::level_enum,
-                               std::string_view,
-                               cb::logger::Json json)> log_callback);
-
+    FileDownloader(std::unique_ptr<MemcachedConnection> connection,
+                   std::filesystem::path directory,
+                   std::string uuid,
+                   std::size_t fsync_interval,
+                   std::function<void(spdlog::level::level_enum,
+                                      std::string_view,
+                                      cb::logger::Json json)> log_callback);
     /**
      * Download the file provided in the meta section
      *
      * @param meta The meta information describing the file to download
      */
-    bool download(const FileInfo& meta);
+    bool download(const FileInfo& meta) const;
 
 protected:
-    /**
-     * Request section of the file to be appended to the file
-     * @param cmd The cmd object containing the command to send
-     * @param fp The file pointer to append the data to
-     * @return the number of bytes actually returned from the server
-     *         in the case it reduced a smaller fragment (if you requested
-     *         more than could fit in 32 bits for instance)
-     */
-    virtual std::size_t downloadFileFragment(const BinprotGenericCommand& cmd,
-                                             FILE* fp) = 0;
-
-    /**
-     * Write the provided data to the file
-     *
-     * @param fp the file to write the data to
-     * @param data the data to write
-     * @throws std::exception for file write errors
-     */
-    void fwriteData(FILE* fp, std::string_view data) const;
-
     /**
      * Validate the checksum for the provided file as match the checksum
      * in the provided meta.
@@ -105,35 +84,16 @@ protected:
      * @throws std::exception if an error occurs (either failing to create
      *         directories or opening the file)
      */
-    FILE* openFile(const std::filesystem::path& filename) const;
+    cb::io::FileSink openFile(const std::filesystem::path& filename) const;
 
-    /// Get the max chunk size this downloader wants to use. The
-    /// implementation which copies the entire response packet into memory
-    /// don't want to allocate lets say 2GB of memory ;)
-    [[nodiscard]] virtual std::size_t getMaxChunkSize() const = 0;
-
-    /**
-     * Protected constructor as this is a pure virtual class which needs to
-     * be created from the factory method
-     *
-     * @param directory destination directory for the file
-     * @param uuid the uuid for the the snapshot the file belongs to
-     * @param fsync_size the number of bytes between each call to fsync()
-     * @param log_callback a callback function to add information to the log
-     */
-    FileDownloader(std::filesystem::path directory,
-                   std::string uuid,
-                   std::size_t fsync_size,
-                   std::function<void(spdlog::level::level_enum,
-                                      std::string_view,
-                                      cb::logger::Json json)> log_callback);
-
+    /// The connection to the server used to fetch the files from
+    std::unique_ptr<MemcachedConnection> connection;
     /// The directory where the files should be written to
     const std::filesystem::path directory;
     /// The uuid for the snapshot
     const std::string uuid;
     /// The number of bytes between each call to fsync()
-    const std::size_t fsync_size;
+    const std::size_t fsync_interval;
     /// The callback method to log information
     const std::function<void(
             spdlog::level::level_enum, std::string_view, cb::logger::Json json)>

@@ -133,6 +133,7 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
         download(std::move(dconn),
                  dir,
                  manifest,
+                 properties.fsync_interval,
                  [this](auto level, auto msg, auto json) {
                      auto& logger = getGlobalBucketLogger();
                      logger->logWithContext(level, msg, json);

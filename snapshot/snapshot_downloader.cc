@@ -16,19 +16,20 @@ namespace cb::snapshot {
 void download(std::unique_ptr<MemcachedConnection> connection,
               const std::filesystem::path& directory,
               const Manifest& snapshot,
+              std::size_t fsync_interval,
               const std::function<void(spdlog::level::level_enum,
                                        std::string_view,
                                        cb::logger::Json json)>& log_callback) {
-    auto downloader = FileDownloader::create(std::move(connection),
-                                             std::move(directory),
-                                             snapshot.uuid,
-                                             50 * 1024 * 1024,
-                                             log_callback);
+    FileDownloader downloader(std::move(connection),
+                              std::move(directory),
+                              snapshot.uuid,
+                              fsync_interval,
+                              log_callback);
 
     auto download_with_retry = [&downloader](auto& file) -> void {
         int retry = 5;
         while (retry > 0) {
-            if (downloader->download(file)) {
+            if (downloader.download(file)) {
                 return;
             }
             --retry;

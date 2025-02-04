@@ -34,6 +34,9 @@ of the packet contains a JSON object with the following fields:
   * `key` - The path to the client private key.
   * `passphrase` - The passphrase to use when decrypting the private key.
     (This field is base64 encoded).
+* `fsync_interval` - The interval (in bytes) to call fsync() when writing
+                     the files to disk (default 50MB). Set to 0 to disable
+                     fsync.
 
 Example:
 
@@ -41,6 +44,7 @@ Example:
       "bucket": "default",
       "host": "::1",
       "port": 58036,
+      "fsync_interval": 52428800,
       "sasl": {
         "mechanism": "PLAIN",
         "password": "password",
