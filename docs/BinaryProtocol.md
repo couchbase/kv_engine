@@ -565,6 +565,10 @@ information about a given command.
 | 0xda | [Create RangeScan](range_scans/range_scan_create.md) |
 | 0xdb | [Continue RangeScan](range_scans/range_scan_continue.md) |
 | 0xdc | [Cancel RangeScan](range_scans/range_scan_cancel.md) |
+| 0xe0 | [PrepareSnapshot](Snapshots.md#preparesnapshot) |
+| 0xe1 | [ReleaseSnapshot](Snapshots.md#releasesnapshot)|
+| 0xe2 | [DownloadSnapshot](Snapshots.md#downloadsnapshot)|
+| 0xe3 | [GetFileFragment](Snapshots.md#getfilefragment)|
 | 0xf0 | Scrub (deprecated memcached bucket only) |
 | 0xf1 | [ISASL refresh](#f1-isasl-refresh) |
 | 0xf2 | Ssl certs refresh (Not supported) |
