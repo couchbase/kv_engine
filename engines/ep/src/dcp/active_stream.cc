@@ -934,10 +934,20 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
                                     CookieIface& cookie,
                                     const VBucket& vb) {
-    std::lock_guard<std::mutex> lh(streamMutex);
+    std::optional<cb::NonNegativeCounter<size_t>> bfillRemaining;
+    uint64_t endSeq{0};
+    uint64_t curChkSeq{0};
 
+    {
+        // Snapshot the state and drop the lock, then report them
+        std::lock_guard<std::mutex> lh(streamMutex);
+        bfillRemaining = backfillRemaining;
+        endSeq = end_seqno_;
+        curChkSeq = curChkSeqno;
+    }
     add_casted_stat("name", name_, add_stat, cookie);
-    if (!isActive()) {
+    auto state = state_.load();
+    if (state == StreamState::Dead) {
         logWithContext(spdlog::level::level_enum::warn,
                        "ActiveStream::addTakeoverStats: Stream has "
                        "status StreamDead");
@@ -949,10 +959,10 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
 
     size_t total = 0;
     const char* status = nullptr;
-    if (isBackfilling()) {
-        if (backfillRemaining) {
+    if (state == StreamState::Backfilling) {
+        if (bfillRemaining) {
             status = "backfilling";
-            total += *backfillRemaining;
+            total += *bfillRemaining;
         } else {
             status = "calculating-item-count";
         }
@@ -961,12 +971,11 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
     }
     add_casted_stat("status", status, add_stat, cookie);
 
-    if (backfillRemaining) {
-        add_casted_stat(
-                "backfillRemaining", *backfillRemaining, add_stat, cookie);
+    if (bfillRemaining) {
+        add_casted_stat("backfillRemaining", *bfillRemaining, add_stat, cookie);
     }
 
-    size_t vb_items = vb.getNumItems();
+    const size_t vb_items = vb.getNumItems();
     size_t chk_items = 0;
     auto sp = cursor.lock();
     if (vb_items > 0 && sp) {
@@ -984,10 +993,10 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
                 {{"error", e.what()}});
     }
 
-    if (end_seqno_ < curChkSeqno) {
+    if (endSeq < curChkSeq) {
         chk_items = 0;
-    } else if ((end_seqno_ - curChkSeqno) < chk_items) {
-        chk_items = end_seqno_ - curChkSeqno + 1;
+    } else if ((endSeq - curChkSeq) < chk_items) {
+        chk_items = endSeq - curChkSeq + 1;
     }
     total += chk_items;
 
