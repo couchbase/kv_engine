@@ -2386,7 +2386,7 @@ Warmup* EPBucket::getPrimaryWarmup() const {
 }
 
 Warmup* EPBucket::getSecondaryWarmup() const {
-    return secondaryWarmup.atomic.load(std::memory_order_relaxed);
+    return secondaryWarmupTask.lock()->get();
 }
 
 bool EPBucket::isPrimaryWarmupLoadingData() const {
@@ -2417,7 +2417,7 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
     warmupTask->addStats(collector);
 
     bool noSecondary =
-            secondaryWarmup.sync.withLock([&collector](const auto& warmup) {
+            secondaryWarmupTask.withLock([&collector](const auto& warmup) {
                 if (warmup) {
                     warmup->addSecondaryWarmupStats(collector);
                 }
@@ -2433,7 +2433,7 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
 
 bool EPBucket::isWarmupOOMFailure() const {
     return (warmupTask && warmupTask->hasOOMFailure()) ||
-           secondaryWarmup.sync.withLock([](const auto& warmup) {
+           secondaryWarmupTask.withLock([](const auto& warmup) {
                return warmup && warmup->hasOOMFailure();
            });
 }
@@ -2512,7 +2512,7 @@ void EPBucket::primaryWarmupCompleted() {
     const auto& config = engine.getConfiguration();
     if (warmupTask && (config.getSecondaryWarmupMinMemoryThreshold() ||
                        config.getSecondaryWarmupMinItemsThreshold())) {
-        secondaryWarmup.sync.withLock([this, &config](auto& warmup) {
+        secondaryWarmupTask.withLock([this, &config](auto& warmup) {
             // primaryWarmupCompleted is a one-shot function that will create
             // the secondary warmup object - there should be no second call once
             // created.
@@ -2524,8 +2524,6 @@ void EPBucket::primaryWarmupCompleted() {
                     config.getSecondaryWarmupMinMemoryThreshold(),
                     config.getSecondaryWarmupMinItemsThreshold(),
                     "Secondary");
-            secondaryWarmup.atomic.store(warmup.get(),
-                                         std::memory_order_release);
         });
     }
 }

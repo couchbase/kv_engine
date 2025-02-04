@@ -607,14 +607,8 @@ protected:
     cb::RelaxedAtomic<bool> retainErroneousTombstones;
 
     std::unique_ptr<Warmup> warmupTask;
-    struct {
-        // The secondary warmup task is created only once and owned by sync, as
-        // some operations require synchronisation.
-        folly::Synchronized<std::unique_ptr<Warmup>, std::mutex> sync;
-        // After the task is created, this field is set to it, to allow users to
-        // cheaply read it.
-        std::atomic<Warmup*> atomic{nullptr};
-    } secondaryWarmup;
+    folly::Synchronized<std::unique_ptr<Warmup>, std::mutex>
+            secondaryWarmupTask;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
 
