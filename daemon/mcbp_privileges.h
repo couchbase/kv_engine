@@ -41,7 +41,7 @@ public:
      *         Stale - the authentication context is out of date
      */
     cb::rbac::PrivilegeAccess invoke(cb::mcbp::ClientOpcode command,
-                                     Cookie& cookie);
+                                     Cookie& cookie) const;
 
 protected:
     /*
