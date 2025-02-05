@@ -254,10 +254,10 @@ TEST_P(AccessLogTest, ReadAndWarmup) {
 
     // Warmup and set the "chunk" to 0, this means that each key loaded will
     // yield and avoids any need to hack around with time.
-    const auto config =
-            buildNewWarmupConfig(
-                    "warmup_accesslog_load_duration=0;warmup_batch_size=1") +
-            ";" + "bfilter_enabled=false";
+    const auto config = buildNewWarmupConfig(
+                                "warmup_accesslog_load_duration=0;"
+                                "warmup_accesslog_load_batch_size=1") +
+                        ";bfilter_enabled=false";
     resetEngineAndEnableWarmup(config);
     ASSERT_TRUE(getEPBucket().startBgFetcher());
 

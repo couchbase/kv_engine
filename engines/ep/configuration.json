@@ -1860,18 +1860,6 @@
                 "bucket_type": "persistent"
             }
         },
-        "warmup_batch_size": {
-            "default": "10000",
-            "descr": "The size of each batch loaded during warmup.",
-            "dynamic": false,
-            "type": "size_t",
-            "validator": {
-                "range": {
-                    "max": 100000000,
-                    "min": 1
-                }
-            }
-        },
         "warmup_backfill_scan_chunk_duration": {
             "default": "100",
             "descr": "The duration (in ms) after which warmup's backfill scans will yield and re-schedule; allowing other tasks on the same threads to run.",
@@ -1898,7 +1886,16 @@
         },
         "warmup_accesslog_load_duration": {
             "default": "100",
-            "descr": "The duration (in ms) after which warmup's LoadAccessLog phase will yield and re-schedule; allowing other tasks on the same threads to run.",
+            "descr": "The duration (in ms) after which warmup's LoadAccessLog phase will yield and re-schedule; allowing other tasks on the same thread pool to run.",
+            "dynamic": false,
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent"
+            }
+        },
+        "warmup_accesslog_load_batch_size": {
+            "default": "10",
+            "descr": "AccessLog loading operates in batches of this size (dictates the max number of keys issued to the KVStore::getMulti function)",
             "dynamic": false,
             "type": "size_t",
             "requires": {

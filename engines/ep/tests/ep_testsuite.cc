@@ -6556,7 +6556,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_uuid",
               "ep_vbucket_mapping_sanity_checking",
               "ep_vbucket_mapping_sanity_checking_error_mode",
-              "ep_warmup_batch_size",
+              "ep_warmup_accesslog_load_batch_size",
               "ep_warmup_behavior",
               "ep_workload_monitor_enabled",
               "ep_xattr_enabled"}},
@@ -6933,7 +6933,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_vbucket_del_fail",
               "ep_vbucket_mapping_sanity_checking",
               "ep_vbucket_mapping_sanity_checking_error_mode",
-              "ep_warmup_batch_size",
+              "ep_warmup_accesslog_load_batch_size",
               "ep_warmup_behavior",
               "ep_workload_monitor_enabled",
               "ep_workload_pattern",
@@ -9530,9 +9530,9 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  // ensure shards isn't 1 so 4 tasks run for each warmup phase
                  // also ensure that warmup tasks may yield and rerun by
-                 // reducing the batch limit and duration
+                 // reducing the task "chunk" duration
                  "warmup_behavior=background;max_num_shards=4;"
-                 "warmup_batch_size=10;warmup_backfill_scan_chunk_duration=5",
+                 "warmup_backfill_scan_chunk_duration=5",
                  prepare,
                  cleanup),
         TestCase(

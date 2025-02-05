@@ -723,11 +723,9 @@ public:
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {
-        // Runtime is a function of the number of keys in the access log files;
-        // can be many minutes in large datasets.
-        // Given this large variation; set max duration to a "way out" value
-        // which we don't expect to see.
-        return std::chrono::hours(1);
+        return std::chrono::milliseconds(
+                engine->getConfiguration().getWarmupAccesslogLoadDuration() *
+                2);
     }
 
     bool run() override {
@@ -1580,6 +1578,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
         const auto vbItemCount = epVb.getNumTotalItems();
         item_count += vbItemCount;
         EP_LOG_INFO_CTX("Warmup::estimateDatabaseItemCount: ",
+                        {"name", getName()},
                         {"shard_id", shardId},
                         {"vb", entry.vbid},
                         {"item_count", vbItemCount});
@@ -1897,7 +1896,7 @@ Warmup::WarmupAccessLogState Warmup::tryLoadFromAccessLog(MutationLog& lf,
     using namespace std::chrono;
     auto start = steady_clock::now();
     auto maxDuration = milliseconds{config.getWarmupAccesslogLoadDuration()};
-    auto batchSize = config.getWarmupBatchSize();
+    auto batchSize = config.getWarmupAccesslogLoadBatchSize();
 
     // Keep loading batches until time is up.
     while (harvester.loadBatchAndApply(
