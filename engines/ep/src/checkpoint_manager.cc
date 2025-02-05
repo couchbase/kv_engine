@@ -199,9 +199,7 @@ void CheckpointManager::addNewCheckpoint(
     // To ensure that the flusher persists the HPS for 1:Pre without modifying
     // the Flusher we can inherit the HPS value from the previous Checkpoint
     // such that the Checkpoint [3:Mutation] also has HPS = 1.
-    auto hps = oldOpenCkpt.getHighPreparedSeqno()
-                       ? *oldOpenCkpt.getHighPreparedSeqno()
-                       : 0;
+    auto hps = oldOpenCkpt.getHighPreparedSeqno();
 
     hps = std::max(hps, highPreparedSeqno.value_or(0));
 

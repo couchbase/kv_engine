@@ -435,11 +435,8 @@ public:
     /**
      * Returns the seqno of the last prepare queued in the checkpoint.
      */
-    std::optional<uint64_t> getHighPreparedSeqno() const {
-        if (highPreparedSeqno != 0) {
-            return highPreparedSeqno;
-        }
-        return std::nullopt;
+    uint64_t getHighPreparedSeqno() const {
+        return highPreparedSeqno;
     }
 
     /**

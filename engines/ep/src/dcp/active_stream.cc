@@ -1163,6 +1163,20 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
             throw std::logic_error(msg);
         }
 
+        if (!itemsForCursor.highPreparedSeqno) {
+            const auto msg = fmt::format(
+                    "ActiveStream::getOutstandingItems: stream:{} {} "
+                    "processing checkpoint type:{}, {}, snapStart:{}, "
+                    "snapEnd:{} - missing HPS",
+                    name_,
+                    vb_,
+                    ::to_string(itemsForCursor.checkpointType),
+                    ::to_string(itemsForCursor.historical),
+                    range.getStart(),
+                    range.getEnd());
+            throw std::logic_error(msg);
+        }
+
         result.diskCheckpointState =
                 OutstandingItemsResult::DiskCheckpointState();
         result.diskCheckpointState->highCompletedSeqno =
