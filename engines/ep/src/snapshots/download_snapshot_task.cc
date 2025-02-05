@@ -117,7 +117,7 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
         std::filesystem::path dir, const Manifest& manifest) {
     listener->setManifest(manifest);
     listener->stateChanged(DownloadSnapshotTaskState::DownloadFiles);
-    auto dconn = connection->clone();
+    auto dconn = getConnection().clone();
 
     if (properties.sasl.has_value()) {
         dconn->authenticate(properties.sasl->username,
