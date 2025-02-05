@@ -3044,19 +3044,14 @@ cb::engine_errc EPBucket::doSnapshotStatus(const StatCollector& collector,
         if (!safe_strtous(input, vbucket_id)) {
             return cb::engine_errc::invalid_arguments;
         }
-        Vbid vbucketId = Vbid(vbucket_id);
-        VBucketPtr vb = getVBucket(vbucketId);
-        if (!vb) {
-            return cb::engine_errc::not_my_vbucket;
-        }
-        ids.push_back(vbucketId);
+        ids.emplace_back(vbucket_id);
     } else {
         ids = vbMap.getBuckets();
     }
 
     // For each of the vbucket IDs produce a single status for the snapshot.
     // The snapshot may not exist, be downloading or be in the cache.
-    for (auto id : ids) {
+    for (const auto id : ids) {
         fmt::memory_buffer key;
         fmt::format_to(std::back_inserter(key), "vb_{}:status", id.get());
         auto manifest = snapshotCache.lookup(id);
