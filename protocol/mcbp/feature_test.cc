@@ -75,7 +75,7 @@ TEST(to_string, IllegalValues) {
     auto end = uint32_t(std::numeric_limits<uint16_t>::max()) + 1;
     for (uint32_t ii = 0; ii < end; ++ii) {
         auto feature = static_cast<cb::mcbp::Feature>(ii);
-        if (featureBlueprint.find(feature) == featureBlueprint.end()) {
+        if (!featureBlueprint.contains(feature)) {
             EXPECT_EQ(fmt::format("unknown_{:#x}", ii),
                       fmt::format("{}", feature));
         }

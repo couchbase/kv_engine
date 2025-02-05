@@ -187,7 +187,7 @@ TEST_F(ConfigTest, AllValuesConfigWorks) {
     auto configStrings = allValues.toStrings();
     ASSERT_EQ(expectedStrings.size(), configStrings.size());
     for (const auto& configString : configStrings) {
-        ASSERT_TRUE(expectedStrings.find(configString) != expectedStrings.end())
+        ASSERT_TRUE(expectedStrings.contains(configString))
                 << "Unexpected " << configString;
     }
 }

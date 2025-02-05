@@ -904,8 +904,7 @@ public:
     void disablePersistence(const GetFrameInfoFunction& getFrameInfo = {});
 
     bool hasFeature(cb::mcbp::Feature feature) const {
-        return effective_features.find(uint16_t(feature)) !=
-               effective_features.end();
+        return effective_features.contains(uint16_t(feature));
     }
 
     void setDatatypeJson(bool enable) {

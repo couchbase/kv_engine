@@ -438,8 +438,7 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         // is not part of a dropped collection
         while (next != s->trackedWrites.end()) {
             auto nextCid = next->getKey().getCollectionID();
-            if (s->droppedCollections.find(nextCid) ==
-                s->droppedCollections.end()) {
+            if (!s->droppedCollections.contains(nextCid)) {
                 // Common path - most things won't belong to a dropped
                 // Collection
                 break;

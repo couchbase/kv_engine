@@ -77,7 +77,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     tags["event_states"] = 1;
 
     for (auto it = json.begin(); it != json.end(); ++it) {
-        if (tags.find(it.key()) == tags.end()) {
+        if (!tags.contains(it.key())) {
             throw std::invalid_argument(fmt::format(
                     R"(AuditConfig::AuditConfig(): Error: Unknown token "{}")",
                     it.key()));

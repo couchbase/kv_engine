@@ -165,7 +165,7 @@ protected:
     }
 
     bool exists_UNLOCKED(ScopeID identifier) const {
-        return scopes.count(identifier) != 0;
+        return scopes.contains(identifier);
     }
 
     void expect_true(bool in) const {

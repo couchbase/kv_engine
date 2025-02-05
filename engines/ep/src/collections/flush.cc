@@ -140,7 +140,7 @@ void Flush::postCommitMakeStatsVisible() {
     for (const auto& [cid, flushStats] : flushAccounting.getStats()) {
         manifest.get().applyFlusherStats(
                 cid,
-                flushAccounting.getFlushedCollections().count(cid),
+                flushAccounting.getFlushedCollections().contains(cid),
                 flushStats);
     }
 }
@@ -478,8 +478,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                 result->second.startSeqno = entry->startSeqno();
             }
         }
-    } else if (flushAccounting.getDroppedCollections().count(
-                       CollectionID::Default) == 0) {
+    } else if (!flushAccounting.getDroppedCollections().contains(
+                       CollectionID::Default)) {
         // Default construct metadata yields the default collection epoch state
         // if the default collection was modified, this will return the modded
         // state or just the epoch input state.
@@ -551,7 +551,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
     // Iterate through the set of collections dropped in the commit batch and
     // and create flatbuffer versions of each one
     for (const auto& [cid, dropped] : flushAccounting.getDroppedCollections()) {
-        if (skip.count(cid) > 0) {
+        if (skip.contains(cid)) {
             // This collection is already in output
             continue;
         }
@@ -567,7 +567,7 @@ flatbuffers::DetachedBuffer Flush::encodeDroppedCollections(
 
     // Any flushes?
     for (const auto& [cid, seqno] : flushAccounting.getFlushedCollections()) {
-        if (skip.count(cid) > 0) {
+        if (skip.contains(cid)) {
             // This collection is already in output
             continue;
         }
@@ -605,7 +605,7 @@ flatbuffers::DetachedBuffer Flush::encodeRelativeComplementOfDroppedCollections(
         //   this collection is not been fully purged. This occurs in the case
         //   a collection was resurrected and dropped during replay. In this
         //   case the collection must remain in the final output.
-        if (idsToRemove.count(dc.collectionId) == 0 || dc.endSeqno > endSeqno) {
+        if (!idsToRemove.contains(dc.collectionId) || dc.endSeqno > endSeqno) {
             // Include this collection in the final set
             auto newEntry = Collections::KVStore::CreateDropped(
                     builder,

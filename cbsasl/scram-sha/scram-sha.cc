@@ -51,7 +51,7 @@ bool ScramShaBackend::decodeAttributeList(Context& context,
         pos = equal + 1;
 
         // Make sure we haven't seen this key before..
-        if (attributes.find(key) != attributes.end()) {
+        if (attributes.contains(key)) {
             LOG_ERROR(
                     "UUID:[{}] Decode attribute list [{}] failed: key [{}] "
                     "already seen",

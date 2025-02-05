@@ -334,7 +334,7 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
                 handled.emplace_back("setVBucketParam");
             }
 
-            if (deprecated.count(key)) {
+            if (deprecated.contains(key)) {
                 EXPECT_EQ(0, handled.size())
                         << "Dynamic config key \"" << key
                         << "\" can no longer be set - actually settable via: ["

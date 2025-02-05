@@ -182,7 +182,7 @@ void PrometheusStatCollector::addClientMetric(
         // a value set in additionalLabels (from the collector or addStat call).
         // If this changes, the stat should _not_ be added here, to avoid
         // duplicate labels being exposed to Prometheus.
-        Expects(!additionalLabels.count(label));
+        Expects(!additionalLabels.contains(label));
         metric.label.push_back({std::string(label), std::string(value)});
     }
     metricFamily.metric.emplace_back(std::move(metric));

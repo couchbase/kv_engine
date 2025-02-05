@@ -271,7 +271,7 @@ bool Filter::checkAndUpdateSlow(Item& item) {
         item.decompressValue();
         allowed = checkAndUpdateSystemEvent(item);
     } else {
-        allowed = filter.count(item.getKey().getCollectionID());
+        allowed = filter.contains(item.getKey().getCollectionID());
     }
 
     return allowed;
@@ -285,7 +285,7 @@ bool Filter::checkSlow(DocKeyView key) const {
         // checkAndUpdate
         allowed = true;
     } else {
-        allowed = filter.count(key.getCollectionID());
+        allowed = filter.contains(key.getCollectionID());
     }
 
     return allowed;
@@ -389,7 +389,7 @@ bool Filter::processCollectionEvent(const Item& item) {
     }
 
     // When filtered allow only if there is a match
-    return filter.count(cid) > 0;
+    return filter.contains(cid);
 }
 
 bool Filter::processScopeEvent(const Item& item) {

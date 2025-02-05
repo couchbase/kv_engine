@@ -2661,7 +2661,7 @@ CouchKVStore::getVbucketRevisions(
                 }
             }
             // update map or create new element
-            if (vbids.count(id)) {
+            if (vbids.contains(id)) {
                 // id is mapped, add the revision
                 vbids[id].emplace(revision);
             } else {

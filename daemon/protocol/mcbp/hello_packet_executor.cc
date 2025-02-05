@@ -29,17 +29,6 @@ using cb::mcbp::Feature;
 using FeatureSet = std::set<Feature>;
 
 /**
- * Try to see if the provided vector of features contais a certain feature
- *
- * @param features The vector to search
- * @param feature The feature to check for
- * @return true if it contains the feature, false otherwise
- */
-bool containsFeature(const FeatureSet& features, Feature feature) {
-    return features.find(feature) != features.end();
-}
-
-/**
  * Convert the input array of requested features into the Feature set which
  * don't include any illegal / unsupported features or any duplicates.
  *
@@ -97,7 +86,7 @@ void buildRequestVector(FeatureSet& requested,
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
-            if (!containsFeature(requested, feature)) {
+            if (!requested.contains(feature)) {
                 requested.insert(feature);
             }
 
@@ -145,7 +134,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::ClustermapChangeNotification:
         case Feature::ClustermapChangeNotificationBrief:
             // Needs duplex
-            if (!containsFeature(requested, Feature::Duplex)) {
+            if (!requested.contains(Feature::Duplex)) {
                 throw std::invalid_argument(
                         fmt::format("{} needs {}", feature, Feature::Duplex));
             }
@@ -154,16 +143,16 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::VAttr:
         case Feature::RangeScanIncludeXattr:
             // Needs XATTR
-            if (!containsFeature(requested, Feature::XATTR)) {
+            if (!requested.contains(Feature::XATTR)) {
                 throw std::invalid_argument(
                         fmt::format("{} needs {}", feature, Feature::XATTR));
             }
             break;
         case Feature::GetRandomKeyIncludeXattr:
             // Needs XATTR and JSON and SnappyEverywhere
-            if (!containsFeature(requested, Feature::XATTR) ||
-                !containsFeature(requested, Feature::JSON) ||
-                !containsFeature(requested, Feature::SnappyEverywhere)) {
+            if (!requested.contains(Feature::XATTR) ||
+                !requested.contains(Feature::JSON) ||
+                !requested.contains(Feature::SnappyEverywhere)) {
                 throw std::invalid_argument(fmt::format(
                         "{} needs XATTR, JSON and SnappyEverywhere", feature));
             }
@@ -173,8 +162,7 @@ void buildRequestVector(FeatureSet& requested,
 
     // Make sure that we only enable the "brief" version if the client
     // asked for both
-    if (containsFeature(requested,
-                        Feature::ClustermapChangeNotificationBrief)) {
+    if (requested.contains(Feature::ClustermapChangeNotificationBrief)) {
         requested.erase(Feature::ClustermapChangeNotification);
     }
 }

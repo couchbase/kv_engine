@@ -1183,7 +1183,7 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
 
     {
         std::lock_guard<std::mutex> lh(vals_mutex);
-        if (vals.find(vbstr) == vals.end()) {
+        if (!vals.contains(vbstr)) {
             return true;
         }
 

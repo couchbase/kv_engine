@@ -154,8 +154,8 @@ uint64_t recv_subdoc_response(
     std::string value(val_ptr, val_ptr + vallen);
 
     if (expected_status == cb::mcbp::Status::Success) {
-        if (enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) >
-            0) {
+        if (enabled_hello_features.contains(
+                    cb::mcbp::Feature::MUTATION_SEQNO)) {
             EXPECT_EQ(16, header.getExtlen());
         } else {
             EXPECT_EQ(0u, header.getExtlen());

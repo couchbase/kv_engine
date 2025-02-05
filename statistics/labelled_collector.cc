@@ -34,7 +34,7 @@ LabelledStatCollector LabelledStatCollector::withLabels(Labels&& labels) const {
 }
 
 bool LabelledStatCollector::hasLabel(std::string_view labelKey) const {
-    return defaultLabels.count(std::string(labelKey)) != 0;
+    return defaultLabels.contains(std::string(labelKey));
 }
 
 bool LabelledStatCollector::includeAggregateMetrics() const {

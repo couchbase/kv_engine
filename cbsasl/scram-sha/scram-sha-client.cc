@@ -97,9 +97,8 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
             }
         }
 
-        if (attributes.find('r') == attributes.end() ||
-            attributes.find('s') == attributes.end() ||
-            attributes.find('i') == attributes.end()) {
+        if (!attributes.contains('r') || !attributes.contains('s') ||
+            !attributes.contains('i')) {
             errorMessage = "Missing r/s/i in server message";
             LOG_ERROR("UUID:[{}]: {}", context.getUuid(), errorMessage);
             return {Error::BAD_PARAM, errorMessage};
@@ -137,14 +136,14 @@ std::pair<Error, std::string> ClientBackend::step(std::string_view input) {
             return {Error::BAD_PARAM, {}};
         }
 
-        if (attributes.find('e') != attributes.end()) {
+        if (attributes.contains('e')) {
             errorMessage =
                     fmt::format("Failed to authenticate. Server reported: {}",
                                 attributes['e']);
             return {Error::FAIL, errorMessage};
         }
 
-        if (attributes.find('v') == attributes.end()) {
+        if (!attributes.contains('v')) {
             errorMessage = "Syntax error server final message is missing 'v'";
             return {Error::BAD_PARAM, errorMessage};
         }

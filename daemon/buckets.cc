@@ -71,7 +71,7 @@ void Bucket::reset() {
 }
 
 bool Bucket::supports(cb::engine::Feature feature) {
-    return supportedFeatures.find(feature) != supportedFeatures.end();
+    return supportedFeatures.contains(feature);
 }
 
 nlohmann::json Bucket::to_json() const {

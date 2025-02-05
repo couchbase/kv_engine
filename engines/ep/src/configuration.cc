@@ -326,7 +326,7 @@ Requirement* Configuration::setRequirements(const std::string& key,
                                             Requirement* requirement) {
     Expects(!initialized);
     Requirement* ret = nullptr;
-    if (attributes.find(key) != attributes.end()) {
+    if (attributes.contains(key)) {
         ret = attributes[key]->requirement.release();
         attributes[key]->requirement.reset(requirement);
     }

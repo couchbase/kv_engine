@@ -563,8 +563,7 @@ static void setupVBMap(const std::string& host,
     for (const auto& e : map) {
         // If user specified a subset of vBuckets, we only add to map if
         // this vbucket was included.
-        if (vbuckets.empty() ||
-            vbuckets.find(current_vbucket) != vbuckets.end()) {
+        if (vbuckets.empty() || vbuckets.contains(current_vbucket)) {
             int nodeidx = e[0].get<int>();
             vbucketmap[nodeidx].second.emplace_back(current_vbucket.get());
         }

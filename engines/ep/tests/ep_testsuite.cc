@@ -2375,7 +2375,7 @@ static enum test_result test_bg_stats(EngineIface* h) {
                               "ep_bg_max_load",
                               "ep_bg_load_avg"};
     for (const auto* key : bg_keys) {
-        check_expression(stats.find(key) != stats.end(),
+        check_expression(stats.contains(key),
                          (std::string("Found no ") + key).c_str());
     }
 
@@ -2472,30 +2472,22 @@ static enum test_result test_key_stats(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -2573,85 +2565,60 @@ static enum test_result test_vkey_stats(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
-    check_expression(vals.find("key_valid") != vals.end(),
-                     "Found no key_valid");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
+    check_expression(vals.contains("key_valid"), "Found no key_valid");
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey2, strlen(statkey2)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
-    check_expression(vals.find("key_valid") != vals.end(),
-                     "Found no key_valid");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
+    check_expression(vals.contains("key_valid"), "Found no key_valid");
 
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey3, strlen(statkey3)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
-    check_expression(vals.find("key_valid") != vals.end(),
-                     "Found no key_valid");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
+    check_expression(vals.contains("key_valid"), "Found no key_valid");
 
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey4, strlen(statkey4)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
-    check_expression(vals.find("key_valid") != vals.end(),
-                     "Found no key_valid");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
+    check_expression(vals.contains("key_valid"), "Found no key_valid");
 
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey5, strlen(statkey5)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
-    check_expression(vals.find("key_valid") != vals.end(),
-                     "Found no key_valid");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
+    check_expression(vals.contains("key_valid"), "Found no key_valid");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;
@@ -3538,7 +3505,7 @@ static enum test_result test_warmup_stats(EngineIface* h) {
                                   "ep_warmup_oom",
                                   "ep_warmup_time"};
     for (const auto* key : warmup_keys) {
-        check_expression(warmup_stats.find(key) != warmup_stats.end(),
+        check_expression(warmup_stats.contains(key),
                          (std::string("Found no ") + key).c_str());
     }
 
@@ -3547,9 +3514,9 @@ static enum test_result test_warmup_stats(EngineIface* h) {
 
     const auto prev_vb_stats = get_all_stats(h, "prev-vbucket");
 
-    check_expression(prev_vb_stats.find("vb_0") != prev_vb_stats.end(),
+    check_expression(prev_vb_stats.contains("vb_0"),
                      "Found no previous state for VB0");
-    check_expression(prev_vb_stats.find("vb_1") != prev_vb_stats.end(),
+    check_expression(prev_vb_stats.contains("vb_1"),
                      "Found no previous state for VB1");
 
     checkeq(std::string("active"), prev_vb_stats.at("vb_0"),
@@ -3786,9 +3753,9 @@ static enum test_result test_worker_stats(EngineIface* h) {
 
         std::string state = vals["Reader_" + name + ":state"];
 
-        check_expression(tasklist.find(task) != tasklist.end(),
+        check_expression(tasklist.contains(task),
                          (name + "'s Current task incorrect: " + task).c_str());
-        check_expression(statelist.find(state) != statelist.end(),
+        check_expression(statelist.contains(state),
                          (name + "'s state incorrect: " + state).c_str());
     }
 
@@ -4478,9 +4445,9 @@ static enum test_result test_mb3466(EngineIface* h) {
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
 
-    check_expression(vals.find("mem_used") != vals.end(),
+    check_expression(vals.contains("mem_used"),
                      "Expected \"mem_used\" to be returned");
-    check_expression(vals.find("bytes") != vals.end(),
+    check_expression(vals.contains("bytes"),
                      "Expected \"bytes\" to be returned");
     std::string memUsed = vals["mem_used"];
     std::string bytes = vals["bytes"];
@@ -5442,15 +5409,11 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, {statkey1, strlen(statkey1)}, {}, add_stats),
             "Failed to get stats.");
-    check_expression(vals.find("key_is_dirty") != vals.end(),
-                     "Found no key_is_dirty");
-    check_expression(vals.find("key_exptime") != vals.end(),
-                     "Found no key_exptime");
-    check_expression(vals.find("key_flags") != vals.end(),
-                     "Found no key_flags");
-    check_expression(vals.find("key_cas") != vals.end(), "Found no key_cas");
-    check_expression(vals.find("key_vb_state") != vals.end(),
-                     "Found no key_vb_state");
+    check_expression(vals.contains("key_is_dirty"), "Found no key_is_dirty");
+    check_expression(vals.contains("key_exptime"), "Found no key_exptime");
+    check_expression(vals.contains("key_flags"), "Found no key_flags");
+    check_expression(vals.contains("key_cas"), "Found no key_cas");
+    check_expression(vals.contains("key_vb_state"), "Found no key_vb_state");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;

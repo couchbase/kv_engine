@@ -37,7 +37,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     // stat support. It should be removed, and scope/col stats should declare
     // they require formatting. For now, if a scope_id is present the prefix
     // must be added.
-    if (k.needsFormatting() || labels.count("scope_id")) {
+    if (k.needsFormatting() || labels.contains("scope_id")) {
         addStatFn(formatKey(k.cbstatsKey, labels), v, cookie);
     } else {
         addStatFn(k.cbstatsKey, v, cookie);
@@ -224,10 +224,10 @@ std::string CBStatCollector::formatKey(std::string_view key,
     try {
         // if this stat was added through a scope or collection collector,
         // prepend the appropriate prefix
-        if (labels.count("scope_id")) {
+        if (labels.contains("scope_id")) {
             fmt::format_to(
                     std::back_inserter(buf), "{}:", labels.at("scope_id"));
-            if (labels.count("collection_id")) {
+            if (labels.contains("collection_id")) {
                 fmt::format_to(std::back_inserter(buf),
                                "{}:",
                                labels.at("collection_id"));

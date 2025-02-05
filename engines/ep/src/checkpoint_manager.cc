@@ -542,11 +542,10 @@ void CheckpointManager::registerBackupPersistenceCursor(
         const std::lock_guard<std::mutex>& lh) {
     // Preconditions: pCursor exists and copy does not
     Expects(persistenceCursor);
-    if (cursors.find(backupPCursorName) != cursors.end()) {
+    if (cursors.contains(backupPCursorName)) {
         throw std::logic_error(
                 "CheckpointManager::registerBackupPersistenceCursor: Backup "
-                "cursor "
-                "already exists");
+                "cursor already exists");
     }
 
     // Note: We want to make an exact copy, only the name differs
@@ -2145,7 +2144,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
     // Note: Previous validation ensures that lowestCursor points to the oldest
     //  checkpoint at this point
     const auto name = "expel-cursor";
-    Expects(cursors.find(name) == cursors.end());
+    Expects(!cursors.contains(name));
     const auto cursor =
             std::make_shared<CheckpointCursor>(name,
                                                oldestCkptIterator,

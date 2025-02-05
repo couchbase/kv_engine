@@ -741,7 +741,7 @@ TEST(ManifestTest, to_json) {
         std::unordered_set<ScopeID> scopesAdded;
         scopesAdded.insert(ScopeID::Default); // always the default scope
         for (auto& collection : manifest.second) {
-            if (scopesAdded.count(collection.scope.uid) == 0) {
+            if (!scopesAdded.contains(collection.scope.uid)) {
                 cm.add(collection.scope);
                 scopesAdded.insert(collection.scope.uid);
             }

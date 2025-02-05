@@ -3623,7 +3623,7 @@ public:
                    std::optional<ScopeID> sid,
                    std::optional<CollectionID> cid)
             -> cb::rbac::PrivilegeAccess {
-        if (cid && noAccessCids.find(*cid) != noAccessCids.end()) {
+        if (cid && noAccessCids.contains(*cid)) {
             return cb::rbac::PrivilegeAccessFailNoPrivileges;
         }
         return cb::rbac::PrivilegeAccessOk;

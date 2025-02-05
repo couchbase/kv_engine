@@ -140,14 +140,12 @@ void DurabilityMonitor::ActiveSyncWrite::ack(const std::string& node) {
     // The node to ack may be in the firstChain, secondChain, or both, but we
     // don't know which.
     bool acked = false;
-    if (firstChain.chainPtr->positions.find(node) !=
-        firstChain.chainPtr->positions.end()) {
+    if (firstChain.chainPtr->positions.contains(node)) {
         firstChain.ackCount++;
         acked = true;
     }
 
-    if (secondChain && secondChain.chainPtr->positions.find(node) !=
-                               secondChain.chainPtr->positions.end()) {
+    if (secondChain && secondChain.chainPtr->positions.contains(node)) {
         secondChain.ackCount++;
         acked = true;
     }

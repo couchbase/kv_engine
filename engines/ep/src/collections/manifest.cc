@@ -142,7 +142,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
         // 3) Scope names must be unique.
         if (sidValue.isDefaultScope() && nameValue != DefaultScopeIdentifier) {
             throwInvalid("default scope with wrong name:" + nameValue);
-        } else if (this->scopes.count(sidValue) > 0) {
+        } else if (this->scopes.contains(sidValue)) {
             // Scope uids must be unique
             throwInvalid("duplicate scope uid:" + sidValue.to_string() +
                          ", name:" + nameValue);
@@ -739,7 +739,7 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
         // Log scope creations
         for (auto itr = successor.beginScopes(); itr != successor.endScopes();
              ++itr) {
-            if (scopes.count(itr->first) == 0) {
+            if (!scopes.contains(itr->first)) {
                 EP_LOG_INFO("create scope manifest:{:#x}, sid:{}, {}",
                             successor.getUid(),
                             itr->first,

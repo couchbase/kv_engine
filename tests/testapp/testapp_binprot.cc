@@ -26,7 +26,7 @@ void mcbp_validate_response_header(cb::mcbp::Response& response,
         }
     }
     bool mutation_seqno_enabled =
-            enabled_hello_features.count(cb::mcbp::Feature::MUTATION_SEQNO) > 0;
+            enabled_hello_features.contains(cb::mcbp::Feature::MUTATION_SEQNO);
     mcbp_validate_response_header(
             response, cmd, status, mutation_seqno_enabled);
 }

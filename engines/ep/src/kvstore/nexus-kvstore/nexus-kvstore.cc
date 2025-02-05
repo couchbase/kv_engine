@@ -1404,8 +1404,7 @@ CompactDBStatus NexusKVStore::compactDB(
 
     // The expiration callback invocations should be the same
     for (auto& [key, seqno] : primaryExpiryCb->callbacks) {
-        if (secondaryExpiryCb->callbacks.find(key) ==
-            secondaryExpiryCb->callbacks.end()) {
+        if (!secondaryExpiryCb->callbacks.contains(key)) {
             auto msg = fmt::format(
                     "NexusKVStore::compactDB: {}: Expiry callback found with "
                     "key:{} seqno:{} for primary but not secondary",

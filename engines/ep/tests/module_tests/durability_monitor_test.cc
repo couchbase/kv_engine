@@ -1557,9 +1557,9 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     EXPECT_EQ(1, monitor->getNumTracked());
     auto tracked = adm.getTrackedSeqnos();
-    EXPECT_TRUE(tracked.find(201) == tracked.end());
-    EXPECT_TRUE(tracked.find(202) == tracked.end());
-    EXPECT_TRUE(tracked.find(203) != tracked.end());
+    EXPECT_FALSE(tracked.contains(201));
+    EXPECT_FALSE(tracked.contains(202));
+    EXPECT_TRUE(tracked.contains(203));
     {
         CB_SCOPED_TRACE("");
         assertNodeTracking(active, 203 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);

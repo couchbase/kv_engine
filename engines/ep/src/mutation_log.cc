@@ -1036,7 +1036,7 @@ bool MutationLogHarvester::load() {
 
         switch (le->type()) {
         case MutationLogType::New:
-            if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
+            if (vbid_set.contains(le->vbucket())) {
                 loading[le->vbucket()].emplace(le->key());
             }
             break;
@@ -1083,7 +1083,7 @@ bool MutationLogHarvester::loadBatch(size_t limit) {
 
         switch (le->type()) {
         case MutationLogType::New:
-            if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
+            if (vbid_set.contains(le->vbucket())) {
                 committed[le->vbucket()].emplace(le->key());
                 count++;
             }

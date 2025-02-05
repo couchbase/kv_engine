@@ -39,7 +39,6 @@ TEST(Magic, is_legal) {
     for (int ii = 0; ii < 0x100; ++ii) {
         auto magic = cb::mcbp::Magic(ii);
         // If it isn't in the map it shouldn't be legal
-        EXPECT_NE(magicBlueprint.find(magic) == magicBlueprint.end(),
-                  cb::mcbp::is_legal(magic));
+        EXPECT_EQ(magicBlueprint.contains(magic), cb::mcbp::is_legal(magic));
     }
 }

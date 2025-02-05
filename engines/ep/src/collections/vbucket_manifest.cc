@@ -957,7 +957,7 @@ bool Manifest::doesKeyContainValidCollection(const DocKeyView& key) const {
 }
 
 bool Manifest::isScopeValid(ScopeID scopeID) const {
-    return scopes.count(scopeID) != 0;
+    return scopes.contains(scopeID);
 }
 
 Visibility Manifest::getScopeVisibility(ScopeID sid) const {
@@ -1260,7 +1260,7 @@ size_t Manifest::getSystemEventItemCount() const {
     // Every 'live' scope has 1 'live' item, except for the default scope which
     // has no event.
     rv += scopes.size();
-    if (rv && scopes.count(ScopeID::Default)) {
+    if (rv && scopes.contains(ScopeID::Default)) {
         rv--;
     }
     return rv;
@@ -1641,7 +1641,7 @@ void Manifest::accumulateStats(
 
 std::optional<std::vector<CollectionID>> Manifest::getCollectionsForScope(
         ScopeID identifier) const {
-    if (scopes.count(identifier) == 0) {
+    if (!scopes.contains(identifier)) {
         return {};
     }
 
