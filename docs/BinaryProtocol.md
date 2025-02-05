@@ -499,6 +499,8 @@ information about a given command.
 | 0x63 | DcpAbort |
 | 0x64 | [DcpSeqnoAdvanced](dcp/documentation/commands/seqno-advanced.md) |
 | 0x65 | [Dcp Out of Sequence Order snapshot](dcp/documentation/commands/oso_snapshot.md) |
+| 0x70 | [Get Fusion Storage Snapshot](./fusion.md#0x70---Get-Fusion-Storage-Snapshot) |
+| 0x71 | [Release Fusion Storage Snapshot](./fusion.md#0x71---Release-Fusion-Storage-Snapshot) |
 | 0x80 | Stop persistence |
 | 0x81 | Start persistence |
 | 0x82 | Set param |

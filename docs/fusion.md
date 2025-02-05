@@ -1,4 +1,4 @@
-# Get Fusion Storage Snapshot (0x98)
+# 0x70 - Get Fusion Storage Snapshot
 
 Requests that the server creates a logical snapshot in the fusion backend.
 
@@ -86,7 +86,7 @@ Server does not own an active copy of the vbucket.
 This status code is used for unexpected internal failure.
 
 
-# Release Fusion Storage Snapshot (0x99)
+# 0x71 - Release Fusion Storage Snapshot
 
 Requests that the server releases a logical snapshot in the fusion backend.
 
