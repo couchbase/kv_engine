@@ -1210,6 +1210,9 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting) {
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+
+    EXPECT_EQ(2, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(2, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
@@ -1219,6 +1222,8 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     auto key = makeStoredDocKey("key");
 
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(2, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(2, mockEphVb->public_getListHighCompletedSeqno());
     {
         // take a range read to cause stale items
         auto range = mockEphVb->registerFakeSharedRangeLock(0, 1000);
@@ -1271,6 +1276,11 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
     EXPECT_EQ(1, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+
+    // A new checkpoint is opened to avoid de-duping the first prepare.
+    // The second prepare therefore is now added with bySeqno 4.
+    EXPECT_EQ(4, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(4, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 // The test case doesn't really test anything new, it just demonstrates how
@@ -1287,6 +1297,11 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
     ASSERT_TRUE(result);
     ASSERT_EQ(CommittedState::Pending, result->getCommitted());
 
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+
+    EXPECT_EQ(1, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(0, mockEphVb->public_getListHighCompletedSeqno());
+
     // Test
     std::shared_lock rlh(vbucket->getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
@@ -1297,7 +1312,9 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
                               CommitType::Majority,
                               vbucket->lockCollections(key)));
 
-    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(1, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(1, mockEphVb->public_getListHighCompletedSeqno());
+
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
 
@@ -1306,6 +1323,13 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
 
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+
+    // The same item was prepared twice, committed once.  To
+    // avoid de-duping the first prepare, a new checkpoint is opened when we
+    // process the second commit. The second prepare therefore is now added with
+    // bySeqno 3.
+    EXPECT_EQ(3, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(1, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 void VBucketDurabilityTest::testHTSyncDeleteCommit() {
@@ -1491,17 +1515,25 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit) {
     auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+
+    // A normal mutation was sync deleted & committed.
+    // seqno history: Mutation: 1, SyncDelete: 2
+    EXPECT_EQ(2, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(2, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
     testHTCommitExisting();
+
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(2, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(2, mockEphVb->public_getListHighCompletedSeqno());
 
     // Manually bump the collections doc count as we are going to hit an
     // internal function
     auto key = makeStoredDocKey("key");
     VBNotifyCtx notifyCtx;
     notifyCtx.setItemCountDifference(1);
-    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
     mockEphVb->public_doCollectionsStats(vbucket->lockCollections(key),
                                          notifyCtx);
 
@@ -1540,6 +1572,11 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
     EXPECT_EQ(1, mockEphVb->purgeStaleItems());
     EXPECT_EQ(0, mockEphVb->public_getNumStaleItems());
     EXPECT_EQ(2, mockEphVb->public_getNumListItems());
+
+    // A new checkpoint is opened to avoid de-duping the first prepare.
+    // The second prepare therefore is now added with bySeqno 4.
+    EXPECT_EQ(4, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(4, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 // Negative test - check it is not possible to commit a non-pending item.
@@ -1664,6 +1701,10 @@ TEST_P(EphemeralVBucketDurabilityTest, StatsCommittedSyncWrite) {
 
     EXPECT_EQ(1, ht->getNumPreparedSyncWrites());
     EXPECT_EQ(2, ht->getNumItems());
+
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(1, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(1, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 void VBucketDurabilityTest::doSyncDelete() {
@@ -1720,6 +1761,10 @@ TEST_P(EphemeralVBucketDurabilityTest, StatsCommittedSyncDelete) {
     EXPECT_EQ(1, ht->getNumPreparedSyncWrites());
     EXPECT_EQ(2, ht->getNumItems());
     EXPECT_EQ(1, ht->getNumDeletedItems());
+
+    auto* mockEphVb = dynamic_cast<MockEphemeralVBucket*>(vbucket.get());
+    EXPECT_EQ(1, mockEphVb->public_getListHighPreparedSeqno());
+    EXPECT_EQ(1, mockEphVb->public_getListHighCompletedSeqno());
 }
 
 // Test case for doing a sync write on top of a pre-existing item.

@@ -335,6 +335,11 @@ uint64_t BasicLinkedList::getNumItems() const {
     return seqList.size();
 }
 
+uint64_t BasicLinkedList::getHighPreparedSeqno() const {
+    std::lock_guard<std::mutex> lg(getListWriteLock());
+    return highPreparedSeqno;
+}
+
 uint64_t BasicLinkedList::getHighSeqno() const {
     std::lock_guard<std::mutex> lckGd(getListWriteLock());
     return highSeqno;

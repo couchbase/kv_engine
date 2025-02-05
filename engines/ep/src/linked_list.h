@@ -139,6 +139,8 @@ public:
     uint64_t getHighCompletedSeqno(
             std::lock_guard<std::mutex>& writeLock) const override;
 
+    uint64_t getHighPreparedSeqno() const override;
+
     std::pair<uint64_t, uint64_t> getRangeRead() const override;
 
     std::mutex& getListWriteLock() const override;

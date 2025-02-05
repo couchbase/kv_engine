@@ -417,6 +417,8 @@ public:
     virtual uint64_t getHighCompletedSeqno(
             std::lock_guard<std::mutex>&) const = 0;
 
+    virtual uint64_t getHighPreparedSeqno() const = 0;
+
     /**
      * Returns the current range lock begin and end sequence numbers,
      * inclusive of both ends.

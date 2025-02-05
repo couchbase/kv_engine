@@ -67,6 +67,14 @@ public:
         return mockLL->getHighSeqno();
     }
 
+    uint64_t public_getListHighPreparedSeqno() const {
+        return mockLL->getHighPreparedSeqno();
+    }
+
+    uint64_t public_getListHighCompletedSeqno() const {
+        return mockLL->getHighCompletedSeqno();
+    }
+
     MockBasicLinkedList* getLL() {
         return mockLL;
     }
