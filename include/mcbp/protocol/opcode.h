@@ -150,6 +150,17 @@ enum class ClientOpcode : uint8_t {
     DcpOsoSnapshot = 0x65,
     /* End DCP */
 
+    /// Fusion
+    GetFusionStorageSnapshot = 0x70,
+    ReleaseFusionStorageSnapshot = 0x71,
+    MountFusionVbucket = 0x72,
+    ReservedFusion3 = 0x73, // Reserved for UnmountVB
+    SyncFusionLogstore = 0x74,
+    ReservedFusion5 = 0x75, // Reserved for StartFusionUploader
+    ReservedFusion6 = 0x76, // Reserved for StopFusionUploader
+    ReservedFusion7 = 0x77,
+    ReservedFusion8 = 0x78,
+
     StopPersistence = 0x80,
     StartPersistence = 0x81,
     SetParam = 0x82,
@@ -176,14 +187,6 @@ enum class ClientOpcode : uint8_t {
      * Return the last closed checkpoint Id for a given VBucket.
      */
     LastClosedCheckpoint_Unsupported = 0x97,
-
-    // Fusion
-    GetFusionStorageSnapshot = 0x98,
-    ReleaseFusionStorageSnapshot = 0x99,
-    MountFusionVbucket = 0x9a,
-    ReservedFusion3 = 0x9b, // Reserved for UnmountVB
-    SyncFusionLogstore = 0x9c,
-    ReservedFusion5 = 0x9d,
 
     /**
      * Close the TAP connection for the registered TAP client and
