@@ -301,6 +301,22 @@ public:
     void SetFusionLogCheckpointInterval(std::chrono::seconds interval);
     std::chrono::seconds GetFusionLogCheckpointInterval() const;
 
+    /**
+     * Start uploading data to FusionLogStore for the latest revision of the
+     * given kvstore.
+     *
+     * Unreferenced log files are also deleted as part of the upload process,
+     * which requires a valid FusionMetadataStore auth token set via
+     * SetFusionMetadataStoreAuthToken.
+     *
+     * The given term must be monotonic. It must be incremented every time the
+     * fusion uploader role is reassigned. The term is used to ensure zombie
+     * uploaders are fenced and are disallowed from deleting log files from
+     * FusionLogStore.
+     */
+    magma::Status StartFusionUploader(magma::Magma::KVStoreID kvId,
+                                      uint64_t term);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

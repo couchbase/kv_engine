@@ -4609,3 +4609,16 @@ std::chrono::seconds MagmaKVStore::getFusionUploadInterval() const {
 std::chrono::seconds MagmaKVStore::getFusionLogCheckpointInterval() const {
     return magma->GetFusionLogCheckpointInterval();
 }
+
+cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {
+    const auto status =
+            magma->StartFusionUploader(Magma::KVStoreID(vbid.get()), term);
+    if (status.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::startFusionUploader: ",
+                        {"vb", vbid},
+                        {"term", term},
+                        {"status", status.String()});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}

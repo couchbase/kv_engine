@@ -234,4 +234,71 @@ TEST_P(FusionTest, SyncFusionLogstore) {
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
+TEST_P(FusionTest, StartFusionUploader) {
+    // arg invalid (not string)
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = 1234;
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+
+    // arg invalid (not numeric string)
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = "abc123";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+
+    // arg invalid (too large numeric string)
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = std::string(100, '1');
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+
+    // arg invalid (negative numeric string)
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = "-1";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    });
+
+    // arg valid
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = "123";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
 #endif // USE_FUSION

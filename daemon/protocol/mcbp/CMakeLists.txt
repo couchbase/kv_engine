@@ -104,6 +104,8 @@ add_library(memcached_daemon_mcbp OBJECT
         settings_reload_command_context.h
         single_state_steppable_context.cc
         single_state_steppable_context.h
+        start_fusion_uploader_command_context.cc
+        start_fusion_uploader_command_context.h
         stats_context.cc
         stats_context.h
         steppable_command_context.cc

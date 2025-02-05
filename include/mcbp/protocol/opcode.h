@@ -156,7 +156,7 @@ enum class ClientOpcode : uint8_t {
     MountFusionVbucket = 0x72,
     ReservedFusion3 = 0x73, // Reserved for UnmountVB
     SyncFusionLogstore = 0x74,
-    ReservedFusion5 = 0x75, // Reserved for StartFusionUploader
+    StartFusionUploader = 0x75,
     ReservedFusion6 = 0x76, // Reserved for StopFusionUploader
     ReservedFusion7 = 0x77,
     ReservedFusion8 = 0x78,

@@ -763,3 +763,9 @@ std::chrono::seconds MagmaMemoryTrackingProxy::GetFusionLogCheckpointInterval()
     cb::UseArenaMallocSecondaryDomain sGuard;
     return magma->GetFusionLogCheckpointInterval();
 }
+
+magma::Status MagmaMemoryTrackingProxy::StartFusionUploader(
+        magma::Magma::KVStoreID kvId, uint64_t term) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->StartFusionUploader(kvId, term);
+}

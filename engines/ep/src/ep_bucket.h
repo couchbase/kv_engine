@@ -427,6 +427,8 @@ public:
 
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
 
+    cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
+
     /**
      * Handle the brief snapshot-status stat which is used by ns_server to
      * monitor downloads.

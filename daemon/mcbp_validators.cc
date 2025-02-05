@@ -2743,6 +2743,66 @@ static Status sync_fusion_logstore_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
+
+static Status start_fusion_uploader_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    const auto value = cookie.getRequest().getValueString();
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(value);
+    } catch (const nlohmann::json::exception& e) {
+        const auto msg = fmt::format(
+                "start_fusion_uploader_validator: Invalid json '{}' {}",
+                value,
+                e.what());
+        cookie.setErrorContext(msg);
+        return Status::Einval;
+    }
+
+    if (!json.contains("term")) {
+        cookie.setErrorContext("start_fusion_uploader_validator: Missing term");
+        return Status::Einval;
+    }
+
+    if (!json["term"].is_string()) {
+        cookie.setErrorContext(
+                "start_fusion_uploader_validator: term not string");
+        return Status::Einval;
+    }
+
+    const std::string term = json["term"];
+    if (term.empty() || !std::ranges::all_of(term, ::isdigit)) {
+        const auto msg = fmt::format(
+                "start_fusion_uploader_validator: term is not digits - {}",
+                json.dump());
+        cookie.setErrorContext(msg);
+        return Status::Einval;
+    }
+
+    try {
+        std::stoull(term);
+    } catch (const std::exception& e) {
+        const auto msg = fmt::format(
+                "start_fusion_uploader_validator: term ({}) invalid - {}",
+                json.dump(),
+                e.what());
+        cookie.setErrorContext(msg);
+        return Status::Einval;
+    }
+
+    return status;
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -3047,4 +3107,6 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::MountFusionVbucket, mount_vbucket_validator);
     setup(cb::mcbp::ClientOpcode::SyncFusionLogstore,
           sync_fusion_logstore_validator);
+    setup(cb::mcbp::ClientOpcode::StartFusionUploader,
+          start_fusion_uploader_validator);
 }

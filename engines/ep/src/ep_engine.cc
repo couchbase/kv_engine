@@ -7740,6 +7740,11 @@ cb::engine_errc EventuallyPersistentEngine::syncFusionLogstore(Vbid vbid) {
     return acquireEngine(this)->syncFusionLogstoreInner(vbid);
 }
 
+cb::engine_errc EventuallyPersistentEngine::startFusionUploader(Vbid vbid,
+                                                                uint64_t term) {
+    return acquireEngine(this)->startFusionUploaderInner(vbid, term);
+}
+
 cb::engine_errc EventuallyPersistentEngine::pause(
         folly::CancellationToken cancellationToken) {
     return kvBucket->prepareForPause(cancellationToken);
@@ -7976,4 +7981,10 @@ EventuallyPersistentEngine::mountVBucketInner(
 cb::engine_errc EventuallyPersistentEngine::syncFusionLogstoreInner(Vbid vbid) {
     Expects(kvBucket);
     return kvBucket->syncFusionLogstore(vbid);
+}
+
+cb::engine_errc EventuallyPersistentEngine::startFusionUploaderInner(
+        Vbid vbid, uint64_t term) {
+    Expects(kvBucket);
+    return kvBucket->startFusionUploader(vbid, term);
 }

@@ -404,7 +404,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::MountFusionVbucket:
         case ClientOpcode::ReservedFusion3:
         case ClientOpcode::SyncFusionLogstore:
-        case ClientOpcode::ReservedFusion5:
+        case ClientOpcode::StartFusionUploader:
         case ClientOpcode::ReservedFusion6:
         case ClientOpcode::ReservedFusion7:
         case ClientOpcode::ReservedFusion8:

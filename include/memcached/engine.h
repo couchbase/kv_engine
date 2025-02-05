@@ -874,6 +874,22 @@ struct EngineIface {
     [[nodiscard]] virtual cb::engine_errc syncFusionLogstore(Vbid vbid);
 
     /**
+     * Start uploading data to FusionLogStore for the latest revision of the
+     * given vbucket/kvstore.
+     *
+     * Unreferenced log files are also deleted as part of the upload process,
+     * which requires a valid FusionMetadataStore auth token set via
+     * SetFusionMetadataStoreAuthToken.
+     *
+     * The given term must be monotonic. It must be incremented every time the
+     * fusion uploader role is reassigned. The term is used to ensure zombie
+     * uploaders are fenced and are disallowed from deleting log files from
+     * FusionLogStore.
+     */
+    [[nodiscard]] virtual cb::engine_errc startFusionUploader(Vbid vbid,
+                                                              uint64_t term);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

@@ -1019,6 +1019,10 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override {
+        return cb::engine_errc::not_supported;
+    }
+
     std::variant<cb::engine_errc, cb::snapshot::Manifest> prepareSnapshot(
             const std::filesystem::path& snapshotDirectory, Vbid vb) override;
 

@@ -52,6 +52,7 @@
 #include "protocol/mcbp/set_cluster_config_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
+#include "protocol/mcbp/start_fusion_uploader_command_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "protocol/mcbp/unknown_packet_command_context.h"
@@ -655,6 +656,15 @@ static void sync_fusion_logstore_executor(Cookie& cookie) {
     cookie.obtainContext<SyncFusionLogstoreCommandContext>(cookie).drive();
 }
 
+static void start_fusion_uploader_executor(Cookie& cookie) {
+    if (!cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<StartFusionUploaderCommandContext>(cookie).drive();
+}
+
 static void process_bin_noop_response(Cookie&) {
     // do nothing
 }
@@ -932,6 +942,8 @@ void initialize_mbcp_lookup_map() {
                   mount_fusion_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::SyncFusionLogstore,
                   sync_fusion_logstore_executor);
+    setup_handler(cb::mcbp::ClientOpcode::StartFusionUploader,
+                  start_fusion_uploader_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

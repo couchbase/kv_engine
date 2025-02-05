@@ -820,6 +820,8 @@ public:
               {"MOUNT_FUSION_VBUCKET"sv, {Attribute::Supported}});
         setup(ClientOpcode::SyncFusionLogstore,
               {"SYNC_FUSION_LOGSTORE"sv, {Attribute::Supported}});
+        setup(ClientOpcode::StartFusionUploader,
+              {"START_FUSION_UPLOADER"sv, {Attribute::Supported}});
     }
 
 protected:

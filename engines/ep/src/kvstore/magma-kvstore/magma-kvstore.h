@@ -671,6 +671,8 @@ public:
 
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
 
+    cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
+
     std::chrono::seconds getFusionUploadInterval() const;
     std::chrono::seconds getFusionLogCheckpointInterval() const;
 
