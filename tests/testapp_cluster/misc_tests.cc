@@ -786,7 +786,7 @@ TEST_F(BasicClusterTest, Snapshots) {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
     } while (!done && std::chrono::steady_clock::now() < timeout);
-    ASSERT_TRUE(done);
+    ASSERT_TRUE(done) << "Timeout waiting for snapshot to be available";
     replica->stats(
             [&done, &manifest, &error](auto k, auto v) {
                 if (k == "vb_0:download") {
