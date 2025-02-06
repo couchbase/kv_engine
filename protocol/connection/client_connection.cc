@@ -727,9 +727,8 @@ void MemcachedConnection::connect() {
         auto ctx = std::make_shared<folly::SSLContext>(context);
         SSL_CTX_free(context);
 
-        auto* ss = new folly::AsyncSSLSocket(
+        auto ss = folly::AsyncSSLSocket::newSocket(
                 ctx, eventBase.get(), folly::NetworkSocket(sock), false);
-        asyncSocket.reset(ss);
 
         class HandshakeHandler : public folly::AsyncSSLSocket::HandshakeCB {
         public:
@@ -745,6 +744,7 @@ void MemcachedConnection::connect() {
         } handler;
 
         ss->sslConn(&handler);
+        asyncSocket = std::move(ss);
         eventBase->loop();
         if (!handler.error.empty()) {
             throw std::runtime_error("SSL handshake failed: " + handler.error);
