@@ -316,12 +316,10 @@ void SubdocExecutionContext::substituteMacro(cb::xattr::macros::macro macroName,
     // wrote the padded macro string.
     char* root = value.begin();
     char* end = value.end();
-    auto& macro = std::find_if(std::begin(paddedMacros),
-                               std::end(paddedMacros),
-                               [macroName](const MacroPair& m) {
-                                   return m.first == macroName.name;
-                               })
-                          ->second;
+    auto& macro =
+            std::ranges::find_if(paddedMacros, [macroName](const MacroPair& m) {
+                return m.first == macroName.name;
+            })->second;
     auto* needle = macro.data();
     auto* needle_end = macro.data() + macro.length();
 
@@ -429,10 +427,9 @@ std::string_view SubdocExecutionContext::expand_virtual_document_macro(
 
 std::string_view SubdocExecutionContext::get_padded_macro(
         std::string_view macro) {
-    auto iter = std::find_if(
-            std::begin(paddedMacros),
-            std::end(paddedMacros),
-            [macro](const MacroPair& a) { return a.first == macro; });
+    auto iter = std::ranges::find_if(paddedMacros, [macro](const MacroPair& a) {
+        return a.first == macro;
+    });
     if (iter == paddedMacros.end()) {
         return {};
     }

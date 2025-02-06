@@ -218,9 +218,7 @@ public:
                                        openCollection) {
                 return openCollection.metaData == expectedCollection;
             };
-            auto found = std::find_if(
-                    md.collections.begin(), md.collections.end(), cmp);
-            EXPECT_NE(found, md.collections.end());
+            EXPECT_TRUE(std::ranges::any_of(md.collections, cmp));
         }
 
         // Check for duplicates in kvstore array of collections
@@ -241,8 +239,7 @@ public:
                                          dropped) {
                     return dropped.collectionId == cid;
                 };
-                auto found = std::find_if(dropped.begin(), dropped.end(), cmp);
-                EXPECT_NE(found, dropped.end());
+                EXPECT_TRUE(std::ranges::any_of(dropped, cmp));
             }
         } else {
             EXPECT_FALSE(md.droppedCollectionsExist);
@@ -259,8 +256,7 @@ public:
                     [scope](const Collections::KVStore::OpenScope& openScope) {
                         return openScope.metaData == scope;
                     };
-            auto found = std::find_if(md.scopes.begin(), md.scopes.end(), cmp);
-            EXPECT_NE(found, md.scopes.end());
+            EXPECT_TRUE(std::ranges::any_of(md.scopes, cmp));
         }
     }
 

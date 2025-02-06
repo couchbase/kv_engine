@@ -54,8 +54,7 @@ nlohmann::json v2to1(nlohmann::json map) {
             for (auto& attr : entry["attrs"]) {
                 auto val = attr.get<std::string>();
                 // strip off unsupported attributes
-                if (std::find(attributes.begin(), attributes.end(), val) !=
-                    attributes.end()) {
+                if (std::ranges::find(attributes, val) != attributes.end()) {
                     at.emplace_back(std::move(val));
                 }
             }

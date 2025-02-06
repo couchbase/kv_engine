@@ -720,7 +720,7 @@ static void set_feature(cb::mcbp::Feature feature, bool enable) {
     auto enabled = rsp.getFeatures();
     EXPECT_EQ(enabled_hello_features.size(), enabled.size());
     for (auto f : enabled_hello_features) {
-        EXPECT_NE(enabled.end(), std::find(enabled.begin(), enabled.end(), f));
+        EXPECT_NE(enabled.end(), std::ranges::find(enabled, f));
     }
 }
 

@@ -1102,9 +1102,8 @@ void ActiveDurabilityMonitor::eraseSyncWrite(const DocKeyView& key,
     auto s = state.wlock();
 
     // Need to find the write we want to drop
-    auto toErase = std::find_if(
-            s->trackedWrites.begin(),
-            s->trackedWrites.end(),
+    auto toErase = std::ranges::find_if(
+            s->trackedWrites,
             [key](const auto& write) -> bool { return write.getKey() == key; });
 
     // We might call into here with a prepare that does not exist in the DM if

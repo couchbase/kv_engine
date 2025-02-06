@@ -42,7 +42,7 @@ Mechanism selectMechanism(const std::string_view mechanisms) {
 
     // Search what we've got backends for (they're listed in preferred order)
     for (auto& [name, mechanism] : backends) {
-        if (std::find(avail.begin(), avail.end(), name) != avail.end()) {
+        if (std::ranges::find(avail, name) != avail.end()) {
             return mechanism;
         }
     }
@@ -53,7 +53,7 @@ Mechanism selectMechanism(const std::string_view mechanisms) {
 Mechanism selectMechanism(const std::string_view mechanism,
                           const std::string_view available) {
     auto avail = cb::string::split(available, ' ');
-    if (std::find(avail.begin(), avail.end(), mechanism) != avail.end()) {
+    if (std::ranges::find(avail, mechanism) != avail.end()) {
         // The requested mechanism is listed within the available mechanisms,
         // but we might not have a backend for it:
         for (const auto& [name, m] : backends) {

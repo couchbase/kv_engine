@@ -248,10 +248,9 @@ size_t HashTable::getPreferredSize(
     const size_t currSize = getSize();
 
     // Figure out where in the prime table we are.
-    const auto candidate =
-            std::find_if(prime_size_table.begin(),
-                         prime_size_table.end(),
-                         [numItems](auto prime) { return prime >= numItems; });
+    const auto candidate = std::ranges::find_if(
+            prime_size_table,
+            [numItems](auto prime) { return prime >= numItems; });
 
     size_t newSize;
 

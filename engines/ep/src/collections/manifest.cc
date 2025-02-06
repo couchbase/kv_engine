@@ -709,9 +709,8 @@ bool Scope::operator==(const Scope& other) const {
                  collections.size() == other.collections.size();
     if (equal) {
         for (const auto& c : collections) {
-            equal &= std::find(other.collections.begin(),
-                               other.collections.end(),
-                               c) != other.collections.end();
+            equal &= std::ranges::find(other.collections, c) !=
+                     other.collections.end();
             if (!equal) {
                 break;
             }

@@ -588,8 +588,7 @@ void CompactionConfig::merge(const CompactionConfig& other) {
             std::max<uint64_t>(purge_before_seq, other.purge_before_seq);
 
     for (const auto& k : other.obsolete_keys) {
-        if (std::find(obsolete_keys.begin(), obsolete_keys.end(), k) ==
-            obsolete_keys.end()) {
+        if (std::ranges::find(obsolete_keys, k) == obsolete_keys.end()) {
             obsolete_keys.push_back(k);
         }
     }

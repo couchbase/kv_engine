@@ -518,8 +518,7 @@ cb::mcbp::Status Cookie::validate() {
                  cb::mcbp::ClientOpcode::SaslAuth,
                  cb::mcbp::ClientOpcode::SaslStep,
                  cb::mcbp::ClientOpcode::GetErrorMap}};
-        if (std::find(allowed.begin(), allowed.end(), opcode) ==
-            allowed.end()) {
+        if (std::ranges::find(allowed, opcode) == allowed.end()) {
 #if CB_DEVELOPMENT_ASSERTS
             if (cb::mcbp::is_valid_opcode(opcode)) {
                 LOG_WARNING_CTX(
@@ -549,8 +548,7 @@ cb::mcbp::Status Cookie::validate() {
                  cb::mcbp::ClientOpcode::GetErrorMap,
                  cb::mcbp::ClientOpcode::GetClusterConfig,
                  cb::mcbp::ClientOpcode::SelectBucket}};
-        if (std::find(allowed.begin(), allowed.end(), opcode) ==
-            allowed.end()) {
+        if (std::ranges::find(allowed, opcode) == allowed.end()) {
             if (connection.isXerrorSupport()) {
                 return cb::mcbp::Status::EConfigOnly;
             }

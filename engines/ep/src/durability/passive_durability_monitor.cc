@@ -271,13 +271,11 @@ void PassiveDurabilityMonitor::addSyncWrite(
     // Additional error checking for dev builds to validate that we don't have
     // any duplicate SyncWrites in trackedWrites. Only done for dev builds
     // as this is likely expensive.
-    auto itr = std::find_if(s->trackedWrites.begin(),
-                            s->trackedWrites.end(),
-                            [&item](const SyncWrite& write) {
-                                // Skip any completed SyncWrites
-                                return !write.isCompleted() &&
-                                       write.getKey() == item->getKey();
-                            });
+    auto itr = std::ranges::find_if(
+            s->trackedWrites, [&item](const SyncWrite& write) {
+                // Skip any completed SyncWrites
+                return !write.isCompleted() && write.getKey() == item->getKey();
+            });
     if (itr != s->trackedWrites.end()) {
         throwException<std::logic_error>(
                 __func__,
@@ -473,11 +471,10 @@ void PassiveDurabilityMonitor::completeSyncWrite(
         // We want to see if we've seen a prepare for the key and if things
         // are just out of order so check the trackedWrites.
         std::string strSyncWrite("none");
-        auto itr = std::find_if(s->trackedWrites.begin(),
-                                s->trackedWrites.end(),
-                                [&key](const SyncWrite& write) {
-                                    return write.getKey() == key;
-                                });
+        auto itr = std::ranges::find_if(s->trackedWrites,
+                                        [&key](const SyncWrite& write) {
+                                            return write.getKey() == key;
+                                        });
         if (itr != s->trackedWrites.end()) {
             strSyncWrite = fmt::format("{}", *itr);
         }
@@ -560,9 +557,8 @@ void PassiveDurabilityMonitor::eraseSyncWrite(const DocKeyView& key,
     // 1) Disk snapshots with de-dupe means a prepare could exist before the HCS
     // 2) Completed prepares can exist before the HCS for non disk snapshots if
     //    we have not yet persisted them but have a completion.
-    auto toErase = std::find_if(
-            s->trackedWrites.begin(),
-            s->trackedWrites.end(),
+    auto toErase = std::ranges::find_if(
+            s->trackedWrites,
             [key](const auto& write) -> bool { return write.getKey() == key; });
 
     // We might call into here with a prepare that does not exist in the DM if:

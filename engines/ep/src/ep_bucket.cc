@@ -747,12 +747,10 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
 
             // Is the item the end item of one of the ranges we're
             // flushing? Note all the work here only affects replica VBs
-            auto itr = std::find_if(toFlush.ranges.begin(),
-                                    toFlush.ranges.end(),
-                                    [&item](auto& range) {
-                                        return uint64_t(item->getBySeqno()) ==
-                                               range.getEnd();
-                                    });
+            auto itr =
+                    std::ranges::find_if(toFlush.ranges, [&item](auto& range) {
+                        return uint64_t(item->getBySeqno()) == range.getEnd();
+                    });
 
             // If this is the end item, we can adjust the start of our
             // flushed range, which would be used for failure purposes.

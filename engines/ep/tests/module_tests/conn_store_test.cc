@@ -82,10 +82,9 @@ void ConnStoreTest::removeVbConn(Vbid vb, CookieIface* cookie) {
     auto& list = map[vb.get()];
 
     // Check beforehand if we should delete anything
-    auto itr = std::find_if(
-            list.begin(), list.end(), [cookie](ConnStore::VBConn conn) {
-                return cookie == conn.connHandler.getCookie();
-            });
+    auto itr = std::ranges::find_if(list, [cookie](ConnStore::VBConn conn) {
+        return cookie == conn.connHandler.getCookie();
+    });
 
     int expectedSize = list.size();
     if (itr != list.end()) {
@@ -97,10 +96,9 @@ void ConnStoreTest::removeVbConn(Vbid vb, CookieIface* cookie) {
     ASSERT_EQ(expectedSize, list.size());
 
     // Check that we removed the element for this cookie
-    itr = std::find_if(
-            list.begin(), list.end(), [cookie](ConnStore::VBConn conn) {
-                return cookie == conn.connHandler.getCookie();
-            });
+    itr = std::ranges::find_if(list, [cookie](ConnStore::VBConn conn) {
+        return cookie == conn.connHandler.getCookie();
+    });
 
     ASSERT_EQ(list.end(), itr);
 }

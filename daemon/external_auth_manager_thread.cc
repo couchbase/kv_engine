@@ -36,7 +36,7 @@ void ExternalAuthManagerThread::add(Connection& connection) {
 void ExternalAuthManagerThread::remove(Connection& connection) {
     std::lock_guard<std::mutex> guard(mutex);
 
-    auto iter = std::find(connections.begin(), connections.end(), &connection);
+    auto iter = std::ranges::find(connections, &connection);
     if (iter != connections.end()) {
         pendingRemoveConnection.push_back(&connection);
         connections.erase(iter);

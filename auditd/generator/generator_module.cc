@@ -99,9 +99,8 @@ void Module::loadEventDescriptorFile(const std::filesystem::path& source_root) {
 }
 
 bool Module::includeInConfiguration() const {
-    return std::find(configurations.begin(),
-                     configurations.end(),
-                     CB_BUILD_CONFIGURATION) != configurations.end();
+    return std::ranges::find(configurations, CB_BUILD_CONFIGURATION) !=
+           configurations.end();
 }
 
 void from_json(const nlohmann::json& json, Module& module) {

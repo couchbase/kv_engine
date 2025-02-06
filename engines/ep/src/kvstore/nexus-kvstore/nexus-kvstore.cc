@@ -3077,8 +3077,7 @@ NexusKVStore::getDroppedCollections(Vbid vbid) const {
     }
 
     for (const auto& dc : primaryDropped) {
-        auto itr =
-                std::find(secondaryDropped.begin(), secondaryDropped.end(), dc);
+        auto itr = std::ranges::find(secondaryDropped, dc);
         if (itr == secondaryDropped.end()) {
             auto msg = fmt::format(
                     "NexusKVStore::getDroppedCollections: {}: found dropped "

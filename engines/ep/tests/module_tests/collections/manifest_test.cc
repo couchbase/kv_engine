@@ -769,9 +769,8 @@ TEST(ManifestTest, to_json) {
         EXPECT_EQ(input["uid"].dump(), output["uid"].dump());
         EXPECT_EQ(input["scopes"].size(), output["scopes"].size());
         for (const auto& scope1 : output["scopes"]) {
-            auto scope2 = std::find_if(
-                    input["scopes"].begin(),
-                    input["scopes"].end(),
+            auto scope2 = std::ranges::find_if(
+                    input["scopes"],
                     [scope1](const nlohmann::json& scopeEntry) {
                         return scopeEntry["name"] == scope1["name"] &&
                                scopeEntry["uid"] == scope1["uid"];
@@ -785,9 +784,8 @@ TEST(ManifestTest, to_json) {
 
             for (const auto& collection1 : scope1["collections"]) {
                 // Find the collection from scope in the output
-                auto collection2 = std::find_if(
-                        (*scope2)["collections"].begin(),
-                        (*scope2)["collections"].end(),
+                auto collection2 = std::ranges::find_if(
+                        (*scope2)["collections"],
                         [collection1](const nlohmann::json& collectionEntry) {
                             return collectionEntry["name"] ==
                                            collection1["name"] &&

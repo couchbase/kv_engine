@@ -221,11 +221,10 @@ public:
     bool paramMatchesAnyCase(
             const std::vector<ConflictResolutionParamTest::ParamType>&
                     acceptCases) {
-        return std::find_if(acceptCases.begin(),
-                            acceptCases.end(),
-                            [&observed = GetParam()](const auto& acceptCase) {
-                                return matchesCase(observed, acceptCase);
-                            }) != acceptCases.end();
+        return std::ranges::any_of(
+                acceptCases, [&observed = GetParam()](const auto& acceptCase) {
+                    return matchesCase(observed, acceptCase);
+                });
     }
 
     /**

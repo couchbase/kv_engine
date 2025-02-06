@@ -136,8 +136,7 @@ void processLine(std::string_view timestamp,
 
 void processFile(std::istream& s, LogFormat output) {
     for (std::string line; std::getline(s, line);) {
-        if (std::find(IGNORED_LINES.begin(), IGNORED_LINES.end(), line) !=
-            IGNORED_LINES.end()) {
+        if (std::ranges::find(IGNORED_LINES, line) != IGNORED_LINES.end()) {
             continue;
         }
 
@@ -158,7 +157,7 @@ void processFile(std::istream& s, LogFormat output) {
             continue;
         }
         auto timestamp{lineView.substr(0, timestampEnd)};
-        if (std::find(IGNORED_WORDS.begin(), IGNORED_WORDS.end(), timestamp) !=
+        if (std::ranges::find(IGNORED_WORDS, timestamp) !=
             IGNORED_WORDS.end()) {
             continue;
         }

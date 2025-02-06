@@ -4914,19 +4914,15 @@ void STParamPersistentBucketTest::testFailoverTableEntryPersistedAtWarmup(
     vb = engine->getKVBucket()->getVBucket(vbid);
 
     auto failovers = vb->failovers->getFailoverLog();
-    auto itr = std::find_if(failovers.begin(),
-                            failovers.end(),
-                            [&initialUuid](const auto& failoverEntry) {
-                                return failoverEntry.uuid == initialUuid;
-                            });
-    EXPECT_NE(itr, failovers.end());
+    EXPECT_TRUE(std::ranges::any_of(
+            failovers, [&initialUuid](const auto& failoverEntry) {
+                return failoverEntry.uuid == initialUuid;
+            }));
 
-    itr = std::find_if(failovers.begin(),
-                       failovers.end(),
-                       [&secondUuid](const auto& failoverEntry) {
-                           return failoverEntry.uuid == secondUuid;
-                       });
-    EXPECT_NE(itr, failovers.end());
+    EXPECT_TRUE(std::ranges::any_of(failovers,
+                                    [&secondUuid](const auto& failoverEntry) {
+                                        return failoverEntry.uuid == secondUuid;
+                                    }));
 
     EXPECT_EQ(2, vb->getHighSeqno());
     gv = store->get(key, vbid, cookie, options);

@@ -140,7 +140,7 @@ uint32_t AuditConfig::get_version() const {
 }
 
 bool AuditConfig::is_event_sync(uint32_t id) {
-    return std::find(sync.begin(), sync.end(), id) != sync.end();
+    return std::ranges::find(sync, id) != sync.end();
 }
 
 AuditConfig::EventState AuditConfig::get_event_state(uint32_t id) const {
@@ -155,9 +155,8 @@ AuditConfig::EventState AuditConfig::get_event_state(uint32_t id) const {
 
 bool AuditConfig::is_event_filtered(
         const std::pair<std::string, std::string>& userid) const {
-    return std::find(disabled_userids.begin(),
-                     disabled_userids.end(),
-                     userid) != disabled_userids.end();
+    return std::ranges::find(disabled_userids, userid) !=
+           disabled_userids.end();
 }
 
 void AuditConfig::set_filtering_enabled(bool value) {

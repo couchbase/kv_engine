@@ -51,10 +51,8 @@ TEST(WeakPtrBagTest, Push) {
 
     auto nonExpired = bag.getNonExpired();
     ASSERT_EQ(2, nonExpired.size());
-    ASSERT_NE(std::find(nonExpired.begin(), nonExpired.end(), n1),
-              nonExpired.end());
-    ASSERT_NE(std::find(nonExpired.begin(), nonExpired.end(), n2),
-              nonExpired.end());
+    ASSERT_NE(std::ranges::find(nonExpired, n1), nonExpired.end());
+    ASSERT_NE(std::ranges::find(nonExpired, n2), nonExpired.end());
 }
 
 /**
