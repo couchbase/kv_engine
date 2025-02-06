@@ -5401,7 +5401,7 @@ cb::engine_errc EventuallyPersistentEngine::doFusionStats(
     Expects(args.at(0) == "fusion");
     if (args.size() == 2) {
         const auto second = std::string(args.at(1));
-        if (std::all_of(second.begin(), second.end(), ::isdigit)) {
+        if (std::ranges::all_of(second, ::isdigit)) {
             // "fusion <vbid>"
             vbid = Vbid(std::stoul(second));
         } else {
@@ -5412,7 +5412,7 @@ cb::engine_errc EventuallyPersistentEngine::doFusionStats(
         // "fusion <sub_cmd> <vbid>"
         subCmd = args.at(1);
         const auto third = std::string(args.at(2));
-        if (!std::all_of(third.begin(), third.end(), ::isdigit)) {
+        if (!std::ranges::all_of(third, ::isdigit)) {
             EP_LOG_WARN_CTX(
                     "EventuallyPersistentEngine::doFusionStats: invalid "
                     "arguments",

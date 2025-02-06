@@ -24,7 +24,7 @@ void to_json(nlohmann::json& json, const FileInfo& info) {
 }
 
 static bool isAllDigits(std::string_view view) {
-    return std::all_of(view.begin(), view.end(), ::isdigit);
+    return std::ranges::all_of(view, ::isdigit);
 }
 
 void from_json(const nlohmann::json& json, FileInfo& info) {

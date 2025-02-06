@@ -304,11 +304,9 @@ cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
 }
 
 bool SubdocExecutionContext::containsMacro(cb::xattr::macros::macro macro) {
-    return std::any_of(std::begin(paddedMacros),
-                       std::end(paddedMacros),
-                       [&macro](const MacroPair& m) {
-                           return m.first == macro.name;
-                       });
+    return std::ranges::any_of(paddedMacros, [&macro](const MacroPair& m) {
+        return m.first == macro.name;
+    });
 }
 
 void SubdocExecutionContext::substituteMacro(cb::xattr::macros::macro macroName,

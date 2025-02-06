@@ -207,7 +207,7 @@ void QuotaSharingItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
 
     // If we have value eviction buckets, it is less likely that we
     // reach the low_wat the first time we run.
-    if (std::any_of(kvBuckets.begin(), kvBuckets.end(), [](KVBucket& store) {
+    if (std::ranges::any_of(kvBuckets, [](KVBucket& store) {
             return store.getItemEvictionPolicy() == EvictionPolicy::Value;
         })) {
         // Set doEvict=true so this task gets rescheduled until low_wat is

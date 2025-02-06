@@ -72,7 +72,7 @@ static std::vector<std::string> discoverDbFiles(const std::string& dir) {
 }
 
 static bool allDigit(std::string_view input) {
-    return !input.empty() && std::all_of(input.begin(), input.end(), ::isdigit);
+    return !input.empty() && std::ranges::all_of(input, ::isdigit);
 }
 
 static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
