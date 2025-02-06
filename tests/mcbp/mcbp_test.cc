@@ -305,7 +305,7 @@ TEST_P(GetValidatorTest, InvalidKey) {
     }
     // Collections requires the leading bytes to be a valid unsigned leb128
     // (varint), so if all key bytes are 0x80 (no stop byte) illegal.
-    std::fill(blob + sizeof(request), blob + sizeof(request) + 10, 0x81ull);
+    std::fill_n(blob + sizeof(request), 10, 0x81ull);
     request.setKeylen(10);
     request.setBodylen(10);
     EXPECT_EQ("No stop-byte found",
@@ -411,7 +411,7 @@ TEST_P(AddValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, illegal.
     auto fill = blob + request.getExtlen();
-    std::fill(fill + sizeof(request), fill + sizeof(request) + 10, 0x80ull);
+    std::fill_n(fill + sizeof(request), 10, 0x80ull);
     request.setKeylen(10);
     request.setBodylen(10 + request.getExtlen());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate(cb::mcbp::ClientOpcode::Add));
@@ -513,7 +513,7 @@ TEST_P(SetReplaceValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
     auto key = blob + sizeof(request) + request.getExtlen();
-    std::fill(key, key + 10, 0x80ull);
+    std::fill_n(key, 10, 0x80ull);
     request.setKeylen(10);
     request.setBodylen(10 + request.getExtlen());
     EXPECT_EQ("No stop-byte found",
@@ -618,7 +618,7 @@ TEST_P(AppendPrependValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
     auto key = blob + sizeof(request) + request.getExtlen();
-    std::fill(key, key + 10, 0x80ull);
+    std::fill_n(key, 10, 0x80ull);
     request.setKeylen(10);
     EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Append));
@@ -783,7 +783,7 @@ TEST_P(IncrementDecrementValidatorTest, InvalidKey) {
     // Collections requires the leading bytes are a valid unsigned leb128
     // (varint), so if all key bytes are 0x80, (no stop-byte) illegal.
     auto key = blob + sizeof(request) + request.getExtlen();
-    std::fill(key, key + 10, 0x80ull);
+    std::fill_n(key, 10, 0x80ull);
     request.setKeylen(10);
     EXPECT_EQ("No stop-byte found",
               validate_error_context(cb::mcbp::ClientOpcode::Increment));

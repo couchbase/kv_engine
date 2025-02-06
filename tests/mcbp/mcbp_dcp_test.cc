@@ -503,7 +503,7 @@ TEST_P(DcpMutationValidatorTest, InvalidKey1) {
     if (isCollectionsEnabled()) {
         cb::mcbp::RequestBuilder builder({blob, sizeof(blob)}, true);
         uint8_t key[10] = {};
-        std::fill(key, key + 10, 0x81ull);
+        std::fill_n(key, 10, 0x81ull);
         builder.setKey({key, sizeof(key)});
         EXPECT_EQ("No stop-byte found", validate_error_context());
     }

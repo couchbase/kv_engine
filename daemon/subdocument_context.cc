@@ -329,9 +329,7 @@ void SubdocExecutionContext::substituteMacro(cb::xattr::macros::macro macroName,
 
     // This replaces ALL instances of the padded string
     while ((root = std::search(root, end, needle, needle_end)) != end) {
-        std::copy(macroValue.data(),
-                  macroValue.data() + macroValue.length(),
-                  root);
+        std::copy_n(macroValue.data(), macroValue.length(), root);
         root += macroValue.length();
     }
 }

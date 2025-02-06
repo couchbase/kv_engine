@@ -59,7 +59,7 @@ std::string OutputCouchFile::moveDocToCollection(const sized_buf in,
             std::copy_n(reinterpret_cast<const char*>(encodedCollection.data()),
                         encodedCollection.size(),
                         rv.begin());
-    std::copy(in.buf, in.buf + in.size, next);
+    std::copy_n(in.buf, in.size, next);
     return rv;
 }
 
@@ -192,9 +192,9 @@ OutputCouchFile::BufferedOutputDocuments::Document::Document(
 
     // Copy the rev_meta
     if (docInfo.rev_meta.buf) {
-        std::copy(docInfo.rev_meta.buf,
-                  docInfo.rev_meta.buf + docInfo.rev_meta.size,
-                  std::back_inserter(revMeta));
+        std::copy_n(docInfo.rev_meta.buf,
+                    docInfo.rev_meta.size,
+                    std::back_inserter(revMeta));
         newDocInfo.rev_meta = {revMeta.data(), revMeta.size()};
     }
 }

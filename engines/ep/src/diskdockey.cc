@@ -31,7 +31,7 @@ DiskDocKey::DiskDocKey(const DocKeyView& key, bool prepared) {
     }
 
     keydata.resize(keyOffset + key.size());
-    std::copy(key.data(), key.data() + key.size(), keydata.begin() + keyOffset);
+    std::copy_n(key.data(), key.size(), keydata.begin() + keyOffset);
 }
 
 DiskDocKey::DiskDocKey(const Item& item)

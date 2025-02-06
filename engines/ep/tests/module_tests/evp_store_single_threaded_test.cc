@@ -2913,8 +2913,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
 
     std::string data;
     std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
-    std::copy(
-            body.c_str(), body.c_str() + body.size(), std::back_inserter(data));
+    std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
 
     const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(data.data()),

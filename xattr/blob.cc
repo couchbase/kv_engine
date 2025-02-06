@@ -54,7 +54,7 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
         Expects(size);
 
         allocator.resize(size);
-        std::copy(range.begin(), range.begin() + size, allocator.data());
+        std::copy_n(range.begin(), size, allocator.data());
         blob = {allocator.data(), size};
         return *this;
     }

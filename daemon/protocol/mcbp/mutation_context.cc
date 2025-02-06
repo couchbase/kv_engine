@@ -255,9 +255,7 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
     auto* root = reinterpret_cast<uint8_t*>(newitem->getValueBuffer().data());
     if (existingXattrs.size() > 0) {
         // Preserve the xattrs
-        std::copy(existingXattrs.data(),
-                  existingXattrs.data() + existingXattrs.size(),
-                  root);
+        std::copy_n(existingXattrs.data(), existingXattrs.size(), root);
         root += existingXattrs.size();
     }
 

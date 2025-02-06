@@ -67,7 +67,7 @@ public:
         : buffer(backing) {
         checkSize(sizeof(T));
         if (!initialized) {
-            std::fill(backing.begin(), backing.begin() + sizeof(T), 0);
+            std::fill_n(backing.begin(), sizeof(T), 0);
         }
     }
 

@@ -99,9 +99,9 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
 
     bool include_doc_flags = !isNone(doc_flags);
     if (include_doc_flags) {
-        std::copy(reinterpret_cast<const uint8_t*>(&doc_flags),
-                  reinterpret_cast<const uint8_t*>(&doc_flags) + 1,
-                  back_inserter(request));
+        std::copy_n(reinterpret_cast<const uint8_t*>(&doc_flags),
+                    1,
+                    back_inserter(request));
     }
 
     // Add the key.

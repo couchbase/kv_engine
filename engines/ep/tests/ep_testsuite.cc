@@ -724,8 +724,8 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     std::string value_data("test_expiry_value");
     std::vector<char> data;
     std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
-    std::copy(value_data.c_str(), value_data.c_str() + value_data.length(),
-              std::back_inserter(data));
+    std::copy_n(
+            value_data.c_str(), value_data.length(), std::back_inserter(data));
 
     auto* cookie = testHarness->create_cookie(h);
 

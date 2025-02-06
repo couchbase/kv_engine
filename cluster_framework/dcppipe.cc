@@ -106,7 +106,7 @@ std::vector<uint8_t> DcpPipe::getFrame(bufferevent* bev) {
         }
 
         std::vector<uint8_t> ret;
-        std::copy(ptr, ptr + framesize, std::back_inserter(ret));
+        std::copy_n(ptr, framesize, std::back_inserter(ret));
         // Consume the data from the input pipe
         if (evbuffer_drain(in, framesize) == -1) {
             throw std::runtime_error("Failed to drain buffer");

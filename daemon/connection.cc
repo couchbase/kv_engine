@@ -1366,7 +1366,7 @@ void Connection::setTerminationReason(std::string reason) {
 
 void Connection::setAgentName(std::string_view name) {
     auto size = std::min(name.size(), agentName.size() - 1);
-    std::copy(name.begin(), name.begin() + size, agentName.begin());
+    std::copy_n(name.begin(), size, agentName.begin());
     agentName[size] = '\0';
 
     if (isAuthenticated() && !isInternal() && !registeredSdk &&
@@ -1383,7 +1383,7 @@ std::string_view Connection::getAgentName() const {
 
 void Connection::setConnectionId(std::string_view uuid) {
     auto size = std::min(uuid.size(), connectionId.size() - 1);
-    std::copy(uuid.begin(), uuid.begin() + size, connectionId.begin());
+    std::copy_n(uuid.begin(), size, connectionId.begin());
     // the uuid string shall always be zero terminated
     connectionId[size] = '\0';
     // Remove any occurrences of " so that the client won't be allowed
