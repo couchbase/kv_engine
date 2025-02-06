@@ -55,6 +55,5 @@ protected:
      * tasks that are spawned by this (one per shard).
      */
     cb::Semaphore semaphore;
-    uint8_t residentRatioThreshold;
     uint64_t maxStoredItems;
 };

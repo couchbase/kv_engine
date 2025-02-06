@@ -192,7 +192,6 @@ AccessScanner::AccessScanner(KVBucket& _store,
       stats(st),
       sleepTime(sleeptime),
       semaphore(store.getVBuckets().getNumShards()) {
-    residentRatioThreshold = conf.getAlogResidentRatioThreshold();
     alogPath = conf.getAlogPath();
     maxStoredItems = conf.getAlogMaxStoredItems();
     double initialSleep = sleeptime;
@@ -233,6 +232,8 @@ AccessScanner::AccessScanner(KVBucket& _store,
 
 bool AccessScanner::run() {
     TRACE_EVENT0("ep-engine/task", "AccessScanner");
+
+    auto residentRatioThreshold = conf.getAlogResidentRatioThreshold();
 
     // Can we create a visitor per shard? We need 1 token per shard
     if (semaphore.try_acquire(store.getVBuckets().getNumShards())) {
