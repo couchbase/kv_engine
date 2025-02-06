@@ -461,7 +461,7 @@ std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> registerRingBufferSink(
 void unregisterRingBufferSink(
         std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> sink) {
     auto& sinks = cb::logger::get()->sinks();
-    sinks.erase(std::remove(sinks.begin(), sinks.end(), sink), sinks.end());
+    sinks.erase(std::ranges::remove(sinks, sink).begin(), sinks.end());
 }
 
 int main(int argc, char **argv) {

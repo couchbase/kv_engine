@@ -7333,9 +7333,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                                      "ep_io_flusher_write_amplification",
                                      "ep_io_total_write_amplification",
                                      "ep_bg_fetch_avg_read_amplification"}) {
-            eng_stats.erase(
-                    std::remove(eng_stats.begin(), eng_stats.end(), statName),
-                    eng_stats.end());
+            eng_stats.erase(std::ranges::remove(eng_stats, statName).begin(),
+                            eng_stats.end());
         }
 
         // Fixup the kvstore stats for magma, adding and some removed
@@ -7352,10 +7351,11 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                                      "io_total_write_amplification",
                                      "io_total_write_bytes"}) {
             for (const auto& shardId : {"rw_0:", "rw_1:", "rw_2:", "rw_3:"}) {
-                kvstoreStats.erase(std::remove(kvstoreStats.begin(),
-                                               kvstoreStats.end(),
-                                               std::string{shardId} + statName),
-                                   kvstoreStats.end());
+                kvstoreStats.erase(
+                        std::ranges::remove(kvstoreStats,
+                                            std::string{shardId} + statName)
+                                .begin(),
+                        kvstoreStats.end());
             }
         }
     }

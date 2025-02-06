@@ -37,12 +37,13 @@ void jsonResetValues(nlohmann::json& obj) {
 }
 
 void jsonRemoveEmptyStrings(nlohmann::json& obj) {
-    obj.erase(std::remove_if(obj.begin(),
-                             obj.end(),
-                             [](auto& v) {
-                                 auto* s = v.template get_ptr<std::string*>();
-                                 return s && s->empty();
-                             }),
+    obj.erase(std::ranges::remove_if(
+                      obj,
+                      [](auto& v) {
+                          auto* s = v.template get_ptr<std::string*>();
+                          return s && s->empty();
+                      })
+                      .begin(),
               obj.end());
 }
 
