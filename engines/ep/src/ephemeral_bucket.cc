@@ -42,9 +42,11 @@ public:
     void stringValueChanged(std::string_view key, const char* value) override {
         if (key == "ephemeral_full_policy") {
             if (std::string_view(value) == "auto_delete") {
-                bucket.enableItemPager();
+                bucket.switchFullPolicy(
+                        EphemeralBucket::FullPolicy::AutoDelete);
             } else if (std::string_view(value) == "fail_new_data") {
-                bucket.disableItemPager();
+                bucket.switchFullPolicy(
+                        EphemeralBucket::FullPolicy::FailNewData);
             } else {
                 EP_LOG_WARN(
                         "EphemeralValueChangedListener: Invalid value '{}' for "
@@ -102,6 +104,12 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& engine)
     // in initialize().
     tombstonePurgerTask =
             std::make_shared<EphTombstoneHTCleaner>(engine, *this);
+
+    if (getConfiguration().getEphemeralFullPolicyString() == "auto_delete") {
+        fullPolicy = FullPolicy::AutoDelete;
+    } else {
+        fullPolicy = FullPolicy::FailNewData;
+    }
 }
 
 EphemeralBucket::~EphemeralBucket() = default;
@@ -114,7 +122,9 @@ bool EphemeralBucket::initialize() {
     // full policy, but always add a value changed listener so we can handle
     // dynamic config changes (and later schedule it).
     if (config.getEphemeralFullPolicyString() == "auto_delete") {
-        enableItemPager();
+        switchFullPolicy(FullPolicy::AutoDelete);
+    } else {
+        switchFullPolicy(FullPolicy::FailNewData);
     }
     engine.getConfiguration().addValueChangedListener(
             "ephemeral_full_policy",
@@ -228,8 +238,7 @@ void EphemeralBucket::attemptToFreeMemory() {
     // normally handles deleting expired items (while looking for items to
     // evict). Instead manually trigger the expiryPager now, to delete any
     // expired items.
-    if (engine.getConfiguration().getEphemeralFullPolicyString() ==
-        "fail_new_data") {
+    if (fullPolicy == FullPolicy::FailNewData) {
         wakeUpExpiryPager();
     }
 
@@ -449,6 +458,15 @@ cb::engine_errc EphemeralBucket::getImplementationStats(
 }
 
 bool EphemeralBucket::disconnectReplicationAtOOM() const {
-    return engine.getConfiguration().getEphemeralFullPolicyString() ==
-           "fail_new_data";
+    return fullPolicy == FullPolicy::FailNewData;
+}
+
+void EphemeralBucket::switchFullPolicy(FullPolicy newPolicy) {
+    std::lock_guard<std::mutex> guard(fullPolicyMutex);
+    fullPolicy = newPolicy;
+    if (newPolicy == FullPolicy::AutoDelete) {
+        enableItemPager();
+    } else {
+        disableItemPager();
+    }
 }

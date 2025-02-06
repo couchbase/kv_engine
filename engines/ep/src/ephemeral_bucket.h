@@ -12,6 +12,7 @@
 
 #include "kv_bucket.h"
 #include <mcbp/protocol/status.h>
+#include <relaxed_atomic.h>
 
 /* Forward declarations */
 class RollbackResult;
@@ -184,6 +185,14 @@ public:
 
     bool disconnectReplicationAtOOM() const override;
 
+    enum class FullPolicy { AutoDelete, FailNewData };
+
+    FullPolicy getFullPolicy() const {
+        return fullPolicy;
+    }
+
+    void switchFullPolicy(FullPolicy newPolicy);
+
 protected:
     std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state) override;
@@ -202,4 +211,18 @@ protected:
 
     /// Task responsible for purging in-memory tombstones.
     ExTask tombstonePurgerTask;
+
+    /**
+     * The policy utilised when the bucket is full.
+     *  - auto_delete: Eject/delete items when the bucket is full.
+     *  - fail_new_data: Temp-oom when the bucket is full.
+     *
+     * The ItemPager is enabled if the policy is auto_delete and disabled if
+     * the policy is fail_new_data.
+     *
+     * Writes to this variable are protected by fullPolicyMutex to serialise
+     * changes to the policy.
+     */
+    cb::RelaxedAtomic<FullPolicy> fullPolicy;
+    std::mutex fullPolicyMutex;
 };
