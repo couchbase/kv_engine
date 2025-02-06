@@ -43,8 +43,8 @@ unique_request_ptr createPacket(cb::mcbp::ClientOpcode opcode,
                 {reinterpret_cast<const uint8_t*>(val.data()), val.size()});
     } else {
         std::vector<uint8_t> backing;
-        std::copy(val.begin(), val.end(), std::back_inserter(backing));
-        std::copy(meta.begin(), meta.end(), std::back_inserter(backing));
+        std::ranges::copy(val, std::back_inserter(backing));
+        std::ranges::copy(meta, std::back_inserter(backing));
         builder.setValue({backing.data(), backing.size()});
     }
     memory.release();

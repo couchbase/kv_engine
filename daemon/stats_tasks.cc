@@ -46,11 +46,11 @@ std::size_t StatsTask::TaskData::append(std::string_view k,
     // Write the mcbp response into the task's buffer (header, key, value).
     auto& iob = *stats_buf.back();
     iob.reserve(0, total);
-    std::copy(header.begin(), header.end(), iob.writableTail());
+    std::ranges::copy(header, iob.writableTail());
     iob.append(sizeof(rsp));
-    std::copy(k.begin(), k.end(), iob.writableTail());
+    std::ranges::copy(k, iob.writableTail());
     iob.append(k.size());
-    std::copy(v.begin(), v.end(), iob.writableTail());
+    std::ranges::copy(v, iob.writableTail());
     iob.append(v.size());
     return total;
 }

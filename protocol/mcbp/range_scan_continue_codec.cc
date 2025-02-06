@@ -54,8 +54,8 @@ void RangeScanContinueKeyPayload::encode(std::vector<uint8_t>& v,
                                          const DocKeyView& key) {
     auto strippedKey = key.makeDocKeyWithoutCollectionID();
     cb::mcbp::unsigned_leb128<size_t> lebSize(strippedKey.size());
-    std::copy(lebSize.begin(), lebSize.end(), std::back_inserter(v));
-    std::copy(strippedKey.begin(), strippedKey.end(), std::back_inserter(v));
+    std::ranges::copy(lebSize, std::back_inserter(v));
+    std::ranges::copy(strippedKey, std::back_inserter(v));
 }
 
 RangeScanContinueValuePayload::RangeScanContinueValuePayload(
@@ -135,22 +135,22 @@ void RangeScanContinueValuePayload::encode(std::vector<uint8_t>& v,
             item.cas,
             item.datatype};
     auto eBuffer = extras.getBuffer();
-    std::copy(eBuffer.begin(), eBuffer.end(), std::back_inserter(v));
+    std::ranges::copy(eBuffer, std::back_inserter(v));
 
     // Second copy key (leb128 prefix)
     cb::mcbp::unsigned_leb128<size_t> l2(key.size());
-    std::copy(l2.begin(), l2.end(), std::back_inserter(v));
-    std::copy(key.begin(), key.end(), std::back_inserter(v));
+    std::ranges::copy(l2, std::back_inserter(v));
+    std::ranges::copy(key, std::back_inserter(v));
 
     // Final copy value (leb128 prefix)
     cb::mcbp::unsigned_leb128<size_t> l3(item.value[0].iov_len);
-    std::copy(l3.begin(), l3.end(), std::back_inserter(v));
+    std::ranges::copy(l3, std::back_inserter(v));
 
     cb::const_byte_buffer value{
             reinterpret_cast<const uint8_t*>(item.value[0].iov_base),
             item.value[0].iov_len};
 
-    std::copy(value.begin(), value.end(), std::back_inserter(v));
+    std::ranges::copy(value, std::back_inserter(v));
 }
 
 RangeScanContinueResponseExtras::RangeScanContinueResponseExtras(bool keyOnly)

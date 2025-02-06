@@ -84,9 +84,9 @@ void GetExCommandContext::maybeStripXattrs() {
 
     std::string value;
     auto entry = blob.finalize();
-    std::copy(entry.begin(), entry.end(), std::back_inserter(value));
+    std::ranges::copy(entry, std::back_inserter(value));
     auto val = item_dissector->getValue();
-    std::copy(val.begin(), val.end(), std::back_inserter(value));
+    std::ranges::copy(val, std::back_inserter(value));
     value_copy = std::move(value);
 }
 

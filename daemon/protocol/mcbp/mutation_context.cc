@@ -260,7 +260,7 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
     }
 
     // Copy the user supplied value over.
-    std::copy(value.begin(), value.end(), root);
+    std::ranges::copy(value, root);
     state = State::StoreItem;
 
     return cb::engine_errc::success;

@@ -89,7 +89,7 @@ void AsyncReaderUnitTests::addDataToStream_ask(cb::const_byte_buffer data) {
 
 void AsyncReaderUnitTests::addDataToStream_movable(cb::const_byte_buffer data) {
     auto buf = folly::IOBuf::create(data.size());
-    std::copy(data.begin(), data.end(), buf->writableTail());
+    std::ranges::copy(data, buf->writableTail());
     buf->append(data.size());
     readCallback.readBufferAvailable(std::move(buf));
 }

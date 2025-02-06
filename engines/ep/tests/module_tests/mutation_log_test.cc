@@ -623,9 +623,7 @@ TEST_F(MutationLogTest, upgrade) {
     {
         std::ofstream logFile(tmp_log_filename,
                               std::ios::out | std::ofstream::binary);
-        std::copy(toWrite.begin(),
-                  toWrite.end(),
-                  std::ostreambuf_iterator<char>(logFile));
+        std::ranges::copy(toWrite, std::ostreambuf_iterator<char>(logFile));
     }
 
     {

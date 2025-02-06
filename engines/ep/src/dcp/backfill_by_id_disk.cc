@@ -40,7 +40,7 @@ static ByIdRange createCollectionRange(CollectionID cid) {
     std::array<uint8_t,
                cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() + 1>
             end;
-    std::copy(start.begin(), start.end(), end.begin());
+    std::ranges::copy(start, end.begin());
     end[start.size()] = std::numeric_limits<uint8_t>::max();
     return ByIdRange{DiskDocKey{{start.data(),
                                  start.size(),

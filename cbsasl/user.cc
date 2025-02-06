@@ -241,7 +241,7 @@ static ScramPasswordMetaData generateShaSecrets(
     if (dummy) {
         auto hs_salt = cb::crypto::HMAC(
                 algorithm, unm, ScamShaFallbackSalt::instance().get());
-        std::copy(hs_salt.begin(), hs_salt.end(), std::back_inserter(salt));
+        std::ranges::copy(hs_salt, std::back_inserter(salt));
         encodedSalt = cb::base64::encode(std::string_view{
                 reinterpret_cast<char*>(salt.data()), salt.size()});
     } else {

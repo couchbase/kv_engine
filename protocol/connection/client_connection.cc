@@ -635,7 +635,7 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
         return 0;
     }
 
-    std::copy(passphrase.begin(), passphrase.end(), buf);
+    std::ranges::copy(passphrase, buf);
     return passphrase.size();
 }
 
@@ -1167,7 +1167,7 @@ void MemcachedConnection::recvFrame(Frame& frame,
     }
 
     auto blob = next->getFrame();
-    std::copy(blob.begin(), blob.end(), std::back_inserter(frame.payload));
+    std::ranges::copy(blob, std::back_inserter(frame.payload));
     asyncReadCallback->drain(blob.size());
 
     if (packet_dump_callback) {
@@ -1460,7 +1460,7 @@ void MemcachedConnection::mget(
 
         std::vector<uint8_t> cmd;
         command.encode(cmd);
-        std::copy(cmd.begin(), cmd.end(), std::back_inserter(pipeline));
+        std::ranges::copy(cmd, std::back_inserter(pipeline));
     }
 
     // Add a noop command to terminate the sequence
@@ -1468,7 +1468,7 @@ void MemcachedConnection::mget(
         BinprotGenericCommand command{ClientOpcode::Noop};
         std::vector<uint8_t> cmd;
         command.encode(cmd);
-        std::copy(cmd.begin(), cmd.end(), std::back_inserter(pipeline));
+        std::ranges::copy(cmd, std::back_inserter(pipeline));
     }
 
     // Now send the pipeline to the other end!
@@ -2360,7 +2360,7 @@ void MemcachedConnection::adjustMemcachedClock(
     payload.setTimeType(timeType);
     auto buf = payload.getBuffer();
     std::vector<uint8_t> extras;
-    std::copy(buf.begin(), buf.end(), std::back_inserter(extras));
+    std::ranges::copy(buf, std::back_inserter(extras));
 
     BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::AdjustTimeofday);
     cmd.setExtras(extras);

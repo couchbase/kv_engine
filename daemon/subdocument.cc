@@ -591,9 +591,8 @@ cb::engine_errc SubdocCommandContext::allocate_document(cb::engine_errc ret) {
 
         if (!context.in_doc.view.empty()) {
             // Copy the new document into the item.
-            std::copy(context.in_doc.view.begin(),
-                      context.in_doc.view.end(),
-                      context.out_doc->getValueBuffer().begin());
+            std::ranges::copy(context.in_doc.view,
+                              context.out_doc->getValueBuffer().begin());
         }
     }
 

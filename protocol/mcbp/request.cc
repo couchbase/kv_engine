@@ -195,7 +195,7 @@ static std::string printableString(const std::string_view buffer) {
     std::string ret;
     ret.reserve(buffer.size() + 9);
     ret.append("<ud>");
-    std::copy(buffer.begin(), buffer.end(), std::back_inserter(ret));
+    std::ranges::copy(buffer, std::back_inserter(ret));
     ret.append("</ud>");
 
     for (auto& ii : ret) {
@@ -448,9 +448,8 @@ nlohmann::json Request::to_json(bool validated) const {
 
                 // vbucket state will be the first part of extras
                 auto extrasState = extdata.substr(0, sizeof(RequestedVBState));
-                std::copy(extrasState.begin(),
-                          extrasState.end(),
-                          reinterpret_cast<uint8_t*>(&state));
+                std::ranges::copy(extrasState,
+                                  reinterpret_cast<uint8_t*>(&state));
                 switch (static_cast<RequestedVBState>(
                         ntohl(static_cast<int>(state)))) {
                 case RequestedVBState::Alive:
@@ -475,9 +474,8 @@ nlohmann::json Request::to_json(bool validated) const {
                     CollectionIDType cid;
                     extrasState = extdata.substr(sizeof(RequestedVBState),
                                                  sizeof(CollectionIDType));
-                    std::copy(extrasState.begin(),
-                              extrasState.end(),
-                              reinterpret_cast<uint8_t*>(&cid));
+                    std::ranges::copy(extrasState,
+                                      reinterpret_cast<uint8_t*>(&cid));
                     cid = ntohl(static_cast<int>(state));
                     extras["collection"] = CollectionID(cid).to_string();
                 }

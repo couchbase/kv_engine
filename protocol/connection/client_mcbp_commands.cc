@@ -81,9 +81,7 @@ void BinprotCommand::writeHeader(std::vector<uint8_t>& buf,
     if (!frame_info.empty()) {
         hdr.setMagic(cb::mcbp::Magic::AltClientRequest);
         hdr.setFramingExtraslen(gsl::narrow<uint8_t>(frame_info.size()));
-        std::copy(frame_info.cbegin(),
-                  frame_info.cend(),
-                  std::back_inserter(buf));
+        std::ranges::copy(frame_info, std::back_inserter(buf));
     }
 }
 
@@ -140,7 +138,7 @@ void BinprotCommand::addFrameInfo(const cb::mcbp::request::FrameInfo& fi) {
 }
 
 void BinprotCommand::addFrameInfo(cb::const_byte_buffer section) {
-    std::copy(section.cbegin(), section.cend(), std::back_inserter(frame_info));
+    std::ranges::copy(std::as_const(section), std::back_inserter(frame_info));
 }
 
 void BinprotCommand::ExpiryValue::assign(uint32_t value_) {
@@ -1574,9 +1572,8 @@ const std::vector<uint8_t>& BinprotSetWithMetaCommand::getMeta() {
 }
 BinprotSetWithMetaCommand& BinprotSetWithMetaCommand::setMeta(
         const std::vector<uint8_t>& meta) {
-    std::copy(meta.begin(),
-              meta.end(),
-              std::back_inserter(BinprotSetWithMetaCommand::meta));
+    std::ranges::copy(meta,
+                      std::back_inserter(BinprotSetWithMetaCommand::meta));
     return *this;
 }
 

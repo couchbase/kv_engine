@@ -1672,9 +1672,7 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
 
         // vbucket state will be the first part of extras
         auto extrasState = extras.substr(0, sizeof(RequestedVBState));
-        std::copy(extrasState.begin(),
-                  extrasState.end(),
-                  reinterpret_cast<uint8_t*>(&state));
+        std::ranges::copy(extrasState, reinterpret_cast<uint8_t*>(&state));
         state = static_cast<RequestedVBState>(ntohl(static_cast<int>(state)));
         if (state < RequestedVBState::Alive || state > RequestedVBState::Dead) {
             cookie.setErrorContext("Request vbucket state invalid");

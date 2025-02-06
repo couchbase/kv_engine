@@ -220,7 +220,7 @@ protected:
         cmd.encode(encoded);
 
         auto iob = folly::IOBuf::createCombined(encoded.size());
-        std::copy(encoded.begin(), encoded.end(), iob->writableData());
+        std::ranges::copy(encoded, iob->writableData());
         iob->append(encoded.size());
         asyncSocket->writeChain(this, std::move(iob));
     }

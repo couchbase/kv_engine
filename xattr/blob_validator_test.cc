@@ -30,9 +30,9 @@ protected:
         // set aside room for the length
         blob.resize(offset + 4);
 
-        std::copy(key.begin(), key.end(), std::back_inserter(blob));
+        std::ranges::copy(key, std::back_inserter(blob));
         blob.push_back(0x00);
-        std::copy(value.begin(), value.end(), std::back_inserter(blob));
+        std::ranges::copy(value, std::back_inserter(blob));
         blob.push_back(0x00);
 
         uint32_t len = htonl(gsl::narrow<uint32_t>(blob.size() - (offset + 4)));

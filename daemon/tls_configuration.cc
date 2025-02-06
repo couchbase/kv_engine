@@ -129,7 +129,7 @@ static int my_pem_password_cb(char* buf, int size, int, void* userdata) {
         return 0;
     }
 
-    std::copy(password.begin(), password.end(), buf);
+    std::ranges::copy(password, buf);
     return password.size();
 }
 
@@ -172,9 +172,7 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
     if (iter != spec.end()) {
         auto base64 = iter->get<std::string>();
         auto decoded = cb::base64::decode(base64);
-        std::copy(decoded.begin(),
-                  decoded.end(),
-                  std::back_inserter(userpassword));
+        std::ranges::copy(decoded, std::back_inserter(userpassword));
     }
 
     // The validator should have already checked that the password must be

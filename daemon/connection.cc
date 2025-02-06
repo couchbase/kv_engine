@@ -2088,7 +2088,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
     auto* ptr = blob.data() + sizeof(Request);
     if (sid) {
         auto buf = frameInfo.getBuf();
-        std::copy(buf.begin(), buf.end(), ptr);
+        std::ranges::copy(buf, ptr);
         ptr += buf.size();
         req.setFramingExtraslen(buf.size());
     }
@@ -2179,13 +2179,13 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     auto* ptr = blob.data() + size;
     if (sid) {
         auto buf = frameInfo.getBuf();
-        std::copy(buf.begin(), buf.end(), ptr);
+        std::ranges::copy(buf, ptr);
         ptr += buf.size();
         size += buf.size();
     }
 
     auto buffer = extras.getBuffer();
-    std::copy(buffer.begin(), buffer.end(), ptr);
+    std::ranges::copy(buffer, ptr);
     size += buffer.size();
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
@@ -2268,13 +2268,13 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     auto* ptr = blob.data() + size;
     if (sid) {
         auto buf = frameInfo.getBuf();
-        std::copy(buf.begin(), buf.end(), ptr);
+        std::ranges::copy(buf, ptr);
         ptr += buf.size();
         size += buf.size();
     }
 
     auto buffer = extras.getBuffer();
-    std::copy(buffer.begin(), buffer.end(), ptr);
+    std::ranges::copy(buffer, ptr);
     size += buffer.size();
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);

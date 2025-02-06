@@ -234,7 +234,7 @@ void Cookie::setPacket(const cb::mcbp::Header& header, bool copy) {
     if (copy) {
         auto frame = header.getFrame();
         frame_copy = std::make_unique<uint8_t[]>(frame.size());
-        std::copy(frame.begin(), frame.end(), frame_copy.get());
+        std::ranges::copy(frame, frame_copy.get());
         packet = reinterpret_cast<const cb::mcbp::Header*>(frame_copy.get());
     } else {
         packet = &header;

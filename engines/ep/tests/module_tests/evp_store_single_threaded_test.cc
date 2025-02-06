@@ -2912,7 +2912,7 @@ TEST_P(STParamPersistentBucketTest, mb25273) {
     auto xattr_value = blob.finalize();
 
     std::string data;
-    std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
+    std::ranges::copy(xattr_value, std::back_inserter(data));
     std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
 
     const DocKeyView docKey{key, DocKeyEncodesCollectionId::No};

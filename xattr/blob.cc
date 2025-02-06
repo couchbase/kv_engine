@@ -152,10 +152,10 @@ void Blob::write_kvpair(size_t offset,
     // offset points to where we want to inject the value
     write_length(offset, uint32_t(key.size() + 1 + value.size() + 1));
     offset += 4;
-    std::copy(key.begin(), key.end(), blob.data() + offset);
+    std::ranges::copy(key, blob.data() + offset);
     offset += key.size();
     blob[offset++] = '\0';
-    std::copy(value.begin(), value.end(), blob.data() + offset);
+    std::ranges::copy(value, blob.data() + offset);
     offset += value.size();
     blob[offset++] = '\0';
     write_length(0, uint32_t(blob.size() - 4));

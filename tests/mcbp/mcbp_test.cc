@@ -223,7 +223,7 @@ TEST_P(GetValidatorTest, KeyLengthMax) {
     // Next switch to a valid key for collections or non-collections, with a
     // non-default collection ID
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(88);
-    std::copy(leb128.begin(), leb128.end(), blob + sizeof(request));
+    std::ranges::copy(leb128, blob + sizeof(request));
 
     auto leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
     const int maxCollectionsLogicalKeyLen = 246;
@@ -259,7 +259,7 @@ TEST_P(GetValidatorTest, KeyLengthMax) {
         cb::mcbp::unsigned_leb128<CollectionIDType> leb128Max(0xFFFFFFFF);
         leb128Size = gsl::narrow_cast<uint16_t>(leb128Max.size());
         ASSERT_EQ(5, leb128Max.size());
-        std::copy(leb128Max.begin(), leb128Max.end(), blob + sizeof(request));
+        std::ranges::copy(leb128Max, blob + sizeof(request));
         request.setKeylen(isCollectionsEnabled()
                                   ? (leb128Size + maxCollectionsLogicalKeyLen)
                                   : maxKeyLen);
@@ -297,7 +297,7 @@ TEST_P(GetValidatorTest, InvalidKey) {
     // Test invalid collection IDs
     for (CollectionIDType id = 1; id < 8; id++) {
         cb::mcbp::unsigned_leb128<CollectionIDType> invalidId(id);
-        std::copy(invalidId.begin(), invalidId.end(), blob + sizeof(request));
+        std::ranges::copy(invalidId, blob + sizeof(request));
         std::string expected = "Invalid collection-id:" + std::to_string(id);
         EXPECT_EQ(expected,
                   validate_error_context(
@@ -314,7 +314,7 @@ TEST_P(GetValidatorTest, InvalidKey) {
 
     // Now make a key which is only a leb128 prefix
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(2018);
-    std::copy(leb128.begin(), leb128.end(), blob + sizeof(request));
+    std::ranges::copy(leb128, blob + sizeof(request));
     auto leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
     request.setKeylen(leb128Size);
     request.setBodylen(leb128Size);

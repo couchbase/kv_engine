@@ -723,7 +723,7 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     //Now, append user data to the xattrs and store the data
     std::string value_data("test_expiry_value");
     std::vector<char> data;
-    std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
+    std::ranges::copy(xattr_value, std::back_inserter(data));
     std::copy_n(
             value_data.c_str(), value_data.length(), std::back_inserter(data));
 
@@ -953,7 +953,7 @@ static enum test_result test_expiration_on_compaction(EngineIface* h) {
 
     auto blob = builder.finalize();
     std::string data;
-    std::copy(blob.begin(), blob.end(), std::back_inserter(data));
+    std::ranges::copy(blob, std::back_inserter(data));
     for (int i = 0; i < 12; i++) {
         std::stringstream ss;
         ss << "xattr_key" << i;

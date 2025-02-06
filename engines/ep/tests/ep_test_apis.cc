@@ -1001,9 +1001,7 @@ cb::EngineErrorItemPair storeCasVb11(
     }
 
     cb_assert(info.value[0].iov_len == value.size());
-    std::copy(value.begin(),
-              value.end(),
-              reinterpret_cast<char*>(info.value[0].iov_base));
+    std::ranges::copy(value, reinterpret_cast<char*>(info.value[0].iov_base));
     rv.second->setCas(casIn);
 
     bool create_cookie = false;
@@ -1037,7 +1035,7 @@ cb::engine_errc replace(EngineIface* h,
     }
 
     item->setCas(0);
-    std::copy(value.begin(), value.end(), item->getValueBuffer().begin());
+    std::ranges::copy(value, item->getValueBuffer().begin());
 
     // A predicate that allows the replacement.
     // This simulates the behaviour of replace when the doc being updated does

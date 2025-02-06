@@ -543,8 +543,8 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
                 {reinterpret_cast<const uint8_t*>(body.data()), body.size()});
     } else {
         std::vector<uint8_t> buffer;
-        std::copy(body.begin(), body.end(), std::back_inserter(buffer));
-        std::copy(emd.begin(), emd.end(), std::back_inserter(buffer));
+        std::ranges::copy(body, std::back_inserter(buffer));
+        std::ranges::copy(emd, std::back_inserter(buffer));
         builder.setValue({buffer.data(), buffer.size()});
     }
 

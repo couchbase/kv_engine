@@ -71,7 +71,7 @@ cb::engine_errc ArithmeticCommandContext::createNewItem() {
                               extras.getExpiration(),
                               PROTOCOL_BINARY_DATATYPE_JSON,
                               vbucket);
-    std::copy(value.begin(), value.end(), newitem->getValueBuffer().begin());
+    std::ranges::copy(value, newitem->getValueBuffer().begin());
     state = State::StoreNewItem;
     return cb::engine_errc::success;
 }
@@ -151,8 +151,8 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     auto body = newitem->getValueBuffer();
 
     // Copy the data over.
-    std::copy(xattrs.begin(), xattrs.end(), body.begin());
-    std::copy(value.begin(), value.end(), body.data() + xattrs.size());
+    std::ranges::copy(xattrs, body.begin());
+    std::ranges::copy(value, body.data() + xattrs.size());
     newitem->setCas(document.getCas());
 
     state = State::StoreItem;

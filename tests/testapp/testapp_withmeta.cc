@@ -202,9 +202,7 @@ TEST_P(WithMetaTest, MB36304_DocumentMaxSizeWithXattr) {
     cb::xattr::Blob blob;
     blob.set("_sys", R"({"author":"bubba"})");
     auto xattrValue = blob.finalize();
-    std::copy(xattrValue.begin(),
-              xattrValue.end(),
-              std::back_inserter(document.value));
+    std::ranges::copy(xattrValue, std::back_inserter(document.value));
 
     document.value.resize((20 * 1024 * 1024) + xattrValue.size());
     document.info.datatype = cb::mcbp::Datatype::Xattr;
@@ -233,9 +231,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaRefuseUserXattrs) {
     auto xattrValue = blob.finalize();
 
     document.value.clear();
-    std::copy(xattrValue.begin(),
-              xattrValue.end(),
-              std::back_inserter(document.value));
+    std::ranges::copy(xattrValue, std::back_inserter(document.value));
     document.value.append(R"({"Bug":"MB-36321"})");
     using cb::mcbp::Datatype;
     document.info.datatype =
@@ -263,9 +259,7 @@ TEST_P(WithMetaTest, MB36321_DeleteWithMetaAllowSystemXattrs) {
     auto xattrValue = blob.finalize();
 
     document.value.clear();
-    std::copy(xattrValue.begin(),
-              xattrValue.end(),
-              std::back_inserter(document.value));
+    std::ranges::copy(xattrValue, std::back_inserter(document.value));
     document.info.datatype = cb::mcbp::Datatype::Xattr;
 
     BinprotDelWithMetaCommand cmd(document, Vbid(0), 0, 0, 1, 0);
@@ -304,7 +298,7 @@ void WithMetaTest::testDeleteWithMetaAcceptsUserXattrs(bool allowValuePruning,
     blob.set("_sys", R"({"c":"d"})");
     const auto xattrs = blob.finalize();
     document.value.clear();
-    std::copy(xattrs.begin(), xattrs.end(), std::back_inserter(document.value));
+    std::ranges::copy(xattrs, std::back_inserter(document.value));
     using Datatype = cb::mcbp::Datatype;
     document.info.datatype = Datatype::Xattr;
 
@@ -358,9 +352,7 @@ void WithMetaTest::testDeleteWithMetaRejectsBody(bool allowValuePruning,
         blob.set("_sys", R"({"c":"d"})");
         const auto xattrs = blob.finalize();
         document.value.clear();
-        std::copy(xattrs.begin(),
-                  xattrs.end(),
-                  std::back_inserter(document.value));
+        std::ranges::copy(xattrs, std::back_inserter(document.value));
         document.value.append("body");
         document.info.datatype = cb::mcbp::Datatype::Xattr;
     } else {

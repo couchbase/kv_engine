@@ -113,8 +113,7 @@ cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
     }
 
     if (!xattr.empty()) {
-        std::copy(
-                xattr.begin(), xattr.end(), deleted->getValueBuffer().begin());
+        std::ranges::copy(xattr, deleted->getValueBuffer().begin());
     }
 
     state = State::StoreItem;

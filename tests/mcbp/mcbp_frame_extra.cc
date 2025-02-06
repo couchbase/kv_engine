@@ -51,7 +51,7 @@ protected:
             result.emplace_back(uint8_t(payload.size() - 0x0f));
         }
 
-        std::copy(payload.begin(), payload.end(), std::back_inserter(result));
+        std::ranges::copy(payload, std::back_inserter(result));
         return result;
     }
 

@@ -214,7 +214,7 @@ protected:
             // location.
             memmove(location + value.size(), location + existing.size(), size);
         }
-        std::copy(value.begin(), value.end(), location);
+        std::ranges::copy(value, location);
         auto* req = getFrame();
         // Update the total length
         req->setBodylen(gsl::narrow<uint32_t>(req->getBodylen() -

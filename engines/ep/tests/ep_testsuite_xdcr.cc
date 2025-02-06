@@ -47,7 +47,7 @@ static std::vector<char> createXattrValue(const std::string& body) {
 
     // append body to the xattrs and store in data
     std::vector<char> data;
-    std::copy(xattr_value.begin(), xattr_value.end(), std::back_inserter(data));
+    std::ranges::copy(xattr_value, std::back_inserter(data));
     std::copy_n(body.c_str(), body.size(), std::back_inserter(data));
 
     return data;

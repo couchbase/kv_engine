@@ -36,7 +36,7 @@ std::vector<char> SubdocMultiLookupCmd::encode() const {
         std::copy(&encoded.bytes[0],
                   &encoded.bytes[sizeof(encoded.spec)],
                   back_inserter(request));
-        std::copy(s.path.begin(), s.path.end(), back_inserter(request));
+        std::ranges::copy(s.path, back_inserter(request));
     }
 
     // Populate the header.
@@ -64,8 +64,8 @@ std::vector<char> SubdocMultiMutationCmd::encode() const {
         std::copy(&encoded.bytes[0],
                   &encoded.bytes[sizeof(encoded.spec)],
                   back_inserter(request));
-        std::copy(s.path.begin(), s.path.end(), back_inserter(request));
-        std::copy(s.value.begin(), s.value.end(), back_inserter(request));
+        std::ranges::copy(s.path, back_inserter(request));
+        std::ranges::copy(s.value, back_inserter(request));
     }
 
     // Populate the header.
@@ -105,7 +105,7 @@ std::vector<char> SubdocMultiCmd::encode_common() const {
     }
 
     // Add the key.
-    std::copy(key.begin(), key.end(), back_inserter(request));
+    std::ranges::copy(key, back_inserter(request));
 
     return request;
 }

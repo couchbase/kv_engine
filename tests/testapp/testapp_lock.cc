@@ -271,7 +271,7 @@ TEST_P(LockTest, MB_22778) {
                                          0x6c, 0x7d}};
 
     Frame command;
-    std::copy(store.begin(), store.end(), std::back_inserter(command.payload));
+    std::ranges::copy(store, std::back_inserter(command.payload));
 
     userConnection->sendFrame(command);
 
@@ -293,7 +293,7 @@ TEST_P(LockTest, MB_22778) {
                                          0x4e, 0x45, 0x54}}; // key
 
     command.reset();
-    std::copy(lock.begin(), lock.end(), std::back_inserter(command.payload));
+    std::ranges::copy(lock, std::back_inserter(command.payload));
     userConnection->sendFrame(command);
     userConnection->recvResponse(response);
     EXPECT_EQ(cb::mcbp::Status::Success, response.getStatus())

@@ -227,7 +227,7 @@ TEST_P(DeprecatedCommandsTests, GetK) {
     for (int ii = 0; ii < 10; ++ii) {
         std::vector<uint8_t> buf;
         get.encode(buf);
-        std::copy(buf.begin(), buf.end(), std::back_inserter(blob));
+        std::ranges::copy(buf, std::back_inserter(blob));
     }
 
     safe_send(blob);
