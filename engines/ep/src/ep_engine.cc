@@ -1228,11 +1228,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getReplicaInner(
                 cb::engine_errc::success, rv.item.release(), this);
     }
 
-    if (error_code == cb::engine_errc::temporary_failure) {
-        return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
-    }
-
-    return cb::makeEngineErrorItemPair(error_code);
+    // Remap the error code if bucket is in degraded mode.
+    return cb::makeEngineErrorItemPair(maybeRemapStatus(error_code));
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
