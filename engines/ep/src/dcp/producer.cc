@@ -1752,18 +1752,18 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
 
     size_t num_streams = 0;
     size_t num_dead_streams = 0;
-    std::for_each(streams->begin(),
-                  streams->end(),
-                  [&num_streams,
-                   &num_dead_streams](const StreamsMap::value_type& vt) {
-                      for (auto handle = vt.second->rlock(); !handle.end();
-                           handle.next()) {
-                          num_streams++;
-                          if (!handle.get()->isActive()) {
-                              num_dead_streams++;
-                          }
-                      }
-                  });
+    std::ranges::for_each(
+            *streams,
+            [&num_streams,
+             &num_dead_streams](const StreamsMap::value_type& vt) {
+                for (auto handle = vt.second->rlock(); !handle.end();
+                     handle.next()) {
+                    num_streams++;
+                    if (!handle.get()->isActive()) {
+                        num_dead_streams++;
+                    }
+                }
+            });
 
     addStat("num_streams", num_streams, add_stat, c);
     addStat("num_dead_streams", num_dead_streams, add_stat, c);
@@ -1777,17 +1777,16 @@ void DcpProducer::addStreamStats(const AddStatFn& add_stat,
     // streams map locked for).
     std::vector<std::shared_ptr<Stream>> valid_streams;
 
-    std::for_each(streams->begin(),
-                  streams->end(),
-                  [&valid_streams](const StreamsMap::value_type& vt) {
-                      for (auto handle = vt.second->rlock(); !handle.end();
-                           handle.next()) {
-                          auto as = handle.get();
-                          if (as->isActive()) {
-                              valid_streams.push_back(handle.get());
-                          }
-                      }
-                  });
+    std::ranges::for_each(
+            *streams, [&valid_streams](const StreamsMap::value_type& vt) {
+                for (auto handle = vt.second->rlock(); !handle.end();
+                     handle.next()) {
+                    auto as = handle.get();
+                    if (as->isActive()) {
+                        valid_streams.push_back(handle.get());
+                    }
+                }
+            });
 
     if (format == StreamStatsFormat::Json) {
         doStreamStatsJson(valid_streams, add_stat, c);
@@ -1968,40 +1967,39 @@ void DcpProducer::closeAllStreams() {
     lastReceiveTime = ep_uptime_now();
     std::vector<Vbid> vbvector;
     {
-        std::for_each(streams->begin(),
-                      streams->end(),
-                      [this, &vbvector](StreamsMap::value_type& vt) {
-                          vbvector.push_back((Vbid)vt.first);
-                          std::vector<std::shared_ptr<ActiveStream>> streamPtrs;
-                          // MB-35073: holding StreamContainer lock while
-                          // calling setDead leads to lock inversion - so
-                          // collect sharedptrs in one pass then setDead once
-                          // lock is released (itr out of scope).
-                          {
-                              auto handle = vt.second->wlock();
-                              for (; !handle.end(); handle.next()) {
-                                  streamPtrs.push_back(handle.get());
-                              }
-                              handle.clear();
-                          }
+        std::ranges::for_each(
+                *streams, [this, &vbvector](StreamsMap::value_type& vt) {
+                    vbvector.push_back((Vbid)vt.first);
+                    std::vector<std::shared_ptr<ActiveStream>> streamPtrs;
+                    // MB-35073: holding StreamContainer lock while
+                    // calling setDead leads to lock inversion - so
+                    // collect sharedptrs in one pass then setDead once
+                    // lock is released (itr out of scope).
+                    {
+                        auto handle = vt.second->wlock();
+                        for (; !handle.end(); handle.next()) {
+                            streamPtrs.push_back(handle.get());
+                        }
+                        handle.clear();
+                    }
 
-                          for (const auto& streamPtr : streamPtrs) {
-                              // Explicitly ask to remove the DCPBackfill object
-                              // here. 1) whilst we know the backfillMgr is
-                              // alive and 2) whilst we know the ActiveStream is
-                              // alive. This ensures that if the ActiveStream
-                              // destructs within this function (it could if
-                              // shared_ptr::ref==0) ~ActiveStream doesn't
-                              // deadlock trying to remove the backfill, as
-                              // DcpProducer::removeBackfill needs the
-                              // closeAllStreamsLock which is already locked.
-                              if (backfillMgr) {
-                                  streamPtr->removeBackfill(*backfillMgr);
-                              }
-                              streamPtr->setDead(cb::mcbp::DcpStreamEndStatus::
-                                                         Disconnected);
-                          }
-                      });
+                    for (const auto& streamPtr : streamPtrs) {
+                        // Explicitly ask to remove the DCPBackfill object
+                        // here. 1) whilst we know the backfillMgr is
+                        // alive and 2) whilst we know the ActiveStream is
+                        // alive. This ensures that if the ActiveStream
+                        // destructs within this function (it could if
+                        // shared_ptr::ref==0) ~ActiveStream doesn't
+                        // deadlock trying to remove the backfill, as
+                        // DcpProducer::removeBackfill needs the
+                        // closeAllStreamsLock which is already locked.
+                        if (backfillMgr) {
+                            streamPtr->removeBackfill(*backfillMgr);
+                        }
+                        streamPtr->setDead(
+                                cb::mcbp::DcpStreamEndStatus::Disconnected);
+                    }
+                });
     }
     for (const auto vbid: vbvector) {
         engine_.getDcpConnMap().removeVBConnByVBId(getCookie(), vbid);
@@ -2123,19 +2121,18 @@ std::unique_ptr<DcpResponse> DcpProducer::getAndValidateNextItemFromStream(
 
 void DcpProducer::setDisconnect() {
     ConnHandler::setDisconnect();
-    std::for_each(
-            streams->begin(), streams->end(), [](StreamsMap::value_type& vt) {
-                std::vector<std::shared_ptr<Stream>> streamPtrs;
-                // MB-35049: hold StreamContainer rlock while calling setDead
-                // leads to lock inversion - so collect sharedptrs in one pass
-                // then setDead once it is released (itr out of scope).
-                for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
-                    streamPtrs.push_back(itr.get());
-                }
-                for (auto stream : streamPtrs) {
-                    stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
-                }
-            });
+    std::ranges::for_each(*streams, [](StreamsMap::value_type& vt) {
+        std::vector<std::shared_ptr<Stream>> streamPtrs;
+        // MB-35049: hold StreamContainer rlock while calling setDead
+        // leads to lock inversion - so collect sharedptrs in one pass
+        // then setDead once it is released (itr out of scope).
+        for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
+            streamPtrs.push_back(itr.get());
+        }
+        for (auto stream : streamPtrs) {
+            stream->setDead(cb::mcbp::DcpStreamEndStatus::Disconnected);
+        }
+    });
 }
 
 void DcpProducer::notifyStreamReady(Vbid vbucket) {
@@ -2223,10 +2220,8 @@ size_t DcpProducer::getItemsSent() {
 
 size_t DcpProducer::getItemsRemaining() const {
     size_t remainingSize = 0;
-    std::for_each(
-            streams->begin(),
-            streams->end(),
-            [&remainingSize](const StreamsMap::value_type& vt) {
+    std::ranges::for_each(
+            *streams, [&remainingSize](const StreamsMap::value_type& vt) {
                 for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
                     auto* as = itr.get().get();
                     if (as) {
@@ -2241,23 +2236,19 @@ size_t DcpProducer::getItemsRemaining() const {
 DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
     DcpProducer::StreamAggStats stats;
 
-    std::for_each(
-            streams->begin(),
-            streams->end(),
-            [&stats](const StreamsMap::value_type& vt) {
-                auto itr = vt.second->rlock();
-                stats.streams += itr.size();
-                for (; !itr.end(); itr.next()) {
-                    auto* as = itr.get().get();
-                    if (as) {
-                        stats.itemsRemaining += as->getItemsRemaining();
-                        stats.readyQueueMemory += as->getReadyQueueMemory();
-                        stats.backfillItemsDisk += as->getBackfillItemsDisk();
-                        stats.backfillItemsMemory +=
-                                as->getBackfillItemsMemory();
-                    }
-                }
-            });
+    std::ranges::for_each(*streams, [&stats](const StreamsMap::value_type& vt) {
+        auto itr = vt.second->rlock();
+        stats.streams += itr.size();
+        for (; !itr.end(); itr.next()) {
+            auto* as = itr.get().get();
+            if (as) {
+                stats.itemsRemaining += as->getItemsRemaining();
+                stats.readyQueueMemory += as->getReadyQueueMemory();
+                stats.backfillItemsDisk += as->getBackfillItemsDisk();
+                stats.backfillItemsMemory += as->getBackfillItemsMemory();
+            }
+        }
+    });
 
     return stats;
 }
@@ -2272,11 +2263,9 @@ size_t DcpProducer::getTotalUncompressedDataSize() {
 
 std::vector<Vbid> DcpProducer::getVBVector() {
     std::vector<Vbid> vbvector;
-    std::for_each(streams->begin(),
-                  streams->end(),
-                  [&vbvector](StreamsMap::value_type& iter) {
-                      vbvector.push_back((Vbid)iter.first);
-                  });
+    std::ranges::for_each(*streams, [&vbvector](StreamsMap::value_type& iter) {
+        vbvector.push_back((Vbid)iter.first);
+    });
     return vbvector;
 }
 

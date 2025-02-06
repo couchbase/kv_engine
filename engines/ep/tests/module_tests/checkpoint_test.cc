@@ -4355,10 +4355,9 @@ TEST_P(CheckpointTest, MB_53100_RegisterCursor) {
 
     // Using the WeaklyMonotonic var, check that all the items have seqnos that
     // are weakly monotonic from the seqno that registerCursorBySeqno returned
-    EXPECT_NO_THROW(std::for_each(
-            items.begin(), items.end(), [&curSeqno](const queued_item& i) {
-                curSeqno = i->getBySeqno();
-            }));
+    EXPECT_NO_THROW(std::ranges::for_each(
+            items,
+            [&curSeqno](const queued_item& i) { curSeqno = i->getBySeqno(); }));
 }
 
 /**
