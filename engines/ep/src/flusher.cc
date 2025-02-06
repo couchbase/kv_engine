@@ -12,9 +12,7 @@
 #include "flusher.h"
 
 #include "bucket_logger.h"
-#include "checkpoint_config.h"
 #include "ep_bucket.h"
-#include "ep_engine.h"
 #include "objectregistry.h"
 #include "tasks.h"
 #include "vbucket.h"
@@ -26,14 +24,8 @@
 
 Flusher::Flusher(EPBucket* st, size_t flusherId)
     : store(st),
-      _state(State::Initializing),
-      taskId(0),
-      forceShutdownReceived(false),
       hpVbs(st->getVBuckets().getSize()),
       lpVbs(st->getVBuckets().getSize()),
-      doHighPriority(false),
-      numHighPriority(0),
-      pendingMutation(false),
       flusherId(flusherId) {
 }
 
@@ -46,8 +38,7 @@ Flusher::~Flusher() {
 }
 
 bool Flusher::stop(bool isForceShutdown) {
-    forceShutdownReceived = isForceShutdown;
-    State to = forceShutdownReceived ? State::Stopped : State::Stopping;
+    State to = isForceShutdown ? State::Stopped : State::Stopping;
     bool ret = transitionState(to);
     wake();
     return ret;
@@ -74,18 +65,19 @@ bool Flusher::pause() {
 }
 
 bool Flusher::resume() {
-    bool ret = transitionState(State::Running);
-    wake();
-    return ret;
+    if (transitionState(State::Running)) {
+        wake();
+        return true;
+    }
+    return false;
 }
-
-bool Flusher::validTransition(State to) const {
-    // we may go to stopping from all of the stats except stopped
+bool Flusher::canTransition(State from, State to) const {
+    // we may go to stopping from all of the states except stopped
     if (to == State::Stopping) {
-        return _state.load() != State::Stopped;
+        return from != State::Stopped;
     }
 
-    switch (_state.load()) {
+    switch (from) {
     case State::Initializing:
         return (to == State::Running || to == State::Paused);
     case State::Running:
@@ -98,9 +90,9 @@ bool Flusher::validTransition(State to) const {
         return false;
     }
     throw std::logic_error(
-            "Flusher::validTransition: called with invalid "
-            "_state:" +
-            std::to_string(int(_state.load())));
+            "Flusher::canTransition: called with invalid "
+            "from state:" +
+            std::to_string(int(from)));
 }
 
 const char* Flusher::stateName(State st) const {
@@ -123,19 +115,18 @@ const char* Flusher::stateName(State st) const {
 }
 
 bool Flusher::transitionState(State to) {
-    if (!forceShutdownReceived && !validTransition(to)) {
-        EP_LOG_WARN(
-                "Flusher::transitionState: invalid transition _state:{}, to:{}",
-                stateName(_state),
-                stateName(to));
-        return false;
-    }
-
-    EP_LOG_DEBUG("Flusher::transitionState: from {} to {}",
-                 stateName(_state),
-                 stateName(to));
-
-    _state = to;
+    State from{State::Initializing};
+    do {
+        from = _state.load();
+        if (!canTransition(from, to)) {
+            return false;
+        }
+        // The transition is valid, continue to update _state provided
+        // it hasn't changed since we last checked.
+        EP_LOG_DEBUG("Flusher::transitionState: from {} to {}",
+                    stateName(_state),
+                    stateName(to));
+    } while (!_state.compare_exchange_weak(from, to));
     return true;
 }
 

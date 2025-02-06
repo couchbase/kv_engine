@@ -18,7 +18,8 @@
 
 #include <memcached/vbucket.h>
 
-#include <queue>
+#include <atomic>
+#include <mutex>
 
 class EPBucket;
 
@@ -65,7 +66,13 @@ private:
     };
 
     bool transitionState(State to);
-    bool validTransition(State to) const;
+    /**
+     * Check if the state can transition from -> to.
+     * @param from The current state to transition from
+     * @param to The target state to transition to
+     * @return true if the transition is valid, false otherwise
+     */
+    bool canTransition(State from, State to) const;
 
     /**
      * Flush a single vBucket
@@ -79,25 +86,24 @@ private:
     const char* stateName(State st) const;
 
     EPBucket* store;
-    std::atomic<State> _state;
+    std::atomic<State> _state{State::Initializing};
 
     // Used for serializaling attempts to start the flusher from
     // different threads.
     std::mutex                        taskMutex;
-    std::atomic<size_t>      taskId;
+    std::atomic<size_t> taskId{0};
 
-    std::atomic<bool> forceShutdownReceived;
     VBReadyQueue hpVbs;
     VBReadyQueue lpVbs;
-    bool doHighPriority;
-    size_t numHighPriority;
-    std::atomic<bool> pendingMutation;
+    bool doHighPriority{false};
+    size_t numHighPriority{0};
+    std::atomic<bool> pendingMutation{false};
 
     /**
      * UID of this flusher. Required for to name the various FlusherTasks that
      * we create.
      */
-    size_t flusherId;
+    size_t flusherId{0};
 
     DISALLOW_COPY_AND_ASSIGN(Flusher);
 };
