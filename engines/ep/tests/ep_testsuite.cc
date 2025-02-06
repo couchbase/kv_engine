@@ -7462,10 +7462,10 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
 
         // Sort the keys from the fetched stats and expected keys (required
         // for set_difference).
-        std::sort(actual.begin(), actual.end());
+        std::ranges::sort(actual);
 
         auto& expected = entry.second;
-        std::sort(expected.begin(), expected.end());
+        std::ranges::sort(expected);
 
         // (A) Find any missing stats - those expected (in statsKeys) but not
         // found in actual.

@@ -266,10 +266,9 @@ CheckpointMemRecoveryTask::getVbucketsSortedByChkMem() const {
         }
     }
 
-    std::sort(res.begin(),
-              res.end(),
-              [](std::pair<Vbid, size_t> a, std::pair<Vbid, size_t> b) {
-                  return a.second > b.second;
-              });
+    std::ranges::sort(res,
+                      [](std::pair<Vbid, size_t> a, std::pair<Vbid, size_t> b) {
+                          return a.second > b.second;
+                      });
     return res;
 }

@@ -454,7 +454,7 @@ void KVStore::prepareForDeduplication(std::vector<queued_item>& items) {
     }
 
     OrderItemsForDeDuplication cq;
-    std::sort(items.begin(), items.end(), cq);
+    std::ranges::sort(items, cq);
 }
 
 uint64_t KVStore::getLastPersistedSeqno(Vbid vbid) {

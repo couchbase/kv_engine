@@ -2553,7 +2553,7 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
     // sort will work as expected - otherwise it _may_ segfault.
     // Note: this is not a robust test, variations in the impl of sort
     // may mean this does _not_ crash even with an unacceptable comparator
-    std::sort(allVBs.begin(), allVBs.end(), comparator);
+    std::ranges::sort(allVBs, comparator);
 
     // as a secondary check, directly test the requirements of a strict
     // weak ordering on the comparator while actively changing

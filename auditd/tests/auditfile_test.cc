@@ -282,7 +282,7 @@ TEST_F(AuditFileTest, PruneFiles) {
                 }
             }
 
-            std::sort(ret.begin(), ret.end());
+            std::ranges::sort(ret);
             return ret;
         }
     };

@@ -34,9 +34,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
             vbucketsToVisit.emplace_back(vbid);
         }
     }
-    std::sort(vbucketsToVisit.begin(),
-              vbucketsToVisit.end(),
-              visitor->getVBucketComparator());
+    std::ranges::sort(vbucketsToVisit, visitor->getVBucketComparator());
 }
 
 std::string VBCBAdaptor::getDescription() const {
@@ -148,9 +146,7 @@ SingleSteppingVisitorAdapter::SingleSteppingVisitorAdapter(
             vbucketsToVisit.emplace_back(vbid);
         }
     }
-    std::sort(vbucketsToVisit.begin(),
-              vbucketsToVisit.end(),
-              this->visitor->getVBucketComparator());
+    std::ranges::sort(vbucketsToVisit, this->visitor->getVBucketComparator());
 }
 
 std::string SingleSteppingVisitorAdapter::getDescription() const {

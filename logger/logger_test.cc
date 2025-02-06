@@ -66,7 +66,7 @@ TEST_F(FileRotationTest, MultipleFilesTest) {
 
     files = cb::io::findFilesWithPrefix(config.filename);
     // sort the files so we know the order they appear
-    std::sort(files.begin(), files.end());
+    std::ranges::sort(files);
     // This would have generated 6 files of log messages, but given that
     // we prune after 3 files we should have 3 files left (starting with
     // file id 3)

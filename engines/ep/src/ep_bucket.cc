@@ -2330,10 +2330,9 @@ EPBucket::LoadPreparedSyncWritesResult EPBucket::loadPreparedSyncWrites(
         prepares.emplace_back(std::move(prepare.second));
     }
     // Sequence must be sorted by seqno (ascending) for DurabilityMonitor.
-    std::sort(
-            prepares.begin(), prepares.end(), [](const auto& a, const auto& b) {
-                return a->getBySeqno() < b->getBySeqno();
-            });
+    std::ranges::sort(prepares, [](const auto& a, const auto& b) {
+        return a->getBySeqno() < b->getBySeqno();
+    });
 
     auto numPrepares = prepares.size();
     epVb.loadOutstandingPrepares(*vbState, std::move(prepares));

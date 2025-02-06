@@ -214,9 +214,7 @@ protected:
         }
 
         // Sort the access frequencies into descending order
-        std::sort(std::begin(frequencies),
-                  std::end(frequencies),
-                  std::greater<uint64_t>());
+        std::ranges::sort(frequencies, std::greater<uint64_t>());
 
         // Iterate through the frequency table and call get the correct number
         // of times

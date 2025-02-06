@@ -140,7 +140,7 @@ static nlohmann::json mergeFilesOnDisk(const std::string& root) {
 
     if (cb::io::isDirectory(system)) {
         auto files = cb::io::findFilesWithPrefix(system, "");
-        std::sort(files.begin(), files.end());
+        std::ranges::sort(files);
         for (const auto& file : files) {
             // Skip files which don't end with ".json"
             if (file.find(".json") != file.size() - 5) {

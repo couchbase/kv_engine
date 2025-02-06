@@ -42,7 +42,7 @@ static void BM_CompareQueuedItemsBySeqnoAndKey(benchmark::State& state) {
         state.ResumeTiming();
 
         // benchmark
-        std::sort(items.begin(), items.end(), cq);
+        std::ranges::sort(items, cq);
     }
 }
 // Register the function as a benchmark

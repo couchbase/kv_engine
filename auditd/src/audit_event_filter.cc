@@ -144,7 +144,7 @@ protected:
             ret.push_back(e.get<uint32_t>());
         }
 
-        std::sort(ret.begin(), ret.end());
+        std::ranges::sort(ret);
         return ret;
     }
 
