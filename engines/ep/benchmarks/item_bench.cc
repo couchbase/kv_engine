@@ -38,7 +38,7 @@ static void BM_CompareQueuedItemsBySeqnoAndKey(benchmark::State& state) {
     while (state.KeepRunning()) {
         // shuffle (while timing paused)
         state.PauseTiming();
-        std::shuffle(items.begin(), items.end(), g);
+        std::ranges::shuffle(items, g);
         state.ResumeTiming();
 
         // benchmark

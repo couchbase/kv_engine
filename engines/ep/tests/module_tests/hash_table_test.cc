@@ -561,7 +561,7 @@ public:
         : keys(std::move(k)), ht(h), size(10000) {
         std::random_device rd;
         std::mt19937 g(rd());
-        std::shuffle(keys.begin(), keys.end(), g);
+        std::ranges::shuffle(keys, g);
     }
 
     bool operator()() override {
@@ -637,7 +637,7 @@ static void incrementallyResizeHT(HashTable& ht, size_t to) {
 static void testConcurrentAccessIncrementalResize(bool doDel) {
     HashTable ht(global_stats, HashTableTest::makeFactory(), 1531, 17, 0, 10);
     auto keys = generateKeys(2000);
-    std::shuffle(keys.begin(), keys.end(), std::mt19937{});
+    std::ranges::shuffle(keys, std::mt19937{});
     storeMany(ht, keys);
     verifyFound(ht, keys);
 

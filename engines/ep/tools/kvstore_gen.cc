@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     // Now perform specified number of commits.
     // Shuffle initial keys, then mutate each key in turn (uniform random
     // distribution, arguably worst-case).
-    std::shuffle(keys.begin(), keys.end(), randomDevice);
+    std::ranges::shuffle(keys, randomDevice);
 
     int updates = 0;
     auto keyIt = keys.begin();
