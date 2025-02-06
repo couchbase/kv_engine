@@ -1958,8 +1958,8 @@ std::shared_ptr<CheckpointCursor> CheckpointManager::getLowestCursor(
     // it at every cursor-move in CM. Ideally that is being a cheap operation at
     // cursor-move and would also make the code here O(1).
 
-    const auto entry = std::min_element(
-            cursors.begin(), cursors.end(), [](const auto& a, const auto& b) {
+    const auto entry =
+            std::ranges::min_element(cursors, [](const auto& a, const auto& b) {
                 // Compare by CheckpointCursor.
                 return *a.second < *b.second;
             });

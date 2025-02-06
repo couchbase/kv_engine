@@ -57,13 +57,12 @@ static std::chrono::nanoseconds getDefaultValue() {
     for (auto& ts : threshold) {
         counts[ts.load(std::memory_order_relaxed).count()]++;
     }
-    auto result =
-            std::max_element(counts.begin(),
-                             counts.end(),
-                             [](std::pair<const uint64_t, size_t> a,
-                                std::pair<const uint64_t, size_t> b) -> bool {
-                                 return a.second < b.second;
-                             });
+    auto result = std::ranges::max_element(
+            counts,
+            [](std::pair<const uint64_t, size_t> a,
+               std::pair<const uint64_t, size_t> b) -> bool {
+                return a.second < b.second;
+            });
     return std::chrono::nanoseconds(result->first);
 }
 
