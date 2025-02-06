@@ -250,7 +250,7 @@ TEST_P(AuditTest, AuditIllegalPacket) {
  */
 TEST_P(AuditTest, AuditIllegalFrame_MB31071) {
     std::vector<uint8_t> blob(300);
-    std::fill(blob.begin(), blob.end(), 'a');
+    std::ranges::fill(blob, 'a');
 
     auto socket = getConnection().releaseSocket();
     EXPECT_EQ(blob.size(), cb::net::send(socket, blob.data(), blob.size(), 0));

@@ -171,7 +171,7 @@ TEST(Request_ParseFrameExtras, DurabilityRequirement_LegalPacket) {
     });
     EXPECT_TRUE(found);
 
-    std::fill(packet.begin(), packet.end(), 0);
+    std::ranges::fill(packet, 0);
     builder.setMagic(Magic::AltClientRequest);
     fe.resize(4); // 1 byte magic, 3 bytes value
     fe[0] = 0x13;

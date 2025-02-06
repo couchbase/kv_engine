@@ -227,7 +227,7 @@ void printStatkeyHelp() {
             std::cerr << ' ';
         }
         std::cerr << " ";
-        std::fill(kbuf.begin(), kbuf.end(), ' ');
+        std::ranges::fill(kbuf, ' ');
 
         auto descr = e.description;
         while (true) {

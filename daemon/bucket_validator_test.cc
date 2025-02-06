@@ -22,7 +22,7 @@ TEST(BucketNameValidatorTest, LengthRestrictions) {
     ASSERT_EQ("Name can't be empty", validateBucketName(""));
     std::string name;
     name.resize(MaxBucketNameLength);
-    std::fill(name.begin(), name.end(), 'a');
+    std::ranges::fill(name, 'a');
     ASSERT_EQ("", validateBucketName(name));
     // adding one more character should make it too long
     name.push_back('b');

@@ -934,7 +934,7 @@ TEST_P(GetSetSnappyOnOffTest, TestInvalidCompressedData) {
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'a');
+    std::ranges::fill(input, 'a');
 
     // Replacing a nonexisting document should fail
     int einvalCount = getResponseCount(cb::mcbp::Status::Einval);
@@ -971,7 +971,7 @@ TEST_P(GetSetTest, TestAppendInvalidCompressedData) {
     userConnection->mutate(document, Vbid(0), MutationType::Set);
 
     std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'b');
+    std::ranges::fill(input, 'b');
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     int einvalCount = getResponseCount(cb::mcbp::Status::Einval);
@@ -1005,7 +1005,7 @@ TEST_P(GetSetTest, TestPrependInvalidCompressedData) {
     userConnection->mutate(document, Vbid(0), MutationType::Set);
 
     std::vector<char> input(1024);
-    std::fill(input.begin(), input.end(), 'b');
+    std::ranges::fill(input, 'b');
     document.info.datatype = cb::mcbp::Datatype::Snappy;
 
     int einvalCount = getResponseCount(cb::mcbp::Status::Einval);

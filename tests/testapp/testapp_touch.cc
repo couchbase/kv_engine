@@ -160,6 +160,6 @@ TEST_P(TouchTest, SmallValues) {
 TEST_P(TouchTest, LargeValues) {
     std::string value;
     value.resize(512 * 1024);
-    std::fill(value.begin(), value.end(), 'd');
+    std::ranges::fill(value, 'd');
     testGatAndTouch("hello world");
 }
