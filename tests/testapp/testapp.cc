@@ -347,7 +347,7 @@ void TestappTest::SetUp() {
     name.assign(info->test_case_name());
     name.append("_");
     name.append(info->name());
-    std::replace(name.begin(), name.end(), '/', '_');
+    std::ranges::replace(name, '/', '_');
 
     if (!userConnection && createUserConnection) {
         rebuildUserConnection(isTlsEnabled());

@@ -940,7 +940,7 @@ ClientOpcode to_client_opcode(std::string_view string) {
     std::transform(
             string.begin(), string.end(), std::back_inserter(input), ::toupper);
     // If the user used space between the words, replace with '_'
-    std::replace(input.begin(), input.end(), ' ', '_');
+    std::ranges::replace(input, ' ', '_');
 
     auto ret = opcodeInformationServiceInstance.lookup(input);
     if (ret != ClientOpcode::Invalid) {

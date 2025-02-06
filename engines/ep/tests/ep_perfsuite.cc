@@ -291,7 +291,7 @@ void output_result(const std::string& name,
     // each set of values, both for printing and to derive what the range of
     // the graphs should be.
     std::string new_name = name;
-    std::replace(new_name.begin(), new_name.end(), ' ', '_');
+    std::ranges::replace(new_name, ' ', '_');
     std::vector<Stats<T>> value_stats;
     for (const auto &t : values) {
         Stats<T> stats;

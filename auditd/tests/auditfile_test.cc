@@ -252,7 +252,7 @@ TEST_F(AuditFileTest, PruneFiles) {
             using namespace std::filesystem;
             auto ts = cb::time::timestamp(time(nullptr) - seconds.count())
                               .substr(0, 19);
-            std::replace(ts.begin(), ts.end(), ':', '-');
+            std::ranges::replace(ts, ':', '-');
             auto filename = fmt::format("{}-{}-audit.log", hostname, ts);
             auto path = logdir / fmt::format("{}-{}-audit.log", hostname, ts);
             FILE* fp = fopen(path.generic_string().c_str(), "w");

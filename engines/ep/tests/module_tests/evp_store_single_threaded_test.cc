@@ -684,7 +684,7 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     // GTest does not like "=" or ":" symbols in these param name strings
     // so we have to remove them. We'll also remove some redundant config
     // names while we're at it to make reading the param names easier.
-    std::replace(config.begin(), config.end(), ':', '_');
+    std::ranges::replace(config, ':', '_');
     boost::replace_all(config, "bucket_type=", "");
     boost::replace_all(config, "ephemeral_full_policy=", "");
     boost::replace_all(config, "item_eviction_policy=", "");

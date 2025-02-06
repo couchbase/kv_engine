@@ -127,8 +127,8 @@ public:
 
         if (!testJson()) {
             // Same length, but not json
-            std::replace(rv.begin(), rv.end(), '{', 'q');
-            std::replace(rv.begin(), rv.end(), '}', 'r');
+            std::ranges::replace(rv, '{', 'q');
+            std::ranges::replace(rv, '}', 'r');
         }
         return rv;
     }
@@ -139,8 +139,8 @@ public:
         std::string rv = value.dump();
         if (!testJson()) {
             // Same length, but not json
-            std::replace(rv.begin(), rv.end(), '{', 'q');
-            std::replace(rv.begin(), rv.end(), '}', 'r');
+            std::ranges::replace(rv, '{', 'q');
+            std::ranges::replace(rv, '}', 'r');
         }
         return rv;
     }
@@ -151,8 +151,8 @@ public:
         std::string rv = value.dump();
         if (!testJson()) {
             // Same length, but not json
-            std::replace(rv.begin(), rv.end(), '{', 'q');
-            std::replace(rv.begin(), rv.end(), '}', 'r');
+            std::ranges::replace(rv, '{', 'q');
+            std::ranges::replace(rv, '}', 'r');
         }
         return rv;
     }

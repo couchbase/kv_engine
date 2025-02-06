@@ -304,8 +304,8 @@ void cb::logger::logWithContext(spdlog::logger& logger,
     std::string sanitized;
     if (msg.find_first_of("{}") != std::string::npos) {
         sanitized = msg;
-        std::replace(sanitized.begin(), sanitized.end(), '{', '[');
-        std::replace(sanitized.begin(), sanitized.end(), '}', ']');
+        std::ranges::replace(sanitized, '{', '[');
+        std::ranges::replace(sanitized, '}', ']');
         msg = sanitized;
     }
 

@@ -304,7 +304,7 @@ std::string sanitizeTestParamConfigString(std::string_view config) {
     std::string ret(config);
     // GTest does not like ';' characters in test parameters so we use ':' as a
     // placeholder and replace it here.
-    std::replace(ret.begin(), ret.end(), ':', ';');
+    std::ranges::replace(ret, ':', ';');
 
     // Whilst we take the "couchdb" parameter for the backend in
     // configuration.json we actually use couchstore so all of our test

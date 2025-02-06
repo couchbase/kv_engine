@@ -1388,7 +1388,7 @@ void Connection::setConnectionId(std::string_view uuid) {
     connectionId[size] = '\0';
     // Remove any occurrences of " so that the client won't be allowed
     // to mess up the output where we log the cid
-    std::replace(connectionId.begin(), connectionId.end(), '"', ' ');
+    std::ranges::replace(connectionId, '"', ' ');
 }
 
 size_t Connection::getNumberOfCookies() const {

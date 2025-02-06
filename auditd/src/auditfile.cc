@@ -169,7 +169,7 @@ bool AuditFile::open() {
     Expects(!file && "The file shouldn't be open");
     open_time = auditd_time();
     auto ts = cb::time::timestamp(open_time).substr(0, 19);
-    std::replace(ts.begin(), ts.end(), ':', '-');
+    std::ranges::replace(ts, ':', '-');
 
     encryption_config_version = global_encryption_config_version->load();
     auto key = cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit);
