@@ -115,7 +115,7 @@ std::string LibeventConnection::formatOpenSslErrorCodes(
         return messages.front();
     }
 
-    std::reverse(messages.begin(), messages.end());
+    std::ranges::reverse(messages);
     std::string ret = "[";
     for (const auto& a : messages) {
         ret.append(a);

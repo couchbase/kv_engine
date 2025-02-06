@@ -200,7 +200,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
     storeMany(h, keys);
     EXPECT_EQ(nkeys, count(h));
 
-    std::reverse(keys.begin(), keys.end());
+    std::ranges::reverse(keys);
 
     for (const auto& key : keys) {
         del(h, key);
