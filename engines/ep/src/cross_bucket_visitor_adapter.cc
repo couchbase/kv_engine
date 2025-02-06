@@ -167,13 +167,9 @@ void CrossBucketVisitorAdapter::onVisitorRunCompleted(
                     (void*)expectedTask);
             // Remove the task from the queue. It is no longer managed by the
             // adaptor.
-            orderedTasks.erase(std::remove_if(orderedTasks.begin(),
-                                              orderedTasks.end(),
-                                              [&task](const auto& t) {
-                                                  return t.lock().get() ==
-                                                         &task;
-                                              }),
-                               orderedTasks.end());
+            std::erase_if(orderedTasks, [&task](const auto& t) {
+                return t.lock().get() == &task;
+            });
             return;
         }
     }

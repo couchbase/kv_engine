@@ -903,13 +903,9 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
             if (cookies.front().get() == &cookie) {
                 cookies.front()->reset();
             } else {
-                cookies.erase(
-                        std::remove_if(cookies.begin(),
-                                       cookies.end(),
-                                       [ptr = &cookie](const auto& cookie) {
-                                           return ptr == cookie.get();
-                                       }),
-                        cookies.end());
+                std::erase_if(cookies, [ptr = &cookie](const auto& cookie) {
+                    return ptr == cookie.get();
+                });
             }
             triggerCallback();
         } else if (std::chrono::steady_clock::now() > current_timeslice_end) {
