@@ -7470,11 +7470,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // (A) Find any missing stats - those expected (in statsKeys) but not
         // found in actual.
         std::vector<std::string_view> missing;
-        std::set_difference(expected.begin(),
-                            expected.end(),
-                            actual.begin(),
-                            actual.end(),
-                            std::inserter(missing, missing.begin()));
+        std::ranges::set_difference(
+                expected, actual, std::inserter(missing, missing.begin()));
 
         for (const auto& key : missing) {
             error = true;
@@ -7486,11 +7483,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
 
         // (B) Find any extra stats - those in actual which are not in expected.
         std::vector<std::string_view> extra;
-        std::set_difference(actual.begin(),
-                            actual.end(),
-                            expected.begin(),
-                            expected.end(),
-                            std::inserter(extra, extra.begin()));
+        std::ranges::set_difference(
+                actual, expected, std::inserter(extra, extra.begin()));
 
         for (const auto& key : extra) {
             // We have extra key(s) which don't exactly match `expected`; see if
