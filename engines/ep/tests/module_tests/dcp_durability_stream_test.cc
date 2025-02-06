@@ -406,6 +406,14 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
 
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
 
+    {
+        auto handle = vb->lockCollections();
+        handle.incrementItemCount(CollectionID::Default);
+        handle.setHighSeqno(CollectionID::Default,
+                            1,
+                            Collections::VB::HighSeqnoType::PrepareAbort);
+    }
+
     // We don't account Prepares in VB stats
     EXPECT_EQ(0, vb->getNumItems());
 
@@ -559,6 +567,14 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
     auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
     VBQueueItemCtx ctx{CanDeduplicate::Yes};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+
+    {
+        auto handle = vb->lockCollections();
+        handle.incrementItemCount(CollectionID::Default);
+        handle.setHighSeqno(CollectionID::Default,
+                            1,
+                            Collections::VB::HighSeqnoType::Committed);
+    }
 
     // Required at for transitioning to backfill at EPBucket
     flushVBucketToDiskIfPersistent(vbid, 1 /*num expected flushed*/);
@@ -994,6 +1010,15 @@ TEST_P(DurabilityActiveStreamTest,
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
+
+    {
+        auto handle = vb->lockCollections();
+        handle.incrementItemCount(CollectionID::Default);
+        handle.setHighSeqno(CollectionID::Default,
+                            1,
+                            Collections::VB::HighSeqnoType::PrepareAbort);
+    }
+
     flushVBucketToDiskIfPersistent(vbid);
     vb->notifyActiveDMOfLocalSyncWrite();
 

@@ -111,7 +111,20 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
     // Skip rollback due to purgeSeqno if the client has seen all changes
     // in the collections it filters by.
     auto collHigh = evb->getHighSeqnoOfCollections(stream->getFilter());
+
     if (collHigh.has_value()) {
+        // For a filtered stream we can avoid scanning if the stats show us that
+        // the collection(s) have no data above the startSeqno
+        if (collHigh.value() < startSeqno) {
+            stream->logWithContext(spdlog::level::level_enum::info,
+                                   "DCPBackfillMemoryBuffered: skipping as "
+                                   "collection_high < start",
+                                   {{"collection_high_seqno", collHigh.value()},
+                                    {"start_seqno", startSeqno}});
+            complete(*stream);
+            return backfill_finished;
+        }
+
         allowNonRollBackStream = stream->getStartSeqno() < purgeSeqno &&
                                  stream->getStartSeqno() >= collHigh.value() &&
                                  collHigh.value() <= purgeSeqno;

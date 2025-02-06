@@ -2085,10 +2085,28 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     const std::string value = "value";
     auto item = make_item(vbid, key, value);
 
-    EXPECT_EQ(
+    ASSERT_EQ(
             MutationStatus::WasClean,
             public_processSet(*vb, item, VBQueueItemCtx(CanDeduplicate::Yes)));
 
+    // Update the collection stats. Frontend ops update the manifest stats
+    // directly, but we are calling public_processSet above which call the
+    // internal vbucket processSet, therefore manual update them.
+
+    // Why update the collection stats?
+
+    // Start seqno for the stream is 1 & collection high seqno is 0 (if not
+    // updated). With the optimization in MB-62963, we check if a backfill can
+    // be skipped if the start seqno in the stream request is greater than the
+    // high seqno of the collections requested in a collection filtered stream.
+    // Update the collection stats, to make sure backfill runs.
+    {
+        auto handle = vb->lockCollections();
+        handle.incrementItemCount(CollectionID::Default);
+        handle.setHighSeqno(CollectionID::Default,
+                            1,
+                            Collections::VB::HighSeqnoType::Committed);
+    }
     // Ensure mutation is on disk; no longer present in CheckpointManager.
     vb->checkpointManager->createNewCheckpoint();
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -6850,23 +6868,9 @@ TEST_P(SingleThreadedActiveStreamTest,
     // Perform the actual backfill - fills up the readyQ in the stream.
     producer->getBFM().backfill();
 
-    // The behavior for collection-filtered streams is different for ephemeral
-    // buckets & persistent bucket.
-    // Looks like a known issue: See MB-62963 for more details.
-    if (ephemeral()) {
-        auto resp = stream->next(*producer);
-        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
-        auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
-        //! The purgeSeqno shouldn't be present.
-        EXPECT_FALSE(snapMarker.getPurgeSeqno().has_value());
-
-        resp = stream->next(*producer);
-        EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
-    } else {
-        // All the documents are filtered out - we shouldn't have queue any
-        // items.
-        EXPECT_EQ(0, stream->public_readyQSize());
-    }
+    // All the documents are filtered out - we shouldn't have queue any
+    // items.
+    EXPECT_EQ(0, stream->public_readyQSize());
 
     //! 3. Test the snapshot marker does not include the purgeSeqno. Must
     //! receive the one mutation relevant to this stream.

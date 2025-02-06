@@ -365,12 +365,6 @@ TEST_P(CollectionsDcpStreamsTest,
 }
 
 TEST_P(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
-    if (!isPersistent()) {
-        // MB-62963: Ephemeral sends a SnapshotMarker (but no items) for the
-        // initial marker, which changes the test expectations.
-        GTEST_SKIP();
-    }
-
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
@@ -794,7 +788,10 @@ TEST_P(CollectionsDcpStreamsTest, two_streams) {
 
 TEST_P(CollectionsDcpStreamsTest, two_streams_different) {
     if (!isPersistent()) {
-        // MB-62963: Enable test for ephemeral.
+        // This was originally mis-categorized as to be fixed with
+        // MB-62963. With the fix for MB-62963, the test still fails, since the
+        // test below doesn't need a backfill. Opened MB-65365 to investigate
+        // why the test fails for ephemeral buckets.
         GTEST_SKIP();
     }
     CollectionsManifest cm;
@@ -858,7 +855,6 @@ TEST_P(CollectionsDcpStreamsTest, two_streams_different) {
 TEST_P(CollectionsDcpStreamsTest,
        MB_41092_Ensure_compaction_scheduled_dropped_collection) {
     if (!isPersistent()) {
-        // MB-62963: Enable test for ephemeral.
         GTEST_SKIP();
     }
     // set the vbucket to the pending state
@@ -1000,10 +996,6 @@ public:
 };
 
 TEST_P(CollectionsDcpStreamsTestWithDurationZero, multi_stream_time_limited) {
-    if (!isPersistent()) {
-        // MB-62963: Enable test for ephemeral.
-        GTEST_SKIP();
-    }
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     setCollections(cookie, cm);
@@ -1060,7 +1052,7 @@ TEST_P(CollectionsDcpStreamsTestWithDurationZero, multi_stream_time_limited) {
 
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpStreamsTestsWithDurationZero,
                          CollectionsDcpStreamsTestWithDurationZero,
-                         STParameterizedBucketTest::allConfigValuesNoNexus(),
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 class CollectionsDcpStreamsTestWithHugeDuration
@@ -1077,10 +1069,6 @@ public:
 
 // Test all streams are processed in one run (if time allows)
 TEST_P(CollectionsDcpStreamsTestWithHugeDuration, multi_stream) {
-    if (!isPersistent()) {
-        // MB-62963: Enable test for ephemeral.
-        GTEST_SKIP();
-    }
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     setCollections(cookie, cm);
