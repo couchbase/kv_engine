@@ -168,9 +168,7 @@ bool Manifest::compareCollections(const Manifest& other) const {
     }
 
     for (const auto& collection : collections) {
-        if (std::count(other.collections.begin(),
-                       other.collections.end(),
-                       collection) == 0) {
+        if (std::ranges::count(other.collections, collection) == 0) {
             return false;
         }
     }
@@ -184,7 +182,7 @@ bool Manifest::compareScopes(const Manifest& other) const {
     }
 
     for (const auto& scope : scopes) {
-        if (std::count(other.scopes.begin(), other.scopes.end(), scope) == 0) {
+        if (std::ranges::count(other.scopes, scope) == 0) {
             return false;
         }
     }

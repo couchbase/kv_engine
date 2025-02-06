@@ -308,19 +308,17 @@ TEST_F(CollectionsTests, TestBasicRbac) {
     EXPECT_EQ("0", json["scopes"][0]["uid"]);
     EXPECT_EQ(2, json["scopes"][0]["collections"].size());
     EXPECT_EQ(1,
-              std::count_if(json["scopes"][0]["collections"].begin(),
-                            json["scopes"][0]["collections"].end(),
-                            [](nlohmann::json entry) {
-                                return entry["name"] == "_default" &&
-                                       entry["uid"] == "0";
-                            }));
+              std::ranges::count_if(json["scopes"][0]["collections"],
+                                    [](nlohmann::json entry) {
+                                        return entry["name"] == "_default" &&
+                                               entry["uid"] == "0";
+                                    }));
     EXPECT_EQ(1,
-              std::count_if(json["scopes"][0]["collections"].begin(),
-                            json["scopes"][0]["collections"].end(),
-                            [](nlohmann::json entry) {
-                                return entry["name"] == "fruit" &&
-                                       entry["uid"] == "9";
-                            }));
+              std::ranges::count_if(json["scopes"][0]["collections"],
+                                    [](nlohmann::json entry) {
+                                        return entry["name"] == "fruit" &&
+                                               entry["uid"] == "9";
+                                    }));
 
     cluster->getAuthProviderService().removeUser(username);
 }

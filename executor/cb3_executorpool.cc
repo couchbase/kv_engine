@@ -435,10 +435,8 @@ void CB3ExecutorPool::_adjustWorkers(TaskType type, size_t desiredNumItems) {
         std::lock_guard<std::mutex> lh(tMutex);
 
         // How many threads performing this task type there are currently
-        numItems = std::count_if(
-                threadQ.begin(),
-                threadQ.end(),
-                [type](std::unique_ptr<CB3ExecutorThread>& thread) {
+        numItems = std::ranges::count_if(
+                threadQ, [type](std::unique_ptr<CB3ExecutorThread>& thread) {
                     return thread->taskType == type;
                 });
 

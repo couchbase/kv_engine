@@ -2629,7 +2629,7 @@ CouchKVStore::getVbucketRevisions(
         std::string rev(couchfile.substr(couchfile.rfind('.') + 1));
 
         // possible to get x..couch..y which is invalid
-        bool valid = std::count(couchfile.begin(), couchfile.end(), '.') == 2;
+        bool valid = std::ranges::count(couchfile, '.') == 2;
 
         Vbid id;
         uint64_t revision = 0;

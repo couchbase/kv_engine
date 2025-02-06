@@ -228,10 +228,7 @@ public:
             auto cmp = [&e](const Collections::KVStore::OpenCollection& entry) {
                 return e.metaData.cid == entry.metaData.cid;
             };
-            EXPECT_EQ(
-                    1,
-                    std::count_if(
-                            md.collections.begin(), md.collections.end(), cmp));
+            EXPECT_EQ(1, std::ranges::count_if(md.collections, cmp));
         }
 
         auto [status, dropped] = kvstore->getDroppedCollections(Vbid(0));

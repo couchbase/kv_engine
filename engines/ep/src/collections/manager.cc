@@ -217,11 +217,11 @@ std::pair<cb::mcbp::Status, nlohmann::json> Collections::Manager::getManifest(
 }
 
 bool Collections::Manager::validateGetCollectionIDPath(std::string_view path) {
-    return std::count(path.begin(), path.end(), '.') == 1;
+    return std::ranges::count(path, '.') == 1;
 }
 
 bool Collections::Manager::validateGetScopeIDPath(std::string_view path) {
-    return std::count(path.begin(), path.end(), '.') <= 1;
+    return std::ranges::count(path, '.') <= 1;
 }
 
 cb::EngineErrorGetCollectionIDResult Collections::Manager::getCollectionID(
