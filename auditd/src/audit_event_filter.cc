@@ -55,7 +55,7 @@ public:
             return true;
         }
 
-        return std::binary_search(vec.begin(), vec.end(), id);
+        return std::ranges::binary_search(vec, id);
     }
 
     nlohmann::json to_json() const {
@@ -86,7 +86,7 @@ public:
     }
 
     bool isEnabled(AuditId id) const {
-        return std::binary_search(enabled.begin(), enabled.end(), id);
+        return std::ranges::binary_search(enabled, id);
     }
 
 protected:
