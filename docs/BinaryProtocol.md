@@ -501,6 +501,11 @@ information about a given command.
 | 0x65 | [Dcp Out of Sequence Order snapshot](dcp/documentation/commands/oso_snapshot.md) |
 | 0x70 | [Get Fusion Storage Snapshot](./fusion.md#0x70---Get-Fusion-Storage-Snapshot) |
 | 0x71 | [Release Fusion Storage Snapshot](./fusion.md#0x71---Release-Fusion-Storage-Snapshot) |
+| 0x72 | [Mount Fusion Vbucket](./fusion.md#0x72---Mount-Fusion-Vbucket) |
+| 0x73 | [Unmount Fusion Vbucket](./fusion.md#0x73---Unmount-Fusion-Vbucket) |
+| 0x74 | [Sync Fusion Logstore](./fusion.md#0x74---Sync-Fusion-Logstore) |
+| 0x75 | [Start Fusion Uploader](./fusion.md#0x75---Start-Fusion-Uploader) |
+| 0x76 | [Stop Fusion Uploader](./fusion.md#0x76---Stop-Fusion-Uploader) |
 | 0x80 | Stop persistence |
 | 0x81 | Start persistence |
 | 0x82 | Set param |
