@@ -923,6 +923,7 @@ public:
             Vbid vbid, const std::vector<std::string>& paths) = 0;
     virtual cb::engine_errc syncFusionLogstore(Vbid vbid) = 0;
     virtual cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) = 0;
+    virtual cb::engine_errc stopFusionUploader(Vbid vbid) = 0;
 
     /**
      * Prepare a snapshot - backend implementation

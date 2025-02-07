@@ -890,6 +890,11 @@ struct EngineIface {
                                                               uint64_t term);
 
     /**
+     * Stop uploading data to FusionLogStore for the given vbucket/kvstore.
+     */
+    [[nodiscard]] virtual cb::engine_errc stopFusionUploader(Vbid vbid);
+
+    /**
      * Notify the engine it has been paused. Engine should perform any work
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.

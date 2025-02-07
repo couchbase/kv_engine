@@ -301,4 +301,14 @@ TEST_P(FusionTest, StartFusionUploader) {
     });
 }
 
+TEST_P(FusionTest, StopFusionUploader) {
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StopFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+}
+
 #endif // USE_FUSION

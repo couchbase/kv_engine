@@ -317,6 +317,11 @@ public:
     magma::Status StartFusionUploader(magma::Magma::KVStoreID kvId,
                                       uint64_t term);
 
+    /**
+     * Stop uploading data to FusionLogStore for the given kvstore.
+     */
+    magma::Status StopFusionUploader(magma::Magma::KVStoreID kvId);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };

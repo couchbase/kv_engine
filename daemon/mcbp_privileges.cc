@@ -438,6 +438,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::NodeSupervisor>);
     setup(cb::mcbp::ClientOpcode::StartFusionUploader,
           require<Privilege::NodeSupervisor>);
+    setup(cb::mcbp::ClientOpcode::StopFusionUploader,
+          require<Privilege::NodeSupervisor>);
 
     if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
         // The opcode used to set the clock by our extension

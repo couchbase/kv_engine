@@ -769,3 +769,9 @@ magma::Status MagmaMemoryTrackingProxy::StartFusionUploader(
     cb::UseArenaMallocSecondaryDomain d;
     return magma->StartFusionUploader(kvId, term);
 }
+
+magma::Status MagmaMemoryTrackingProxy::StopFusionUploader(
+        magma::Magma::KVStoreID kvId) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->StopFusionUploader(kvId);
+}

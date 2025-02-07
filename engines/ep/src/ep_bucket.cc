@@ -3080,6 +3080,15 @@ cb::engine_errc EPBucket::startFusionUploader(Vbid vbid, uint64_t term) {
     return getRWUnderlying(vbid)->startFusionUploader(vbid, term);
 }
 
+cb::engine_errc EPBucket::stopFusionUploader(Vbid vbid) {
+    auto* underlying = getRWUnderlying(vbid);
+    Expects(underlying);
+    if (!underlying->getStorageProperties().supportsFusion()) {
+        return cb::engine_errc::not_supported;
+    }
+    return getRWUnderlying(vbid)->stopFusionUploader(vbid);
+}
+
 cb::engine_errc EPBucket::initialiseSnapshots() {
     const auto path =
             std::filesystem::path{getConfiguration().getDbname()} / "snapshots";

@@ -79,6 +79,10 @@ cb::engine_errc EngineIface::startFusionUploader(Vbid vbid, uint64_t term) {
     return cb::engine_errc::not_supported;
 }
 
+cb::engine_errc EngineIface::stopFusionUploader(Vbid vbid) {
+    return cb::engine_errc::not_supported;
+}
+
 cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {
     return cb::engine_errc::not_supported;
 }

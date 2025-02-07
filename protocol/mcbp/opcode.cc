@@ -822,6 +822,8 @@ public:
               {"SYNC_FUSION_LOGSTORE"sv, {Attribute::Supported}});
         setup(ClientOpcode::StartFusionUploader,
               {"START_FUSION_UPLOADER"sv, {Attribute::Supported}});
+        setup(ClientOpcode::StopFusionUploader,
+              {"STOP_FUSION_UPLOADER"sv, {Attribute::Supported}});
     }
 
 protected:

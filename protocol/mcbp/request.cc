@@ -405,7 +405,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::ReservedFusion3:
         case ClientOpcode::SyncFusionLogstore:
         case ClientOpcode::StartFusionUploader:
-        case ClientOpcode::ReservedFusion6:
+        case ClientOpcode::StopFusionUploader:
         case ClientOpcode::ReservedFusion7:
         case ClientOpcode::ReservedFusion8:
             // The command don't take (or we don't support decoding) extras

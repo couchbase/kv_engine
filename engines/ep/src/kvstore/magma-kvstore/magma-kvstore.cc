@@ -4622,3 +4622,14 @@ cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {
     }
     return cb::engine_errc::success;
 }
+
+cb::engine_errc MagmaKVStore::stopFusionUploader(Vbid vbid) {
+    const auto status = magma->StopFusionUploader(Magma::KVStoreID(vbid.get()));
+    if (status.ErrorCode() != Status::Code::Ok) {
+        EP_LOG_WARN_CTX("MagmaKVStore::stopFusionUploader: ",
+                        {"vb", vbid},
+                        {"status", status.String()});
+        return cb::engine_errc::failed;
+    }
+    return cb::engine_errc::success;
+}

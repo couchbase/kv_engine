@@ -76,6 +76,7 @@ TASK(Core_GetFusionStorageSnapshotTask, TaskType::AuxIO, 6)
 TASK(Core_ReleaseFusionStorageSnapshotTask, TaskType::AuxIO, 6)
 TASK(Core_MountFusionVBucketTask, TaskType::AuxIO, 6)
 TASK(Core_StartFusionUploaderTask, TaskType::AuxIO, 6)
+TASK(Core_StopFusionUploaderTask, TaskType::AuxIO, 6)
 
 // Read/Write IO tasks
 TASK(RollbackTask, TaskType::Writer, 1)

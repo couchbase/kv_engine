@@ -307,6 +307,7 @@ public:
             Vbid vbid, const std::vector<std::string>& paths) override;
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
+    cb::engine_errc stopFusionUploader(Vbid vbid) override;
 
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
@@ -1524,6 +1525,7 @@ protected:
             Vbid vbid, const std::vector<std::string>& paths);
     cb::engine_errc syncFusionLogstoreInner(Vbid vbid);
     cb::engine_errc startFusionUploaderInner(Vbid vbid, uint64_t term);
+    cb::engine_errc stopFusionUploaderInner(Vbid vbid);
 
     cb::engine_errc setFusionMetadataAuthToken(std::string_view token);
     std::string getFusionMetadataAuthToken() const;

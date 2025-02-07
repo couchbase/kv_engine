@@ -992,6 +992,10 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    [[nodiscard]] virtual cb::engine_errc stopFusionUploader(Vbid vbid) {
+        return cb::engine_errc::not_supported;
+    }
+
     /**
      * Result of the loadPreparedSyncWrites function
      */

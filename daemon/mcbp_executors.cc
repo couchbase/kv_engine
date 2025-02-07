@@ -54,6 +54,7 @@
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/start_fusion_uploader_command_context.h"
 #include "protocol/mcbp/stats_context.h"
+#include "protocol/mcbp/stop_fusion_uploader_command_context.h"
 #include "protocol/mcbp/sync_fusion_logstore_command_context.h"
 #include "protocol/mcbp/unknown_packet_command_context.h"
 #include "session_cas.h"
@@ -665,6 +666,15 @@ static void start_fusion_uploader_executor(Cookie& cookie) {
     cookie.obtainContext<StartFusionUploaderCommandContext>(cookie).drive();
 }
 
+static void stop_fusion_uploader_executor(Cookie& cookie) {
+    if (!cookie.getConnection().getBucket().supports(
+                cb::engine::Feature::Persistence)) {
+        cookie.sendResponse(cb::mcbp::Status::NotSupported);
+        return;
+    }
+    cookie.obtainContext<StopFusionUploaderCommandContext>(cookie).drive();
+}
+
 static void process_bin_noop_response(Cookie&) {
     // do nothing
 }
@@ -944,6 +954,8 @@ void initialize_mbcp_lookup_map() {
                   sync_fusion_logstore_executor);
     setup_handler(cb::mcbp::ClientOpcode::StartFusionUploader,
                   start_fusion_uploader_executor);
+    setup_handler(cb::mcbp::ClientOpcode::StopFusionUploader,
+                  stop_fusion_uploader_executor);
 
     setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
                   start_persistence_executor);

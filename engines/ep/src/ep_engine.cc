@@ -7745,6 +7745,10 @@ cb::engine_errc EventuallyPersistentEngine::startFusionUploader(Vbid vbid,
     return acquireEngine(this)->startFusionUploaderInner(vbid, term);
 }
 
+cb::engine_errc EventuallyPersistentEngine::stopFusionUploader(Vbid vbid) {
+    return acquireEngine(this)->stopFusionUploaderInner(vbid);
+}
+
 cb::engine_errc EventuallyPersistentEngine::pause(
         folly::CancellationToken cancellationToken) {
     return kvBucket->prepareForPause(cancellationToken);
@@ -7987,4 +7991,9 @@ cb::engine_errc EventuallyPersistentEngine::startFusionUploaderInner(
         Vbid vbid, uint64_t term) {
     Expects(kvBucket);
     return kvBucket->startFusionUploader(vbid, term);
+}
+
+cb::engine_errc EventuallyPersistentEngine::stopFusionUploaderInner(Vbid vbid) {
+    Expects(kvBucket);
+    return kvBucket->stopFusionUploader(vbid);
 }

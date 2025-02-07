@@ -2803,6 +2803,16 @@ static Status start_fusion_uploader_validator(Cookie& cookie) {
     return status;
 }
 
+static Status stop_fusion_uploader_validator(Cookie& cookie) {
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::Zero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
+                                        PROTOCOL_BINARY_RAW_BYTES);
+}
+
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
     const auto idx = std::underlying_type<ClientOpcode>::type(command);
     if (validators[idx]) {
@@ -3109,4 +3119,6 @@ McbpValidator::McbpValidator() {
           sync_fusion_logstore_validator);
     setup(cb::mcbp::ClientOpcode::StartFusionUploader,
           start_fusion_uploader_validator);
+    setup(cb::mcbp::ClientOpcode::StopFusionUploader,
+          stop_fusion_uploader_validator);
 }

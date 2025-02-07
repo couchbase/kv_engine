@@ -219,6 +219,10 @@ public:
         return cb::engine_errc::not_supported;
     }
 
+    cb::engine_errc stopFusionUploader(Vbid vbid) override {
+        return cb::engine_errc::not_supported;
+    }
+
     /**
      * Unit test only hook called before we compact the first KVStore. Public as
      * we want to use this in full bucket unit tests as it's non-trivial to run

@@ -240,6 +240,7 @@ public:
             Vbid vbid, const std::vector<std::string>& paths) override;
     cb::engine_errc syncFusionLogstore(Vbid vbid) override;
     cb::engine_errc startFusionUploader(Vbid vbid, uint64_t term) override;
+    cb::engine_errc stopFusionUploader(Vbid vbid) override;
 
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
@@ -1386,6 +1387,10 @@ cb::engine_errc EWB_Engine::syncFusionLogstore(Vbid vbid) {
 
 cb::engine_errc EWB_Engine::startFusionUploader(Vbid vbid, uint64_t term) {
     return real_engine->startFusionUploader(vbid, term);
+}
+
+cb::engine_errc EWB_Engine::stopFusionUploader(Vbid vbid) {
+    return real_engine->stopFusionUploader(vbid);
 }
 
 cb::engine_errc EWB_Engine::pause(folly::CancellationToken cancellationToken) {
