@@ -956,6 +956,7 @@
     {
         "key": "ep_num_ops_get_meta",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -968,6 +969,7 @@
     {
         "key": "ep_num_ops_set_meta",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -980,6 +982,7 @@
     {
         "key": "ep_num_ops_del_meta",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -997,6 +1000,7 @@
     {
         "key": "ep_num_ops_set_meta_res_fail",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops_failed",
             "labels": {
@@ -1008,6 +1012,7 @@
     {
         "key": "ep_num_ops_del_meta_res_fail",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops_failed",
             "labels": {
@@ -1019,6 +1024,7 @@
     {
         "key": "ep_num_ops_set_ret_meta",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1031,6 +1037,7 @@
     {
         "key": "ep_num_ops_del_ret_meta",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -1043,6 +1050,7 @@
     {
         "key": "ep_num_ops_get_meta_on_set_meta",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2274,6 +2282,7 @@
         "key": "cmd_set",
         "description": "The number of set operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2286,6 +2295,7 @@
         "key": "cmd_flush",
         "description": "The number of flush operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2298,6 +2308,7 @@
         "key": "cmd_lock",
         "description": "The number of lock operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2315,6 +2326,7 @@
         "key": "cmd_subdoc_lookup",
         "description": "The number of subdoc operations performing lookup",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "subdoc_ops",
             "labels": {
@@ -2327,6 +2339,7 @@
         "key": "cmd_subdoc_mutation",
         "description": "The number of subdoc operations performing data mutations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "subdoc_ops",
             "labels": {
@@ -2488,6 +2501,7 @@
         "key": "get_hits",
         "description": "The number of successful get operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2501,6 +2515,7 @@
         "key": "get_misses",
         "description": "The number of unsuccessful get operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2514,6 +2529,7 @@
         "key": "delete_misses",
         "description": "The number of unsuccessful delete operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2527,6 +2543,7 @@
         "key": "delete_hits",
         "description": "The number of successful delete operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2540,6 +2557,7 @@
         "key": "incr_misses",
         "description": "The number of unsuccessful INCR operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2553,6 +2571,7 @@
         "key": "incr_hits",
         "description": "The number of successful INCR operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2566,6 +2585,7 @@
         "key": "decr_misses",
         "description": "The number of unsuccesful DECR operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2579,6 +2599,7 @@
         "key": "decr_hits",
         "description": "The number of successful DECR operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2592,6 +2613,7 @@
         "key": "cas_misses",
         "description": "The number of unsuccessful CAS operations due to missing document",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2605,6 +2627,7 @@
         "key": "cas_hits",
         "description": "The number of successful CAS operations",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
@@ -2618,6 +2641,7 @@
         "key": "cas_badval",
         "description": "The number of unsuccessful CAS operations due to incorrect CAS value",
         "unit": "none",
+        "type": "counter",
         "prometheus": {
             "family": "ops",
             "labels": {
