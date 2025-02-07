@@ -502,7 +502,12 @@ enum class ErrorHandlingMethod {
 
 } // namespace cb
 
-enum class FusionStat : uint8_t { Invalid, SyncInfo, ActiveGuestVolumes };
+enum class FusionStat : uint8_t {
+    Invalid,
+    SyncInfo,
+    ActiveGuestVolumes,
+    UploaderState
+};
 FusionStat toFusionStat(const std::string& str);
 std::string format_as(FusionStat stat);
 

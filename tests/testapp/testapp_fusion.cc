@@ -311,4 +311,58 @@ TEST_P(FusionTest, StopFusionUploader) {
     });
 }
 
+TEST_P(FusionTest, UploaderState) {
+    // Uploader disabled at start
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        nlohmann::json res;
+        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
+                   "fusion uploader_state 0");
+        ASSERT_FALSE(res.empty());
+        ASSERT_TRUE(res.is_string());
+        EXPECT_EQ("disabled", res);
+    });
+
+    // Start uploader
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StartFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        nlohmann::json json;
+        json["term"] = "123";
+        cmd.setValue(json.dump());
+        cmd.setDatatype(cb::mcbp::Datatype::JSON);
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+
+    // verify stat
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        nlohmann::json res;
+        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
+                   "fusion uploader_state 0");
+        ASSERT_FALSE(res.empty());
+        ASSERT_TRUE(res.is_string());
+        EXPECT_EQ("enabled", res);
+    });
+
+    // Stop uploader
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        auto cmd = BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::StopFusionUploader};
+        cmd.setVBucket(Vbid(0));
+        const auto resp = conn.execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+
+    // verify stat
+    adminConnection->executeInBucket(bucketName, [](auto& conn) {
+        nlohmann::json res;
+        conn.stats([&res](auto& k, auto& v) { res = nlohmann::json::parse(v); },
+                   "fusion uploader_state 0");
+        ASSERT_FALSE(res.empty());
+        ASSERT_TRUE(res.is_string());
+        EXPECT_EQ("disabled", res);
+    });
+}
+
 #endif // USE_FUSION

@@ -775,3 +775,9 @@ magma::Status MagmaMemoryTrackingProxy::StopFusionUploader(
     cb::UseArenaMallocSecondaryDomain d;
     return magma->StopFusionUploader(kvId);
 }
+
+std::tuple<magma::Status, bool> MagmaMemoryTrackingProxy::IsFusionUploader(
+        magma::Magma::KVStoreID kvId) {
+    cb::UseArenaMallocSecondaryDomain d;
+    return magma->IsFusionUploader(kvId);
+}

@@ -322,6 +322,12 @@ public:
      */
     magma::Status StopFusionUploader(magma::Magma::KVStoreID kvId);
 
+    /**
+     * @return True if fusion uploader is enabled for given kvstore.
+     */
+    std::tuple<magma::Status, bool> IsFusionUploader(
+            magma::Magma::KVStoreID kvId);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };
