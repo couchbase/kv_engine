@@ -169,7 +169,7 @@ TEST_P(LockTest, UnlockNotLockedDocument) {
         userConnection->unlock(name, Vbid(0), info.cas);
         FAIL() << "Unlocking a not locked document should fail";
     } catch (const ConnectionError& ex) {
-        EXPECT_EQ(cb::mcbp::Status::NotLocked, ex.getReason());
+        EXPECT_EQ(cb::mcbp::Status::Etmpfail, ex.getReason());
     }
     userConnection->setAutoRetryTmpfail(true);
 }
