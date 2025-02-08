@@ -13,8 +13,10 @@
 #include "settings.h"
 
 #include <dek/manager.h>
+#include <fmt/format.h>
 #include <getopt.h>
 #include <nlohmann/json.hpp>
+#include <platform/string_utilities.h>
 #include <iostream>
 #include <vector>
 
@@ -29,7 +31,7 @@ static void usage() {
 }
 
 static std::string read_command() {
-    std::vector<char> buffer(4096);
+    std::vector<char> buffer(1 * 1024 * 1024);
 #ifdef WIN32
     // Windows call a blocking call to fgets() in stdin_check so we
     // can might as well use the portable fgets() and not have to
@@ -50,7 +52,10 @@ static std::string read_command() {
         }
     }
     if (ii == buffer.size() - 1) {
-        std::cerr << "Fatal error: command too long" << std::endl;
+        fmt::println(stderr,
+                     "Fatal error: Bootstrap command too long (exceeding max "
+                     "size of {})",
+                     cb::size2human(buffer.size()));
         std::_Exit(EXIT_FAILURE);
     }
 #endif
