@@ -539,6 +539,16 @@ public:
         return backfillUID;
     }
 
+    /**
+     * For collection filter, return the start seqno of the collection,
+     * otherwise return std::nullopt.
+     *
+     * @return the collection start seqno or std::nullopt
+     */
+    std::optional<uint64_t> getCollectionStartSeqno() const {
+        return collectionStartSeqno;
+    }
+
 protected:
     void clear_UNLOCKED();
 

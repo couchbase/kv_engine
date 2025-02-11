@@ -6999,6 +6999,73 @@ TEST_P(SingleThreadedActiveStreamTest,
     ASSERT_TRUE(stream->isDead());
 }
 
+// MB-65019: Collection filtered stream should not end immediately when
+// start seqno is equal to collection's start seqno.
+TEST_P(SingleThreadedActiveStreamTest,
+       NoRollbackStartSeqnoEqualCollectionStartSeqno) {
+    // Reset the stream created originally as part of the test setup
+    stream.reset();
+    auto& vb = *engine->getVBucket(vbid);
+
+    // Store item in default collection
+    store_item(vbid, makeStoredDocKey("foo"), "bar"); // seqno:1
+
+    // Create a collection - seqno:2
+    CollectionsManifest manifest;
+    const auto& cVegetable = CollectionEntry::vegetable;
+    manifest.add(cVegetable,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+    vb.updateFromManifest(
+            std::shared_lock<folly::SharedMutex>(vb.getStateLock()),
+            Collections::Manifest{std::string{manifest}});
+
+    store_item(
+            vbid, makeStoredDocKey("potato", cVegetable), "value"); // seqno:3
+    store_item(vbid, makeStoredDocKey("foo1"), "bar"); // seqno:4
+
+    // Delete some items and add one to advance seqno
+    delete_item(vbid, makeStoredDocKey("foo")); // seqno:5
+    delete_item(vbid, makeStoredDocKey("potato", cVegetable)); // seqno:6
+    store_item(
+            vbid, makeStoredDocKey("lettuce", cVegetable), "value"); // seqno:7
+
+    flushAndRemoveCheckpoints(vbid);
+
+    // Run compaction/purge to advance purge_seqno past collection creation
+    // seqno
+    purgeTombstonesBefore(6);
+    EXPECT_EQ(6, vb.getPurgeSeqno());
+
+    // Request stream with start seqno 0 and collection filter for vegetable
+    // Backfill startSeqno should be adjusted to 2 due to collection filter
+    stream = producer->mockActiveStreamRequest(
+            cb::mcbp::DcpAddStreamFlag::ActiveVbOnly,
+            0 /*opaque*/,
+            vb,
+            0 /*st_seqno*/,
+            ~0 /*en_seqno*/,
+            0x0 /*vb_uuid*/,
+            0 /*snap_start_seqno*/,
+            ~0 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            producer->public_getMaxMarkerVersion(),
+            fmt::format(R"({{"collections":["{:x}"]}})",
+                        uint32_t(cVegetable.getId())));
+
+    // Perform the backfill
+    producer->getBFM().backfill();
+
+    // Stream should not end immediately as items need to be sent starting at
+    // seqno 2 onwards.
+    auto resp = stream->next(*producer);
+    ASSERT_NE(DcpResponse::Event::StreamEnd, resp->getEvent());
+    ASSERT_FALSE(stream->isDead());
+}
+
 TEST_P(SingleThreadedActiveStreamTest, backfillYieldsAfterDurationLimit) {
     auto vb = engine->getVBucket(vbid);
     // Remove the initial stream, we want to force it to backfill.

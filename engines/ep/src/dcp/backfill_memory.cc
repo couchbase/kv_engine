@@ -117,6 +117,17 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
                                  collHigh.value() <= purgeSeqno;
     }
 
+    // For a collection filtered stream, if the startSeqno is the same as the
+    // collection start seqno, then we do not require rollback.
+    // This is to support collection filtering which may modify the startSeqno
+    // to be > 1 and < purgeSeqno but required items within the collection are
+    // requested so no rollback is needed.
+    if (auto collStart = stream->getCollectionStartSeqno();
+        stream->getFilter().isCollectionFilter() && collStart &&
+        startSeqno == *collStart) {
+        allowNonRollBackStream = true;
+    }
+
     // We permit rollback to be skipped if the Stream explicitly asked
     // to ignore purged tombstones.
     if (stream->isIgnoringPurgedTombstones()) {
