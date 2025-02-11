@@ -66,48 +66,31 @@ cb::engine_errc StatsTask::getCommandError() const {
 
 cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
     taskData.withLock([this, &notifyCookieOnSend](auto& data) {
-        if (data.stats_buf.empty()) {
+        auto& stats_buf = data.stats_buf;
+        if (stats_buf.empty()) {
             // No data to send, so we won't be notifying the cookie and should
             // return success.
             notifyCookieOnSend = false;
             return;
         }
 
-        while (data.stats_buf.size() > 1) {
-            auto& iob = data.stats_buf.front();
+        while (!stats_buf.empty()) {
+            auto& iob = stats_buf.front();
             std::string_view view = {reinterpret_cast<const char*>(iob->data()),
                                      iob->length()};
             cookie.getConnection().chainDataToOutputStream(
                     std::make_unique<IOBufSendBuffer>(std::move(iob), view));
-            data.stats_buf.pop_front();
+            stats_buf.pop_front();
             statsBufSize -= view.size();
         }
-
-        auto& buf = data.stats_buf.front();
-        // View over it for the SendBuffer.
-        std::string_view view{reinterpret_cast<const char*>(buf->data()),
-                              buf->length()};
-
-        std::unique_ptr<SendBuffer> send_buf;
-        if (notifyCookieOnSend) {
-            // Pass in the cookie to notify.
-            send_buf = std::make_unique<NotifySendBuffer>(
-                    std::move(buf), view, cookie);
-        } else {
-            send_buf = std::make_unique<IOBufSendBuffer>(std::move(buf), view);
-        }
-        cookie.getConnection().chainDataToOutputStream(std::move(send_buf));
-        data.stats_buf.pop_front();
-        statsBufSize -= view.size();
-        // Sanity check: we've drained the buffer.
-        Expects(statsBufSize == 0);
     });
 
+    // Sanity check: we've drained the buffer.
+    Expects(statsBufSize == 0);
     if (notifyCookieOnSend) {
-        return cb::engine_errc::would_block;
-    } else {
-        return cb::engine_errc::success;
+        return cb::engine_errc::too_much_data_in_output_buffer;
     }
+    return cb::engine_errc::success;
 }
 
 size_t StatsTask::getBufferSize() const {
@@ -148,14 +131,19 @@ void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
         return getBufferSize() >= max_send_size;
     };
 
-    command_error = bucket_get_stats(
-            cookie,
-            key,
-            cb::const_byte_buffer(
-                    reinterpret_cast<const uint8_t*>(value.data()),
-                    value.size()),
-            add_stat_callback,
-            check_yield_callback);
+    // The underlying engines seems to throttle before reaching the size
+    // limit
+    do {
+        command_error = bucket_get_stats(
+                cookie,
+                key,
+                cb::const_byte_buffer(
+                        reinterpret_cast<const uint8_t*>(value.data()),
+                        value.size()),
+                add_stat_callback,
+                check_yield_callback);
+    } while (command_error == cb::engine_errc::throttled &&
+             !check_yield_callback());
 
     if (key.empty() && command_error == cb::engine_errc::success) {
         CBStatCollector collector(add_stat_callback, cookie);

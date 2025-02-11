@@ -19,9 +19,12 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
 
     const auto mapped = connection.remapErrorCode(status);
     switch (mapped) {
+    case engine_errc::too_much_data_in_output_buffer:
+        cookie.setTooMuchDataInOutputBuffer();
+        break;
     case engine_errc::throttled:
     case engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         break;
 
     case engine_errc::disconnect:

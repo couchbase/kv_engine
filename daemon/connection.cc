@@ -352,6 +352,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::not_stored: // FALLTHROUGH
     case cb::engine_errc::invalid_arguments: // FALLTHROUGH
     case cb::engine_errc::not_supported: // FALLTHROUGH
+    case cb::engine_errc::too_much_data_in_output_buffer: // FALLTHROUGH
     case cb::engine_errc::would_block: // FALLTHROUGH
     case cb::engine_errc::too_big: // FALLTHROUGH
     case cb::engine_errc::disconnect: // FALLTHROUGH
@@ -571,8 +572,10 @@ bool Connection::processAllReadyCookies() {
             continue;
         }
 
-        if (cookie->isEwouldblock()) {
-            // This cookie is waiting for an engine notification.
+        if (cookie->isEwouldblock() ||
+            (cookie->isOutputbufferFull() && havePendingData())) {
+            // This cookie is waiting for an engine notification or
+            // that the network buffer needs to drain
             // Look at the next one
             ++iter;
             active = true;
@@ -684,7 +687,7 @@ void Connection::executeCommandPipeline() {
                         cookie.setThrottled(true);
                         // Set the cookie to true to block the destruction
                         // of the command (and the connection)
-                        cookie.setEwouldblock(true);
+                        cookie.setEwouldblock();
                         cookie.preserveRequest();
                         // Given that we're blocked on throttling, we should
                         // stop accepting new commands and wait for throttling
@@ -878,7 +881,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     try {
         Expects(cookie.isEwouldblock());
         cookie.setAiostat(status);
-        cookie.setEwouldblock(false);
+        cookie.clearEwouldblock();
         if (cookie.execute()) {
             // completed!!! time to clean up after it and process the
             // command pipeline? / schedule more?
@@ -924,7 +927,7 @@ void Connection::logExecutionException(const std::string_view where,
     try {
         auto array = nlohmann::json::array();
         for (const auto& c : cookies) {
-            if (c && !c->empty()) {
+            if (c && (!c->empty() || c->getRefcount() > 0)) {
                 array.push_back(c->to_json());
             }
         }
@@ -1393,7 +1396,7 @@ void Connection::propagateDisconnect() const {
 void Connection::resetThrottledCookies() {
     for (auto& c : cookies) {
         if (c->isThrottled()) {
-            c->setEwouldblock(false);
+            c->clearEwouldblock();
             c->reset();
         }
     }

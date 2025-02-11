@@ -77,19 +77,3 @@ public:
 protected:
     std::unique_ptr<folly::IOBuf> buf;
 };
-
-/**
- * A SendBuffer which will notifyIoComplete the cookie once destroyed.
- * The intention is to receive a "callback" once this buffer has been written to
- * the socket.
- */
-class NotifySendBuffer : public IOBufSendBuffer {
-public:
-    NotifySendBuffer(std::unique_ptr<folly::IOBuf> buf,
-                     std::string_view view,
-                     CookieIface& cookie);
-
-    ~NotifySendBuffer() override;
-
-    CookieIface& cookie;
-};

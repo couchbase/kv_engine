@@ -95,6 +95,7 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
     case engine_errc::bucket_paused:
         return Status::BucketPaused;
 
+    case engine_errc::too_much_data_in_output_buffer:
     case engine_errc::throttled:
     case engine_errc::would_block:
     case engine_errc::disconnect:

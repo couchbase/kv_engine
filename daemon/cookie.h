@@ -267,13 +267,31 @@ public:
      */
     void setAiostat(cb::engine_errc aiostat);
 
+    /// Set the state of the cookie to be blocked on too much data in the
+    /// input buffer
+    void setTooMuchDataInOutputBuffer() {
+        setEwouldblockVariable(cb::engine_errc::too_much_data_in_output_buffer);
+    }
+
+    /// Is the cookie blocked due to the output buffer being full?
+    bool isOutputbufferFull() const {
+        return ewouldblock == cb::engine_errc::too_much_data_in_output_buffer;
+    }
+
     /// Is the current cookie blocked?
     bool isEwouldblock() const {
-        return ewouldblock;
+        return ewouldblock == cb::engine_errc::would_block;
     }
 
     /// Set the ewouldblock status for the cookie
-    void setEwouldblock(bool ewouldblock);
+    void setEwouldblock() {
+        setEwouldblockVariable(cb::engine_errc::would_block);
+    }
+
+    /// Clear the block state
+    void clearEwouldblock() {
+        setEwouldblockVariable(cb::engine_errc::success);
+    }
 
     /**
      *
@@ -614,6 +632,9 @@ public:
     }
 
 protected:
+    /// Set the internal ewouldblock variable
+    void setEwouldblockVariable(cb::engine_errc value);
+
     /**
      * Log the current connection if its execution time exceeds the
      * threshold for the command
@@ -787,7 +808,7 @@ protected:
     /// Is the cookie currently throttled
     std::atomic_bool throttled{false};
 
-    bool ewouldblock = false;
+    cb::engine_errc ewouldblock = cb::engine_errc::success;
 
     /// The number of times someone tried to reserve the cookie (to avoid
     /// releasing it while other parties think they reserved the object.
