@@ -73,6 +73,12 @@
       "startid": 53248,
       "file": "kv_engine/auditd/etc/sync_gateway_descriptor.json",
       "configurations": ["EE","CE"]
+    },
+    {
+      "name": "edge_server",
+      "startid": 57344,
+      "file": "kv_engine/auditd/etc/edge_server_descriptor.json",
+      "configurations": ["EE"]
     }
   ]
 }
