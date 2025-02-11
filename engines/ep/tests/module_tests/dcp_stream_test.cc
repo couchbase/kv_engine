@@ -4564,14 +4564,20 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
 
     // Move cursors to allow Expel
-    if (isPersistent()) {
-        flushVBucket(vbid);
-    }
+    flushVBucket(vbid);
+
     // Now Expel everything from the open checkpoint
     {
+        EXPECT_EQ(0, manager.getNumItemsForPersistence());
         const auto res = manager.expelUnreferencedCheckpointItems();
         ASSERT_EQ(1, res.count); // mut
         ASSERT_TRUE(list.back()->modifiedByExpel());
+        // This next expect is incorrect. The BP of MB-62596 wants to check this
+        // is 1, but 7.2.3 has an expel bug that doesn't adjust
+        // CheckpointManager::numItems. When merged forward this will have to be
+        // set back to 1. MB-58689 tracks the fix for numItems and expel.
+        EXPECT_EQ(2, manager.getNumItems()); // 1 for checkpoint_start
+        EXPECT_EQ(0, manager.getNumItemsForPersistence());
     }
 
     // Crucial test: We have expelled everything from the checkpoint and that
@@ -4604,7 +4610,12 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     snapInfo = manager.getSnapshotInfo();
     EXPECT_EQ(2, snapInfo.start);
     EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+    // As per comment above, getNumItems is incorrect on 7.2.3, but the expect
+    // is left in so it can be corrected when merging forward.
+    EXPECT_EQ(3, manager.getNumItems()); // cs and mutation
+    EXPECT_EQ(1, manager.getNumItemsForPersistence());
 
+    // Create a new empty checkpoint
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
@@ -4634,9 +4645,7 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
 
     // Try to expel the vbs meta-item.
-    if (isPersistent()) {
-        flushVBucket(vbid);
-    }
+    flushVBucket(vbid);
     {
         const auto res = manager.expelUnreferencedCheckpointItems();
         // Nothing expelled, ItemExpel doesn't touch checkpoints that store only

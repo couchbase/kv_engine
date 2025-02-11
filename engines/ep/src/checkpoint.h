@@ -285,7 +285,8 @@ public:
                uint64_t highPreparedSeqno,
                Vbid vbid,
                CheckpointType checkpointType,
-               CheckpointHistorical historical);
+               CheckpointHistorical historical,
+               size_t position);
 
     ~Checkpoint();
 
@@ -623,6 +624,14 @@ public:
     }
 
     /**
+     * @return the Checkpoints position on the item-line. I.e. where the first
+     *         item of this checkpoint is placed.
+     */
+    size_t getPositionOnItemLine() const {
+        return positionOnItemLine;
+    }
+
+    /**
      * Dump this checkpoint to stderr.
      */
     void dump() const;
@@ -785,6 +794,9 @@ private:
     // Whether the snapshot stored in this checkpoint is part of a historical
     // sequence of mutation.
     CheckpointHistorical historical;
+
+    // The position of this checkpoint on the item-line.
+    cb::NonNegativeCounter<size_t> positionOnItemLine;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

@@ -24,7 +24,9 @@ CheckpointCursor::CheckpointCursor(std::string name,
       currentPos(std::move(pos)),
       numVisits(0),
       droppable(droppable),
-      distance(distance) {
+      distance(distance),
+      itemLinePosition((*currentCheckpoint)->getPositionOnItemLine() +
+                       distance) {
     (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
 }
 
@@ -36,7 +38,8 @@ CheckpointCursor::CheckpointCursor(const CheckpointCursor& other,
       numVisits(other.numVisits.load()),
       isValid(other.isValid),
       droppable(other.droppable),
-      distance(other.distance) {
+      distance(other.distance),
+      itemLinePosition(other.itemLinePosition) {
     if (isValid) {
         (*currentCheckpoint)->incNumOfCursorsInCheckpoint();
     }
@@ -73,19 +76,35 @@ void CheckpointCursor::repositionAtCheckpointBegin(
 void CheckpointCursor::repositionAtCheckpointStart(
         CheckpointList::iterator checkpointIt) {
     repositionAtCheckpointBegin(checkpointIt);
-    incrPos();
+    // Move currentPos and distance, but do not move the itemLinePosition as
+    // the usage of repositionAtCheckpointStart is not consuming items so we
+    // do not expect ::getNumItems to change value (reduce)
+    ++currentPos;
+    ++distance;
+
     Ensures((*currentPos)->getOperation() == queue_op::checkpoint_start);
     Ensures(distance == 1);
 }
 
 void CheckpointCursor::decrPos() {
     Expects(currentPos != (*currentCheckpoint)->begin());
+    if (currentPos != (*currentCheckpoint)->end()) {
+        // currentPos is on something in the checkpoint, but don't expect to
+        // decrement from empty
+        Expects((*currentPos)->getOperation() != queue_op::empty);
+    }
     --currentPos;
     --distance;
+    --itemLinePosition;
 }
 
 void CheckpointCursor::incrPos() {
     Expects(currentPos != (*currentCheckpoint)->end());
+    // increment position on the item-line but not when advancing past the
+    // checkpoint_end
+    if ((*currentPos)->getOperation() != queue_op::checkpoint_end) {
+        ++itemLinePosition;
+    }
     ++currentPos;
     ++distance;
 }
@@ -99,6 +118,23 @@ size_t CheckpointCursor::getRemainingItemsInCurrentCheckpoint() const {
         return 0;
     }
     return (*currentCheckpoint)->getNumItems() - distance;
+}
+
+size_t CheckpointCursor::getNumItems(size_t length) const {
+    // This is a paranoid check to ensure we don't return a negative number
+    // (large unsigned) value.
+    if (itemLinePosition > length) {
+        return 0;
+    }
+
+    auto rv = length - itemLinePosition;
+    // Adjust for the case where the cursor is on an empty item and the only
+    // available item is the checkpoint_start marker.
+    // This is a fix for MB-65280 which is required alongside MB-62596.
+    if (rv == 1 && (*currentPos)->getOperation() == queue_op::empty) {
+        rv = 0;
+    }
+    return rv;
 }
 
 bool operator<(const CheckpointCursor& a, const CheckpointCursor& b) {
@@ -138,6 +174,7 @@ std::ostream& operator<<(std::ostream& os, const CheckpointCursor& c) {
        << " state:" << to_string((*c.currentCheckpoint)->getState())
        << "} currentSeq:" << (*c.currentPos)->getBySeqno()
        << " currentOp:" << to_string((*c.currentPos)->getOperation())
-       << " distance:" << c.distance;
+       << " distance:" << c.distance
+       << " itemLinePosition:" << c.itemLinePosition;
     return os;
 }

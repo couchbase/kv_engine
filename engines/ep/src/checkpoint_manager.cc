@@ -181,6 +181,7 @@ void CheckpointManager::addNewCheckpoint(
                                               queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
     ++numItems;
+    ++totalItems;
     oldOpenCkpt.setState(CHECKPOINT_CLOSED);
 
     // Inherit the HPS from the previous Checkpoint. Should we de-dupe in the
@@ -230,6 +231,11 @@ void CheckpointManager::addNewCheckpoint(
         if (pos == checkpoint.end() ||
             (*pos)->getOperation() == queue_op::checkpoint_end ||
             (*std::next(pos))->getOperation() == queue_op::checkpoint_end) {
+            if ((*std::next(pos))->getOperation() == queue_op::checkpoint_end) {
+                // we're skipping this end item for the cursor, so must advance
+                // the distance.
+                cursor.incrPos();
+            }
             moveCursorToNextCheckpoint(cursor);
         }
     }
@@ -278,7 +284,8 @@ void CheckpointManager::addOpenCheckpoint(
                                              highPreparedSeqno,
                                              vb.getId(),
                                              checkpointType,
-                                             historical);
+                                             historical,
+                                             totalItems);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
@@ -291,7 +298,7 @@ void CheckpointManager::addOpenCheckpoint(
     qi = createCheckpointMetaItem(id, queue_op::checkpoint_start);
     ckpt->queueDirty(qi);
     ++numItems;
-
+    ++totalItems;
     checkpointList.push_back(std::move(ckpt));
     Ensures(!checkpointList.empty());
     Ensures(checkpointList.back()->getState() ==
@@ -984,6 +991,7 @@ bool CheckpointManager::queueDirty(
         return false;
     case QueueDirtyStatus::SuccessNewItem:
         ++numItems;
+        ++totalItems;
         // FALLTHROUGH
     case QueueDirtyStatus::SuccessPersistAgain:
         updateStatsForNewQueuedItem(lh, qi);
@@ -1028,6 +1036,7 @@ void CheckpointManager::queueSetVBState() {
 
         if (result.status == QueueDirtyStatus::SuccessNewItem) {
             ++numItems;
+            ++totalItems;
             updateStatsForNewQueuedItem(lh, item);
         } else {
             auto msg = fmt::format(
@@ -1291,6 +1300,7 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
     checkpointList.swap(newCheckpointList);
 
     numItems = 0;
+    totalItems.reset(0);
     lastBySeqno.reset(seqno);
     maxVisibleSeqno.reset(seqno);
 
@@ -1315,6 +1325,7 @@ void CheckpointManager::resetCursors() {
         // Reset the cursor to the very begin of the checkpoint list, ie first
         // item in the first checkpoint
         (*pair.second).repositionAtCheckpointBegin(checkpointList.begin());
+        (*pair.second).resetPositionOnItemLine();
     }
 }
 
@@ -1424,24 +1435,13 @@ size_t CheckpointManager::getNumItemsForCursor(
 size_t CheckpointManager::getNumItemsForCursor(
         const std::lock_guard<std::mutex>& lh,
         const CheckpointCursor* cursor) const {
-    if (cursor && cursor->valid()) {
-        size_t items = cursor->getRemainingItemsInCurrentCheckpoint();
-        CheckpointList::const_iterator chkptIterator(cursor->getCheckpoint());
-        if (chkptIterator != checkpointList.end()) {
-            ++chkptIterator;
-        }
-
-        // Now add the item counts for all the subsequent checkpoints
-        auto result = std::accumulate(
-                chkptIterator,
-                checkpointList.end(),
-                items,
-                [](size_t a, const std::unique_ptr<Checkpoint>& b) {
-                    return a + b->getNumItems();
-                });
-        return result;
+    if (!cursor || !cursor->valid()) {
+        return 0;
     }
-    return 0;
+
+    // using the totalItems (ever) we can work out the distance/num_items from
+    // the cursors position
+    return cursor->getNumItems(totalItems);
 }
 
 void CheckpointManager::clear(std::optional<uint64_t> seqno) {
@@ -1904,9 +1904,10 @@ size_t CheckpointManager::getNumCursors() const {
 }
 
 std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
-    os << "CheckpointManager[" << &m << "] with numItems:"
-       << m.getNumItems() << " checkpoints:" << m.checkpointList.size()
-       << std::endl;
+    os << "CheckpointManager[" << &m << "] with numItems:" << m.getNumItems()
+       << " checkpoints:" << m.checkpointList.size()
+       << " totalItems:" << m.totalItems << std::endl;
+
     for (const auto& c : m.checkpointList) {
         os << "    " << *c << std::endl;
     }

@@ -603,6 +603,17 @@ public:
     size_t getMemFreedByCheckpointRemoval() const;
 
     /**
+     * Checks if the CM state pre-conditions for creating a new checkpoint are
+     * met and proceeds trying creating a new checkpoint.
+     *
+     * @param lh Lock to CM mutex
+     */
+    void maybeCreateNewCheckpoint() {
+        std::lock_guard<std::mutex> lh(queueLock);
+        maybeCreateNewCheckpoint(lh);
+    }
+
+    /**
      * Member std::function variable, to allow us to inject code into
      * removeCursor() for unit MB36146
      */
@@ -989,6 +1000,8 @@ protected:
      * to the seqno of a prepare.
      */
     Monotonic<int64_t> maxVisibleSeqno;
+
+    Monotonic<size_t> totalItems{0};
 
     /**
      * cursors: stores all known CheckpointCursor objects which are held via
