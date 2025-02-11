@@ -164,7 +164,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
         break;
     }
     case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         break;
     case cb::engine_errc::disconnect:
         connection.shutdown();
@@ -368,7 +368,7 @@ static void ioctl_get_executor(Cookie& cookie) {
                 cb::mcbp::Status::Success, {}, {}, value, datatype, 0);
         break;
     case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         break;
     case cb::engine_errc::disconnect:
         if (ret == cb::engine_errc::disconnect) {
@@ -406,7 +406,7 @@ static void ioctl_set_executor(Cookie& cookie) {
 
     switch (remapErr) {
     case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         break;
     case cb::engine_errc::disconnect:
         if (ret == cb::engine_errc::disconnect) {

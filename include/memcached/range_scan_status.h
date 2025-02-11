@@ -40,6 +40,7 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
     case cb::engine_errc::unknown_collection:
     case cb::engine_errc::range_scan_cancelled:
     case cb::engine_errc::failed:
+    case cb::engine_errc::too_much_data_in_output_buffer:
     case cb::engine_errc::would_block:
     case cb::engine_errc::no_such_key:
     case cb::engine_errc::throttled:

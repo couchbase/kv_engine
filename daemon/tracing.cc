@@ -237,7 +237,7 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
                                                          std::move(context));
         cookie.setCommandContext(new TraceFormatterContext{task});
 
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         ExecutorPool::get()->schedule(task);
         return cb::engine_errc::would_block;
     }

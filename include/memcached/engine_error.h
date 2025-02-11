@@ -154,6 +154,11 @@ enum class engine_errc {
     /// The requested resource is not locked
     not_locked = 0x2e,
 
+    /// There is too much data in the output buffer to continue execution
+    /// and the network buffers needs to be drained before execution can
+    /// continue
+    too_much_data_in_output_buffer = 0x2f,
+
     /** Generic failue. */
     failed = 0xff
 };
