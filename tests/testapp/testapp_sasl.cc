@@ -41,7 +41,7 @@ public:
         // Delete any buckets created for the unit case.
         auto buckets = adminConnection->listBuckets();
         for (const auto& bucket : buckets) {
-            if (bucket.find("bucket") == 0) {
+            if (bucket.starts_with("bucket")) {
                 adminConnection->deleteBucket(bucket);
             }
         }

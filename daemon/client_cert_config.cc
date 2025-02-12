@@ -137,15 +137,15 @@ static std::unique_ptr<ClientCertConfig::Mapping> createMapping(
         return std::make_unique<CommonNameMapping>(path, obj);
     }
 
-    if (path.find("san.dnsname") == 0) {
+    if (path.starts_with("san.dnsname")) {
         return std::make_unique<SanMapping>(path, GEN_DNS, obj);
     }
 
-    if (path.find("san.email") == 0) {
+    if (path.starts_with("san.email")) {
         return std::make_unique<SanMapping>(path, GEN_EMAIL, obj);
     }
 
-    if (path.find("san.uri") == 0) {
+    if (path.starts_with("san.uri")) {
         return std::make_unique<SanMapping>(path, GEN_URI, obj);
     }
 

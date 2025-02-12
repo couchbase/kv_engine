@@ -2930,7 +2930,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
  */
 StatChecker::PostFunc getPrepareStatCheckerPostFuncForBackend(
         std::string backend, StatChecker::PostFunc fn) {
-    if (backend.find("backend=magma") == 0 ||
+    if (backend.starts_with("backend=magma") ||
         backend.find(":backend=magma") != std::string::npos ||
         backend.find("nexus_primary_backend=magma") != std::string::npos) {
         // Magma doesn't currently track prepares as we remove them during

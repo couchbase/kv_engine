@@ -64,7 +64,7 @@ private:
 
         // 1. we should be able to locate the key
         // 2. we should be able to locate the description for the key
-        if (key.find("ep_") == 0 || key.find("vb_") == 0 ||
+        if (key.starts_with("ep_") || key.starts_with("vb_") ||
             key == "mem_used_primary" || key == "mem_used_secondary") {
             // ignore for now. ep-engine may have its own tests
             return;
@@ -94,7 +94,7 @@ private:
                             v.resize(idx);
                         }
                     }
-                    if (key.find(v) == 0) {
+                    if (key.starts_with(v)) {
                         found = true;
                     }
                 }

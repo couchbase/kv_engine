@@ -59,7 +59,7 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
 
     // according to the RFC the client should not send 'y' unless the
     // server advertised SCRAM-SHA[n]-PLUS (which we don't)
-    if (client_first_message.find("n,") != 0) {
+    if (!client_first_message.starts_with("n,")) {
         // We don't support the p= to do channel bindings (that should
         // be advertised with SCRAM-SHA[n]-PLUS)
         return {Error::BAD_PARAM, {}};

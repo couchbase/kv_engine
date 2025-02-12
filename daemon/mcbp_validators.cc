@@ -197,7 +197,7 @@ static Status parseFrameExtras(Cookie& cookie,
                     std::string msg(exception.what());
                     // trim off the exception prefix
                     const std::string prefix{"Requirements(): "};
-                    if (msg.find(prefix) == 0) {
+                    if (msg.starts_with(prefix)) {
                         msg = msg.substr(prefix.size());
                     }
                     cookie.setErrorContext(msg);

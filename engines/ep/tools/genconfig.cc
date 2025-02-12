@@ -447,7 +447,7 @@ static std::string getEnumImplementationCode(
 
 static std::string formatValue(const std::string value,
                                const std::string& type) {
-    if (type == "std::string" || type.find("Configuration::") == 0) {
+    if (type == "std::string" || type.starts_with("Configuration::")) {
         return fmt::format("\"{}\"s", value);
     }
     return fmt::format("static_cast<{}>({})", type, value);

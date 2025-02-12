@@ -25,7 +25,7 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
     }
 
     auto gs2 = fields.front();
-    if (gs2.find("n,a=") != 0) {
+    if (!gs2.starts_with("n,a=")) {
         return {Error::BAD_PARAM, {}};
     }
     username = std::string(gs2.substr(4));
@@ -37,7 +37,7 @@ std::pair<Error, std::string> ServerBackend::start(std::string_view input) {
     }
     username = username::decode(username);
     auto token = fields[1];
-    if (token.find("auth=Bearer ") != 0) {
+    if (!token.starts_with("auth=Bearer ")) {
         return {Error::BAD_PARAM, {}};
     }
     token.remove_prefix(12);

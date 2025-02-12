@@ -56,8 +56,7 @@ static cb::mcbp::Status validate_macro(std::string_view value) {
     }
 
     // is it any of our virtual macros?
-    if (value.find(R"("${$document)") == 0 &&
-        value.rfind(R"(}")") == value.size() - 2) {
+    if (value.starts_with(R"("${$document)") && value.ends_with(R"(}")")) {
         return Status::Success;
     }
 

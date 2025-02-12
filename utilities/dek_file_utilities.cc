@@ -23,7 +23,7 @@ void iterateKeyFiles(
     const auto pattern = fmt::format("{}.key.", id);
     for (const auto& p : std::filesystem::directory_iterator(dir)) {
         const auto& path = p.path();
-        if (path.filename().string().rfind(pattern, 0) == 0) {
+        if (path.filename().string().starts_with(pattern)) {
             visitor(path);
         }
     }

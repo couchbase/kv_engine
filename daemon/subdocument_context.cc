@@ -334,7 +334,7 @@ void SubdocExecutionContext::substituteMacro(cb::xattr::macros::macro macroName,
 
 std::string_view SubdocExecutionContext::expand_virtual_macro(
         std::string_view macro) {
-    if (macro.find(R"("${$document)") == 0) {
+    if (macro.starts_with(R"("${$document)")) {
         return expand_virtual_document_macro(macro);
     }
 
@@ -998,7 +998,7 @@ cb::engine_errc SubdocExecutionContext::validate_xattr_privilege() {
             // checkPrivilege as we don't want the system to log that
             // you don't have access (we just return the user attrs)
             if (const auto [sid, cid] = cookie.getScopeAndCollection();
-                op.path.rfind(cb::xattr::vattrs::XTOC, 0) == 0 &&
+                op.path.starts_with(cb::xattr::vattrs::XTOC) &&
                 cookie.testPrivilege(
                               cb::rbac::Privilege::SystemXattrRead, sid, cid)
                         .success()) {

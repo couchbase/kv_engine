@@ -140,7 +140,7 @@ void custom_rotating_file_sink<Mutex>::scanExistingLogFiles() {
         auto& path = p.path();
         const auto extension = path.extension().string();
         auto file = path.stem().string();
-        if (file.rfind(prefix, 0) != 0 ||
+        if (!file.starts_with(prefix) ||
             (extension != ".txt" && extension != ".cef")) {
             continue;
         }
