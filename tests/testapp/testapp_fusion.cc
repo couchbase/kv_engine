@@ -365,4 +365,67 @@ TEST_P(FusionTest, UploaderState) {
     });
 }
 
+TEST_P(FusionTest, GetPrometheusFusionStats) {
+    std::array<std::string_view, 13> statKeysExpected = {
+            "ep_fusion_syncs",
+            "ep_fusion_bytes_synced",
+            "ep_fusion_logs_migrated",
+            "ep_fusion_bytes_migrated",
+            "ep_fusion_log_store_size",
+            "ep_fusion_log_store_garbage_size",
+            "ep_fusion_logs_cleaned",
+            "ep_fusion_log_store_remote_puts",
+            "ep_fusion_log_store_reads",
+            "ep_fusion_log_store_remote_gets",
+            "ep_fusion_log_store_remote_lists",
+            "ep_fusion_log_store_remote_deletes",
+            "ep_fusion_file_map_mem_used"};
+
+    std::vector<std::string> actualKeys;
+    adminConnection->executeInBucket(bucketName, [&actualKeys](auto& conn) {
+        conn.stats(
+                [&actualKeys](auto& k, auto& v) {
+                    if (k.starts_with("ep_fusion")) {
+                        actualKeys.emplace_back(k);
+                    }
+                },
+                ""); // we convert empty to null to get engine stats
+    });
+
+    // Sort both collections
+    std::ranges::sort(actualKeys);
+    std::ranges::sort(statKeysExpected);
+
+    // Find missing keys that are expected but not found in actual
+    std::vector<std::string_view> missingKeys;
+    std::ranges::set_difference(
+            statKeysExpected,
+            actualKeys,
+            std::inserter(missingKeys, missingKeys.begin()));
+
+    bool error = false;
+    for (const auto& key : missingKeys) {
+        error = true;
+        fprintf(stderr,
+                "Expected %s but not found in actual\n",
+                std::string{key}.c_str());
+    }
+
+    // Find any extra fusion stats - those that are found in actual but not
+    // expected
+    std::vector<std::string_view> extraKeys;
+    std::ranges::set_difference(actualKeys,
+                                statKeysExpected,
+                                std::inserter(extraKeys, extraKeys.begin()));
+
+    for (const auto& key : extraKeys) {
+        error = true;
+        fprintf(stderr,
+                "Found stat %s but was not expected\n",
+                std::string{key}.c_str());
+    }
+
+    EXPECT_EQ(false, error) << "Missing stats found";
+}
+
 #endif // USE_FUSION

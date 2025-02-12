@@ -4027,6 +4027,27 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NSyncs", magmaStats->NSyncs);
     fill("magma_DataBlocksSize", magmaStats->DataBlocksSize);
     fill("magma_DataBlocksCompressSize", magmaStats->DataBlocksCompressSize);
+
+    /* Fusion Stats*/
+    fill("fusion_NumSyncs", magmaStats->FusionFSStats.NumSyncs);
+    fill("fusion_NumBytesSynced", magmaStats->FusionFSStats.NumBytesSynced);
+    fill("fusion_NumLogsMigrated", magmaStats->FusionFSStats.NumLogsMigrated);
+    fill("fusion_NumBytesMigrated", magmaStats->FusionFSStats.NumBytesMigrated);
+    fill("fusion_LogStoreSize", magmaStats->FusionFSStats.LogStoreSize);
+    fill("fusion_LogStoreGarbageSize",
+         magmaStats->FusionFSStats.LogStoreGarbageSize);
+    fill("fusion_NumLogsCleaned", magmaStats->FusionFSStats.NumLogsCleaned);
+    fill("fusion_NumLogStoreRemotePuts",
+         magmaStats->FusionFSStats.NumLogStoreRemotePuts);
+    fill("fusion_NumLogStoreReads", magmaStats->FusionFSStats.NumLogStoreReads);
+    fill("fusion_NumLogStoreRemoteGets",
+         magmaStats->FusionFSStats.NumLogStoreRemoteGets);
+    fill("fusion_NumLogStoreRemoteLists",
+         magmaStats->FusionFSStats.NumLogStoreRemoteLists);
+    fill("fusion_NumLogStoreRemoteDeletes",
+         magmaStats->FusionFSStats.NumLogStoreRemoteDeletes);
+    fill("fusion_FileMapMemUsed", magmaStats->FusionFSStats.FileMapMemUsed);
+
     return stats;
 }
 

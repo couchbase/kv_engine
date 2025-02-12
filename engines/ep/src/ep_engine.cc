@@ -3237,6 +3237,65 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     }
 }
 
+void EventuallyPersistentEngine::doEngineStatsFusion(
+        const StatCollector& collector) {
+    using namespace cb::stats;
+
+    constexpr std::array<std::string_view, 13> statNames = {
+            {"fusion_NumSyncs",
+             "fusion_NumBytesSynced",
+             "fusion_NumLogsMigrated",
+             "fusion_NumBytesMigrated",
+             "fusion_LogStoreSize",
+             "fusion_LogStoreGarbageSize",
+             "fusion_NumLogsCleaned",
+             "fusion_NumLogStoreRemotePuts",
+             "fusion_NumLogStoreReads",
+             "fusion_NumLogStoreRemoteGets",
+             "fusion_NumLogStoreRemoteLists",
+             "fusion_NumLogStoreRemoteDeletes",
+             "fusion_FileMapMemUsed"}};
+
+    auto kvStoreStats = kvBucket->getKVStoreStats(statNames);
+
+    // Return whether stat exists. If exists, save value in output param value.
+    auto statExists = [&](std::string_view statName, size_t& value) {
+        auto stat = kvStoreStats.find(statName);
+        if (stat != kvStoreStats.end()) {
+            value = stat->second;
+            return true;
+        }
+        return false;
+    };
+
+    // If given stat exists, add it to collector.
+    auto addStat = [&](Key key, std::string_view statName) {
+        size_t value = 0;
+        if (statExists(statName, value)) {
+            collector.addStat(key, value);
+        }
+    };
+
+    addStat(Key::ep_fusion_syncs, "fusion_NumSyncs");
+    addStat(Key::ep_fusion_bytes_synced, "fusion_NumBytesSynced");
+    addStat(Key::ep_fusion_logs_migrated, "fusion_NumLogsMigrated");
+    addStat(Key::ep_fusion_bytes_migrated, "fusion_NumBytesMigrated");
+    addStat(Key::ep_fusion_log_store_size, "fusion_LogStoreSize");
+    addStat(Key::ep_fusion_log_store_garbage_size,
+            "fusion_LogStoreGarbageSize");
+    addStat(Key::ep_fusion_logs_cleaned, "fusion_NumLogsCleaned");
+    addStat(Key::ep_fusion_log_store_remote_puts,
+            "fusion_NumLogStoreRemotePuts");
+    addStat(Key::ep_fusion_log_store_reads, "fusion_NumLogStoreReads");
+    addStat(Key::ep_fusion_log_store_remote_gets,
+            "fusion_NumLogStoreRemoteGets");
+    addStat(Key::ep_fusion_log_store_remote_lists,
+            "fusion_NumLogStoreRemoteLists");
+    addStat(Key::ep_fusion_log_store_remote_deletes,
+            "fusion_NumLogStoreRemoteDeletes");
+    addStat(Key::ep_fusion_file_map_mem_used, "fusion_FileMapMemUsed");
+}
+
 cb::engine_errc EventuallyPersistentEngine::doEngineStats(
         const BucketStatCollector& collector, CookieIface* cookie) {
     cb::engine_errc status;
@@ -3496,6 +3555,9 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
         doEngineStatsCouchDB(collector, epstats);
     } else if (configuration.getBackendString() == "magma") {
         doEngineStatsMagma(collector);
+        if (!configuration.getMagmaFusionLogstoreUri().empty()) {
+            doEngineStatsFusion(collector);
+        }
     } else if (configuration.getBackendString() == "nexus") {
         auto primaryCollector = collector.withLabel("backend", "primary");
         if (configuration.getNexusPrimaryBackendString() == "couchdb") {
