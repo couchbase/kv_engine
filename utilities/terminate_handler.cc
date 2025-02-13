@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -55,15 +54,13 @@ static void log_handled_exception() {
 
 // Log the symbolified backtrace to this point.
 static void log_backtrace() {
-    static const char format_str[] = "Call stack:\n%s";
-
-    char buffer[4096];
-    if (print_backtrace_to_buffer("    ", buffer, sizeof(buffer))) {
-        LOG_CRITICAL("Call stack: {}", buffer);
+    std::array<char, 4096> buffer;
+    if (print_backtrace_to_buffer("    ", buffer.data(), buffer.size())) {
+        LOG_CRITICAL("Call stack: {}", buffer.data());
     } else {
         // Exceeded buffer space - print directly to stderr FD (requires no
         // buffering, but has the disadvantage that we don't get it in the log).
-        fprintf(stderr, format_str, "");
+        fputs("Call stack:\n", stderr);
         print_backtrace_to_file(stderr);
         fflush(stderr);
         LOG_CRITICAL_RAW("Call stack exceeds 4k");

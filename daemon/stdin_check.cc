@@ -92,31 +92,33 @@ static char* get_command(char* buffer, size_t buffsize) {
  * If the input stream is closed a clean shutdown is initiated
  */
 static void check_stdin_thread() {
-    char command[80];
+    using namespace std::string_view_literals;
+    std::array<char, 80> command;
 
     bool call_exit_handler = true;
 
-    while (get_command(command, sizeof(command)) != nullptr) {
+    while (get_command(command.data(), command.size()) != nullptr) {
+        std::string_view cmd(command.data(), strlen(command.data()));
         /* Handle the command */
-        if (strcmp(command, "die!\n") == 0) {
+        if (cmd.starts_with("die!")) {
             fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
             fflush(stderr);
             std::_Exit(0);
         }
-        if (strcmp(command, "shutdown\n") == 0) {
+        if (cmd.starts_with("shutdown")) {
             if (call_exit_handler) {
                 fprintf(stderr, "EOL on stdin.  Initiating shutdown\n");
                 exit_function();
                 call_exit_handler = false;
             }
         } else {
-            fprintf(stderr, "Unknown command received on stdin. Ignored\n");
+            fputs("Unknown command received on stdin. Ignored\n", stderr);
         }
     }
 
     /* The stream is closed.. do a nice shutdown */
     if (call_exit_handler) {
-        fprintf(stderr, "EOF on stdin. Initiating shutdown\n");
+        fputs("EOF on stdin. Initiating shutdown\n", stderr);
         exit_function();
     }
 }

@@ -61,16 +61,16 @@ TEST_F(TracingTest, MB56972) {
 }
 
 TEST_F(TracingTest, ErrorRate) {
-    uint64_t micros_list[] = {5,
-                              11,
-                              1439,
-                              6234,
-                              7890,
-                              99999,
-                              4567321,
-                              98882110,
-                              78821369,
-                              118916406};
+    std::array<uint64_t, 10> micros_list = {5,
+                                            11,
+                                            1439,
+                                            6234,
+                                            7890,
+                                            99999,
+                                            4567321,
+                                            98882110,
+                                            78821369,
+                                            118916406};
     for (auto micros : micros_list) {
         auto repMicros = MockTracer::encodeMicros(micros);
         auto decoded = uint64_t(MockTracer::decodeMicros(repMicros).count());

@@ -42,11 +42,8 @@ static int get_verbosity(MemcachedConnection& connection) {
             return EXIT_FAILURE;
         }
         if (verbosity->type() == nlohmann::json::value_t::number_integer) {
-            const char* levels[] = {"warning",
-                                    "info",
-                                    "debug",
-                                    "detail",
-                                    "unknown"};
+            std::array<const char*, 5> levels = {
+                    "warning", "info", "debug", "detail", "unknown"};
             const char* ptr = levels[4];
 
             auto numVerbosity = verbosity->get<int>();
