@@ -9,6 +9,7 @@
  */
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
+#include <platform/split_string.h>
 #include <platform/terminal_color.h>
 #include <platform/terminal_size.h>
 #include <programs/mc_program_getopt.h>
@@ -20,13 +21,17 @@
 
 using namespace cb::terminal;
 
-static void request_dcp_stat(MemcachedConnection& connection, bool json) {
+/// Set to true if we should print the output in JSON format
+bool json = false;
+
+static void request_dcp_stat(MemcachedConnection& connection,
+                             const std::string& value) {
     bool first_time = true;
     if (json) {
         std::cout << "{" << std::endl;
     }
     connection.stats(
-            [&first_time, json](
+            [&first_time](
                     const auto& key, const auto& value, auto datatype) -> void {
                 if (json) {
                     if (first_time) {
@@ -62,7 +67,7 @@ static void request_dcp_stat(MemcachedConnection& connection, bool json) {
                 }
             },
             "dcp",
-            R"({ "stream_format" : "json" })");
+            value);
     if (json) {
         std::cout << "}" << std::endl;
     }
@@ -70,17 +75,49 @@ static void request_dcp_stat(MemcachedConnection& connection, bool json) {
 
 /**
  * Request a stat from the server
- * @param sock socket connected to the server
- * @param key the name of the stat to receive (empty == ALL)
- * @param json if true print as json otherwise print old-style
+ * @param connection socket connected to the server
+ * @param statGroup the name of the stat to receive (empty == ALL)
  */
 static void request_stat(MemcachedConnection& connection,
-                         const std::string& statGroup,
-                         bool json) {
-    if (statGroup == "dcp") {
-        request_dcp_stat(connection, json);
+                         const std::string& statGroup) {
+    const auto* info =
+            StatsGroupManager::getInstance().lookup(StatGroupId::All);
+    if (!statGroup.empty()) {
+        auto arguments = cb::string::split(statGroup);
+        info = StatsGroupManager::getInstance().lookup(arguments.front());
+        if (info == nullptr) {
+            std::cerr << TerminalColor::Red
+                      << "Unknown stat group: " << arguments.front()
+                      << TerminalColor::Reset << std::endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+    if (info->id == StatGroupId::Dcp) {
+        auto value = nlohmann::json::object();
+        std::string_view view = statGroup;
+        view.remove_prefix(3);
+        while (!view.empty() && std::isspace(view.front())) {
+            view.remove_prefix(1);
+        }
+        if (!view.empty()) {
+            try {
+                value = nlohmann::json::parse(view);
+            } catch (const nlohmann::json::exception&) {
+                fmt::println(stderr,
+                             "{}Failed to parse the JSON value: {}{}",
+                             TerminalColor::Red,
+                             view,
+                             TerminalColor::Reset);
+                exit(EXIT_FAILURE);
+            }
+        }
+        if (!value.contains("stream_format")) {
+            value["stream_format"] = "json";
+        }
+        request_dcp_stat(connection, value.dump());
         return;
     }
+
     if (json) {
         auto stats = connection.stats(statGroup);
         std::cout << stats.dump() << std::endl;
@@ -271,14 +308,13 @@ static std::string buildStatString(const std::vector<std::string_view>& args) {
 }
 
 int main(int argc, char** argv) {
-    bool json = false;
     bool allBuckets = false;
     std::vector<std::string> buckets;
 
     McProgramGetopt getopt;
     using cb::getopt::Argument;
     getopt.addOption(
-            {[&json](auto value) {
+            {[](auto value) {
                  json = true;
                  if (value == "pretty") {
                      std::cerr
@@ -370,7 +406,7 @@ int main(int argc, char** argv) {
                 bucketItr++;
             }
 
-            request_stat(*connection, stat_key, json);
+            request_stat(*connection, stat_key);
         } while (bucketItr != buckets.end());
 
     } catch (const ConnectionError& ex) {
