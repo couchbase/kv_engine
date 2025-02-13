@@ -2376,14 +2376,14 @@ Warmup* EPBucket::getPrimaryWarmup() const {
 }
 
 Warmup* EPBucket::getSecondaryWarmup() const {
-    return secondaryWarmup.atomic.load(std::memory_order_relaxed);
+    return secondaryWarmup.getUnlocked();
 }
 
 bool EPBucket::isWarmupLoadingData() const {
     if (isPrimaryWarmupLoadingData()) {
         return true;
     }
-    const auto* secondary = secondaryWarmup.atomic.load();
+    const auto* secondary = secondaryWarmup.getUnlocked();
     return secondary && !secondary->isFinishedLoading();
 }
 
@@ -2415,7 +2415,7 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
     warmupTask->addStats(collector);
 
     bool noSecondary =
-            secondaryWarmup.sync.withLock([&collector](const auto& warmup) {
+            secondaryWarmup.withLock([&collector](const auto& warmup) {
                 if (warmup) {
                     warmup->addSecondaryWarmupStats(collector);
                 }
@@ -2431,7 +2431,7 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
 
 bool EPBucket::isWarmupOOMFailure() const {
     return (warmupTask && warmupTask->hasOOMFailure()) ||
-           secondaryWarmup.sync.withLock([](const auto& warmup) {
+           secondaryWarmup.withLock([](const auto& warmup) {
                return warmup && warmup->hasOOMFailure();
            });
 }
@@ -2510,7 +2510,7 @@ void EPBucket::primaryWarmupCompleted() {
     const auto& config = engine.getConfiguration();
     if (warmupTask && (config.getSecondaryWarmupMinMemoryThreshold() ||
                        config.getSecondaryWarmupMinItemsThreshold())) {
-        secondaryWarmup.sync.withLock([this, &config](auto& warmup) {
+        secondaryWarmup.withLock([this, &config](auto& warmup) {
             // primaryWarmupCompleted is a one-shot function that will create
             // the secondary warmup object - there should be no second call once
             // created.
@@ -2522,8 +2522,6 @@ void EPBucket::primaryWarmupCompleted() {
                     config.getSecondaryWarmupMinMemoryThreshold(),
                     config.getSecondaryWarmupMinItemsThreshold(),
                     "Secondary");
-            secondaryWarmup.atomic.store(warmup.get(),
-                                         std::memory_order_release);
         });
     }
 }
@@ -2539,7 +2537,7 @@ void EPBucket::stopWarmup() {
     }
 
     // Stop the secondaryWarmup if it exists
-    secondaryWarmup.sync.withLock([this](auto& warmup) {
+    secondaryWarmup.withLock([this](auto& warmup) {
         if (!warmup) {
             return;
         }

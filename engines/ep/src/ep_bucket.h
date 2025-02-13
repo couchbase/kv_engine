@@ -17,6 +17,7 @@
 #include "range_scans/range_scan_owner.h"
 #include "snapshots/cache.h"
 #include "snapshots/download_snapshot_controller.h"
+#include "utilities/synchronized_init_once_ptr.h"
 #include "utilities/testing_hook.h"
 
 class BgFetcher;
@@ -617,14 +618,11 @@ protected:
     cb::RelaxedAtomic<bool> retainErroneousTombstones;
 
     std::unique_ptr<Warmup> warmupTask;
-    struct {
-        // The secondary warmup task is created only once and owned by sync, as
-        // some operations require synchronisation.
-        folly::Synchronized<std::unique_ptr<Warmup>, std::mutex> sync;
-        // After the task is created, this field is set to it, to allow users to
-        // cheaply read it.
-        std::atomic<Warmup*> atomic{nullptr};
-    } secondaryWarmup;
+
+    // The secondary warmup task is created only once. Some operations require
+    // synchronisation. After the task is created, we want to be able to cheaply
+    // read it for stats.
+    SynchronizedInitOncePtr<Warmup> secondaryWarmup;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
 
