@@ -140,7 +140,7 @@ public:
         TRACE_EVENT1("prometheus",
                      "Collect",
                      "id",
-                     std::underlying_type<EndpointTraceId>::type(traceId));
+                     std::underlying_type_t<EndpointTraceId>(traceId));
 
         // get current time in seconds as double
         double timestamp = duration_cast<duration<double>>(

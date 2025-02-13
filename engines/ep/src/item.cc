@@ -165,9 +165,8 @@ std::string to_string(queue_op op) {
         return "system_event";
     }
     return "<" +
-            std::to_string(static_cast<std::underlying_type<queue_op>::type>(op)) +
-            ">";
-
+           std::to_string(static_cast<std::underlying_type_t<queue_op>>(op)) +
+           ">";
 }
 
 bool isMetaQueueOp(queue_op op) {

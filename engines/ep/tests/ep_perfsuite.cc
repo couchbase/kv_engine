@@ -85,15 +85,15 @@ enum class BackgroundWork {
  };
 
 inline BackgroundWork operator | (BackgroundWork lhs, BackgroundWork rhs) {
-    return static_cast<BackgroundWork> (
-            std::underlying_type<BackgroundWork>::type(lhs) |
-            std::underlying_type<BackgroundWork>::type(rhs));
+    return static_cast<BackgroundWork>(
+            std::underlying_type_t<BackgroundWork>(lhs) |
+            std::underlying_type_t<BackgroundWork>(rhs));
 }
 
 inline BackgroundWork operator & (BackgroundWork lhs, BackgroundWork rhs) {
-    return static_cast<BackgroundWork> (
-            std::underlying_type<BackgroundWork>::type(lhs) &
-            std::underlying_type<BackgroundWork>::type(rhs));
+    return static_cast<BackgroundWork>(
+            std::underlying_type_t<BackgroundWork>(lhs) &
+            std::underlying_type_t<BackgroundWork>(rhs));
 }
 
 template<typename T>

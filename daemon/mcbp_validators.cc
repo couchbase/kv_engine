@@ -2812,7 +2812,7 @@ static Status stop_fusion_uploader_validator(Cookie& cookie) {
 }
 
 Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
-    const auto idx = std::underlying_type<ClientOpcode>::type(command);
+    const auto idx = std::underlying_type_t<ClientOpcode>(command);
     if (validators[idx]) {
         return validators[idx](cookie);
     }
@@ -2820,7 +2820,7 @@ Status McbpValidator::validate(ClientOpcode command, Cookie& cookie) {
 }
 
 void McbpValidator::setup(ClientOpcode command, Status (*f)(Cookie&)) {
-    validators[std::underlying_type<ClientOpcode>::type(command)] = f;
+    validators[std::underlying_type_t<ClientOpcode>(command)] = f;
 }
 
 McbpValidator::McbpValidator() {

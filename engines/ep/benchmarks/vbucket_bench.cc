@@ -568,16 +568,12 @@ static void FlushArguments(benchmark::internal::Benchmark* b) {
     // sizes.
     for (auto items = 1; items <= 1000000; items *= 100) {
         // Insert mode
-        b->Args({std::underlying_type<Store>::type(Store::Couchstore),
-                 items,
-                 0});
+        b->Args({std::underlying_type_t<Store>(Store::Couchstore), items, 0});
         // Replace mode
-        b->Args({std::underlying_type<Store>::type(Store::Couchstore),
-                 items,
-                 1});
+        b->Args({std::underlying_type_t<Store>(Store::Couchstore), items, 1});
 #ifdef EP_USE_MAGMA
-        b->Args({std::underlying_type<Store>::type(Store::Magma), items, 0});
-        b->Args({std::underlying_type<Store>::type(Store::Magma), items, 1});
+        b->Args({std::underlying_type_t<Store>(Store::Magma), items, 0});
+        b->Args({std::underlying_type_t<Store>(Store::Magma), items, 1});
 #endif
     }
 }
@@ -635,7 +631,7 @@ static void ExtractItemsArgs(benchmark::internal::Benchmark* b) {
     for (auto items = 1; items <= 10000; items *= 10) {
         for (const auto type : {CheckpointType::Disk, CheckpointType::Memory}) {
             for (const auto state : {CHECKPOINT_OPEN, CHECKPOINT_CLOSED}) {
-                b->Args({std::underlying_type<CheckpointType>::type(type),
+                b->Args({std::underlying_type_t<CheckpointType>(type),
                          state,
                          items});
             }

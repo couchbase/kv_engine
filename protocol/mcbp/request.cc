@@ -515,8 +515,8 @@ nlohmann::json Request::to_json(bool validated) const {
                 default:
                     throw std::invalid_argument(fmt::format(
                             "DcpSnapshotMarkerV2xVersion::invalid version:{}",
-                            std::underlying_type<DcpSnapshotMarkerV2xVersion>::
-                                    type(payload.getVersion())));
+                            std::underlying_type_t<DcpSnapshotMarkerV2xVersion>(
+                                    payload.getVersion())));
                 }
             }
             break;

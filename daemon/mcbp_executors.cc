@@ -715,13 +715,13 @@ static void process_bin_dcp_response(Cookie& cookie) {
 
 static void setup_response_handler(cb::mcbp::ClientOpcode opcode,
                                    HandlerFunction function) {
-    response_handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(
-            opcode)] = std::move(function);
+    response_handlers[std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode)] =
+            std::move(function);
 }
 
 static void setup_handler(cb::mcbp::ClientOpcode opcode,
                           HandlerFunction function) {
-    handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)] =
+    handlers[std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode)] =
             std::move(function);
 }
 
@@ -1041,8 +1041,7 @@ void execute_client_request_packet(Cookie& cookie,
     }
 
     cookie.setAuthorized();
-    handlers[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)](
-            cookie);
+    handlers[std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode)](cookie);
 }
 
 void execute_client_response_packet(Cookie& cookie,

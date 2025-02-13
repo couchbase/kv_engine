@@ -24,7 +24,7 @@ GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
 }
 
 std::string to_string(GenerateBySeqno generateBySeqno) {
-    using GenerateBySeqnoUType = std::underlying_type<GenerateBySeqno>::type;
+    using GenerateBySeqnoUType = std::underlying_type_t<GenerateBySeqno>;
 
     switch (generateBySeqno) {
     case GenerateBySeqno::Yes:
@@ -38,7 +38,7 @@ std::string to_string(GenerateBySeqno generateBySeqno) {
 }
 
 std::string to_string(GenerateCas generateCas) {
-    using GenerateByCasUType = std::underlying_type<GenerateCas>::type;
+    using GenerateByCasUType = std::underlying_type_t<GenerateCas>;
 
     switch (generateCas) {
     case GenerateCas::Yes:
@@ -52,7 +52,7 @@ std::string to_string(GenerateCas generateCas) {
 }
 
 std::string to_string(TrackCasDrift trackCasDrift) {
-    using TrackCasDriftUType = std::underlying_type<TrackCasDrift>::type;
+    using TrackCasDriftUType = std::underlying_type_t<TrackCasDrift>;
 
     switch (trackCasDrift) {
     case TrackCasDrift::Yes:

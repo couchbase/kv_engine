@@ -494,7 +494,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine& engine,
                     now - pendingOpsStart);
             stats.pendingOpsHisto.add(d);
             atomic_setIfBigger(stats.pendingOpsMaxDuration,
-                               std::make_unsigned<hrtime_t>::type(d.count()));
+                               std::make_unsigned_t<hrtime_t>(d.count()));
         }
     } else {
         return;

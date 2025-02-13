@@ -283,8 +283,8 @@ void BinprotSubdocCommand::encode(std::vector<uint8_t>& buf) const {
     }
 
     if (include_doc_flags) {
-        buf.push_back(std::underlying_type<cb::mcbp::subdoc::DocFlag>::type(
-                doc_flags));
+        buf.push_back(
+                std::underlying_type_t<cb::mcbp::subdoc::DocFlag>(doc_flags));
     }
 
     // Add Body: key; path; value if applicable.
@@ -1239,7 +1239,7 @@ BinprotSubdocMultiLookupResponse::getResults() const {
 
 void BinprotGetCmdTimerCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, 0, 1);
-    buf.push_back(std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode));
+    buf.push_back(std::underlying_type_t<cb::mcbp::ClientOpcode>(opcode));
     buf.insert(buf.end(), key.begin(), key.end());
 }
 
