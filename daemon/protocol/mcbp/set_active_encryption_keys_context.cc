@@ -25,10 +25,15 @@ SetActiveEncryptionKeysContext::SetActiveEncryptionKeysContext(Cookie& cookie)
               ConcurrencySemaphores::instance()
                       .encryption_and_snapshot_management),
       json(nlohmann::json::parse(cookie.getRequest().getValueString())),
+      loggable_json(cb::dek::toLoggableJson(json)),
       entity(cookie.getRequest().getKeyString()) {
 }
 
 cb::engine_errc SetActiveEncryptionKeysContext::execute() {
+    LOG_INFO_CTX("Updating Data encryption",
+                 {"conn_id", cookie.getConnectionId()},
+                 {"entity", entity},
+                 {"config", loggable_json});
     try {
         if (entity.front() == '@') {
             using namespace std::string_view_literals;
@@ -56,21 +61,25 @@ cb::engine_errc SetActiveEncryptionKeysContext::execute() {
         }
     } catch (const std::exception& e) {
         LOG_ERROR_CTX("Exception occurred while setting active encryption key",
+                      {"conn_id", cookie.getConnectionId()},
+                      {"entity", entity},
+                      {"config", loggable_json},
                       {"error", e.what()});
         status = cb::engine_errc::disconnect;
     }
 
     if (status == cb::engine_errc::success) {
-        try {
-            auto entry = cb::dek::toLoggableJson(json);
-            LOG_INFO_CTX("Updating Data encryption",
-                         {"entity", entity},
-                         {"config", entry});
-        } catch (const std::exception& e) {
-            LOG_ERROR_CTX(
-                    "Failed to build a list of encryption keys for logging",
-                    {"error", e.what()});
-        }
+        LOG_INFO_CTX("Data encryption updated",
+                     {"conn_id", cookie.getConnectionId()},
+                     {"entity", entity},
+                     {"config", loggable_json});
+    } else if (status != cb::engine_errc::disconnect) {
+        LOG_ERROR_CTX("Data encryption updated",
+                      {"conn_id", cookie.getConnectionId()},
+                      {"status", to_string(status)},
+                      {"entity", entity},
+                      {"config", loggable_json});
     }
+
     return status;
 }

@@ -24,6 +24,12 @@ protected:
     // Execute the operation when running on the executor
     cb::engine_errc execute() override;
 
+    /// The JSON payload from the client containing the new key information
+    /// (active key, identifiers, key data etc)
     const nlohmann::json json;
+    /// The JSON payload from the client containing the new keys, but with
+    /// the actual key data removed so it won't appear in the logs
+    const nlohmann::json loggable_json;
+    /// The entity we're updating the keys for
     const std::string entity;
 };
