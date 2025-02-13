@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2014-Present Couchbase, Inc.
  *
@@ -20,7 +19,6 @@
 #include "test_helpers.h"
 #include "vbucket.h"
 
-#include <valgrind/valgrind.h>
 #include <chrono>
 #include <thread>
 
@@ -148,24 +146,6 @@ TEST_P(DefragmenterTest, MappedMemory) {
 #else
 TEST_P(DefragmenterTest, DISABLED_MappedMemory) {
 #endif
-
-    /*
-      MB-22016:
-      Disable this test for valgrind as it currently triggers some problems
-      within jemalloc that will get detected much further down the set of
-      unit-tests.
-
-      The problem appears to be the toggling of thread cache, I suspect that
-      jemalloc is writing some data when the thread cache is off (during the
-      defrag) and then accessing that data differently with thread cache on.
-
-      The will link to an issue on jemalloc to see if there is anything to be
-      changed.
-    */
-    if (RUNNING_ON_VALGRIND) {
-        printf("DefragmenterTest.MappedMemory is currently disabled for valgrind\n");
-        return;
-    }
 
     // Sanity check - need memory tracker to be able to check our memory usage.
     ASSERT_TRUE(cb::ArenaMalloc::canTrackAllocations())
@@ -295,29 +275,6 @@ TEST_P(DefragmenterTest, DISABLED_RefCountMemUsage) {
 #endif
     // Currently not adapted for StoredValue defragging
     if (isModeStoredValue()) {
-        return;
-    }
-
-    /*
-     * Similarly to the MappedMemory test, this test appears to cause issues
-     * with Valgrind. So it is disabled under Valgrind for now. I've included
-     * the same explanation below for completeness.
-     *
-      MB-22016:
-      Disable this test for valgrind as it currently triggers some problems
-      within jemalloc that will get detected much further down the set of
-      unit-tests.
-
-      The problem appears to be the toggling of thread cache, I suspect that
-      jemalloc is writing some data when the thread cache is off (during the
-      defrag) and then accessing that data differently with thread cache on.
-
-      The will link to an issue on jemalloc to see if there is anything to be
-      changed.
-    */
-    if (RUNNING_ON_VALGRIND) {
-        printf("DefragmenterTest.RefCountMemUsage is currently disabled for"
-               " valgrind\n");
         return;
     }
 

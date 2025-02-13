@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -25,7 +24,6 @@
 #include "testapp_subdoc_common.h"
 
 #include <folly/Portability.h>
-#include <valgrind/valgrind.h>
 #include <unordered_map>
 
 class SubdocPerfTest : public SubdocTestappTest {
@@ -35,23 +33,16 @@ protected:
         // Performance test - disable ewouldblock_engine.
         ewouldblock_engine_configure(
                 cb::engine_errc::would_block, EWBEngineMode::Next_N, 0);
-
-        if (folly::kIsSanitize || RUNNING_ON_VALGRIND ||
-            (folly::kIsWindows && folly::kIsDebug)) {
-            // Reduce the iterations to a minimal value if we're running under
-            // a configuration which is not running at release speed - we aren't
-            // benchmarking under these modes, just checking for bugs.
-            iterations = 10;
-        } else {
-            iterations = 5000;
-        }
     }
 
     void subdoc_perf_test_array(cb::mcbp::ClientOpcode cmd, size_t iterations);
 
     void subdoc_perf_test_dict(cb::mcbp::ClientOpcode cmd, size_t iterations);
 
-    size_t iterations;
+    static constexpr size_t iterations =
+            (folly::kIsSanitize || (folly::kIsWindows && folly::kIsDebug))
+                    ? 10
+                    : 5000;
 };
 
 

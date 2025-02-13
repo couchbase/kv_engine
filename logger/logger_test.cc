@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -13,7 +12,6 @@
 
 #include <dek/manager.h>
 #include <memcached/engine.h>
-#include <valgrind/valgrind.h>
 
 #ifndef WIN32
 #include <sys/resource.h>
@@ -100,11 +98,6 @@ TEST_F(FileRotationTest, DekForceRotation) {
  * have the same ulimit setting
  */
 TEST_F(FileRotationTest, HandleOpenFileErrors) {
-    if (RUNNING_ON_VALGRIND) {
-        std::cerr << "Skipping test when running on valgrind" << std::endl;
-        return;
-    }
-
 #ifdef UNDEFINED_SANITIZER
     // MB-28735: This test fails under UBSan, when spdlog fails to open a new
     // file (in custom_rotating_file_sink::_sink_it):

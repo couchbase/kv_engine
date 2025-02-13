@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -20,8 +19,6 @@
 #include <benchmark/benchmark.h>
 #include <engines/ep/src/defragmenter.h>
 #include <folly/portability/GTest.h>
-#include <valgrind/valgrind.h>
-
 #include <memory>
 
 class DefragmentBench : public benchmark::Fixture {
@@ -75,12 +72,10 @@ protected:
     /* Fill the bucket with the given number of docs.
      */
     void populateVbucket() {
-        // How many items to create in the VBucket. Use a large number for
-        // normal runs when measuring performance (ideally we want to exceed
-        // the D$ as that's how we'd expect to run in production), but a very
-        // small number (enough for functional testing) when running under
-        // Valgrind where there's no sense in measuring performance.
-        const size_t ndocs = RUNNING_ON_VALGRIND ? 10 : 500000;
+        // How many items to create in the VBucket. Use a large number (ideally
+        // we want to exceed the D$ as that's how we'd expect to run in
+        // production).
+        constexpr size_t ndocs = 500000;
 
         /* Set the hashTable to a sensible size */
         vbucket->ht.resizeInOneStep(ndocs);
