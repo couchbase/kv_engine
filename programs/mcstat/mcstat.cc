@@ -24,6 +24,54 @@ using namespace cb::terminal;
 /// Set to true if we should print the output in JSON format
 bool json = false;
 
+/// Split the requested string into the stat key and the value
+/// (dcp allows for a JSON value to be passed in)
+static std::pair<std::string, std::string> split_request_string(
+        std::string_view request) {
+    if (request.empty()) {
+        return {{}, {}};
+    }
+
+    auto arguments = cb::string::split(request);
+    auto* info = StatsGroupManager::getInstance().lookup(arguments.front());
+    if (info == nullptr) {
+        std::cerr << TerminalColor::Red
+                  << "Unknown stat group: " << arguments.front()
+                  << TerminalColor::Reset << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    if (info->id == StatGroupId::Dcp) {
+        std::string_view view = request;
+        view.remove_prefix(3);
+        while (!view.empty() && std::isspace(view.front())) {
+            view.remove_prefix(1);
+        }
+        if (!view.empty()) {
+            try {
+                // this must be JSON
+                const auto obj = nlohmann::json::parse(view);
+                if (!obj.is_object()) {
+                    std::cerr << TerminalColor::Red
+                              << "The value for the DCP stat must be a JSON "
+                                 "object: "
+                              << view << TerminalColor::Reset << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+            } catch (const std::exception& e) {
+                std::cerr << TerminalColor::Red
+                          << "Failed to parse the JSON value: " << view
+                          << TerminalColor::Reset << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        return {std::string{arguments.front()}, std::string(view)};
+    }
+
+    return {std::string{request}, {}};
+}
+
 static void request_dcp_stat(MemcachedConnection& connection,
                              const std::string& value) {
     bool first_time = true;
@@ -73,6 +121,34 @@ static void request_dcp_stat(MemcachedConnection& connection,
     }
 }
 
+static void print_key_value_pair(std::string_view group,
+                                 std::string_view key,
+                                 std::string_view value) {
+    bool printed = false;
+    if (value.find(R"("data":[)") != std::string::npos &&
+        value.find(R"("bucketsLow":)") != std::string::npos) {
+        // this might be a timing histogram... just try to
+        // dump as such
+        std::string_view nm;
+        if (key.empty() || std::isdigit(key.front())) {
+            nm = group;
+        } else {
+            nm = key;
+        }
+
+        try {
+            TimingHistogramPrinter printer(nlohmann::json::parse(value));
+            printer.dumpHistogram(nm);
+            printed = true;
+        } catch (const std::exception&) {
+        }
+    }
+
+    if (!printed) {
+        std::cout << key << " " << value << std::endl;
+    }
+}
+
 /**
  * Request a stat from the server
  * @param connection socket connected to the server
@@ -80,36 +156,11 @@ static void request_dcp_stat(MemcachedConnection& connection,
  */
 static void request_stat(MemcachedConnection& connection,
                          const std::string& statGroup) {
-    const auto* info =
-            StatsGroupManager::getInstance().lookup(StatGroupId::All);
-    if (!statGroup.empty()) {
-        auto arguments = cb::string::split(statGroup);
-        info = StatsGroupManager::getInstance().lookup(arguments.front());
-        if (info == nullptr) {
-            std::cerr << TerminalColor::Red
-                      << "Unknown stat group: " << arguments.front()
-                      << TerminalColor::Reset << std::endl;
-            exit(EXIT_FAILURE);
-        }
-    }
-    if (info->id == StatGroupId::Dcp) {
+    auto [statKey, statValue] = split_request_string(statGroup);
+    if (statKey == "dcp") {
         auto value = nlohmann::json::object();
-        std::string_view view = statGroup;
-        view.remove_prefix(3);
-        while (!view.empty() && std::isspace(view.front())) {
-            view.remove_prefix(1);
-        }
-        if (!view.empty()) {
-            try {
-                value = nlohmann::json::parse(view);
-            } catch (const nlohmann::json::exception&) {
-                fmt::println(stderr,
-                             "{}Failed to parse the JSON value: {}{}",
-                             TerminalColor::Red,
-                             view,
-                             TerminalColor::Reset);
-                exit(EXIT_FAILURE);
-            }
+        if (!statValue.empty()) {
+            value = nlohmann::json::parse(statValue);
         }
         if (!value.contains("stream_format")) {
             value["stream_format"] = "json";
@@ -123,34 +174,41 @@ static void request_stat(MemcachedConnection& connection,
         std::cout << stats.dump() << std::endl;
     } else {
         connection.stats(
-                [statGroup](const std::string& key,
-                            const std::string& value) -> void {
-                    bool printed = false;
-                    if (value.find(R"("data":[)") != std::string::npos &&
-                        value.find(R"("bucketsLow":)") != std::string::npos) {
-                        // this might be a timing histogram... just try to
-                        // dump as such
-                        std::string_view nm;
-                        if (key.empty() || std::isdigit(key.front())) {
-                            nm = statGroup;
-                        } else {
-                            nm = key;
-                        }
-
-                        try {
-                            TimingHistogramPrinter printer(
-                                    nlohmann::json::parse(value));
-                            printer.dumpHistogram(nm);
-                            printed = true;
-                        } catch (const std::exception&) {
-                        }
-                    }
-
-                    if (!printed) {
-                        std::cout << key << " " << value << std::endl;
-                    }
+                [statGroup](const auto& key, const auto& value) -> void {
+                    print_key_value_pair(statGroup, key, value);
                 },
                 statGroup);
+    }
+}
+
+void request_sorted_stat(MemcachedConnection& connection,
+                         const std::string& statGroup) {
+    using KeyValue = std::pair<std::string, std::string>;
+    std::vector<KeyValue> stats;
+
+    auto [statKey, statValue] = split_request_string(statGroup);
+    connection.stats(
+            [&stats](const std::string& k, const std::string& v) -> void {
+                stats.emplace_back(k, v);
+            },
+            statKey,
+            statValue);
+
+    std::ranges::sort(stats, [](const auto& a, const auto& b) {
+        const auto& akey = a.first;
+        const auto& bkey = b.first;
+
+        if (!akey.empty() && !bkey.empty()) {
+            if (std::isdigit(akey.front()) && std::isdigit(bkey.front())) {
+                return std::stoull(akey) < std::stoull(bkey);
+            }
+        }
+
+        return a.first < b.first;
+    });
+
+    for (const auto& [key, value] : stats) {
+        print_key_value_pair(statGroup, key, value);
     }
 }
 
@@ -308,6 +366,7 @@ static std::string buildStatString(const std::vector<std::string_view>& args) {
 }
 
 int main(int argc, char** argv) {
+    bool sort = false;
     bool allBuckets = false;
     std::vector<std::string> buckets;
 
@@ -350,6 +409,10 @@ int main(int argc, char** argv) {
              "Get list of buckets from the node and display stats per bucket "
              "basis."});
 
+    getopt.addOption({[&sort](auto) { sort = true; },
+                      "sort",
+                      "sort output (only valid for non-JSON output)"});
+
     getopt.addOption({[&getopt](auto value) {
                           if (value.empty()) {
                               usage(getopt, EXIT_SUCCESS);
@@ -368,6 +431,13 @@ int main(int argc, char** argv) {
 
     auto arguments = getopt.parse(
             argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
+
+    if (sort && json) {
+        std::cerr << TerminalColor::Red
+                  << "Cannot create JSON output while sorting"
+                  << TerminalColor::Reset << std::endl;
+        return EXIT_FAILURE;
+    }
 
     if (allBuckets && !buckets.empty()) {
         std::cerr << TerminalColor::Red
@@ -406,7 +476,11 @@ int main(int argc, char** argv) {
                 bucketItr++;
             }
 
-            request_stat(*connection, stat_key);
+            if (sort) {
+                request_sorted_stat(*connection, stat_key);
+            } else {
+                request_stat(*connection, stat_key);
+            }
         } while (bucketItr != buckets.end());
 
     } catch (const ConnectionError& ex) {
