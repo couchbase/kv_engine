@@ -74,14 +74,14 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
                         {"conn_id", cookie.getConnectionId()},
                         {"bucket", bucketname},
                         {"global", bucketname.empty()},
-                        {"version", fmt::to_string(version)});
+                        {"version", version.to_json()});
         return cb::engine_errc::no_memory;
     } catch (const std::exception& exception) {
         LOG_WARNING_CTX("Compression of config failed",
                         {"conn_id", cookie.getConnectionId()},
                         {"bucket", bucketname},
                         {"global", bucketname.empty()},
-                        {"version", fmt::to_string(version)},
+                        {"version", version.to_json()},
                         {"error", exception.what()});
         cookie.setErrorContext("Compression failed");
         return cb::engine_errc::failed;
@@ -122,7 +122,7 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
                     {"conn_id", cookie.getConnectionId()},
                     {"bucket", bucketname},
                     {"global", bucketname.empty()},
-                    {"version", fmt::to_string(version)},
+                    {"version", version.to_json()},
                     {"status", status});
     return status;
 }
@@ -226,7 +226,7 @@ cb::engine_errc SetClusterConfigCommandContext::done() {
                  {"conn_id", cookie.getConnectionId()},
                  {"bucket", bucketname},
                  {"global", bucketname.empty()},
-                 {"version", fmt::to_string(version)});
+                 {"version", version.to_json()});
 
     cookie.setCas(sessiontoken);
     cookie.sendResponse(cb::mcbp::Status::Success);
