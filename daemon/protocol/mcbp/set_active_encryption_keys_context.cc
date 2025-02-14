@@ -20,7 +20,7 @@
 SetActiveEncryptionKeysContext::SetActiveEncryptionKeysContext(Cookie& cookie)
     : BackgroundThreadCommandContext(
               cookie,
-              TaskId::Core_SetActiveEncryptionKeys,
+              TaskId::Core_SetActiveEncryptionKeysTask,
               "SetActiveEncryptionKeys",
               ConcurrencySemaphores::instance()
                       .encryption_and_snapshot_management),
