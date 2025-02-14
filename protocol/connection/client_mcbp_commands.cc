@@ -2203,7 +2203,7 @@ void BinprotGetKeysCommand::encode(std::vector<uint8_t>& buf) const {
         append(buf, *nkeys);
         buf.insert(buf.end(), key.begin(), key.end());
     } else {
-        return BinprotGenericCommand::encode(buf);
+        BinprotGenericCommand::encode(buf);
     }
 }
 

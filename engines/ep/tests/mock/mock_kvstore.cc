@@ -67,12 +67,12 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
         ON_CALL(*this, set(_, _))
                 .WillByDefault(
                         [this](TransactionContext& txnCtx, queued_item item) {
-                            return this->realKVS->set(txnCtx, item);
+                            this->realKVS->set(txnCtx, item);
                         });
         ON_CALL(*this, del(_, _))
                 .WillByDefault(
                         [this](TransactionContext& txnCtx, queued_item item) {
-                            return this->realKVS->del(txnCtx, item);
+                            this->realKVS->del(txnCtx, item);
                         });
         ON_CALL(*this, getStorageProperties()).WillByDefault([this]() {
             return this->realKVS->getStorageProperties();
@@ -94,7 +94,7 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
             return this->realKVS->prepareToDeleteImpl(vbid);
         });
         ON_CALL(*this, prepareToCreateImpl(_)).WillByDefault([this](Vbid vbid) {
-            return this->realKVS->prepareToCreateImpl(vbid);
+            this->realKVS->prepareToCreateImpl(vbid);
         });
         ON_CALL(*this, getCollectionsManifest(_))
                 .WillByDefault([this](Vbid vbid) {
@@ -108,7 +108,7 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
                     return this->realKVS->delVBucket(vbid, std::move(rev));
                 });
         ON_CALL(*this, prepareToCreate(_)).WillByDefault([this](Vbid vbid) {
-            return this->realKVS->prepareToCreate(vbid);
+            this->realKVS->prepareToCreate(vbid);
         });
         ON_CALL(*this, prepareToDelete(_)).WillByDefault([this](Vbid vbid) {
             return this->realKVS->prepareToDelete(vbid);

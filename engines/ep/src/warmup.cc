@@ -1957,7 +1957,8 @@ void Warmup::step() {
     case WarmupState::State::LoadingAccessLog:
     case WarmupState::State::LoadingKVPairs:
     case WarmupState::State::LoadingData:
-        return scheduleShardedTasks(state);
+        scheduleShardedTasks(state);
+        return;
     }
     folly::assume_unreachable();
 }

@@ -1509,7 +1509,7 @@ void Manifest::incrementItemCount(CollectionID collection) const {
                 __func__,
                 "failed find of collection:" + collection.to_string());
     }
-    return itr->second.incrementItemCount();
+    itr->second.incrementItemCount();
 }
 
 void Manifest::decrementItemCount(CollectionID collection) const {
@@ -1519,7 +1519,7 @@ void Manifest::decrementItemCount(CollectionID collection) const {
                 __func__,
                 "failed find of collection:" + collection.to_string());
     }
-    return itr->second.decrementItemCount();
+    itr->second.decrementItemCount();
 }
 
 bool Manifest::addCollectionStats(Vbid vbid,

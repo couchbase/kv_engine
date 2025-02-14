@@ -6344,11 +6344,11 @@ TEST_P(DurabilityPassiveStreamEphemeralTest,
 }
 
 void DurabilityDemotionStreamTest::SetUp() {
-    return DurabilityActiveStreamTest::SetUp();
+    DurabilityActiveStreamTest::SetUp();
 }
 
 void DurabilityDemotionStreamTest::TearDown() {
-    return DurabilityPassiveStreamTest::TearDown();
+    DurabilityPassiveStreamTest::TearDown();
 }
 
 void DurabilityDemotionStreamTest::

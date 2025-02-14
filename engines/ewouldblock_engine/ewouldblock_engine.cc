@@ -982,7 +982,7 @@ cb::engine_errc EWB_Engine::remove(
 }
 
 void EWB_Engine::release(ItemIface& item) {
-    return real_engine->release(item);
+    real_engine->release(item);
 }
 
 cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
@@ -1149,7 +1149,7 @@ cb::engine_errc EWB_Engine::get_stats(CookieIface& cookie,
 }
 
 void EWB_Engine::reset_stats(CookieIface& cookie) {
-    return real_engine->reset_stats(cookie);
+    real_engine->reset_stats(cookie);
 }
 
 /**

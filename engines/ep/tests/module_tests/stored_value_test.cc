@@ -564,7 +564,7 @@ template <typename Factory>
 class StoredValueProtectedTest : public ValueTest<Factory> {
 public:
     void setDeleteSource(DeleteSource delSource, StoredValue::UniquePtr& sv) {
-        return sv->setDeletionSource(delSource);
+        sv->setDeletionSource(delSource);
     }
 };
 

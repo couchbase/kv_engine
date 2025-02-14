@@ -103,8 +103,7 @@ void DcpReplicatorImpl::createPipes(const Cluster& cluster, Bucket& bucket) {
 }
 
 void DcpReplicatorImpl::start() {
-    thread = std::make_unique<std::thread>(
-            [this] { return thread_main(*this); });
+    thread = std::make_unique<std::thread>([this] { thread_main(*this); });
     // And wait for all of the streams to be set up
     while (num_ready < pipelines.size()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));

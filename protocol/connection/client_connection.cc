@@ -1255,7 +1255,7 @@ void MemcachedConnection::authenticate(
         });
     }
 
-    return doSaslAuthenticate(user, pw, mech);
+    doSaslAuthenticate(user, pw, mech);
 }
 
 void MemcachedConnection::doSaslAuthenticate(const std::string& username,

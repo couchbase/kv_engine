@@ -132,7 +132,7 @@ TEST_P(DeprecatedCommandsTests, SetQ) {
         safe_send(command);
     }
 
-    return test_noop();
+    test_noop();
 }
 
 TEST_P(DeprecatedCommandsTests, AddQ) {

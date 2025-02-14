@@ -138,9 +138,10 @@ bool StoredValue::eligibleForEviction(EvictionPolicy policy) const {
 
 void StoredValue::setValue(const Item& itm) {
     if (isOrdered()) {
-        return static_cast<OrderedStoredValue*>(this)->setValueImpl(itm);
+        static_cast<OrderedStoredValue*>(this)->setValueImpl(itm);
+        return;
     }
-    return this->setValueImpl(itm);
+    this->setValueImpl(itm);
 }
 
 void StoredValue::ejectValue() {
@@ -503,10 +504,9 @@ void StoredValue::incrementAge() {
 
 void StoredValue::setCompletedOrDeletedTime(time_t time) {
     if (isOrdered()) {
-        return static_cast<OrderedStoredValue*>(this)
-                ->setCompletedOrDeletedTime(time);
+        // Only applicable to OSV
+        static_cast<OrderedStoredValue*>(this)->setCompletedOrDeletedTime(time);
     }
-    // Do nothing, only applicable to OSV
 }
 
 void to_json(nlohmann::json& json, const StoredValue& sv) {

@@ -48,7 +48,7 @@ magma::Status DomainAwareSeqIterator::GetStatus() {
 
 void DomainAwareSeqIterator::Next() {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return itr->Next();
+    itr->Next();
 }
 
 bool DomainAwareSeqIterator::Valid() {
@@ -61,13 +61,13 @@ void DomainAwareSeqIterator::GetRecord(magma::Slice& key,
                                        magma::Slice& value,
                                        magma::Magma::SeqNo& seqno) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return itr->GetRecord(key, meta, value, seqno);
+    itr->GetRecord(key, meta, value, seqno);
 }
 
 void DomainAwareSeqIterator::Seek(const magma::Magma::SeqNo startSeqno,
                                   const magma::Magma::SeqNo endSeqno) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return itr->Seek(startSeqno, endSeqno);
+    itr->Seek(startSeqno, endSeqno);
 }
 
 std::string DomainAwareSeqIterator::to_string() const {
