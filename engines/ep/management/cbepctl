@@ -63,7 +63,7 @@ def set_param(mc, type, key, val, force=False):
 
 
 @cmd
-def set_vbucket_param(mc, key, vbucket, val):
+def set_vbucket_param(mc, key, vbucket, val, force=False):
     engine_param = memcacheConstants.ENGINE_PARAM_VBUCKET
 
     try:
@@ -78,7 +78,7 @@ def set_vbucket_param(mc, key, vbucket, val):
 
 
 @cmd
-def stop(mc):
+def stop(mc, force=False):
     try:
         mc.stop_persistence()
         stopped = False
@@ -106,7 +106,7 @@ def stop(mc):
 
 
 @cmd
-def start(mc):
+def start(mc, force=False):
     try:
         mc.start_persistence()
         print('Persistence started')
@@ -119,7 +119,7 @@ def start(mc):
 
 
 @cmd
-def drain(mc):
+def drain(mc, force=False):
     try:
         while True:
             s = mc.stats()
@@ -139,7 +139,7 @@ def drain(mc):
 
 
 @cmd
-def set_collections(mc, filename):
+def set_collections(mc, filename, force=False):
 
     try:
         jsonManifestFile = open(filename, "r")
@@ -157,7 +157,7 @@ def set_collections(mc, filename):
 
 
 @cmd
-def get_collections(mc):
+def get_collections(mc, force=False):
 
     try:
         print(mc.get_collections()[2])
@@ -171,7 +171,8 @@ def get_collections(mc):
 
 
 @cmd
-def run_compaction(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
+def run_compaction(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes,
+                   force=False):
     engine_param = memcacheConstants.ENGINE_PARAM_VBUCKET
 
     try:
@@ -357,6 +358,8 @@ Available params for "set":
     # except for when required by support/development
     c.addCommand('set_collections', set_collections, None, hidden=True)
     c.addCommand('get_collections', get_collections, None, hidden=True)
+
+    # Add flag to allow setting parameters that should not be set via cbepctl
     c.addHiddenFlag('--force', 'force')
 
     c.execute()
