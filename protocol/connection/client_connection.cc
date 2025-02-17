@@ -1581,30 +1581,37 @@ void MemcachedConnection::stats(
     }
     cmd.setValue(std::move(value));
     applyFrameInfos(cmd, getFrameInfo);
-    sendCommand(cmd);
+    BinprotResponse rsp;
 
-    int counter = 0;
+    backoff_execute(
+            [&cmd, &rsp, &callback, this]() -> bool {
+                sendCommand(cmd);
+                recvResponse(rsp);
 
-    while (true) {
-        BinprotResponse response;
-        recvResponse(response);
+                if (rsp.getStatus() == cb::mcbp::Status::Etmpfail &&
+                    auto_retry_tmpfail) {
+                    return false;
+                }
 
-        if (!response.isSuccess()) {
-            throw ConnectionError("Stats failed", response);
-        }
+                int counter = 0;
+                while (rsp.getStatus() == cb::mcbp::Status::Success &&
+                       (!rsp.getKey().empty() || !rsp.getDataView().empty())) {
+                    std::string key{rsp.getKey()};
+                    if (key.empty()) {
+                        key = std::to_string(counter++);
+                    }
 
-        if (response.getKey().empty() && response.getDataView().empty()) {
-            break;
-        }
+                    callback(key,
+                             std::string{rsp.getDataView()},
+                             cb::mcbp::Datatype(rsp.getDatatype()));
+                    recvResponse(rsp);
+                }
+                return true;
+            },
+            fmt::format("{}({})", cmd.getOp(), cmd.getKey()));
 
-        std::string key{response.getKey()};
-        if (key.empty()) {
-            key = std::to_string(counter++);
-        }
-
-        callback(key,
-                 std::string{response.getDataView()},
-                 cb::mcbp::Datatype(response.getDatatype()));
+    if (!rsp.isSuccess()) {
+        throw ConnectionError("Stats failed", rsp);
     }
 }
 
