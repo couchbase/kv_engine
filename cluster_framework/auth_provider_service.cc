@@ -58,8 +58,9 @@ AuthProviderService::AuthProviderService(Cluster& cluster) : cluster(cluster) {
 
         auto sock = conn->releaseSocket();
         evutil_make_socket_nonblocking(sock);
-        const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
-                             BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
+        constexpr auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
+                                 BEV_OPT_CLOSE_ON_FREE |
+                                 BEV_OPT_DEFER_CALLBACKS;
         auto* bev = bufferevent_socket_new(base.get(), sock, options);
         bufferevent_setcb(bev,
                           AuthProviderService::read_callback,

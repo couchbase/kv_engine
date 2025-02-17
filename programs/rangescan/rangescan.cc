@@ -549,14 +549,14 @@ int main(int argc, char** argv) {
 
     cb::net::initialize();
 
-    const int sampleOptionId = 1;
-    const int seedOptionId = 2;
-    const int startOptionId = 3;
-    const int endOptionId = 4;
-    const int itemLimitOptionId = 5;
-    const int timeLimitOptionId = 6;
-    const int byteLimitOptionId = 7;
-    const int vbucketOptionId = 8;
+    constexpr int sampleOptionId = 1;
+    constexpr int seedOptionId = 2;
+    constexpr int startOptionId = 3;
+    constexpr int endOptionId = 4;
+    constexpr int itemLimitOptionId = 5;
+    constexpr int timeLimitOptionId = 6;
+    constexpr int byteLimitOptionId = 7;
+    constexpr int vbucketOptionId = 8;
 
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},

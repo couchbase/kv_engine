@@ -77,7 +77,7 @@ TEST_F(AuditFileTest, TestFileCreation) {
     EXPECT_EQ(1, files.size());
 }
 
-static const uint32_t rotation_time = 100;
+static constexpr uint32_t rotation_time = 100;
 
 /**
  * Test that an empty file is properly rotated using ensure_open()

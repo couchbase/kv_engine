@@ -349,7 +349,7 @@ void FrontEndThread::destroy_connection(Connection& connection) {
 }
 
 void FrontEndThread::tryDisconnectUnauthenticatedConnections() {
-    static const std::chrono::minutes limit{5};
+    static constexpr std::chrono::minutes limit{5};
     static const std::string message = fmt::format(
             "Client did not authenticate within {} minutes", limit.count());
 

@@ -168,7 +168,7 @@ protected:
      * 1 byte containing the level
      * 2 bytes containing the duration timeout
      */
-    static const size_t FrameExtrasSize = 4;
+    static constexpr size_t FrameExtrasSize = 4;
 
     void executeCommand(std::vector<uint8_t>& command, Status expectedStatus) {
         // Resize the underlying buffer to have room for the frame extras..

@@ -46,7 +46,7 @@ std::pair<uint32_t, uint32_t> getTestRange(size_t encodedBytes) {
     }
 }
 
-const size_t numberOfInputs = 1000;
+constexpr size_t numberOfInputs = 1000;
 
 static void bench_unsigned_leb128_decode(benchmark::State& state) {
     auto range = getTestRange(state.range(0));

@@ -149,7 +149,7 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     Document high;
     high.info.id = "high";
     uint64_t uuid;
-    const size_t docCount = 100;
+    constexpr size_t docCount = 100;
 
     for (size_t i = 0; i < docCount; i++) {
         Document doc;

@@ -152,8 +152,8 @@ TEST(Privilege, sanity_check) {
     // We've only defined a handfull of privileges, so loop with some
     // negative values and some higher so that we don't need to update
     // the test every time we add a new privilege
-    const int lower_test_limit = -10;
-    const int upper_test_limit = 1000;
+    constexpr int lower_test_limit = -10;
+    constexpr int upper_test_limit = 1000;
 
     for (int ii = lower_test_limit; ii < upper_test_limit; ++ii) {
         auto priv = Privilege(ii);

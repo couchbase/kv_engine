@@ -70,7 +70,7 @@ uint64_t recv_subdoc_response(
 
     size_t offset = 0;
     for (unsigned int ii = 0; ii < expected_results.size(); ii++) {
-        const size_t result_header_len = sizeof(uint16_t) + sizeof(uint32_t);
+        constexpr auto result_header_len = sizeof(uint16_t) + sizeof(uint32_t);
         if (offset + result_header_len > vallen) {
             ADD_FAILURE() << "Remaining value length too short for expected "
                              "result header";

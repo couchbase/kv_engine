@@ -23,7 +23,7 @@
  * Test that the new fmt-style formatting works
  */
 TEST_F(SpdloggerTest, FmtStyleFormatting) {
-    const uint32_t value = 0xdeadbeef;
+    constexpr uint32_t value = 0xdeadbeef;
     LOG_CRITICAL("FmtStyleFormatting {:x}", value);
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);

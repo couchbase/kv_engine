@@ -51,7 +51,7 @@ using namespace std::chrono;
  * time values above this are interpretted as absolute.
  * note: c++20 will bring chrono::days
  */
-const seconds memcached_maximum_relative_time(60 * 60 * 24 * 30);
+constexpr seconds memcached_maximum_relative_time(60 * 60 * 24 * 30);
 
 std::chrono::steady_clock::time_point mc_time_uptime_now() {
     return cb::time::UptimeClock::instance().now();

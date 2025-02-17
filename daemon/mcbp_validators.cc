@@ -509,7 +509,7 @@ static Status verify_common_dcp_stream_restrictions(
         Cookie& cookie, cb::mcbp::DcpAddStreamFlag flags) {
     using namespace cb::mcbp;
 
-    const auto mask =
+    constexpr auto mask =
             DcpAddStreamFlag::TakeOver | DcpAddStreamFlag::DiskOnly |
             DcpAddStreamFlag::ToLatest | DcpAddStreamFlag::ActiveVbOnly |
             DcpAddStreamFlag::StrictVbUuid | DcpAddStreamFlag::FromLatest |
@@ -558,10 +558,11 @@ static Status dcp_open_validator(Cookie& cookie) {
     }
 
     // Validate the flags.
-    const auto mask = ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
-                        DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
-                        DcpOpenFlag::NoValueWithUnderlyingDatatype |
-                        DcpOpenFlag::IncludeDeletedUserXattrs);
+    constexpr auto mask =
+            ~(DcpOpenFlag::Producer | DcpOpenFlag::IncludeXattrs |
+              DcpOpenFlag::NoValue | DcpOpenFlag::IncludeDeleteTimes |
+              DcpOpenFlag::NoValueWithUnderlyingDatatype |
+              DcpOpenFlag::IncludeDeletedUserXattrs);
 
     const auto& payload =
             cookie.getRequest().getCommandSpecifics<DcpOpenPayload>();

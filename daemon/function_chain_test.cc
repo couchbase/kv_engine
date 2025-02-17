@@ -25,7 +25,7 @@ static bool function1Called = false;
 static bool function2Called = false;
 static bool function3Called = false;
 
-const int success = 5;
+constexpr int success = 5;
 
 static int function1() {
     function1Called = true;

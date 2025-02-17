@@ -111,7 +111,7 @@ TYPED_TEST(UnsignedLeb128, EncodeDecodeMultipleValues) {
     std::mt19937_64 twister(sizeof(TypeParam));
     std::vector<uint8_t> data;
     std::vector<TypeParam> values;
-    const int iterations = 10;
+    constexpr int iterations = 10;
 
     // Encode
     for (int n = 0; n < iterations; n++) {

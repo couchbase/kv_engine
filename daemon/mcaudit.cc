@@ -264,7 +264,7 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
             MEMCACHED_AUDIT_INVALID_PACKET, c, c.getUser(), {});
     std::stringstream ss;
     std::string trunc;
-    const cb::const_byte_buffer::size_type max_dump_size = 256;
+    constexpr cb::const_byte_buffer::size_type max_dump_size = 256;
     if (packet.size() > max_dump_size) {
         trunc = " [truncated " + std::to_string(packet.size() - max_dump_size) +
                 " bytes]";

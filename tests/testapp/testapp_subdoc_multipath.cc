@@ -538,7 +538,7 @@ TEST_P(SubdocTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
 
 // Test that flags are preserved by subdoc multipath mutation operations.
 TEST_P(SubdocTestappTest, SubdocMultiMutation_Flags) {
-    const uint32_t flags = 0xcafebabe;
+    constexpr uint32_t flags = 0xcafebabe;
     store_document("array", "[]", flags, 0, false);
 
     SubdocMultiMutationCmd mutation;

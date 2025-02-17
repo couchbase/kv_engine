@@ -368,7 +368,7 @@ TEST_F(CollectionsTests, SetCollectionsWithNoDirectory) {
     cluster->iterateNodes([this](const cb::test::Node& node) {
         const auto path = node.directory / "default";
         int tries = 0;
-        const int retries = 50;
+        constexpr int retries = 50;
         cluster->removeWithRetry(path,
                                  [&tries, &retries](const std::exception& e) {
                                      using namespace std::chrono_literals;

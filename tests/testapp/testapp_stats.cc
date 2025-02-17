@@ -717,7 +717,7 @@ TEST_P(StatsTest, TestFrequencyCountersStats) {
     EXPECT_FALSE(stats.empty());
 
     // We expect 257 histogram buckets per vbucket state (256 buckets + mean)
-    const auto keys = 257 * 3;
+    constexpr auto keys = 257 * 3;
     EXPECT_EQ(keys, stats.size());
 
     for (auto state : {"active", "replica", "pending"}) {
@@ -825,7 +825,7 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
     // 2. Reconfigure with a different number, check the stats update as
     // expected.
     nlohmann::json cfg;
-    const uint32_t newNumThreads = 10;
+    constexpr uint32_t newNumThreads = 10;
     cfg["num_reader_threads"] = newNumThreads;
     cfg["num_writer_threads"] = newNumThreads;
     cfg["num_auxio_threads"] = newNumThreads;
@@ -882,8 +882,8 @@ TEST_P(StatsTest, MB58199) {
             bucketName, [&stats](auto& conn) { stats = conn.stats(""); });
     ASSERT_TRUE(stats.contains("max_system_connections"));
     ASSERT_TRUE(stats.contains("max_user_connections"));
-    const auto max_system = Testapp::MAX_CONNECTIONS / 4;
-    const auto max_user = Testapp::MAX_CONNECTIONS - max_system;
+    constexpr auto max_system = Testapp::MAX_CONNECTIONS / 4;
+    constexpr auto max_user = Testapp::MAX_CONNECTIONS - max_system;
     EXPECT_EQ(max_system, stats["max_system_connections"]);
     EXPECT_EQ(max_user, stats["max_user_connections"]);
 }

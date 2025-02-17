@@ -52,7 +52,7 @@ void Timings::collect(cb::mcbp::ClientOpcode opcode,
     interval.duration_ns += nsec.count();
 }
 
-static const cb::mcbp::ClientOpcode timings_mutations[] = {
+static constexpr std::array<cb::mcbp::ClientOpcode, 30> timings_mutations = {
         cb::mcbp::ClientOpcode::Add,
         cb::mcbp::ClientOpcode::Addq,
         cb::mcbp::ClientOpcode::Append,
@@ -84,7 +84,7 @@ static const cb::mcbp::ClientOpcode timings_mutations[] = {
         cb::mcbp::ClientOpcode::SubdocDictAdd,
         cb::mcbp::ClientOpcode::SubdocMultiMutation};
 
-static const cb::mcbp::ClientOpcode timings_retrievals[] = {
+static constexpr std::array<cb::mcbp::ClientOpcode, 12> timings_retrievals = {
         cb::mcbp::ClientOpcode::Gat,
         cb::mcbp::ClientOpcode::Gatq,
         cb::mcbp::ClientOpcode::Get,

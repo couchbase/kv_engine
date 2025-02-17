@@ -641,7 +641,7 @@ TEST_F(SettingsTest, max_connections) {
     nonNumericValuesShouldFail("max_connections");
 
     nlohmann::json obj;
-    const size_t maxconn = 100;
+    constexpr size_t maxconn = 100;
     obj["max_connections"] = maxconn;
     Settings settings(obj);
     EXPECT_EQ(maxconn, settings.getMaxConnections());
@@ -652,7 +652,7 @@ TEST_F(SettingsTest, system_connections) {
     nonNumericValuesShouldFail("system_connections");
 
     nlohmann::json obj;
-    const size_t maxconn = 100;
+    constexpr size_t maxconn = 100;
     obj["system_connections"] = maxconn;
     Settings settings(obj);
     EXPECT_EQ(maxconn, settings.getSystemConnections());
@@ -663,7 +663,7 @@ TEST_F(SettingsTest, max_concurrent_commands_per_connection) {
     nonNumericValuesShouldFail("max_concurrent_commands_per_connection");
 
     nlohmann::json obj;
-    const std::size_t max = 64;
+    constexpr std::size_t max = 64;
     obj["max_concurrent_commands_per_connection"] = max;
     Settings settings(obj);
     EXPECT_EQ(max, settings.getMaxConcurrentCommandsPerConnection());

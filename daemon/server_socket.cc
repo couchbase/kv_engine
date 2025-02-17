@@ -304,7 +304,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
 #endif
     }
 
-    const int flags = 1;
+    constexpr int flags = 1;
     if (cb::net::setsockopt(
                 client, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags)) ==
         -1) {

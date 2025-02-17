@@ -31,8 +31,7 @@ using cb::mcbp::subdoc::PathFlag;
 
 // Maximum depth for a document (and path) is 32. Create documents
 // that large and one bigger to test with.
-const int MAX_SUBDOC_PATH_COMPONENTS = 32;
-
+constexpr int MAX_SUBDOC_PATH_COMPONENTS = 32;
 
 // Ensure the execution of the operation is successful
 #define EXPECT_SD_OK(cmd) EXPECT_PRED_FORMAT1(subdoc_pred_ok, cmd)
@@ -1415,7 +1414,7 @@ TEST_P(SubdocTestappTest, SubdocCounter_InvalidNotInt) {
 
 TEST_P(SubdocTestappTest, SubdocCounter_InvalidERange) {
     // Cannot increment things which are not representable as int64_t.
-    const auto int64_max = std::numeric_limits<int64_t>::max();
+    constexpr auto int64_max = std::numeric_limits<int64_t>::max();
 
     const std::vector<std::string> unrepresentable({
         std::to_string(uint64_t(int64_max) + 1),
@@ -1439,7 +1438,7 @@ TEST_P(SubdocTestappTest, SubdocCounter_InvalidERange) {
 TEST_P(SubdocTestappTest, SubdocCounter_Limits) {
     // a). Attempting to increment value one less than int64_t::MAX by one
     //     should succeed.
-    const int64_t max = std::numeric_limits<int64_t>::max();
+    constexpr auto max = std::numeric_limits<int64_t>::max();
 
     store_document("a", "{\"key\":" + std::to_string(max - 1) + "}");
     EXPECT_SD_VALEQ(
@@ -1461,7 +1460,7 @@ TEST_P(SubdocTestappTest, SubdocCounter_Limits) {
     delete_object("a");
 
     // c). Same with int64_t::min() and decrement.
-    const int64_t min = std::numeric_limits<int64_t>::min();
+    constexpr auto min = std::numeric_limits<int64_t>::min();
 
     store_document("b", "{\"key\":" + std::to_string(min + 1) + "}");
     EXPECT_SD_VALEQ(
@@ -1795,7 +1794,7 @@ TEST_P(SubdocTestappTest, SubdocArrayPushLast_NotMyVbucket) {
 // Test that flags are preserved by subdoc mutation operations.
 TEST_P(SubdocTestappTest, SubdocFlags) {
     const char array[] = "[0]";
-    const uint32_t flags = 0xcafebabe;
+    constexpr uint32_t flags = 0xcafebabe;
     store_document("array", array, flags);
 
     EXPECT_SD_OK(BinprotSubdocCommand(
@@ -1839,13 +1838,15 @@ enum class SubdocCmdType {
     Mutation
 };
 
-static const SubdocStatTraits LOOKUP_TRAITS { "cmd_subdoc_lookup",
-                                              "bytes_subdoc_lookup_total",
-                                              "bytes_subdoc_lookup_extracted" };
+static constexpr SubdocStatTraits LOOKUP_TRAITS{
+        "cmd_subdoc_lookup",
+        "bytes_subdoc_lookup_total",
+        "bytes_subdoc_lookup_extracted"};
 
-static const SubdocStatTraits MUTATION_TRAITS { "cmd_subdoc_mutation",
-                                                "bytes_subdoc_mutation_total",
-                                                "bytes_subdoc_mutation_inserted" };
+static constexpr SubdocStatTraits MUTATION_TRAITS{
+        "cmd_subdoc_mutation",
+        "bytes_subdoc_mutation_total",
+        "bytes_subdoc_mutation_inserted"};
 
 void SubdocTestappTest::test_subdoc_stats_command(
         cb::mcbp::ClientOpcode cmd,

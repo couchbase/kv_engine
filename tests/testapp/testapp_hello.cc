@@ -18,13 +18,13 @@
  * The maximum number of character the core preserves for the
  * agent name for each connection
  */
-const size_t MaxSavedAgentName = 32;
+constexpr size_t MaxSavedAgentName = 32;
 
 /**
  * The maximum number of character the core preserves for the
  * connection identifier for each connection
  */
-const size_t MaxSavedConnectionId = 33;
+constexpr size_t MaxSavedConnectionId = 33;
 
 class HelloTest : public TestappTest {
 protected:

@@ -199,7 +199,7 @@ TEST_P(GetValidatorTest, KeyLengthMax) {
     // non-collections, but importantly when used with collections enabled, it
     // appears to be a DefaultCollection key
 
-    const int maxKeyLen = 250;
+    constexpr int maxKeyLen = 250;
     std::fill(
             blob + sizeof(request), blob + sizeof(request) + maxKeyLen + 1, 0);
     request.setKeylen(isCollectionsEnabled() ? maxKeyLen + 1 : maxKeyLen);
@@ -226,7 +226,7 @@ TEST_P(GetValidatorTest, KeyLengthMax) {
     std::ranges::copy(leb128, blob + sizeof(request));
 
     auto leb128Size = gsl::narrow_cast<uint16_t>(leb128.size());
-    const int maxCollectionsLogicalKeyLen = 246;
+    constexpr int maxCollectionsLogicalKeyLen = 246;
     // Valid maximum keylength
     request.setKeylen(isCollectionsEnabled()
                               ? (leb128Size + maxCollectionsLogicalKeyLen)
@@ -2339,7 +2339,7 @@ TEST_P(CommandSpecificErrorContextTest, DcpSystemEvent) {
 
 TEST_P(CommandSpecificErrorContextTest, DcpMutation) {
     // Connection must be Xattr enabled if datatype is Xattr
-    const auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
+    constexpr auto extlen = sizeof(cb::mcbp::request::DcpMutationPayload);
     header.setExtlen(gsl::narrow<uint8_t>(extlen));
     header.setKeylen(10);
     header.setBodylen(extlen + 10);

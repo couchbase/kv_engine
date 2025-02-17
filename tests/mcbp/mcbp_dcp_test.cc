@@ -570,7 +570,7 @@ TEST_P(DcpDeletionValidatorTest, CorrectMessage) {
 
 TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 4> datatypes = {
+    constexpr std::array<uint8_t, 4> datatypes = {
             {uint8_t(Datatype::Raw),
              uint8_t(Datatype::Raw) | uint8_t(Datatype::Snappy),
              uint8_t(Datatype::Xattr),
@@ -602,7 +602,7 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
 
 TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
     using cb::mcbp::Datatype;
-    const std::array<uint8_t, 2> datatypes = {
+    constexpr std::array<uint8_t, 2> datatypes = {
             {uint8_t(Datatype::JSON),
              uint8_t(Datatype::Snappy) | uint8_t(Datatype::JSON)}};
 

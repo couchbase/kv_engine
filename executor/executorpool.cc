@@ -18,9 +18,9 @@
 #include <folly/lang/Assume.h>
 #include <vector>
 
-static const size_t EP_MIN_NONIO_THREADS = 2;
+static constexpr size_t EP_MIN_NONIO_THREADS = 2;
 
-static const size_t EP_MAX_NONIO_THREADS = 8;
+static constexpr size_t EP_MAX_NONIO_THREADS = 8;
 
 void ExecutorPool::create(Backend backend,
                           size_t maxThreads,

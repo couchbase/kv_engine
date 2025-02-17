@@ -120,9 +120,9 @@ TEST_P(ArithmeticTest, TestIncrementDoesWrap) {
 TEST_P(ArithmeticTest, TestConcurrentAccess) {
     auto conn1 = userConnection->clone();
     auto conn2 = userConnection->clone();
-    const int iterationCount = 100;
-    const int incrDelta = 7;
-    const int decrDelta = -3;
+    constexpr int iterationCount = 100;
+    constexpr int incrDelta = 7;
+    constexpr int decrDelta = -3;
 
     conn1->authenticate("Luke");
     conn1->selectBucket(bucketName);

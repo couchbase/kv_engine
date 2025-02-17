@@ -43,7 +43,7 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     c2->authenticate("Luke");
     c2->selectBucket(bucketName);
 
-    const size_t push_count = 200;
+    constexpr size_t push_count = 200;
 
     std::vector<BinprotSubdocCommand> docA;
     std::vector<BinprotSubdocCommand> docB;

@@ -9,8 +9,8 @@
  */
 #include "testapp_client_test.h"
 
-static const int USER_CONNECTIONS = 15;
-static const int SYSTEM_CONNECTIONS = 10;
+static constexpr int USER_CONNECTIONS = 15;
+static constexpr int SYSTEM_CONNECTIONS = 10;
 
 class MaxConnectionTest : public TestappTest {
 protected:

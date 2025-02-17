@@ -1309,7 +1309,7 @@ void append(std::vector<uint8_t>& buf, uint64_t value) {
 }
 
 void BinprotDcpOpenCommand::encode(std::vector<uint8_t>& buf) const {
-    const uint32_t reserved = 0;
+    constexpr uint32_t reserved = 0;
     if (payload.empty()) {
         writeHeader(buf, 0, 8);
         append(buf, reserved);

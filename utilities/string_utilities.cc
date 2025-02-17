@@ -107,7 +107,7 @@ std::string_view get_thread_pool_name(std::string_view threadname) {
         // separators then drop it.
         if (prefix_end > 0) {
             const auto last_prefix_char = threadname.at(prefix_end - 1);
-            const auto skip_chars = ":_"sv;
+            constexpr auto skip_chars = ":_"sv;
             if (skip_chars.find(last_prefix_char) != skip_chars.npos) {
                 --prefix_end;
             }

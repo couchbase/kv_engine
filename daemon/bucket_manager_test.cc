@@ -515,7 +515,7 @@ TEST_F(BucketManagerTest, DISABLED_PauseResumeFight) {
     // Use a barrier which both threads must rendezvous via to maximise the
     // contention we get between threads.
     boost::barrier barrier{2};
-    const int iterations = 1000;
+    constexpr int iterations = 1000;
     auto pauseResumeNTimes = [&](std::string_view connectionId) {
         barrier.count_down_and_wait();
         for (int i = 0; i < iterations; i++) {

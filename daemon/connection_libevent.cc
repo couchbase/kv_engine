@@ -45,8 +45,8 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     // worker threads mutex, but when we try to signal another cookie we
     // hold the worker thread mutex when we try to acquire the mutex inside
     // libevent.
-    const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
-                         BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
+    constexpr auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
+                             BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
     if (sslStructure) {
         bev.reset(
                 bufferevent_openssl_socket_new(thr.eventBase.getLibeventBase(),
@@ -201,9 +201,9 @@ static nlohmann::json BevEvent2Json(short event) {
         err.push_back("connected");
     }
 
-    const short known = BEV_EVENT_READING | BEV_EVENT_WRITING | BEV_EVENT_EOF |
-                        BEV_EVENT_ERROR | BEV_EVENT_TIMEOUT |
-                        BEV_EVENT_CONNECTED;
+    constexpr short known = BEV_EVENT_READING | BEV_EVENT_WRITING |
+                            BEV_EVENT_EOF | BEV_EVENT_ERROR |
+                            BEV_EVENT_TIMEOUT | BEV_EVENT_CONNECTED;
 
     if (event & ~known) {
         err.push_back(cb::to_hex(uint16_t(event)));
@@ -341,7 +341,7 @@ void LibeventConnection::ssl_read_callback(bufferevent* bev, void* ctx) {
 }
 
 void LibeventConnection::triggerCallback() {
-    const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
+    constexpr auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
     bufferevent_trigger(bev.get(), EV_READ, opt);
 }
 

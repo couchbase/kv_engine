@@ -25,8 +25,9 @@ class MockConnection : public LibeventConnection {
 public:
     explicit MockConnection(FrontEndThread& frontEndThread)
         : LibeventConnection(frontEndThread) {
-        const auto options = BEV_OPT_UNLOCK_CALLBACKS | BEV_OPT_CLOSE_ON_FREE |
-                             BEV_OPT_DEFER_CALLBACKS;
+        constexpr auto options = BEV_OPT_UNLOCK_CALLBACKS |
+                                 BEV_OPT_CLOSE_ON_FREE |
+                                 BEV_OPT_DEFER_CALLBACKS;
         bev.reset(bufferevent_socket_new(
                 frontEndThread.eventBase.getLibeventBase(), -1, options));
         bufferevent_setcb(bev.get(),

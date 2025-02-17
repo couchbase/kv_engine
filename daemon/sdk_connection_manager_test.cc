@@ -13,7 +13,7 @@
 
 TEST(SdkConnectionManagerTest, Wraps) {
     auto& instance = SdkConnectionManager::instance();
-    const auto Max = SdkConnectionManager::MaximumTrackedSdk;
+    constexpr auto Max = SdkConnectionManager::MaximumTrackedSdk;
 
     for (std::size_t ii = 0; ii < Max; ++ii) {
         instance.registerSdk(std::to_string(ii));

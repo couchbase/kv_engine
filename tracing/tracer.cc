@@ -49,7 +49,7 @@ uint16_t Tracer::getEncodedMicros() const {
 }
 
 uint16_t Tracer::encodeMicros(uint64_t actual) {
-    static const uint64_t maxVal = 120125042;
+    static constexpr uint64_t maxVal = 120125042;
     actual = std::min(actual, maxVal);
     return uint16_t(std::round(std::pow(actual * 2, 1.0 / 1.74)));
 }

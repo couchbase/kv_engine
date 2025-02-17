@@ -1868,9 +1868,10 @@ cb::engine_errc Connection::marker(
 
     // Allocate the buffer to be big enough for all cases, which will be the
     // v2.2 packet
-    const auto size = sizeof(Request) + sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
-                      sizeof(DcpSnapshotMarkerV2xPayload) +
-                      sizeof(DcpSnapshotMarkerV2_2Value);
+    constexpr auto size = sizeof(Request) +
+                          sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
+                          sizeof(DcpSnapshotMarkerV2xPayload) +
+                          sizeof(DcpSnapshotMarkerV2_2Value);
     std::vector<uint8_t> buffer(size);
 
     Framebuilder builder({buffer.data(), buffer.size()});
@@ -2154,7 +2155,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
     std::array<uint8_t,
                sizeof(cb::mcbp::Request) + sizeof(extras) + sizeof(frameInfo)>
             blob = {};
-    const size_t payloadLen = sizeof(extras);
+    constexpr size_t payloadLen = sizeof(extras);
     const size_t frameInfoLen = sid ? sizeof(frameInfo) : 0;
 
     auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob.data());
@@ -2243,7 +2244,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
     std::array<uint8_t,
                sizeof(cb::mcbp::Request) + sizeof(extras) + sizeof(frameInfo)>
             blob = {};
-    const size_t payloadLen = sizeof(extras);
+    constexpr size_t payloadLen = sizeof(extras);
     const size_t frameInfoLen = sid ? sizeof(frameInfo) : 0;
 
     auto& req = *reinterpret_cast<cb::mcbp::Request*>(blob.data());
@@ -2531,8 +2532,8 @@ cb::engine_errc Connection::oso_snapshot(uint32_t opaque,
                                          uint32_t flags,
                                          cb::mcbp::DcpStreamId sid) {
     cb::mcbp::request::DcpOsoSnapshotPayload extras(flags);
-    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
-                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    constexpr size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
+                                  sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     std::vector<uint8_t> buffer(totalBytes);
     cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest
@@ -2553,8 +2554,8 @@ cb::engine_errc Connection::seqno_advanced(uint32_t opaque,
                                            uint64_t seqno,
                                            cb::mcbp::DcpStreamId sid) {
     cb::mcbp::request::DcpSeqnoAdvancedPayload extras(seqno);
-    const size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
-                              sizeof(cb::mcbp::DcpStreamIdFrameInfo);
+    constexpr size_t totalBytes = sizeof(cb::mcbp::Request) + sizeof(extras) +
+                                  sizeof(cb::mcbp::DcpStreamIdFrameInfo);
     std::vector<uint8_t> buffer(totalBytes);
     cb::mcbp::RequestBuilder builder({buffer.data(), buffer.size()});
     builder.setMagic(sid ? cb::mcbp::Magic::AltClientRequest

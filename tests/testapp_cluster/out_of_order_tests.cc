@@ -29,7 +29,7 @@ protected:
         conn->setFeature(cb::mcbp::Feature::UnorderedExecution, true);
 
         const std::string prefix = "testGetReorderWithAndWithoutReorder-";
-        const std::size_t numDocs = 100;
+        constexpr std::size_t numDocs = 100;
 
         std::vector<std::pair<const std::string, Vbid>> keys;
         for (size_t ii = 0; ii < numDocs; ++ii) {

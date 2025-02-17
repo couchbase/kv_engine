@@ -474,7 +474,7 @@ SOCKET try_connect_socket(struct addrinfo* next,
     // we don't bind the socket as that's implicit from calling
     // connect. Mark the socket reusable so that the kernel may
     // reuse the socket earlier
-    const int flag = 1;
+    constexpr int flag = 1;
     cb::net::setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(flag));
 
     // Try to set the nodelay mode on the socket (but ignore
@@ -550,7 +550,7 @@ static SOCKET new_socket(const std::string& host,
                     std::cerr << "Failed building socket: " << exception.what()
                               << std::endl;
 #ifndef WIN32
-                    const int WSAEADDRINUSE = EADDRINUSE;
+                    constexpr auto WSAEADDRINUSE = EADDRINUSE;
 #endif
                     if (exception.code().value() == WSAEADDRINUSE) {
                         std::cerr << "EADDRINUSE.. backing off" << std::endl;
@@ -2102,9 +2102,10 @@ size_t MemcachedConnection::dcpSnapshotMarkerV2(
         uint64_t start,
         uint64_t end,
         cb::mcbp::request::DcpSnapshotMarkerFlag flags) {
-    const auto size = sizeof(cb::mcbp::Request) +
-                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
-                      sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value);
+    constexpr auto size =
+            sizeof(cb::mcbp::Request) +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
+            sizeof(cb::mcbp::request::DcpSnapshotMarkerV2_2Value);
     Frame buffer;
     buffer.payload.resize(size);
 

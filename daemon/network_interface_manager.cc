@@ -247,8 +247,8 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
         return INVALID_SOCKET;
     }
 
-    const struct linger ling = {0, 0};
-    const int flags = 1;
+    constexpr linger ling = {0, 0};
+    constexpr int flags = 1;
     int error;
 
 #ifdef IPV6_V6ONLY

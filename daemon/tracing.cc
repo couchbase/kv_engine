@@ -179,7 +179,7 @@ cb::engine_errc ioctlGetTracingBeginDump(Cookie& cookie,
 
     std::string formatted;
     phosphor::tools::JSONExport exporter(context);
-    static const std::size_t chunksize = 1024 * 1024;
+    static constexpr std::size_t chunksize = 1024 * 1024;
     size_t last_wrote;
     do {
         formatted.resize(formatted.size() + chunksize);

@@ -344,7 +344,7 @@ TEST_F(CollectionsRbacCollection, CollectionStreamPrivsLost) {
     // snapshot + create vegetable
     // snapshot + mutation
     // stream-end
-    const int steps = 5;
+    constexpr int steps = 5;
     for (int ii = 0; ii < steps; ii++) {
         auto* request = stepDcp();
         if (request->getClientOpcode() ==

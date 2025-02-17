@@ -28,7 +28,7 @@
 #include <platform/json_log_conversions.h>
 #include <platform/scope_timer.h>
 
-static const std::array<SubdocExecutionContext::Phase, 2> phases{
+static constexpr std::array<SubdocExecutionContext::Phase, 2> phases{
         {SubdocExecutionContext::Phase::XATTR,
          SubdocExecutionContext::Phase::Body}};
 

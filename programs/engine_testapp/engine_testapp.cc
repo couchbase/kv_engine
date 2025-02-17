@@ -650,7 +650,7 @@ int main(int argc, char **argv) {
                      attempt++) {
                     // Register an extra sink which we can use to read-back the
                     // lastest log entries.
-                    const size_t ringBufferEntries = 100;
+                    constexpr size_t ringBufferEntries = 100;
                     auto ringBufferSink =
                             registerRingBufferSink(ringBufferEntries);
                     auto unregisterGuard = gsl::finally([ringBufferSink] {
