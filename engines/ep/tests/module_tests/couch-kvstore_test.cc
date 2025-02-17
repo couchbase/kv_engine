@@ -898,6 +898,30 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_open_doc_with_docinfo) {
 }
 
 /**
+ * Injects error during CouchKVStore::getMulti/FileOpsInterface::open
+ */
+TEST_F(CouchKVStoreErrorInjectionTest, getMulti_open_file) {
+    populate_items(2);
+    vb_bgfetch_queue_t itms(make_bgfetch_queue());
+
+    /* Check preconditions */
+    ASSERT_EQ(0, kvstore->getKVStoreStat().numGetFailure);
+
+    /* Establish FileOps expectation */
+    EXPECT_CALL(ops, open(_, _, _, _))
+            .WillOnce(Return(COUCHSTORE_ERROR_OPEN_FILE))
+            .RetiresOnSaturation();
+    kvstore->getMulti(Vbid(0), itms, defaultCreateItemCallback);
+
+    EXPECT_EQ(2, kvstore->getKVStoreStat().numGetFailure);
+
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              itms[DiskDocKey{*items.at(0)}].value.getStatus());
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              itms[DiskDocKey{*items.at(1)}].value.getStatus());
+}
+
+/**
  * Injects error during CouchKVStore::getMulti/couchstore_docinfos_by_id
  */
 TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
