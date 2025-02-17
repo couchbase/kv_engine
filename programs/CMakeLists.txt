@@ -8,7 +8,8 @@ kv_enable_pch(mc_program_utils)
 target_link_libraries(mc_program_utils PRIVATE platform ${COUCHBASE_NETWORK_LIBS})
 
 cb_add_test_executable(mc_program_utils_test
-        hostname_utils_test.cc)
+        hostname_utils_test.cc
+        natsort_test.cc)
 kv_enable_pch(mc_program_utils_test)
 target_link_libraries(mc_program_utils_test PRIVATE
                       mc_client_connection

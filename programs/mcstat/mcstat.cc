@@ -13,6 +13,7 @@
 #include <platform/terminal_color.h>
 #include <platform/terminal_size.h>
 #include <programs/mc_program_getopt.h>
+#include <programs/natsort.h>
 #include <protocol/connection/client_connection.h>
 #include <utilities/timing_histogram_printer.h>
 #include <cctype>
@@ -197,14 +198,7 @@ void request_sorted_stat(MemcachedConnection& connection,
     std::ranges::sort(stats, [](const auto& a, const auto& b) {
         const auto& akey = a.first;
         const auto& bkey = b.first;
-
-        if (!akey.empty() && !bkey.empty()) {
-            if (std::isdigit(akey.front()) && std::isdigit(bkey.front())) {
-                return std::stoull(akey) < std::stoull(bkey);
-            }
-        }
-
-        return a.first < b.first;
+        return cb::natsort::less{}(akey, bkey);
     });
 
     for (const auto& [key, value] : stats) {
