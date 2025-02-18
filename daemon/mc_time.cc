@@ -48,21 +48,21 @@
 const time_t memcached_clock_tick_seconds = 1;
 
 /*
- * This constant defines the frequency of system clock checks.
- * This equates to an extra gettimeofday every 'n' seconds.
- */
-const time_t memcached_check_system_time = 60;
-
-/*
  * This constant defines the maximum relative time (30 days in seconds)
  * time values above this are interpretted as absolute.
  */
 const time_t memcached_maximum_relative_time = 60*60*24*30;
 
+TestingHook<rel_time_t, rel_time_t> memcached_check_system_time_hook{};
+TestingHook<time_t, time_t> memcached_epoch_update_hook{};
+
 static std::atomic<rel_time_t> memcached_uptime(0);
 static std::atomic<time_t> memcached_epoch(0);
-static volatile uint64_t memcached_monotonic_start = 0;
+static std::atomic<uint64_t> memcached_monotonic_start = 0;
 static struct event_base* main_ev_base = nullptr;
+
+// State used by mc_time_clock_tick.
+static uint64_t check_system_time = 0;
 
 static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
 static void mc_gather_timing_samples();
@@ -91,9 +91,11 @@ void mc_time_init(struct event_base* ev_base) {
 void mc_time_init_epoch() {
     struct timeval t;
     memcached_uptime = 0;
-    memcached_monotonic_start = cb_get_monotonic_seconds();
+    memcached_monotonic_start.store(cb_get_monotonic_seconds(),
+                                    std::memory_order_relaxed);
     cb_get_timeofday(&t);
     memcached_epoch = t.tv_sec;
+    check_system_time = 0;
 }
 
 /*
@@ -211,12 +213,11 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
  * clock changes.
  */
 void mc_time_clock_tick() {
-    static uint64_t check_system_time = 0;
-    static bool previous_time_valid = false;
-    static struct timeval previous_time = {0, 0};
-
     /* calculate our monotonic uptime */
-    memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start + cb_get_uptime_offset());
+    memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() -
+                                    memcached_monotonic_start.load(
+                                            std::memory_order_relaxed) +
+                                    cb_get_uptime_offset());
 
     /* Collect samples */
     mc_gather_timing_samples();
@@ -226,39 +227,40 @@ void mc_time_clock_tick() {
       system clock.
     */
     if (memcached_uptime >= check_system_time) {
+        memcached_check_system_time_hook(memcached_uptime, check_system_time);
         struct timeval timeofday;
         cb_get_timeofday(&timeofday);
-        time_t difference = labs(timeofday.tv_sec - previous_time.tv_sec);
+        const time_t difference =
+                std::abs(timeofday.tv_sec - memcached_epoch - memcached_uptime);
         /* perform a fuzzy check on time, this allows 2 seconds each way. */
-        if (previous_time_valid
-            && ((difference > memcached_check_system_time + 1)
-            || (difference < memcached_check_system_time - 1))) {
+        if (difference > 1) {
+            const auto new_memcached_epoch =
+                    timeofday.tv_sec - memcached_uptime;
+            memcached_epoch_update_hook(memcached_epoch.load(),
+                                        new_memcached_epoch);
+            /* adjust memcached_epoch to ensure correct timeofday can
+                be calculated by clients*/
+            memcached_epoch.store(new_memcached_epoch);
             if (cb::logger::get() != nullptr) {
                 /* log all variables used in time calculations */
                 LOG_WARNING(
-                        "system clock changed? Expected delta of {}s ±1 since "
-                        "last check, actual difference = {}s, "
-                        "memcached_epoch = {}, "
-                        "memcached_uptime = {}, new memcached_epoch = {}, "
+                        "system clock changed? Expected delta of ±1s, actual "
+                        "difference = {}s, "
+                        "memcached_epoch = {}, memcached_uptime = {}, "
+                        "system_time = {}, new memcached_epoch = {}, "
                         "next check {}",
-                        memcached_check_system_time,
                         difference,
                         memcached_epoch.load(),
                         memcached_uptime.load(),
-                        (timeofday.tv_sec - memcached_uptime),
+                        timeofday.tv_sec,
+                        new_memcached_epoch,
                         check_system_time + memcached_check_system_time);
             }
-            /* adjust memcached_epoch to ensure correct timeofday can
-               be calculated by clients*/
-            memcached_epoch.store(timeofday.tv_sec - memcached_uptime);
         }
 
         /* move our checksystem time marker to trigger the next check
            at the correct interval*/
         check_system_time += memcached_check_system_time;
-
-        previous_time_valid = true;
-        previous_time = timeofday;
     }
 }
 
