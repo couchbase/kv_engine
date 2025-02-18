@@ -772,17 +772,21 @@ TEST_F(BasicClusterTest, Snapshots) {
     std::optional<cb::snapshot::Manifest> manifest;
     std::string error;
     do {
+        std::string key;
+        std::string value;
         replica->stats(
-                [&done](auto k, auto v) {
-                    ASSERT_EQ(k, "vb_0:status");
-                    ASSERT_NE(v, "failed");
-                    ASSERT_NE(v, "none");
-                    if (v == "available") {
-                        done = true;
-                    }
+                [&key, &value](auto k, auto v) {
+                    key = k;
+                    value = v;
                 },
                 "snapshot-status 0");
-        if (!done) {
+
+        ASSERT_EQ(key, "vb_0:status");
+        ASSERT_NE(value, "failed");
+        ASSERT_NE(value, "none");
+        if (value == "available") {
+            done = true;
+        } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(250));
         }
     } while (!done && std::chrono::steady_clock::now() < timeout);
