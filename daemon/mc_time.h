@@ -13,6 +13,16 @@
 #pragma once
 
 #include "memcached/types.h"
+#include "utilities/testing_hook.h"
+
+/*
+ * This constant defines the frequency of system clock checks.
+ * This equates to an extra gettimeofday every 'n' seconds.
+ */
+constexpr time_t memcached_check_system_time = 60;
+
+extern TestingHook<rel_time_t, rel_time_t> memcached_check_system_time_hook;
+extern TestingHook<time_t, time_t> memcached_epoch_update_hook;
 
 /*
  * Initialise this module.
