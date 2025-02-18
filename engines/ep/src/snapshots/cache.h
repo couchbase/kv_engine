@@ -98,9 +98,6 @@ public:
      *                       have a local manifest
      * @param download_files The callback to inspect the snapshot and
      *                       potentially continue downloading files
-     * @param release_snapshot The callback to release the snapshot on the
-     *                         remote node (only called if download_callback
-     *                         returns success)
      * @returns the failure reason if the operation failed
      *          the created manifest upon success
      */
@@ -110,8 +107,7 @@ public:
                     fetch_manifest,
             const std::function<cb::engine_errc(const std::filesystem::path&,
                                                 const Manifest&)>&
-                    download_files,
-            const std::function<void(std::string_view)>& release_snapshot);
+                    download_files);
 
     /**
      * Convert a relative path from within a snapshot to an absolute path
@@ -154,8 +150,7 @@ protected:
     std::variant<cb::engine_errc, Manifest> lookupOrFetch(
             Vbid vbid,
             const std::function<std::variant<cb::engine_errc, Manifest>()>&
-                    fetch_manifest,
-            const std::function<void(std::string_view)>& release_snapshot);
+                    fetch_manifest);
 
     /// The location of the snapshots
     std::filesystem::path path;

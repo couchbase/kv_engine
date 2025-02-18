@@ -51,7 +51,6 @@ protected:
     std::variant<cb::engine_errc, Manifest> doDownloadManifest();
     cb::engine_errc doDownloadFiles(std::filesystem::path dir,
                                     const Manifest& manifest);
-    void doReleaseSnapshot(std::string_view uuid);
 
     MemcachedConnection& getConnection();
     std::unique_ptr<MemcachedConnection> connection;

@@ -139,8 +139,7 @@ std::variant<cb::engine_errc, Manifest> Cache::prepare(
 std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
         Vbid vbid,
         const std::function<std::variant<cb::engine_errc, Manifest>()>&
-                fetch_manifest,
-        const std::function<void(std::string_view)>& release_snapshot) {
+                fetch_manifest) {
     auto existing = lookup(vbid);
     if (existing.has_value()) {
         return *existing;
@@ -161,10 +160,7 @@ std::variant<cb::engine_errc, Manifest> Cache::lookupOrFetch(
 
     // If failing in this scope clean-up
     auto removeSnapshot =
-            folly::makeGuard([this, &manifest, &release_snapshot]() {
-                release_snapshot(manifest.uuid);
-                remove(manifest.uuid);
-            });
+            folly::makeGuard([this, &manifest]() { remove(manifest.uuid); });
 
     const auto manifestPath = path / manifest.uuid / "manifest.json";
     if (!cb::io::saveFile(manifestPath, nlohmann::json(manifest).dump(), ec)) {
@@ -187,9 +183,8 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
         const std::function<std::variant<cb::engine_errc, Manifest>()>&
                 fetch_manifest,
         const std::function<cb::engine_errc(const std::filesystem::path&,
-                                            const Manifest&)>& download_files,
-        const std::function<void(std::string_view)>& release_snapshot) {
-    auto fetched = lookupOrFetch(vbid, fetch_manifest, release_snapshot);
+                                            const Manifest&)>& download_files) {
+    auto fetched = lookupOrFetch(vbid, fetch_manifest);
     if (std::holds_alternative<cb::engine_errc>(fetched)) {
         return fetched;
     }
@@ -201,8 +196,6 @@ std::variant<cb::engine_errc, Manifest> Cache::download(
         remove_all(path / manifest.uuid, ec);
         return cb::engine_errc::failed;
     }
-
-    release_snapshot(manifest.uuid);
 
     if (!snapshots.withLock([&manifest, time = time()](auto& map) {
             return map.try_emplace(manifest.uuid, Entry(manifest, time)).second;

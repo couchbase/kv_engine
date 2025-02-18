@@ -150,26 +150,6 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
     return cb::engine_errc::success;
 }
 
-void DownloadSnapshotTask::doReleaseSnapshot(std::string_view uuid) {
-    listener->stateChanged(DownloadSnapshotTaskState::ReleaseSnapshot);
-    try {
-        BinprotGenericCommand release(cb::mcbp::ClientOpcode::ReleaseSnapshot,
-                                      std::string(uuid));
-        auto rsp = getConnection().execute(release);
-        if (!rsp.isSuccess()) {
-            EP_LOG_WARN_CTX("Failed to release snapshot",
-                            {"uuid", uuid},
-                            {"vb", vbid},
-                            {"status", rsp.getStatus()});
-        }
-    } catch (const std::exception& e) {
-        EP_LOG_WARN_CTX("Failed to release snapshot",
-                        {"uuid", uuid},
-                        {"vb", vbid},
-                        {"error", e.what()});
-    }
-}
-
 bool DownloadSnapshotTask::run() {
     try {
         auto rv = manager.download(
@@ -178,8 +158,7 @@ bool DownloadSnapshotTask::run() {
                 [this](const auto& dir, auto& manifest) {
                     doDownloadFiles(dir, manifest);
                     return cb::engine_errc::success;
-                },
-                [this](auto uuid) { return doReleaseSnapshot(uuid); });
+                });
         if (std::holds_alternative<Manifest>(rv)) {
             listener->stateChanged(DownloadSnapshotTaskState::Finished);
         }
