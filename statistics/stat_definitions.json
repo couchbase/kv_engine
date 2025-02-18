@@ -792,17 +792,18 @@
         "description": "Number of seconds that last Access Scanner task run took to complete.",
         "added": "7.0.0"
     },
-/* TODO: relative to server start. Convert to absolute time? */
     {
         "key": "ep_access_scanner_num_items",
         "unit": "none",
         "description": "Number of items that last Access Scanner task run wrote to the Access Log.",
         "added": "7.0.0"
     },
+/* TODO: this is a string, expose numeric time for Prometheus */
     {
         "key": "ep_access_scanner_task_time",
         "unit": "none",
         "description": "Time of the next access scanner task (GMT), NOT_SCHEDULED if access scanner has been disabled",
+        "prometheus": false,
         "added": "7.0.0"
     },
 /* TODO: this is a string, expose numeric time for Prometheus */
@@ -810,9 +811,9 @@
         "key": "ep_expiry_pager_task_time",
         "unit": "none",
         "description": "Time of the next expiry pager task (GMT), NOT_SCHEDULED if expiry pager has been disabled",
+        "prometheus": false,
         "added": "7.0.0"
     },
-/* TODO: this is a string, expose numeric time for Prometheus */
     {
         "key": "ep_startup_time",
         "unit": "seconds",
@@ -865,6 +866,7 @@
         "key": "ep_warmup_thread",
         "unit": "none",
         "description": "Warmup thread status",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
@@ -2209,6 +2211,7 @@
         "key": "stat_reset",
         "description": "Timestamp when the stats was reset",
         "unit": "none",
+        "prometheus": false,
         "added": "7.0.0"
     },
 /* TODO: String indicating when stats were reset. Change
@@ -4146,6 +4149,7 @@
         "unit": "none",
         "cbstat": "metered",
         "description": "Whether metering is enabled for the collection",
+        "prometheus": false,
         "added": "7.6.0",
         "stability": "internal"
     },

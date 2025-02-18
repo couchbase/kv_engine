@@ -81,5 +81,10 @@ MATCHER_P(StatDefNameMatcher,
           expectedName,
           fmt::format("Check the metric family of the StatDef matches '{}'",
                       expectedName)) {
-    return arg.metricFamily == expectedName;
+    if (arg.isPrometheusStat()) {
+        return arg.metricFamily == expectedName;
+    }
+    // if specified stat is not a prometheus stat, then metric family will
+    // be empty.
+    return arg.cbstatsKey.key == expectedName;
 }
