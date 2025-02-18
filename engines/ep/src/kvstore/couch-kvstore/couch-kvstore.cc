@@ -714,8 +714,9 @@ void CouchKVStore::getMulti(Vbid vb,
                      options);
 
         st.numGetFailure += numItems;
+        auto err = couchErr2EngineErr(errCode);
         for (auto& item : itms) {
-            item.second.value.setStatus(cb::engine_errc::not_my_vbucket);
+            item.second.value.setStatus(err);
         }
         return;
     }
@@ -739,8 +740,9 @@ void CouchKVStore::getMulti(Vbid vb,
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode),
                 vb);
+        auto err = couchErr2EngineErr(errCode);
         for (auto& item : itms) {
-            item.second.value.setStatus(couchErr2EngineErr(errCode));
+            item.second.value.setStatus(err);
         }
     }
 
