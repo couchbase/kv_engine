@@ -23,6 +23,7 @@
 #include <utilities/logtags.h>
 #include <algorithm>
 #include <cstring>
+#include <regex>
 #include <system_error>
 
 std::string to_string(ConnectionLimitMode mode) {
@@ -677,6 +678,54 @@ static void handle_whitelist_localhost_interface(Settings& s,
     s.setWhitelistLocalhostInterface(obj.get<bool>());
 }
 
+static void handle_dcp_disconnect_when_stuck_timeout_seconds(
+        Settings& s, const nlohmann::json& obj) {
+    s.setDcpDisconnectWhenStuckTimeout(std::chrono::seconds(obj.get<size_t>()));
+}
+
+static void handle_dcp_disconnect_when_stuck_name_regex(
+        Settings& s, const nlohmann::json& obj) {
+    s.setDcpDisconnectWhenStuckNameRegexFromBase64(obj.get<std::string>());
+}
+
+void Settings::setDcpDisconnectWhenStuckTimeout(std::chrono::seconds val) {
+    dcp_disconnect_when_stuck_timeout_seconds.store(val,
+                                                    std::memory_order_release);
+    has.dcp_disconnect_when_stuck_timeout_seconds = true;
+    notify_changed("dcp_disconnect_when_stuck_timeout_seconds");
+}
+
+void Settings::setDcpDisconnectWhenStuckNameRegexFromBase64(
+        const std::string& val) {
+    // The string from the JSON is base64 encoded, decode and store the regex so
+    // that it is immediately usable from the getter.
+    auto decoded = cb::base64::decode(val);
+    setDcpDisconnectWhenStuckNameRegex(std::string{
+            reinterpret_cast<const char*>(decoded.data()), decoded.size()});
+}
+
+void Settings::setDcpDisconnectWhenStuckNameRegex(std::string val) {
+    // This must be a usable by std::regex, which will throw if not.
+    try {
+        std::regex regex(val);
+    } catch (const std::exception& e) {
+        // Log that we are ignoring the bad regex. If we throw here ns_server
+        // may still push the "bad" config, and this throw would cause an outage
+        // if we restart.
+        LOG_WARNING(
+                "dcp_disconnect_when_stuck_name_regex ignoring \"{}\" and "
+                "using \"{}\". std::regex rejected the new value because "
+                "\"{}\"",
+                val,
+                *dcp_disconnect_when_stuck_name_regex.lock(),
+                e.what());
+        return;
+    }
+    dcp_disconnect_when_stuck_name_regex.lock()->assign(std::move(val));
+    has.dcp_disconnect_when_stuck_name_regex = true;
+    notify_changed("dcp_disconnect_when_stuck_name_regex");
+}
+
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file.. (this is a bit messy)
@@ -759,7 +808,11 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"portnumber_file", handle_portnumber_file},
             {"parent_identifier", handle_parent_identifier},
             {"whitelist_localhost_interface",
-             handle_whitelist_localhost_interface}};
+             handle_whitelist_localhost_interface},
+            {"dcp_disconnect_when_stuck_timeout_seconds",
+             handle_dcp_disconnect_when_stuck_timeout_seconds},
+            {"dcp_disconnect_when_stuck_name_regex",
+             handle_dcp_disconnect_when_stuck_name_regex}};
 
     for (const auto& obj : json.items()) {
         bool found = false;
@@ -1315,6 +1368,32 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (o != m) {
             LOG_INFO(R"(Change Phosphor config from "{}" to "{}")", o, m);
             setPhosphorConfig(o);
+        }
+    }
+
+    if (other.has.dcp_disconnect_when_stuck_name_regex) {
+        // Both these values are the decoded values, not base64 encoded
+        const auto newValue = other.getDcpDisconnectWhenStuckNameRegex();
+        const auto current = getDcpDisconnectWhenStuckNameRegex();
+        if (newValue != current) {
+            LOG_INFO(
+                    R"(Change dcp_disconnect_when_stuck_name_regex from "{}" to "{}")",
+                    current,
+                    newValue);
+            // Use the protected setter which validates newValue
+            setDcpDisconnectWhenStuckNameRegex(std::move(newValue));
+        }
+    }
+
+    if (other.has.dcp_disconnect_when_stuck_timeout_seconds) {
+        const auto newValue = other.getDcpDisconnectWhenStuckTimeout();
+        const auto current = getDcpDisconnectWhenStuckTimeout();
+        if (newValue != current) {
+            LOG_INFO(
+                    R"(Change dcp_disconnect_when_stuck_timeout_seconds from {}s to {}s)",
+                    current,
+                    newValue);
+            setDcpDisconnectWhenStuckTimeout(newValue);
         }
     }
 }

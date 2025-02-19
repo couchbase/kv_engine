@@ -39,6 +39,8 @@
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 
+#include <regex>
+
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
 /**
@@ -56,7 +58,8 @@ DcpProducer::StreamsMap::SmartPtr makeStreamsMap(
     return DcpProducer::StreamsMap::create(maxNumVBuckets, config);
 }
 
-DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
+DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED()
+        const {
     if (isEnabled_UNLOCKED()) {
         if (isFull_UNLOCKED()) {
             return Full;
@@ -105,8 +108,18 @@ bool DcpProducer::BufferLog::pauseIfFull() {
     std::shared_lock<folly::SharedMutex> rhl(logLock);
     if (getState_UNLOCKED() == Full) {
         producer.pause(PausedReason::BufferLogFull);
+
+        // State is full. When changing from no previous value OR the value has
+        // changed then record the current value and current time.
+        if (!lastCheckedAckedBytes || ackedBytes != lastCheckedAckedBytes) {
+            lastCheckedAckedBytes = ackedBytes;
+            lastCheckedTime = std::chrono::steady_clock::now();
+        }
         return true;
     }
+
+    // always reset the value if buffer is not full.
+    lastCheckedAckedBytes.reset();
     return false;
 }
 
@@ -161,6 +174,54 @@ void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
     } else {
         producer.addStat("flow_control", "disabled", add_stat, c);
     }
+
+    if (lastCheckedAckedBytes) {
+        producer.addStat("flow_control_last_checked_acked_bytes",
+                         *lastCheckedAckedBytes,
+                         add_stat,
+                         c);
+    } else {
+        producer.addStat("flow_control_last_checked_acked_bytes",
+                         "nullopt",
+                         add_stat,
+                         c);
+    }
+    producer.addStat("flow_control_last_checked_time",
+                     lastCheckedTime.time_since_epoch().count(),
+                     add_stat,
+                     c);
+}
+
+bool DcpProducer::BufferLog::isStuck(std::chrono::seconds limit) const {
+    std::chrono::steady_clock::time_point now;
+    bool stuck = false;
+
+    std::shared_lock<folly::SharedMutex> lh(logLock);
+    if (lastCheckedAckedBytes) {
+        // If lastCheckBytesOutstanding is defined then the lastCheckedTime has
+        // recorded the time it was last set to a new value, hence we can now
+        // decide if the producer is stuck using the limit. Compare equals
+        // allows unit test to be reliable with a 0 limit.
+        now = std::chrono::steady_clock::now();
+        stuck = (now - lastCheckedTime) >= limit;
+    }
+
+    if (stuck) {
+        EP_LOG_WARN(
+                "{} Disconnecting because ackedBytes has not changed for "
+                "{} seconds. lastCheckedAckedBytes:{} "
+                "lastCheckedTime:{} now:{} maxBytes:{} bytesOutstanding:{} "
+                "ackedBytes:{}",
+                producer.logHeader(),
+                limit.count(),
+                *lastCheckedAckedBytes,
+                lastCheckedTime.time_since_epoch().count(),
+                now.time_since_epoch().count(),
+                maxBytes,
+                bytesOutstanding.load(),
+                ackedBytes.load());
+    }
+    return stuck;
 }
 
 /// Decode IncludeValue from DCP producer flags.
@@ -208,7 +269,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
       createChkPtProcessorTsk(startTask),
       connectionSupportsSnappy(
               e.isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)),
-      collectionsEnabled(cookie->isCollectionsSupported()) {
+      collectionsEnabled(cookie->isCollectionsSupported()),
+      stuckTimeout(e.getDcpDisconnectWhenStuckTimeout()) {
     setSupportAck(true);
     pause(PausedReason::Initializing);
     setLogHeader("DCP (Producer) " + getName() + " -");
@@ -264,6 +326,19 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
               cb::mcbp::request::DcpOpenPayload::IncludeDeletedUserXattrs) != 0)
                     ? IncludeDeletedUserXattrs::Yes
                     : IncludeDeletedUserXattrs::No;
+
+    auto regex = e.getDcpDisconnectWhenStuckNameRegex();
+    if (!regex.empty()) {
+        std::regex re(regex);
+        if (std::regex_match(name, re)) {
+            EP_LOG_INFO(
+                    "{} producer will disconnect if stuck as name "
+                    "matches with dcp_disconnect_when_stuck_name_regex:{}",
+                    logHeader(),
+                    regex);
+            shouldDisconnectWhenStuck = true;
+        }
+    }
 }
 
 DcpProducer::~DcpProducer() {
@@ -641,6 +716,10 @@ cb::engine_errc DcpProducer::step(DcpMessageProducersIface& producers) {
     } else {
         resp = getNextItem();
         if (!resp) {
+            if (shouldDisconnectWhenStuck && log.isStuck(stuckTimeout)) {
+                doDisconnect();
+                return cb::engine_errc::disconnect;
+            }
             return cb::engine_errc::would_block;
         }
     }
@@ -1537,6 +1616,12 @@ void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     }
 
     ready.addStats(getName() + ":dcp_ready_queue_", add_stat, c);
+
+    addStat("should_disconnect_when_stuck",
+            shouldDisconnectWhenStuck,
+            add_stat,
+            c);
+    addStat("disconnect_when_stuck_timeout", stuckTimeout.count(), add_stat, c);
 
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the
