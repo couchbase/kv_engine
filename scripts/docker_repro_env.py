@@ -92,21 +92,21 @@ def match_outputs(outputs, keys_and_substrings):
                 yield key, body
 
 
-def detect_package_manager(cblog_data):
-    """
-    Determines which package manager is in use, based on scaped the cblog_data.
-    Expects: cblog_data contains keys 'dpkg', 'rpm' with the relevant output
-    (error or package info).
-    """
-    options = set(('dpkg', 'rpm'))
-    not_found = set()
-    for o in options:
-        if any(('command not found' in line for line in cblog_data[o])):
-            not_found.add(o)
+# Map supported base images to the native package manager.
+PACKAGE_MANAGERS = {
+    'amazonlinux': 'rpm',
+    'debian': 'dpkg',
+    'ubuntu': 'dpkg',
+    'redhat/ubi8': 'rpm',
+    'registry.access.redhat.com/ubi7/ubi': 'rpm',
+}
 
-    available = list(options.difference(not_found))
-    assert len(available) == 1, 'Expected exactly one package manager output'
-    return available[0]
+
+def detect_package_manager(image):
+    """
+    Determines which package manager is in use, based on the base image.
+    """
+    return PACKAGE_MANAGERS[image]
 
 
 def select_docker_image(os_info):
@@ -302,12 +302,16 @@ def main(logfile):
 
     # Extract Couchbase Server version and build
     manifest = ''.join(cblog_data['manifest'])
-    cb_version = re.findall(
-        r'<annotation name="VERSION" value="([\d\.]+)" />', manifest)[0]
-    cb_build_number = re.findall(
-        r'<annotation name="BLD_NUM" value="(\d+)" />', manifest)[0]
-    cb_release = re.findall(
-        r'<annotation name="RELEASE" value="([^"]+)" />', manifest)[0]
+    try:
+        cb_version = re.findall(
+            r'<annotation name="VERSION" value="([\d\.]+)"\s?/>', manifest)[0]
+        cb_build_number = re.findall(
+            r'<annotation name="BLD_NUM" value="(\d+)"\s?/>', manifest)[0]
+        cb_release = re.findall(
+            r'<annotation name="RELEASE" value="([^"]+)"\s?/>', manifest)[0]
+    except IndexError:
+        dbg(f'Error processing manifest:\n{manifest}\n')
+        raise
 
     dbg(f'Detected Couchbase Server: {cb_version}-{cb_build_number}')
 
@@ -324,7 +328,7 @@ def main(logfile):
     dbg(f'Detected platform: {platform}')
 
     # Parse the list of installed packages
-    pkg_manager = detect_package_manager(cblog_data)
+    pkg_manager = detect_package_manager(image)
     dbg(f'Detected package manager: {pkg_manager}')
 
     candidate_versions = [
@@ -404,12 +408,14 @@ def main(logfile):
     important_packages = [
         'libc6',
         'libgcc1',
+        'shadow-utils',
     ]
     additional_packages = [
         ('binutils', None),
         ('gdb', None),
         ('wget', None),
-        ('ca-certificates', None)]
+        ('ca-certificates', None),
+    ]
     # Docker image will have matching important_packages as well as the
     # additional_packages we want
     packages_to_install = list(preserve_packages(
@@ -455,23 +461,27 @@ def main(logfile):
                     end='')
         print('true')
 
-    # Fetch and install Couchbase Server
+    # Use a cache for the CB Server package downloads.
+    run_package_cache_command = ' '.join((
+        'RUN --mount=type=cache,target=/root/Downloads,sharing=locked cd /root/Downloads',
+        command_separator))
+    # Fetch packages (in parallel)
+    print(run_package_cache_command,
+          f'(wget -c -nc \'{server_pkg}\' & wget -c -nc \'{symbols_pkg}\')',
+          command_separator, 'wait')
+
     if pkg_manager == 'dpkg':
-        # Fetch packages (in parallel), install and cleanup
-        print(
-            f'RUN wget \'{server_pkg}\' & wget \'{symbols_pkg}\' && wait ',
-            command_separator, f'dpkg -i \'{server_pkg_name}\'',
-            command_separator, f'dpkg -i \'{symbols_pkg_name}\'',
-            command_separator,
-            f'rm \'{server_pkg_name}\' \'{symbols_pkg_name}\'')
+        # Install packages and cleanup
+        print(run_package_cache_command,
+              f'dpkg -i \'{server_pkg_name}\'')
+        print(run_package_cache_command,
+              f'dpkg -i \'{symbols_pkg_name}\'')
     elif pkg_manager == 'rpm':
         # Fetch packages (in parallel), install and cleanup
-        print(
-            f'RUN wget \'{server_pkg}\' & wget \'{symbols_pkg}\' && wait ',
-            command_separator, f'rpm -i --nodeps \'{server_pkg_name}\'',
-            command_separator, f'rpm -i --nodeps \'{symbols_pkg_name}\'',
-            command_separator,
-            f'rm \'{server_pkg_name}\' \'{symbols_pkg_name}\'')
+        print(run_package_cache_command,
+              f'rpm -i --nodeps \'{server_pkg_name}\'')
+        print(run_package_cache_command,
+              f'rpm -i --nodeps \'{symbols_pkg_name}\'')
 
     dbg('\nDone! Run:\n  docker build -t docker_repro_env - < Dockerfile && docker run --rm -it -v $PWD:/media docker_repro_env')
     dbg('If the image architecture does not match your host, you may need to install '
