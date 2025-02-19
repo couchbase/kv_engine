@@ -64,8 +64,11 @@ protected:
     std::size_t id{0};
     std::size_t offset{0};
     std::size_t length{0};
+#ifdef WIN32
+    std::ifstream file_stream;
+#else
     int fd{-1};
-
+#endif
     folly::Synchronized<std::unique_ptr<folly::IOBuf>> chunk;
 
     State state;

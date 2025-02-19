@@ -41,14 +41,26 @@ GetFileFragmentContext::GetFileFragmentContext(Cookie& cookie)
     if (length > MaxReadSize) {
         length = MaxReadSize;
     }
+#ifdef WIN32
+    file_stream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+#endif
 }
 
 GetFileFragmentContext::~GetFileFragmentContext() {
+#ifdef WIN32
+    if (file_stream.is_open()) {
+        try {
+            file_stream.close();
+        } catch (const std::exception&) {
+        }
+    }
+#else
     if (fd != -1 && ::close(fd) == -1) {
         LOG_WARNING_CTX("Failed to close file descriptor",
                         {"conn_id", cookie.getConnectionId(), "fd", fd},
                         {"error", cb_strerror()});
     }
+#endif
 }
 
 cb::engine_errc GetFileFragmentContext::step() {
@@ -109,6 +121,10 @@ cb::engine_errc GetFileFragmentContext::initialize() {
                         return;
                     }
 
+#ifdef WIN32
+                    file_stream.open(filename, std::ios::binary | std::ios::in);
+                    file_stream.seekg(offset);
+#else
                     fd = ::open(filename.c_str(), O_RDONLY);
                     if (fd == -1) {
                         LOG_WARNING_CTX("Failed to open file",
@@ -137,6 +153,8 @@ cb::engine_errc GetFileFragmentContext::initialize() {
                             0,
                             POSIX_FADV_SEQUENTIAL | POSIX_FADV_NOREUSE);
 #endif
+#endif
+
                     length = std::min(length, MaxReadSize);
                     state = State::SendResponseHeader;
                     cookie.notifyIoComplete(cb::engine_errc::success);
@@ -180,6 +198,16 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                         const auto to_read = std::min(length, ChunkSize);
 
                         auto iob = folly::IOBuf::createCombined(to_read);
+
+#ifdef WIN32
+                        file_stream.read(
+                                reinterpret_cast<char*>(iob->writableTail()),
+                                to_read);
+                        iob->append(to_read);
+                        chunk.swap(iob);
+                        length -= to_read;
+                        offset += to_read;
+#else
                         auto nr = ::pread(
                                 fd, iob->writableTail(), to_read, offset);
                         if (nr == -1) {
@@ -191,13 +219,13 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
                                     cb::engine_errc::disconnect);
                             return;
                         }
-
                         if (nr > 0) {
                             length -= nr;
                             offset += nr;
                             iob->append(nr);
                             chunk.swap(iob);
                         }
+#endif
 
                         cookie.notifyIoComplete(cb::engine_errc::success);
                     } catch (const std::exception& e) {
@@ -217,6 +245,9 @@ cb::engine_errc GetFileFragmentContext::read_file_chunk() {
 }
 
 cb::engine_errc GetFileFragmentContext::transfer_with_sendfile() {
+#ifdef WIN32
+    throw std::logic_error("Sendfile not implemented for win32");
+#else
     auto ret = connection.sendFile(
             fd, static_cast<off_t>(offset), static_cast<off_t>(length));
     if (ret == cb::engine_errc::success) {
@@ -225,12 +256,14 @@ cb::engine_errc GetFileFragmentContext::transfer_with_sendfile() {
     }
     state = State::Done;
     return ret;
+#endif
 }
 
 cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
     std::unique_ptr<folly::IOBuf> iob;
     chunk.swap(iob);
     if (!iob) {
+        Expects(length == 0 && "Pending data to send");
         state = State::Done;
         return cb::engine_errc::success;
     }
