@@ -966,7 +966,7 @@
             }
         },
         "not_locked_returns_tmpfail": {
-            "default": "true",
+            "default": "false",
             "descr": "Controls which error code should be returned when attempting to unlock an item that is not locked. When value is true, the legacy temporary_failure is used instead of not_locked.",
             "dynamic": true,
             "type": "bool"

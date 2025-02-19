@@ -732,19 +732,19 @@ static enum test_result test_unl(EngineIface* h) {
     testHarness->time_travel(16);
 
     /* lock has expired, unl should fail */
-    checkeq(cb::engine_errc::temporary_failure,
+    checkeq(cb::engine_errc::not_locked,
             unl(h, nullptr, key, vbucketId, cas),
-            "Expected to fail unl on lock timeout (returning tmpfail)");
+            "Expected to fail unl on lock timeout");
 
     checkeq(cb::engine_errc::success,
             set_param(h,
                       EngineParamCategory::Flush,
                       "not_locked_returns_tmpfail",
-                      "false"),
+                      "true"),
             "Expected setting not_locked_returns_tmpfail to succeed");
-    checkeq(cb::engine_errc::not_locked,
+    checkeq(cb::engine_errc::temporary_failure,
             unl(h, nullptr, key, vbucketId, cas),
-            "Expected to fail unl on lock timeout");
+            "Expected to fail unl on lock timeout (returning tmpfail)");
 
     ret = getl(h, nullptr, key, vbucketId, 0);
     checkeq(cb::engine_errc::success,
