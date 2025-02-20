@@ -1842,6 +1842,20 @@
         "added": "8.0.0"
     },
     {
+        "key": "ep_fusion_log_clean_bytes_read",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "Total number of bytes read in order to clean the logs.",
+        "added": "8.0.0"
+    },
+    {
+        "key": "ep_fusion_log_clean_reads",
+        "unit": "count",
+        "type": "counter",
+        "description": "Total number of read IOs issued in order to clean the logs.",
+        "added": "8.0.0"
+    },
+    {
         "key": "ep_fusion_log_store_remote_puts",
         "unit": "count",
         "type": "counter",

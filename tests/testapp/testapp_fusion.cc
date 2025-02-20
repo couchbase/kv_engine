@@ -366,7 +366,7 @@ TEST_P(FusionTest, UploaderState) {
 }
 
 TEST_P(FusionTest, GetPrometheusFusionStats) {
-    std::array<std::string_view, 13> statKeysExpected = {
+    std::array<std::string_view, 15> statKeysExpected = {
             "ep_fusion_syncs",
             "ep_fusion_bytes_synced",
             "ep_fusion_logs_migrated",
@@ -374,6 +374,8 @@ TEST_P(FusionTest, GetPrometheusFusionStats) {
             "ep_fusion_log_store_size",
             "ep_fusion_log_store_garbage_size",
             "ep_fusion_logs_cleaned",
+            "ep_fusion_log_clean_bytes_read",
+            "ep_fusion_log_clean_reads",
             "ep_fusion_log_store_remote_puts",
             "ep_fusion_log_store_reads",
             "ep_fusion_log_store_remote_gets",

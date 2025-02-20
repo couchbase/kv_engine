@@ -3238,7 +3238,7 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
         const StatCollector& collector) {
     using namespace cb::stats;
 
-    constexpr std::array<std::string_view, 13> statNames = {
+    constexpr std::array<std::string_view, 15> statNames = {
             {"fusion_NumSyncs",
              "fusion_NumBytesSynced",
              "fusion_NumLogsMigrated",
@@ -3247,6 +3247,8 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
              "fusion_LogStoreGarbageSize",
              "fusion_NumLogsCleaned",
              "fusion_NumLogStoreRemotePuts",
+             "fusion_NumLogCleanBytesRead",
+             "fusion_NumLogCleanReads",
              "fusion_NumLogStoreReads",
              "fusion_NumLogStoreRemoteGets",
              "fusion_NumLogStoreRemoteLists",
@@ -3283,6 +3285,8 @@ void EventuallyPersistentEngine::doEngineStatsFusion(
     addStat(Key::ep_fusion_logs_cleaned, "fusion_NumLogsCleaned");
     addStat(Key::ep_fusion_log_store_remote_puts,
             "fusion_NumLogStoreRemotePuts");
+    addStat(Key::ep_fusion_log_clean_bytes_read, "fusion_NumLogCleanBytesRead");
+    addStat(Key::ep_fusion_log_clean_reads, "fusion_NumLogCleanReads");
     addStat(Key::ep_fusion_log_store_reads, "fusion_NumLogStoreReads");
     addStat(Key::ep_fusion_log_store_remote_gets,
             "fusion_NumLogStoreRemoteGets");
