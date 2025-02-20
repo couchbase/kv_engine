@@ -596,6 +596,9 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         bucket.state = Bucket::State::Initializing;
     }
 
+    cb::logger::Json details = {
+            {"conn_id", cid}, {"bucket", name}, {"type", type}};
+
     // Parse the configuration string and strip out the actual key
     // data to avoid that being logged
     nlohmann::json encryption;
@@ -608,26 +611,17 @@ void BucketManager::createEngineInstance(Bucket& bucket,
                 return true;
             });
 
-    if (encryption.empty()) {
-        LOG_INFO_CTX("Initialize bucket",
-                     {"conn_id", cid},
-                     {"bucket", name},
-                     {"type", to_string(type)},
-                     {"configuration", stripped});
-    } else {
+    if (!encryption.empty()) {
         auto no_keys = encryption;
         if (no_keys.contains("keys")) {
             for (auto& elem : no_keys["keys"]) {
                 elem.erase("key");
             }
         }
-        LOG_INFO_CTX("Initialize bucket",
-                     {"conn_id", cid},
-                     {"bucket", name},
-                     {"type", to_string(type)},
-                     {"configuration", stripped},
-                     {"encryption", no_keys});
+        details["encryption"] = std::move(no_keys);
     }
+    details["configuration"] = stripped;
+    LOG_INFO_CTX("Initialize bucket", std::move(details));
     start = std::chrono::steady_clock::now();
     auto result = bucket.getEngine().initialize(stripped, encryption);
     if (result != cb::engine_errc::success) {
