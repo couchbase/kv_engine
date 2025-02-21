@@ -114,7 +114,7 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
                         {"bucket", bucketname},
                         {"global", bucketname.empty()},
                         {"status", status},
-                        {"state", to_string(state)});
+                        {"state", state});
         return status;
     }
 

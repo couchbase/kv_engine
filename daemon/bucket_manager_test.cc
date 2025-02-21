@@ -337,7 +337,7 @@ TEST_F(BucketManagerTest, PauseBucket) {
         case Bucket::State::Ready:
         case Bucket::State::Destroying:
         case Bucket::State::Creating:
-            FAIL() << "Unexpected callback for state:" << to_string(state);
+            FAIL() << fmt::format("Unexpected callback for state: {}", state);
             break;
         case Bucket::State::Pausing:
             pausing = true;
@@ -435,7 +435,7 @@ void BucketManagerTest::testPauseBucketCancellable(
         case Bucket::State::Initializing:
         case Bucket::State::Destroying:
         case Bucket::State::Creating:
-            FAIL() << "Unexpected callback for state:" << to_string(state);
+            FAIL() << fmt::format("Unexpected callback for state: {}", state);
             break;
         case Bucket::State::Pausing:
             pausing = true;

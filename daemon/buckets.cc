@@ -81,7 +81,7 @@ nlohmann::json Bucket::to_json() const {
     if (state != State::None) {
         try {
             nlohmann::json json;
-            json["state"] = to_string(state.load());
+            json["state"] = state.load();
             json["clients"] = clients.load();
             json["name"] = name;
             json["type"] = type;
@@ -423,7 +423,7 @@ std::string validateBucketName(std::string_view name) {
 }
 }
 
-std::string to_string(Bucket::State state) {
+std::string format_as(Bucket::State state) {
     switch (state) {
     case Bucket::State::None:
         return "none";

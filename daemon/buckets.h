@@ -386,7 +386,12 @@ protected:
 };
 
 void to_json(nlohmann::json& json, const Bucket& bucket);
-std::string to_string(Bucket::State state);
+std::string format_as(Bucket::State state);
+
+template <typename BasicJsonType>
+void to_json(BasicJsonType& j, Bucket::State state) {
+    j = format_as(state);
+}
 
 /**
  * All of the buckets are stored in the following array. Index 0 is reserved
