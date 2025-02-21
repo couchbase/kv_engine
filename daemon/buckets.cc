@@ -84,7 +84,7 @@ nlohmann::json Bucket::to_json() const {
             json["state"] = to_string(state.load());
             json["clients"] = clients.load();
             json["name"] = name;
-            json["type"] = to_string(type);
+            json["type"] = type;
             json["data_ingress_status"] = to_string(data_ingress_status.load());
             json["num_rejected"] = num_rejected.load();
             if (serverless) {
