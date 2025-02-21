@@ -269,9 +269,9 @@ void AsyncClientConnection::authenticate(std::string_view user,
             mech = mechanism;
         } else {
             throw std::runtime_error(
-                    "AsyncClientConnectionImpl::authenticate (): Failed to get "
-                    "server SASL mechanisms: " +
-                    to_string(response.getStatus()));
+                    fmt::format("AsyncClientConnectionImpl::authenticate (): "
+                                "Failed to get server SASL mechanisms: {}",
+                                response.getStatus()));
         }
     }
 

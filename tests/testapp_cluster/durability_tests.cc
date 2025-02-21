@@ -69,7 +69,7 @@ protected:
         cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
         auto rsp = conn.execute(cmd);
         EXPECT_TRUE(rsp.isSuccess())
-                << "Status: " << to_string(rsp.getStatus()) << std::endl
+                << "Status: " << rsp.getStatus() << std::endl
                 << "Value: " << rsp.getDataView();
         EXPECT_NE(0, rsp.getCas());
     }
@@ -211,9 +211,8 @@ TEST_F(DurabilityTest, SubdocMultiMutation) {
     cmd.addDocFlag(cb::mcbp::subdoc::DocFlag::Mkdoc);
     cmd.addFrameInfo(DurabilityFrameInfo{cb::durability::Level::Majority});
     auto rsp = getConnection()->execute(cmd);
-    EXPECT_TRUE(rsp.isSuccess())
-            << "Status: " << to_string(rsp.getStatus()) << std::endl
-            << "Value: " << rsp.getDataView();
+    EXPECT_TRUE(rsp.isSuccess()) << "Status: " << rsp.getStatus() << std::endl
+                                 << "Value: " << rsp.getDataView();
     EXPECT_NE(0, rsp.getCas());
 }
 

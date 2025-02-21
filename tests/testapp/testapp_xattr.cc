@@ -1198,8 +1198,7 @@ TEST_P(XattrTest, MB_22691) {
                   "integer",
                   "2",
                   PathFlag::XattrPath | PathFlag::Mkdir_p);
-    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus())
-            << to_string(resp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus()) << resp.getStatus();
 }
 
 TEST_P(XattrTest, MB_23882_VirtualXattrs) {

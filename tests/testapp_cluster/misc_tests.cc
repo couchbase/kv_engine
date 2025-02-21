@@ -206,7 +206,7 @@ TEST_F(BasicClusterTest, Observe) {
     BinprotObserveCommand observe({{Vbid{0}, "BasicClusterTest_Observe"}});
     // check that it don't exist on the replica
     auto rsp = BinprotObserveResponse{replica->execute(observe)};
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     auto keys = rsp.getResults();
     ASSERT_EQ(1, keys.size());
     EXPECT_EQ(ObserveKeyState::NotFound, keys.front().status);
@@ -243,7 +243,7 @@ TEST_F(BasicClusterTest, ObserveMulti) {
             {{Vbid{0}, "ObserveMulti"}, {Vbid{0}, "Document2"}});
     // check that it don't exist on the replica
     auto rsp = BinprotObserveResponse{replica->execute(observe)};
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     auto keys = rsp.getResults();
     ASSERT_EQ(2, keys.size());
     EXPECT_EQ(ObserveKeyState::NotFound, keys[0].status);
@@ -325,9 +325,8 @@ TEST_F(BasicClusterTest, VerifyDcpSurviesResetOfEngineSpecific) {
     streamRequestCommand.setVBucket(Vbid(0));
     rsp = conn->execute(streamRequestCommand);
 
-    ASSERT_TRUE(rsp.isSuccess())
-            << "Stream request failed: " << to_string(rsp.getStatus()) << ". "
-            << rsp.getDataView();
+    ASSERT_TRUE(rsp.isSuccess()) << "Stream request failed: " << rsp.getStatus()
+                                 << ". " << rsp.getDataView();
 
     // as of now we don't really know the message sequence being received
     // so we need to send packages and read until we see the expected packet

@@ -105,8 +105,7 @@ static int set_verbosity(MemcachedConnection& connection,
     if (resp.isSuccess()) {
         return EXIT_SUCCESS;
     }
-    std::cerr << TerminalColor::Red
-              << "Command failed: " << to_string(resp.getStatus())
+    std::cerr << TerminalColor::Red << "Command failed: " << resp.getStatus()
               << TerminalColor::Reset << std::endl;
     return EXIT_FAILURE;
 }
@@ -268,7 +267,7 @@ int main(int argc, char** argv) {
                         cb::mcbp::ClientOpcode::ConfigReload});
                 if (!response.isSuccess()) {
                     std::cerr << TerminalColor::Red
-                              << "Failed: " << to_string(response.getStatus());
+                              << "Failed: " << response.getStatus();
                     if (!response.getDataView().empty()) {
                         std::cerr << std::endl
                                   << "\t" << response.getDataView();
@@ -281,7 +280,7 @@ int main(int argc, char** argv) {
                         connection->execute(BinprotIsaslRefreshCommand{});
                 if (!response.isSuccess()) {
                     std::cerr << TerminalColor::Red
-                              << "Failed: " << to_string(response.getStatus());
+                              << "Failed: " << response.getStatus();
 
                     if (!response.getDataView().empty()) {
                         std::cerr << std::endl

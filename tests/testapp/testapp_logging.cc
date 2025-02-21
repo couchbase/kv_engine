@@ -44,7 +44,7 @@ TEST_P(LoggingTest, ChangeVerbosity) {
                                          cb::engine_errc::success,
                                          uint32_t(level),
                                          "key"});
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 }
 
 // Test with verbosity values 0, 1, 2

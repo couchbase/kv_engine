@@ -411,7 +411,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath |
                          cb::mcbp::subdoc::PathFlag::Mkdir_p);
         const auto resp = userConnection->execute(cmd);
-        ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+        ASSERT_TRUE(resp.isSuccess()) << resp.getStatus();
     }
 
     // Perform the normal operation
@@ -425,7 +425,7 @@ TEST_P(ArithmeticXattrOnTest, TestDocWithXattr) {
         cmd.setPath("meta.author");
         cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         const auto resp = BinprotSubdocResponse(userConnection->execute(cmd));
-        ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+        ASSERT_TRUE(resp.isSuccess()) << resp.getStatus();
         EXPECT_EQ("\"Trond Norbye\"", resp.getDataView());
     }
 }

@@ -41,7 +41,7 @@ protected:
 
         const auto rsp = connection->execute(BinprotDcpOpenCommand{
                 getTestName(), cb::mcbp::DcpOpenFlag::Producer});
-        EXPECT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                      << rsp.getDataView();
         return connection;
     }

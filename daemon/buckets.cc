@@ -85,7 +85,7 @@ nlohmann::json Bucket::to_json() const {
             json["clients"] = clients.load();
             json["name"] = name;
             json["type"] = type;
-            json["data_ingress_status"] = to_string(data_ingress_status.load());
+            json["data_ingress_status"] = data_ingress_status.load();
             json["num_rejected"] = num_rejected.load();
             if (serverless) {
                 json["ru"] = read_units_used.load();

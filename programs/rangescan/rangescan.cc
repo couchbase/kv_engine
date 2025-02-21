@@ -473,8 +473,8 @@ void setupVBMap(const std::string& host,
     auto rsp = connection.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
     if (!rsp.isSuccess()) {
-        std::cout << "Failed to fetch cluster map: "
-                  << to_string(rsp.getStatus()) << std::endl;
+        std::cout << "Failed to fetch cluster map: " << rsp.getStatus()
+                  << std::endl;
         std::exit(EXIT_FAILURE);
     }
     auto json = rsp.getDataJson();

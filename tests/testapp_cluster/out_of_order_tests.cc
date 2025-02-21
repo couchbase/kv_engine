@@ -65,7 +65,7 @@ protected:
                 [](const std::string& key,
                    const cb::mcbp::Response& response) -> void {
                     FAIL() << "Failed to get " << key << ": "
-                           << to_string(response.getStatus());
+                           << response.getStatus();
                 },
                 [&reorder, &counter]() -> FrameInfoVector {
                     using cb::mcbp::request::BarrierFrameInfo;

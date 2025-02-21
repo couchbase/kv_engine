@@ -480,10 +480,10 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
         if (!(resp.getStatus() == cb::mcbp::Status::Success ||
               resp.getStatus() == cb::mcbp::Status::RangeScanMore ||
               resp.getStatus() == cb::mcbp::Status::RangeScanComplete)) {
-            // stop the loop or it could run for ever
-            throw std::runtime_error(
-                    "RangeScanTest::drainScan unexpected status:" +
-                    to_string(resp.getStatus()));
+            // stop the loop or it could run forever
+            throw std::runtime_error(fmt::format(
+                    "RangeScanTest::drainScan unexpected status: {}",
+                    resp.getStatus()));
         }
     } while (resp.getStatus() != cb::mcbp::Status::RangeScanComplete);
 

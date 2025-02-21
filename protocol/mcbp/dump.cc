@@ -433,7 +433,7 @@ protected:
             << std::endl;
         out << "    Status       (6,7)  : "
             << cb::to_hex(uint16_t(response.getStatus())) << " ("
-            << to_string(response.getStatus()) << ")" << std::endl;
+            << response.getStatus() << ")" << std::endl;
         out << "    Total body   (8-11) : " << cb::to_hex(response.getBodylen())
             << std::endl;
         out << "    Opaque       (12-15): " << cb::to_hex(response.getOpaque())

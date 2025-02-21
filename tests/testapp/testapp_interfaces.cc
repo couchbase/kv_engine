@@ -198,7 +198,7 @@ TEST_P(InterfacesTest, Mcbp) {
     }
     cmd.setValue(descr.dump());
     rsp = adminConnection->execute(cmd);
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
     auto json = rsp.getDataJson();
     auto uuid = json["ports"][0]["uuid"].get<std::string>();
@@ -209,7 +209,7 @@ TEST_P(InterfacesTest, Mcbp) {
     auto findUuid = [&uuid, &found](MemcachedConnection& conn) {
         auto rsp = conn.execute(BinprotGenericCommand{
                 cb::mcbp::ClientOpcode::Ifconfig, "list"});
-        ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+        ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                      << rsp.getDataView();
         ASSERT_FALSE(rsp.getDataView().empty());
         auto json = rsp.getDataJson();
@@ -259,9 +259,8 @@ TEST_P(InterfacesTest, Mcbp) {
                     BinprotGenericCommand{cb::mcbp::ClientOpcode::Ifconfig,
                                           "delete",
                                           interface["uuid"]});
-            ASSERT_TRUE(rsp.isSuccess())
-                    << to_string(rsp.getStatus()) << std::endl
-                    << rsp.getDataView();
+            ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
+                                         << rsp.getDataView();
         }
     }
 
@@ -293,7 +292,7 @@ TEST_P(InterfacesTest, TlsProperties) {
             {"client cert auth", "disabled"}};
     const auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
 }
 
@@ -317,13 +316,13 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedKey) {
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
 
     // Verify that we don't return the passphrase
     rsp = adminConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Ifconfig, "tls"});
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
     auto json = rsp.getDataJson();
     EXPECT_EQ("set", json["password"].get<std::string>()) << json.dump(2);
@@ -350,7 +349,7 @@ TEST_P(InterfacesTest, TlsPropertiesEncryptedCertInvalidPassphrase) {
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
-    ASSERT_FALSE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_FALSE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                   << rsp.getDataView();
 }
 
@@ -386,7 +385,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_AddressInUse) {
 
     // reload should be rejected because the port is already open
     ASSERT_FALSE(rsp.isSuccess())
-            << to_string(rsp.getStatus()) << ": " << rsp.getDataView();
+            << rsp.getStatus() << ": " << rsp.getDataView();
 #ifdef WIN32
     ASSERT_NE(std::string::npos,
               rsp.getDataView().find(
@@ -427,7 +426,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
 
     auto rsp = reconfigure(config);
     ASSERT_TRUE(rsp.isSuccess())
-            << to_string(rsp.getStatus()) << ": " << rsp.getDataView();
+            << rsp.getStatus() << ": " << rsp.getDataView();
     remove(mcd_env->getPortnumberFile());
 
     // Add an ephemeral port and verify that it was created
@@ -442,7 +441,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
     config["interfaces"] = extra_interface;
     rsp = reconfigure(config);
     ASSERT_TRUE(rsp.isSuccess())
-            << to_string(rsp.getStatus()) << ": " << rsp.getDataView();
+            << rsp.getStatus() << ": " << rsp.getDataView();
 
     auto portnumbers = nlohmann::json::parse(
             cb::io::loadFile(mcd_env->getPortnumberFile()));
@@ -461,7 +460,7 @@ TEST_P(InterfacesTest, MB46863_NsServerWithoutSupportForIfconfig_ReloadOk) {
     config["interfaces"] = interfaces;
     rsp = reconfigure(config);
     ASSERT_TRUE(rsp.isSuccess())
-            << to_string(rsp.getStatus()) << ": " << rsp.getDataView();
+            << rsp.getStatus() << ": " << rsp.getDataView();
     portnumbers = nlohmann::json::parse(
             cb::io::loadFile(mcd_env->getPortnumberFile()));
     // verify that the port is gone
@@ -494,7 +493,7 @@ void InterfacesTest::test_mb47707(bool allow_localhost_interface) {
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "define", descr.dump()});
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
     auto json = rsp.getDataJson();
     auto uuid = json["ports"][0]["uuid"].get<std::string>();
@@ -504,20 +503,20 @@ void InterfacesTest::test_mb47707(bool allow_localhost_interface) {
     c.connect();
     rsp = c.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
-    ASSERT_TRUE(rsp.isSuccess()) << "Status: " << to_string(rsp.getStatus())
-                                 << " message " << rsp.getDataView();
+    ASSERT_TRUE(rsp.isSuccess()) << "Status: " << rsp.getStatus() << " message "
+                                 << rsp.getDataView();
 
     // Delete the interface
     rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "delete", uuid});
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
 
     if (allow_localhost_interface) {
         // The connection should not be disconnected
         rsp = c.execute(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::SaslListMechs});
-        ASSERT_TRUE(rsp.isSuccess()) << "Status: " << to_string(rsp.getStatus())
+        ASSERT_TRUE(rsp.isSuccess()) << "Status: " << rsp.getStatus()
                                      << " message " << rsp.getDataView();
     } else {
         // The connection should be disconnected
@@ -525,7 +524,7 @@ void InterfacesTest::test_mb47707(bool allow_localhost_interface) {
             rsp = c.execute(BinprotGenericCommand{
                     cb::mcbp::ClientOpcode::SaslListMechs});
             FAIL() << "Expected the connection to be disconnected.\n"
-                   << "Status: " << to_string(rsp.getStatus())
+                   << "Status: " << rsp.getStatus()
                    << "\nmessage: " << rsp.getDataView();
         } catch (const std::system_error& error) {
             // we should probably have checked if the error code is
@@ -567,7 +566,7 @@ TEST_P(InterfacesTest, MB_52058_NoPasswordForEncryptedCert) {
 
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
-    ASSERT_FALSE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_FALSE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                   << rsp.getDataView();
 }
 

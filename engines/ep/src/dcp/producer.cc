@@ -1484,7 +1484,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
             logger->infoWithContext(
                     "DcpProducer::handleResponse received unexpected response, "
                     "Will not disconnect as will affect only one stream",
-                    {{"status", to_string(responseStatus)},
+                    {{"status", responseStatus},
                      {"response", response.to_json(true)},
                      {"stream_info", streamInfo}});
             return true;

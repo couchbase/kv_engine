@@ -532,8 +532,8 @@ static void setupVBMap(const std::string& host,
     auto rsp = connection.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
     if (!rsp.isSuccess()) {
-        std::cout << "Failed to fetch cluster map: "
-                  << to_string(rsp.getStatus()) << std::endl;
+        std::cout << "Failed to fetch cluster map: " << rsp.getStatus()
+                  << std::endl;
         std::exit(EXIT_FAILURE);
     }
     auto json = rsp.getDataJson();
@@ -888,9 +888,10 @@ int main(int argc, char** argv) {
                 auto rsp = c.execute(BinprotDcpOpenCommand{
                         std::move(nm), cb::mcbp::DcpOpenFlag::Producer});
                 if (!rsp.isSuccess()) {
-                    std::cerr << "Failed to open DCP stream: "
-                              << to_string(rsp.getStatus()) << std::endl
-                              << "\t" << rsp.getDataView() << std::endl;
+                    std::cerr
+                            << "Failed to open DCP stream: " << rsp.getStatus()
+                            << std::endl
+                            << "\t" << rsp.getDataView() << std::endl;
                     return EXIT_FAILURE;
                 }
 

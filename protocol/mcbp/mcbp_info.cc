@@ -116,15 +116,14 @@ void dump_status() {
             std::cout << std::endl << cb::to_hex(uint8_t(st)) << " ";
         }
         if (st < (unsigned int)cb::mcbp::Status::COUNT) {
-            try {
-                const auto status = cb::mcbp::Status(st);
-                to_string(status);
+            const auto status = cb::mcbp::Status(st);
+            if (cb::mcbp::is_known(status)) {
                 if (cb::mcbp::isStatusSuccess(status)) {
                     std::cout << TerminalColor::Green << "S";
                 } else {
                     std::cout << TerminalColor::Green << "E";
                 }
-            } catch (const std::exception&) {
+            } else {
                 std::cout << TerminalColor::Red << ".";
             }
         } else {

@@ -130,8 +130,7 @@ int main(int argc, char** argv) {
             std::cout << TerminalColor::Green << rsp.getDataView()
                       << TerminalColor::Reset << std::endl;
         } else {
-            std::cerr << TerminalColor::Red
-                      << "Failed: " << to_string(rsp.getStatus())
+            std::cerr << TerminalColor::Red << "Failed: " << rsp.getStatus()
                       << rsp.getDataView() << TerminalColor::Reset << std::endl;
             std::exit(EXIT_FAILURE);
         }

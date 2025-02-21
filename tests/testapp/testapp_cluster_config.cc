@@ -142,7 +142,7 @@ TEST_P(ClusterConfigTest, GetClusterConfig) {
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig};
     const auto response = userConnection->execute(cmd);
-    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+    EXPECT_TRUE(response.isSuccess()) << response.getStatus();
     EXPECT_EQ(expectedDatatype, cb::mcbp::Datatype(response.getDatatype()));
     EXPECT_EQ(config,
               getInflatedValue(response.getDatatype(), response.getDataView()));
@@ -163,7 +163,7 @@ TEST_P(ClusterConfigTest, GetClusterConfig_ClusterCompat) {
 
     BinprotGenericCommand cmd{cb::mcbp::ClientOpcode::GetClusterConfig};
     const auto response = userConnection->execute(cmd);
-    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+    EXPECT_TRUE(response.isSuccess()) << response.getStatus();
     EXPECT_EQ(expectedDatatype, cb::mcbp::Datatype(response.getDatatype()));
     EXPECT_EQ(config,
               getInflatedValue(response.getDatatype(), response.getDataView()));

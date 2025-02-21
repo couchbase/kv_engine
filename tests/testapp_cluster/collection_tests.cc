@@ -142,10 +142,10 @@ void CollectionsTests::testSubdocRbac(MemcachedConnection& conn) {
     // 1) we're checking we can do the xattr write
     auto subdoc = subdocInsertXattrPath(fruit, "nosys");
     auto response = BinprotMutationResponse(conn.execute(subdoc));
-    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+    EXPECT_TRUE(response.isSuccess()) << response.getStatus();
     subdoc = subdocInsertXattrPath(fruit, "_sys");
     response = BinprotMutationResponse(conn.execute(subdoc));
-    EXPECT_TRUE(response.isSuccess()) << to_string(response.getStatus());
+    EXPECT_TRUE(response.isSuccess()) << response.getStatus();
 
     // 2) XTOC evaluates xattr read privs separately.
     BinprotSubdocMultiLookupCommand cmd;
@@ -156,7 +156,7 @@ void CollectionsTests::testSubdocRbac(MemcachedConnection& conn) {
     // Response will include system xattrs
     conn.sendCommand(cmd);
     conn.recvResponse(resp);
-    EXPECT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+    EXPECT_TRUE(resp.isSuccess()) << resp.getStatus();
     ASSERT_EQ(1, resp.getResults().size());
     EXPECT_EQ(cb::mcbp::Status::Success, resp.getResults().front().status);
     EXPECT_EQ(R"(["_sys","nosys"])", resp.getResults().front().value);
@@ -166,7 +166,7 @@ void CollectionsTests::testSubdocRbac(MemcachedConnection& conn) {
     resp = BinprotSubdocMultiLookupResponse();
     conn.sendCommand(cmd);
     conn.recvResponse(resp);
-    EXPECT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+    EXPECT_TRUE(resp.isSuccess()) << resp.getStatus();
     const auto results = resp.getResults();
     ASSERT_EQ(1, results.size());
     EXPECT_EQ(cb::mcbp::Status::Success, results.front().status);
@@ -242,8 +242,7 @@ TEST_F(CollectionsTests, TestBasicRbac) {
         FAIL() << "Should not be able to fetch in vegetable collection";
     } catch (const ConnectionError& error) {
         // No privileges so we would get unknown collection error
-        ASSERT_TRUE(error.isUnknownCollection())
-                << to_string(error.getReason());
+        ASSERT_TRUE(error.isUnknownCollection()) << error.getReason();
         EXPECT_EQ(
                 cluster->collections.getUidString(),
                 error.getErrorJsonContext()["manifest_uid"].get<std::string>());
@@ -350,7 +349,7 @@ TEST_F(CollectionsTests, ResurrectCollection) {
                   Vbid{0});
         FAIL() << "Should not be able to fetch in Generation1 key";
     } catch (const ConnectionError& error) {
-        ASSERT_TRUE(error.isNotFound()) << to_string(error.getReason());
+        ASSERT_TRUE(error.isNotFound()) << error.getReason();
     }
     conn->get(DocKeyView::makeWireEncodedString(CollectionEntry::vegetable,
                                                 "Generation2"),

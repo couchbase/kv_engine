@@ -402,7 +402,7 @@ TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
                         "SimpleStats"});
         rsp = c.execute(stat);
         EXPECT_TRUE(rsp.isSuccess())
-                << to_string(rsp.getStatus()) << " " << rsp.getDataView();
+                << rsp.getStatus() << " " << rsp.getDataView();
 
         // A stat call would return multiple packets. We need to drain
         // all of them to avoid getting "out of sync" with later use of the

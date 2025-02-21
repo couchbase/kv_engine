@@ -278,7 +278,7 @@ TEST_P(LockTest, MB_22778) {
     BinprotResponse response;
     userConnection->recvResponse(response);
     EXPECT_EQ(cb::mcbp::Status::Success, response.getStatus())
-            << to_string(response.getStatus());
+            << response.getStatus();
 
     std::array<uint8_t, 27> lock = {{0x80, // magic
                                          0x94, // opcode
@@ -297,7 +297,7 @@ TEST_P(LockTest, MB_22778) {
     userConnection->sendFrame(command);
     userConnection->recvResponse(response);
     EXPECT_EQ(cb::mcbp::Status::Success, response.getStatus())
-            << to_string(response.getStatus());
+            << response.getStatus();
 
     userConnection->remove("NET", Vbid(0), response.getCas());
 }

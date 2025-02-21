@@ -101,9 +101,7 @@ static void request_cmd_timings(MemcachedConnection& connection,
             }
             break;
         default:
-            fmt::print(stderr,
-                       "Command failed: {}\n",
-                       to_string(resp.getStatus()));
+            fmt::print(stderr, "Command failed: {}\n", resp.getStatus());
         }
         exit(EXIT_FAILURE);
     }

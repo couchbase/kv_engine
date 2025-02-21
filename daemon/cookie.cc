@@ -454,7 +454,7 @@ void Cookie::maybeLogSlowCommand(
                                  {"packet", getHeader().to_json(validated)},
                                  {"worker_tid", folly::getCurrentThreadID()}};
         if (responseStatus != cb::mcbp::Status::COUNT) {
-            details["status"] = to_string(responseStatus);
+            details["status"] = responseStatus;
         }
 
         const auto [read, write] = getDocumentRWBytes();

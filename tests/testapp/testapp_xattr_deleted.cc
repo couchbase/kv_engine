@@ -320,7 +320,7 @@ std::ostream& operator<<(std::ostream& os,
         return " [" + s + "]";
     };
     for (const auto& r : results) {
-        os << "\tindex " << uint32_t(r.index) << ": " << to_string(r.status)
+        os << "\tindex " << uint32_t(r.index) << ": " << r.status
            << getValue(r.value) << std::endl;
     }
     return os;

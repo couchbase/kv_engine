@@ -43,8 +43,7 @@ public:
                 snprintf(buffer.data(), buffer.size(), "%x", ii);
                 const auto iter = error.find(buffer.data());
                 EXPECT_FALSE(iter == error.end())
-                        << "Missing entry for Status code: "
-                        << to_string(status, true) << " "
+                        << "Missing entry for Status code: " << status << " "
                         << cb::to_hex(uint16_t(ii));
             }
         }

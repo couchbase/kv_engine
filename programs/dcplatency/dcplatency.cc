@@ -121,7 +121,7 @@ void setupDcpConnection(MemcachedConnection& connection) {
     auto rsp = connection.execute(
             BinprotDcpOpenCommand{"dcpdrain", cb::mcbp::DcpOpenFlag::Producer});
     if (!rsp.isSuccess()) {
-        std::cerr << "Failed to open DCP stream: " << to_string(rsp.getStatus())
+        std::cerr << "Failed to open DCP stream: " << rsp.getStatus()
                   << std::endl
                   << "\t" << rsp.getDataView() << std::endl;
         exit(EXIT_FAILURE);
@@ -139,7 +139,7 @@ void setupDcpConnection(MemcachedConnection& connection) {
     streamRequestCommand.setVBucket(Vbid(0));
     rsp = connection.execute(streamRequestCommand);
     if (!rsp.isSuccess()) {
-        std::cerr << "DCP stream request failed: " << to_string(rsp.getStatus())
+        std::cerr << "DCP stream request failed: " << rsp.getStatus()
                   << std::endl
                   << "\t" << rsp.getDataView() << std::endl;
         exit(EXIT_FAILURE);

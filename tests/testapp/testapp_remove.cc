@@ -138,7 +138,7 @@ TEST_P(RemoveTest, RemoveWithXattr) {
         }
     } catch (const ConnectionError& exp) {
         EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, exp.getReason())
-                << to_string(exp.getReason());
+                << exp.getReason();
     }
 }
 

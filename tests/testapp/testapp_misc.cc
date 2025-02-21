@@ -259,8 +259,7 @@ TEST_F(TestappTest, CollectionsSelectBucket) {
     try {
         conn.selectBucket(bucketName);
     } catch (const ConnectionError& e) {
-        FAIL() << "Select bucket failed for unknown reason: "
-               << to_string(e.getReason());
+        FAIL() << "Select bucket failed for unknown reason: " << e.getReason();
     }
     adminConnection->deleteBucket("collections");
 }
@@ -390,15 +389,9 @@ TEST_F(TestappTest, MB56893) {
         Frame resp;
         conn.recvFrame(resp);
 
-        std::string message;
-        try {
-            message = to_string(resp.getResponse()->getStatus());
-        } catch (const std::exception&) {
-        }
-
         FAIL() << "It should not be possible to send a large frame to the "
                   "server: "
-               << message;
+               << resp.getResponse()->getStatus();
     } catch (std::exception&) {
     }
 

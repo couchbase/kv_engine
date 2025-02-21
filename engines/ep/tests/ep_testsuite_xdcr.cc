@@ -1394,9 +1394,9 @@ static enum test_result test_set_with_meta_race_with_delete(EngineIface* h) {
                           &meta,
                           errorMetaPair.second.cas,
                           true),
-            std::string{"Expected invalid cas error (KEY_EXISTS or"
-                        " KEY_ENOENT), got: "} +
-                    ::to_string(last_status.load()));
+            fmt::format("Expected invalid cas error (KEY_EXISTS or"
+                        " KEY_ENOENT), got: {}",
+                        last_status.load()));
 
     // check the stat
     temp = get_int_stat(h, "ep_num_ops_set_meta");

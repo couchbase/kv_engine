@@ -137,7 +137,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
         FAIL() << "SASL Auth should be disabled for cert auth'd connections";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotSupported())
-                << "Received: " << to_string(error.getReason());
+                << "Received: " << error.getReason();
     }
 
     try {
@@ -145,7 +145,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
-                << "Received: " << to_string(error.getReason());
+                << "Received: " << error.getReason();
     }
 
     connection->selectBucket(bucketName);
@@ -153,8 +153,7 @@ TEST_F(SslCertTest, LoginEnabledWithCert) {
         connection->get("foo", Vbid(0));
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
-        EXPECT_TRUE(error.isNotFound())
-                << "Received: " << to_string(error.getReason());
+        EXPECT_TRUE(error.isNotFound()) << "Received: " << error.getReason();
     }
 }
 
@@ -216,7 +215,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
         FAIL() << "Should not be associated with a bucket";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isAccessDenied())
-                << "Received: " << to_string(error.getReason());
+                << "Received: " << error.getReason();
     }
 
     connection->selectBucket(bucketName);
@@ -224,8 +223,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCert) {
         connection->get("foo", Vbid(0));
         FAIL() << "document should not exists";
     } catch (const ConnectionError& error) {
-        EXPECT_TRUE(error.isNotFound())
-                << "Received: " << to_string(error.getReason());
+        EXPECT_TRUE(error.isNotFound()) << "Received: " << error.getReason();
     }
 }
 
@@ -270,7 +268,7 @@ TEST_F(SslCertTest, LoginWhenMandatoryWithCertShouldNotSupportSASL) {
         FAIL() << "SASL Auth should be disabled for cert auth'd connections";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotSupported())
-                << "Received: " << to_string(error.getReason());
+                << "Received: " << error.getReason();
     }
 }
 

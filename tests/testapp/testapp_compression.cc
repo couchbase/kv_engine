@@ -101,7 +101,7 @@ protected:
             cmd.addPathFlags(cb::mcbp::subdoc::PathFlag::XattrPath);
         }
         const auto resp = BinprotSubdocResponse(userConnection->execute(cmd));
-        ASSERT_TRUE(resp.isSuccess()) << to_string(resp.getStatus());
+        ASSERT_TRUE(resp.isSuccess()) << resp.getStatus();
         EXPECT_EQ(value, resp.getDataView());
     }
 

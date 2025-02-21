@@ -439,8 +439,7 @@ TEST_F(CollectionsDcpTests, TestBasicRbacFail) {
         FAIL() << "Expected dcpStreamRequest to throw";
     } catch (const ConnectionError& error) {
         // No privs associated with the collection, so it's unknown
-        EXPECT_TRUE(error.isUnknownCollection())
-                << to_string(error.getReason());
+        EXPECT_TRUE(error.isUnknownCollection()) << error.getReason();
     }
     cluster->getAuthProviderService().removeUser(username);
 }

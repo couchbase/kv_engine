@@ -109,8 +109,8 @@ static void setupHosts(MemcachedConnection& connection) {
     auto rsp = connection.execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::GetClusterConfig});
     if (!rsp.isSuccess()) {
-        std::cerr << "Failed to fetch cluster map: "
-                  << to_string(rsp.getStatus()) << std::endl;
+        std::cerr << "Failed to fetch cluster map: " << rsp.getStatus()
+                  << std::endl;
         std::exit(EXIT_FAILURE);
     }
 

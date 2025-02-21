@@ -229,7 +229,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
         auto rsp = adminConnection->execute(cmd);
         if (!rsp.isSuccess()) {
             std::cerr << "Failed to define interface: " << host << " " + family
-                      << ": " << to_string(rsp.getStatus()) << std::endl
+                      << ": " << rsp.getStatus() << std::endl
                       << rsp.getDataView() << std::endl;
             std::exit(EXIT_FAILURE);
         }
@@ -260,8 +260,8 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
         cmd.setValue(tls_properties.dump());
         auto rsp = adminConnection->execute(cmd);
         if (!rsp.isSuccess()) {
-            std::cerr << "Failed to set TLS properties: "
-                      << to_string(rsp.getStatus()) << std::endl
+            std::cerr << "Failed to set TLS properties: " << rsp.getStatus()
+                      << std::endl
                       << rsp.getDataView() << std::endl;
             std::exit(EXIT_FAILURE);
         }
@@ -771,7 +771,7 @@ void TestappTest::validate_flags(const std::string& key,
     }
     auto rsp = BinprotGetResponse{userConnection->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, key})};
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
     EXPECT_EQ(expected_flags, rsp.getDocumentFlags());
 }
@@ -786,7 +786,7 @@ void TestappTest::delete_object(const std::string& key, bool ignore_missing) {
         return;
     }
 
-    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
                                  << rsp.getDataView();
 }
 
@@ -1107,15 +1107,13 @@ BinprotResponse TestappTest::reconfigure(const nlohmann::json& config) {
 void TestappTest::reconfigure() {
     auto rsp = reconfigure(memcached_cfg);
     ASSERT_TRUE(rsp.isSuccess())
-            << "Failed to reconfigure server: " << to_string(rsp.getStatus())
-            << std::endl
+            << "Failed to reconfigure server: " << rsp.getStatus() << std::endl
             << rsp.getDataView();
 
     rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::Ifconfig, "tls", tls_properties.dump()});
     ASSERT_TRUE(rsp.isSuccess())
-            << "Failed to set TLS properties: " << to_string(rsp.getStatus())
-            << std::endl
+            << "Failed to set TLS properties: " << rsp.getStatus() << std::endl
             << rsp.getDataView() << std::endl;
 }
 
