@@ -533,12 +533,16 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
 void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
         bool vbDeletion) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+
+    auto& manager = *vb.checkpointManager;
+
+    manager.dump();
 
     // Do we want to test the case where the flusher is running on a vbucket set
     // set for deferred deletion?
     // Nothing changes in the logic of this test, just that we hit an additional
     // code-path where flush-stats are wrongly updated at flush failure
-    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
     if (vbDeletion) {
         vb.setDeferredDeletion(true);
     }
@@ -557,9 +561,10 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
                    PROTOCOL_BINARY_RAW_BYTES);
     }
 
-    auto& manager = *vb.checkpointManager;
+    ///auto& manager = *vb.checkpointManager;
     // cs + vbstate + mut
     ASSERT_EQ(3, manager.getNumOpenChkItems());
+    manager.dump();
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumOpenChkItems());
 
@@ -575,7 +580,12 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
                    PROTOCOL_BINARY_RAW_BYTES);
     }
     ASSERT_EQ(2, manager.getNumOpenChkItems());
-    ASSERT_EQ(4, manager.getNumItemsForPersistence());
+    std::vector<queued_item> items;
+  //  manager.getItemsForPersistence(items, ~0);
+    for (const auto& item : items) {
+        std::cout << "item: " << *item << std::endl;
+    }
+    ASSERT_EQ(4, manager.getNumItemsForPersistence()) << items.size();
 
     EXPECT_EQ(2, vb.dirtyQueueSize);
 

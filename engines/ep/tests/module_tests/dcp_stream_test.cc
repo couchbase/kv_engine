@@ -4724,14 +4724,16 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
 
     // Move cursors to allow Expel
-    if (isPersistent()) {
-        flushVBucket(vbid);
-    }
+    flushVBucket(vbid);
+
     // Now Expel everything from the open checkpoint
     {
+        EXPECT_EQ(0, manager.getNumItemsForPersistence());
         const auto res = manager.expelUnreferencedCheckpointItems();
         ASSERT_EQ(1, res.count); // mut
         ASSERT_TRUE(list.back()->modifiedByExpel());
+        EXPECT_EQ(1, manager.getNumItems()); // 1 for checkpoint_start
+        EXPECT_EQ(0, manager.getNumItemsForPersistence());
     }
 
     // Crucial test: We have expelled everything from the checkpoint and that
@@ -4764,7 +4766,10 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     snapInfo = manager.getSnapshotInfo();
     EXPECT_EQ(2, snapInfo.start);
     EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+    EXPECT_EQ(2, manager.getNumItems()); // cs and mutation
+    EXPECT_EQ(1, manager.getNumItemsForPersistence());
 
+    // Create a new empty checkpoint
     EXPECT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(opaque,
                                        vbid,
@@ -4794,9 +4799,7 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
 
     // Try to expel the vbs meta-item.
-    if (isPersistent()) {
-        flushVBucket(vbid);
-    }
+    flushVBucket(vbid);
     {
         const auto res = manager.expelUnreferencedCheckpointItems();
         // Nothing expelled, ItemExpel doesn't touch checkpoints that store only
