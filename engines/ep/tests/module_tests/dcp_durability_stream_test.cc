@@ -5799,7 +5799,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
             /*snap_start_seqno*/ 0,
             /*snap_end_seqno*/ ~0);
 
-    // just a checkpoint_start for cursor
+    // just a checkpoint_start
     EXPECT_EQ(1, stream->getItemsRemaining());
 
     stream->transitionStateToBackfilling();
@@ -5810,7 +5810,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     EXPECT_EQ(backfill_success, manager.backfill()); // create->done
     EXPECT_EQ(backfill_finished, manager.backfill()); // nothing else to run
 
-    // just a checkpoint_start for cursor
+    // just a checkpoint_start
     EXPECT_EQ(1, stream->getItemsRemaining());
 
     ASSERT_EQ(0, stream->public_readyQSize());
@@ -5819,7 +5819,7 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     EXPECT_FALSE(resp);
     EXPECT_EQ(ActiveStream::StreamState::InMemory, stream->getState());
 
-    // just a checkpoint_start for cursor
+    // just a checkpoint_start
     EXPECT_EQ(1, stream->getItemsRemaining());
 }
 
