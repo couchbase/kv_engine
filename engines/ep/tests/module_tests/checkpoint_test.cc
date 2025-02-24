@@ -157,7 +157,10 @@ TEST_P(CheckpointTest, CheckFixture) {
     EXPECT_EQ(1, this->manager->getNumOfCursors());
     // cs item
     EXPECT_EQ(1, manager->getNumOpenChkItems());
+    // empty, cs,
+    // ^
     EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor));
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -697,9 +700,9 @@ TEST_P(CheckpointTest, CursorMovement) {
     manager->createNewCheckpoint();
     EXPECT_EQ(openId + 1, manager->getOpenCheckpointId());
 
-    /* Get items for persistence cursor */
-    EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor))
-            << "Expected to have just the checkpoint_start item for cursor";
+    /* Get items for persistence cursor, cs is available */
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor));
+
     items.clear();
     result = manager->getItemsForCursor(
             *cursor, items, 9999, std::numeric_limits<size_t>::max());
@@ -712,15 +715,17 @@ TEST_P(CheckpointTest, CursorMovement) {
     EXPECT_EQ(1002, result.ranges.front().getEnd());
 
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(0, manager->getNumItemsForCursor(*cursor));
 
     /* Get items for DCP replication cursor */
-    EXPECT_EQ(0, manager->getNumItemsForCursor(*cursor))
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*dcpCursor.lock()))
             << "Expected to have no normal (only meta) items";
     items.clear();
     this->manager->getNextItemsForDcp(*dcpCursor.lock(), items);
     /* Expecting only 1 op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(0, manager->getNumItemsForCursor(*dcpCursor.lock()));
 }
 
 // MB-25056 - Regression test replicating situation where the seqno returned by
@@ -2495,7 +2500,7 @@ TEST_P(CheckpointTest, TakeAndResetCursors) {
 
     for (const auto* c : cursors) {
         ASSERT_NE(nullptr, c);
-        // cs
+        // cs is available
         ASSERT_EQ(1, manager->getNumItemsForCursor(*c));
         ASSERT_EQ(0, c->getDistance());
     }
@@ -2545,6 +2550,7 @@ TEST_P(CheckpointTest, TakeAndResetCursors) {
             manager2->getCheckpointList().front()->getNumCursorsInCheckpoint());
     for (const auto* c : cursors) {
         EXPECT_EQ(1, manager2->getNumItemsForCursor(*c));
+        EXPECT_EQ(queue_op::empty, (*c->getPos())->getOperation());
         EXPECT_EQ(0, c->getDistance());
     }
 }
@@ -2774,6 +2780,14 @@ TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicate) {
     EXPECT_EQ(queue_op::checkpoint_start, pos->getOperation());
     EXPECT_EQ(1001, pos->getBySeqno());
 
+    auto cursor2 = manager->registerCursorBySeqno(
+            "MB-62961", 1002, CheckpointCursor::Droppable::Yes);
+    EXPECT_EQ(1003, cursor2.nextSeqno);
+    EXPECT_FALSE(cursor2.tryBackfill) << *manager;
+    // cs + mutation
+    EXPECT_EQ(2,
+              manager->getNumItemsForCursor(*cursor2.takeCursor().lock().get()))
+            << *manager;
     // Add another item which has been expelled.
     // Should not find the duplicate and so will re-add.
     EXPECT_TRUE(this->queueNewItem("key0"));
@@ -3697,6 +3711,7 @@ TEST_P(CheckpointRemovalTest, NewClosedCheckpointMovesCursor) {
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
         EXPECT_GT(manager->getOpenCheckpointId(), openId);
         EXPECT_EQ(1, manager->getNumItemsForCursor(*cursor));
+        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     }
 }
 
@@ -3918,7 +3933,7 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
 
     // And we expect to be in the open checkpoint, so we don't hold the closed
     // one. Also, we don't need a backfill as we are simulating a DCP client
-    // that has already got 1002 and the next seqno 1003 is in checkpoint. 
+    // that has already got 1002 and the next seqno 1003 is in checkpoint.
     EXPECT_FALSE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.nextSeqno);
     EXPECT_EQ(3, (*cursor2.takeCursor().lock()->getCheckpoint())->getId());
@@ -5400,3 +5415,190 @@ TEST_F(CDCCheckpointTest, DuplicateItemWhenPreviousExpelled) {
     EXPECT_EQ(6, manager.getHighSeqno());
     EXPECT_GT(manager.getOpenCheckpointId(), ckptId);
 }
+
+class CheckpointTestDedup : public CheckpointTest {
+public:
+    void SetUp() override {
+        CheckpointTest::SetUp();
+
+        // 1 closed checkpoint and one open checkpoint
+        queueNewItem("k1"); // 1001
+        queueNewItem("k2"); // 1002
+        manager->createNewCheckpoint();
+        queueNewItem("k1"); // 1003
+        queueNewItem("k2"); // 1004
+        queueNewItem("k3"); // 1005
+
+        // c1 in closed checkpoint
+        auto cr1 = manager->registerCursorBySeqno(
+                "c1", 1001, CheckpointCursor::Droppable::Yes);
+        c1 = cr1.takeCursor();
+        // c2 and c3 at different positions in the open checkpoint
+        auto cr2 = manager->registerCursorBySeqno(
+                "c2", 1002, CheckpointCursor::Droppable::Yes);
+        c2 = cr2.takeCursor();
+        auto cr3 = manager->registerCursorBySeqno(
+                "c3", 1004, CheckpointCursor::Droppable::Yes);
+        c3 = cr3.takeCursor();
+        if (persistent()) {
+            // CS + k1 + k2 + CE + CS + k1 + k2 + k3
+            EXPECT_EQ(initialPCurItems, manager->getNumItemsForPersistence());
+        }
+        // k2 + CE + CS + k1 + k2 + k3
+        EXPECT_EQ(initialC1Items,
+                  manager->getNumItemsForCursor(*c1.lock().get()));
+        // CS + k1 + k2 + k3
+        EXPECT_EQ(initialC2Items,
+                  manager->getNumItemsForCursor(*c2.lock().get()));
+        // k3
+        EXPECT_EQ(initialC3Items,
+                  manager->getNumItemsForCursor(*c3.lock().get()));
+    }
+
+    void setupExpel() {
+        if (persistent()) {
+            std::vector<queued_item> items;
+            manager->getItemsForPersistence(items,
+                                            std::numeric_limits<size_t>::max(),
+                                            std::numeric_limits<size_t>::max());
+            EXPECT_EQ(initialPCurItems, items.size());
+        }
+
+        {
+            std::vector<queued_item> items;
+            manager->getItemsForCursor(*c1.lock().get(),
+                                       items,
+                                       std::numeric_limits<size_t>::max(),
+                                       std::numeric_limits<size_t>::max());
+            EXPECT_EQ(initialC1Items, items.size());
+        }
+
+        {
+            std::vector<queued_item> items;
+            manager->getItemsForCursor(*c2.lock().get(),
+                                       items,
+                                       std::numeric_limits<size_t>::max(),
+                                       std::numeric_limits<size_t>::max());
+            EXPECT_EQ(initialC2Items, items.size());
+        }
+
+        {
+            std::vector<queued_item> items;
+            manager->getItemsForCursor(*c3.lock().get(),
+                                       items,
+                                       std::numeric_limits<size_t>::max(),
+                                       std::numeric_limits<size_t>::max());
+            EXPECT_EQ(initialC3Items, items.size());
+        }
+
+        // No items for any cursor
+        EXPECT_EQ(0, manager->getNumItemsForPersistence());
+        EXPECT_EQ(0, manager->getNumItemsForCursor(*c1.lock().get()));
+        EXPECT_EQ(0, manager->getNumItemsForCursor(*c2.lock().get()));
+        EXPECT_EQ(0, manager->getNumItemsForCursor(*c3.lock().get()));
+        manager->maybeCreateNewCheckpoint();
+    }
+    Cursor c1, c2, c3;
+    const size_t initialC1Items = 6;
+    const size_t initialC2Items = 4;
+    const size_t initialC3Items = 1;
+    const size_t initialPCurItems = 8;
+};
+
+TEST_P(CheckpointTestDedup, dedupK1) {
+    // Dedup k1
+    // replaces k1@1003 -> k1@1006
+    // As dedup processes cursors c3 cursor has already processed k1 and must
+    // count an extra item. c3 cursor has it's item-remaining offset adjusted
+    // All other cursors see no change in number of available items as dedup k1
+    // is ahead of them
+    queueNewItem("k1");
+
+    // CS + k1 + k2 + CE + CS + k2 + k3 + k1
+    EXPECT_EQ(initialPCurItems, manager->getNumItemsForPersistence());
+
+    // k2 + CE + CS + k2 + k3 + k1
+    EXPECT_EQ(initialC1Items, manager->getNumItemsForCursor(*c1.lock().get()));
+    // CS + k2 + k3 + k1
+    EXPECT_EQ(initialC2Items, manager->getNumItemsForCursor(*c2.lock().get()));
+    // k3 + k1
+    EXPECT_EQ(initialC3Items + 1,
+              manager->getNumItemsForCursor(*c3.lock().get()));
+}
+
+TEST_P(CheckpointTestDedup, dedupK2) {
+    // Dedup k2
+    // replaces k2@1004 -> k2@1006
+    // This hits a case in dedup cursor processing where a cursor is on the
+    // deduplicated item. Checkpoint::queueDirty will decrement the cursor. c3
+    // is decremented and now accounts the "new" item. All other cusors see no
+    // change.
+    queueNewItem("k2"); // replaces k2@1004 -> k2@1006
+
+    // CS + k1 + k2 + CE + CS + k1 + k3 + k2
+    EXPECT_EQ(initialPCurItems, manager->getNumItemsForPersistence());
+
+    // k2 + CE + CS + k1 + k3 + k2
+    EXPECT_EQ(initialC1Items, manager->getNumItemsForCursor(*c1.lock().get()));
+    // CS + k1 + k3 + k2
+    EXPECT_EQ(initialC2Items, manager->getNumItemsForCursor(*c2.lock().get()));
+    // k3 + k2
+    EXPECT_EQ(initialC3Items + 1,
+              manager->getNumItemsForCursor(*c3.lock().get()));
+}
+
+TEST_P(CheckpointTestDedup, dedupK3) {
+    // Dedup k3
+    // replaces k3@1005 -> k3@1006
+    // No change to any cursor, replacing k3 which is ahead of all cursors makes
+    // no change to the items remaining.
+    queueNewItem("k3");
+
+    // CS + k1 + k2 + CE + CS + k1 + k2 + k3
+    EXPECT_EQ(initialPCurItems, manager->getNumItemsForPersistence());
+
+    // k2 + CE + CS + k1 + k2 + k3
+    EXPECT_EQ(initialC1Items, manager->getNumItemsForCursor(*c1.lock().get()));
+    // CS + k1 + k2 + k3
+    EXPECT_EQ(initialC2Items, manager->getNumItemsForCursor(*c2.lock().get()));
+    // k3
+    EXPECT_EQ(initialC3Items, manager->getNumItemsForCursor(*c3.lock().get()));
+}
+
+TEST_P(CheckpointTestDedup, expelAndDedupK1) {
+    setupExpel();
+    manager->expelUnreferencedCheckpointItems();
+
+    // k1 was in the checkpoint (but expelled). Dedup processing detects this
+    // case and we must treat k1 like a new item, all cursors now count it.
+    queueNewItem("k1"); // replaces k3@1005 -> k3@1006
+
+    // All see 1 item, k1
+    EXPECT_EQ(1, manager->getNumItemsForPersistence());
+
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*c1.lock().get()));
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*c2.lock().get()));
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*c3.lock().get()));
+}
+
+// test is hits the case of dedupK1 but for all cursors
+TEST_P(CheckpointTestDedup, dedupK1AfterAllVisited) {
+    setupExpel(); // this will move all cursors to end
+
+    // Test just ensures all cursors see the new k1
+    queueNewItem("k1");
+
+    // All see 1 item, k1
+    EXPECT_EQ(1, manager->getNumItemsForPersistence());
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*c1.lock().get()));
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*c2.lock().get()));
+    EXPECT_EQ(1, manager->getNumItemsForCursor(*c3.lock().get()));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+        CheckpointTestDedup,
+        CheckpointTestDedup,
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent),
+                ::testing::Values(EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
