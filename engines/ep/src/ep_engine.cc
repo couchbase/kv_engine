@@ -966,10 +966,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupEnabled(cb_stob(val));
         } else if (key == "continuous_backup_interval") {
             configuration.setContinuousBackupInterval(std::stoull(val));
-        } else if (key == "magma_fusion_migration_rate_limit") {
-            configuration.setMagmaFusionMigrationRateLimit(std::stoull(val));
         } else if (key == "fusion_metadata_auth_token") {
             setFusionMetadataAuthToken(val);
+        } else if (key.starts_with("magma_fusion")) {
+            return setFusionFlushParam(key, val, msg);
         } else if (key == "workload_monitor_enabled") {
             configuration.setWorkloadMonitorEnabled(cb_stob(val));
         } else {
@@ -1003,6 +1003,23 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         rv = cb::engine_errc::invalid_arguments;
     }
 
+    return rv;
+}
+
+cb::engine_errc EventuallyPersistentEngine::setFusionFlushParam(
+        std::string_view key, const std::string& val, std::string& msg) {
+    auto rv = cb::engine_errc::success;
+    if (key == "magma_fusion_migration_rate_limit") {
+        configuration.setMagmaFusionMigrationRateLimit(std::stoull(val));
+    } else if (key == "magma_fusion_sync_rate_limit") {
+        configuration.setMagmaFusionSyncRateLimit(std::stoull(val));
+    } else {
+        EP_LOG_WARN_CTX("Rejecting setFusionFlushParam request",
+                        {"key", key},
+                        {"value", val});
+        msg = "Unknown config param " + std::string{key};
+        rv = cb::engine_errc::invalid_arguments;
+    }
     return rv;
 }
 

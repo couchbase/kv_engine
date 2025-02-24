@@ -725,6 +725,9 @@ public:
     cb::engine_errc setFlushParam(std::string_view key,
                                   const std::string& val,
                                   std::string& msg);
+    cb::engine_errc setFusionFlushParam(std::string_view key,
+                                        const std::string& val,
+                                        std::string& msg);
 
     cb::engine_errc setReplicationParam(std::string_view key,
                                         const std::string& val,

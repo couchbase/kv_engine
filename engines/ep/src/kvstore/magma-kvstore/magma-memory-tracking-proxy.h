@@ -305,6 +305,10 @@ public:
     void SetFusionMigrationRateLimit(size_t limit);
     size_t GetFusionMigrationRateLimit() const;
 
+    // The rate limit for Fusion sync uploads, in bytes per second.
+    void SetFusionSyncRateLimit(size_t limit);
+    size_t GetFusionSyncRateLimit() const;
+
     /**
      * Start uploading data to FusionLogStore for the latest revision of the
      * given kvstore.

@@ -1170,6 +1170,8 @@ public:
                          std::to_string(fusionLogCheckpointInterval);
         config_string += ";magma_fusion_migration_rate_limit=" +
                          std::to_string(fusionMigrationRateLimit);
+        config_string += ";magma_fusion_sync_rate_limit=" +
+                         std::to_string(fusionSyncRateLimit);
         STParameterizedBucketTest::SetUp();
     }
 
@@ -1181,6 +1183,7 @@ protected:
     const size_t fusionUploadInterval = 1234;
     const size_t fusionLogCheckpointInterval = 5678;
     const size_t fusionMigrationRateLimit = 9101112;
+    const size_t fusionSyncRateLimit = 13141516;
 };
 
 TEST_P(STMagmaFusionTest, Config) {
@@ -1204,6 +1207,7 @@ TEST_P(STMagmaFusionTest, Config) {
               kvstore.getFusionLogCheckpointInterval().count());
     EXPECT_EQ(fusionMigrationRateLimit,
               kvstore.getMagmaFusionMigrationRateLimit());
+    EXPECT_EQ(fusionSyncRateLimit, kvstore.getMagmaFusionSyncRateLimit());
 }
 
 TEST_P(STMagmaFusionTest, MagmaFusionMigrationRateLimit) {
@@ -1228,6 +1232,29 @@ TEST_P(STMagmaFusionTest, MagmaFusionMigrationRateLimit) {
     EXPECT_EQ(777777, config.getFusionMigrationRateLimit())
             << "config should not have been updated";
     EXPECT_EQ(777777, kvstore.getMagmaFusionMigrationRateLimit())
+            << "value should not have been updated";
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionSyncRateLimit) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_sync_rate_limit", "777777", msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(777777, config.getFusionSyncRateLimit()) << "config not updated";
+    EXPECT_EQ(777777, kvstore.getMagmaFusionSyncRateLimit())
+            << "value not passed down to Magma";
+
+    // Test with an invalid value: 0
+    ASSERT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam("magma_fusion_sync_rate_limit", "0", msg));
+
+    // Verify the values are not updated
+    EXPECT_EQ(777777, config.getFusionSyncRateLimit())
+            << "config should not have been updated";
+    EXPECT_EQ(777777, kvstore.getMagmaFusionSyncRateLimit())
             << "value should not have been updated";
 }
 

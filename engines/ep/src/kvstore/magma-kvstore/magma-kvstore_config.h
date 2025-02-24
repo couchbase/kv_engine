@@ -305,6 +305,12 @@ public:
 
     void setFusionMigrationRateLimit(size_t value);
 
+    size_t getFusionSyncRateLimit() const {
+        return fusionSyncRateLimit;
+    }
+
+    void setFusionSyncRateLimit(size_t value);
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -587,4 +593,6 @@ private:
     std::chrono::seconds fusionLogCheckpointInterval;
     // The rate limit for Fusion extent migration, in bytes per second
     std::atomic<size_t> fusionMigrationRateLimit;
+    // The rate limit for Fusion sync uploads, in bytes per second
+    std::atomic<size_t> fusionSyncRateLimit;
 };
