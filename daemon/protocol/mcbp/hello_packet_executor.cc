@@ -51,7 +51,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::TLS:
             // known, but we don't support them
             break;
-        case Feature::TCPNODELAY_Unsupported:
+        case Feature::TcpNoDelay:
         case Feature::TCPDELAY_Unsupported:
         case Feature::MUTATION_SEQNO:
         case Feature::XATTR:
@@ -125,7 +125,7 @@ void buildRequestVector(FeatureSet& requested,
         case Feature::DedupeNotMyVbucketClustermap:
         case Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         case Feature::SubdocBinaryXattr:
-        case Feature::TCPNODELAY_Unsupported:
+        case Feature::TcpNoDelay:
         case Feature::TCPDELAY_Unsupported:
         case Feature::SubdocAllowReplicaReadOnDeletedDocs:
             // No other dependency
@@ -258,7 +258,6 @@ void process_hello_packet_executor(Cookie& cookie) {
         bool added = false;
 
         switch (feature) {
-        case Feature::TCPNODELAY_Unsupported:
         case Feature::TCPDELAY_Unsupported:
         case Feature::Invalid:
         case Feature::Invalid2:
@@ -356,6 +355,7 @@ void process_hello_packet_executor(Cookie& cookie) {
             connection.setNonBlockingThrottlingMode(true);
             added = true;
             break;
+        case Feature::TcpNoDelay:
         case Feature::PreserveTtl:
         case Feature::VAttr:
         case Feature::SubdocDocumentMacroSupport:

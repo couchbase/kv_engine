@@ -30,9 +30,9 @@ enum class [[nodiscard]] Feature : uint16_t {
     Invalid = 0x01,
     /// The client wants to TLS and send STARTTLS (Never implemented)
     TLS = 0x2,
-    /// The client requests the server to set TCP NODELAY on the
-    /// socket used by this connection.
-    TCPNODELAY_Unsupported = 0x03,
+    /// This is purely informational (it does not enable/disable anything on the
+    /// server). TCP NODELAY is always enabled on the server.
+    TcpNoDelay = 0x03,
     /// The client requests the server to add the sequence number
     ///  for a mutation to the response packet used in mutations.
     MUTATION_SEQNO = 0x04,

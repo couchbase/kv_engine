@@ -17,7 +17,7 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::Invalid2, "Invalid2"},
          {cb::mcbp::Feature::Invalid3, "Invalid3"},
          {cb::mcbp::Feature::TLS, "TLS"},
-         {cb::mcbp::Feature::TCPNODELAY_Unsupported, "TCP nodelay"},
+         {cb::mcbp::Feature::TcpNoDelay, "TCP nodelay"},
          {cb::mcbp::Feature::MUTATION_SEQNO, "Mutation seqno"},
          {cb::mcbp::Feature::TCPDELAY_Unsupported, "TCP delay"},
          {cb::mcbp::Feature::XATTR, "XATTR"},

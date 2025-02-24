@@ -23,7 +23,7 @@ std::string cb::mcbp::format_as(Feature feature) {
         return "Invalid3";
     case Feature::TLS:
         return "TLS";
-    case Feature::TCPNODELAY_Unsupported:
+    case Feature::TcpNoDelay:
         return "TCP nodelay";
     case Feature::MUTATION_SEQNO:
         return "Mutation seqno";
