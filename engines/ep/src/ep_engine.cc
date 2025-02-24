@@ -968,6 +968,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupInterval(std::stoull(val));
         } else if (key == "magma_fusion_migration_rate_limit") {
             configuration.setMagmaFusionMigrationRateLimit(std::stoull(val));
+        } else if (key == "magma_fusion_sync_rate_limit") {
+            configuration.setMagmaFusionSyncRateLimit(std::stoull(val));
         } else if (key == "fusion_metadata_auth_token") {
             setFusionMetadataAuthToken(val);
         } else if (key == "workload_monitor_enabled") {

@@ -900,6 +900,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
                 configuration.getFusionLogCheckpointInterval());
         magma->SetFusionMigrationRateLimit(
                 configuration.getFusionMigrationRateLimit());
+        magma->SetFusionSyncRateLimit(configuration.getFusionSyncRateLimit());
     }
 }
 
@@ -4648,6 +4649,14 @@ void MagmaKVStore::setMagmaFusionMigrationRateLimit(size_t value) {
 
 size_t MagmaKVStore::getMagmaFusionMigrationRateLimit() const {
     return magma->GetFusionMigrationRateLimit();
+}
+
+void MagmaKVStore::setMagmaFusionSyncRateLimit(size_t value) {
+    magma->SetFusionSyncRateLimit(value);
+}
+
+size_t MagmaKVStore::getMagmaFusionSyncRateLimit() const {
+    return magma->GetFusionSyncRateLimit();
 }
 
 cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {

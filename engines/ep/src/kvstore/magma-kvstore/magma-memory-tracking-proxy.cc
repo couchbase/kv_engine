@@ -774,6 +774,16 @@ size_t MagmaMemoryTrackingProxy::GetFusionMigrationRateLimit() const {
     return magma->GetFusionMigrationRateLimit();
 }
 
+void MagmaMemoryTrackingProxy::SetFusionSyncRateLimit(size_t limit) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetFusionSyncRateLimit(limit);
+}
+
+size_t MagmaMemoryTrackingProxy::GetFusionSyncRateLimit() const {
+    cb::UseArenaMallocSecondaryDomain sGuard;
+    return magma->GetFusionSyncRateLimit();
+}
+
 magma::Status MagmaMemoryTrackingProxy::StartFusionUploader(
         magma::Magma::KVStoreID kvId, uint64_t term) {
     cb::UseArenaMallocSecondaryDomain d;
