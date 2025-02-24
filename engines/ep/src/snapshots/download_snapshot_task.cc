@@ -39,11 +39,7 @@ DownloadSnapshotTask::DownloadSnapshotTask(
     // empty
 }
 
-MemcachedConnection& DownloadSnapshotTask::getConnection() {
-    if (connection) {
-        return *connection;
-    }
-
+void DownloadSnapshotTask::createConnection() {
     connection =
             std::make_unique<MemcachedConnection>(properties.hostname,
                                                   properties.port,
@@ -53,7 +49,6 @@ MemcachedConnection& DownloadSnapshotTask::getConnection() {
         connection->setTlsConfigFiles(properties.tls->cert,
                                       properties.tls->key,
                                       properties.tls->ca_store);
-
         if (!properties.tls->passphrase.empty()) {
             connection->setPemPassphrase(properties.tls->passphrase);
         }
@@ -69,18 +64,16 @@ MemcachedConnection& DownloadSnapshotTask::getConnection() {
     connection->setFeatures(
             {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
     connection->selectBucket(properties.bucket);
-    return *connection;
 }
 
 std::variant<cb::engine_errc, Manifest>
 DownloadSnapshotTask::doDownloadManifest() {
     listener->stateChanged(DownloadSnapshotTaskState::PrepareSnapshot);
-    auto& conn = getConnection();
     BinprotGenericCommand prepare(cb::mcbp::ClientOpcode::PrepareSnapshot);
     prepare.setVBucket(vbid);
     nlohmann::json json;
     try {
-        auto rsp = conn.execute(prepare);
+        auto rsp = connection->execute(prepare);
         if (!rsp.isSuccess()) {
             EP_LOG_WARN_CTX("Failed to prepare snapshot",
                             {"vb", vbid},
@@ -117,20 +110,9 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
         std::filesystem::path dir, const Manifest& manifest) {
     listener->setManifest(manifest);
     listener->stateChanged(DownloadSnapshotTaskState::DownloadFiles);
-    auto dconn = getConnection().clone();
-
-    if (properties.sasl.has_value()) {
-        dconn->authenticate(properties.sasl->username,
-                            properties.sasl->password,
-                            properties.sasl->mechanism);
-    }
-
-    dconn->setAgentName("fbr/" PRODUCT_VERSION);
-    dconn->setFeatures({cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
-    dconn->selectBucket(properties.bucket);
 
     try {
-        download(std::move(dconn),
+        download(std::move(connection),
                  dir,
                  manifest,
                  properties.fsync_interval,
@@ -152,6 +134,7 @@ cb::engine_errc DownloadSnapshotTask::doDownloadFiles(
 
 bool DownloadSnapshotTask::run() {
     try {
+        createConnection();
         auto rv = manager.download(
                 vbid,
                 [this]() { return doDownloadManifest(); },

@@ -52,7 +52,7 @@ protected:
     cb::engine_errc doDownloadFiles(std::filesystem::path dir,
                                     const Manifest& manifest);
 
-    MemcachedConnection& getConnection();
+    void createConnection();
     std::unique_ptr<MemcachedConnection> connection;
 
     bool run() override;
