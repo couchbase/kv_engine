@@ -273,6 +273,7 @@ int main(int argc, char** argv) {
     std::string bucket;
     size_t size = 256;
     size_t documents = 1000000;
+    size_t offset = 0;
 
     McProgramGetopt getopt;
     using cb::getopt::Argument;
@@ -296,6 +297,13 @@ int main(int argc, char** argv) {
                       Argument::Required,
                       "num",
                       "The number of documents"});
+
+    getopt.addOption(
+            {[&offset](auto value) { offset = stoul(std::string{value}); },
+             "offset",
+             Argument::Required,
+             "num",
+             "The offset for the first key"});
 
     getopt.addOption({[](auto value) {
                           if (value == "per-document") {
@@ -361,7 +369,7 @@ int main(int argc, char** argv) {
         }
 
         for (size_t ii = 0; ii < documents; ++ii) {
-            auto key = fmt::format("key-{}", ii);
+            auto key = fmt::format("key-{}", ii + offset);
             auto [node, vb] = node_locator->lookup(key);
             node.enque(std::move(key), vb);
             if ((ii % 1000) == 0) {
