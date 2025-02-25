@@ -23,9 +23,7 @@ add_test(NAME mc_program_utils_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND mc_program_utils_test)
 
-# disable dbfill until we figure out the reason for the clan-analyze
-# failure in one of the folly headers
-# add_subdirectory(dbfill)
+add_subdirectory(dbfill)
 add_subdirectory(dcpdrain)
 add_subdirectory(dcplatency)
 add_subdirectory(engine_testapp)
