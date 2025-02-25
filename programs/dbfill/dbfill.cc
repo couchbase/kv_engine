@@ -373,7 +373,8 @@ int main(int argc, char** argv) {
             auto [node, vb] = node_locator->lookup(key);
             node.enque(std::move(key), vb);
             if ((ii % 1000) == 0) {
-                fmt::print("\rQueued: {}", ii);
+                fmt::print(stdout, "\rQueued: {}", ii);
+                fflush(stdout);
             }
         }
 
