@@ -156,10 +156,17 @@ void FileOpsTracker::complete() {
 void FileOpsTracker::visitThreads(
         std::function<void(TaskType, std::string_view, const FileOp&)>
                 visitor) {
-    for (auto&& slot : threadSlot->accessAllThreads()) {
+    // Guard allocations from the accessor object init.
+    std::optional<cb::NoArenaGuard> guard(std::in_place);
+    auto accessor = threadSlot->accessAllThreads();
+    guard.reset();
+
+    for (auto&& slot : accessor) {
         auto op = slot.currentRequest.copy();
         if (op.type != FileOp::Type::None) {
             visitor(slot.threadType, slot.threadName, op);
         }
     }
+    // Re-enable the guard to capture ~Accessor.
+    guard.emplace();
 }
