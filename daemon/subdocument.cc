@@ -350,7 +350,7 @@ bool SubdocCommandContext::do_fetch_item(cb::engine_errc aio_status) {
         break;
 
     case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         return false;
 
     case cb::engine_errc::disconnect:
@@ -379,7 +379,7 @@ bool SubdocCommandContext::do_allocate_new_item(cb::engine_errc aio_status) {
         return true;
 
     case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         return false;
 
     case cb::engine_errc::disconnect:
@@ -415,7 +415,7 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
                 }
 
                 // We've used the entire timeslice. Reschedule
-                cookie.setEwouldblock(true);
+                cookie.setEwouldblock();
                 cookie.notifyIoComplete(cb::engine_errc::success);
                 return false;
             }
@@ -717,7 +717,7 @@ cb::engine_errc SubdocCommandContext::update_document(cb::engine_errc ret) {
         break;
 
     case cb::engine_errc::would_block:
-        cookie.setEwouldblock(true);
+        cookie.setEwouldblock();
         break;
 
     case cb::engine_errc::disconnect:

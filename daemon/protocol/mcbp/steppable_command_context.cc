@@ -28,7 +28,9 @@ SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
 
 void SteppableCommandContext::drive() {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
-
+    if (ret == cb::engine_errc::too_much_data_in_output_buffer) {
+        ret = cb::engine_errc::success;
+    }
     if (ret == cb::engine_errc::success) {
         try {
             ret = step();

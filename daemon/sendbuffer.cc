@@ -30,13 +30,3 @@ IOBufSendBuffer::IOBufSendBuffer(std::unique_ptr<folly::IOBuf> buf,
                                  std::string_view view)
     : SendBuffer(view), buf(std::move(buf)) {
 }
-
-NotifySendBuffer::NotifySendBuffer(std::unique_ptr<folly::IOBuf> buf,
-                                   std::string_view view,
-                                   CookieIface& cookie)
-    : IOBufSendBuffer(std::move(buf), view), cookie(cookie) {
-}
-
-NotifySendBuffer::~NotifySendBuffer() {
-    cookie.notifyIoComplete(cb::engine_errc::success);
-}

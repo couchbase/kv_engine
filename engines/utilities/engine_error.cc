@@ -131,6 +131,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "bucket paused";
     case engine_errc::cancelled:
         return "request cancelled";
+    case engine_errc::too_much_data_in_output_buffer:
+        return "too much data in output buffer";
     }
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

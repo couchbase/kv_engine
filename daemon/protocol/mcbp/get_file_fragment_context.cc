@@ -271,7 +271,7 @@ cb::engine_errc GetFileFragmentContext::chain_file_chunk() {
     std::string_view view{reinterpret_cast<const char*>(iob->data()),
                           iob->length()};
     connection.chainDataToOutputStream(
-            std::make_unique<NotifySendBuffer>(std::move(iob), view, cookie));
+            std::make_unique<IOBufSendBuffer>(std::move(iob), view));
     state = State::ReadFileChunk;
-    return cb::engine_errc::would_block;
+    return cb::engine_errc::too_much_data_in_output_buffer;
 }

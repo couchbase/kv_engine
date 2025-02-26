@@ -65,7 +65,7 @@ nlohmann::json Cookie::to_json() const {
         ret["cas"] = std::to_string(cas);
     }
 
-    ret["ewouldblock"] = ewouldblock;
+    ret["ewouldblock"] = to_string(ewouldblock);
     ret["aiostat"] = to_string(aiostat);
     ret["throttled"] = throttled.load();
     ret["refcount"] = uint32_t(refcount);
@@ -146,7 +146,7 @@ bool Cookie::doExecute() {
         throw std::runtime_error("Cookie::execute: validate() not called");
     }
 
-    Expects(!ewouldblock &&
+    Expects(!isEwouldblock() &&
             "Cookie::doExecute(): Executing while ewouldblock is true could "
             "result in a background task notifying while executing.");
 
@@ -190,7 +190,7 @@ bool Cookie::doExecute() {
         break;
     }
 
-    if (isEwouldblock()) {
+    if (isEwouldblock() || isOutputbufferFull()) {
         return false;
     }
 
@@ -279,9 +279,12 @@ void Cookie::setAiostat(cb::engine_errc value) {
     aiostat = value;
 }
 
-void Cookie::setEwouldblock(bool value) {
-    if (value && !connection.isDCP()) {
-        setAiostat(cb::engine_errc::would_block);
+void Cookie::setEwouldblockVariable(cb::engine_errc value) {
+    Expects(value == cb::engine_errc::success ||
+            value == cb::engine_errc::would_block ||
+            value == cb::engine_errc::too_much_data_in_output_buffer);
+    if (value == cb::engine_errc::would_block && !connection.isDCP()) {
+        setAiostat(value);
     }
 
     ewouldblock = value;
@@ -594,7 +597,7 @@ cb::mcbp::Status Cookie::validate() {
 }
 
 Cookie::~Cookie() {
-    if (ewouldblock) {
+    if (isEwouldblock()) {
         LOG_CRITICAL_CTX(
                 "Ewouldblock should NOT be set in the destructor as that "
                 "indicates that someone is using the cookie",
@@ -617,7 +620,7 @@ void Cookie::reset() {
     cas = 0;
     commandContext.reset();
     tracer.clear();
-    Expects(!ewouldblock &&
+    Expects(!isEwouldblock() &&
             "Cookie::reset() when ewouldblock is true could result in an "
             "outstanding notifyIoComplete occuring on wrong cookie");
     authorized = false;
@@ -862,7 +865,7 @@ bool Cookie::fetchEuidPrivilegeSet() {
             getAuthorizationTask =
                     std::make_shared<GetAuthorizationTask>(*this, *euid);
             externalAuthManager->enqueueRequest(*getAuthorizationTask);
-            ewouldblock = true;
+            ewouldblock = cb::engine_errc::would_block;
             return true;
         }
     }

@@ -162,6 +162,11 @@ enum class engine_errc {
     /// CAS value used is invalid
     cas_value_invalid,
 
+    /// There is too much data in the output buffer to continue execution
+    /// and the network buffers needs to be drained before execution can
+    /// continue
+    too_much_data_in_output_buffer,
+
     /// Generic failue
     failed
 };

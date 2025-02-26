@@ -1885,6 +1885,7 @@ bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     case cb::engine_errc::not_supported:
     case cb::engine_errc::throttled:
     case cb::engine_errc::would_block:
+    case cb::engine_errc::too_much_data_in_output_buffer:
     case cb::engine_errc::too_big:
     case cb::engine_errc::too_many_connections:
     case cb::engine_errc::disconnect:
