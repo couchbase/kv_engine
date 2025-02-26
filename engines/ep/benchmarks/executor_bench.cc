@@ -404,34 +404,21 @@ protected:
         // TODO: Record the timings on a per-Task basis. Folly adds support
         // for this as of
         // https://github.com/facebook/folly/commit/7469e0b55e0d534da34ef6bfe4d0d0068f023cd9
-        class Observer : public folly::ThreadPoolExecutor::TaskObserver {
-        public:
-            Observer(ExTask task, NullTaskable* taskable)
-                : task(std::move(task)), taskable(taskable) {
-            }
-            void taskProcessed(
-                    const folly::ThreadPoolExecutor::ProcessedTaskInfo&
-                            info) noexcept override {
-                taskable->logQTime(
-                        *task,
-                        folly::getCurrentThreadName().value_or(
-                                "Unknown PureFollyExecutorBench thread"),
-                        info.waitTime);
-                taskable->logRunTime(
-                        *task,
-                        folly::getCurrentThreadName().value_or(
-                                "Unknown PureFollyExecutorBench thread"),
-                        info.runTime);
-            }
-
-        protected:
-            ExTask task;
-            NullTaskable* taskable;
+        auto statsCallback = [dummyTask = this->dummyTask,
+                              taskable = &this->taskable](
+                                     folly::ThreadPoolExecutor::TaskStats ts) {
+            taskable->logQTime(*dummyTask,
+                               folly::getCurrentThreadName().value_or(
+                                       "Unknown PureFollyExecutorBench thread"),
+                               ts.waitTime);
+            taskable->logRunTime(
+                    *dummyTask,
+                    folly::getCurrentThreadName().value_or(
+                            "Unknown PureFollyExecutorBench thread"),
+                    ts.runTime);
         };
-
-        pool->addTaskObserver(std::make_unique<Observer>(dummyTask, &taskable));
-        ioPool->addTaskObserver(
-                std::make_unique<Observer>(dummyTask, &taskable));
+        pool->subscribeToTaskStats(statsCallback);
+        ioPool->subscribeToTaskStats(statsCallback);
     }
 
     void shutdownPool() {

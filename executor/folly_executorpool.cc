@@ -41,10 +41,6 @@ public:
         : threadFactory(std::move(threadFactory)) {
     }
 
-    const std::string& getNamePrefix() const override {
-        return threadFactory->getNamePrefix();
-    }
-
     std::thread newThread(folly::Func&& func) override {
         return threadFactory->newThread([func = std::move(func)]() mutable {
             auto threadNameOpt = folly::getCurrentThreadName();
@@ -71,10 +67,6 @@ public:
         : priorityThreadFactory(
                   std::make_shared<folly::NamedThreadFactory>(prefix),
                   priority) {
-    }
-
-    const std::string& getNamePrefix() const override {
-        return priorityThreadFactory.getNamePrefix();
     }
 
     std::thread newThread(folly::Func&& func) override {
