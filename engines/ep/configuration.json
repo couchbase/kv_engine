@@ -1664,6 +1664,17 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "magma_fusion_migration_rate_limit": {
+            "default": "(1024 * 1024 * 75)",
+            "descr": "The rate limit for Fusion extent migration, in bytes per second.",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
+        },
         "continuous_backup_enabled": {
             "default": "false",
             "descr": "True if continouous backup is enabled.",

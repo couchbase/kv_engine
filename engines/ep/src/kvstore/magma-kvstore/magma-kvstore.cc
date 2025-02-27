@@ -898,6 +898,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
         magma->SetFusionUploadInterval(configuration.getFusionUploadInterval());
         magma->SetFusionLogCheckpointInterval(
                 configuration.getFusionLogCheckpointInterval());
+        magma->SetFusionMigrationRateLimit(
+                configuration.getFusionMigrationRateLimit());
     }
 }
 
@@ -4638,6 +4640,14 @@ std::chrono::seconds MagmaKVStore::getFusionUploadInterval() const {
 
 std::chrono::seconds MagmaKVStore::getFusionLogCheckpointInterval() const {
     return magma->GetFusionLogCheckpointInterval();
+}
+
+void MagmaKVStore::setMagmaFusionMigrationRateLimit(size_t value) {
+    magma->SetFusionMigrationRateLimit(value);
+}
+
+size_t MagmaKVStore::getMagmaFusionMigrationRateLimit() const {
+    return magma->GetFusionMigrationRateLimit();
 }
 
 cb::engine_errc MagmaKVStore::startFusionUploader(Vbid vbid, uint64_t term) {

@@ -1168,6 +1168,8 @@ public:
                          std::to_string(fusionUploadInterval);
         config_string += ";magma_fusion_log_checkpoint_interval=" +
                          std::to_string(fusionLogCheckpointInterval);
+        config_string += ";magma_fusion_migration_rate_limit=" +
+                         std::to_string(fusionMigrationRateLimit);
         STParameterizedBucketTest::SetUp();
     }
 
@@ -1178,6 +1180,7 @@ protected:
             "local://" + dbPath + "/metadatastore";
     const size_t fusionUploadInterval = 1234;
     const size_t fusionLogCheckpointInterval = 5678;
+    const size_t fusionMigrationRateLimit = 9101112;
 };
 
 TEST_P(STMagmaFusionTest, Config) {
@@ -1199,6 +1202,33 @@ TEST_P(STMagmaFusionTest, Config) {
     EXPECT_EQ(fusionUploadInterval, kvstore.getFusionUploadInterval().count());
     EXPECT_EQ(fusionLogCheckpointInterval,
               kvstore.getFusionLogCheckpointInterval().count());
+    EXPECT_EQ(fusionMigrationRateLimit,
+              kvstore.getMagmaFusionMigrationRateLimit());
+}
+
+TEST_P(STMagmaFusionTest, MagmaFusionMigrationRateLimit) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_fusion_migration_rate_limit", "777777", msg));
+
+    auto& kvstore = dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(kvstore.getConfig());
+    EXPECT_EQ(777777, config.getFusionMigrationRateLimit())
+            << "config not updated";
+    EXPECT_EQ(777777, kvstore.getMagmaFusionMigrationRateLimit())
+            << "value not passed down to Magma";
+
+    // Test with an invalid value: 0
+    ASSERT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "magma_fusion_migration_rate_limit", "0", msg));
+
+    // Verify the values are not updated
+    EXPECT_EQ(777777, config.getFusionMigrationRateLimit())
+            << "config should not have been updated";
+    EXPECT_EQ(777777, kvstore.getMagmaFusionMigrationRateLimit())
+            << "value should not have been updated";
 }
 
 TEST_P(STMagmaFusionTest, MetadataAuthToken) {

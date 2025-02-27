@@ -298,6 +298,7 @@ Available params for "set":
     history_retention_seconds    - Seconds of history a bucket should aim to retain on disk.
     history_retention_bytes      - Max bytes of history a bucket should aim to retain on disk.
     fusion_metadata_auth_token   - Authorization token for the Chronical service
+    magma_fusion_migration_rate_limit - The rate limit for Fusion extent migration, in bytes per second.
 
   Available params for "set replication_param":
     <empty>

@@ -301,6 +301,10 @@ public:
     void SetFusionLogCheckpointInterval(std::chrono::seconds interval);
     std::chrono::seconds GetFusionLogCheckpointInterval() const;
 
+    // The rate limit for Fusion extent migration, in bytes per second
+    void SetFusionMigrationRateLimit(size_t limit);
+    size_t GetFusionMigrationRateLimit() const;
+
     /**
      * Start uploading data to FusionLogStore for the latest revision of the
      * given kvstore.

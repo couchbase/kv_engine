@@ -46,6 +46,8 @@ public:
             config.setMagmaKeyTreeIndexBlockSize(value);
         } else if (key == "continuous_backup_interval") {
             config.setContinousBackupInterval(std::chrono::seconds(value));
+        } else if (key == "magma_fusion_migration_rate_limit") {
+            config.setFusionMigrationRateLimit(value);
         }
     }
 
@@ -225,10 +227,21 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::chrono::seconds(config.getMagmaFusionUploadInterval());
     fusionLogCheckpointInterval =
             std::chrono::seconds(config.getMagmaFusionLogCheckpointInterval());
+    fusionMigrationRateLimit = config.getMagmaFusionMigrationRateLimit();
+    config.addValueChangedListener(
+            "magma_fusion_migration_rate_limit",
+            std::make_unique<ConfigChangeListener>(*this));
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {
     this->store = store;
+}
+
+void MagmaKVStoreConfig::setFusionMigrationRateLimit(size_t value) {
+    fusionMigrationRateLimit.store(value);
+    if (store) {
+        store->setMagmaFusionMigrationRateLimit(value);
+    }
 }
 
 void MagmaKVStoreConfig::setMagmaFragmentationPercentage(size_t value) {

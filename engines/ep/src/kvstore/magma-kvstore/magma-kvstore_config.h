@@ -299,6 +299,12 @@ public:
         return fusionLogCheckpointInterval;
     }
 
+    size_t getFusionMigrationRateLimit() const {
+        return fusionMigrationRateLimit;
+    }
+
+    void setFusionMigrationRateLimit(size_t value);
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -579,4 +585,6 @@ private:
     // The interval at which FusionFS should create a log checkpoint on the
     // FusionMetadataStore and delete eligible logs from the FusionLogStore
     std::chrono::seconds fusionLogCheckpointInterval;
+    // The rate limit for Fusion extent migration, in bytes per second
+    std::atomic<size_t> fusionMigrationRateLimit;
 };

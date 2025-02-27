@@ -677,6 +677,9 @@ public:
     std::chrono::seconds getFusionUploadInterval() const;
     std::chrono::seconds getFusionLogCheckpointInterval() const;
 
+    size_t getMagmaFusionMigrationRateLimit() const;
+    void setMagmaFusionMigrationRateLimit(size_t value);
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;
