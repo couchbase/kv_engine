@@ -12,6 +12,7 @@
 
 #include <folly/Synchronized.h>
 #include <nlohmann/json.hpp>
+#include <platform/cb_arena_malloc_client.h>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -97,10 +98,12 @@ public:
      *
      * @param handler The new handler
      */
-    void setDcpConnHandler(std::shared_ptr<DcpConnHandlerIface> handler) {
-        dcpConnHandler.withLock([&handler](DcpConn& dcpConn) {
+    void setDcpConnHandler(std::shared_ptr<DcpConnHandlerIface> handler,
+                           cb::ArenaMallocClient allocatedBy) {
+        dcpConnHandler.withLock([&handler, &allocatedBy](DcpConn& dcpConn) {
             dcpConn.isDcp = true;
             dcpConn.dcpConnHandlerIface = std::move(handler);
+            dcpConn.allocatedBy = allocatedBy;
         });
     }
 
@@ -143,6 +146,9 @@ protected:
     struct DcpConn {
         bool isDcp{false};
         std::weak_ptr<DcpConnHandlerIface> dcpConnHandlerIface;
+        // Store the engine's arena so the weak_ptr can free the memory on the
+        // correct arena
+        cb::ArenaMallocClient allocatedBy;
     };
     folly::Synchronized<DcpConn, std::mutex> dcpConnHandler;
 };

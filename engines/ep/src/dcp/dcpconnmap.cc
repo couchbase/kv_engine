@@ -62,7 +62,8 @@ DcpConsumer* DcpConnMap::newConsumer(CookieIface& cookie,
     conn_name.append(name);
 
     auto consumer = makeConsumer(engine, &cookie, conn_name, consumerName);
-    cookie.getConnectionIface().setDcpConnHandler(consumer);
+    cookie.getConnectionIface().setDcpConnHandler(
+            consumer, engine.getArenaMallocClient());
 
     EP_LOG_DEBUG_CTX("Connection created", {"consumer", consumer->logHeader()});
     auto* rawPtr = consumer.get();
@@ -143,7 +144,8 @@ DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
 
     auto producer = std::make_shared<DcpProducer>(
             engine, &cookie, conn_name, flags, true /*startTask*/);
-    cookie.getConnectionIface().setDcpConnHandler(producer);
+    cookie.getConnectionIface().setDcpConnHandler(
+            producer, engine.getArenaMallocClient());
 
     EP_LOG_DEBUG_CTX("Connection created",
                      {"dcp", "producer"},

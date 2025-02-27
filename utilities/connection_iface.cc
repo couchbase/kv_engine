@@ -9,5 +9,13 @@
  */
 
 #include <memcached/connection_iface.h>
+#include <platform/cb_arena_malloc.h>
 
-ConnectionIface::~ConnectionIface() = default;
+ConnectionIface::~ConnectionIface() {
+    // The dcpConnHandlerIface owns memory from the bucket which created the
+    // DcpConnHandler object, it must be freed under that bucket context
+    dcpConnHandler.withLock([this](auto& dcpConn) {
+        cb::ArenaMallocGuard guard(dcpConn.allocatedBy);
+        dcpConn.dcpConnHandlerIface.reset();
+    });
+}

@@ -11,6 +11,7 @@
 #include "mock_cookie.h"
 #include "mock_server.h"
 #include <json/syntax_validator.h>
+#include <platform/cb_arena_malloc.h>
 
 void MockConnection::scheduleDcpStep() {
     if (userScheduleDcpStep) {
@@ -66,6 +67,9 @@ void destroy_mock_cookie(CookieIface* cookie) {
 
     c->disconnect();
     if (c->decrementRefcount() == 0) {
+        // deleting the cookie will switch the domain to None, but the unit
+        // tests calling destroy_mock_cookie should be on Primary
+        cb::ArenaDomainGuard<cb::MemoryDomain::Primary> domainGuard;
         delete c;
     }
 }
