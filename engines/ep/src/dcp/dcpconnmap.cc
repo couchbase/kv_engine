@@ -289,33 +289,28 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
     std::shared_ptr<ConnHandler> conn;
     {
         auto handle = connStore->getCookieToConnectionMapHandle();
-        auto connForCookie = handle->findConnHandlerByCookie(cookie);
-        if (connForCookie) {
-            conn = connForCookie;
+        conn = handle->findConnHandlerByCookie(cookie);
+        if (conn) {
             auto* epe = ObjectRegistry::getCurrentEngine();
-            {
-                NonBucketAllocationGuard guard;
-                if (epe) {
-                    connForCookie->getLogger().infoWithContext(
-                            "Removing connection",
-                            {{"description",
-                              cookie->getConnectionIface().getDescription()}});
-                } else {
-                    connForCookie->getLogger().infoWithContext(
-                            "Removing connection",
-                            {{"cookie",
-                              fmt::to_string(fmt::ptr(
-                                      static_cast<const void*>(cookie)))}});
-                }
-                ObjectRegistry::onSwitchThread(epe);
-                // MB-36557: Just flag the connection as disconnected, defer
-                // streams-shutdown (ie, close-stream + notify-connection) to
-                // disconnectConn below (ie, after we release the connLock).
-                // Potential deadlock by lock-inversion with
-                // KVBucket::setVBucketState otherwise (on connLock /
-                // vbstateLock).
-                conn->flagDisconnect();
+            if (epe) {
+                conn->getLogger().infoWithContext(
+                        "Removing connection",
+                        {{"description",
+                          cookie->getConnectionIface().getDescription()}});
+            } else {
+                conn->getLogger().infoWithContext(
+                        "Removing connection",
+                        {{"cookie",
+                          fmt::to_string(fmt::ptr(
+                                  static_cast<const void*>(cookie)))}});
             }
+            // MB-36557: Just flag the connection as disconnected, defer
+            // streams-shutdown (ie, close-stream + notify-connection) to
+            // disconnectConn below (ie, after we release the connLock).
+            // Potential deadlock by lock-inversion with
+            // KVBucket::setVBucketState otherwise (on connLock /
+            // vbstateLock).
+            conn->flagDisconnect();
 
             handle->removeConnByCookie(cookie);
         }
@@ -338,7 +333,7 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
 
         // All streams closed, add to the deadConnections for releasing at
         // ConnManager.
-        deadConnections.wlock()->push_back(conn);
+        deadConnections.wlock()->emplace_back(std::move(conn));
     }
 }
 
