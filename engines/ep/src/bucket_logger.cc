@@ -43,6 +43,9 @@ void BucketLogger::flush_() {
 void BucketLogger::logInner(spdlog::level::level_enum lvl,
                             fmt::string_view fmt,
                             fmt::format_args args) {
+    // get engine before disabling memory tracking!
+    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+
     // Disable memory tracking for the formatting and logging of the
     // message. This is necessary because the message will be written to
     // disk (and subsequently freed) by the shared background thread (as
@@ -55,8 +58,6 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
     NonBucketAllocationGuard guard;
 
     try {
-        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-
         // We want to prefix the specified message with the bucket name &
         // optional prefix, but we cannot be sure that bucket name / prefix
         // doesn't contain any fmtlib formatting characters. Therefore we build
@@ -95,6 +96,19 @@ void BucketLogger::logInner(spdlog::level::level_enum lvl,
 void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
                                   std::string_view msg,
                                   cb::logger::Json ctx) {
+    // get engine before disabling memory tracking!
+    EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
+
+    // Disable memory tracking for the formatting and logging of the
+    // message. This is necessary because the message will be written to
+    // disk (and subsequently freed) by the shared background thread (as
+    // part of spdlog::async_logger) and hence we do not know which engine
+    // to associate the deallocation to. Instead account any log message
+    // memory to "NonBucket" (it is only transient and typically small - of
+    // the order of the log message length).
+    // scope of memory-tracking disablement must also cover the exception
+    // handler - see MB-61032.
+    NonBucketAllocationGuard guard;
     try {
         if (!ctx.is_object()) {
 #if CB_DEVELOPMENT_ASSERTS
@@ -105,16 +119,6 @@ void BucketLogger::logWithContext(spdlog::level::level_enum lvl,
             ctx = Json{{"context", std::move(ctx)}};
 #endif
         }
-
-        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-        // Disable memory tracking for the formatting and logging of the
-        // message. This is necessary because the message will be written to
-        // disk (and subsequently freed) by the shared background thread (as
-        // part of spdlog::async_logger) and hence we do not know which engine
-        // to associate the deallocation to. Instead account any log message
-        // memory to "NonBucket" (it is only transient and typically small - of
-        // the order of the log message length).
-        NonBucketAllocationGuard guard;
 
         auto& object = ctx.get_ref<cb::logger::Json::object_t&>();
 
