@@ -35,11 +35,11 @@ constexpr std::size_t max_number_of_log_giles = 10000;
 
 template <class Mutex>
 custom_rotating_file_sink<Mutex>::custom_rotating_file_sink(
-        const spdlog::filename_t& base_filename,
+        spdlog::filename_t base_filename,
         std::size_t max_size,
         const std::string& log_pattern,
         std::size_t max_aggregated_size)
-    : base_filename(base_filename),
+    : base_filename(std::move(base_filename)),
       max_size(max_size),
       max_aggregated_size(max_aggregated_size),
       global_encryption_config_version(

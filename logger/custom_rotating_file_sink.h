@@ -41,7 +41,7 @@ class FileWriter;
 template <class Mutex>
 class custom_rotating_file_sink : public spdlog::sinks::base_sink<Mutex> {
 public:
-    custom_rotating_file_sink(const spdlog::filename_t& base_filename,
+    custom_rotating_file_sink(spdlog::filename_t base_filename,
                               std::size_t max_size,
                               const std::string& log_pattern,
                               std::size_t max_aggregated_size);
