@@ -53,4 +53,12 @@ struct ServerCoreApi : public ServerCoreIface {
     bool isCollectionsEnabled() const override {
         return Settings::instance().isCollectionsEnabled();
     }
+
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
+        return Settings::instance().getDcpDisconnectWhenStuckTimeout();
+    }
+
+    std::string getDcpDisconnectWhenStuckNameRegex() override {
+        return Settings::instance().getDcpDisconnectWhenStuckNameRegex();
+    }
 };

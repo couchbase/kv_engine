@@ -7242,3 +7242,13 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucket(
         const CookieIface& cookie, Vbid vbid, bool sync) {
     return acquireEngine(this)->deleteVBucketInner(cookie, vbid, sync);
 }
+
+std::chrono::seconds
+EventuallyPersistentEngine::getDcpDisconnectWhenStuckTimeout() const {
+    return serverApi->core->getDcpDisconnectWhenStuckTimeout();
+}
+
+std::string EventuallyPersistentEngine::getDcpDisconnectWhenStuckNameRegex()
+        const {
+    return serverApi->core->getDcpDisconnectWhenStuckNameRegex();
+}
