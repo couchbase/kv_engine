@@ -43,6 +43,8 @@ protected:
         // Use a 2 k file size to make sure that we rotate :)
         config.log_level = spdlog::level::level_enum::debug;
         config.cyclesize = 2048;
+        cb::dek::Manager::instance().setActive(cb::dek::Entity::Logs,
+                                               cb::dek::SharedEncryptionKey{});
         setUpLogger();
     }
 };
@@ -83,8 +85,9 @@ TEST_F(FileRotationTest, DekForceRotation) {
 
     for (auto ii = 0; ii < 10; ii++) {
         logger->critical("This is a log messate: {}", ii);
-        cb::dek::Manager::instance().setActive(cb::dek::Entity::Logs,
-                                               cb::dek::SharedEncryptionKey{});
+        cb::dek::Manager::instance().setActive(
+                cb::dek::Entity::Logs,
+                cb::crypto::DataEncryptionKey::generate());
     }
     cb::logger::shutdown();
     files = cb::io::findFilesWithPrefix(config.filename);

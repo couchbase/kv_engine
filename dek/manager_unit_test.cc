@@ -20,7 +20,55 @@ TEST(ManagerTest, GenerationUpdated) {
     auto version = Manager::instance()
                            .getEntityGenerationCounter(Entity::Config)
                            ->load();
-    Manager::instance().setActive(Entity::Config, SharedEncryptionKey{});
+    SharedEncryptionKey key = cb::crypto::DataEncryptionKey::generate();
+    Manager::instance().setActive(Entity::Config, key);
+    EXPECT_EQ(version + 1,
+              Manager::instance()
+                      .getEntityGenerationCounter(Entity::Config)
+                      ->load());
+
+    // Setting the same key does *not* change the version
+    Manager::instance().setActive(Entity::Config, key);
+    Manager::instance().setActive(Entity::Config, key);
+    Manager::instance().setActive(Entity::Config, key);
+    Manager::instance().setActive(Entity::Config, key);
+    Manager::instance().setActive(Entity::Config, key);
+    EXPECT_EQ(version + 1,
+              Manager::instance()
+                      .getEntityGenerationCounter(Entity::Config)
+                      ->load());
+
+    // But setting a new key will
+    Manager::instance().setActive(Entity::Config,
+                                  cb::crypto::DataEncryptionKey::generate());
+    EXPECT_EQ(version + 2,
+              Manager::instance()
+                      .getEntityGenerationCounter(Entity::Config)
+                      ->load());
+}
+
+TEST(ManagerTest, GenerationUpdatedKeyStore) {
+    cb::crypto::KeyStore ks;
+    ks.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    Manager::instance().setActive(Entity::Config, ks);
+    auto version = Manager::instance()
+                           .getEntityGenerationCounter(Entity::Config)
+                           ->load();
+
+    // Setting to the same value does not change the version
+    Manager::instance().setActive(Entity::Config, ks);
+    Manager::instance().setActive(Entity::Config, ks);
+    Manager::instance().setActive(Entity::Config, ks);
+    Manager::instance().setActive(Entity::Config, ks);
+
+    EXPECT_EQ(version,
+              Manager::instance()
+                      .getEntityGenerationCounter(Entity::Config)
+                      ->load());
+
+    // Setting a new value does change
+    ks.setActiveKey(cb::crypto::DataEncryptionKey::generate());
+    Manager::instance().setActive(Entity::Config, ks);
     EXPECT_EQ(version + 1,
               Manager::instance()
                       .getEntityGenerationCounter(Entity::Config)

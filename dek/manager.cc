@@ -130,6 +130,13 @@ void ManagerImpl::reset(const nlohmann::json& json) {
 void ManagerImpl::setActive(const Entity entity, SharedEncryptionKey key) {
     auto& store = getKeyStoreForEntity(entity);
     store.withLock([&key](auto& oks) {
+        // This might not be an actual change (if so; ignore)
+        auto current = oks.keystore.getActiveKey();
+        if ((current && key && *current == *key) || (!current && !key)) {
+            // This is a no-op change
+            return;
+        }
+
         oks.keystore.setActiveKey(std::move(key));
         ++oks.generation;
     });
@@ -138,6 +145,15 @@ void ManagerImpl::setActive(const Entity entity, SharedEncryptionKey key) {
 void ManagerImpl::setActive(Entity entity, crypto::KeyStore ks) {
     auto& store = getKeyStoreForEntity(entity);
     store.withLock([&ks](auto& oks) {
+        // we don't have an operator for the KeyStore, but we can convert
+        // to JSON and utilize its functionality. These are small objects
+        // and run on the executor
+        nlohmann::json current = oks.keystore;
+        nlohmann::json next = ks;
+        if (current == next) {
+            return;
+        }
+
         oks.keystore = std::move(ks);
         ++oks.generation;
     });

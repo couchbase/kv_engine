@@ -327,8 +327,9 @@ TEST_F(AuditFileTest, TestDekRotation) {
     for (int ii = 0; ii < 10; ++ii) {
         // Trigger an event to the audit dek configuration (which should
         // trigger the file to be rotated)
-        cb::dek::Manager::instance().setActive(cb::dek::Entity::Audit,
-                                               cb::dek::SharedEncryptionKey{});
+        cb::dek::Manager::instance().setActive(
+                cb::dek::Entity::Audit,
+                cb::crypto::DataEncryptionKey::generate());
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
     }
