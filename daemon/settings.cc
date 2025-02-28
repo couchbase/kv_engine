@@ -1391,8 +1391,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (newValue != current) {
             LOG_INFO(
                     R"(Change dcp_disconnect_when_stuck_timeout_seconds from {}s to {}s)",
-                    current,
-                    newValue);
+                    current.count(),
+                    newValue.count());
             setDcpDisconnectWhenStuckTimeout(newValue);
         }
     }
