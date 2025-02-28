@@ -76,4 +76,16 @@ struct ServerCoreIface {
     virtual size_t getMaxEngineFileDescriptors() = 0;
 
     virtual bool isCollectionsEnabled() const = 0;
+
+    /**
+     * How long to wait before disconnecting a DCP producer that appears to be
+     * stuck.
+     */
+    virtual std::chrono::seconds getDcpDisconnectWhenStuckTimeout() = 0;
+
+    /**
+     * A regex (in base64) to match the name of the DCP producer to disconnect
+     * when stuck.
+     */
+    virtual std::string getDcpDisconnectWhenStuckNameRegex() = 0;
 };

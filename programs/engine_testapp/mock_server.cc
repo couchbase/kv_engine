@@ -127,6 +127,17 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
     return parse_config(str, items, error);
 }
 
+static std::chrono::seconds dcp_disconnect_when_stuck_timeout{720};
+static std::string dcp_disconnect_when_stuck_name_regex;
+
+void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
+    dcp_disconnect_when_stuck_timeout = timeout;
+}
+
+void mock_set_dcp_disconnect_when_stuck_name_regex(std::string regex) {
+    dcp_disconnect_when_stuck_name_regex = regex;
+}
+
 struct MockServerCoreApi : public ServerCoreIface {
     rel_time_t get_current_time() override {
         return mock_get_current_time();
@@ -157,6 +168,14 @@ struct MockServerCoreApi : public ServerCoreIface {
     }
     bool isCollectionsEnabled() const override {
         return true;
+    }
+
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
+        return dcp_disconnect_when_stuck_timeout;
+    }
+
+    std::string getDcpDisconnectWhenStuckNameRegex() override {
+        return dcp_disconnect_when_stuck_name_regex;
     }
 };
 

@@ -343,20 +343,33 @@ public:
             return bytesOutstanding;
         }
 
+        /**
+         * When the BufferLog::pauseIfFull function returns true, the class
+         * will have stored a copy of ackedBytes and the current time iff
+         * ackedBytes is different from the previously recorded value.
+         * This allows the isStuck function to determine if the ackedBytes
+         * has not changed for the given limit.
+         *
+         * @param limit The limit to check against.
+         * @return true if the ackedBytes has not changed within the given
+         *         limit, false otherwise.
+         */
+        bool isStuck(std::chrono::seconds limit) const;
+
     private:
-        bool isEnabled_UNLOCKED() {
+        bool isEnabled_UNLOCKED() const {
             return maxBytes != 0;
         }
 
-        bool isFull_UNLOCKED() {
+        bool isFull_UNLOCKED() const {
             return bytesOutstanding >= maxBytes;
         }
 
         void release_UNLOCKED(size_t bytes);
 
-        State getState_UNLOCKED();
+        State getState_UNLOCKED() const;
 
-        folly::SharedMutex logLock;
+        mutable folly::SharedMutex logLock;
         DcpProducer& producer;
 
         /// Capacity of the buffer - maximum number of bytes which can be
@@ -370,6 +383,13 @@ public:
         /// Total number of bytes acknowledeged. Should be non-decreasing in
         /// normal usage; but can be reset to zero when buffer size changes.
         Monotonic<size_t> ackedBytes;
+
+        /// When paused and state is Full, update this value to the current
+        /// value of ackedBytes.
+        std::optional<size_t> lastCheckedAckedBytes;
+        /// When paused and state is Full, record the time when
+        /// lastCheckedAckedBytes changed value.
+        std::chrono::steady_clock::time_point lastCheckedTime;
     };
 
     /*
@@ -743,4 +763,16 @@ protected:
      * references).
      */
     std::mutex closeAllStreamsLock;
+
+    /**
+     * If true, disconnect the producer if it appears to be stuck. This value is
+     * configured from the producer's name, so we can opt into this protection.
+     */
+    bool shouldDisconnectWhenStuck{false};
+
+    /**
+     * The timeout for disconnecting a producer when stuck. The default here is
+     * 2x the default dcp_idle_timeout.
+     */
+    std::chrono::seconds stuckTimeout{std::chrono::seconds(720)};
 };
