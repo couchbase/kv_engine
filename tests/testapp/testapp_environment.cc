@@ -311,27 +311,10 @@ void McdEnvironment::terminate(int exitcode) {
     // in the log files so lets dump the last 8k of the log file to give
     // the user more information
     if (exitcode != EXIT_SUCCESS) {
-        constexpr std::size_t max_log_size = 64 * 1024;
-
-        // We've set the cycle size to be 200M, so we should expect
-        // only a single log file (but for simplicity just iterate
-        // over them all and print the last xk of each file
-        std::cerr << "Last " << max_log_size / 1024 << "k of the log files"
-                  << std::endl
-                  << "========================" << std::endl;
-        for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
-            if (is_regular_file(p)) {
-                auto content =
-                        readConcurrentUpdatedFile(cb::dek::Entity::Logs, p);
-                if (content.size() > max_log_size) {
-                    content = content.substr(
-                            content.find('\n', content.size() - max_log_size));
-                }
-                std::cerr << p.path().generic_string() << std::endl
-                          << content << std::endl
-                          << "-----------------------------" << std::endl;
-            }
-        }
+        iterateLogLines([](std::string_view line) {
+            std::cout << line << std::endl;
+            return true;
+        });
     }
 
     bool cleanup = true;
@@ -378,18 +361,26 @@ std::string McdEnvironment::getPassword(std::string_view user) const {
 
 void McdEnvironment::iterateLogLines(
         const std::function<bool(std::string_view line)>& callback) const {
+    std::vector<std::string> files;
+
     for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
         if (is_regular_file(p)) {
-            const auto content =
-                    readConcurrentUpdatedFile(cb::dek::Entity::Logs, p.path());
-            auto lines = cb::string::split(content, '\n');
-            for (auto line : lines) {
-                while (line.back() == '\r') {
-                    line.remove_suffix(1);
-                }
-                if (!callback(line)) {
-                    return;
-                }
+            files.emplace_back(p.path().generic_string());
+        }
+    }
+
+    std::ranges::sort(files);
+
+    for (const auto& file : files) {
+        const auto content =
+                readConcurrentUpdatedFile(cb::dek::Entity::Logs, file);
+        auto lines = cb::string::split(content, '\n');
+        for (auto line : lines) {
+            while (line.back() == '\r') {
+                line.remove_suffix(1);
+            }
+            if (!callback(line)) {
+                return;
             }
         }
     }
