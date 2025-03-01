@@ -40,6 +40,7 @@
 #include "protocol/mcbp/mutation_context.h"
 #include "protocol/mcbp/observe_context.h"
 #include "protocol/mcbp/prepare_snapshot_context.h"
+#include "protocol/mcbp/prune_encryption_keys_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/release_fusion_storage_snapshot_command_context.h"
 #include "protocol/mcbp/release_snapshot_context.h"
@@ -484,6 +485,10 @@ static void set_active_encryption_key_executor(Cookie& cookie) {
     cookie.obtainContext<SetActiveEncryptionKeysContext>(cookie).drive();
 }
 
+static void prune_encryption_keys_executor(Cookie& cookie) {
+    cookie.obtainContext<PruneEncryptionKeysContext>(cookie).drive();
+}
+
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
     std::string name(cookie.getRequestKey().getBuffer());
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
@@ -876,6 +881,8 @@ void initialize_mbcp_lookup_map() {
                   set_node_throttle_properties_executor);
     setup_handler(cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
                   set_active_encryption_key_executor);
+    setup_handler(cb::mcbp::ClientOpcode::PruneEncryptionKeys,
+                  prune_encryption_keys_executor);
     setup_handler(cb::mcbp::ClientOpcode::CreateBucket,
                   create_remove_bucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::ListBuckets, list_bucket_executor);

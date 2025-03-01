@@ -154,3 +154,59 @@ TEST_P(EncryptionTest, TestEncryptionKeyIds) {
     ASSERT_TRUE(stats.contains("@logs"));
     ASSERT_TRUE(stats["@logs"].is_array());
 }
+
+TEST_P(EncryptionTest, TestPruneDeks) {
+    nlohmann::json stats;
+    adminConnection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+    ASSERT_TRUE(stats.contains("@logs"));
+    ASSERT_TRUE(stats["@logs"].is_array());
+    ASSERT_EQ(1, stats["@logs"].size());
+
+    // Make sure we have a bunch of keys in use for our logs
+    auto& dekManager = mcd_env->getDekManager();
+    std::vector<std::string> ids;
+    ids.emplace_back(dekManager.lookup(cb::dek::Entity::Logs)->getId());
+    for (int ii = 0; ii < 10; ++ii) {
+        dekManager.setActive(cb::dek::Entity::Logs,
+                             cb::crypto::DataEncryptionKey::generate());
+        ids.emplace_back(dekManager.lookup(cb::dek::Entity::Logs)->getId());
+        auto rsp = adminConnection->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::SetActiveEncryptionKeys,
+                format_as(cb::dek::Entity::Logs),
+                dekManager.to_json(cb::dek::Entity::Logs).dump()});
+        auto clone = adminConnection->clone();
+        clone->authenticate("@admin");
+    }
+
+    adminConnection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+    ASSERT_TRUE(stats.contains("@logs"));
+    ASSERT_TRUE(stats["@logs"].is_array());
+    // verify that we have all the keys we created (note there may be more)
+    std::vector<std::string> in_use =
+            stats["@logs"].get<std::vector<std::string>>();
+    for (const auto& id : ids) {
+        EXPECT_TRUE(std::ranges::find(in_use, id) != in_use.end());
+    }
+
+    // prune all except the newest
+    in_use.erase(std::ranges::find(in_use, ids.back()));
+    auto rsp = adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::PruneEncryptionKeys,
+                                  format_as(cb::dek::Entity::Logs),
+                                  nlohmann::json(in_use).dump()});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+
+    // Verify that we only have the newest active key on all data
+    adminConnection->stats(
+            [&stats](auto& k, auto& v) { stats = nlohmann::json::parse(v); },
+            "encryption-key-ids");
+    ASSERT_TRUE(stats.contains("@logs"));
+    ASSERT_TRUE(stats["@logs"].is_array());
+    ASSERT_EQ(stats["@logs"].size(), 1) << stats["@logs"].dump();
+    ASSERT_EQ(stats["@logs"].front().get<std::string>(),
+              dekManager.lookup(cb::dek::Entity::Logs)->getId());
+}

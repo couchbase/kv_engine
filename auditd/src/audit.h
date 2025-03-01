@@ -36,6 +36,7 @@ public:
     bool configure_auditdaemon(std::string config,
                                CookieIface& cookie) override;
     std::unordered_set<std::string> get_deks_in_use() const override;
+    void prune_deks(const std::vector<std::string>& keys) const override;
     // End public API
 
     explicit AuditImpl(std::string config_file, std::string host);

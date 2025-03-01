@@ -12,6 +12,7 @@
 #include <memcached/engine_error.h>
 #include <nlohmann/json_fwd.hpp>
 #include <memory>
+#include <span>
 #include <unordered_set>
 
 class StatCollector;
@@ -69,6 +70,10 @@ public:
     /// Iterate over the audit trail on disk and generate a list of the DEKs
     /// in use in any of the files
     virtual std::unordered_set<std::string> get_deks_in_use() const = 0;
+
+    /// Prune the provided DEKs from the audit trail by rewriting the files
+    /// using the provided keys
+    virtual void prune_deks(const std::vector<std::string>& keys) const = 0;
 
 protected:
     Audit() = default;

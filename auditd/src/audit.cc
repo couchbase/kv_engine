@@ -236,6 +236,36 @@ std::unordered_set<std::string> AuditImpl::get_deks_in_use() const {
     return deks;
 }
 
+void AuditImpl::prune_deks(const std::vector<std::string>& keys) const {
+    auto directory = log_directory.withLock([](auto& dir) { return dir; });
+    auto active_key =
+            cb::dek::Manager::instance().lookup(cb::dek::Entity::Audit);
+
+    maybeRewriteFiles(
+            directory,
+            [this, &keys](const auto& path, auto id) {
+                const auto filename = path.filename().string();
+                if (id.empty() && filename.ends_with("-audit.log")) {
+                    return std::ranges::find(keys, "unencrypted") != keys.end();
+                }
+
+                if (filename.ends_with("-audit.cef")) {
+                    return std::ranges::find(keys, id) != keys.end();
+                }
+
+                return false;
+            },
+            active_key,
+            [](auto id) {
+                return cb::dek::Manager::instance().lookup(
+                        cb::dek::Entity::Audit, id);
+            },
+            [](std::string_view message, const nlohmann::json& ctx) {
+                LOG_WARNING_CTX(message, ctx);
+            },
+            ".log");
+}
+
 bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {
     if (!enabled) {
         // Audit is disabled

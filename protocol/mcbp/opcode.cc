@@ -380,6 +380,9 @@ public:
         setup(ClientOpcode::SetActiveEncryptionKeys,
               {"SET_ACTIVE_ENCRYPTION_KEYS"sv,
                {Attribute::Supported, Attribute::Reorder}});
+        setup(ClientOpcode::PruneEncryptionKeys,
+              {"PRUNE_ENCRYPTION_KEYS"sv,
+               {Attribute::Supported, Attribute::Reorder}});
         setup(ClientOpcode::Rget_Unsupported,
               {"RGET"sv, {Attribute::SubjectForThrottling}});
         setup(ClientOpcode::Rset_Unsupported,

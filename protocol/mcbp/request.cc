@@ -347,6 +347,7 @@ nlohmann::json Request::to_json(bool validated) const {
         case ClientOpcode::ResetReplicationChain_Unsupported:
         case ClientOpcode::SetNodeThrottleProperties:
         case ClientOpcode::SetActiveEncryptionKeys:
+        case ClientOpcode::PruneEncryptionKeys:
         case ClientOpcode::DcpCloseStream:
         case ClientOpcode::DcpGetFailoverLog:
         case ClientOpcode::DcpFlush_Unsupported:

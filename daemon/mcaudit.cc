@@ -444,6 +444,11 @@ std::unordered_set<std::string> getDeksInUse() {
             [](auto& handle) { return handle->get_deks_in_use(); });
 }
 
+void pruneDeks(const std::vector<std::string>& keys) {
+    getAuditHandle().withRLock(
+            [&keys](auto& handle) { handle->prune_deks(keys); });
+}
+
 void addSessionTerminated(const Connection& c) {
     if (!c.isAuthenticated() ||
         !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c, nullptr)) {

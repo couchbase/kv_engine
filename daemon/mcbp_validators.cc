@@ -22,6 +22,7 @@
 #include "xattr/utils.h"
 
 #include <cbcrypto/key_store.h>
+#include <dek/manager.h>
 #include <logger/logger.h>
 #include <memcached/collections.h>
 #include <memcached/dcp.h>
@@ -1824,6 +1825,56 @@ static Status set_active_encryption_key_validator(Cookie& cookie) {
     return Status::Success;
 }
 
+static Status prune_encryption_keys_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::NonZero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    auto payload = cookie.getHeader().getValueString();
+    try {
+        std::vector<std::string> keys = nlohmann::json::parse(payload);
+    } catch (const std::exception& exception) {
+        LOG_ERROR_CTX("Failed to decode the array of keys to prune",
+                      {"conn_id", cookie.getConnectionId()},
+                      {"error", exception.what()});
+        cookie.setErrorContext(
+                fmt::format("Failed to decode the array of keys to prune: {}",
+                            exception.what()));
+        return Status::Einval;
+    }
+
+    try {
+        switch (cb::dek::to_entity(cookie.getRequest().getKeyString())) {
+        case cb::dek::Entity::Logs:
+        case cb::dek::Entity::Audit:
+            break;
+
+        default:
+            cookie.setErrorContext(
+                    fmt::format("Invalid entity provided. Must be {} or {}",
+                                cb::dek::Entity::Logs,
+                                cb::dek::Entity::Audit));
+            return Status::Einval;
+        }
+    } catch (const std::exception& exception) {
+        LOG_ERROR_CTX("Invalid entity provided",
+                      {"conn_id", cookie.getConnectionId()},
+                      {"error", exception.what()});
+        cookie.setErrorContext(
+                fmt::format("Invalid entity provided: {}", exception.what()));
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
 static Status get_meta_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
 
@@ -2885,6 +2936,7 @@ McbpValidator::McbpValidator() {
 
     setup(ClientOpcode::SetActiveEncryptionKeys,
           set_active_encryption_key_validator);
+    setup(ClientOpcode::PruneEncryptionKeys, prune_encryption_keys_validator);
 
     if (cb::serverless::isEnabled()) {
         setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,

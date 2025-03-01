@@ -81,6 +81,7 @@ enum class ClientOpcode : uint8_t {
 
     SetNodeThrottleProperties = 0x2c,
     SetActiveEncryptionKeys = 0x2d,
+    PruneEncryptionKeys = 0x2e,
 
     /* These commands are used for range operations and exist within
      * this header for use in other projects.  Range operations are

@@ -74,6 +74,8 @@ add_library(memcached_daemon_mcbp OBJECT
         observe_context.h
         prepare_snapshot_context.cc
         prepare_snapshot_context.h
+        prune_encryption_keys_context.cc
+        prune_encryption_keys_context.h
         range_scan_cancel_executor.cc
         range_scan_continue_executor.cc
         range_scan_create_executor.cc

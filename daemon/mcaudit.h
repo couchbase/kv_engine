@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 class Cookie;
 class Connection;
@@ -86,6 +87,10 @@ namespace cb::audit {
 /// Iterate over the audit trail on disk and generate a list of the DEKs
 /// in use in any of the files
 std::unordered_set<std::string> getDeksInUse();
+
+/// Prune the provided DEKs from the audit trail by rewriting the files
+/// using the provided keys
+void pruneDeks(const std::vector<std::string>& keys);
 
 /**
  *  Add an audit event that the connection is terminated
