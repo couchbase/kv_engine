@@ -139,6 +139,17 @@ void mock_time_travel(int by) {
     time_travel_offset += by;
 }
 
+static std::chrono::seconds dcp_disconnect_when_stuck_timeout{720};
+static std::string dcp_disconnect_when_stuck_name_regex;
+
+void mock_set_dcp_disconnect_when_stuck_timeout(std::chrono::seconds timeout) {
+    dcp_disconnect_when_stuck_timeout = timeout;
+}
+
+void mock_set_dcp_disconnect_when_stuck_name_regex(std::string regex) {
+    dcp_disconnect_when_stuck_name_regex = regex;
+}
+
 struct MockServerCoreApi : public ServerCoreIface {
     std::chrono::steady_clock::time_point get_uptime_now() override {
         return mock_get_uptime_now();
@@ -170,6 +181,14 @@ struct MockServerCoreApi : public ServerCoreIface {
     std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
         using namespace std::chrono_literals;
         return 5000ms;
+    }
+
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
+        return dcp_disconnect_when_stuck_timeout;
+    }
+
+    std::string getDcpDisconnectWhenStuckNameRegex() override {
+        return dcp_disconnect_when_stuck_name_regex;
     }
 };
 

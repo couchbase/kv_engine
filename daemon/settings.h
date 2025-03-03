@@ -917,7 +917,23 @@ public:
         notify_changed("quota_sharing_pager_sleep_time_ms");
     }
 
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() const {
+        return dcp_disconnect_when_stuck_timeout_seconds.load(
+                std::memory_order_acquire);
+    }
+
+    void setDcpDisconnectWhenStuckTimeout(std::chrono::seconds val);
+
+    std::string getDcpDisconnectWhenStuckNameRegex() const {
+        return dcp_disconnect_when_stuck_name_regex.copy();
+    }
+
+    // Set from the JSON value, which is base64 encoded
+    void setDcpDisconnectWhenStuckNameRegexFromBase64(const std::string& val);
+
 protected:
+    void setDcpDisconnectWhenStuckNameRegex(std::string val);
+
     /// The file containing audit configuration
     std::string audit_file;
 
@@ -1147,6 +1163,16 @@ protected:
     /// requested to run.
     std::atomic_int quota_sharing_pager_sleep_time_ms{5000};
 
+    /// How long to wait before disconnecting a DCP producer that appears to be
+    /// stuck. The default is 12 minutes which is 2x the default DCP idle
+    /// disconnect timeout.
+    std::atomic<std::chrono::seconds> dcp_disconnect_when_stuck_timeout_seconds{
+            std::chrono::seconds{720}};
+
+    /// A regex to match the name of the DCP producer to disconnect when stuck
+    folly::Synchronized<std::string, std::mutex>
+            dcp_disconnect_when_stuck_name_regex;
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1217,5 +1243,7 @@ public:
         bool event_framework = false;
         bool quota_sharing_pager_concurrency_percentage = false;
         bool quota_sharing_pager_sleep_time_ms = false;
+        bool dcp_disconnect_when_stuck_timeout_seconds = false;
+        bool dcp_disconnect_when_stuck_name_regex = false;
     } has;
 };
