@@ -74,11 +74,12 @@ cb::engine_errc SetActiveEncryptionKeysContext::execute() {
                      {"entity", entity},
                      {"config", loggable_json});
     } else if (status != cb::engine_errc::disconnect) {
-        LOG_ERROR_CTX("Data encryption updated",
-                      {"conn_id", cookie.getConnectionId()},
-                      {"status", to_string(status)},
-                      {"entity", entity},
-                      {"config", loggable_json});
+        LOG_WARNING_CTX("Failed to update encryption keys",
+                        {"conn_id", cookie.getConnectionId()},
+                        {"entity", entity},
+                        {"status", to_string(status)},
+                        {"entity", entity},
+                        {"config", loggable_json});
     }
 
     return status;
