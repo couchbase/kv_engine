@@ -201,8 +201,8 @@ size_t CheckpointMemRecoveryTask::getBytesToFree(ReductionTarget target) const {
     auto& bucket = *engine->getKVBucket();
 
     size_t memToBucketLWM = 0;
-    auto currMemUsage = bucket.getPageableMemCurrent();
-    auto memLWM = bucket.getPageableMemLowWatermark();
+    auto currMemUsage = stats.getEstimatedTotalMemoryUsed();
+    auto memLWM = stats.mem_low_wat.load();
     if (target == ReductionTarget::BucketLWM && currMemUsage > memLWM) {
         memToBucketLWM = currMemUsage - memLWM;
     }
