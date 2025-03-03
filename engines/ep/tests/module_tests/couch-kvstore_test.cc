@@ -163,7 +163,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
 // CAS of -1, it is detected and reset to zero when file is loaded.
 TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    auto kvstore = KVStoreFactory::create(config, {});
+    auto kvstore = KVStoreFactory::create(config, {}, {});
     ASSERT_NE(nullptr, kvstore);
 
     // Activate vBucket.
@@ -175,7 +175,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.
-    kvstore = KVStoreFactory::create(config, {});
+    kvstore = KVStoreFactory::create(config, {}, {});
     EXPECT_NE(nullptr, kvstore);
 
     // Check that our max CAS was repaired on startup.
@@ -187,7 +187,7 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
 // error so the caller can detect (and retry as necessary).
 TEST_F(CouchKVStoreTest, MB_18580_ENOENT) {
     CouchKVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
-    auto kvstore = KVStoreFactory::create(config, {});
+    auto kvstore = KVStoreFactory::create(config, {}, {});
     ASSERT_NE(nullptr, kvstore);
 
     // Expect to get a system_error (ENOENT)
@@ -334,7 +334,7 @@ void CouchKVStoreTest::collectionsOfflineUpgrade(
     }
     output.commit();
 
-    auto kvstore2 = KVStoreFactory::create(config2, {});
+    auto kvstore2 = KVStoreFactory::create(config2, {}, {});
     auto scanCtx = kvstore2->initBySeqnoScanContext(
             std::make_unique<CollectionsOfflineGetCallback>(cid, deletedRange),
             std::make_unique<CollectionsOfflineUpgradeCallback>(cid),

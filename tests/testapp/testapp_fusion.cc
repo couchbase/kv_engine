@@ -20,9 +20,10 @@ protected:
         const std::string dbPath = mcd_env->getDbPath();
         const auto bucketConfig = fmt::format(
                 "magma_fusion_logstore_uri={};magma_fusion_metadatastore_uri={"
-                "}",
+                "};chronicle_auth_token={}",
                 "local://" + dbPath + "/logstore",
-                "local://" + dbPath + "/metadatastore");
+                "local://" + dbPath + "/metadatastore",
+                chronicleAuthToken);
         doSetUpTestCaseWithConfiguration(generate_config(), bucketConfig);
     }
 
@@ -48,6 +49,9 @@ protected:
                 });
         return resp;
     }
+
+public:
+    static constexpr auto chronicleAuthToken = "some-token1!";
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -195,7 +199,7 @@ TEST_P(FusionTest, SetMetadataAuthToken) {
     adminConnection->executeInBucket(bucketName, [](auto& connection) {
         const auto setParam = BinprotSetParamCommand(
                 cb::mcbp::request::SetParamPayload::Type::Flush,
-                "fusion_metadata_auth_token",
+                "chronicle_auth_token",
                 "some-token");
         const auto resp = BinprotMutationResponse(connection.execute(setParam));
         ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());

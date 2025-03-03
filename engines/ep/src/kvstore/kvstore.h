@@ -1001,12 +1001,11 @@ public:
         return cb::engine_errc::not_supported;
     }
 
-    cb::engine_errc setFusionMetadataAuthToken(
-            std::string_view token) override {
+    cb::engine_errc setChronicleAuthToken(std::string_view token) override {
         return cb::engine_errc::not_supported;
     }
 
-    std::string getFusionMetadataAuthToken() const override {
+    std::string getChronicleAuthToken() const override {
         return {};
     }
 
@@ -1170,10 +1169,12 @@ public:
      * @param config engine configuration
      * @param encryptionKeyLookupFunction A function to look up an encryption
      *        key
+     * @param chronicleAuthToken Chronicle auth token.
      */
     static std::unique_ptr<KVStoreIface> create(
             KVStoreConfig& config,
-            EncryptionKeyProvider* encryptionKeyProvider);
+            EncryptionKeyProvider* encryptionKeyProvider,
+            std::string_view chronicleAuthToken);
 };
 
 std::ostream& operator<<(std::ostream& os, const ValueFilter& vf);

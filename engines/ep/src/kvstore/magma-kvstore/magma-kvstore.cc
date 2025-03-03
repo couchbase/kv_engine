@@ -642,7 +642,8 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
 }
 
 MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
-                           EncryptionKeyProvider* encryptionKeyProvider)
+                           EncryptionKeyProvider* encryptionKeyProvider,
+                           std::string_view chronicleAuthToken)
     : KVStore(),
       configuration(configuration),
       magmaPath(configuration.getDBName() + "/magma." +
@@ -837,6 +838,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration,
         magma->DisableHistoryEviction();
         historyEvictionPaused = true;
     }
+
+    magma->SetFusionMetadataStoreAuthToken(std::string(chronicleAuthToken));
 
     // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
@@ -4589,13 +4592,12 @@ cb::engine_errc MagmaKVStore::releaseFusionStorageSnapshot(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc MagmaKVStore::setFusionMetadataAuthToken(
-        std::string_view token) {
+cb::engine_errc MagmaKVStore::setChronicleAuthToken(std::string_view token) {
     magma->SetFusionMetadataStoreAuthToken(std::string(token));
     return cb::engine_errc::success;
 }
 
-std::string MagmaKVStore::getFusionMetadataAuthToken() const {
+std::string MagmaKVStore::getChronicleAuthToken() const {
     return magma->GetFusionMetadataStoreAuthToken();
 }
 

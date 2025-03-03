@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     Configuration config;
     config.parseConfiguration("dbname="s + filename);
     CouchKVStoreConfig kvStoreConfig(config, "couchdb", 1, 0);
-    auto kvstore = KVStoreFactory::create(kvStoreConfig, {});
+    auto kvstore = KVStoreFactory::create(kvStoreConfig, {}, {});
     Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
     VB::Commit meta(m);
     meta.proposedVBState.transition.state = vbucket_state_active;

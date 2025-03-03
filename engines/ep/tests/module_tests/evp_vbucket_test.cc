@@ -52,6 +52,7 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
     KVShard kvShard(engine->getConfiguration(),
                     engine->getConfiguration().getMaxNumShards(),
                     0,
+                    {},
                     {});
     BgFetcher bgFetcher(*mockEPBucket);
 

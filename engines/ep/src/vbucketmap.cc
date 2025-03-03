@@ -66,7 +66,8 @@ VBucketMap::VBucketMap(KVBucket& bucket)
                 std::make_unique<KVShard>(bucket.getConfiguration(),
                                           numShards,
                                           shardId,
-                                          engine.getEncryptionKeyProvider());
+                                          engine.getEncryptionKeyProvider(),
+                                          engine.getCachedChronicleAuthToken());
     }
 
     auto& config = engine.getConfiguration();

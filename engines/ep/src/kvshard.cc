@@ -20,7 +20,8 @@
 KVShard::KVShard(Configuration& config,
                  id_type numShards,
                  id_type id,
-                 EncryptionKeyProvider* encryptionKeyProvider)
+                 EncryptionKeyProvider* encryptionKeyProvider,
+                 std::string_view chronicleAuthToken)
     : // Size vBuckets to have sufficient slots for the maximum number of
       // vBuckets each shard is responsible for. To ensure correct behaviour
       // when vbuckets isn't a multiple of num_shards, apply ceil() to the
@@ -30,7 +31,8 @@ KVShard::KVShard(Configuration& config,
 
     kvConfig =
             KVStoreConfig::createKVStoreConfig(config, backend, numShards, id);
-    rwStore = KVStoreFactory::create(*kvConfig, encryptionKeyProvider);
+    rwStore = KVStoreFactory::create(
+            *kvConfig, encryptionKeyProvider, chronicleAuthToken);
 }
 
 // Non-inline destructor so we can destruct

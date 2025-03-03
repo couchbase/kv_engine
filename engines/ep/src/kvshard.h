@@ -75,7 +75,8 @@ public:
     KVShard(Configuration& config,
             id_type numShards,
             id_type id,
-            EncryptionKeyProvider* encryptionKeyProvider);
+            EncryptionKeyProvider* encryptionKeyProvider,
+            std::string_view chronicleAuthToken);
     ~KVShard();
     KVShard(const KVShard&) = delete;
     KVShard(KVShard&&) = delete;

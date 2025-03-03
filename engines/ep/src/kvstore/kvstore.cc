@@ -203,7 +203,9 @@ void KVStoreStats::reset() {
 }
 
 std::unique_ptr<KVStoreIface> KVStoreFactory::create(
-        KVStoreConfig& config, EncryptionKeyProvider* encryptionKeyProvider) {
+        KVStoreConfig& config,
+        EncryptionKeyProvider* encryptionKeyProvider,
+        std::string_view chronicleAuthToken) {
     // Directory for kvstore files should exist already (see
     // EventuallyPersistentEngine::initialize).
     if (!cb::io::isDirectory(config.getDBName())) {
@@ -229,7 +231,8 @@ std::unique_ptr<KVStoreIface> KVStoreFactory::create(
     if (backend == "magma") {
         return std::make_unique<MagmaKVStore>(
                 dynamic_cast<MagmaKVStoreConfig&>(config),
-                encryptionKeyProvider);
+                encryptionKeyProvider,
+                chronicleAuthToken);
     }
 #endif
 

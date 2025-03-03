@@ -599,13 +599,18 @@ void BucketManager::createEngineInstance(Bucket& bucket,
     cb::logger::Json details = {
             {"conn_id", cid}, {"bucket", name}, {"type", type}};
 
-    // Parse the configuration string and strip out the actual key
-    // data to avoid that being logged
+    // Parse the configuration string and strip out various sensitive data to
+    // avoid that being logged
     nlohmann::json encryption;
-    const auto stripped =
-            cb::config::filter(config, [&encryption](auto k, auto v) -> bool {
+    std::string chronicleAuthToken;
+    const auto stripped = cb::config::filter(
+            config, [&encryption, &chronicleAuthToken](auto k, auto v) -> bool {
                 if (k == "encryption") {
                     encryption = nlohmann::json::parse(v);
+                    return false;
+                }
+                if (k == "chronicle_auth_token") {
+                    chronicleAuthToken = v;
                     return false;
                 }
                 return true;
@@ -620,10 +625,14 @@ void BucketManager::createEngineInstance(Bucket& bucket,
         }
         details["encryption"] = std::move(no_keys);
     }
+    details["chronicle_auth_token"] =
+            chronicleAuthToken.empty() ? "not-set" : "set";
     details["configuration"] = stripped;
     LOG_INFO_CTX("Initialize bucket", std::move(details));
+
     start = std::chrono::steady_clock::now();
-    auto result = bucket.getEngine().initialize(stripped, encryption);
+    auto result = bucket.getEngine().initialize(
+            stripped, encryption, chronicleAuthToken);
     if (result != cb::engine_errc::success) {
         throw cb::engine_error(result, "initializeEngineInstance failed");
     }

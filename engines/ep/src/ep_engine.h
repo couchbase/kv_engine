@@ -146,7 +146,8 @@ public:
     /// Engine interface ////////////////////////////////////////
     /////////////////////////////////////////////////////////////
     cb::engine_errc initialize(std::string_view config,
-                               const nlohmann::json&) override;
+                               const nlohmann::json&,
+                               std::string_view) override;
     void destroy(bool force) override;
     void disconnect(CookieIface& cookie) override;
     cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
@@ -1120,6 +1121,8 @@ public:
      */
     std::string getDcpDisconnectWhenStuckNameRegex() const;
 
+    std::string getCachedChronicleAuthToken() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 
@@ -1550,8 +1553,7 @@ protected:
     cb::engine_errc startFusionUploaderInner(Vbid vbid, uint64_t term);
     cb::engine_errc stopFusionUploaderInner(Vbid vbid);
 
-    cb::engine_errc setFusionMetadataAuthToken(std::string_view token);
-    std::string getFusionMetadataAuthToken() const;
+    cb::engine_errc setChronicleAuthToken(std::string_view token);
 
     /**
      * Get the configured shard count for the bucket
@@ -1745,9 +1747,13 @@ protected:
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
 
-    /// The encryption key provider used to store keys and notify others when
-    /// the list of keys change
+    /// The encryption key provider used to store keyAuthTs and notify others
+    /// when the list of keys change
     EncryptionKeyProvider encryptionKeyProvider;
+
+    // Chronicle auth token. Cached at bucket creation for passing down the
+    // information to KVStore instantiation.
+    folly::Synchronized<std::string> chronicleAuthToken;
 };
 
 /**

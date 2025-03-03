@@ -76,7 +76,8 @@ public:
      * means crashing it.
      */
     cb::engine_errc initialize(std::string_view,
-                               const nlohmann::json&) override {
+                               const nlohmann::json&,
+                               std::string_view) override {
         using namespace std::string_view_literals;
         const auto* ptr = getenv("MEMCACHED_CRASH_TEST");
         if (!ptr) {

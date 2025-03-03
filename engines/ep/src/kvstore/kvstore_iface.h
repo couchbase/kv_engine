@@ -917,9 +917,8 @@ public:
             std::string_view fusionNamespace,
             Vbid vbid,
             std::string_view snapshotUuid) = 0;
-    virtual cb::engine_errc setFusionMetadataAuthToken(
-            std::string_view token) = 0;
-    virtual std::string getFusionMetadataAuthToken() const = 0;
+    virtual cb::engine_errc setChronicleAuthToken(std::string_view token) = 0;
+    virtual std::string getChronicleAuthToken() const = 0;
     virtual std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
             Vbid vbid, const std::vector<std::string>& paths) = 0;
     virtual cb::engine_errc syncFusionLogstore(Vbid vbid) = 0;

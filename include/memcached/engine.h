@@ -178,10 +178,14 @@ struct EngineIface {
      * Initialize an engine instance.
      * This is called *after* creation, but before the engine may be used.
      *
-     * @param config_str configuration this engine needs to initialize itself.
+     * @param config_str Configuration this engine needs to initialize itself.
+     * @param encryption Data files encryption keys
+     * @param chronicleAuthToken Chronicle auth token
      */
     [[nodiscard]] virtual cb::engine_errc initialize(
-            std::string_view config_str, const nlohmann::json& encryption) {
+            std::string_view config_str,
+            const nlohmann::json& encryption,
+            std::string_view chronicleAuthToken) {
         return cb::engine_errc::success;
     }
 

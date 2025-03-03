@@ -54,7 +54,8 @@ struct vbucket_state;
 class MagmaKVStore : public KVStore {
 public:
     MagmaKVStore(MagmaKVStoreConfig& config,
-                 EncryptionKeyProvider* encryptionKeyProvider);
+                 EncryptionKeyProvider* encryptionKeyProvider,
+                 std::string_view chronicleAuthToken);
 
     ~MagmaKVStore() override;
 
@@ -664,8 +665,8 @@ public:
             Vbid vbid,
             std::string_view snapshotUuid) override;
 
-    cb::engine_errc setFusionMetadataAuthToken(std::string_view token) override;
-    std::string getFusionMetadataAuthToken() const override;
+    cb::engine_errc setChronicleAuthToken(std::string_view token) override;
+    std::string getChronicleAuthToken() const override;
 
     std::pair<cb::engine_errc, std::vector<std::string>> mountVBucket(
             Vbid vbid, const std::vector<std::string>& paths) override;

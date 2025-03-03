@@ -64,10 +64,10 @@ NexusKVStore::NexusKVStore(NexusKVStoreConfig& config,
                             error.code().message()));
     }
 
-    primary = KVStoreFactory::create(configuration.getPrimaryConfig(),
-                                     encryptionKeyProvider);
-    secondary = KVStoreFactory::create(configuration.getSecondaryConfig(),
-                                       encryptionKeyProvider);
+    primary = KVStoreFactory::create(
+            configuration.getPrimaryConfig(), encryptionKeyProvider, {});
+    secondary = KVStoreFactory::create(
+            configuration.getSecondaryConfig(), encryptionKeyProvider, {});
 
     auto cacheSize = configuration.getCacheSize();
     purgeSeqno =

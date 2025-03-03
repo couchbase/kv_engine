@@ -899,8 +899,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setContinuousBackupEnabled(cb_stob(val));
         } else if (key == "continuous_backup_interval") {
             configuration.setContinuousBackupInterval(std::stoull(val));
-        } else if (key == "fusion_metadata_auth_token") {
-            setFusionMetadataAuthToken(val);
         } else if (key == "workload_monitor_enabled") {
             configuration.setWorkloadMonitorEnabled(cb_stob(val));
         } else if (key.starts_with("defragmenter")) {
@@ -909,6 +907,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             return setFusionFlushParam(key, val, msg);
         } else if (key.starts_with("magma")) {
             return setMagmaFlushParam(key, val, msg);
+        } else if (key == "chronicle_auth_token") {
+            setChronicleAuthToken(val);
         } else {
             EP_LOG_WARN_CTX("Rejecting setFlushParam request",
                             {"key", key},
@@ -2227,7 +2227,9 @@ void EventuallyPersistentEngine::maybeSaveShardCount(
 }
 
 cb::engine_errc EventuallyPersistentEngine::initialize(
-        std::string_view config, const nlohmann::json& encryption) {
+        std::string_view config,
+        const nlohmann::json& encryption,
+        std::string_view chronicleAuthToken) {
     if (config.empty()) {
         return cb::engine_errc::invalid_arguments;
     }
@@ -2339,6 +2341,8 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     }
 
     checkpointConfig = std::make_unique<CheckpointConfig>(configuration);
+
+    this->chronicleAuthToken = std::string(chronicleAuthToken);
 
     kvBucket = makeBucket(configuration);
 
@@ -8062,23 +8066,24 @@ cb::engine_errc EventuallyPersistentEngine::releaseFusionStorageSnapshotInner(
             fusionNamespace, vbid, snapshotUuid);
 }
 
-cb::engine_errc EventuallyPersistentEngine::setFusionMetadataAuthToken(
+cb::engine_errc EventuallyPersistentEngine::setChronicleAuthToken(
         std::string_view token) {
     Expects(kvBucket);
     if (!kvBucket->getStorageProperties().supportsFusion()) {
         return cb::engine_errc::not_supported;
     }
 
+    chronicleAuthToken = std::string(token);
+
     kvBucket->forEachShard([&token](KVShard& shard) {
-        shard.getRWUnderlying()->setFusionMetadataAuthToken(token);
+        shard.getRWUnderlying()->setChronicleAuthToken(token);
     });
 
     return cb::engine_errc::success;
 }
 
-std::string EventuallyPersistentEngine::getFusionMetadataAuthToken() const {
-    Expects(kvBucket);
-    return kvBucket->getOneRWUnderlying()->getFusionMetadataAuthToken();
+std::string EventuallyPersistentEngine::getCachedChronicleAuthToken() const {
+    return *chronicleAuthToken.rlock();
 }
 
 std::pair<cb::engine_errc, std::vector<std::string>>

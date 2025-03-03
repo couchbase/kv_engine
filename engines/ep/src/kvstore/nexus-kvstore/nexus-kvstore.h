@@ -192,11 +192,10 @@ public:
         return cb::engine_errc::not_supported;
     }
 
-    cb::engine_errc setFusionMetadataAuthToken(
-            std::string_view token) override {
+    cb::engine_errc setChronicleAuthToken(std::string_view token) override {
         return cb::engine_errc::not_supported;
     }
-    std::string getFusionMetadataAuthToken() const override {
+    std::string getChronicleAuthToken() const override {
         return {};
     }
 
