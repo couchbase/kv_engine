@@ -12,6 +12,7 @@
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
 #include <event2/event.h>
+#include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/limits.h>
@@ -442,6 +443,127 @@ TEST_P(DcpSnapshotMarkerValidatorTest, InvalidV2Version) {
     uint8_t brokenVersion = 101;
     builder.setExtras({&brokenVersion, 1});
     EXPECT_EQ("Unsupported dcp snapshot version:101", validate_error_context());
+}
+
+class DcpSnapshotMarkerCodecTest : public ::testing::TestWithParam<bool> {
+public:
+    void SetUp() override {
+        TestWithParam::SetUp();
+        flags = GetParam() ? cb::mcbp::request::DcpSnapshotMarkerFlag::Disk
+                           : cb::mcbp::request::DcpSnapshotMarkerFlag::None;
+    }
+
+protected:
+    void test(const cb::mcbp::DcpSnapshotMarker& marker);
+
+    const size_t start = 1;
+    const size_t end = 2;
+    const size_t hcs = 3;
+    const size_t hps = 4;
+    const size_t mvs = 5;
+    const size_t purge = 6;
+    cb::mcbp::request::DcpSnapshotMarkerFlag flags{};
+};
+
+void DcpSnapshotMarkerCodecTest::test(
+        const cb::mcbp::DcpSnapshotMarker& inMarker) {
+    using namespace ::testing;
+    using namespace cb::mcbp;
+    using namespace cb::mcbp::request;
+
+    auto version = DcpSnapshotMarkerV2xVersion::Zero;
+    if (inMarker.getHighPreparedSeqno() || inMarker.getPurgeSeqno()) {
+        version = DcpSnapshotMarkerV2xVersion::Two;
+    }
+    std::vector<uint8_t> buffer(sizeof(Request) + sizeof(DcpStreamIdFrameInfo) +
+                                sizeof(DcpSnapshotMarkerV2xPayload) +
+                                sizeof(DcpSnapshotMarkerV2_2Value));
+
+    cb::mcbp::RequestBuilder::FrameBuilder builder(
+            {buffer.data(), buffer.size()});
+    builder.setMagic(cb::mcbp::Magic::ClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+
+    const bool requiresDiskFlag =
+            inMarker.getHighCompletedSeqno() || inMarker.getHighPreparedSeqno();
+
+    if (requiresDiskFlag &&
+        !isFlagSet(inMarker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
+        EXPECT_THROW(inMarker.encode(builder), std::logic_error);
+        return;
+    }
+
+    inMarker.encode(builder);
+    auto& request = *builder.getFrame();
+    auto outMarker = DcpSnapshotMarker::decode(request);
+
+    EXPECT_EQ(inMarker.getStartSeqno(), outMarker.getStartSeqno())
+            << inMarker.to_json();
+    EXPECT_EQ(inMarker.getEndSeqno(), outMarker.getEndSeqno())
+            << inMarker.to_json();
+
+    if (isFlagSet(inMarker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
+        EXPECT_EQ(inMarker.getHighCompletedSeqno().value_or(0),
+                  outMarker.getHighCompletedSeqno())
+                << inMarker.to_json();
+    } else {
+        EXPECT_EQ(std::nullopt, outMarker.getHighCompletedSeqno())
+                << inMarker.to_json();
+    }
+
+    if (version == DcpSnapshotMarkerV2xVersion::Two) {
+        EXPECT_EQ(inMarker.getHighPreparedSeqno().value_or(0),
+                  outMarker.getHighPreparedSeqno())
+                << inMarker.to_json();
+    } else {
+        EXPECT_EQ(std::nullopt, outMarker.getHighPreparedSeqno())
+                << inMarker.to_json();
+    }
+
+    if (version == DcpSnapshotMarkerV2xVersion::Two) {
+        EXPECT_EQ(inMarker.getPurgeSeqno().value_or(0),
+                  outMarker.getPurgeSeqno())
+                << inMarker.to_json();
+    } else {
+        EXPECT_EQ(std::nullopt, outMarker.getPurgeSeqno())
+                << inMarker.to_json();
+    }
+}
+
+TEST_P(DcpSnapshotMarkerCodecTest, RoundtripV2_0_MVSOnly) {
+    using namespace cb::mcbp;
+    test(DcpSnapshotMarker(start, end, {}, {}, {}, mvs, {}));
+    test(DcpSnapshotMarker(start, end, flags, {}, {}, mvs, {}));
+}
+
+TEST_P(DcpSnapshotMarkerCodecTest, RoundtripV2_0_HCSOnly) {
+    using namespace cb::mcbp;
+    test(DcpSnapshotMarker(start, end, {}, hcs, {}, {}, {}));
+    test(DcpSnapshotMarker(start, end, flags, hcs, {}, {}, {}));
+}
+
+TEST_P(DcpSnapshotMarkerCodecTest, RoundtripV2_0_HCSAndMVS) {
+    using namespace cb::mcbp;
+    test(DcpSnapshotMarker(start, end, {}, hcs, {}, mvs, {}));
+    test(DcpSnapshotMarker(start, end, flags, hcs, {}, mvs, {}));
+}
+
+TEST_P(DcpSnapshotMarkerCodecTest, RoundtripV2_2_HPSOnly) {
+    using namespace cb::mcbp;
+    test(DcpSnapshotMarker(start, end, {}, hcs, hps, mvs, {}));
+    test(DcpSnapshotMarker(start, end, flags, hcs, hps, mvs, {}));
+}
+
+TEST_P(DcpSnapshotMarkerCodecTest, RoundtripV2_2_PurgeOnly) {
+    using namespace cb::mcbp;
+    test(DcpSnapshotMarker(start, end, {}, hcs, {}, mvs, purge));
+    test(DcpSnapshotMarker(start, end, flags, hcs, hps, mvs, {}));
+}
+
+TEST_P(DcpSnapshotMarkerCodecTest, RoundtripV2_2_All) {
+    using namespace cb::mcbp;
+    test(DcpSnapshotMarker(start, end, {}, hcs, hps, mvs, purge));
+    test(DcpSnapshotMarker(start, end, flags, hcs, hps, mvs, purge));
 }
 
 /**
@@ -1025,6 +1147,10 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,
                          DcpSnapshotMarkerValidatorTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+INSTANTIATE_TEST_SUITE_P(DiskSnapshotOnOff,
+                         DcpSnapshotMarkerCodecTest,
                          ::testing::Bool(),
                          ::testing::PrintToStringParamName());
 INSTANTIATE_TEST_SUITE_P(CollectionsOnOff,

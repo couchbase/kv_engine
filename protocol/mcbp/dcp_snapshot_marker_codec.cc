@@ -25,7 +25,10 @@ nlohmann::json DcpSnapshotMarker::to_json() const {
         ret["max_visible_seqno"] = *maxVisibleSeqno;
     }
     if (highPreparedSeqno) {
-        ret["highPreparedSeqno"] = *highPreparedSeqno;
+        ret["high_prepared_seqno"] = *highPreparedSeqno;
+    }
+    if (purgeSeqno) {
+        ret["purge_seqno"] = *purgeSeqno;
     }
     return ret;
 }
@@ -62,6 +65,12 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV2_0Value(
     // MaxVisible is sent in all V2.0 snapshot markers
     marker.setMaxVisibleSeqno(payload2_0->getMaxVisibleSeqno());
 
+    // HighCompletedSeqno is always present in V2.0 but should only be accessed
+    // when the flags have disk set.
+    if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
+        marker.setHighCompletedSeqno(payload2_0->getHighCompletedSeqno());
+    }
+
     return marker;
 }
 
@@ -88,6 +97,7 @@ static DcpSnapshotMarker decodeDcpSnapshotMarkerV2_2Value(
     // when the flags have disk set.
     if (isFlagSet(marker.getFlags(), DcpSnapshotMarkerFlag::Disk)) {
         marker.setHighCompletedSeqno(payload2_2->getHighCompletedSeqno());
+        marker.setHighPreparedSeqno(payload2_2->getHighPreparedSeqno());
     }
 
     marker.setPurgeSeqno(payload2_2->getPurgeSeqno());

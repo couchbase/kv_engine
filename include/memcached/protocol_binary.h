@@ -898,11 +898,11 @@ public:
     }
 
     uint64_t getHighPreparedSeqno() const {
-        return ntohll(purgeSeqno);
+        return ntohll(highPreparedSeqno);
     }
 
     void setHighPreparedSeqno(uint64_t value) {
-        purgeSeqno = htonll(value);
+        highPreparedSeqno = htonll(value);
     }
 
     cb::const_byte_buffer getBuffer() const {
