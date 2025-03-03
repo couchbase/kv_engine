@@ -7692,3 +7692,13 @@ void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
         dcpConnMap_->setBackfillByteLimit(bytes);
     }
 }
+
+std::chrono::seconds
+EventuallyPersistentEngine::getDcpDisconnectWhenStuckTimeout() const {
+    return serverApi->core->getDcpDisconnectWhenStuckTimeout();
+}
+
+std::string EventuallyPersistentEngine::getDcpDisconnectWhenStuckNameRegex()
+        const {
+    return serverApi->core->getDcpDisconnectWhenStuckNameRegex();
+}

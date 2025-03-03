@@ -463,6 +463,24 @@ used by memcached. It is an object with the following properties:
     console     Boolean variable (defaults to true) if log messages
                 should be sent to standard error as well.
 
+=== dcp_disconnect_when_stuck_timeout_seconds
+
+Defines the number of seconds a DCP producer can remain paused due to
+DCP flow-control being full without change. If the DCP producer has the
+disconnect when stuck feature enabeled
+(see dcp_disconnect_when_stuck_name_regex) they will be disconneced when
+this number of seconds has elapsed.
+
+=== dcp_disconnect_when_stuck_name_regex
+
+Defines a regular expression that is applied against DCP producer names
+(when creating a new DCP producer). If the name is matched with the
+regular expression then that DCP producer is eligible for disconnection
+when stuck (see dcp_disconnect_when_stuck_timeout_seconds).
+
+The value in the JSON is a string but is expected to be a base64 encoded
+value to avoid any character escaping being required.
+
 == EXAMPLES
 
 A Sample memcached.json:

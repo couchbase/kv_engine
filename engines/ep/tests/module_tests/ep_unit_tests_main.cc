@@ -78,6 +78,15 @@ public:
         using namespace std::chrono_literals;
         return 5000ms;
     }
+
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() override {
+        using namespace std::chrono_literals;
+        return 720s;
+    }
+
+    std::string getDcpDisconnectWhenStuckNameRegex() override {
+        return {}; // empty disables the feature
+    }
 };
 
 int main(int argc, char **argv) {

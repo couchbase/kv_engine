@@ -1046,6 +1046,20 @@ public:
      */
     void setDcpBackfillByteLimit(size_t bytes);
 
+    /**
+     * Get the timeout for disconnecting stuck DCP Producers.
+     *
+     * @return the timeout
+     */
+    std::chrono::seconds getDcpDisconnectWhenStuckTimeout() const;
+
+    /**
+     * Get the regex for selecting which DCP producers can be disconnected.
+     *
+     * @return the regex as a base64 encoded string
+     */
+    std::string getDcpDisconnectWhenStuckNameRegex() const;
+
 protected:
     friend class EpEngineValueChangeListener;
 
