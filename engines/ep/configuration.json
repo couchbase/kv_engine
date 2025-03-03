@@ -478,7 +478,7 @@
             }
         },
         "ephemeral_mem_recovery_enabled": {
-            "default": "false",
+            "default": "true",
             "descr": "Whether ephemeral memory recovery task is enabled. If disabled, ItemPager will carry out memory recovery for AutoDelete buckets.",
             "dynamic": true,
             "type": "bool",
