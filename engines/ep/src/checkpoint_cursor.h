@@ -94,6 +94,10 @@ public:
         --distance;
     }
 
+    void decrItemLinePosition() {
+        --itemLinePosition;
+    }
+
     size_t getDistance() const {
         return distance;
     }
@@ -152,6 +156,21 @@ public:
      */
     size_t getRemainingItemsInCurrentCheckpoint() const;
 
+    /**
+     * @param length The current "length" of the item line. This is the
+     *        totalItems which is tracked by CheckpointManager.
+     * @return the number of items from the cursor. This is calculated as the
+     *         difference between the Cursor position and the input length.
+     *         The returned value is adjusted from 1 to 0 if the cursor is
+     *         on an empty item and the only item is the checkpoint_start
+     *         marker.
+     */
+    size_t getNumItems(size_t length) const;
+
+    void resetPositionOnItemLine() {
+        itemLinePosition = 0;
+    }
+
 private:
     std::string name;
     CheckpointList::iterator currentCheckpoint;
@@ -172,6 +191,12 @@ private:
 
     // Distance from the begin of the current checkpoint
     cb::NonNegativeCounter<size_t> distance{0};
+
+    // The CheckpointManager tracks the total number of items every in
+    // checkpoints, forming the "item-line". This value tracks the current
+    // position on the "item-line" permitting a O(1) calculation to get the
+    // remaining number of items available to this CheckpointCursor.
+    cb::NonNegativeCounter<size_t> itemLinePosition{0};
 
     friend bool operator<(const CheckpointCursor& a, const CheckpointCursor& b);
     friend std::ostream& operator<<(std::ostream& os,

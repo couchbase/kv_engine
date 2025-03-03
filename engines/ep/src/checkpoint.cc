@@ -58,7 +58,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
                        uint64_t highPreparedSeqno,
                        Vbid vbid,
                        CheckpointType checkpointType,
-                       CheckpointHistorical historical)
+                       CheckpointHistorical historical,
+                       size_t position)
     : manager(&manager),
       stats(st),
       checkpointId(id),
@@ -76,7 +77,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       queueMemOverhead(st, &manager.memOverheadQueue),
       checkpointType(checkpointType),
       highCompletedSeqno(std::move(highCompletedSeqno)),
-      historical(historical) {
+      historical(historical),
+      positionOnItemLine(position) {
     Expects(snapStart <= snapEnd);
     Expects(visibleSnapEnd <= snapEnd);
 
@@ -176,9 +178,10 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     return {QueueDirtyStatus::FailureDuplicateItem, 0};
                 }
 
-                // Always return PersistAgain because if the old item has been
-                // expelled so all cursors must have passed it.
-                rv.status = QueueDirtyStatus::SuccessPersistAgain;
+                // All cursors must of visited the original (now expelled) item.
+                // Returning SuccessNewItem means this new item is correctly
+                // accounted for in "items-remaining" calculations and stats.
+                rv.status = QueueDirtyStatus::SuccessNewItem;
                 addItemToCheckpoint(qi);
             } else {
                 // Case: item not expelled, normal path
@@ -263,6 +266,9 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                         if (existingSeqno <
                             (*originalCursorPos)->getBySeqno()) {
                             cursor->decrDistance();
+                            // decrement the item-line to account for the new
+                            // item replacing the old.
+                            cursor->decrItemLinePosition();
                         }
                     }
 
@@ -565,6 +571,11 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
         }
     }
 
+    // For all items expelled, adjust the item-line position. New cursors that
+    // land in this checkpoint will be relative to this value and must not
+    // account those items which were expelled.
+    positionOnItemLine += distance;
+
     // 'distance' is === expelledItems.size()
     // I avoid to make the size() call as it's O(N). See CheckpointQueue type
     // for details.
@@ -755,7 +766,9 @@ std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
-       << " type:" << to_string(c.getCheckpointType());
+       << " numItems:" << c.getNumItems()
+       << " type:" << to_string(c.getCheckpointType())
+       << " positionOnItemLine:" << c.getPositionOnItemLine();
     const auto hps = c.getHighPreparedSeqno();
     os << " hps:" << (hps ? std::to_string(hps.value()) : "none ");
     const auto hcs = c.getHighCompletedSeqno();

@@ -969,6 +969,8 @@ protected:
      */
     MONOTONIC3(int64_t, lastSnapshotHighSeqno, Labeller);
 
+    Monotonic<size_t> totalItems{0};
+
     /**
      * cursors: stores all known CheckpointCursor objects which are held via
      * shared_ptr. When a client creates a cursor we store the shared_ptr and
