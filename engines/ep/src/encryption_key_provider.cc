@@ -10,8 +10,6 @@
 
 #include "encryption_key_provider.h"
 
-#include <bucket_logger.h>
-
 cb::crypto::SharedEncryptionKey EncryptionKeyProvider::lookup(
         std::string_view id) const {
     if (id.empty()) {
@@ -21,15 +19,12 @@ cb::crypto::SharedEncryptionKey EncryptionKeyProvider::lookup(
 }
 
 void EncryptionKeyProvider::setKeys(cb::crypto::KeyStore keys) {
-    EP_LOG_INFO_RAW("Setting new encryption keys");
     keyStore = keys;
     listeners.withLock([&keys](auto& functions) {
         if (!functions.empty()) {
-            EP_LOG_INFO_RAW("Notify kvstore of new encryption keys");
             for (const auto& function : functions) {
                 function(keys);
             }
-            EP_LOG_INFO_RAW("Done notifying kvstore of new encryption keys");
         }
     });
 }
