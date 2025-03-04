@@ -16,6 +16,7 @@
 #include <folly/system/ThreadName.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
+#include <platform/guarded.h>
 #include <relaxed_atomic.h>
 #include <atomic>
 #include <memory>
@@ -157,16 +158,13 @@ void FileOpsTracker::visitThreads(
         std::function<void(TaskType, std::string_view, const FileOp&)>
                 visitor) {
     // Guard allocations from the accessor object init.
-    std::optional<cb::NoArenaGuard> guard(std::in_place);
-    auto accessor = threadSlot->accessAllThreads();
-    guard.reset();
+    auto accessor = cb::makeGuarded<cb::NoArenaGuard>(
+            [this]() { return threadSlot->accessAllThreads(); });
 
-    for (auto&& slot : accessor) {
+    for (auto&& slot : accessor.getUnsafe()) {
         auto op = slot.currentRequest.copy();
         if (op.type != FileOp::Type::None) {
             visitor(slot.threadType, slot.threadName, op);
         }
     }
-    // Re-enable the guard to capture ~Accessor.
-    guard.emplace();
 }
